@@ -1,4 +1,4 @@
-import { LIMITS, StudioError, validateDocument, type SubtitleDocument, type SubtitleText } from '../domain';
+import { LIMITS, StudioError, validateDocument, type TextSubtitleDocument, type SubtitleText } from '../domain';
 
 function parseText(raw: string): { text: SubtitleText; supported: boolean } {
   const spans: SubtitleText['spans'] = [];
@@ -27,13 +27,13 @@ function srtTime(raw: string): number {
   return ms;
 }
 
-export function importSubtitleText(rawText: string, origin: SubtitleDocument['origin'], newId: () => string, bom = false): SubtitleDocument {
+export function importSubtitleText(rawText: string, origin: TextSubtitleDocument['origin'], newId: () => string, bom = false): TextSubtitleDocument {
   if (new TextEncoder().encode(rawText).length > LIMITS.inputBytes) throw new StudioError('limit_exceeded');
-  const doc: SubtitleDocument = {
+  const doc: TextSubtitleDocument = {
     schemaVersion: 1, id: newId(), revision: 1, origin, cues: [], translationTracks: [], capabilities: { translate: true, preserveSource: true }, diagnostics: [],
     preservation: { schemaVersion: 1, rawText, bom, newline: rawText.includes('\r\n') ? /(^|[^\r])\n/.test(rawText) ? 'mixed' : 'crlf' : 'lf', offsetMs: 0, nodes: [] },
   };
-  const add = (node: SubtitleDocument['preservation']['nodes'][number], text: string, startMs: number, endMs: number | null, sourceLabel?: string) => {
+  const add = (node: TextSubtitleDocument['preservation']['nodes'][number], text: string, startMs: number, endMs: number | null, sourceLabel?: string) => {
     if (doc.cues.length >= LIMITS.cues || new TextEncoder().encode(text).length > LIMITS.cueBytes) throw new StudioError('limit_exceeded');
     if (!Number.isSafeInteger(startMs) || (endMs !== null && (!Number.isSafeInteger(endMs) || endMs < startMs))) throw new StudioError('invalid_input');
     const parsed = parseText(text);
@@ -95,5 +95,5 @@ export function importSubtitleText(rawText: string, origin: SubtitleDocument['or
     }
   }
   if (!doc.cues.length) { doc.diagnostics.push({ code: 'empty_document' }); doc.capabilities.translate = false; }
-  return validateDocument(doc);
+  return validateDocument(doc) as TextSubtitleDocument;
 }

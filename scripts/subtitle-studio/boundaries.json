@@ -1,8 +1,106 @@
 {
-  "roots": ["src/subtitle-studio/", "electron/main/subtitle-studio/", "electron/preload/subtitle-studio-api.ts", "electron/preload/subtitle-studio-channel-policy.ts", "src/pages/Tools/Subtitle/SubtitleStudio/", "src/services/subtitle-studio/", "src/store/tools/subtitle-studio/", "test/subtitle-studio/", "scripts/subtitle-studio/"],
-  "forbidden": ["electron/main/translation/", "electron/main/local-subtitle/", "electron/preload/local-subtitle-", "electron/preload/subtitle-translation-", "src/type/subtitle", "src/type/localSubtitle", "src/type/generatedSubtitleImport", "src/services/subtitle/", "src/services/local-subtitle/", "src/store/tools/subtitle/", "src/pages/Tools/Subtitle/SubtitleTranslator/", "src/pages/Tools/Subtitle/LocalSubtitleTranscriber/", "src/components/local-subtitle/", "src/utils/subtitle", "test/local-subtitle/", "test/translation/", "test/subtitle/", "resources/local-subtitle/", "scripts/local-subtitle/"],
-  "forbiddenStrings": ["local-subtitle:", "subtitle-translation:", "resources/local-subtitle", "scripts/local-subtitle", "fusionkit-task", "fusionkit.remaining", "subtitleCueProtocol", "subtitleTranslationApi", "localSubtitleApi"],
+  "roots": ["src/subtitle-studio/", "electron/main/subtitle-studio/", "electron/preload/subtitle-studio-api.ts", "electron/preload/subtitle-studio-channel-policy.ts", "src/pages/Tools/Subtitle/SubtitleStudio/", "src/services/subtitle-studio/", "src/store/tools/subtitle-studio/", "test/subtitle-studio/", "scripts/subtitle-studio/", "resources/subtitle-studio/transcription/", "native/subtitle-studio-overwrite/"],
+  "forbidden": ["electron/main/translation/", "electron/main/local-subtitle/", "electron/preload/local-subtitle-", "electron/preload/subtitle-translation-", "src/type/subtitle", "src/type/localSubtitle", "src/type/generatedSubtitleImport", "src/services/subtitle/", "src/services/local-subtitle/", "src/store/tools/subtitle/", "src/pages/Tools/Subtitle/SubtitleTranslator/", "src/pages/Tools/Subtitle/LocalSubtitleTranscriber/", "src/components/local-subtitle/", "src/utils/subtitle", "test/local-subtitle/", "test/translation/", "test/subtitle/", "resources/local-subtitle/", "scripts/local-subtitle/", "native/local-subtitle-overwrite/", "scripts/subtitle-studio-provenance/", "test/subtitle-studio-provenance/", "resources/subtitle-studio/provenance/"],
+  "forbiddenStrings": ["local-subtitle:", "subtitle-translation:", "resources/local-subtitle", "scripts/local-subtitle", "native/local-subtitle-overwrite", "build/local-subtitle-resources", "build/local-subtitle-accelerators", "fusionkit-task", "fusionkit.remaining", "subtitleCueProtocol", "subtitleTranslationApi", "localSubtitleApi"],
   "infrastructure": ["src/components/ui/", "src/components/qiuye-ui/", "src/lib/", "src/constants/router.ts", "src/pages/Tools/_shared/", "electron/main/ai/model-runtime-client.ts", "electron/main/ai/model-runtime-errors.ts", "electron/main/ai/provider-error-classification.ts", "electron/main/ai/adapters/chat-completions-adapter.ts", "electron/main/ai/adapters/responses-adapter.ts", "electron/main/proxy.ts", "src/type/model.ts", "src/type/audio.ts", "src/constants/model.ts", "src/store/useModelStore.ts"],
-  "packages": ["zod", "react", "react-i18next", "lucide-react", "zustand", "electron", "iconv-lite", "vitest", "@playwright/test", "playwright", "radix-ui", "@radix-ui/react-tooltip", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-slot", "@radix-ui/react-label", "@radix-ui/react-popover", "@radix-ui/react-dialog", "@radix-ui/react-checkbox", "motion", "@qiuyedx/smooth-corners", "class-variance-authority", "clsx", "tailwind-merge", "typescript", "axios", "gpt-tokenizer", "react-router-dom"],
-  "composition": ["src/App.tsx", "src/main.tsx", "src/vite-env.d.ts", "src/constants/router.ts", "src/pages/Tools/index.tsx", "src/pages/Tools/_shared/toolMeta.ts", "electron/main/index.ts", "electron/preload/index.ts", "electron/electron-env.d.ts", "src/i18n/resources.ts", "src/type/subtitle.ts", "src/agent/tools.ts", "src/agent/tool-executor.ts", "src/agent/tool-schemas.ts", "src/store/agent/useAgentStore.ts", "electron-builder.json"]
+  "packages": ["yauzl", "zod", "react", "react-dom", "react-i18next", "lucide-react", "zustand", "electron", "iconv-lite", "vitest", "@playwright/test", "playwright", "radix-ui", "@radix-ui/react-tooltip", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-slot", "@radix-ui/react-label", "@radix-ui/react-popover", "@radix-ui/react-dialog", "@radix-ui/react-checkbox", "@radix-ui/react-dropdown-menu", "motion", "@qiuyedx/smooth-corners", "class-variance-authority", "clsx", "tailwind-merge", "typescript", "axios", "gpt-tokenizer", "react-router-dom"],
+  "composition": ["src/App.tsx", "src/main.tsx", "src/vite-env.d.ts", "src/constants/router.ts", "src/pages/Tools/index.tsx", "src/pages/Tools/_shared/toolMeta.ts", "electron/main/index.ts", "electron/preload/index.ts", "electron/electron-env.d.ts", "src/i18n/resources.ts", "src/type/subtitle.ts", "src/agent/tools.ts", "src/agent/tool-executor.ts", "src/agent/tool-schemas.ts", "src/store/agent/useAgentStore.ts", "electron-builder.json", "electron-builder.subtitle-studio.json", "scripts/packaging/"],
+  "dynamicAudits": [
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-namespace-integration.mjs",
+      "expression": "require(addonPath)",
+      "count": 1,
+      "sha256": "509f9d22b18c2b49fbcfcc2c7d293e591920c38337c446b6135fce0f20ae1d2b",
+      "reason": "Electron acceptance loads only the explicitly supplied new addon and checks legacy-name rejection in an isolated temporary directory; no legacy module is loaded."
+    },
+    {
+      "source": "electron/main/subtitle-studio/transcription/native/overwrite-native-backend.ts",
+      "expression": "createRequire(import.meta.url)(absoluteNodePath)",
+      "sha256": "158a2c3a0d52f5da2f3f255234e48954db9ed4f5ad4cda9f3ed0c37d4325d73d",
+      "count": 1,
+      "reason": "Loads only the independently branded, verified current addon path; module generation is checked before and after loading. No native binary is loaded by this checker."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-integration.mjs",
+      "expression": "require(canonicalAddonPath)",
+      "count": 1,
+      "sha256": "2f0dd74003f925c80584ab871c123d4feca917710504bb8f180204320068066e",
+      "reason": "Isolated native validation reads only its explicitly built or supplied test artifact; the complete source and exact loader count are audited."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-recovery-integration.mjs",
+      "expression": "require(canonicalAddonPath)",
+      "count": 1,
+      "sha256": "456ed3ebdfd6f1d7555b3fe7d3b5ef2f2c505f270b00ae4a23947de6da9d5159",
+      "reason": "Isolated native validation reads only its explicitly built or supplied test artifact; the complete source and exact loader count are audited."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-recovery-child.mjs",
+      "expression": "require(input.addonPath)",
+      "count": 1,
+      "sha256": "953551f740e194cda30867a405f8484f05b99ccedb2472f05e6e22d57e3dba23",
+      "reason": "Isolated native validation reads only its explicitly built or supplied test artifact; the complete source and exact loader count are audited."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.test.mjs",
+      "expression": "require(outputPath)",
+      "count": 3,
+      "sha256": "a9c59e6effed8ddd246b0450e59b0dd81a5746ab722c4f01c45b63f63e5a797b",
+      "reason": "Isolated native validation reads only its explicitly built or supplied test artifact; the complete source and exact loader count are audited."
+    }
+  ],
+  "auditedSources": [
+    {
+      "source": "electron/main/subtitle-studio/transcription/native/overwrite-native-host-preflight.ts",
+      "sha256": "693ea89371a57ab4b5eac4d9157a89353349f7b29f78c83fdd0848357421cd89",
+      "reason": "Windows Electron child preflight embeds require(process.argv[1]); the caller passes its already verified absolute .node path with a bounded timeout and minimal environment."
+    },
+    {
+      "source": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging.mjs",
+      "sha256": "765712f4d9109111c973383240688501e463ecc67812622f804c420b8e5d2ca7",
+      "reason": "Independently copied native source/build metadata or bounded Electron addon probe. Exact transformed bytes reviewed against frozen provenance; runtime paths and transaction namespace belong to Studio."
+    },
+    {
+      "source": "native/subtitle-studio-overwrite/src/addon-win32.cc",
+      "sha256": "9fc465aaea4dd44bb3a9b9e5816e81786012eeda352f69522fdbfd5198ee574b",
+      "reason": "Independently copied native source/build metadata or bounded Electron addon probe. Exact transformed bytes reviewed against frozen provenance; runtime paths and transaction namespace belong to Studio."
+    },
+    {
+      "source": "native/subtitle-studio-overwrite/src/addon.cc",
+      "sha256": "f596c2d1bf6e793016638cc8ccce3aa1e7164cba586ce995320b7f056b09beaf",
+      "reason": "Independently copied native source/build metadata or bounded Electron addon probe. Exact transformed bytes reviewed against frozen provenance; runtime paths and transaction namespace belong to Studio."
+    },
+    {
+      "source": "native/subtitle-studio-overwrite/src/win-delay-load-hook.cc",
+      "sha256": "1f2d24f869fb39df2528065c40fdb754c6a5095d4a8d3832559cb8890e1c638e",
+      "reason": "Independently copied native source/build metadata or bounded Electron addon probe. Exact transformed bytes reviewed against frozen provenance; runtime paths and transaction namespace belong to Studio."
+    },
+    {
+      "source": "native/subtitle-studio-overwrite/binding.gyp",
+      "sha256": "dfceb48de593afcc403a10b82c33c4decb6022a82751dd14c6bc0f9862a41177",
+      "reason": "Independently copied native source/build metadata or bounded Electron addon probe. Exact transformed bytes reviewed against frozen provenance; runtime paths and transaction namespace belong to Studio."
+    }
+  ],
+  "immutableEvidence": [
+    {
+      "source": "resources/subtitle-studio/transcription/licenses/FFmpeg-8.1.2-source-offer.json",
+      "sha256": "9d5e17026e5acd24f188362ad61fb4f05291c1231b372e83f5f311e91ec7e068",
+      "reason": "Immutable inherited build evidence; historical recipe paths are never executed by the resource reader."
+    },
+    {
+      "source": "resources/subtitle-studio/transcription/licenses/FFmpeg-n8.1.2-windows-x64-btbn-source.json",
+      "sha256": "4ffb9eaaa28c32e7a2a82243a81df72b5b02bc3e445a782f466d0716d50f4510",
+      "reason": "Immutable inherited build evidence; historical recipe paths are never executed by the resource reader."
+    },
+    {
+      "source": "resources/subtitle-studio/transcription/licenses/whisper.cpp-v1.9.1-source.json",
+      "sha256": "711a66a5934ffa3a5dac2fdebcae9d95d07bb97270671d298bfad10753b3f275",
+      "reason": "Immutable inherited build evidence; historical recipe paths are never executed by the resource reader."
+    },
+    {
+      "source": "resources/subtitle-studio/transcription/licenses/whisper.cpp-v1.9.1-windows-x64-release.json",
+      "sha256": "63b2e7df33a46627defae9d2ec420b5d5f5209dde920578970b2f6fdcdcc8e5d",
+      "reason": "Immutable inherited build evidence; historical recipe paths are never executed by the resource reader."
+    }
+  ]
 }

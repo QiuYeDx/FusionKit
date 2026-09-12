@@ -1,0 +1,3920 @@
+{
+  "copyPolicySha256": "af102b2c586d6b476c18a4d45b04c9cf243175de1f7f80a45368469b08dfc931",
+  "deferred": [
+    "Native C++ and build/signing tooling are frozen in T01 but are not copied or executed in T02. Rebuild and sign the independent addon before creating its runtime manifest or exposing native operations.",
+    "No runtime-ready manifest, installed binary, model, VAD file, CUDA archive or receipt is created. Manifest hashes remain upstream expected identities, not evidence of a new installed resource.",
+    "Application/main/preload/UI composition remains unregistered. T03 must provide independent managed roots, resource instances and packaging contributions.",
+    "Legacy artifact/export/move semantics remain in the unregistered replay closure. The document sink and copy-only user model import require explicit later adaptation.",
+    "License/source-offer files retain historical paths and bytes. They describe old upstream build provenance and do not claim that the future Studio build recipes ran."
+  ],
+  "files": [
+    {
+      "byteSize": 13249,
+      "destinationPath": "test/subtitle-studio/transcription/fixtures/poc/pre006-production-decision.json",
+      "destinationSha256": "1114aa1d5e1e2776f09d257b8b7ce4716218d41ef35adda67d1c03bb9a1d0b39",
+      "sourceBlobOid": "3367af0c951a865146b78614e59de35d3b692313",
+      "sourcePath": "docs/v0.2.11/local-subtitle-transcriber/poc/pre006-production-decision.json",
+      "sourceSha256": "1114aa1d5e1e2776f09d257b8b7ce4716218d41ef35adda67d1c03bb9a1d0b39",
+      "transforms": []
+    },
+    {
+      "byteSize": 22069,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/accelerator-archive.ts",
+      "destinationSha256": "94c782b604f3a3f1c2c3188563a83d7b51af714db1f2b6e87c4e2102b20cfe7c",
+      "sourceBlobOid": "4e57828a567fa49552f4c489e7a66c85144f371a",
+      "sourcePath": "electron/main/local-subtitle/accelerator-archive.ts",
+      "sourceSha256": "94c782b604f3a3f1c2c3188563a83d7b51af714db1f2b6e87c4e2102b20cfe7c",
+      "transforms": []
+    },
+    {
+      "byteSize": 64535,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/accelerator-manager.ts",
+      "destinationSha256": "d6a47a79a609693946555c014af5fb1e0cd7829b94a4078dbc722d4d65561674",
+      "sourceBlobOid": "002a2c621e10ea43b47c7690b41289d0770bb73a",
+      "sourcePath": "electron/main/local-subtitle/accelerator-manager.ts",
+      "sourceSha256": "9e5288063b1d3b160d569e48c749f228e734057a4ae9c964a606f81f790174f0",
+      "transforms": [
+        {
+          "end": 509,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 487,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 593,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 568,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        },
+        {
+          "end": 2205,
+          "from": "\"fusionkit.local-subtitle.verified-accelerator-pack\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2153,
+          "to": "\"fusionkit.subtitle-studio.transcription.verified-accelerator-pack\""
+        }
+      ]
+    },
+    {
+      "byteSize": 13003,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/accelerator-manifest.ts",
+      "destinationSha256": "8d11f4177aaf6e1dc9a8f52a46e9ddfa67e7c27e56eaba507fce9bde6a4215c3",
+      "sourceBlobOid": "9d0e4ae8b389df93d819c62c2f8c5c7ec7859083",
+      "sourcePath": "electron/main/local-subtitle/accelerator-manifest.ts",
+      "sourceSha256": "88b3ddeb89ab70ade9413fdec20fa78d66e56c108baa7c030b4544477e1fdb42",
+      "transforms": [
+        {
+          "end": 218,
+          "from": "\"../../../resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json\"",
+          "kind": "module-path",
+          "resolvedDestination": "resources/subtitle-studio/transcription/manifests/subtitle-studio-windows-cuda-pack.v1.json",
+          "resolvedSource": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+          "start": 132,
+          "to": "\"../../../../../resources/subtitle-studio/transcription/manifests/subtitle-studio-windows-cuda-pack.v1.json\""
+        },
+        {
+          "end": 5743,
+          "from": "\"local-subtitle-windows-x64-cuda-12.4-v1\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 5702,
+          "to": "\"subtitle-studio-windows-x64-cuda-12.4-v1\""
+        },
+        {
+          "end": 8423,
+          "from": "\"manifests/local-subtitle-windows-cuda-pack.v1.json\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 8371,
+          "to": "\"manifests/subtitle-studio-windows-cuda-pack.v1.json\""
+        }
+      ]
+    },
+    {
+      "byteSize": 5695,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/artifact-handoff.ts",
+      "destinationSha256": "9412443d8c55ad3344d33e8d1fb2c6e576457a1de58757927f2c4df1c1203369",
+      "sourceBlobOid": "8a6c3d42e5c21abe32ec1fb7cd01cdeca9f27799",
+      "sourcePath": "electron/main/local-subtitle/artifact-handoff.ts",
+      "sourceSha256": "0021afdfb7068ddbf6f5304e1a0e91138fb113099b7814ac8810c92d3a1a6987",
+      "transforms": [
+        {
+          "end": 102,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 80,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 177,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 152,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 49109,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/authorizations.ts",
+      "destinationSha256": "ee7421e9f7fee164979131825be40b5a2108c0f9f6be6b344d206020a164c054",
+      "sourceBlobOid": "0a31652545b0c34debe76525a34a00db431fac76",
+      "sourcePath": "electron/main/local-subtitle/authorizations.ts",
+      "sourceSha256": "c9f13619785bc7e3c460f1bd1c2a93067cf46af7d3507677083bba925b8cd256",
+      "transforms": [
+        {
+          "end": 242,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 220,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 14254,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/backend-attestor.ts",
+      "destinationSha256": "30820821a2a23ff310efa9f1bf89bc46af13829cbbb3112d6e79f61b9842427d",
+      "sourceBlobOid": "f60cd4181cc50032aafc4bd180ed090705227e9b",
+      "sourcePath": "electron/main/local-subtitle/backend-attestor.ts",
+      "sourceSha256": "726e3a70711904f2a274ca3a85ee609bb185c8ca44ee75307a06d2c17bda73c8",
+      "transforms": [
+        {
+          "end": 141,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 119,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 18437,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/backend-resolver.ts",
+      "destinationSha256": "da4443629413ecd84830c8e9284a4f8bf7d9b907e7a5cc94323b2f119ce00ef0",
+      "sourceBlobOid": "093e8f0a46325265941b3fbfd09d36729eb03b87",
+      "sourcePath": "electron/main/local-subtitle/backend-resolver.ts",
+      "sourceSha256": "327043c4070ebb955f6577d355d9014cdbd9c49f8eb2d7e1f8817d08ff89c2cc",
+      "transforms": [
+        {
+          "end": 247,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 225,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 1016,
+          "from": "\"fusionkit.local-subtitle.verified-backend-resolution\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 962,
+          "to": "\"fusionkit.subtitle-studio.transcription.verified-backend-resolution\""
+        }
+      ]
+    },
+    {
+      "byteSize": 5461,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-boundary-planner.ts",
+      "destinationSha256": "c5a0705a435fc54f7cc82d544fd0051786488bdc18d7ac8e45028fbddbb26212",
+      "sourceBlobOid": "998d6bdd0bffbcdcbf635bc50136b3b9fa10b75d",
+      "sourcePath": "electron/main/local-subtitle/cue-boundary-planner.ts",
+      "sourceSha256": "af6ead763a24cda1dc76d0fcd653407d28b8a40c104f83a34f870c9db664fd8b",
+      "transforms": [
+        {
+          "end": 60,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 38,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 5400,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-complete-overlap-evidence.ts",
+      "destinationSha256": "0684e27d0908c47e68263345caf85edc4ddde3fa8cb02e3046d98c9b17a48c4b",
+      "sourceBlobOid": "80ba922e4a145b798732b153335ab5b58ab918c3",
+      "sourcePath": "electron/main/local-subtitle/cue-complete-overlap-evidence.ts",
+      "sourceSha256": "0684e27d0908c47e68263345caf85edc4ddde3fa8cb02e3046d98c9b17a48c4b",
+      "transforms": []
+    },
+    {
+      "byteSize": 9309,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-contained-overlap-evidence.ts",
+      "destinationSha256": "aa537b8f860df094af967d11fa6a2f6d7294fa347c5013787862d800c81ef6da",
+      "sourceBlobOid": "a050f096a9077f883f47e6cdf03ccdc70b2837ac",
+      "sourcePath": "electron/main/local-subtitle/cue-contained-overlap-evidence.ts",
+      "sourceSha256": "4360f5c3281eb9f366ea8cb743ff7c6313cded2857d2534a34a0758f9c8dce20",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 3305,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-contained-overlap-resolver.ts",
+      "destinationSha256": "a6d4ff80456fa8e973480c3c363cf3a02fcf7e9bc7780a42ddac1562bddc5c83",
+      "sourceBlobOid": "f963dfc125bb9b4ddacc068c20dd135c2128cd61",
+      "sourcePath": "electron/main/local-subtitle/cue-contained-overlap-resolver.ts",
+      "sourceSha256": "f1ce0080e5fec3b31c7184a0d84aee502746fea669cfb771379e61a83105b632",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 8155,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-display-separators.ts",
+      "destinationSha256": "0e86acd7934340d0fdd74d0091e08d716f46a90d383ed5b80e441f61b7190be6",
+      "sourceBlobOid": "0114b7ec88cc932f84cbea56ec5724785e2d52ae",
+      "sourcePath": "electron/main/local-subtitle/cue-display-separators.ts",
+      "sourceSha256": "3ad2c5977b5e17ab714d6f3abbfdf9dbf0795e4b6a72e6c1578b97ea3ed31a1b",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 14127,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-local-anchor-evidence.ts",
+      "destinationSha256": "3338321dc265c3f1cd35cf31d6d6cf74ad2dee143d41766e738d6c33814bc13f",
+      "sourceBlobOid": "6b2fc986f6e7fe132496c51a6c14b9402a0c2e9c",
+      "sourcePath": "electron/main/local-subtitle/cue-local-anchor-evidence.ts",
+      "sourceSha256": "3338321dc265c3f1cd35cf31d6d6cf74ad2dee143d41766e738d6c33814bc13f",
+      "transforms": []
+    },
+    {
+      "byteSize": 10679,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-multi-overlap-evidence.ts",
+      "destinationSha256": "4dbd88b9cade2684fd4dc54c37dc393da63ee2281649813667b338342abfd3ff",
+      "sourceBlobOid": "214d454accda3df8b63289b881033b56c80a42d1",
+      "sourcePath": "electron/main/local-subtitle/cue-multi-overlap-evidence.ts",
+      "sourceSha256": "1bbe2f5600b32f69a471929b152b12e05b0cdd0a898708140e139754eaefe4fb",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 3383,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-multi-overlap-resolver.ts",
+      "destinationSha256": "66482ff451d9d283a717f8dade04c4d138a4529a9f8fd96eebf0648c5f80e5a2",
+      "sourceBlobOid": "f4884ce4a3a8bd86a28a56058ac501ac91ab14ad",
+      "sourcePath": "electron/main/local-subtitle/cue-multi-overlap-resolver.ts",
+      "sourceSha256": "ccd3f5ec689392334decd54794c6d82a42b755925a382b9bfa876f19f1dc4757",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 6675,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-overlap-resolver.ts",
+      "destinationSha256": "04cdcf7ffd9d3de94d6441e5b1bf7ed352f81f80de7953a326971da8c52ee781",
+      "sourceBlobOid": "8b13285c0c57b153f6328024d33f99bdd9ffcc4d",
+      "sourcePath": "electron/main/local-subtitle/cue-overlap-resolver.ts",
+      "sourceSha256": "a1ca5cdb2abb8c342c524b0aefee0767364247c422822201615701367f7582c3",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 8857,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-evidence.ts",
+      "destinationSha256": "3432d6f1f06db7980b119f8c2b462f1bd757e6476d84d9ea975655dd537ac246",
+      "sourceBlobOid": "eb1d48da633c73933f1a1a4230d2a8345022e713",
+      "sourcePath": "electron/main/local-subtitle/cue-prefix-overlap-evidence.ts",
+      "sourceSha256": "c00712cb50bc0da47af4a5d5fbab9a96d44ee7f38d053fc454baa9a74989cd31",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 3219,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-resolver.ts",
+      "destinationSha256": "71b14fc28e57a58688bce20837a29b9ff981879642c35930ffb65436947fedad",
+      "sourceBlobOid": "50c835307ac857fb72d8f345c82f40ffb0239964",
+      "sourcePath": "electron/main/local-subtitle/cue-prefix-overlap-resolver.ts",
+      "sourceSha256": "9766ebd3d88e6e527efe639a5a2dc4fd2546b33836cec7c78ee7700b3542b028",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 13667,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-separator-restorer.ts",
+      "destinationSha256": "eb343e4064f623f6d80eda8d46bf27fd32ab2c6a4cf4d07da2b77364add5f77a",
+      "sourceBlobOid": "bd8b82e1dc516d1e0cf17a6b4cca882820baa640",
+      "sourcePath": "electron/main/local-subtitle/cue-separator-restorer.ts",
+      "sourceSha256": "e56caf27ae5dc79a7294c5bac4f0e358353888e718eab19db70065e429ad6688",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 10055,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-short-onset-evidence.ts",
+      "destinationSha256": "cbecf88b4da1ddc7bf6d7f92315c119c4dcf9acdb1ac5797c30baf3082128147",
+      "sourceBlobOid": "563e4ecca0eb312f1426be34723ae5f1788d6ddd",
+      "sourcePath": "electron/main/local-subtitle/cue-short-onset-evidence.ts",
+      "sourceSha256": "f5ea4fa5657331a94355a6ee85047275ac5726626c8074bb107740f8bec6f3b3",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 730,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-summary.ts",
+      "destinationSha256": "81594db0ca63c83d20224bf1b496ee3200d9680efdf3c36f8edb3786c0de7fa1",
+      "sourceBlobOid": "2efdc83aa31f0d060785c2a3baaca10b124fb30e",
+      "sourcePath": "electron/main/local-subtitle/cue-summary.ts",
+      "sourceSha256": "4d8523d061ac9adc8622ccbb895b5fa70db5906e55424c63e73fd4e116127408",
+      "transforms": [
+        {
+          "end": 87,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 65,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 10486,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-variant-overlap-evidence.ts",
+      "destinationSha256": "087c03883d9f4ec350130120df19e695c698b0b34383cad3d0e9b7264faf54af",
+      "sourceBlobOid": "2986168713313943016d61f2d70f5d4fdfe91fe3",
+      "sourcePath": "electron/main/local-subtitle/cue-variant-overlap-evidence.ts",
+      "sourceSha256": "1a025a16225af9d07092045ae203f9b2ddab6c3ea97eeafcb3d42c1e8e43e144",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 3749,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-variant-overlap-resolver.ts",
+      "destinationSha256": "269b3319588883b1d25a0436f617881dfce16b2b17e7925547ded964218b1798",
+      "sourceBlobOid": "34f3e7827ffcd46574bdd41aaeb466505d60d7d5",
+      "sourcePath": "electron/main/local-subtitle/cue-variant-overlap-resolver.ts",
+      "sourceSha256": "dadac4624613d9805530d8e441e8e5df5aa9f445f12cae2c233bb9f3124abe6c",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 8348,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/filesystem-object-identity.ts",
+      "destinationSha256": "c1a66f69d5dea89a7e0c203fe0b3132ac679aa2c922c98f6253b877ec0ad469d",
+      "sourceBlobOid": "6768501f5f4b07af1b88d5229a7dc7c4ebc05e6a",
+      "sourcePath": "electron/main/local-subtitle/filesystem-object-identity.ts",
+      "sourceSha256": "c1a66f69d5dea89a7e0c203fe0b3132ac679aa2c922c98f6253b877ec0ad469d",
+      "transforms": []
+    },
+    {
+      "byteSize": 12148,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/ggml-model.ts",
+      "destinationSha256": "1e307e7838b172df31348ea85d7b1d1699ef16b2aec182febe1446e8ab103d4b",
+      "sourceBlobOid": "adbad4ab4745cc8056945f89fe7e2d2b1d4bd625",
+      "sourcePath": "electron/main/local-subtitle/ggml-model.ts",
+      "sourceSha256": "a1916871c2acb6412990bc53eca0ffef9ee588ed159fb85a706e401673dfc5fe",
+      "transforms": [
+        {
+          "end": 261,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 239,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 13190,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/ipc-security.ts",
+      "destinationSha256": "b1b459b119e6788c6dd61a8c5e85bee535d96d7dd85e2fb6a5030d3db13b39cd",
+      "sourceBlobOid": "66531ec021a4322e9f102b6523da80723ded9db4",
+      "sourcePath": "electron/main/local-subtitle/ipc-security.ts",
+      "sourceSha256": "2b3981ae657aa69470a3bc3414650612096cc09c6ab927d71eb6327cfb2f2d5f",
+      "transforms": [
+        {
+          "end": 344,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 322,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 551,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 526,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 33486,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/ipc.ts",
+      "destinationSha256": "3b7b32b9f186a535fb6964b01281de5a90cbd9de0f7789eee2a0d741bf3bc3b9",
+      "sourceBlobOid": "482944d58665a41c1ae03b9865c3456b6e2fcc68",
+      "sourcePath": "electron/main/local-subtitle/ipc.ts",
+      "sourceSha256": "f48f631cb92aa8b925e4ab1b6d9d78120334a6b4b02c94c8f731032cb453ced1",
+      "transforms": [
+        {
+          "end": 361,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 339,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 953,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 928,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 4273,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/job-ipc.ts",
+      "destinationSha256": "bc1982324b747fc5e8acc5d1a29092a6e7fa3289546ccf1fe4331cf4b9d1b4fe",
+      "sourceBlobOid": "9515fbba7b3fda4025df8fa51028e40f9694fe85",
+      "sourcePath": "electron/main/local-subtitle/job-ipc.ts",
+      "sourceSha256": "e4e97428136638023df2f1e662600d20b7410b179d027b3b5650d296c12a21a5",
+      "transforms": [
+        {
+          "end": 109,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 84,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 106456,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/job-manager.ts",
+      "destinationSha256": "e43f776dce91e18d1ad076d03d61e1e831af58fe956d4fb37c73880e72f3aef5",
+      "sourceBlobOid": "4ab13203f67c25c7743cf4b02fd39fceffc9bf7a",
+      "sourcePath": "electron/main/local-subtitle/job-manager.ts",
+      "sourceSha256": "2c0435664488fad2a018671ad6f10c219149c2b2e13d3f11bc2a8dc645288b33",
+      "transforms": [
+        {
+          "end": 1075,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 1053,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 1501,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 1476,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 11533,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/local-review.ts",
+      "destinationSha256": "1c709c961daedf1b320783574d496ca2250ba9ec06b9463e85ca931c62c13e0e",
+      "sourceBlobOid": "b2ee9c48c1d8b7143492310b49a6bab32861ba97",
+      "sourcePath": "electron/main/local-subtitle/local-review.ts",
+      "sourceSha256": "7b188e7e089620ed427eed46fcce029cb12ddf966c4f33f21338d0305af486c2",
+      "transforms": [
+        {
+          "end": 102,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 80,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 3002,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/main-runtime.ts",
+      "destinationSha256": "b393fd375bb97aa1dea6db26905d00104c71e6c8dd329cf169b8089e19dc47e2",
+      "sourceBlobOid": "d83646fbf1d79095ed471b92c24eecdf3d9d0bb8",
+      "sourcePath": "electron/main/local-subtitle/main-runtime.ts",
+      "sourceSha256": "b393fd375bb97aa1dea6db26905d00104c71e6c8dd329cf169b8089e19dc47e2",
+      "transforms": []
+    },
+    {
+      "byteSize": 96428,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/media-normalizer.ts",
+      "destinationSha256": "ffd2586d7e589ed5f10ac809a64e2e5445b7b8b0e83dd239b795577eba2479a9",
+      "sourceBlobOid": "b81beffb7cbbcdf8663fe9adfa00813b76819e9e",
+      "sourcePath": "electron/main/local-subtitle/media-normalizer.ts",
+      "sourceSha256": "49eb560d264dc6e2221f10e212e6b968d0c84ed23496a5a0ce42848e38be14cf",
+      "transforms": [
+        {
+          "end": 482,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 460,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 561,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 536,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        },
+        {
+          "end": 2308,
+          "from": "\"fusionkit.local-subtitle.media-owner-released\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2261,
+          "to": "\"fusionkit.subtitle-studio.transcription.media-owner-released\""
+        },
+        {
+          "end": 2404,
+          "from": "\"fusionkit.local-subtitle.media-owner-faulted\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2358,
+          "to": "\"fusionkit.subtitle-studio.transcription.media-owner-faulted\""
+        }
+      ]
+    },
+    {
+      "byteSize": 19217,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/media-process.ts",
+      "destinationSha256": "9ed4ff4db04f2174f261983d5493b690ad6a74dfa431f6c4cceed42e09c85bce",
+      "sourceBlobOid": "f944ebb5f6b09c0ce1856b8150dd962331d3e3de",
+      "sourcePath": "electron/main/local-subtitle/media-process.ts",
+      "sourceSha256": "9ed4ff4db04f2174f261983d5493b690ad6a74dfa431f6c4cceed42e09c85bce",
+      "transforms": []
+    },
+    {
+      "byteSize": 3585,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/model-ipc.ts",
+      "destinationSha256": "4ea5c96130c2423cf5ba71ff22cfe87b1cd6a9f1659ec1af842793a645036b9e",
+      "sourceBlobOid": "1801b30616200d1ab9fed0325dec1239c5e785e5",
+      "sourcePath": "electron/main/local-subtitle/model-ipc.ts",
+      "sourceSha256": "c470e78048e1f5b0463f161928c34309a0a823aa42a8f294622ce29f0d7750d8",
+      "transforms": [
+        {
+          "end": 109,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 84,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 92563,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/model-manager.ts",
+      "destinationSha256": "27c62363d2a6a5287e9d56be95901d11f3b94949d14cea743b9a3438c66d2a4e",
+      "sourceBlobOid": "6957b2596d263ac479c1f1dffdfb5c38628ea05e",
+      "sourcePath": "electron/main/local-subtitle/model-manager.ts",
+      "sourceSha256": "05d2349a00e1b2703c635628ecf51078286d39e9c88c66ffc89c79281ccffcf8",
+      "transforms": [
+        {
+          "end": 583,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 561,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 667,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 642,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        },
+        {
+          "end": 55833,
+          "from": "`.fusionkit-model-move-${",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 55808,
+          "to": "`.fusionkit-studio-model-move-${"
+        },
+        {
+          "end": 80533,
+          "from": "\".fusionkit-model-move-\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 80509,
+          "to": "\".fusionkit-studio-model-move-\""
+        }
+      ]
+    },
+    {
+      "byteSize": 11655,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/model-manifest.ts",
+      "destinationSha256": "e04af0f659e96d27252db4fb5ea5dbdba6098a7ab2e8fad9bfbb259a7037d550",
+      "sourceBlobOid": "4e7946371493924612a3c8f56d2af29db03e020f",
+      "sourcePath": "electron/main/local-subtitle/model-manifest.ts",
+      "sourceSha256": "a6564a4f44acf61d7cbdd96f01881a83b126a8380750a19be13ac721c1e683d0",
+      "transforms": [
+        {
+          "end": 129,
+          "from": "\"../../../resources/local-subtitle/manifests/local-subtitle-models.v1.json\"",
+          "kind": "module-path",
+          "resolvedDestination": "resources/subtitle-studio/transcription/manifests/subtitle-studio-models.v1.json",
+          "resolvedSource": "resources/local-subtitle/manifests/local-subtitle-models.v1.json",
+          "start": 54,
+          "to": "\"../../../../../resources/subtitle-studio/transcription/manifests/subtitle-studio-models.v1.json\""
+        },
+        {
+          "end": 304,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 282,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 7166,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overlap-group-review.ts",
+      "destinationSha256": "e5a6df2d8d6d663adb965593ffa47795351f0e3ffe728d62c1c9c8d8b83daa15",
+      "sourceBlobOid": "17d0a1c76cf710cef39947fb424f87617b88313a",
+      "sourcePath": "electron/main/local-subtitle/overlap-group-review.ts",
+      "sourceSha256": "45fb8fce81ad030fb52db71b7b1fcf2a6c8843332607b0c45da1756b589f53bc",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 1799,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overlap-group-selection.ts",
+      "destinationSha256": "f77b9d8248f6b9897e8d2c3291665a7075a15db8880be9b8f1fb663a72c32064",
+      "sourceBlobOid": "e040d9147b3a0ff18fc127d72c45c41b13593cf2",
+      "sourcePath": "electron/main/local-subtitle/overlap-group-selection.ts",
+      "sourceSha256": "91bae800d9eb9f7f75dac3b611643493f6919fdf17dc2d99893712ad6a51215d",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 7841,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overlap-group-splice.ts",
+      "destinationSha256": "547c64add3a08d091f1f0599e553c23479ab920311e6fc27aa8cb803ecb629d6",
+      "sourceBlobOid": "5f2dce0cc1cfa277b6273cfb2dc1cf67f0954279",
+      "sourcePath": "electron/main/local-subtitle/overlap-group-splice.ts",
+      "sourceSha256": "4afa4554359cd176b83c8222eecf9aef72e9a110c20a6110a6468f03e8ec8517",
+      "transforms": [
+        {
+          "end": 64,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 42,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 4762,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-directory-coordinator.ts",
+      "destinationSha256": "92fe9c4ebe57dd4609b12e6b50449a9219418b0e4881e974dc4c0ed477e742f2",
+      "sourceBlobOid": "ecc58d2f0a29a9ceaa2ce4435b776a00e24bd22f",
+      "sourcePath": "electron/main/local-subtitle/overwrite-directory-coordinator.ts",
+      "sourceSha256": "92fe9c4ebe57dd4609b12e6b50449a9219418b0e4881e974dc4c0ed477e742f2",
+      "transforms": []
+    },
+    {
+      "byteSize": 8182,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-native-backend-core.ts",
+      "destinationSha256": "e8dddc295f0fdfe6c0d68ddb99204a1e98c869fb36611f451c9d3c1a5cdd3077",
+      "sourceBlobOid": "c1d77c19b6923e1669e2c1a2ceb99d15b5648b12",
+      "sourcePath": "electron/main/local-subtitle/overwrite-native-backend-core.ts",
+      "sourceSha256": "e8dddc295f0fdfe6c0d68ddb99204a1e98c869fb36611f451c9d3c1a5cdd3077",
+      "transforms": []
+    },
+    {
+      "byteSize": 5750,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-native-backend.ts",
+      "destinationSha256": "158a2c3a0d52f5da2f3f255234e48954db9ed4f5ad4cda9f3ed0c37d4325d73d",
+      "sourceBlobOid": "abf1e7a04f32ac7a98a3d3fde54c6a703f28ca30",
+      "sourcePath": "electron/main/local-subtitle/overwrite-native-backend.ts",
+      "sourceSha256": "158a2c3a0d52f5da2f3f255234e48954db9ed4f5ad4cda9f3ed0c37d4325d73d",
+      "transforms": []
+    },
+    {
+      "byteSize": 3925,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-native-host-preflight.ts",
+      "destinationSha256": "693ea89371a57ab4b5eac4d9157a89353349f7b29f78c83fdd0848357421cd89",
+      "sourceBlobOid": "64035ecc7bf5e7e150e9e224b8b2f2cb493ee4f6",
+      "sourcePath": "electron/main/local-subtitle/overwrite-native-host-preflight.ts",
+      "sourceSha256": "693ea89371a57ab4b5eac4d9157a89353349f7b29f78c83fdd0848357421cd89",
+      "transforms": []
+    },
+    {
+      "byteSize": 47209,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-native-resource.ts",
+      "destinationSha256": "429c94f3572c6e3e44c2355e2e643d374217fdd0a5014d245433ef35be515ed9",
+      "sourceBlobOid": "cabae750e0f129fbb4ca68425b0fcdc1b90fc248",
+      "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+      "sourceSha256": "cbb39310972881b790d538b3db74857a61ee38746baff8f10facf53b7376be11",
+      "transforms": [
+        {
+          "end": 421,
+          "from": "\"../../../resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json\"",
+          "kind": "module-path",
+          "resolvedDestination": "resources/subtitle-studio/transcription/manifests/subtitle-studio-overwrite-staging.v1.json",
+          "resolvedSource": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+          "start": 335,
+          "to": "\"../../../../../resources/subtitle-studio/transcription/manifests/subtitle-studio-overwrite-staging.v1.json\""
+        },
+        {
+          "end": 1566,
+          "from": "\"local-subtitle-overwrite.v1.json\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1532,
+          "to": "\"subtitle-studio-overwrite.v1.json\""
+        },
+        {
+          "end": 2074,
+          "from": "\"fusionkit.local-subtitle.verified-overwrite-native-addon\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2016,
+          "to": "\"fusionkit.subtitle-studio.transcription.verified-overwrite-native-addon\""
+        },
+        {
+          "end": 3414,
+          "from": "\"local-subtitle-overwrite\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 3388,
+          "to": "\"subtitle-studio-overwrite\""
+        },
+        {
+          "end": 10990,
+          "from": "`fusionkit.local-subtitle-overwrite\\0${",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 10951,
+          "to": "`fusionkit.subtitle-studio.transcription-overwrite\\0${"
+        },
+        {
+          "end": 12809,
+          "from": "\"local-subtitle-overwrite\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 12783,
+          "to": "\"subtitle-studio-overwrite\""
+        },
+        {
+          "end": 14342,
+          "from": "}/local-subtitle-overwrite.${",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 14313,
+          "to": "}/subtitle-studio-overwrite.${"
+        },
+        {
+          "end": 15408,
+          "from": "\"local-subtitle-overwrite\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 15382,
+          "to": "\"subtitle-studio-overwrite\""
+        },
+        {
+          "end": 31848,
+          "from": "\"local-subtitle-overwrite\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 31822,
+          "to": "\"subtitle-studio-overwrite\""
+        },
+        {
+          "end": 35284,
+          "from": "\"local-subtitle-overwrite.node\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 35253,
+          "to": "\"subtitle-studio-overwrite.node\""
+        },
+        {
+          "end": 37620,
+          "from": "\"local-subtitle-overwrite\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 37594,
+          "to": "\"subtitle-studio-overwrite\""
+        },
+        {
+          "end": 37708,
+          "from": "\"build/local-subtitle-resources/local-subtitle\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 37661,
+          "to": "\"build/subtitle-studio-resources/transcription\""
+        },
+        {
+          "end": 37762,
+          "from": "\"local-subtitle\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 37746,
+          "to": "\"subtitle-studio/transcription\""
+        },
+        {
+          "end": 38138,
+          "from": "\"local-subtitle-overwrite.<sha256>.node\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 38098,
+          "to": "\"subtitle-studio-overwrite.<sha256>.node\""
+        }
+      ]
+    },
+    {
+      "byteSize": 6920,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-production-runtime-core.ts",
+      "destinationSha256": "59891ae344331786d5cb3ed519adfb8f5e5c28b96fa8b03e9a7cc6949afb965e",
+      "sourceBlobOid": "e7c55d8d9934d85a40714fe0c981c6868a91caee",
+      "sourcePath": "electron/main/local-subtitle/overwrite-production-runtime-core.ts",
+      "sourceSha256": "59891ae344331786d5cb3ed519adfb8f5e5c28b96fa8b03e9a7cc6949afb965e",
+      "transforms": []
+    },
+    {
+      "byteSize": 1460,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-production-runtime.ts",
+      "destinationSha256": "5da8bbdd6882b8340e8e29caa812adae9b22986c8357110387377a669f4772ae",
+      "sourceBlobOid": "920dfd3450a90af2f0525984b0d2079c10cd1e10",
+      "sourcePath": "electron/main/local-subtitle/overwrite-production-runtime.ts",
+      "sourceSha256": "5da8bbdd6882b8340e8e29caa812adae9b22986c8357110387377a669f4772ae",
+      "transforms": []
+    },
+    {
+      "byteSize": 8914,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-recovery-ipc.ts",
+      "destinationSha256": "4c42a3e3c8c6fd7152b1c0e8caf58ff17f7b9f528ebadbb8ae8949c206c92f10",
+      "sourceBlobOid": "146ed0bb04f923db54fb4af66bb559e8aeadb75b",
+      "sourcePath": "electron/main/local-subtitle/overwrite-recovery-ipc.ts",
+      "sourceSha256": "4f594b5ec56254adaa85e65da58066d7724ae95f3b065b3b36a0a504d719632e",
+      "transforms": [
+        {
+          "end": 63,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 41,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 377,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 352,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 49035,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-recovery-owner.ts",
+      "destinationSha256": "de6d9308cd1c81fb96813b5271a8de7d7def4ab5f4972008e1ba3f34e1fe0d4d",
+      "sourceBlobOid": "fb2fac8c96d09f70470b0694ba0c9c2eaedc5a5d",
+      "sourcePath": "electron/main/local-subtitle/overwrite-recovery-owner.ts",
+      "sourceSha256": "228fa582b89e17dde6752944482b68096a548a2afcbe3961afb72032d96c38fe",
+      "transforms": [
+        {
+          "end": 357,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 335,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 43719,
+          "from": "\"fusionkit-overwrite-recovery\\0\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 43687,
+          "to": "\"fusionkit-subtitle-studio-overwrite-recovery\\0\""
+        }
+      ]
+    },
+    {
+      "byteSize": 15938,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overwrite-transaction.ts",
+      "destinationSha256": "40f2655b54a885b593eaacbc0595eb92d311591af0a0ac7b334793fa41f94aac",
+      "sourceBlobOid": "be5ec369f3c43912efa0cf92f57279c22bfa1d5a",
+      "sourcePath": "electron/main/local-subtitle/overwrite-transaction.ts",
+      "sourceSha256": "40f2655b54a885b593eaacbc0595eb92d311591af0a0ac7b334793fa41f94aac",
+      "transforms": []
+    },
+    {
+      "byteSize": 4979,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/pause-window-plan.ts",
+      "destinationSha256": "c7ec0a5e07570a92cf238d3dcd7debddcc86547d79d4d393622fde1138901c68",
+      "sourceBlobOid": "bfd0a72bbf703f42efc3dd2bf4f66a35c71a47ef",
+      "sourcePath": "electron/main/local-subtitle/pause-window-plan.ts",
+      "sourceSha256": "c7ec0a5e07570a92cf238d3dcd7debddcc86547d79d4d393622fde1138901c68",
+      "transforms": []
+    },
+    {
+      "byteSize": 33110,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/pcm-window.ts",
+      "destinationSha256": "f0f9ee2d36b8fac5b2d9d2e97c82f99671c315344da5161ceeb9dbdba6848d61",
+      "sourceBlobOid": "7f63d0c4494b90adb5f3af40817a1fb1149a529c",
+      "sourcePath": "electron/main/local-subtitle/pcm-window.ts",
+      "sourceSha256": "4666d0745d5c6baf67a27202e1e9a01040054cac5eb9cc29a0ba6ce7ea5e65cb",
+      "transforms": [
+        {
+          "end": 368,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 346,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 100896,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/production-executor.ts",
+      "destinationSha256": "9391614ca0590a026c3d1a0512269ef5575be5382b58c1155b42f4b798bf683b",
+      "sourceBlobOid": "b70154fb5eb81037cbe1c46aa1a362e426d67518",
+      "sourcePath": "electron/main/local-subtitle/production-executor.ts",
+      "sourceSha256": "8804457120f6a4ae92a25792f11cf2586a8d18f8a5871dbf9045ea5b33defded",
+      "transforms": [
+        {
+          "end": 1987,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 1965,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 2836,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/quiet-audio.ts",
+      "destinationSha256": "45404a723d35a5c890f5553313bb564b20f4e57a9035876e5c82e33c21acf615",
+      "sourceBlobOid": "82db6cfd76b221b7b3248b58e3a66c8c7ac8644d",
+      "sourcePath": "electron/main/local-subtitle/quiet-audio.ts",
+      "sourceSha256": "45404a723d35a5c890f5553313bb564b20f4e57a9035876e5c82e33c21acf615",
+      "transforms": []
+    },
+    {
+      "byteSize": 42521,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/resource-download.ts",
+      "destinationSha256": "10ea4770a5dc72e8dd731ee77b6323c4f78b6f0a2d0313be559d374ea8ea356a",
+      "sourceBlobOid": "f9043a097f5630cce4834a803a26f90977fd4cc5",
+      "sourcePath": "electron/main/local-subtitle/resource-download.ts",
+      "sourceSha256": "10ea4770a5dc72e8dd731ee77b6323c4f78b6f0a2d0313be559d374ea8ea356a",
+      "transforms": []
+    },
+    {
+      "byteSize": 16778,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/resource-job.ts",
+      "destinationSha256": "eb6220eb3c8f63a46275d7123b1e262aeb21d4f60c1329e8592d8c979cfba5da",
+      "sourceBlobOid": "68ef6204116f8e66c9a67008e9c9a2e79b68c1b4",
+      "sourcePath": "electron/main/local-subtitle/resource-job.ts",
+      "sourceSha256": "35b01eb06f3b999c1466526cdc2aeef44346f01de8ab257eee476dedee2746c7",
+      "transforms": [
+        {
+          "end": 248,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 226,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 28975,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/resource-manifest.ts",
+      "destinationSha256": "38d494ccee3a4360da18b60b4670cd6bfd9d9788dfcf294928b0a7b75e542bfd",
+      "sourceBlobOid": "f8db271e384e6682028e2adcb399e7074a0a98d4",
+      "sourcePath": "electron/main/local-subtitle/resource-manifest.ts",
+      "sourceSha256": "e0a5cf37fd91717cb6f28103fe811075b72a511a6a55390ed609c5b01cf8de3c",
+      "transforms": [
+        {
+          "end": 132,
+          "from": "\"../../../resources/local-subtitle/manifests/local-subtitle-staging.v1.json\"",
+          "kind": "module-path",
+          "resolvedDestination": "resources/subtitle-studio/transcription/manifests/subtitle-studio-staging.v1.json",
+          "resolvedSource": "resources/local-subtitle/manifests/local-subtitle-staging.v1.json",
+          "start": 56,
+          "to": "\"../../../../../resources/subtitle-studio/transcription/manifests/subtitle-studio-staging.v1.json\""
+        },
+        {
+          "end": 325,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 303,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 433,
+          "from": "\"manifests/local-subtitle-runtime.v1.json\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 391,
+          "to": "\"manifests/subtitle-studio-runtime.v1.json\""
+        },
+        {
+          "end": 6583,
+          "from": "\"build/local-subtitle-resources/local-subtitle\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 6536,
+          "to": "\"build/subtitle-studio-resources/transcription\""
+        },
+        {
+          "end": 6643,
+          "from": "\"local-subtitle\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 6627,
+          "to": "\"subtitle-studio/transcription\""
+        }
+      ]
+    },
+    {
+      "byteSize": 28881,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/resource-path.ts",
+      "destinationSha256": "abfde2b1b6beb738f2b6c25bc6179fa585bc0d315b7b19feb028538fe21ffadf",
+      "sourceBlobOid": "83d39a215400e4d9237a90396f987fd4b2775f58",
+      "sourcePath": "electron/main/local-subtitle/resource-path.ts",
+      "sourceSha256": "b619a913a41562746f52bb96403363993ecf29405536a50f11f00840942a009c",
+      "transforms": [
+        {
+          "end": 907,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 885,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 1369,
+          "from": "\"fusionkit.local-subtitle.verified-runtime-bundle\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1319,
+          "to": "\"fusionkit.subtitle-studio.transcription.verified-runtime-bundle\""
+        }
+      ]
+    },
+    {
+      "byteSize": 24588,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/resource-startup-cleaner.ts",
+      "destinationSha256": "70c6656bf9ccd27d817209141116ddb6d6eb63512a6e95a81130b9d5ecdb82d8",
+      "sourceBlobOid": "90113fabbe7e918b7fbce6a36049ebd5b5ec1908",
+      "sourcePath": "electron/main/local-subtitle/resource-startup-cleaner.ts",
+      "sourceSha256": "70c6656bf9ccd27d817209141116ddb6d6eb63512a6e95a81130b9d5ecdb82d8",
+      "transforms": []
+    },
+    {
+      "byteSize": 12155,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/runtime-ipc.ts",
+      "destinationSha256": "4e3a029e4fc1e3943a16933ae426b2398beccede9a1d1bb554d1be99f6a562ed",
+      "sourceBlobOid": "6fa7f55fd9fe8a5df0c8405debdce563068a87ab",
+      "sourcePath": "electron/main/local-subtitle/runtime-ipc.ts",
+      "sourceSha256": "b4e1a84776e3c7cd161e23141f3a9f9ce1f3f83df6b025ca6cb97d16cc91e7fe",
+      "transforms": [
+        {
+          "end": 237,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 215,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 384,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 359,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 4520,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-app-lifecycle.ts",
+      "destinationSha256": "e6e86c76cb48a60b1b9d458563858ec404255beea66ffe37af8d52bc7589dcb7",
+      "sourceBlobOid": "526d430e9366d7c7a16e2c064aff9a1e23de303f",
+      "sourcePath": "electron/main/local-subtitle/server-app-lifecycle.ts",
+      "sourceSha256": "e6e86c76cb48a60b1b9d458563858ec404255beea66ffe37af8d52bc7589dcb7",
+      "transforms": []
+    },
+    {
+      "byteSize": 19305,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+      "destinationSha256": "412ff6394bb98d379be11618d0f5a294696a01005b3e906bdd9fdcef148f5fdb",
+      "sourceBlobOid": "23116b2effa97845141cfb44238ef24523c2160e",
+      "sourcePath": "electron/main/local-subtitle/server-contract.ts",
+      "sourceSha256": "fd19f5e7211be0119e1ebd9c970befc8a7a124e4e11e2cfcc9c33e66f232942f",
+      "transforms": [
+        {
+          "end": 234,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 212,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 16595,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-diagnostics.ts",
+      "destinationSha256": "c817560f0dc0e9ad1352c61493ba726f9f7b3f5dd3076e899af70c2a6bd6adee",
+      "sourceBlobOid": "5bd5793427a485f63acd0ade8a1e1746199c4cf1",
+      "sourcePath": "electron/main/local-subtitle/server-diagnostics.ts",
+      "sourceSha256": "d48e80c0fa5da96ec87481b7b913386ba1a175dfa3984eff144ad9523a4e32dc",
+      "transforms": [
+        {
+          "end": 220,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 198,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 32149,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-http-client.ts",
+      "destinationSha256": "6df80f2770325a645ab2b166530b5a208dfa43738182fa49b5fa5939e367643a",
+      "sourceBlobOid": "4496715b40749583e7aeeb6ea696d334f07e494a",
+      "sourcePath": "electron/main/local-subtitle/server-http-client.ts",
+      "sourceSha256": "6df80f2770325a645ab2b166530b5a208dfa43738182fa49b5fa5939e367643a",
+      "transforms": []
+    },
+    {
+      "byteSize": 35866,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-process-contract.ts",
+      "destinationSha256": "8d157bc4af2be1d2b44518aa4808aa13d7f83b42cce372af809c9af70c334013",
+      "sourceBlobOid": "a930590e454a598099d8d53f5bcab1597e5c2697",
+      "sourcePath": "electron/main/local-subtitle/server-process-contract.ts",
+      "sourceSha256": "e1dac938741541e099ac40f995844c76c12d43f921908eff4196b3eb6b7b28ac",
+      "transforms": [
+        {
+          "end": 275,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 253,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 16729,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-session.ts",
+      "destinationSha256": "0e53b14fb0cb30bab982e2b046aa3ef62137103f25589f721822307b6dbfa355",
+      "sourceBlobOid": "59f1103aa63d6763399076fc8a49f8ea09eb5c62",
+      "sourcePath": "electron/main/local-subtitle/server-session.ts",
+      "sourceSha256": "d87b985ebffd910e3a47ec52cd74ad25f334f5332f92f275114b471d90438faa",
+      "transforms": [
+        {
+          "end": 281,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 259,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 379,
+          "from": "\"fusionkit.local-subtitle.server-session\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 338,
+          "to": "\"fusionkit.subtitle-studio.transcription.server-session\""
+        }
+      ]
+    },
+    {
+      "byteSize": 87284,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-supervisor.ts",
+      "destinationSha256": "4630fd50d5ede1262f3edbbafc5e3a4a2ef0e85bae1cf87a041b8b2ee673ad44",
+      "sourceBlobOid": "0df075c790155cd84f57a73f4b927c5c27d5b259",
+      "sourcePath": "electron/main/local-subtitle/server-supervisor.ts",
+      "sourceSha256": "50da22d8c5d524cb2136a8ab2b978fe009f8bb8acf855525af376d30df713714",
+      "transforms": [
+        {
+          "end": 335,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 313,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 1796,
+          "from": "\"fusionkit.local-subtitle.server-supervisor-lease\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1746,
+          "to": "\"fusionkit.subtitle-studio.transcription.server-supervisor-lease\""
+        },
+        {
+          "end": 1908,
+          "from": "\"fusionkit.local-subtitle.server-supervisor-runtime-pin\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1852,
+          "to": "\"fusionkit.subtitle-studio.transcription.server-supervisor-runtime-pin\""
+        },
+        {
+          "end": 2019,
+          "from": "\"fusionkit.local-subtitle.server-supervisor-request\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1967,
+          "to": "\"fusionkit.subtitle-studio.transcription.server-supervisor-request\""
+        },
+        {
+          "end": 2340,
+          "from": "\"fusionkit.local-subtitle.server-backend-evidence\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2290,
+          "to": "\"fusionkit.subtitle-studio.transcription.server-backend-evidence\""
+        }
+      ]
+    },
+    {
+      "byteSize": 6393,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/session-ipc.ts",
+      "destinationSha256": "6f6c9c6e5b25f5b5f8519fe84c4f6975779e6664dd56501c24993cbb61be9561",
+      "sourceBlobOid": "26c6c563ac14214c64d8949392903d72a6ecb231",
+      "sourcePath": "electron/main/local-subtitle/session-ipc.ts",
+      "sourceSha256": "9063819fbd308df47fae885784d84134b4d3a39bb554b4f69882cdd1a3c81263",
+      "transforms": [
+        {
+          "end": 110,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 88,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 221,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 196,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 4399,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/session-lifecycle.ts",
+      "destinationSha256": "7c4f14358d7df11ad92004b9557133b4ce0132771450e607d7a23243e8eddaf8",
+      "sourceBlobOid": "f9a0f8974ecf17ee537ce29eddf7e2071f67aea0",
+      "sourcePath": "electron/main/local-subtitle/session-lifecycle.ts",
+      "sourceSha256": "7c4f14358d7df11ad92004b9557133b4ce0132771450e607d7a23243e8eddaf8",
+      "transforms": []
+    },
+    {
+      "byteSize": 31172,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/session-registry.ts",
+      "destinationSha256": "c67419635cd3fd818f62037661737fa9a296dbbd84f3658c5d20807f6d371f65",
+      "sourceBlobOid": "4fb78c1eb2c0b56db286ffd21997c64a972ce7c1",
+      "sourcePath": "electron/main/local-subtitle/session-registry.ts",
+      "sourceSha256": "294857bb7dff92f123bfd1269f255d554c08579dcd1629976ab43f82d160e7b5",
+      "transforms": [
+        {
+          "end": 602,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 580,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 877,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 852,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 42115,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/subtitle-artifact-registry.ts",
+      "destinationSha256": "9e97690c9a00d1fa3efad30a5c1666d1b4f39d40d170a633ffe334c1aeb1af27",
+      "sourceBlobOid": "a0154b026f474419a33e9e9fd0ba5832833fad07",
+      "sourcePath": "electron/main/local-subtitle/subtitle-artifact-registry.ts",
+      "sourceSha256": "92219cd05205d2f4a081090416f78529896ba79abd13980de6ca33ce97e13e58",
+      "transforms": [
+        {
+          "end": 415,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 393,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 539,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 514,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 40635,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/subtitle-exporter.ts",
+      "destinationSha256": "e4ee592301e24ccc8dca88cef5a745e4b57b2283da132859640768a2eb52c7a8",
+      "sourceBlobOid": "7c376ab6ead501d848e3d82d86998e547fcfc258",
+      "sourcePath": "electron/main/local-subtitle/subtitle-exporter.ts",
+      "sourceSha256": "d4902c188f18912374027efa1b19f3427096e67f5f1a9438516fd45786d42a1f",
+      "transforms": [
+        {
+          "end": 706,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 684,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 13644,
+          "from": "`.fusionkit-local-subtitle-${",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 13615,
+          "to": "`.fusionkit-subtitle-studio-${"
+        },
+        {
+          "end": 15546,
+          "from": "\".fusionkit-local-subtitle-\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 15518,
+          "to": "\".fusionkit-subtitle-studio-\""
+        }
+      ]
+    },
+    {
+      "byteSize": 13566,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/subtitle-formats.ts",
+      "destinationSha256": "e2b8c30cc5b26dd2c1294450ba5b907456dbf9b0627ee0fda8d3f72f19c41900",
+      "sourceBlobOid": "e280d6c47c44332d89b27ab798e716250f4bba63",
+      "sourcePath": "electron/main/local-subtitle/subtitle-formats.ts",
+      "sourceSha256": "c24c9d8f1011fe4b6b1467aa9c98b2475056604eb878e2e574d3280726ecf7b6",
+      "transforms": [
+        {
+          "end": 123,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 101,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 198,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 173,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 82840,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts",
+      "destinationSha256": "a6cfa204c20a217dbfca0ec98b4523539006ea6852d30af79a678d95d18999da",
+      "sourceBlobOid": "46d56939c4f6e28c913f144e4fcef06342498357",
+      "sourcePath": "electron/main/local-subtitle/subtitle-post-processor.ts",
+      "sourceSha256": "e215b83bf078924611cf087064706bb3e3a6b61756cf4813ce1944e3702dc372",
+      "transforms": [
+        {
+          "end": 384,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 362,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 689,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 664,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 41688,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/vad-manager.ts",
+      "destinationSha256": "e35f7c013006fddd414ab86dc5c6e96e6a189aa66e41a182e3add98e7f196d88",
+      "sourceBlobOid": "917336142f6a558d651d283c8fbfece34af4af19",
+      "sourcePath": "electron/main/local-subtitle/vad-manager.ts",
+      "sourceSha256": "5e3c4d2f4d70f0c990cad7eed672a8d93a3027d177e9565f4f8d51223c91fe80",
+      "transforms": [
+        {
+          "end": 490,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 468,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 574,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 549,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 5808,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/vad-manifest.ts",
+      "destinationSha256": "15e90dfe10267cd9c9f56962f12cab8bb3de9e59bdd426e5dc84ad54ed272470",
+      "sourceBlobOid": "ab44b45841f3f4209eb060a84eadd0b793049877",
+      "sourcePath": "electron/main/local-subtitle/vad-manifest.ts",
+      "sourceSha256": "8bb95cacd2bb3694fef715d25cb08daaed52fcaa77c124d9b32c7bf66c5a970a",
+      "transforms": [
+        {
+          "end": 124,
+          "from": "\"../../../resources/local-subtitle/manifests/local-subtitle-vad.v1.json\"",
+          "kind": "module-path",
+          "resolvedDestination": "resources/subtitle-studio/transcription/manifests/subtitle-studio-vad.v1.json",
+          "resolvedSource": "resources/local-subtitle/manifests/local-subtitle-vad.v1.json",
+          "start": 52,
+          "to": "\"../../../../../resources/subtitle-studio/transcription/manifests/subtitle-studio-vad.v1.json\""
+        },
+        {
+          "end": 297,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 275,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 11166,
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/windows-explorer-drop-resolver.ts",
+      "destinationSha256": "fd910e21b4a619a2a79be47fb6b74c95acb6c355d59da86532ecd45067e0ed75",
+      "sourceBlobOid": "21dd6e92e3310ddb4f2116889d99441656ffd98f",
+      "sourcePath": "electron/main/local-subtitle/windows-explorer-drop-resolver.ts",
+      "sourceSha256": "5a235842b674b37d29b67bc1830a04d1ef3ff504010596c0259d2277c932297f",
+      "transforms": [
+        {
+          "end": 254,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 232,
+          "to": "\"../../../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 336,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 311,
+          "to": "\"../../../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 2038,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/FFmpeg-8.1.2-source-offer.json",
+      "destinationSha256": "9d5e17026e5acd24f188362ad61fb4f05291c1231b372e83f5f311e91ec7e068",
+      "sourceBlobOid": "16ee4d2197f643ec8c18b552a22f2008d908cf96",
+      "sourcePath": "resources/local-subtitle/licenses/FFmpeg-8.1.2-source-offer.json",
+      "sourceSha256": "9d5e17026e5acd24f188362ad61fb4f05291c1231b372e83f5f311e91ec7e068",
+      "transforms": []
+    },
+    {
+      "byteSize": 26517,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/FFmpeg-COPYING.LGPLv2.1.txt",
+      "destinationSha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30",
+      "sourceBlobOid": "40924c2a6da76a2b0c639f6fe7ef0b2d095a6adb",
+      "sourcePath": "resources/local-subtitle/licenses/FFmpeg-COPYING.LGPLv2.1.txt",
+      "sourceSha256": "246041b6ecf9bc32d718a62c57877c78b5eb397b6467e74ed7ae2626ab189c30",
+      "transforms": []
+    },
+    {
+      "byteSize": 7651,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/FFmpeg-COPYING.LGPLv3.txt",
+      "destinationSha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
+      "sourceBlobOid": "65c5ca88a67c30becee01c5a8816d964b03862f9",
+      "sourcePath": "resources/local-subtitle/licenses/FFmpeg-COPYING.LGPLv3.txt",
+      "sourceSha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
+      "transforms": []
+    },
+    {
+      "byteSize": 4346,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/FFmpeg-LICENSE.md",
+      "destinationSha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af",
+      "sourceBlobOid": "371b0913ce7c199c4092d9344680c80f78ebeb2a",
+      "sourcePath": "resources/local-subtitle/licenses/FFmpeg-LICENSE.md",
+      "sourceSha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af",
+      "transforms": []
+    },
+    {
+      "byteSize": 2112,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/FFmpeg-n8.1.2-windows-x64-btbn-source.json",
+      "destinationSha256": "4ffb9eaaa28c32e7a2a82243a81df72b5b02bc3e445a782f466d0716d50f4510",
+      "sourceBlobOid": "d5e2eb875da67373cefa0f8162692ee7c858d68b",
+      "sourcePath": "resources/local-subtitle/licenses/FFmpeg-n8.1.2-windows-x64-btbn-source.json",
+      "sourceSha256": "4ffb9eaaa28c32e7a2a82243a81df72b5b02bc3e445a782f466d0716d50f4510",
+      "transforms": []
+    },
+    {
+      "byteSize": 1968,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/THIRD_PARTY_NOTICES.local-subtitle.md",
+      "destinationSha256": "3febd4b011d5176e3f304c39aac46ca3b9be6b0654ec1249c6d1cc98106d87b6",
+      "sourceBlobOid": "4878f88aca4d97223e41e649959fab2480c343b5",
+      "sourcePath": "resources/local-subtitle/licenses/THIRD_PARTY_NOTICES.local-subtitle.md",
+      "sourceSha256": "3febd4b011d5176e3f304c39aac46ca3b9be6b0654ec1249c6d1cc98106d87b6",
+      "transforms": []
+    },
+    {
+      "byteSize": 1078,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/whisper.cpp-MIT.txt",
+      "destinationSha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
+      "sourceBlobOid": "e7dca554bcb802f98408383a864404e3aa4eacca",
+      "sourcePath": "resources/local-subtitle/licenses/whisper.cpp-MIT.txt",
+      "sourceSha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
+      "transforms": []
+    },
+    {
+      "byteSize": 1720,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/whisper.cpp-v1.9.1-source.json",
+      "destinationSha256": "711a66a5934ffa3a5dac2fdebcae9d95d07bb97270671d298bfad10753b3f275",
+      "sourceBlobOid": "55879d835e75d3c57dfb4904b7eb5e482b96ac30",
+      "sourcePath": "resources/local-subtitle/licenses/whisper.cpp-v1.9.1-source.json",
+      "sourceSha256": "711a66a5934ffa3a5dac2fdebcae9d95d07bb97270671d298bfad10753b3f275",
+      "transforms": []
+    },
+    {
+      "byteSize": 1365,
+      "destinationPath": "resources/subtitle-studio/transcription/licenses/whisper.cpp-v1.9.1-windows-x64-release.json",
+      "destinationSha256": "63b2e7df33a46627defae9d2ec420b5d5f5209dde920578970b2f6fdcdcc8e5d",
+      "sourceBlobOid": "777ca243a78d468340f329c03c7295c74d1532a8",
+      "sourcePath": "resources/local-subtitle/licenses/whisper.cpp-v1.9.1-windows-x64-release.json",
+      "sourceSha256": "63b2e7df33a46627defae9d2ec420b5d5f5209dde920578970b2f6fdcdcc8e5d",
+      "transforms": []
+    },
+    {
+      "byteSize": 2282,
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-models.v1.json",
+      "destinationSha256": "09f49bb3b41bb7dd20b13341d8333ceebcdf834590edb32550f9d3fc3a28e712",
+      "sourceBlobOid": "3a6d28b960ea0f78cc557176c2a0a9e63af45275",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-models.v1.json",
+      "sourceSha256": "09f49bb3b41bb7dd20b13341d8333ceebcdf834590edb32550f9d3fc3a28e712",
+      "transforms": []
+    },
+    {
+      "byteSize": 2466,
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-overwrite-staging.v1.json",
+      "destinationSha256": "94c4e3ddb8dfd3788c4c6291264dd8e25d67a6071461d36a712f57103c327df1",
+      "sourceBlobOid": "e9ac740fd1ad8505a2a9d991a75a3a9eeb26709b",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+      "sourceSha256": "a0be2095b09fcc935d85de20e8b3173b2dea687f882b8a6acfafccd5c6fec187",
+      "transforms": [
+        {
+          "from": "local-subtitle-overwrite",
+          "kind": "audited-manifest-field",
+          "pointer": "/component",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "subtitle-studio-overwrite"
+        },
+        {
+          "from": "build/local-subtitle-resources/local-subtitle",
+          "kind": "audited-manifest-field",
+          "pointer": "/developmentRuntimeRoot",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "build/subtitle-studio-resources/transcription"
+        },
+        {
+          "from": "local-subtitle",
+          "kind": "audited-manifest-field",
+          "pointer": "/packagedRuntimeRoot",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "subtitle-studio/transcription"
+        },
+        {
+          "from": "overwrite/v1/local-subtitle-overwrite.v1.json",
+          "kind": "audited-manifest-field",
+          "pointer": "/manifestRelativePath",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "overwrite/v1/subtitle-studio-overwrite.v1.json"
+        },
+        {
+          "from": "local-subtitle-overwrite.<sha256>.node",
+          "kind": "audited-manifest-field",
+          "pointer": "/artifactLeafPattern",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "subtitle-studio-overwrite.<sha256>.node"
+        },
+        {
+          "from": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+          "kind": "audited-manifest-field",
+          "pointer": "/targets/0/build/recipe",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.mjs"
+        },
+        {
+          "from": "native/local-subtitle-overwrite/src/addon.cc",
+          "kind": "audited-manifest-field",
+          "pointer": "/targets/0/build/source",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "native/subtitle-studio-overwrite/src/addon.cc"
+        },
+        {
+          "from": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+          "kind": "audited-manifest-field",
+          "pointer": "/targets/1/build/recipe",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-windows-x64.mjs"
+        },
+        {
+          "from": "native/local-subtitle-overwrite/src/addon-win32.cc",
+          "kind": "audited-manifest-field",
+          "pointer": "/targets/1/build/source",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "native/subtitle-studio-overwrite/src/addon-win32.cc"
+        },
+        {
+          "from": "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+          "kind": "audited-manifest-field",
+          "pointer": "/targets/1/build/delayLoadHook",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "native/subtitle-studio-overwrite/src/win-delay-load-hook.cc"
+        }
+      ]
+    },
+    {
+      "byteSize": 11995,
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-staging.v1.json",
+      "destinationSha256": "c6776f2ec329902e861f49dc6c048a1db502195f20e0c610a2dfec11323abaa5",
+      "sourceBlobOid": "9448bfa30497d2b92aa016ac956739c709f73e0e",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-staging.v1.json",
+      "sourceSha256": "8b180fee0bb3ac8ff8001b7789430edb3680d9fdaab5003309e82283c9dae5ba",
+      "transforms": [
+        {
+          "from": "build/local-subtitle-resources/local-subtitle",
+          "kind": "audited-manifest-field",
+          "pointer": "/developmentRuntimeRoot",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "build/subtitle-studio-resources/transcription"
+        },
+        {
+          "from": "local-subtitle",
+          "kind": "audited-manifest-field",
+          "pointer": "/packagedRuntimeRoot",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "subtitle-studio/transcription"
+        },
+        {
+          "from": "manifests/local-subtitle-runtime.v1.json",
+          "kind": "audited-manifest-field",
+          "pointer": "/runtimeManifestRelativePath",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "manifests/subtitle-studio-runtime.v1.json"
+        }
+      ]
+    },
+    {
+      "byteSize": 929,
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-vad.v1.json",
+      "destinationSha256": "0313951e6908f0d6f01be5e3836512e2dc35b148a0a53edacf71f30129c05118",
+      "sourceBlobOid": "3e71ebc595f0e140cc8d81c0f96b49fd863e5edd",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-vad.v1.json",
+      "sourceSha256": "0313951e6908f0d6f01be5e3836512e2dc35b148a0a53edacf71f30129c05118",
+      "transforms": []
+    },
+    {
+      "byteSize": 12378,
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-windows-cuda-pack.v1.json",
+      "destinationSha256": "cdf12c71912de60702d7ed4f989ddd87c6bfcdb91119de4dd3586621938f4079",
+      "sourceBlobOid": "624f2f4a3cbde2afaef0404df1f87d767b497f58",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+      "sourceSha256": "8036c8053606c16adcfd126b0afc963944afa29e4958b12faeb358ce299e7852",
+      "transforms": [
+        {
+          "from": "local-subtitle-windows-x64-cuda-12.4-v1",
+          "kind": "audited-manifest-field",
+          "pointer": "/packId",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "subtitle-studio-windows-x64-cuda-12.4-v1"
+        },
+        {
+          "from": "build/local-subtitle-accelerators/win32-x64/cuda-12.4/v1",
+          "kind": "audited-manifest-field",
+          "pointer": "/staging/developmentPackRoot",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "build/subtitle-studio-accelerators/win32-x64/cuda-12.4/v1"
+        },
+        {
+          "from": "build/local-subtitle-resources/local-subtitle",
+          "kind": "audited-manifest-field",
+          "pointer": "/staging/baseRuntimeRoot",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "build/subtitle-studio-resources/transcription"
+        },
+        {
+          "from": "manifests/local-subtitle-windows-cuda-pack.v1.json",
+          "kind": "audited-manifest-field",
+          "pointer": "/staging/manifestRelativePath",
+          "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created.",
+          "to": "manifests/subtitle-studio-windows-cuda-pack.v1.json"
+        }
+      ]
+    },
+    {
+      "byteSize": 3544,
+      "destinationPath": "test/subtitle-studio/transcription/config.test.ts",
+      "destinationSha256": "6c0723733164a60b03ce3ca33d8c4aed5c1c461f18b482f4e0b2beb546742bb6",
+      "sourceBlobOid": "f97d7ee8c12131ef91a231637e643287cbfa2e0c",
+      "sourcePath": "src/store/tools/subtitle/localSubtitleTranscriberConfig.test.ts",
+      "sourceSha256": "2023a4e2c7f7920bedc7375dda31ec500021c3972f95a75b27c7eea7c43aa749",
+      "transforms": [
+        {
+          "end": 194,
+          "from": "\"./localSubtitleTranscriberConfig\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/config.ts",
+          "resolvedSource": "src/store/tools/subtitle/localSubtitleTranscriberConfig.ts",
+          "start": 160,
+          "to": "\"../../../src/subtitle-studio/transcription/config\""
+        }
+      ]
+    },
+    {
+      "byteSize": 8337,
+      "destinationPath": "src/subtitle-studio/transcription/config.ts",
+      "destinationSha256": "14b4a2bea3ff4cbb6d9dbcc4fbba162fc5945902811b89d40b02addf25b2c397",
+      "sourceBlobOid": "7b56f4af9b4deed3f49c3d75eca6e77127caf847",
+      "sourcePath": "src/store/tools/subtitle/localSubtitleTranscriberConfig.ts",
+      "sourceSha256": "c41d5e25231b99a553f54a6fc43107bff9fe54d67635b5683d623d9340a61d4a",
+      "transforms": [
+        {
+          "end": 567,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 545,
+          "to": "\"./domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 33894,
+      "destinationPath": "test/subtitle-studio/transcription/domain.test.ts",
+      "destinationSha256": "21bc457fd192f48db7c578b62ea78d2b428849c19faaddf0a4818bdae280c806",
+      "sourceBlobOid": "e6b76bdb1f4ce7fa4f6099bffc190c2340c9bcfd",
+      "sourcePath": "src/type/localSubtitle.test.ts",
+      "sourceSha256": "83c25c18827228c5f5bff69ab814963450d3bf4b015c183b5166626de54c8031",
+      "transforms": [
+        {
+          "end": 161,
+          "from": "\"../../docs/v0.2.11/local-subtitle-transcriber/poc/pre006-production-decision.json\"",
+          "kind": "module-path",
+          "resolvedDestination": "test/subtitle-studio/transcription/fixtures/poc/pre006-production-decision.json",
+          "resolvedSource": "docs/v0.2.11/local-subtitle-transcriber/poc/pre006-production-decision.json",
+          "start": 78,
+          "to": "\"./fixtures/poc/pre006-production-decision.json\""
+        },
+        {
+          "end": 1035,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 1013,
+          "to": "\"../../../src/subtitle-studio/transcription/domain\""
+        }
+      ]
+    },
+    {
+      "byteSize": 42396,
+      "destinationPath": "src/subtitle-studio/transcription/domain.ts",
+      "destinationSha256": "8ded47f259c06abddeae1a9db6bd53a51b9349f92edaf96607e9d60ec63396f2",
+      "sourceBlobOid": "05a0f0fc30294781d5722b19ea66c0efb172c067",
+      "sourcePath": "src/type/localSubtitle.ts",
+      "sourceSha256": "8ded47f259c06abddeae1a9db6bd53a51b9349f92edaf96607e9d60ec63396f2",
+      "transforms": []
+    },
+    {
+      "byteSize": 61260,
+      "destinationPath": "test/subtitle-studio/transcription/ipc-contract.test.ts",
+      "destinationSha256": "9a66037fc07db6577d40645275749e51499566be7eb99b6212da81b3e7e9f624",
+      "sourceBlobOid": "2423b47b73369a1333e11381c9f1f2ded93cddac",
+      "sourcePath": "src/type/localSubtitleIpc.test.ts",
+      "sourceSha256": "5e3392d4e4e138862551c0653aaf56e85b0d36a2a53097cf2d0c7cf4759caa17",
+      "transforms": [
+        {
+          "end": 552,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 530,
+          "to": "\"../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 2152,
+          "from": "\"@/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 2127,
+          "to": "\"../../../src/subtitle-studio/transcription/ipc-contract\""
+        },
+        {
+          "end": 2976,
+          "from": "\"local-subtitle:\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2959,
+          "to": "\"subtitle-studio:transcription:\""
+        },
+        {
+          "end": 46869,
+          "from": "for (const file of [\"localSubtitle.ts\", \"localSubtitleIpc.ts\"])",
+          "kind": "audited-test-location",
+          "reason": "Normal regression must read its own copied domain and IPC source.",
+          "start": 46806,
+          "to": "for (const file of [\"domain.ts\", \"ipc-contract.ts\"])"
+        },
+        {
+          "end": 46960,
+          "from": "path.join(process.cwd(), \"src\", \"type\", file)",
+          "kind": "audited-test-location",
+          "reason": "Retarget the source-reading ownership assertion to the new namespace.",
+          "start": 46915,
+          "to": "path.join(process.cwd(), \"src\", \"subtitle-studio\", \"transcription\", file)"
+        }
+      ]
+    },
+    {
+      "byteSize": 81619,
+      "destinationPath": "src/subtitle-studio/transcription/ipc-contract.ts",
+      "destinationSha256": "e367ff9a1bc806fd430809fa59529cc56986d5aa312865d687875c1b87b180d3",
+      "sourceBlobOid": "a27acbf8c4db2e612fb43560d1ae67623ffa1e52",
+      "sourcePath": "src/type/localSubtitleIpc.ts",
+      "sourceSha256": "ee391fe62d52ea20ca7e93498b8aa6010a224091bd2ead3afb3ef7325e77e176",
+      "transforms": [
+        {
+          "end": 1432,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 1410,
+          "to": "\"./domain\""
+        },
+        {
+          "end": 1550,
+          "from": "\"@/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 1528,
+          "to": "\"./domain\""
+        },
+        {
+          "end": 1650,
+          "from": "\"local-subtitle:probe-media\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1622,
+          "to": "\"subtitle-studio:transcription:probe-media\""
+        },
+        {
+          "end": 1698,
+          "from": "\"local-subtitle:probe-runtime\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1668,
+          "to": "\"subtitle-studio:transcription:probe-runtime\""
+        },
+        {
+          "end": 1750,
+          "from": "\"local-subtitle:preview-backend\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1718,
+          "to": "\"subtitle-studio:transcription:preview-backend\""
+        },
+        {
+          "end": 1815,
+          "from": "\"local-subtitle:list-managed-resources\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1776,
+          "to": "\"subtitle-studio:transcription:list-managed-resources\""
+        },
+        {
+          "end": 1880,
+          "from": "\"local-subtitle:start-resource-install\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1841,
+          "to": "\"subtitle-studio:transcription:start-resource-install\""
+        },
+        {
+          "end": 1939,
+          "from": "\"local-subtitle:cancel-resource-job\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1903,
+          "to": "\"subtitle-studio:transcription:cancel-resource-job\""
+        },
+        {
+          "end": 2006,
+          "from": "\"local-subtitle:delete-managed-resource\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1966,
+          "to": "\"subtitle-studio:transcription:delete-managed-resource\""
+        },
+        {
+          "end": 2067,
+          "from": "\"local-subtitle:get-session-snapshot\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2030,
+          "to": "\"subtitle-studio:transcription:get-session-snapshot\""
+        },
+        {
+          "end": 2104,
+          "from": "\"local-subtitle:enqueue\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2080,
+          "to": "\"subtitle-studio:transcription:enqueue\""
+        },
+        {
+          "end": 2146,
+          "from": "\"local-subtitle:retry-task\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2119,
+          "to": "\"subtitle-studio:transcription:retry-task\""
+        },
+        {
+          "end": 2200,
+          "from": "\"local-subtitle:retry-task-on-cpu\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2166,
+          "to": "\"subtitle-studio:transcription:retry-task-on-cpu\""
+        },
+        {
+          "end": 2246,
+          "from": "\"local-subtitle:cancel-batch\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2217,
+          "to": "\"subtitle-studio:transcription:cancel-batch\""
+        },
+        {
+          "end": 2290,
+          "from": "\"local-subtitle:cancel-task\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2262,
+          "to": "\"subtitle-studio:transcription:cancel-task\""
+        },
+        {
+          "end": 2334,
+          "from": "\"local-subtitle:remove-task\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2306,
+          "to": "\"subtitle-studio:transcription:remove-task\""
+        },
+        {
+          "end": 2395,
+          "from": "\"local-subtitle:complete-post-action\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2358,
+          "to": "\"subtitle-studio:transcription:complete-post-action\""
+        },
+        {
+          "end": 2452,
+          "from": "\"local-subtitle:read-artifact-text\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2417,
+          "to": "\"subtitle-studio:transcription:read-artifact-text\""
+        },
+        {
+          "end": 2504,
+          "from": "\"local-subtitle:reveal-artifact\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2472,
+          "to": "\"subtitle-studio:transcription:reveal-artifact\""
+        },
+        {
+          "end": 2558,
+          "from": "\"local-subtitle:handoff-artifact\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2525,
+          "to": "\"subtitle-studio:transcription:handoff-artifact\""
+        },
+        {
+          "end": 2629,
+          "from": "\"local-subtitle:list-overwrite-recoveries\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2587,
+          "to": "\"subtitle-studio:transcription:list-overwrite-recoveries\""
+        },
+        {
+          "end": 2774,
+          "from": "\"local-subtitle:internal:register-owner-session\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2726,
+          "to": "\"subtitle-studio:transcription:internal:register-owner-session\""
+        },
+        {
+          "end": 2846,
+          "from": "\"local-subtitle:internal:authorize-input-files\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2799,
+          "to": "\"subtitle-studio:transcription:internal:authorize-input-files\""
+        },
+        {
+          "end": 2910,
+          "from": "\"local-subtitle:internal:revoke-input-file\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2867,
+          "to": "\"subtitle-studio:transcription:internal:revoke-input-file\""
+        },
+        {
+          "end": 2986,
+          "from": "\"local-subtitle:internal:select-output-directory\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2937,
+          "to": "\"subtitle-studio:transcription:internal:select-output-directory\""
+        },
+        {
+          "end": 3062,
+          "from": "\"local-subtitle:internal:revoke-output-directory\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 3013,
+          "to": "\"subtitle-studio:transcription:internal:revoke-output-directory\""
+        },
+        {
+          "end": 3117,
+          "from": "\"local-subtitle:internal:import-model\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 3079,
+          "to": "\"subtitle-studio:transcription:internal:import-model\""
+        },
+        {
+          "end": 3182,
+          "from": "\"local-subtitle:internal:recover-overwrite\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 3139,
+          "to": "\"subtitle-studio:transcription:internal:recover-overwrite\""
+        },
+        {
+          "end": 3284,
+          "from": "\"local-subtitle:task-event\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 3257,
+          "to": "\"subtitle-studio:transcription:task-event\""
+        },
+        {
+          "end": 3334,
+          "from": "\"local-subtitle:resource-event\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 3303,
+          "to": "\"subtitle-studio:transcription:resource-event\""
+        }
+      ]
+    },
+    {
+      "byteSize": 4526,
+      "destinationPath": "test/subtitle-studio/transcription/acceleratorFixture.ts",
+      "destinationSha256": "9de4d1534fd70d99e5587ce0751e2db5d303b5fd98b888cac67a221dde8ab524",
+      "sourceBlobOid": "f65993e7ee5dc9781ebac5ee8635e2ba5f601b44",
+      "sourcePath": "test/local-subtitle/acceleratorFixture.ts",
+      "sourceSha256": "5e21cd12706206c303455868393a9389177860862ca15f1860c6ac54f8c6e90d",
+      "transforms": [
+        {
+          "end": 245,
+          "from": "\"../../src/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 215,
+          "to": "\"../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 446,
+          "from": "\"../../electron/main/local-subtitle/accelerator-manager\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/accelerator-manager.ts",
+          "resolvedSource": "electron/main/local-subtitle/accelerator-manager.ts",
+          "start": 390,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/accelerator-manager\""
+        },
+        {
+          "end": 545,
+          "from": "\"../../electron/main/local-subtitle/resource-job\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/resource-job.ts",
+          "resolvedSource": "electron/main/local-subtitle/resource-job.ts",
+          "start": 496,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/resource-job\""
+        },
+        {
+          "end": 645,
+          "from": "\"../../electron/main/local-subtitle/session-registry\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/session-registry.ts",
+          "resolvedSource": "electron/main/local-subtitle/session-registry.ts",
+          "start": 592,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/session-registry\""
+        },
+        {
+          "end": 1117,
+          "from": "\"fusionkit-local-subtitle-accelerator-\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1078,
+          "to": "\"fusionkit-subtitle-studio-accelerator-\""
+        },
+        {
+          "end": 1345,
+          "from": "\"local-subtitle-windows-x64-cuda-test-v1\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1304,
+          "to": "\"subtitle-studio-windows-x64-cuda-test-v1\""
+        }
+      ]
+    },
+    {
+      "byteSize": 4160,
+      "destinationPath": "test/subtitle-studio/transcription/cueBoundaryPlanner.test.ts",
+      "destinationSha256": "4e26480237a5fdde8aa0e9b3b082d15dd69c10f6a292c4d0d4ac793b39323157",
+      "sourceBlobOid": "f2c408b1182c3ec30cf368f1eb5e7c535f11351c",
+      "sourcePath": "test/local-subtitle/cueBoundaryPlanner.test.ts",
+      "sourceSha256": "2d3495219c833897c57e160daf7bd16206ec3f3d350d3beaff800c737e01a60e",
+      "transforms": [
+        {
+          "end": 115,
+          "from": "\"../../src/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 85,
+          "to": "\"../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 281,
+          "from": "\"../../electron/main/local-subtitle/cue-boundary-planner\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-boundary-planner.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-boundary-planner.ts",
+          "start": 224,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-boundary-planner\""
+        }
+      ]
+    },
+    {
+      "byteSize": 5178,
+      "destinationPath": "test/subtitle-studio/transcription/cueContainedOverlapEvidence.test.ts",
+      "destinationSha256": "ec9fd83175de3b918c10e2624df8502560415e615c84940208e39c13c10714d7",
+      "sourceBlobOid": "93d59c4da0fbe566458d1e2d60b20f31b4ee9ec9",
+      "sourcePath": "test/local-subtitle/cueContainedOverlapEvidence.test.ts",
+      "sourceSha256": "ff84b7ee86fa66dc81e057fa70fab44938ce09c5014e844fffa6905e27d58805",
+      "transforms": [
+        {
+          "end": 207,
+          "from": "'../../electron/main/local-subtitle/cue-contained-overlap-evidence'",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-contained-overlap-evidence.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-contained-overlap-evidence.ts",
+          "start": 140,
+          "to": "'../../../electron/main/subtitle-studio/transcription/native/cue-contained-overlap-evidence'"
+        }
+      ]
+    },
+    {
+      "byteSize": 2701,
+      "destinationPath": "test/subtitle-studio/transcription/cueContainedOverlapResolver.test.ts",
+      "destinationSha256": "9c677c18e77dbffba840085fb84c4fa1f68317096d6c821921438754fb416672",
+      "sourceBlobOid": "2c80ee152df63d6da8ff8f33cc851cef92649b14",
+      "sourcePath": "test/local-subtitle/cueContainedOverlapResolver.test.ts",
+      "sourceSha256": "33f780c443d4e99fdead0d37d7307e186e44ae38c1ada46b6584aa7b437dc08b",
+      "transforms": [
+        {
+          "end": 185,
+          "from": "'../../electron/main/local-subtitle/cue-contained-overlap-resolver'",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-contained-overlap-resolver.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-contained-overlap-resolver.ts",
+          "start": 118,
+          "to": "'../../../electron/main/subtitle-studio/transcription/native/cue-contained-overlap-resolver'"
+        }
+      ]
+    },
+    {
+      "byteSize": 6667,
+      "destinationPath": "test/subtitle-studio/transcription/cueDisplaySeparators.test.ts",
+      "destinationSha256": "5d9ec9e02c4487dd71ba6b05025af6268e0a1e96fd1b057efa08371698184e6c",
+      "sourceBlobOid": "9cf28d74976e39ec56994825c975a4bc278dc540",
+      "sourcePath": "test/local-subtitle/cueDisplaySeparators.test.ts",
+      "sourceSha256": "778e2c6c8b572f6f4d5402340bfb08cbe145da0f9214e1c10b19f808fcd78c62",
+      "transforms": [
+        {
+          "end": 169,
+          "from": "\"../../electron/main/local-subtitle/cue-display-separators\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-display-separators.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-display-separators.ts",
+          "start": 110,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-display-separators\""
+        },
+        {
+          "end": 274,
+          "from": "\"../../electron/main/local-subtitle/cue-prefix-overlap-evidence\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-evidence.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-prefix-overlap-evidence.ts",
+          "start": 210,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-evidence\""
+        },
+        {
+          "end": 379,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 327,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 4119,
+      "destinationPath": "test/subtitle-studio/transcription/cueLocalAnchorHead.test.ts",
+      "destinationSha256": "466853626d9929624e7c1270a89fadab13cb51b514354591737bb12300cc4025",
+      "sourceBlobOid": "3379f64cf6ccd60424ce6b835fb1ba32546726d0",
+      "sourcePath": "test/local-subtitle/cueLocalAnchorHead.test.ts",
+      "sourceSha256": "eab373a48fe9968b6da57afd2d2c45618519a694e5f7dd92fe997b826e0465e6",
+      "transforms": [
+        {
+          "end": 187,
+          "from": "\"../../electron/main/local-subtitle/cue-separator-restorer\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-separator-restorer.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-separator-restorer.ts",
+          "start": 128,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-separator-restorer\""
+        },
+        {
+          "end": 292,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 240,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 2977,
+      "destinationPath": "test/subtitle-studio/transcription/cueMultiOverlapResolver.test.ts",
+      "destinationSha256": "972fd1bde3d6b0b8e88c2a691acaf151b4a2b1212da4515f38ed4216031251a1",
+      "sourceBlobOid": "c42c598d60d443b2592f9cd3e72a776eaee7b4be",
+      "sourcePath": "test/local-subtitle/cueMultiOverlapResolver.test.ts",
+      "sourceSha256": "6f67ecd05897c1563045cb177c128440861e3f013172359b2243ba96eb36b471",
+      "transforms": [
+        {
+          "end": 162,
+          "from": "\"../../electron/main/local-subtitle/cue-multi-overlap-resolver\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-multi-overlap-resolver.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-multi-overlap-resolver.ts",
+          "start": 99,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-multi-overlap-resolver\""
+        }
+      ]
+    },
+    {
+      "byteSize": 7151,
+      "destinationPath": "test/subtitle-studio/transcription/cueOverlapResolver.test.ts",
+      "destinationSha256": "672c6d259bf96fac744f97e86ced619b30153c14b12e30c521d94b3e8945e71d",
+      "sourceBlobOid": "84742e5c8dc16a1aa889c4fd213d845d85c5f9b2",
+      "sourcePath": "test/local-subtitle/cueOverlapResolver.test.ts",
+      "sourceSha256": "a06cf4bbc65043d7c18bbbe69bfcec97397bf3dbd495ce6ac2c598b41643fefc",
+      "transforms": [
+        {
+          "end": 180,
+          "from": "\"../../electron/main/local-subtitle/cue-overlap-resolver\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-overlap-resolver.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-overlap-resolver.ts",
+          "start": 123,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-overlap-resolver\""
+        },
+        {
+          "end": 297,
+          "from": "\"../../electron/main/local-subtitle/subtitle-post-processor\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts",
+          "resolvedSource": "electron/main/local-subtitle/subtitle-post-processor.ts",
+          "start": 237,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/subtitle-post-processor\""
+        },
+        {
+          "end": 402,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 350,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 3038,
+      "destinationPath": "test/subtitle-studio/transcription/cuePrefixOverlapResolver.test.ts",
+      "destinationSha256": "394bcc5fce7b5c32b759c8e67cc07057bd969120236d1cd7a40858a5b51fbba5",
+      "sourceBlobOid": "b43a8d02da22bac17b66db1fc3ef1b8e7009c087",
+      "sourcePath": "test/local-subtitle/cuePrefixOverlapResolver.test.ts",
+      "sourceSha256": "979425355845b54044cf665e24241336bddaedf4b9d9a9adff86a837a24067de",
+      "transforms": [
+        {
+          "end": 165,
+          "from": "\"../../electron/main/local-subtitle/cue-prefix-overlap-resolver\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-resolver.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-prefix-overlap-resolver.ts",
+          "start": 101,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-resolver\""
+        }
+      ]
+    },
+    {
+      "byteSize": 4530,
+      "destinationPath": "test/subtitle-studio/transcription/cuePrefixSeparator.test.ts",
+      "destinationSha256": "6660132d96096ebab375030bcf589f17e3379f70dc9d9f3525f08138404116dc",
+      "sourceBlobOid": "9678a0796c2eecb28077991909a1a1cd925b630a",
+      "sourcePath": "test/local-subtitle/cuePrefixSeparator.test.ts",
+      "sourceSha256": "faa6a0d62a767b2b15ccf9f10433a7a437296c80b6f5ec106cb9724ab86ead14",
+      "transforms": [
+        {
+          "end": 144,
+          "from": "\"../../electron/main/local-subtitle/cue-local-anchor-evidence\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-local-anchor-evidence.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-local-anchor-evidence.ts",
+          "start": 82,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-local-anchor-evidence\""
+        },
+        {
+          "end": 286,
+          "from": "\"../../electron/main/local-subtitle/cue-separator-restorer\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-separator-restorer.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-separator-restorer.ts",
+          "start": 227,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-separator-restorer\""
+        }
+      ]
+    },
+    {
+      "byteSize": 14545,
+      "destinationPath": "test/subtitle-studio/transcription/cueSeparatorRestorer.test.ts",
+      "destinationSha256": "0adde2b60c4dc8f0ff3efc44d0e497b76ac25672d4a99b346dcd1b2b5a929604",
+      "sourceBlobOid": "f7cf72eed91d9923f6f405f61dbe24365fdd4ede",
+      "sourcePath": "test/local-subtitle/cueSeparatorRestorer.test.ts",
+      "sourceSha256": "7c99691c03a9cd0d835c08223ce6b989be0b937e6e829d92d341f99ddf5c836a",
+      "transforms": [
+        {
+          "end": 250,
+          "from": "\"../../electron/main/local-subtitle/cue-separator-restorer\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-separator-restorer.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-separator-restorer.ts",
+          "start": 191,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-separator-restorer\""
+        },
+        {
+          "end": 355,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 303,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 5835,
+      "destinationPath": "test/subtitle-studio/transcription/cueShortOnsetEvidence.test.ts",
+      "destinationSha256": "07b9fb78e69f3a9e976f220c7d6580df24abda165169e0c824f339272d3ad71d",
+      "sourceBlobOid": "21b2f25f41ee3272b5035b25d848c9b43f454d7b",
+      "sourcePath": "test/local-subtitle/cueShortOnsetEvidence.test.ts",
+      "sourceSha256": "5644fa9bad9028233593e9bee3146f7dc8423c3bb73090ed2193ce2ca062b00d",
+      "transforms": [
+        {
+          "end": 232,
+          "from": "'../../electron/main/local-subtitle/cue-short-onset-evidence'",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-short-onset-evidence.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-short-onset-evidence.ts",
+          "start": 171,
+          "to": "'../../../electron/main/subtitle-studio/transcription/native/cue-short-onset-evidence'"
+        }
+      ]
+    },
+    {
+      "byteSize": 2198,
+      "destinationPath": "test/subtitle-studio/transcription/cueSummary.test.ts",
+      "destinationSha256": "19043df32edc404e5253c0490243c4b161c7b40cf9bc1628022ce1aef1da9dcf",
+      "sourceBlobOid": "f624ed20b44acc378465164ac1fa0d68f535257e",
+      "sourcePath": "test/local-subtitle/cueSummary.test.ts",
+      "sourceSha256": "2215b1b083d251d0657737b4a05bb7c2044468116120e23ffef1aa3cfa820090",
+      "transforms": [
+        {
+          "end": 123,
+          "from": "\"../../electron/main/local-subtitle/cue-summary\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-summary.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-summary.ts",
+          "start": 75,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-summary\""
+        },
+        {
+          "end": 201,
+          "from": "\"../../src/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 171,
+          "to": "\"../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 280,
+          "from": "\"../../src/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 247,
+          "to": "\"../../../src/subtitle-studio/transcription/ipc-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 5539,
+      "destinationPath": "test/subtitle-studio/transcription/cueVariantOverlapEvidence.test.ts",
+      "destinationSha256": "8e31ff035b908d310f4be8a5fce0b36c16b5ba5c4e49108c66010486dae4748b",
+      "sourceBlobOid": "b0c93f07b767f2c06a36c29a1d65b10b18e6c9ff",
+      "sourcePath": "test/local-subtitle/cueVariantOverlapEvidence.test.ts",
+      "sourceSha256": "25f78da3f1fd2f776e0e21dc126fd874eaeb46c9fcf049000e556ba5c84beb95",
+      "transforms": [
+        {
+          "end": 194,
+          "from": "'../../electron/main/local-subtitle/cue-variant-overlap-evidence'",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-variant-overlap-evidence.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-variant-overlap-evidence.ts",
+          "start": 129,
+          "to": "'../../../electron/main/subtitle-studio/transcription/native/cue-variant-overlap-evidence'"
+        }
+      ]
+    },
+    {
+      "byteSize": 3150,
+      "destinationPath": "test/subtitle-studio/transcription/cueVariantOverlapResolver.test.ts",
+      "destinationSha256": "43e887ecb43b86d5c39331dd5d52014cda57e38244faa12256c20642e5920e69",
+      "sourceBlobOid": "99cf0fde8eba971c7cb921bdeccb7d9045d1f032",
+      "sourcePath": "test/local-subtitle/cueVariantOverlapResolver.test.ts",
+      "sourceSha256": "3e764895019fede11f3f5a99d8f4c3c75bf6d10a93e47206327ce06bc8071e19",
+      "transforms": [
+        {
+          "end": 179,
+          "from": "'../../electron/main/local-subtitle/cue-variant-overlap-resolver'",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-variant-overlap-resolver.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-variant-overlap-resolver.ts",
+          "start": 114,
+          "to": "'../../../electron/main/subtitle-studio/transcription/native/cue-variant-overlap-resolver'"
+        }
+      ]
+    },
+    {
+      "byteSize": 5460,
+      "destinationPath": "test/subtitle-studio/transcription/overlapGroupReview.test.ts",
+      "destinationSha256": "a7d5d484422ef4fed1c3b8b9598f255cf4cedfa7ae8853d835e258ee89f50d28",
+      "sourceBlobOid": "e21aa4a50a70e5b4aebebf39bd90fc0c543ec49f",
+      "sourcePath": "test/local-subtitle/overlapGroupReview.test.ts",
+      "sourceSha256": "75aa8e7ecbda2f1437fc94cc25d264d9e578d2883e635c53dd327fbc651f194a",
+      "transforms": [
+        {
+          "end": 151,
+          "from": "\"../../electron/main/local-subtitle/overlap-group-review\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/overlap-group-review.ts",
+          "resolvedSource": "electron/main/local-subtitle/overlap-group-review.ts",
+          "start": 94,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/overlap-group-review\""
+        },
+        {
+          "end": 278,
+          "from": "\"../../electron/main/local-subtitle/subtitle-post-processor\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts",
+          "resolvedSource": "electron/main/local-subtitle/subtitle-post-processor.ts",
+          "start": 218,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/subtitle-post-processor\""
+        }
+      ]
+    },
+    {
+      "byteSize": 10256,
+      "destinationPath": "test/subtitle-studio/transcription/overlapGroupSplice.test.ts",
+      "destinationSha256": "4f94eab140a05358c0ffe70090030848cc511b4e244b1b85cd8adf958b05ff97",
+      "sourceBlobOid": "88c8e88bfd9f73934e581ec22a184ebe5c6c3763",
+      "sourcePath": "test/local-subtitle/overlapGroupSplice.test.ts",
+      "sourceSha256": "96e9ed1497035f05fb2fbbaacbbb03f9097954760975757b6ddfece01414086d",
+      "transforms": [
+        {
+          "end": 143,
+          "from": "\"../../electron/main/local-subtitle/overlap-group-review\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/overlap-group-review.ts",
+          "resolvedSource": "electron/main/local-subtitle/overlap-group-review.ts",
+          "start": 86,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/overlap-group-review\""
+        },
+        {
+          "end": 269,
+          "from": "\"../../electron/main/local-subtitle/overlap-group-splice\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/overlap-group-splice.ts",
+          "resolvedSource": "electron/main/local-subtitle/overlap-group-splice.ts",
+          "start": 212,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/overlap-group-splice\""
+        },
+        {
+          "end": 399,
+          "from": "\"../../electron/main/local-subtitle/overlap-group-selection\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/overlap-group-selection.ts",
+          "resolvedSource": "electron/main/local-subtitle/overlap-group-selection.ts",
+          "start": 339,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/overlap-group-selection\""
+        },
+        {
+          "end": 511,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 459,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        },
+        {
+          "end": 616,
+          "from": "\"../../electron/main/local-subtitle/cue-prefix-overlap-evidence\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-evidence.ts",
+          "resolvedSource": "electron/main/local-subtitle/cue-prefix-overlap-evidence.ts",
+          "start": 552,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-evidence\""
+        }
+      ]
+    },
+    {
+      "byteSize": 2570,
+      "destinationPath": "test/subtitle-studio/transcription/pauseWindowPlan.test.ts",
+      "destinationSha256": "494d9565c4fcc72c99b90def09eb869d6b5597c66be43b6ba83aa8b4728bad6b",
+      "sourceBlobOid": "4c0a84e266bf410bbed6e691eba3ba874e0a8f7e",
+      "sourcePath": "test/local-subtitle/pauseWindowPlan.test.ts",
+      "sourceSha256": "09d5de60a8b881b265d15f46d8e9acd1d161687d6e3b34e76ff110e2afc8cfac",
+      "transforms": [
+        {
+          "end": 181,
+          "from": "\"../../electron/main/local-subtitle/pause-window-plan\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/pause-window-plan.ts",
+          "resolvedSource": "electron/main/local-subtitle/pause-window-plan.ts",
+          "start": 127,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/pause-window-plan\""
+        }
+      ]
+    },
+    {
+      "byteSize": 131324,
+      "destinationPath": "test/subtitle-studio/transcription/productionExecutor.test.ts",
+      "destinationSha256": "816f1fbed205dd8db66b990a27a3b66550b595578aaaa7faa219f61df91d2b6b",
+      "sourceBlobOid": "e4d87d4ff0cd83743b2b5fa86a14b91489d3631f",
+      "sourcePath": "test/local-subtitle/productionExecutor.test.ts",
+      "sourceSha256": "2dc70954e9488dc4432ef7ebec28ffee94099e58087510db8626730dbf518e04",
+      "transforms": [
+        {
+          "end": 634,
+          "from": "\"../../src/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 604,
+          "to": "\"../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 730,
+          "from": "\"../../electron/main/local-subtitle/authorizations\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/authorizations.ts",
+          "resolvedSource": "electron/main/local-subtitle/authorizations.ts",
+          "start": 679,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/authorizations\""
+        },
+        {
+          "end": 880,
+          "from": "\"../../electron/main/local-subtitle/backend-resolver\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/backend-resolver.ts",
+          "resolvedSource": "electron/main/local-subtitle/backend-resolver.ts",
+          "start": 827,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/backend-resolver\""
+        },
+        {
+          "end": 1023,
+          "from": "\"../../electron/main/local-subtitle/job-manager\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/job-manager.ts",
+          "resolvedSource": "electron/main/local-subtitle/job-manager.ts",
+          "start": 975,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/job-manager\""
+        },
+        {
+          "end": 1234,
+          "from": "\"../../electron/main/local-subtitle/media-normalizer\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/media-normalizer.ts",
+          "resolvedSource": "electron/main/local-subtitle/media-normalizer.ts",
+          "start": 1181,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/media-normalizer\""
+        },
+        {
+          "end": 1340,
+          "from": "\"../../electron/main/local-subtitle/production-executor\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/production-executor.ts",
+          "resolvedSource": "electron/main/local-subtitle/production-executor.ts",
+          "start": 1284,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/production-executor\""
+        },
+        {
+          "end": 1448,
+          "from": "\"../../electron/main/local-subtitle/resource-path\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/resource-path.ts",
+          "resolvedSource": "electron/main/local-subtitle/resource-path.ts",
+          "start": 1398,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/resource-path\""
+        },
+        {
+          "end": 1602,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 1550,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        },
+        {
+          "end": 1867,
+          "from": "\"../../electron/main/local-subtitle/server-supervisor\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-supervisor.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-supervisor.ts",
+          "start": 1813,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-supervisor\""
+        },
+        {
+          "end": 1978,
+          "from": "\"../../electron/main/local-subtitle/subtitle-artifact-registry\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/subtitle-artifact-registry.ts",
+          "resolvedSource": "electron/main/local-subtitle/subtitle-artifact-registry.ts",
+          "start": 1915,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/subtitle-artifact-registry\""
+        },
+        {
+          "end": 2117,
+          "from": "\"../../electron/main/local-subtitle/subtitle-exporter\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/subtitle-exporter.ts",
+          "resolvedSource": "electron/main/local-subtitle/subtitle-exporter.ts",
+          "start": 2063,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/subtitle-exporter\""
+        },
+        {
+          "end": 2246,
+          "from": "\"../../electron/main/local-subtitle/filesystem-object-identity\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/filesystem-object-identity.ts",
+          "resolvedSource": "electron/main/local-subtitle/filesystem-object-identity.ts",
+          "start": 2183,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/filesystem-object-identity\""
+        },
+        {
+          "end": 2362,
+          "from": "\"../../electron/main/local-subtitle/accelerator-manager\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/accelerator-manager.ts",
+          "resolvedSource": "electron/main/local-subtitle/accelerator-manager.ts",
+          "start": 2306,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/accelerator-manager\""
+        }
+      ]
+    },
+    {
+      "byteSize": 2020,
+      "destinationPath": "test/subtitle-studio/transcription/quietAudio.test.ts",
+      "destinationSha256": "305b87cb85e22d4aff9553e9020a5974cad76dd24920df82ec4ba2c6e69480f4",
+      "sourceBlobOid": "fa7436b531211ced41b41b74e49086b9ac23430d",
+      "sourcePath": "test/local-subtitle/quietAudio.test.ts",
+      "sourceSha256": "c6a24a7ea1d3b5404eb532c0a3e1f8219e9e9001bcd9f288b208505fe0b64808",
+      "transforms": [
+        {
+          "end": 131,
+          "from": "'../../electron/main/local-subtitle/quiet-audio'",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/quiet-audio.ts",
+          "resolvedSource": "electron/main/local-subtitle/quiet-audio.ts",
+          "start": 83,
+          "to": "'../../../electron/main/subtitle-studio/transcription/native/quiet-audio'"
+        }
+      ]
+    },
+    {
+      "byteSize": 6036,
+      "destinationPath": "test/subtitle-studio/transcription/runtimeFixture.ts",
+      "destinationSha256": "e3d49aefbe65f0a26c902e049ccc076d79ceb298b15ddbd4738b4a0f196db32a",
+      "sourceBlobOid": "0e86a5e294d1c796070866fe1d4e948a40e74cf5",
+      "sourcePath": "test/local-subtitle/runtimeFixture.ts",
+      "sourceSha256": "57e84cc484c177c991274ad2b6bfb8a72af720a59c942737c95a7a3b85e5ab27",
+      "transforms": [
+        {
+          "end": 437,
+          "from": "\"../../electron/main/local-subtitle/resource-manifest\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/resource-manifest.ts",
+          "resolvedSource": "electron/main/local-subtitle/resource-manifest.ts",
+          "start": 383,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/resource-manifest\""
+        },
+        {
+          "end": 581,
+          "from": "\"../../electron/main/local-subtitle/resource-path\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/resource-path.ts",
+          "resolvedSource": "electron/main/local-subtitle/resource-path.ts",
+          "start": 531,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/resource-path\""
+        },
+        {
+          "end": 711,
+          "from": "\"../../resources/local-subtitle/licenses\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 670,
+          "to": "\"../../../resources/subtitle-studio/transcription/licenses\""
+        },
+        {
+          "end": 1501,
+          "from": "`local-subtitle-runtime-${",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 1475,
+          "to": "`subtitle-studio-runtime-${"
+        },
+        {
+          "end": 2641,
+          "from": "\"fusionkit-local-subtitle-runtime-\"",
+          "kind": "audited-identity",
+          "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged.",
+          "start": 2606,
+          "to": "\"fusionkit-subtitle-studio-runtime-\""
+        }
+      ]
+    },
+    {
+      "byteSize": 11944,
+      "destinationPath": "test/subtitle-studio/transcription/serverContract.test.ts",
+      "destinationSha256": "0f613d64d6b3e848ab79dbd4d7351b58f0629a54519c6b2d639cbc44712babc6",
+      "sourceBlobOid": "9471c73499329fb0bbc83ac63e1a70d7016fccd8",
+      "sourcePath": "test/local-subtitle/serverContract.test.ts",
+      "sourceSha256": "8b8d95fe2af19d7cd1daaef5d0046d22c729f419cef967af7cb05dcd54e6195f",
+      "transforms": [
+        {
+          "end": 389,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 337,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        }
+      ]
+    },
+    {
+      "byteSize": 66164,
+      "destinationPath": "test/subtitle-studio/transcription/subtitlePostProcessor.test.ts",
+      "destinationSha256": "988ab33483c03ddf6fb8f60e776a7a69517354b0332dd46fd95075cb4b74dc05",
+      "sourceBlobOid": "aafc457cec63f9775d8762c5d794816aa356816c",
+      "sourcePath": "test/local-subtitle/subtitlePostProcessor.test.ts",
+      "sourceSha256": "c90bc596f23c7a215f900e604c214d2bffa15c3952a5d41cec4e0c06d542d08b",
+      "transforms": [
+        {
+          "end": 195,
+          "from": "\"../../src/type/localSubtitle\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/domain.ts",
+          "resolvedSource": "src/type/localSubtitle.ts",
+          "start": 165,
+          "to": "\"../../../src/subtitle-studio/transcription/domain\""
+        },
+        {
+          "end": 278,
+          "from": "\"../../src/type/localSubtitleIpc\"",
+          "kind": "module-path",
+          "resolvedDestination": "src/subtitle-studio/transcription/ipc-contract.ts",
+          "resolvedSource": "src/type/localSubtitleIpc.ts",
+          "start": 245,
+          "to": "\"../../../src/subtitle-studio/transcription/ipc-contract\""
+        },
+        {
+          "end": 464,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 412,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        },
+        {
+          "end": 570,
+          "from": "\"../../electron/main/local-subtitle/server-contract\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "resolvedSource": "electron/main/local-subtitle/server-contract.ts",
+          "start": 518,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/server-contract\""
+        },
+        {
+          "end": 1138,
+          "from": "\"../../electron/main/local-subtitle/subtitle-post-processor\"",
+          "kind": "module-path",
+          "resolvedDestination": "electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts",
+          "resolvedSource": "electron/main/local-subtitle/subtitle-post-processor.ts",
+          "start": 1078,
+          "to": "\"../../../electron/main/subtitle-studio/transcription/native/subtitle-post-processor\""
+        }
+      ]
+    }
+  ],
+  "notCopied": [
+    {
+      "disposition": "reference-only",
+      "reason": "Record dependency/build/resource composition; preserve the existing lock and do not copy application configuration wholesale.",
+      "sourcePath": "electron-builder.json"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record actual service construction and registration; do not copy the application or old translation coupling.",
+      "sourcePath": "electron/main/index.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "electron/main/local-subtitle/overwrite-native-backend-test-support.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "electron/main/local-subtitle/overwrite-production-runtime-test-support.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record the legacy bridge contribution without copying unrelated preload APIs.",
+      "sourcePath": "electron/preload/index.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference for a future independent fixed public/internal API; no new IPC is implemented yet.",
+      "sourcePath": "electron/preload/local-subtitle-api.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference only until the new public channel contract is specified.",
+      "sourcePath": "electron/preload/local-subtitle-channel-policy.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "native/local-subtitle-overwrite/README.md"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "native/local-subtitle-overwrite/binding.gyp"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "native/local-subtitle-overwrite/src/addon-win32.cc"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "native/local-subtitle-overwrite/src/addon.cc"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "native/local-subtitle-overwrite/src/win-delay-load-hook.cc"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record dependency/build/resource composition; preserve the existing lock and do not copy application configuration wholesale.",
+      "sourcePath": "package.json"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record dependency/build/resource composition; preserve the existing lock and do not copy application configuration wholesale.",
+      "sourcePath": "pnpm-lock.yaml"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/benchmark/generate-synthetic-fixtures.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-macos-arm64.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-windows-x64.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-integration.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-child.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-integration.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-integration.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-child.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-windows-recovery-integration.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/audit-ffmpeg-windows-x64.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/audit-ffmpeg-windows-x64.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/authenticode-sign-file.ps1"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/build-ffmpeg-macos-arm64.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/build-ffmpeg-macos-arm64.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/build-whisper-server-macos-arm64.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/build-whisper-server-macos-arm64.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/electron-builder-local-subtitle-before-pack.cjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Retain historical signing/spike compatibility evidence; the new packaging composition must be designed independently.",
+      "sourcePath": "scripts/local-subtitle/runtime/electron-builder-pre005-before-pack-legacy.test.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Retain historical signing/spike compatibility evidence; the new packaging composition must be designed independently.",
+      "sourcePath": "scripts/local-subtitle/runtime/electron-builder-pre005-before-pack.cjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/electron-builder-pre005-before-pack.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/ffmpeg-source-release.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/ffmpeg-source-release.test.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Retain historical signing/spike compatibility evidence; the new packaging composition must be designed independently.",
+      "sourcePath": "scripts/local-subtitle/runtime/generate-electron-builder-spike.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Retain historical signing/spike compatibility evidence; the new packaging composition must be designed independently.",
+      "sourcePath": "scripts/local-subtitle/runtime/generate-electron-builder-spike.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/run-native002-macos-smoke.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/run-native002-macos-smoke.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/run-native002-windows-smoke.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/run-native002-windows-smoke.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/run-pre005-smoke.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/run-pre005-smoke.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/runtime-manifest.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/runtime-manifest.test.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Retain historical signing/spike compatibility evidence; the new packaging composition must be designed independently.",
+      "sourcePath": "scripts/local-subtitle/runtime/sign-packaged-spike-windows.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Retain historical signing/spike compatibility evidence; the new packaging composition must be designed independently.",
+      "sourcePath": "scripts/local-subtitle/runtime/sign-packaged-spike-windows.test.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Retain historical signing/spike compatibility evidence; the new packaging composition must be designed independently.",
+      "sourcePath": "scripts/local-subtitle/runtime/sign-packaged-spike.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Retain historical signing/spike compatibility evidence; the new packaging composition must be designed independently.",
+      "sourcePath": "scripts/local-subtitle/runtime/sign-packaged-spike.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/stage-runtime-windows-x64-cuda.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/stage-runtime-windows-x64-cuda.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/stage-runtime-windows-x64.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/stage-runtime-windows-x64.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/stage-runtime.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/stage-runtime.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/staging-contract.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/staging-contract.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/validate-runtime-staging.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/validate-runtime-staging.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/verify-packaged-local-subtitle.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/verify-packaged-local-subtitle.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/windows-cuda-pack-contract.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/runtime/windows-cuda-pack-contract.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/pcm-windowing.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/pcm-windowing.test.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record earlier PoC behavior without adopting its inference pipeline or proposing its copy.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/poc-metrics.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/process-metrics.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/run-backend-probe.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record earlier PoC behavior without adopting its inference pipeline or proposing its copy.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/run-poc.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/subtitle-smoke.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/supervisor.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/supervisor.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/transcript-quality.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/transcript-quality.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/verify-macos-runtime.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/verify-macos-runtime.test.mjs"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "scripts/local-subtitle/whisper-server/windowed-transcription.mjs"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record user configuration consumption; build the new producer in Studio rather than copying the old page.",
+      "sourcePath": "src/pages/Tools/Subtitle/LocalSubtitleTranscriber/index.tsx"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleCapabilityCleanupService.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleCapabilityCleanupService.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleEnvironmentService.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleEnvironmentService.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleOverwriteRecoveryService.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleOverwriteRecoveryService.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitlePostActionService.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitlePostActionService.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleRuntimeService.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleRuntimeService.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleSessionReducer.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Reference old observation/resource APIs and identify translation handoff for replacement; do not traverse the old frontend graph.",
+      "sourcePath": "src/services/local-subtitle/localSubtitleSessionReducer.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record versioned defaults migration; do not reuse the old persisted key, queue or runtime owner.",
+      "sourcePath": "src/store/tools/subtitle/useLocalSubtitleTranscriberStore.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/acceleratorArchive.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/acceleratorManager.real.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/acceleratorManager.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/acceleratorManifest.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/authorizations.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/backendAttestor.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/backendResolver.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/filesystemObjectIdentity.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/ggmlModel.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/ipc.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/ipcSecurity.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/jobManager.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/jobManagerIpc.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Keep as v1 coexistence evidence; defer new-namespace rewrite and do not traverse the unrelated old IPC graph.",
+      "sourcePath": "test/local-subtitle/legacyIpcBridge.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/localReview.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/mainRuntime.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/mediaNormalizer.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/mediaProcess.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/modelManager.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/modelManagerIpc.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/modelManifest.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteDirectoryCoordinator.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteNativeBackend.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteNativeHostPreflight.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteNativeResource.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteProductionRuntime.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteRecoveryIpc.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteRecoveryIpcService.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteRecoveryOwner.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/overwriteTransaction.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/pcmWindow.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Keep as v1 coexistence evidence; defer new-namespace rewrite and do not traverse the unrelated old IPC graph.",
+      "sourcePath": "test/local-subtitle/preloadApi.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Keep as v1 coexistence evidence; defer new-namespace rewrite and do not traverse the unrelated old IPC graph.",
+      "sourcePath": "test/local-subtitle/preloadChannelPolicy.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/resourceDownload.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/resourceJob.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/resourceManifest.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/resourcePath.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/resourceStartupCleaner.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/runtimeIpc.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/serverAppLifecycle.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/serverContract.real.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/serverDiagnostics.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/serverHttpClient.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/serverProcessContract.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/serverSession.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/serverSupervisor.real.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/serverSupervisor.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/sessionIpc.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/sessionLifecycle.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/sessionRegistry.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/subtitleArtifactRegistry.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/subtitleExporter.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/subtitleFormats.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/vadManager.real.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/vadManager.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/vadManifest.test.ts"
+    },
+    {
+      "disposition": "deferred",
+      "reason": "Outside the T02 production/normal-regression closure; retain frozen provenance for the later resource/lifecycle stage.",
+      "sourcePath": "test/local-subtitle/windowsExplorerDropResolver.test.ts"
+    },
+    {
+      "disposition": "reference-only",
+      "reason": "Record dependency/build/resource composition; preserve the existing lock and do not copy application configuration wholesale.",
+      "sourcePath": "vite.config.ts"
+    }
+  ],
+  "schemaVersion": 1,
+  "sourceBaselineSha256": "c6367bddd06cf2e31ecf04dbbe8766f70edff888775fbd14a46114ea8c29ac66",
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "status": "source-copy-unregistered"
+}

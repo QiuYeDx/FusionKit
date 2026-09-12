@@ -1,0 +1,558 @@
+{
+  "compatibility": {
+    "journalVersion": 3,
+    "napiVersion": 8,
+    "nativeProtocolVersion": 4
+  },
+  "deferred": [
+    {
+      "reason": "Windows build and real host validation remain deferred; T03 freezes its C++ implementation and staging target contract only.",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs"
+    }
+  ],
+  "dependencies": [
+    {
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/runtime-manifest.mjs",
+      "destinationSha256": "76259f1955c8229ba3c86d8e9c9c74b66855cfd48fda608d3c034c795312779a",
+      "ownership": "verified-external-tooling-copy",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-tooling-fork.json",
+      "sourceBlobOid": "fbcd5ed755dbd1b05f961298cdfa0ce0e508c6b8",
+      "sourcePath": "scripts/local-subtitle/runtime/runtime-manifest.mjs",
+      "sourceSha256": "76259f1955c8229ba3c86d8e9c9c74b66855cfd48fda608d3c034c795312779a"
+    },
+    {
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/staging-contract.mjs",
+      "destinationSha256": "dbfe3844d71bbf8c5095cfd6e32197a54639428694b9ee669ac13994496abb0b",
+      "ownership": "verified-external-tooling-copy",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-tooling-fork.json",
+      "sourceBlobOid": "4f1003b511768966f3e1f44fcc6500d743fc71c5",
+      "sourcePath": "scripts/local-subtitle/runtime/staging-contract.mjs",
+      "sourceSha256": "a2384ce81dd9fba3ef8ed102e94f4f94985bd2fa6253f7a3c2ce05e408cbb60e"
+    },
+    {
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-models.v1.json",
+      "destinationSha256": "09f49bb3b41bb7dd20b13341d8333ceebcdf834590edb32550f9d3fc3a28e712",
+      "ownership": "verified-external-tooling-copy",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json",
+      "sourceBlobOid": "3a6d28b960ea0f78cc557176c2a0a9e63af45275",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-models.v1.json",
+      "sourceSha256": "09f49bb3b41bb7dd20b13341d8333ceebcdf834590edb32550f9d3fc3a28e712"
+    },
+    {
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-overwrite-staging.v1.json",
+      "destinationSha256": "94c4e3ddb8dfd3788c4c6291264dd8e25d67a6071461d36a712f57103c327df1",
+      "ownership": "verified-external-tooling-copy",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json",
+      "sourceBlobOid": "e9ac740fd1ad8505a2a9d991a75a3a9eeb26709b",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+      "sourceSha256": "a0be2095b09fcc935d85de20e8b3173b2dea687f882b8a6acfafccd5c6fec187"
+    },
+    {
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-staging.v1.json",
+      "destinationSha256": "c6776f2ec329902e861f49dc6c048a1db502195f20e0c610a2dfec11323abaa5",
+      "ownership": "verified-external-tooling-copy",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json",
+      "sourceBlobOid": "9448bfa30497d2b92aa016ac956739c709f73e0e",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-staging.v1.json",
+      "sourceSha256": "8b180fee0bb3ac8ff8001b7789430edb3680d9fdaab5003309e82283c9dae5ba"
+    },
+    {
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-vad.v1.json",
+      "destinationSha256": "0313951e6908f0d6f01be5e3836512e2dc35b148a0a53edacf71f30129c05118",
+      "ownership": "verified-external-tooling-copy",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json",
+      "sourceBlobOid": "3e71ebc595f0e140cc8d81c0f96b49fd863e5edd",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-vad.v1.json",
+      "sourceSha256": "0313951e6908f0d6f01be5e3836512e2dc35b148a0a53edacf71f30129c05118"
+    },
+    {
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-windows-cuda-pack.v1.json",
+      "destinationSha256": "cdf12c71912de60702d7ed4f989ddd87c6bfcdb91119de4dd3586621938f4079",
+      "ownership": "verified-external-tooling-copy",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json",
+      "sourceBlobOid": "624f2f4a3cbde2afaef0404df1f87d767b497f58",
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+      "sourceSha256": "8036c8053606c16adcfd126b0afc963944afa29e4958b12faeb358ce299e7852"
+    }
+  ],
+  "files": [
+    {
+      "byteSize": 10707,
+      "destinationPath": "native/subtitle-studio-overwrite/README.md",
+      "destinationSha256": "aaa24f281f31e94abd77f89fe0be5b697fb2492a382f47dea4365b52ea62bc90",
+      "sourceBlobOid": "5f1edbb1d5c0980b9811d1763d2068448e844487",
+      "sourcePath": "native/local-subtitle-overwrite/README.md",
+      "sourceSha256": "fb77ee81cce7518327948e4a44c36382f94a58ca6bc881ec6674bcd28fb83326",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "# Local subtitle overwrite native addon\n\nThis directory contains the macOS arm64 and Windows x64 implementations of the\nsynchronous local-subtitle overwrite transaction backend. They are plain\nNode-API addons and do not depend on `node-addon-api`.\n\nThe canonical developer builds are:\n\n- macOS arm64:\n  `node scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs`\n- Windows x64:\n  `node scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs\n  --toolchain-root <absolute-llvm-mingw-root>\n  --node-headers <absolute-current-node-headers>\n  --node-lib <absolute-current-node-lib>`\n\nBoth recipes require headers that exactly match the running Node version and\npublish through a no-clobber temporary artifact. The Windows recipe additionally\nrequires an explicit portable LLVM-MinGW root and matching x64 `node.lib`; its\nminimal child environment and receipt do not record private absolute paths.\nNeither recipe invokes a package manager or `node-gyp`. `binding.gyp` is source\nmetadata only; it is not the verified build, staging, signing, or packaging\ncontract.\n\n",
+          "kind": "exact-text",
+          "reason": "Describe the new fork and explicit platform scope without adopting historical success claims.",
+          "to": "# Subtitle Studio overwrite native addon\n\nThis independent fork comes from the fixed v1 source recorded in\n`resources/subtitle-studio/provenance/transcription-native-fork.json`.\nIt preserves N-API 8, native protocol 4, journal 3, and transaction semantics.\nThe macOS recipe is\n`node scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.mjs`.\nIts output must be staged and signed using the new overwrite staging scripts.\n`binding.gyp` is source metadata; no package manager or node-gyp is required.\nThe Windows C++ and delayed-host loader are frozen source only in T03; the new\nWindows recipe and actual Windows execution remain deferred.\n\nThe current fork is not registered in the product or a complete ASR runtime.\nActual T03 macOS build, signing, and Electron transaction evidence is tracked in\nthe module implementation record, separately from historical v1 evidence below.\n\n"
+        },
+        {
+          "count": 1,
+          "from": "## Developer checkpoint evidence",
+          "kind": "exact-text",
+          "reason": "Explicitly preserve v1 checkpoint evidence as historical source claims only.",
+          "to": "## Historical v1 checkpoint evidence\n\nEverything below this heading is retained source history, including platform\nstatus, build results, and composition statements. It is not validation of the\nSubtitle Studio fork. The original hashes identify v1 artifacts only."
+        },
+        {
+          "count": 1,
+          "from": ".fusionkit-local-subtitle-",
+          "kind": "exact-text",
+          "reason": "Match T02 partial identity and reject v1 partials.",
+          "to": ".fusionkit-subtitle-studio-"
+        },
+        {
+          "count": 3,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 909,
+      "destinationPath": "native/subtitle-studio-overwrite/binding.gyp",
+      "destinationSha256": "dfceb48de593afcc403a10b82c33c4decb6022a82751dd14c6bc0f9862a41177",
+      "sourceBlobOid": "0921afe5c3df6c51199342b696d75e5963322c75",
+      "sourcePath": "native/local-subtitle-overwrite/binding.gyp",
+      "sourceSha256": "0d5e186d904a47d56d1cf490bc89669c28e7d37336c2f8b5c4add49b2ccb77f4",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "local_subtitle_overwrite",
+          "kind": "exact-text",
+          "reason": "Independent native build metadata identity.",
+          "to": "subtitle_studio_overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 94459,
+      "destinationPath": "native/subtitle-studio-overwrite/src/addon-win32.cc",
+      "destinationSha256": "9fc465aaea4dd44bb3a9b9e5816e81786012eeda352f69522fdbfd5198ee574b",
+      "sourceBlobOid": "f2c28f1642a76299bfca8aabbdbfe2bc787f3650",
+      "sourcePath": "native/local-subtitle-overwrite/src/addon-win32.cc",
+      "sourceSha256": "d4024f6bedcb369e7b09e4d5a05dc3c776c0937c73f55f78ce9009592bbaf0b0",
+      "transforms": [
+        {
+          "count": 1,
+          "from": ".fusionkit-local-subtitle-",
+          "kind": "exact-text",
+          "reason": "Match T02 partial identity and reject v1 partials.",
+          "to": ".fusionkit-subtitle-studio-"
+        },
+        {
+          "count": 1,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 76268,
+      "destinationPath": "native/subtitle-studio-overwrite/src/addon.cc",
+      "destinationSha256": "f596c2d1bf6e793016638cc8ccce3aa1e7164cba586ce995320b7f056b09beaf",
+      "sourceBlobOid": "befe1a8caa3d3196128163dd759cb9354c322973",
+      "sourcePath": "native/local-subtitle-overwrite/src/addon.cc",
+      "sourceSha256": "b519728e7f921a19df72c3426f1dcef32267a61dfcb64c76b75b27f514698f6a",
+      "transforms": [
+        {
+          "count": 1,
+          "from": ".fusionkit-local-subtitle-",
+          "kind": "exact-text",
+          "reason": "Match T02 partial identity and reject v1 partials.",
+          "to": ".fusionkit-subtitle-studio-"
+        },
+        {
+          "count": 1,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        },
+        {
+          "count": 2,
+          "from": "local_subtitle_overwrite",
+          "kind": "exact-text",
+          "reason": "Independent native build metadata identity.",
+          "to": "subtitle_studio_overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 889,
+      "destinationPath": "native/subtitle-studio-overwrite/src/win-delay-load-hook.cc",
+      "destinationSha256": "1f2d24f869fb39df2528065c40fdb754c6a5095d4a8d3832559cb8890e1c638e",
+      "sourceBlobOid": "f3ed16d48ac0cdde3632266324741f679ab902c5",
+      "sourcePath": "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+      "sourceSha256": "1f2d24f869fb39df2528065c40fdb754c6a5095d4a8d3832559cb8890e1c638e",
+      "transforms": []
+    },
+    {
+      "byteSize": 21080,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.mjs",
+      "destinationSha256": "98e460f30211735f60962405805f5b6165cc44975e5fb47499fc2338364dc16a",
+      "sourceBlobOid": "aade52fdbe532adab605b2c889919303d2eb4287",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+      "sourceSha256": "4ceef734634bfda529959179ea81fba54b5339180f4ce823a47c28dbdbdd22c5",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "scripts/local-subtitle/",
+          "kind": "exact-text",
+          "reason": "Resolve only the new build and integration script closure.",
+          "to": "scripts/subtitle-studio/transcription/"
+        },
+        {
+          "count": 1,
+          "from": "native/local-subtitle-overwrite/",
+          "kind": "exact-text",
+          "reason": "Build from the independent native source.",
+          "to": "native/subtitle-studio-overwrite/"
+        },
+        {
+          "count": 3,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        },
+        {
+          "count": 2,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        },
+        {
+          "count": 1,
+          "from": "const PROJECT_ROOT = path.resolve(path.dirname(SCRIPT_PATH), \"../../..\");",
+          "kind": "exact-text",
+          "reason": "Account for the extra transcription script directory.",
+          "to": "const PROJECT_ROOT = path.resolve(path.dirname(SCRIPT_PATH), \"../../../..\");"
+        }
+      ]
+    },
+    {
+      "byteSize": 20579,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.test.mjs",
+      "destinationSha256": "a9c59e6effed8ddd246b0450e59b0dd81a5746ab722c4f01c45b63f63e5a797b",
+      "sourceBlobOid": "5c9f32f18712c81f99a2c09c6bf49b730226d386",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.test.mjs",
+      "sourceSha256": "ca823b4527de7835b177ca703447b7cb3a677dc6695d10e4e5f25358edf9e3b6",
+      "transforms": [
+        {
+          "count": 2,
+          "from": "native/local-subtitle-overwrite/",
+          "kind": "exact-text",
+          "reason": "Build from the independent native source.",
+          "to": "native/subtitle-studio-overwrite/"
+        },
+        {
+          "count": 5,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        },
+        {
+          "count": 3,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 6007,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-test-addon-macos-arm64.mjs",
+      "destinationSha256": "ae525547995314a3fcd653e681adcc66c13438cab07b0a057c1232503f941e17",
+      "sourceBlobOid": "1dfd57cd4b68df0e3fc3017a0c405addb585ad62",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-macos-arm64.mjs",
+      "sourceSha256": "68757ebc06685b22e74b97932ed25d4cabcdf0e715384bd4f549ab429a109a3b",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "scripts/local-subtitle/",
+          "kind": "exact-text",
+          "reason": "Resolve only the new build and integration script closure.",
+          "to": "scripts/subtitle-studio/transcription/"
+        },
+        {
+          "count": 2,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 41,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-native-staging.mjs",
+      "destinationSha256": "7fc820aafaf247c7eab565220a5fc1f017d8576ca25d27a8220cf069f3a85d2c",
+      "sourceBlobOid": "9cda47e93d3c24bf69421c7dfcf10a2509191bca",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.mjs",
+      "sourceSha256": "7fc820aafaf247c7eab565220a5fc1f017d8576ca25d27a8220cf069f3a85d2c",
+      "transforms": []
+    },
+    {
+      "byteSize": 16576,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-native-staging.test.mjs",
+      "destinationSha256": "7b95ff3f4cfe384e6c6cad4fdd746c2e0d8ca3647b4f39d1638fab53753a4142",
+      "sourceBlobOid": "5459d2231acd2af434b75329e38ee5524fbfebef",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.test.mjs",
+      "sourceSha256": "8e060fd0f7c5610a233d3842ea2142a3cbcb0de149ed242dcdab62aedd232e4a",
+      "transforms": [
+        {
+          "count": 2,
+          "from": "scripts/local-subtitle/",
+          "kind": "exact-text",
+          "reason": "Resolve only the new build and integration script closure.",
+          "to": "scripts/subtitle-studio/transcription/"
+        },
+        {
+          "count": 3,
+          "from": "native/local-subtitle-overwrite/",
+          "kind": "exact-text",
+          "reason": "Build from the independent native source.",
+          "to": "native/subtitle-studio-overwrite/"
+        },
+        {
+          "count": 10,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        },
+        {
+          "count": 2,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        },
+        {
+          "count": 2,
+          "from": "\"local-subtitle\"",
+          "kind": "exact-text",
+          "reason": "Independent packaged/runtime fixture root.",
+          "to": "\"subtitle-studio/transcription\""
+        }
+      ]
+    },
+    {
+      "byteSize": 17567,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging-contract.mjs",
+      "destinationSha256": "8c888220eb98d3afefde9673e772c69d9950f6a287666ead422c9e592df59192",
+      "sourceBlobOid": "d595b74dff71f2b51c5fc05eba31d73c2c4b2ef4",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "sourceSha256": "28ab8acff59cb1663d76e2db42bbf46744ccb354b04de598243969e674c4c1ae",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+          "kind": "exact-text",
+          "reason": "Resolve the frozen T02 overwrite manifest.",
+          "to": "resources/subtitle-studio/transcription/manifests/subtitle-studio-overwrite-staging.v1.json"
+        },
+        {
+          "count": 1,
+          "from": "build/local-subtitle-resources/local-subtitle",
+          "kind": "exact-text",
+          "reason": "Independent development runtime root.",
+          "to": "build/subtitle-studio-resources/transcription"
+        },
+        {
+          "count": 2,
+          "from": "scripts/local-subtitle/",
+          "kind": "exact-text",
+          "reason": "Resolve only the new build and integration script closure.",
+          "to": "scripts/subtitle-studio/transcription/"
+        },
+        {
+          "count": 3,
+          "from": "native/local-subtitle-overwrite/",
+          "kind": "exact-text",
+          "reason": "Build from the independent native source.",
+          "to": "native/subtitle-studio-overwrite/"
+        },
+        {
+          "count": 4,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        },
+        {
+          "count": 1,
+          "from": "\"local-subtitle\"",
+          "kind": "exact-text",
+          "reason": "Independent packaged/runtime fixture root.",
+          "to": "\"subtitle-studio/transcription\""
+        },
+        {
+          "count": 1,
+          "from": "const PROJECT_ROOT = path.resolve(path.dirname(MODULE_PATH), \"../../..\");",
+          "kind": "exact-text",
+          "reason": "Account for the extra transcription script directory.",
+          "to": "const PROJECT_ROOT = path.resolve(path.dirname(MODULE_PATH), \"../../../..\");"
+        }
+      ]
+    },
+    {
+      "byteSize": 5984,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging-contract.test.mjs",
+      "destinationSha256": "7a7eef3e6f9a205400b0ca143e4e99b884adc1ed28596c66fe4e02f7d0cd86b9",
+      "sourceBlobOid": "5052768f8756e66d445e7ca36f519d353a9924a1",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.test.mjs",
+      "sourceSha256": "38a644d764f87e0dd32a141d6feae635c0960f5be7a81bdce1ebdb1b0710772d",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "scripts/local-subtitle/",
+          "kind": "exact-text",
+          "reason": "Resolve only the new build and integration script closure.",
+          "to": "scripts/subtitle-studio/transcription/"
+        },
+        {
+          "count": 1,
+          "from": "native/local-subtitle-overwrite/",
+          "kind": "exact-text",
+          "reason": "Build from the independent native source.",
+          "to": "native/subtitle-studio-overwrite/"
+        },
+        {
+          "count": 7,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 29105,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging.mjs",
+      "destinationSha256": "765712f4d9109111c973383240688501e463ecc67812622f804c420b8e5d2ca7",
+      "sourceBlobOid": "817e6ad06a60d9f48ca9575e334ae9f10bc85904",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging.mjs",
+      "sourceSha256": "09e290a9693b0b2567e8cf5b32a41d3b99eeb9e8ca310f3a6e423a907bb13ebd",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        },
+        {
+          "count": 1,
+          "from": "com.fusionkit.local-subtitle.overwrite",
+          "kind": "exact-text",
+          "reason": "Independent nested codesign identifier.",
+          "to": "com.fusionkit.subtitle-studio.overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 37449,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-integration.mjs",
+      "destinationSha256": "2f0dd74003f925c80584ab871c123d4feca917710504bb8f180204320068066e",
+      "sourceBlobOid": "df60a55ef255c5a142382d2d3f378293602905c8",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-integration.mjs",
+      "sourceSha256": "ddb235eb4ed3a255f9836fb39897261be31f20f9e9597633292b0d5d98e8e7ad",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        },
+        {
+          "count": 2,
+          "from": ".fusionkit-local-subtitle-",
+          "kind": "exact-text",
+          "reason": "Match T02 partial identity and reject v1 partials.",
+          "to": ".fusionkit-subtitle-studio-"
+        },
+        {
+          "count": 4,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 11474,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-recovery-child.mjs",
+      "destinationSha256": "953551f740e194cda30867a405f8484f05b99ccedb2472f05e6e22d57e3dba23",
+      "sourceBlobOid": "2c63038812fa4715039cf5fd58385d594e6adad1",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-child.mjs",
+      "sourceSha256": "f9ff8b27d571fdb0d92ad1dc5ec7fa1125df3ba4f472942ec8f3c3e28c208122",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        }
+      ]
+    },
+    {
+      "byteSize": 33027,
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-recovery-integration.mjs",
+      "destinationSha256": "456ed3ebdfd6f1d7555b3fe7d3b5ef2f2c505f270b00ae4a23947de6da9d5159",
+      "sourceBlobOid": "042092025d7aec600d2e2ac0d6bff0cd53de5fb2",
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-integration.mjs",
+      "sourceSha256": "1bf1159442f03475b154fc9c757be8a7978b46607fd832532ac368bd9535a82d",
+      "transforms": [
+        {
+          "count": 1,
+          "from": "local-subtitle-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent component and content-addressed artifact identity.",
+          "to": "subtitle-studio-overwrite"
+        },
+        {
+          "count": 1,
+          "from": ".fusionkit-local-subtitle-",
+          "kind": "exact-text",
+          "reason": "Match T02 partial identity and reject v1 partials.",
+          "to": ".fusionkit-subtitle-studio-"
+        },
+        {
+          "count": 2,
+          "from": "fusionkit-overwrite",
+          "kind": "exact-text",
+          "reason": "Independent journal and temporary build/test identity.",
+          "to": "fusionkit-subtitle-studio-overwrite"
+        },
+        {
+          "count": 1,
+          "from": "      TMPDIR: \"/tmp\",\n      ...additionalEnvironment,",
+          "kind": "exact-text",
+          "reason": "Preserve the actual Electron host in fresh recovery children without inheriting unrelated environment.",
+          "to": "      TMPDIR: \"/tmp\",\n      ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: \"1\" } : {}),\n      ...additionalEnvironment,"
+        }
+      ]
+    }
+  ],
+  "recipeSha256": "25d0acd733b428a282409a872b78468f69a7de58e2ae8f9124f2fb1ba75d1c91",
+  "schemaVersion": 1,
+  "sourceBaselineSha256": "c6367bddd06cf2e31ecf04dbbe8766f70edff888775fbd14a46114ea8c29ac66",
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "status": "native-source-copy-unregistered"
+}

@@ -1,4 +1,4 @@
-import { StudioError, validateDocument, type SubtitleCue, type SubtitleDocument, type SubtitleText } from './domain';
+import { StudioError, validateDocument, type TextSubtitleCue as SubtitleCue, type TextSubtitleDocument, type SubtitleDocument, type SubtitleText } from './domain';
 import { bilingualOptionsSchema, type BilingualCandidate, type BilingualOptions, type BilingualPreview } from './bilingual-contract';
 
 type Language = BilingualPreview['sourceLanguage'];
@@ -144,7 +144,7 @@ function separateRepeatedInlineText(pairs: Pair[], options: BilingualOptions) {
   }
 }
 
-function collectPairs(doc: SubtitleDocument, options: BilingualOptions): Pair[] {
+function collectPairs(doc: TextSubtitleDocument, options: BilingualOptions): Pair[] {
   const pairs: Pair[] = [];
   const overrides = new Map(options.overrides.map(item => [item.cueId, item.splitAt]));
   for (let index = 0; index < doc.cues.length;) {
@@ -190,7 +190,7 @@ function collectPairs(doc: SubtitleDocument, options: BilingualOptions): Pair[] 
 }
 
 export function hasBilingualCandidates(doc: SubtitleDocument): boolean {
-  if (doc.bilingualImport || doc.translationTracks.length || !doc.capabilities.translate) return false;
+  if (doc.schemaVersion === 2 || doc.bilingualImport || doc.translationTracks.length || !doc.capabilities.translate) return false;
   for (let index = 0; index < doc.cues.length;) {
     const cue = doc.cues[index];
     let runEnd = index + 1;
@@ -207,6 +207,7 @@ export function hasBilingualCandidates(doc: SubtitleDocument): boolean {
 }
 
 export function analyzeBilingual(doc: SubtitleDocument, input: BilingualOptions): BilingualAnalysis {
+  if (doc.schemaVersion === 2) throw new StudioError('unsupported_feature');
   const parsed = bilingualOptionsSchema.safeParse(input);
   if (!parsed.success || doc.translationTracks.length || doc.bilingualImport) throw new StudioError('invalid_input');
   if (!doc.capabilities.translate) throw new StudioError('unsupported_feature');
@@ -270,7 +271,7 @@ function sliceText(range: TextRange): SubtitleText {
 }
 
 type RawMapping = { bodyStart: number; bodyEnd: number; starts: number[]; ends: number[]; plain: string };
-function mapRawBody(doc: SubtitleDocument, node: SubtitleDocument['preservation']['nodes'][number]): RawMapping {
+function mapRawBody(doc: TextSubtitleDocument, node: TextSubtitleDocument['preservation']['nodes'][number]): RawMapping {
   const raw = doc.preservation.rawText.slice(node.start, node.end);
   let bodyStart = 0;
   let bodyEnd = raw.length;
@@ -306,6 +307,7 @@ function mapRawBody(doc: SubtitleDocument, node: SubtitleDocument['preservation'
 
 export function applyBilingual(doc: SubtitleDocument, options: BilingualOptions, newId: () => string, sourceDigest: (cue: SubtitleCue) => string): SubtitleDocument {
   const validated = validateDocument(doc);
+  if (validated.schemaVersion === 2) throw new StudioError('unsupported_feature');
   const analysis = analyzeBilingual(validated, options);
   if (!analysis.pairedCount) throw new StudioError('invalid_input');
   const nodes = new Map(validated.preservation.nodes.map(node => [node.id, node]));

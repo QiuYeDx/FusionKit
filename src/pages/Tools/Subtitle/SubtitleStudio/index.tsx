@@ -84,7 +84,7 @@ export default function SubtitleStudio() {
   const currentOffset = useRef(0);
   const dirty = useRef(false);
   const refreshPending = useRef<() => void>(() => {});
-  const showPage = (value: DocumentPage | null) => { currentPage.current = value; setPage(value); };
+  const showPage = (value: DocumentPage | null) => { currentPage.current = value; setPage(value); if (value && !value.summary.capabilities.preserveSource) setView('preview'); };
   const mounted = useRef(true);
   const operation = useRef(false);
   const retry = useRef<(() => void) | null>(null);
@@ -348,7 +348,7 @@ export default function SubtitleStudio() {
           badge={page ? <Badge variant="secondary" className="font-mono text-[11px]">{page.summary.cueCount}</Badge> : undefined}
           actions={page ? <><StudioBilingual page={page} busy={busy} autoOpen={importedId === page.summary.id} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setImportedId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton></> : undefined}
           className="studio-preview-panel"
-          footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t('studio:source_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
+          footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t(page.summary.capabilities.preserveSource ? 'studio:source_preserved' : 'studio:transcription_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
           {page ? <>
             {track && <div className="studio-translation-toolbar">
@@ -359,13 +359,13 @@ export default function SubtitleStudio() {
             </div>}
             <ClipPathTabs value={view} onValueChange={setView} ariaLabel={t('studio:document_view')} shape="rounded" smoothCorners size="sm" className="studio-tabs w-full gap-0" transitionDuration={200} transitionEasing="ease-out" items={[
               { value: 'preview', label: t('studio:preview'), icon: <List /> },
-              { value: 'raw', label: t('studio:original_nodes'), icon: <Code2 /> },
+              ...(page.summary.capabilities.preserveSource ? [{ value: 'raw', label: t('studio:original_nodes'), icon: <Code2 /> }] : []),
             ]}>
               <div className="studio-document-heading">
                 <h2 className="text-sm font-medium"><StudioFileName name={page.summary.origin.displayName} focusable /></h2>
                 <div className="studio-document-meta text-[11px] text-muted-foreground">
                   <Badge variant="outline" className="font-mono text-[10px] font-normal">{page.summary.origin.format.toUpperCase()}</Badge>
-                  <span>{page.summary.origin.encoding.toUpperCase()}</span>
+                  {'encoding' in page.summary.origin && <span>{page.summary.origin.encoding.toUpperCase()}</span>}
                   <span>{track ? t(track.origin === 'imported' ? 'studio:translation_imported' : 'studio:translation_unreviewed') : t('studio:source_only')}</span>
                 </div>
               </div>

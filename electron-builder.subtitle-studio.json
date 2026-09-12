@@ -1,0 +1,86 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.fusionkit.app",
+  "asar": true,
+  "directories": {
+    "buildResources": "build",
+    "output": "release/${version}"
+  },
+  "files": [
+    "dist-electron",
+    "dist"
+  ],
+  "extraResources": [
+    {
+      "from": "build/local-subtitle-resources/local-subtitle",
+      "to": "local-subtitle",
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "build/subtitle-studio-resources/transcription",
+      "to": "subtitle-studio/transcription",
+      "filter": [
+        "**/*"
+      ]
+    }
+  ],
+  "beforePack": "scripts/packaging/subtitle-studio-before-pack.cjs",
+  "mac": {
+    "artifactName": "${productName}_${version}_${arch}.${ext}",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "arm64"
+        ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "arm64"
+        ]
+      }
+    ],
+    "icon": "build/FusionKit.icns",
+    "signIgnore": [
+      "Contents/Resources/local-subtitle/",
+      "Contents/Resources/subtitle-studio/transcription/"
+    ]
+  },
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "icon": "build/FusionKit.ico",
+    "artifactName": "${productName}_${version}_${arch}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "installerIcon": "build/FusionKit.ico",
+    "uninstallerIcon": "build/FusionKit.ico",
+    "installerHeaderIcon": "build/FusionKit.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "FusionKit"
+  },
+  "dmg": {
+    "icon": "build/FusionKit.icns"
+  },
+  "publish": {
+    "provider": "github",
+    "channel": "latest",
+    "owner": "QiuYeDx",
+    "repo": "FusionKit",
+    "releaseType": "release"
+  }
+}

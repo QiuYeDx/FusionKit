@@ -34,6 +34,7 @@ const issueKeys = {
   styles_removed: 'studio:export.issues.styles_removed',
   line_breaks_flattened: 'studio:export.issues.line_breaks_flattened',
   metadata_omitted: 'studio:export.issues.metadata_omitted',
+  transcription_evidence_omitted: 'studio:export.issues.transcription_evidence_omitted',
   unsupported_text: 'studio:export.issues.unsupported_text',
   empty_output: 'studio:export.issues.empty_output',
   encoding_unrepresentable: 'studio:export.issues.encoding_unrepresentable',
@@ -78,7 +79,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   const [batchResult, setBatchResult] = useState<ExportBatchResult | SourceBatchResult | null>(null);
   const [sourceMode, setSourceMode] = useState(false);
   const [mode, setMode] = useState<ExportOptions['mode']>('source');
-  const [format, setFormat] = useState<ExportOptions['format']>(page?.summary.origin.format ?? 'srt');
+  const [format, setFormat] = useState<ExportOptions['format']>(page?.summary.origin.format === 'lrc' ? 'lrc' : 'srt');
   const [selectedTrackId, setSelectedTrackId] = useState(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
   const [order, setOrder] = useState<ExportOptions['order']>('source-first');
   const [encoding, setEncoding] = useState<Encoding>('utf-8');
@@ -130,7 +131,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   useEffect(() => { if (batchResult) document.getElementById(`${controlId}-close`)?.focus({ preventScroll: true }); }, [batchResult, controlId]);
   useEffect(() => {
     if (batch) return;
-    setOpen(false); setMode('source'); setFormat(page?.summary.origin.format ?? 'srt');
+    setOpen(false); setMode('source'); setFormat(page?.summary.origin.format === 'lrc' ? 'lrc' : 'srt');
     setSelectedTrackId(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
     setEstimateEnd(false); setIncomplete('block');
     // Reset only on document selection, never for a background revision change.
@@ -227,7 +228,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   const triggerControl = <DropdownMenu>
       <Tooltip delayDuration={350}><TooltipTrigger asChild><DropdownMenuTrigger asChild><Button ref={trigger} variant="ghost" size="icon-sm" aria-label={t(batch ? 'studio:batch.download' : 'studio:batch.download_single')} disabled={busy || pending || (batch ? !documents?.length || documents.length > STUDIO_BATCH_LIMIT : !page)}>{activity === 'source' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}</Button></DropdownMenuTrigger></TooltipTrigger><TooltipContent sideOffset={6}>{t(batch ? 'studio:batch.download' : 'studio:batch.download_single')}</TooltipContent></Tooltip>
       <DropdownMenuContent align="end" data-testid="studio-download-menu" onCloseAutoFocus={event => { if (dialogOpen.current) event.preventDefault(); }}>
-        <DropdownMenuItem onSelect={() => void downloadSource()}><ArrowDownToLine />{t(batch ? 'studio:batch.download_sources' : 'studio:export_source')}</DropdownMenuItem>
+        {(batch ? documents?.every(document => document.capabilities.preserveSource) : page?.summary.capabilities.preserveSource) && <DropdownMenuItem onSelect={() => void downloadSource()}><ArrowDownToLine />{t(batch ? 'studio:batch.download_sources' : 'studio:export_source')}</DropdownMenuItem>}
         <DropdownMenuItem onSelect={() => changeOpen(true)}><ClipboardCheck />{t(batch ? 'studio:batch.export' : 'studio:export.action')}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>;

@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "sourcePath": "electron/main/subtitle-studio/transcription/native/production-executor.ts",
+  "destinationPath": "electron/main/subtitle-studio/transcription/transcript-executor.ts",
+  "sourceSha256": "9391614ca0590a026c3d1a0512269ef5575be5382b58c1155b42f4b798bf683b",
+  "sourceProvenancePath": "resources/subtitle-studio/provenance/transcription-fork.json",
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "literalEdits": [
+    {
+      "fromText": "  type LocalSubtitleConflictPolicy,\n",
+      "toText": "  type LocalSubtitleCueSummary,\n  type LocalSubtitleTranscript,\n",
+      "count": 1,
+      "reason": "Use transcript/summary result types instead of file conflict policy."
+    },
+    {
+      "fromText": "  type LocalSubtitleFormat,\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove the output file format type."
+    },
+    {
+      "fromText": "import type {\n  LocalSubtitleInputAuthorizationRegistry,\n  LocalSubtitleDirectoryIdentity,\n  LocalSubtitleOutputDirectoryAuthorizationRegistry,\n  ResolvedLocalSubtitleOutputDirectory,\n} from \"./authorizations\";\nimport type {\n  LocalSubtitleJobBatchExecutionContext,\n  LocalSubtitleJobBatchRuntime,\n  LocalSubtitleJobTaskExecutionContext,\n  LocalSubtitleJobTaskExecutionResult,\n  LocalSubtitleJobTaskExecutor,\n} from \"./job-manager\";\n",
+      "toText": "import type {\n  LocalSubtitleJobBatchExecutionContext as NativeBatchExecutionContext,\n  LocalSubtitleJobBatchRuntime,\n  LocalSubtitleJobTaskExecutionContext as NativeTaskExecutionContext,\n} from \"./job-manager\";\n",
+      "count": 1,
+      "reason": "Keep the admitted native context contract without output directory or artifact result collaborators."
+    },
+    {
+      "fromText": "import type {\n  LocalSubtitleExportResult,\n  LocalSubtitleExporter,\n} from \"./subtitle-exporter\";\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove all exporter types from the transcript boundary."
+    },
+    {
+      "fromText": "  sameLocalSubtitleFilesystemObjectIdentity,\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove output directory identity helper only."
+    },
+    {
+      "fromText": "const RESERVED_WINDOWS_OUTPUT_STEM =\n  /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\.|$)/iu;\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove filename-only policy."
+    },
+    {
+      "fromText": "type ProductionOutputs = Pick<\n  LocalSubtitleOutputDirectoryAuthorizationRegistry,\n  \"resolveBatchLease\"\n>;\n\ntype ProductionInputs = Pick<\n  LocalSubtitleInputAuthorizationRegistry,\n  \"resolveTaskSourceOutputDirectory\"\n>;\n\ntype ProductionExporter = Pick<\n  LocalSubtitleExporter<unknown>,\n  \"exportArtifacts\" | \"supportsConflictPolicy\"\n>;\n\n",
+      "toText": "export type TranscriptionBatchExecutionContext = Omit<NativeBatchExecutionContext, \"config\"> & {\n  readonly config: Omit<NativeBatchExecutionContext[\"config\"], \"output\" | \"postAction\">;\n};\nexport type TranscriptionTaskExecutionContext = Omit<NativeTaskExecutionContext, \"config\"> & {\n  readonly config: TranscriptionBatchExecutionContext[\"config\"];\n};\nexport type TranscriptExecutionResult =\n  | Readonly<{ status: \"transcript_ready\"; transcript: LocalSubtitleTranscript; durationMs?: number; cueSummary: LocalSubtitleCueSummary }>\n  | Readonly<{ status: \"failed\"; error: LocalSubtitleError; durationMs?: number }>\n  | Readonly<{ status: \"cancelled\"; durationMs?: number }>;\n\n",
+      "count": 1,
+      "reason": "Define a transcript-only terminal result and an already admitted context without file-output configuration."
+    },
+    {
+      "fromText": "  readonly inputs: ProductionInputs;\n  readonly outputs: ProductionOutputs;\n  readonly exporter: ProductionExporter;\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove output collaborators from construction."
+    },
+    {
+      "fromText": "export class LocalSubtitleProductionExecutor\n  implements LocalSubtitleJobTaskExecutor\n{",
+      "toText": "export class TranscriptionExecutor {",
+      "count": 1,
+      "reason": "Use a distinct executor class and independent batch runtime identity."
+    },
+    {
+      "fromText": "  readonly #inputs: ProductionInputs;\n  readonly #outputs: ProductionOutputs;\n  readonly #exporter: ProductionExporter;\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove output collaborator state."
+    },
+    {
+      "fromText": "      ]) ||\n      !hasMethods(options?.inputs, [\"resolveTaskSourceOutputDirectory\"]) ||\n      !hasMethods(options?.outputs, [\"resolveBatchLease\"]) ||\n      !hasMethods(options?.exporter, [\n        \"exportArtifacts\",\n        \"supportsConflictPolicy\",\n      ])",
+      "toText": "      ])",
+      "count": 1,
+      "reason": "Keep required media/supervisor checks without requiring file writers."
+    },
+    {
+      "fromText": "    this.#inputs = options.inputs;\n    this.#outputs = options.outputs;\n    this.#exporter = options.exporter;\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove output collaborator assignment."
+    },
+    {
+      "fromText": "  supportsOutputConflictPolicy(policy: LocalSubtitleConflictPolicy): boolean {\n    return this.#exporter.supportsConflictPolicy(policy);\n  }\n\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Do not expose a file overwrite policy."
+    },
+    {
+      "fromText": "        context,\n        this.#exporter.supportsConflictPolicy.bind(this.#exporter),",
+      "toText": "        context,",
+      "count": 2,
+      "reason": "Retain context validation without file-output policy."
+    },
+    {
+      "fromText": "    let sourceOutputDirectoryIdentity: LocalSubtitleDirectoryIdentity | undefined;\n    if (context.config.output.mode === \"source\") {\n      try {\n        throwIfCancelled(context.signal);\n        const directory = await this.#inputs.resolveTaskSourceOutputDirectory(\n          context.owner,\n          context.taskId,\n          context.fileToken,\n        );\n        sourceOutputDirectoryIdentity = Object.freeze({ ...directory.identity });\n        throwIfCancelled(context.signal);\n      } catch (error) {\n        if (context.signal.aborted || error instanceof ExecutionCancelled) {\n          return Object.freeze({ status: \"cancelled\", artifactResults: [] });\n        }\n        const code = publicErrorCode(error, \"exporting\");\n        return failedResult(\n          code,\n          LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,\n        );\n      }\n    }\n    const resolveOutputDirectory = this.#createOutputDirectoryResolver(\n      context,\n      sourceOutputDirectoryIdentity,\n    );\n\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Do not resolve source output authority or create an output directory resolver."
+    },
+    {
+      "fromText": "    stage = \"exporting\";\n    try {\n      context.update({\n        status: \"exporting\",\n        progress: {\n          stage: \"exporting\",\n          stageProgress: 0,\n          overallProgress: 90,\n        },\n        durationMs,\n      });\n      const result = await this.#exporter.exportArtifacts({\n        owner: context.owner,\n        taskId: context.taskId,\n        generation: context.generation,\n        outputStem: outputStem(transcript.source.displayName, context.taskId),\n        formats: context.config.output.formats,\n        conflictPolicy: context.config.output.conflictPolicy,\n        transcript,\n        resolveOutputDirectory,\n        signal: context.signal,\n      });\n      const outcome = mapExportResult(result, durationMs, context.signal.aborted);\n      return outcome.status === \"completed\" ? Object.freeze({ ...outcome,\n        cueSummary: summarizeLocalSubtitleCues(transcript.segments, createSubtitlePostProcessPolicy(context.config.inference)),\n      }) : outcome;\n    } catch (error) {\n      const rawCode = publicErrorCode(error, stage);\n      const code = normalizeCleanupErrorCode(rawCode, context.signal.aborted);\n      if (!isCleanupFailureCode(code) && context.signal.aborted) {\n        return Object.freeze({ status: \"cancelled\", artifactResults: [], durationMs });\n      }\n      return failedResult(\n        code,\n        isCleanupFailureCode(code)\n          ? \"cleanup\"\n          : LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,\n        durationMs,\n      );\n    }\n  }\n\n",
+      "toText": "    return Object.freeze({\n      status: \"transcript_ready\",\n      transcript,\n      durationMs,\n      cueSummary: summarizeLocalSubtitleCues(transcript.segments, createSubtitlePostProcessPolicy(context.config.inference)),\n    });\n  }\n\n",
+      "count": 1,
+      "reason": "Return the complete final transcript only after successful task cleanup and cancellation checks; never publish files."
+    },
+    {
+      "fromText": "  #createOutputDirectoryResolver(\n    context: LocalSubtitleJobTaskExecutionContext,\n    expectedSourceIdentity?: LocalSubtitleDirectoryIdentity,\n  ): () => Promise<ResolvedLocalSubtitleOutputDirectory> {\n    return context.config.output.mode === \"source\"\n      ? async () => {\n          if (!expectedSourceIdentity) {\n            throw createLocalSubtitleError(\n              \"output_write_failed\",\n              \"The source subtitle output directory proof is unavailable.\",\n              { stage: \"exporting\" },\n            );\n          }\n          const directory = await this.#inputs.resolveTaskSourceOutputDirectory(\n            context.owner,\n            context.taskId,\n            context.fileToken,\n          );\n          if (!sameDirectoryIdentity(directory.identity, expectedSourceIdentity)) {\n            throw createLocalSubtitleError(\n              \"output_write_failed\",\n              \"The source subtitle output directory changed after preflight.\",\n              { stage: \"exporting\" },\n            );\n          }\n          return directory;\n        }\n      : () => this.#outputs.resolveBatchLease(context.owner, context.batchId);\n  }\n\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove the entire file-output directory closure."
+    },
+    {
+      "fromText": "function mapExportResult(\n  result: LocalSubtitleExportResult,\n  durationMs: number | undefined,\n  cancellationRequested: boolean,\n): LocalSubtitleJobTaskExecutionResult {\n  if (result.status === \"completed\") {\n    return Object.freeze({\n      status: \"completed\",\n      artifactResults: result.artifactResults,\n      durationMs,\n    });\n  }\n  if (result.status === \"cancelled\") {\n    return Object.freeze({\n      status: \"cancelled\",\n      artifactResults: result.artifactResults,\n      durationMs,\n    });\n  }\n  const artifactResults = Object.freeze(\n    result.artifactResults.map((artifact) =>\n      artifact.status === \"failed\"\n        ? Object.freeze({\n            ...artifact,\n            errorCode: normalizeCleanupErrorCode(\n              artifact.errorCode,\n              cancellationRequested,\n            ),\n          })\n        : artifact\n    ),\n  );\n  const failedCodes = artifactResults.flatMap((artifact) =>\n    artifact.status === \"failed\" ? [artifact.errorCode] : []\n  );\n  const code = failedCodes.find(isCleanupFailureCode) ??\n    failedCodes[0] ??\n    \"output_write_failed\";\n  return Object.freeze({\n    status: \"failed\",\n    error: createLocalSubtitleError(code, \"The subtitle artifact export failed.\", {\n      stage: isCleanupFailureCode(code)\n        ? \"cleanup\"\n        : LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,\n    }),\n    artifactResults,\n    durationMs,\n  });\n}\n\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove file artifact terminal mapping."
+    },
+    {
+      "fromText": "    artifactResults: [],\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Failure results contain no artifact claim."
+    },
+    {
+      "fromText": "status: \"cancelled\", artifactResults: [], durationMs",
+      "toText": "status: \"cancelled\", durationMs",
+      "count": 2,
+      "reason": "Cancellation results contain no artifact claim."
+    },
+    {
+      "fromText": "function outputStem(displayName: string, taskId: string): string {\n  const parsed = path.parse(displayName).name\n    .replace(/[\\\\/:\\u0000-\\u001f\\u007f]/gu, \"_\")\n    .trim();\n  const fallback = `subtitle-${taskId}`;\n  const source = parsed && parsed !== \".\" && parsed !== \"..\" ? parsed : fallback;\n  const bounded = boundOutputStem(source) || boundOutputStem(fallback);\n  return RESERVED_WINDOWS_OUTPUT_STEM.test(bounded)\n    ? boundOutputStem(`_${bounded}`)\n    : bounded;\n}\n\nfunction boundOutputStem(source: string): string {\n  let result = \"\";\n  for (const character of Array.from(source)) {\n    const candidate = `${result}${character}`;\n    if (\n      candidate.length > LOCAL_SUBTITLE_LIMITS.maxDisplayNameChars ||\n      Buffer.byteLength(`${candidate}.srt`, \"utf8\") > 255\n    ) {\n      break;\n    }\n    result = candidate;\n  }\n  return result;\n}\n\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove filename derivation and byte bounds used only by file output."
+    },
+    {
+      "fromText": "  supportsConflictPolicy: (policy: LocalSubtitleConflictPolicy) => boolean,\n",
+      "toText": "",
+      "count": 2,
+      "reason": "Remove file policy callback from context validators."
+    },
+    {
+      "fromText": "    (context.config.output.mode === \"custom\" ||\n      context.config.output.mode === \"source\") &&\n    supportsConflictPolicy(context.config.output.conflictPolicy) &&\n    isSupportedProductionFormats(context.config.output.formats) &&\n",
+      "toText": "",
+      "count": 2,
+      "reason": "Retain task/backend/VAD/runtime validation without output directory/format policy."
+    },
+    {
+      "fromText": "function isSupportedProductionFormats(\n  formats: readonly LocalSubtitleFormat[],\n): boolean {\n  return formats.length > 0 &&\n    formats.length <= 2 &&\n    new Set(formats).size === formats.length &&\n    formats.every((format) => format === \"SRT\" || format === \"LRC\");\n}\n\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove file format validation."
+    },
+    {
+      "fromText": "function sameDirectoryIdentity(\n  left: LocalSubtitleDirectoryIdentity,\n  right: LocalSubtitleDirectoryIdentity,\n): boolean {\n  return sameLocalSubtitleFilesystemObjectIdentity(left, right);\n}\n\n",
+      "toText": "",
+      "count": 1,
+      "reason": "Remove output-directory-only identity comparison."
+    },
+    {
+      "fromText": "LocalSubtitleProductionExecutorOptions",
+      "toText": "TranscriptionExecutorOptions",
+      "count": 2,
+      "reason": "Name the derived transcript interface."
+    },
+    {
+      "fromText": "LocalSubtitleJobBatchExecutionContext",
+      "toText": "TranscriptionBatchExecutionContext",
+      "count": 17,
+      "reason": "Name the derived transcript interface."
+    },
+    {
+      "fromText": "LocalSubtitleJobTaskExecutionContext",
+      "toText": "TranscriptionTaskExecutionContext",
+      "count": 7,
+      "reason": "Name the derived transcript interface."
+    },
+    {
+      "fromText": "LocalSubtitleJobTaskExecutionResult",
+      "toText": "TranscriptExecutionResult",
+      "count": 2,
+      "reason": "Name the derived transcript interface."
+    },
+    {
+      "fromText": "  TranscriptionBatchExecutionContext as NativeBatchExecutionContext,",
+      "toText": "  LocalSubtitleJobBatchExecutionContext as NativeBatchExecutionContext,",
+      "count": 1,
+      "reason": "Retain the exact T02 admitted batch source type."
+    },
+    {
+      "fromText": "  TranscriptionTaskExecutionContext as NativeTaskExecutionContext,",
+      "toText": "  LocalSubtitleJobTaskExecutionContext as NativeTaskExecutionContext,",
+      "count": 1,
+      "reason": "Retain the exact T02 admitted task source type."
+    }
+  ]
+}

@@ -77,8 +77,11 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
   if (options.mode !== 'source' && !track) issue('track_missing', 1, true);
   // Targets preserved only as original evidence after bilingual separation are not metadata.
   const pairedTargets = new Set(doc.cues.flatMap(cue => cue.importedPair ? [cue.importedPair.target.nodeId] : []));
-  const omitted = doc.preservation.nodes.filter(node => !node.cueIds.length && !pairedTargets.has(node.id) && doc.preservation.rawText.slice(node.start, node.end).trim()).length;
-  issue('metadata_omitted', omitted, false, true);
+  if (doc.schemaVersion === 2) issue('transcription_evidence_omitted', 1, false, true);
+  else {
+    const omitted = doc.preservation.nodes.filter(node => !node.cueIds.length && !pairedTargets.has(node.id) && doc.preservation.rawText.slice(node.start, node.end).trim()).length;
+    issue('metadata_omitted', omitted, false, true);
+  }
   const starts = [...new Set(doc.cues.map(cue => cue.timing.startMs))].sort((a, b) => a - b);
   const nextStarts = new Map(starts.map((start, index) => [start, starts[index + 1]]));
   const output = new BoundedText();

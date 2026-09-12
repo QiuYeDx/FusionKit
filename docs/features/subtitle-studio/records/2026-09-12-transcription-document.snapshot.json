@@ -1,0 +1,143 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "status": "verified-uncommitted-worktree",
+  "previousSnapshot": {
+    "path": "docs/features/subtitle-studio/records/2026-09-12-transcription-runtime-native.snapshot.json",
+    "sha256": "cfba72e89fc0320771051c2484aac4273d0fec6fd5f2194c13d2ce403a52d86b"
+  },
+  "files": [
+    {
+      "path": "electron/main/subtitle-studio/document-repository.ts",
+      "sha256": "5d9aded56d88baf7937711f2b2f48952984de6997fff938295851546d54a6df0"
+    },
+    {
+      "path": "electron/main/subtitle-studio/export-planner.ts",
+      "sha256": "7495cce0a4b8c17991c72146fee2dbee4fc3458dc37f732f28eebbc20805d5be"
+    },
+    {
+      "path": "electron/main/subtitle-studio/export-service.ts",
+      "sha256": "0806104dc2f12d2b8d234a1022b2523272731aa606be652f23a305282f6a3f84"
+    },
+    {
+      "path": "electron/main/subtitle-studio/index.ts",
+      "sha256": "91c4ce18c763bb09f8c469a9a2f82135118fc704799346c34ea331b90c355139"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/document-adapter.ts",
+      "sha256": "b9a41ae676a94f9efcbd54ea895dc62341165a4751813e689b02835349e17f78"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/document-producer.ts",
+      "sha256": "9c68f76ef93d2ffa536189dd7c468a5f8036e85ec0675c9c173936d8f866079b"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/document-sink.ts",
+      "sha256": "1ebf9bdb35b14914be83585a9de64866d990a1ca28316a82f4d855cabfa43df1"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/transcript-executor.ts",
+      "sha256": "4b22722b1acfc22aff6d36ae381f362bc6f9ed39374f6631023a41f93e376c35"
+    },
+    {
+      "path": "resources/subtitle-studio/provenance/transcription-executor-fork.json",
+      "sha256": "57ad828cd4859554b0ab5f7081abc0bc096111e542d6b856d32d405ffb1d590e"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/transcript-executor-copy.mjs",
+      "sha256": "01d45fc67c9819ef55038660e6ffd9d7cffc6fec843d3f76bd93f3dcf000bd79"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/transcript-executor-recipe.json",
+      "sha256": "1ee7ae281cbc1d9e428913019b7709636c15714154a973f312355b3f2e058622"
+    },
+    {
+      "path": "scripts/subtitle-studio/boundaries.json",
+      "sha256": "57cb9a71a09e6b32731a699b39c9b4ff9c79eb6146d4a3c96a6c01ff21d01633"
+    },
+    {
+      "path": "scripts/subtitle-studio/check-boundaries.mjs",
+      "sha256": "7b97ee54035636eaedccb59ac039acb5c5c32cffa1cd6cc580498bcd6aa323d1"
+    },
+    {
+      "path": "src/locales/en/studio.json",
+      "sha256": "47774af7b3cf2f97b9c844e5878e067133dcbbb29792dcdcc062e58e01eed33d"
+    },
+    {
+      "path": "src/locales/ja/studio.json",
+      "sha256": "0bf20beede0ea90255e76eba1516cf8d1ce5c82725e072ea9c51d81ec174d107"
+    },
+    {
+      "path": "src/locales/zh-Hant/studio.json",
+      "sha256": "fd2cda27e895b88738fdaae93188d8de3d2db7a60ae87d590c0b892867c5028c"
+    },
+    {
+      "path": "src/locales/zh/studio.json",
+      "sha256": "036d445f6d7bea99a29d317a92701b4d41bd4916d6ef3da93e075ae19d192358"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/StudioExport.tsx",
+      "sha256": "d5950afdbf82842d79d58aa3d7fcbfe79b8a2c4a421e08ba4e89b5b59a4cc73e"
+    },
+    {
+      "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
+      "sha256": "84709c1837ec05f9dd8e0dc09b370b1475c2a5500c976e235c3629e68cc631c3"
+    },
+    {
+      "path": "src/subtitle-studio/bilingual.ts",
+      "sha256": "4e7cb3f255deea0cade022830324f2f3f00ed7e785121cb15b93bd0cc78522df"
+    },
+    {
+      "path": "src/subtitle-studio/domain.ts",
+      "sha256": "35dbbc1f57d3d4aed3b24eb25691c6855ba3cab464aa4ac5c1d55953453d846e"
+    },
+    {
+      "path": "src/subtitle-studio/export-contract.ts",
+      "sha256": "bb91cf3ee07e34bee04c47bf565252f5298c716cdc1f2bba04962a8181c87aca"
+    },
+    {
+      "path": "src/subtitle-studio/formats/import.ts",
+      "sha256": "a6e98a377694a5d2e8263d565736268dd741eb78cb0a9dc358a75b5f4f729cdf"
+    },
+    {
+      "path": "src/subtitle-studio/ipc-contract.ts",
+      "sha256": "4c1a2885bfc4ee67fac7dd507c4d1891ef4d0adaa63122465e83f262a13a4e24"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/transcript-executor-copy.test.ts",
+      "sha256": "b531209c0f4c64265ddfbe4e90730a8b71b125ab203ed9dd2ead79ab272ad702"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/transcript-executor-harness.mjs",
+      "sha256": "9bbbf0217731f9f6556126042c27859260eeeb8e423a0c870f040ebb3f2f56d1"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/transcript-executor-replay.test.ts",
+      "sha256": "90f112fdd9cf88f254f97f521308b573262a570af3b59a249bf77a41b891664d"
+    },
+    {
+      "path": "test/subtitle-studio/boundaries.test.ts",
+      "sha256": "289858cae13b2fa7abe6f681fb600f234dfeac531516704d59aeef6ba7002eb5"
+    },
+    {
+      "path": "test/subtitle-studio/repository-creation.test.ts",
+      "sha256": "dc1a2150896b55324b7d218fb3873c0aecd762d06b746f5407965feab2ebb851"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-document-producer.test.ts",
+      "sha256": "7138ed943baf653bddd59b26d372b35019af801fb955d53898cf0b7b6e1c6adb"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-document-sink.test.ts",
+      "sha256": "834601f3d0fe4b4362f6267ba95f2bcb7f6feb82b8b3da9def9061b70d9659c7"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-document-ui.test.ts",
+      "sha256": "b9ffdbb191892b5b5dd7ea4c077bb48fa6c97baef9196c0577eb02b92e0451b2"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-document.test.ts",
+      "sha256": "7244212aeff61c91180ba52016f7f7844b9470d5ed0757b82a08b0c2cb5aec36"
+    }
+  ]
+}

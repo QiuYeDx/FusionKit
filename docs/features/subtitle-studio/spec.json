@@ -3,19 +3,24 @@
   "feature": "subtitle-studio",
   "tier": "L",
   "risk": "medium",
-  "current_increment": "I1",
+  "current_increment": "I2",
   "modules": [
     {
       "slug": "workspace",
       "code": "WORKSPACE",
       "path": "modules/module-workspace"
+    },
+    {
+      "slug": "transcription",
+      "code": "TRANSCRIPTION",
+      "path": "modules/module-transcription"
     }
   ],
   "increments": [
     {
       "id": "I1",
       "title": "独立字幕文档、翻译与再导出",
-      "status": "implementing",
+      "status": "verifying",
       "approval": {
         "state": "approved",
         "by": "用户（当前 Codex 任务）",
@@ -25,7 +30,7 @@
       "acceptance": {
         "state": "pending",
         "by": "",
-        "basis": "T06 技术验证及 T08 文档库/批量体验改进已完成，证据见收尾记录和 records/2026-09-11-library-batch.md；等待用户最终确认，未代签验收，不进入 I2。",
+        "basis": "T06技术验证及T08文档库/批量体验改进已完成，证据见收尾记录和records/2026-09-11-library-batch.md；等待用户最终确认，未代签验收。原I1完成后停止边界已由A-07的继续实施授权更新，I2实施与I1验收分开记录。",
         "digest": "",
         "record": "records/2026-09-10-i1-closeout.md"
       }
@@ -33,12 +38,12 @@
     {
       "title": "继承现有本地转写并完成原生隔离",
       "approval": {
-        "by": "",
-        "digest": "",
-        "state": "pending",
-        "basis": ""
+        "state": "approved",
+        "by": "用户（当前 Codex 任务）",
+        "basis": "2026-09-11 当前任务：在助手说明先修复 I1 边界门禁与台账，再推进 I2 并先冻结有效 v1 生产来源后，用户原文“好的，继续往后推进工作吧”。据此继续既定路线，当前展开 I2 生产基线冻结；此继续实施授权不代签 I1 或 I2 整体验收，不包含发布、删除真实数据或移除 v1。 用户在T01完成并提出机械复制与确定性回放后再次回复“好的，继续往后推进工作吧”，据此展开并实施T-TRANSCRIPTION-02；原生构建/签名和产品入口接线留后续任务。 T02交付后用户再次回复“好的，继续往后推进工作吧”，据此展开T03独立运行时工厂、原生构建/本机ad-hoc验证和完整双资源打包校验；不注册转写UI，不包含发布或真实用户数据修改。 2026-09-12 T03交付后用户再次要求“好的，继续往后推进工作吧”，据此展开T04最终转录文档生产者、媒体文档契约与既有消费兼容、隔离提交和回放验证；保持100000文档容量并明确超限，不上线转写UI或真实ASR。",
+        "digest": "d3c48b31a8920184729b4e48d0553311b51078df309c13fd8cc12d2d86586b74"
       },
-      "status": "planning",
+      "status": "implementing",
       "acceptance": {
         "by": "",
         "digest": "",
@@ -141,11 +146,36 @@
       "resolution": "已在 transcription-fork.md 第 5 节选择新增构建组合及新版验证副本方案；I2 细化时实测 Windows/macOS，缺平台证据不声明发布就绪。",
       "increment": "I2",
       "text": "旧 builder 校验仅允许单资源，双工具构建与独立签名需要验证。"
+    },
+    {
+      "id": "A-07",
+      "state": "resolved",
+      "blocking": false,
+      "increment": "I2",
+      "text": "2026-09-11 进度盘点后的继续实施授权。",
+      "resolution": "用户在当前任务回复“好的，继续往后推进工作吧”，承接先 I1 门禁/文档收尾、再 I2 的明确建议。此前 A-06 的完成 I1 后停止边界已由本次继续指令更新；I1 acceptance 保持 pending。当前先展开依赖及资源来源冻结，后续按 transcription-fork.md 的已有独立边界滚动细化。"
+    },
+    {
+      "id": "Q-02",
+      "state": "resolved",
+      "blocking": false,
+      "increment": "I2",
+      "text": "transcript接入统一文档之前的容量和来源/时间证据契约。",
+      "resolution": "T04保持100000 cues及128MiB快照上限，超限整体limit_exceeded，不截断/拆分/合并；媒体文档显式schema2、media origin、transcription timing和完整canonical transcript preservation，transcript digest不冒充媒体hash，词/说话人/置信度按已存在证据保留。后续扩容另行设计。"
     }
   ],
   "parallel": {
     "enabled": true,
     "integrator": "Codex root",
-    "shared_files": []
+    "shared_files": [
+      {
+        "path": "docs/features/subtitle-studio/spec.json",
+        "owner": "Codex root"
+      },
+      {
+        "path": "resources/subtitle-studio/provenance/transcription-baseline.json",
+        "owner": "Codex root"
+      }
+    ]
   }
 }

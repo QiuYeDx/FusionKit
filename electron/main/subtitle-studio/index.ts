@@ -198,12 +198,14 @@ export function registerSubtitleStudio() {
         if (method === 'readDocumentPage') {
           const { offset, nodeOffset = 0 } = requestSchemas.readDocumentPage.parse(payload);
           const cues = doc.cues.slice(offset, offset + LIMITS.pageSize);
-          const nodes = doc.preservation.nodes.slice(nodeOffset, nodeOffset + LIMITS.pageSize);
+          const raw = doc.schemaVersion === 1 ? doc.preservation : null;
+          const nodes = raw?.nodes.slice(nodeOffset, nodeOffset + LIMITS.pageSize) ?? [];
           const cueIds = new Set(cues.map(cue => cue.id));
           const translationTracks = doc.translationTracks.map(track => ({ ...track, entries: Object.fromEntries(Object.entries(track.entries).filter(([id]) => cueIds.has(id))) }));
-          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks), cues, offset, nodeOffset, nodeCount: doc.preservation.nodes.length, rawNodes: nodes.map(node => ({ id: node.id, text: doc.preservation.rawText.slice(node.start, node.end) })), translationTracks, tasks: snapshot.tasks.map(summarizeTask) } };
+          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks), cues, offset, nodeOffset, nodeCount: raw?.nodes.length ?? 0, rawNodes: nodes.map(node => ({ id: node.id, text: raw!.rawText.slice(node.start, node.end) })), translationTracks, tasks: snapshot.tasks.map(summarizeTask) } };
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
+        if (!doc.capabilities.preserveSource) throw new StudioError('unsupported_feature');
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window) throw new StudioError('access_denied');
         const defaultPath = await unusedOutputPath(app.getPath('downloads'), doc.origin.displayName); alive();

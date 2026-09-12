@@ -1,0 +1,430 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "files": [
+    {
+      "sourcePath": "native/local-subtitle-overwrite/README.md",
+      "destinationPath": "native/subtitle-studio-overwrite/README.md"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/binding.gyp",
+      "destinationPath": "native/subtitle-studio-overwrite/binding.gyp"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon-win32.cc",
+      "destinationPath": "native/subtitle-studio-overwrite/src/addon-win32.cc"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon.cc",
+      "destinationPath": "native/subtitle-studio-overwrite/src/addon.cc"
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+      "destinationPath": "native/subtitle-studio-overwrite/src/win-delay-load-hook.cc"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.test.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.test.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-macos-arm64.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/build-test-addon-macos-arm64.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-native-staging.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.test.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-native-staging.test.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging-contract.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.test.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging-contract.test.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-integration.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-integration.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-child.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-recovery-child.mjs"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-integration.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-recovery-integration.mjs"
+    }
+  ],
+  "dependencies": [
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/runtime-manifest.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/runtime-manifest.mjs",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-tooling-fork.json"
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/staging-contract.mjs",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/staging-contract.mjs",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-tooling-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-models.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-models.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-overwrite-staging.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-staging.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-staging.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-vad.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-vad.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    },
+    {
+      "sourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+      "destinationPath": "resources/subtitle-studio/transcription/manifests/subtitle-studio-windows-cuda-pack.v1.json",
+      "provenancePath": "resources/subtitle-studio/provenance/transcription-fork.json"
+    }
+  ],
+  "literalEdits": [
+    {
+      "sourcePath": "native/local-subtitle-overwrite/README.md",
+      "fromText": "# Local subtitle overwrite native addon\n\nThis directory contains the macOS arm64 and Windows x64 implementations of the\nsynchronous local-subtitle overwrite transaction backend. They are plain\nNode-API addons and do not depend on `node-addon-api`.\n\nThe canonical developer builds are:\n\n- macOS arm64:\n  `node scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs`\n- Windows x64:\n  `node scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs\n  --toolchain-root <absolute-llvm-mingw-root>\n  --node-headers <absolute-current-node-headers>\n  --node-lib <absolute-current-node-lib>`\n\nBoth recipes require headers that exactly match the running Node version and\npublish through a no-clobber temporary artifact. The Windows recipe additionally\nrequires an explicit portable LLVM-MinGW root and matching x64 `node.lib`; its\nminimal child environment and receipt do not record private absolute paths.\nNeither recipe invokes a package manager or `node-gyp`. `binding.gyp` is source\nmetadata only; it is not the verified build, staging, signing, or packaging\ncontract.\n\n",
+      "toText": "# Subtitle Studio overwrite native addon\n\nThis independent fork comes from the fixed v1 source recorded in\n`resources/subtitle-studio/provenance/transcription-native-fork.json`.\nIt preserves N-API 8, native protocol 4, journal 3, and transaction semantics.\nThe macOS recipe is\n`node scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.mjs`.\nIts output must be staged and signed using the new overwrite staging scripts.\n`binding.gyp` is source metadata; no package manager or node-gyp is required.\nThe Windows C++ and delayed-host loader are frozen source only in T03; the new\nWindows recipe and actual Windows execution remain deferred.\n\nThe current fork is not registered in the product or a complete ASR runtime.\nActual T03 macOS build, signing, and Electron transaction evidence is tracked in\nthe module implementation record, separately from historical v1 evidence below.\n\n",
+      "count": 1,
+      "reason": "Describe the new fork and explicit platform scope without adopting historical success claims."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/README.md",
+      "fromText": "## Developer checkpoint evidence",
+      "toText": "## Historical v1 checkpoint evidence\n\nEverything below this heading is retained source history, including platform\nstatus, build results, and composition statements. It is not validation of the\nSubtitle Studio fork. The original hashes identify v1 artifacts only.",
+      "count": 1,
+      "reason": "Explicitly preserve v1 checkpoint evidence as historical source claims only."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/README.md",
+      "fromText": ".fusionkit-local-subtitle-",
+      "toText": ".fusionkit-subtitle-studio-",
+      "count": 1,
+      "reason": "Match T02 partial identity and reject v1 partials."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/README.md",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 3,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/binding.gyp",
+      "fromText": "local_subtitle_overwrite",
+      "toText": "subtitle_studio_overwrite",
+      "count": 1,
+      "reason": "Independent native build metadata identity."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon.cc",
+      "fromText": ".fusionkit-local-subtitle-",
+      "toText": ".fusionkit-subtitle-studio-",
+      "count": 1,
+      "reason": "Match T02 partial identity and reject v1 partials."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon.cc",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 1,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon.cc",
+      "fromText": "local_subtitle_overwrite",
+      "toText": "subtitle_studio_overwrite",
+      "count": 2,
+      "reason": "Independent native build metadata identity."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon-win32.cc",
+      "fromText": ".fusionkit-local-subtitle-",
+      "toText": ".fusionkit-subtitle-studio-",
+      "count": 1,
+      "reason": "Match T02 partial identity and reject v1 partials."
+    },
+    {
+      "sourcePath": "native/local-subtitle-overwrite/src/addon-win32.cc",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 1,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+      "fromText": "scripts/local-subtitle/",
+      "toText": "scripts/subtitle-studio/transcription/",
+      "count": 1,
+      "reason": "Resolve only the new build and integration script closure."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+      "fromText": "native/local-subtitle-overwrite/",
+      "toText": "native/subtitle-studio-overwrite/",
+      "count": 1,
+      "reason": "Build from the independent native source."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 3,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 2,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+      "fromText": "const PROJECT_ROOT = path.resolve(path.dirname(SCRIPT_PATH), \"../../..\");",
+      "toText": "const PROJECT_ROOT = path.resolve(path.dirname(SCRIPT_PATH), \"../../../..\");",
+      "count": 1,
+      "reason": "Account for the extra transcription script directory."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.test.mjs",
+      "fromText": "native/local-subtitle-overwrite/",
+      "toText": "native/subtitle-studio-overwrite/",
+      "count": 2,
+      "reason": "Build from the independent native source."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.test.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 5,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.test.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 3,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-macos-arm64.mjs",
+      "fromText": "scripts/local-subtitle/",
+      "toText": "scripts/subtitle-studio/transcription/",
+      "count": 1,
+      "reason": "Resolve only the new build and integration script closure."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-test-addon-macos-arm64.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 2,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.test.mjs",
+      "fromText": "scripts/local-subtitle/",
+      "toText": "scripts/subtitle-studio/transcription/",
+      "count": 2,
+      "reason": "Resolve only the new build and integration script closure."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.test.mjs",
+      "fromText": "native/local-subtitle-overwrite/",
+      "toText": "native/subtitle-studio-overwrite/",
+      "count": 3,
+      "reason": "Build from the independent native source."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.test.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 10,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.test.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 2,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-native-staging.test.mjs",
+      "fromText": "\"local-subtitle\"",
+      "toText": "\"subtitle-studio/transcription\"",
+      "count": 2,
+      "reason": "Independent packaged/runtime fixture root."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "fromText": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+      "toText": "resources/subtitle-studio/transcription/manifests/subtitle-studio-overwrite-staging.v1.json",
+      "count": 1,
+      "reason": "Resolve the frozen T02 overwrite manifest."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "fromText": "build/local-subtitle-resources/local-subtitle",
+      "toText": "build/subtitle-studio-resources/transcription",
+      "count": 1,
+      "reason": "Independent development runtime root."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "fromText": "scripts/local-subtitle/",
+      "toText": "scripts/subtitle-studio/transcription/",
+      "count": 2,
+      "reason": "Resolve only the new build and integration script closure."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "fromText": "native/local-subtitle-overwrite/",
+      "toText": "native/subtitle-studio-overwrite/",
+      "count": 3,
+      "reason": "Build from the independent native source."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 4,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "fromText": "\"local-subtitle\"",
+      "toText": "\"subtitle-studio/transcription\"",
+      "count": 1,
+      "reason": "Independent packaged/runtime fixture root."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.mjs",
+      "fromText": "const PROJECT_ROOT = path.resolve(path.dirname(MODULE_PATH), \"../../..\");",
+      "toText": "const PROJECT_ROOT = path.resolve(path.dirname(MODULE_PATH), \"../../../..\");",
+      "count": 1,
+      "reason": "Account for the extra transcription script directory."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.test.mjs",
+      "fromText": "scripts/local-subtitle/",
+      "toText": "scripts/subtitle-studio/transcription/",
+      "count": 1,
+      "reason": "Resolve only the new build and integration script closure."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.test.mjs",
+      "fromText": "native/local-subtitle-overwrite/",
+      "toText": "native/subtitle-studio-overwrite/",
+      "count": 1,
+      "reason": "Build from the independent native source."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging-contract.test.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 7,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 1,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/overwrite-staging.mjs",
+      "fromText": "com.fusionkit.local-subtitle.overwrite",
+      "toText": "com.fusionkit.subtitle-studio.overwrite",
+      "count": 1,
+      "reason": "Independent nested codesign identifier."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-integration.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 1,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-integration.mjs",
+      "fromText": ".fusionkit-local-subtitle-",
+      "toText": ".fusionkit-subtitle-studio-",
+      "count": 2,
+      "reason": "Match T02 partial identity and reject v1 partials."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-integration.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 4,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-child.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 1,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-integration.mjs",
+      "fromText": "local-subtitle-overwrite",
+      "toText": "subtitle-studio-overwrite",
+      "count": 1,
+      "reason": "Independent component and content-addressed artifact identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-integration.mjs",
+      "fromText": ".fusionkit-local-subtitle-",
+      "toText": ".fusionkit-subtitle-studio-",
+      "count": 1,
+      "reason": "Match T02 partial identity and reject v1 partials."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-integration.mjs",
+      "fromText": "fusionkit-overwrite",
+      "toText": "fusionkit-subtitle-studio-overwrite",
+      "count": 2,
+      "reason": "Independent journal and temporary build/test identity."
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/run-addon-recovery-integration.mjs",
+      "fromText": "      TMPDIR: \"/tmp\",\n      ...additionalEnvironment,",
+      "toText": "      TMPDIR: \"/tmp\",\n      ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: \"1\" } : {}),\n      ...additionalEnvironment,",
+      "count": 1,
+      "reason": "Preserve the actual Electron host in fresh recovery children without inheriting unrelated environment."
+    }
+  ],
+  "deferred": [
+    {
+      "sourcePath": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+      "reason": "Windows build and real host validation remain deferred; T03 freezes its C++ implementation and staging target contract only."
+    }
+  ]
+}

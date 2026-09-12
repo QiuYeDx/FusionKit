@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "status": "verified-uncommitted-worktree",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "60b0ff1032ddcfa5b067d399d9b54ee96b31d466deb1558d0d8ed3fb333f3b86"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/runtime.ts",
+      "sha256": "3e3862c3b9e6d2628134fcef5382c5babbd80bad3cfcaf57419a29ac66cd738d"
+    },
+    {
+      "path": "electron-builder.subtitle-studio.json",
+      "sha256": "4691cf44ecc0e5d28efbe46c166b668992d4e44c0ff945a0da07645da21e0d04"
+    },
+    {
+      "path": "native/subtitle-studio-overwrite/README.md",
+      "sha256": "aaa24f281f31e94abd77f89fe0be5b697fb2492a382f47dea4365b52ea62bc90"
+    },
+    {
+      "path": "native/subtitle-studio-overwrite/binding.gyp",
+      "sha256": "dfceb48de593afcc403a10b82c33c4decb6022a82751dd14c6bc0f9862a41177"
+    },
+    {
+      "path": "native/subtitle-studio-overwrite/src/addon-win32.cc",
+      "sha256": "9fc465aaea4dd44bb3a9b9e5816e81786012eeda352f69522fdbfd5198ee574b"
+    },
+    {
+      "path": "native/subtitle-studio-overwrite/src/addon.cc",
+      "sha256": "f596c2d1bf6e793016638cc8ccce3aa1e7164cba586ce995320b7f056b09beaf"
+    },
+    {
+      "path": "native/subtitle-studio-overwrite/src/win-delay-load-hook.cc",
+      "sha256": "1f2d24f869fb39df2528065c40fdb754c6a5095d4a8d3832559cb8890e1c638e"
+    },
+    {
+      "path": "resources/subtitle-studio/provenance/transcription-baseline.json",
+      "sha256": "c6367bddd06cf2e31ecf04dbbe8766f70edff888775fbd14a46114ea8c29ac66"
+    },
+    {
+      "path": "resources/subtitle-studio/provenance/transcription-fork.json",
+      "sha256": "993e57a72b3a191e8ba6afe50d90899baefd4f6af4f8f62ad25cc3d6371befa3"
+    },
+    {
+      "path": "resources/subtitle-studio/provenance/transcription-native-fork.json",
+      "sha256": "8cb95bb1fbe2f8096b7faed52472589e2a925e5c9eba809f7916564ad1768c4b"
+    },
+    {
+      "path": "resources/subtitle-studio/provenance/transcription-tooling-fork.json",
+      "sha256": "028bf36c819412999935b25f15b5468a851495881798e64bfb733ea814a4a8f7"
+    },
+    {
+      "path": "scripts/packaging/subtitle-studio-before-pack.cjs",
+      "sha256": "0380d695e3693c3e3bdd14e7d3858201953d71acf88d19f4ebf17c075e8d2973"
+    },
+    {
+      "path": "scripts/packaging/subtitle-studio-contract.mjs",
+      "sha256": "f2b16dedd87760ba428e106443adf99a964649aa0adffbeb88ec368f8c6fbd11"
+    },
+    {
+      "path": "scripts/packaging/subtitle-studio-packaging.test.mjs",
+      "sha256": "6558105d6f8b9aa7cebb7a48ba28bb96f0f2a2de2967b472ab9a6ae22172b039"
+    },
+    {
+      "path": "scripts/subtitle-studio/boundaries.json",
+      "sha256": "57cb9a71a09e6b32731a699b39c9b4ff9c79eb6146d4a3c96a6c01ff21d01633"
+    },
+    {
+      "path": "scripts/subtitle-studio/check-boundaries.mjs",
+      "sha256": "7b97ee54035636eaedccb59ac039acb5c5c32cffa1cd6cc580498bcd6aa323d1"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.mjs",
+      "sha256": "98e460f30211735f60962405805f5b6165cc44975e5fb47499fc2338364dc16a"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.test.mjs",
+      "sha256": "a9c59e6effed8ddd246b0450e59b0dd81a5746ab722c4f01c45b63f63e5a797b"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/build-test-addon-macos-arm64.mjs",
+      "sha256": "ae525547995314a3fcd653e681adcc66c13438cab07b0a057c1232503f941e17"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-native-staging.mjs",
+      "sha256": "7fc820aafaf247c7eab565220a5fc1f017d8576ca25d27a8220cf069f3a85d2c"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-native-staging.test.mjs",
+      "sha256": "7b95ff3f4cfe384e6c6cad4fdd746c2e0d8ca3647b4f39d1638fab53753a4142"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging-contract.mjs",
+      "sha256": "8c888220eb98d3afefde9673e772c69d9950f6a287666ead422c9e592df59192"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging-contract.test.mjs",
+      "sha256": "7a7eef3e6f9a205400b0ca143e4e99b884adc1ed28596c66fe4e02f7d0cd86b9"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/overwrite-staging.mjs",
+      "sha256": "765712f4d9109111c973383240688501e463ecc67812622f804c420b8e5d2ca7"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-integration.mjs",
+      "sha256": "2f0dd74003f925c80584ab871c123d4feca917710504bb8f180204320068066e"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-namespace-integration.mjs",
+      "sha256": "509f9d22b18c2b49fbcfcc2c7d293e591920c38337c446b6135fce0f20ae1d2b"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-recovery-child.mjs",
+      "sha256": "953551f740e194cda30867a405f8484f05b99ccedb2472f05e6e22d57e3dba23"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/overwrite-native/run-addon-recovery-integration.mjs",
+      "sha256": "456ed3ebdfd6f1d7555b3fe7d3b5ef2f2c505f270b00ae4a23947de6da9d5159"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/runtime-manifest.mjs",
+      "sha256": "76259f1955c8229ba3c86d8e9c9c74b66855cfd48fda608d3c034c795312779a"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/runtime-manifest.test.mjs",
+      "sha256": "557c2b1dab3e56f0e19110d6aeda9c581e0bb31446502f0a20e23706e5e7e565"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/staging-contract.mjs",
+      "sha256": "dbfe3844d71bbf8c5095cfd6e32197a54639428694b9ee669ac13994496abb0b"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/staging-contract.test.mjs",
+      "sha256": "8e250d595d7e2403fdc51a947997de3a8a16add801795a69b04e3ee46a26771a"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/native-copy-recipe.json",
+      "sha256": "122f4a7aebc6d8da5f21036a3cc5470147fb6ad0cb3ddea2fd4240f632062d44"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/native-copy.mjs",
+      "sha256": "4998f92120beb3ae24c2a136283a5f3667f0bef3e282815a8e56d2e93459b0ff"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/tooling-copy-recipe.mjs",
+      "sha256": "fbfce32b64c49a556a7b0cb4f60ceea71b129395f12d29bc202b496f42d11354"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/tooling-copy.mjs",
+      "sha256": "1da73543dcf96e848f6c51c2b9518ff9f61db218a362d5d96d9239bbdd5c36c3"
+    },
+    {
+      "path": "test/subtitle-studio/boundaries.test.ts",
+      "sha256": "289858cae13b2fa7abe6f681fb600f234dfeac531516704d59aeef6ba7002eb5"
+    },
+    {
+      "path": "test/subtitle-studio/helpers/transcription-runtime.ts",
+      "sha256": "da0f18b3905a9506f5948a0d1f15c100833f0f5dac1600ccb0b67213ed760152"
+    },
+    {
+      "path": "test/subtitle-studio/transcription-runtime.test.ts",
+      "sha256": "8f7a06259ce84efc4913981af4387ea9bdfe71594b5719d0bff6906be37ee86f"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/native-copy.test.ts",
+      "sha256": "7db9d16bde501482c6fe160f23836679145166ea44ac2b243631a4f6e5a134c9"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/tooling-copy.test.ts",
+      "sha256": "cbc4b98d3711fc92733103ebfb604c8b4cb997c18ac9298bd1c2dc8b41a1ae8f"
+    }
+  ]
+}

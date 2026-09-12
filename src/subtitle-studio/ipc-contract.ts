@@ -40,7 +40,7 @@ export const requestSchemas = {
   revealUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   deleteUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   ...batchRequestSchemas,
-  listDocuments: z.object({ offset: z.number().int().min(0).max(LIMITS.cues), query: z.string().max(500).optional(), format: z.enum(['all', 'srt', 'lrc']).optional(), status: z.enum(['all', 'untranslated', 'translated', 'active', 'attention']).optional(), sort: z.enum(['default', 'name-asc', 'name-desc', 'cue-count-asc', 'cue-count-desc', 'recent', 'oldest']).optional(), pageSize: z.number().int().min(1).max(LIMITS.pageSize).optional() }).strict(),
+  listDocuments: z.object({ offset: z.number().int().min(0).max(LIMITS.cues), query: z.string().max(500).optional(), format: z.enum(['all', 'srt', 'lrc', 'media']).optional(), status: z.enum(['all', 'untranslated', 'translated', 'active', 'attention']).optional(), sort: z.enum(['default', 'name-asc', 'name-desc', 'cue-count-asc', 'cue-count-desc', 'recent', 'oldest']).optional(), pageSize: z.number().int().min(1).max(LIMITS.pageSize).optional() }).strict(),
   readDocumentPage: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), offset: z.number().int().min(0).max(LIMITS.cues), nodeOffset: z.number().int().min(0).max(LIMITS.nodes).optional() }).strict(),
   exportSource: z.object({ documentId: idSchema, revision: z.number().int().positive().safe() }).strict(),
   planExport: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: exportOptionsSchema }).strict(),

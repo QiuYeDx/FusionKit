@@ -1,0 +1,559 @@
+{
+  "dependencies": [
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-variant-overlap-resolver.ts",
+      "destinationSha256": "269b3319588883b1d25a0436f617881dfce16b2b17e7925547ded964218b1798",
+      "specifier": "./native/cue-variant-overlap-resolver",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overlap-group-review.ts",
+      "destinationSha256": "e5a6df2d8d6d663adb965593ffa47795351f0e3ffe728d62c1c9c8d8b83daa15",
+      "specifier": "./native/overlap-group-review",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overlap-group-selection.ts",
+      "destinationSha256": "f77b9d8248f6b9897e8d2c3291665a7075a15db8880be9b8f1fb663a72c32064",
+      "specifier": "./native/overlap-group-selection",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-summary.ts",
+      "destinationSha256": "81594db0ca63c83d20224bf1b496ee3200d9680efdf3c36f8edb3786c0de7fa1",
+      "specifier": "./native/cue-summary",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-display-separators.ts",
+      "destinationSha256": "0e86acd7934340d0fdd74d0091e08d716f46a90d383ed5b80e441f61b7190be6",
+      "specifier": "./native/cue-display-separators",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-variant-overlap-evidence.ts",
+      "destinationSha256": "087c03883d9f4ec350130120df19e695c698b0b34383cad3d0e9b7264faf54af",
+      "specifier": "./native/cue-variant-overlap-evidence",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-short-onset-evidence.ts",
+      "destinationSha256": "cbecf88b4da1ddc7bf6d7f92315c119c4dcf9acdb1ac5797c30baf3082128147",
+      "specifier": "./native/cue-short-onset-evidence",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-contained-overlap-resolver.ts",
+      "destinationSha256": "a6d4ff80456fa8e973480c3c363cf3a02fcf7e9bc7780a42ddac1562bddc5c83",
+      "specifier": "./native/cue-contained-overlap-resolver",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-contained-overlap-evidence.ts",
+      "destinationSha256": "aa537b8f860df094af967d11fa6a2f6d7294fa347c5013787862d800c81ef6da",
+      "specifier": "./native/cue-contained-overlap-evidence",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/quiet-audio.ts",
+      "destinationSha256": "45404a723d35a5c890f5553313bb564b20f4e57a9035876e5c82e33c21acf615",
+      "specifier": "./native/quiet-audio",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-overlap-resolver.ts",
+      "destinationSha256": "04cdcf7ffd9d3de94d6441e5b1bf7ed352f81f80de7953a326971da8c52ee781",
+      "specifier": "./native/cue-overlap-resolver",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-resolver.ts",
+      "destinationSha256": "71b14fc28e57a58688bce20837a29b9ff981879642c35930ffb65436947fedad",
+      "specifier": "./native/cue-prefix-overlap-resolver",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-multi-overlap-resolver.ts",
+      "destinationSha256": "66482ff451d9d283a717f8dade04c4d138a4529a9f8fd96eebf0648c5f80e5a2",
+      "specifier": "./native/cue-multi-overlap-resolver",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-multi-overlap-evidence.ts",
+      "destinationSha256": "4dbd88b9cade2684fd4dc54c37dc393da63ee2281649813667b338342abfd3ff",
+      "specifier": "./native/cue-multi-overlap-evidence",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-evidence.ts",
+      "destinationSha256": "3432d6f1f06db7980b119f8c2b462f1bd757e6476d84d9ea975655dd537ac246",
+      "specifier": "./native/cue-prefix-overlap-evidence",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-separator-restorer.ts",
+      "destinationSha256": "eb343e4064f623f6d80eda8d46bf27fd32ab2c6a4cf4d07da2b77364add5f77a",
+      "specifier": "./native/cue-separator-restorer",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "src/subtitle-studio/transcription/domain.ts",
+      "destinationSha256": "8ded47f259c06abddeae1a9db6bd53a51b9349f92edaf96607e9d60ec63396f2",
+      "specifier": "../../../../src/subtitle-studio/transcription/domain",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/job-manager.ts",
+      "destinationSha256": "e43f776dce91e18d1ad076d03d61e1e831af58fe956d4fb37c73880e72f3aef5",
+      "specifier": "./native/job-manager",
+      "typeOnly": true
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/backend-resolver.ts",
+      "destinationSha256": "da4443629413ecd84830c8e9284a4f8bf7d9b907e7a5cc94323b2f119ce00ef0",
+      "specifier": "./native/backend-resolver",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/accelerator-manager.ts",
+      "destinationSha256": "d6a47a79a609693946555c014af5fb1e0cd7829b94a4078dbc722d4d65561674",
+      "specifier": "./native/accelerator-manager",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/media-normalizer.ts",
+      "destinationSha256": "ffd2586d7e589ed5f10ac809a64e2e5445b7b8b0e83dd239b795577eba2479a9",
+      "specifier": "./native/media-normalizer",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/resource-path.ts",
+      "destinationSha256": "abfde2b1b6beb738f2b6c25bc6179fa585bc0d315b7b19feb028538fe21ffadf",
+      "specifier": "./native/resource-path",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+      "destinationSha256": "412ff6394bb98d379be11618d0f5a294696a01005b3e906bdd9fdcef148f5fdb",
+      "specifier": "./native/server-contract",
+      "typeOnly": true
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-supervisor.ts",
+      "destinationSha256": "4630fd50d5ede1262f3edbbafc5e3a4a2ef0e85bae1cf87a041b8b2ee673ad44",
+      "specifier": "./native/server-supervisor",
+      "typeOnly": true
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/filesystem-object-identity.ts",
+      "destinationSha256": "c1a66f69d5dea89a7e0c203fe0b3132ac679aa2c922c98f6253b877ec0ad469d",
+      "specifier": "./native/filesystem-object-identity",
+      "typeOnly": false
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts",
+      "destinationSha256": "a6cfa204c20a217dbfca0ec98b4523539006ea6852d30af79a678d95d18999da",
+      "specifier": "./native/subtitle-post-processor",
+      "typeOnly": false
+    }
+  ],
+  "files": [
+    {
+      "byteSize": 93096,
+      "destinationPath": "electron/main/subtitle-studio/transcription/transcript-executor.ts",
+      "destinationSha256": "4b22722b1acfc22aff6d36ae381f362bc6f9ed39374f6631023a41f93e376c35",
+      "intermediatePath": "electron/main/subtitle-studio/transcription/native/production-executor.ts",
+      "intermediateSha256": "9391614ca0590a026c3d1a0512269ef5575be5382b58c1155b42f4b798bf683b",
+      "sourceBlobOid": "b70154fb5eb81037cbe1c46aa1a362e426d67518",
+      "sourcePath": "electron/main/local-subtitle/production-executor.ts",
+      "sourceSha256": "8804457120f6a4ae92a25792f11cf2586a8d18f8a5871dbf9045ea5b33defded",
+      "transforms": [
+        {
+          "count": 1,
+          "fromText": "  type LocalSubtitleConflictPolicy,\n",
+          "kind": "exact-text",
+          "reason": "Use transcript/summary result types instead of file conflict policy.",
+          "toText": "  type LocalSubtitleCueSummary,\n  type LocalSubtitleTranscript,\n"
+        },
+        {
+          "count": 1,
+          "fromText": "  type LocalSubtitleFormat,\n",
+          "kind": "exact-text",
+          "reason": "Remove the output file format type.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "import type {\n  LocalSubtitleInputAuthorizationRegistry,\n  LocalSubtitleDirectoryIdentity,\n  LocalSubtitleOutputDirectoryAuthorizationRegistry,\n  ResolvedLocalSubtitleOutputDirectory,\n} from \"./authorizations\";\nimport type {\n  LocalSubtitleJobBatchExecutionContext,\n  LocalSubtitleJobBatchRuntime,\n  LocalSubtitleJobTaskExecutionContext,\n  LocalSubtitleJobTaskExecutionResult,\n  LocalSubtitleJobTaskExecutor,\n} from \"./job-manager\";\n",
+          "kind": "exact-text",
+          "reason": "Keep the admitted native context contract without output directory or artifact result collaborators.",
+          "toText": "import type {\n  LocalSubtitleJobBatchExecutionContext as NativeBatchExecutionContext,\n  LocalSubtitleJobBatchRuntime,\n  LocalSubtitleJobTaskExecutionContext as NativeTaskExecutionContext,\n} from \"./job-manager\";\n"
+        },
+        {
+          "count": 1,
+          "fromText": "import type {\n  LocalSubtitleExportResult,\n  LocalSubtitleExporter,\n} from \"./subtitle-exporter\";\n",
+          "kind": "exact-text",
+          "reason": "Remove all exporter types from the transcript boundary.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "  sameLocalSubtitleFilesystemObjectIdentity,\n",
+          "kind": "exact-text",
+          "reason": "Remove output directory identity helper only.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "const RESERVED_WINDOWS_OUTPUT_STEM =\n  /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\.|$)/iu;\n",
+          "kind": "exact-text",
+          "reason": "Remove filename-only policy.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "type ProductionOutputs = Pick<\n  LocalSubtitleOutputDirectoryAuthorizationRegistry,\n  \"resolveBatchLease\"\n>;\n\ntype ProductionInputs = Pick<\n  LocalSubtitleInputAuthorizationRegistry,\n  \"resolveTaskSourceOutputDirectory\"\n>;\n\ntype ProductionExporter = Pick<\n  LocalSubtitleExporter<unknown>,\n  \"exportArtifacts\" | \"supportsConflictPolicy\"\n>;\n\n",
+          "kind": "exact-text",
+          "reason": "Define a transcript-only terminal result and an already admitted context without file-output configuration.",
+          "toText": "export type TranscriptionBatchExecutionContext = Omit<NativeBatchExecutionContext, \"config\"> & {\n  readonly config: Omit<NativeBatchExecutionContext[\"config\"], \"output\" | \"postAction\">;\n};\nexport type TranscriptionTaskExecutionContext = Omit<NativeTaskExecutionContext, \"config\"> & {\n  readonly config: TranscriptionBatchExecutionContext[\"config\"];\n};\nexport type TranscriptExecutionResult =\n  | Readonly<{ status: \"transcript_ready\"; transcript: LocalSubtitleTranscript; durationMs?: number; cueSummary: LocalSubtitleCueSummary }>\n  | Readonly<{ status: \"failed\"; error: LocalSubtitleError; durationMs?: number }>\n  | Readonly<{ status: \"cancelled\"; durationMs?: number }>;\n\n"
+        },
+        {
+          "count": 1,
+          "fromText": "  readonly inputs: ProductionInputs;\n  readonly outputs: ProductionOutputs;\n  readonly exporter: ProductionExporter;\n",
+          "kind": "exact-text",
+          "reason": "Remove output collaborators from construction.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "export class LocalSubtitleProductionExecutor\n  implements LocalSubtitleJobTaskExecutor\n{",
+          "kind": "exact-text",
+          "reason": "Use a distinct executor class and independent batch runtime identity.",
+          "toText": "export class TranscriptionExecutor {"
+        },
+        {
+          "count": 1,
+          "fromText": "  readonly #inputs: ProductionInputs;\n  readonly #outputs: ProductionOutputs;\n  readonly #exporter: ProductionExporter;\n",
+          "kind": "exact-text",
+          "reason": "Remove output collaborator state.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "      ]) ||\n      !hasMethods(options?.inputs, [\"resolveTaskSourceOutputDirectory\"]) ||\n      !hasMethods(options?.outputs, [\"resolveBatchLease\"]) ||\n      !hasMethods(options?.exporter, [\n        \"exportArtifacts\",\n        \"supportsConflictPolicy\",\n      ])",
+          "kind": "exact-text",
+          "reason": "Keep required media/supervisor checks without requiring file writers.",
+          "toText": "      ])"
+        },
+        {
+          "count": 1,
+          "fromText": "    this.#inputs = options.inputs;\n    this.#outputs = options.outputs;\n    this.#exporter = options.exporter;\n",
+          "kind": "exact-text",
+          "reason": "Remove output collaborator assignment.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "  supportsOutputConflictPolicy(policy: LocalSubtitleConflictPolicy): boolean {\n    return this.#exporter.supportsConflictPolicy(policy);\n  }\n\n",
+          "kind": "exact-text",
+          "reason": "Do not expose a file overwrite policy.",
+          "toText": ""
+        },
+        {
+          "count": 2,
+          "fromText": "        context,\n        this.#exporter.supportsConflictPolicy.bind(this.#exporter),",
+          "kind": "exact-text",
+          "reason": "Retain context validation without file-output policy.",
+          "toText": "        context,"
+        },
+        {
+          "count": 1,
+          "fromText": "    let sourceOutputDirectoryIdentity: LocalSubtitleDirectoryIdentity | undefined;\n    if (context.config.output.mode === \"source\") {\n      try {\n        throwIfCancelled(context.signal);\n        const directory = await this.#inputs.resolveTaskSourceOutputDirectory(\n          context.owner,\n          context.taskId,\n          context.fileToken,\n        );\n        sourceOutputDirectoryIdentity = Object.freeze({ ...directory.identity });\n        throwIfCancelled(context.signal);\n      } catch (error) {\n        if (context.signal.aborted || error instanceof ExecutionCancelled) {\n          return Object.freeze({ status: \"cancelled\", artifactResults: [] });\n        }\n        const code = publicErrorCode(error, \"exporting\");\n        return failedResult(\n          code,\n          LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,\n        );\n      }\n    }\n    const resolveOutputDirectory = this.#createOutputDirectoryResolver(\n      context,\n      sourceOutputDirectoryIdentity,\n    );\n\n",
+          "kind": "exact-text",
+          "reason": "Do not resolve source output authority or create an output directory resolver.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "    stage = \"exporting\";\n    try {\n      context.update({\n        status: \"exporting\",\n        progress: {\n          stage: \"exporting\",\n          stageProgress: 0,\n          overallProgress: 90,\n        },\n        durationMs,\n      });\n      const result = await this.#exporter.exportArtifacts({\n        owner: context.owner,\n        taskId: context.taskId,\n        generation: context.generation,\n        outputStem: outputStem(transcript.source.displayName, context.taskId),\n        formats: context.config.output.formats,\n        conflictPolicy: context.config.output.conflictPolicy,\n        transcript,\n        resolveOutputDirectory,\n        signal: context.signal,\n      });\n      const outcome = mapExportResult(result, durationMs, context.signal.aborted);\n      return outcome.status === \"completed\" ? Object.freeze({ ...outcome,\n        cueSummary: summarizeLocalSubtitleCues(transcript.segments, createSubtitlePostProcessPolicy(context.config.inference)),\n      }) : outcome;\n    } catch (error) {\n      const rawCode = publicErrorCode(error, stage);\n      const code = normalizeCleanupErrorCode(rawCode, context.signal.aborted);\n      if (!isCleanupFailureCode(code) && context.signal.aborted) {\n        return Object.freeze({ status: \"cancelled\", artifactResults: [], durationMs });\n      }\n      return failedResult(\n        code,\n        isCleanupFailureCode(code)\n          ? \"cleanup\"\n          : LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,\n        durationMs,\n      );\n    }\n  }\n\n",
+          "kind": "exact-text",
+          "reason": "Return the complete final transcript only after successful task cleanup and cancellation checks; never publish files.",
+          "toText": "    return Object.freeze({\n      status: \"transcript_ready\",\n      transcript,\n      durationMs,\n      cueSummary: summarizeLocalSubtitleCues(transcript.segments, createSubtitlePostProcessPolicy(context.config.inference)),\n    });\n  }\n\n"
+        },
+        {
+          "count": 1,
+          "fromText": "  #createOutputDirectoryResolver(\n    context: LocalSubtitleJobTaskExecutionContext,\n    expectedSourceIdentity?: LocalSubtitleDirectoryIdentity,\n  ): () => Promise<ResolvedLocalSubtitleOutputDirectory> {\n    return context.config.output.mode === \"source\"\n      ? async () => {\n          if (!expectedSourceIdentity) {\n            throw createLocalSubtitleError(\n              \"output_write_failed\",\n              \"The source subtitle output directory proof is unavailable.\",\n              { stage: \"exporting\" },\n            );\n          }\n          const directory = await this.#inputs.resolveTaskSourceOutputDirectory(\n            context.owner,\n            context.taskId,\n            context.fileToken,\n          );\n          if (!sameDirectoryIdentity(directory.identity, expectedSourceIdentity)) {\n            throw createLocalSubtitleError(\n              \"output_write_failed\",\n              \"The source subtitle output directory changed after preflight.\",\n              { stage: \"exporting\" },\n            );\n          }\n          return directory;\n        }\n      : () => this.#outputs.resolveBatchLease(context.owner, context.batchId);\n  }\n\n",
+          "kind": "exact-text",
+          "reason": "Remove the entire file-output directory closure.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "function mapExportResult(\n  result: LocalSubtitleExportResult,\n  durationMs: number | undefined,\n  cancellationRequested: boolean,\n): LocalSubtitleJobTaskExecutionResult {\n  if (result.status === \"completed\") {\n    return Object.freeze({\n      status: \"completed\",\n      artifactResults: result.artifactResults,\n      durationMs,\n    });\n  }\n  if (result.status === \"cancelled\") {\n    return Object.freeze({\n      status: \"cancelled\",\n      artifactResults: result.artifactResults,\n      durationMs,\n    });\n  }\n  const artifactResults = Object.freeze(\n    result.artifactResults.map((artifact) =>\n      artifact.status === \"failed\"\n        ? Object.freeze({\n            ...artifact,\n            errorCode: normalizeCleanupErrorCode(\n              artifact.errorCode,\n              cancellationRequested,\n            ),\n          })\n        : artifact\n    ),\n  );\n  const failedCodes = artifactResults.flatMap((artifact) =>\n    artifact.status === \"failed\" ? [artifact.errorCode] : []\n  );\n  const code = failedCodes.find(isCleanupFailureCode) ??\n    failedCodes[0] ??\n    \"output_write_failed\";\n  return Object.freeze({\n    status: \"failed\",\n    error: createLocalSubtitleError(code, \"The subtitle artifact export failed.\", {\n      stage: isCleanupFailureCode(code)\n        ? \"cleanup\"\n        : LOCAL_SUBTITLE_ERROR_MANIFEST[code].defaultStage,\n    }),\n    artifactResults,\n    durationMs,\n  });\n}\n\n",
+          "kind": "exact-text",
+          "reason": "Remove file artifact terminal mapping.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "    artifactResults: [],\n",
+          "kind": "exact-text",
+          "reason": "Failure results contain no artifact claim.",
+          "toText": ""
+        },
+        {
+          "count": 2,
+          "fromText": "status: \"cancelled\", artifactResults: [], durationMs",
+          "kind": "exact-text",
+          "reason": "Cancellation results contain no artifact claim.",
+          "toText": "status: \"cancelled\", durationMs"
+        },
+        {
+          "count": 1,
+          "fromText": "function outputStem(displayName: string, taskId: string): string {\n  const parsed = path.parse(displayName).name\n    .replace(/[\\\\/:\\u0000-\\u001f\\u007f]/gu, \"_\")\n    .trim();\n  const fallback = `subtitle-${taskId}`;\n  const source = parsed && parsed !== \".\" && parsed !== \"..\" ? parsed : fallback;\n  const bounded = boundOutputStem(source) || boundOutputStem(fallback);\n  return RESERVED_WINDOWS_OUTPUT_STEM.test(bounded)\n    ? boundOutputStem(`_${bounded}`)\n    : bounded;\n}\n\nfunction boundOutputStem(source: string): string {\n  let result = \"\";\n  for (const character of Array.from(source)) {\n    const candidate = `${result}${character}`;\n    if (\n      candidate.length > LOCAL_SUBTITLE_LIMITS.maxDisplayNameChars ||\n      Buffer.byteLength(`${candidate}.srt`, \"utf8\") > 255\n    ) {\n      break;\n    }\n    result = candidate;\n  }\n  return result;\n}\n\n",
+          "kind": "exact-text",
+          "reason": "Remove filename derivation and byte bounds used only by file output.",
+          "toText": ""
+        },
+        {
+          "count": 2,
+          "fromText": "  supportsConflictPolicy: (policy: LocalSubtitleConflictPolicy) => boolean,\n",
+          "kind": "exact-text",
+          "reason": "Remove file policy callback from context validators.",
+          "toText": ""
+        },
+        {
+          "count": 2,
+          "fromText": "    (context.config.output.mode === \"custom\" ||\n      context.config.output.mode === \"source\") &&\n    supportsConflictPolicy(context.config.output.conflictPolicy) &&\n    isSupportedProductionFormats(context.config.output.formats) &&\n",
+          "kind": "exact-text",
+          "reason": "Retain task/backend/VAD/runtime validation without output directory/format policy.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "function isSupportedProductionFormats(\n  formats: readonly LocalSubtitleFormat[],\n): boolean {\n  return formats.length > 0 &&\n    formats.length <= 2 &&\n    new Set(formats).size === formats.length &&\n    formats.every((format) => format === \"SRT\" || format === \"LRC\");\n}\n\n",
+          "kind": "exact-text",
+          "reason": "Remove file format validation.",
+          "toText": ""
+        },
+        {
+          "count": 1,
+          "fromText": "function sameDirectoryIdentity(\n  left: LocalSubtitleDirectoryIdentity,\n  right: LocalSubtitleDirectoryIdentity,\n): boolean {\n  return sameLocalSubtitleFilesystemObjectIdentity(left, right);\n}\n\n",
+          "kind": "exact-text",
+          "reason": "Remove output-directory-only identity comparison.",
+          "toText": ""
+        },
+        {
+          "count": 2,
+          "fromText": "LocalSubtitleProductionExecutorOptions",
+          "kind": "exact-text",
+          "reason": "Name the derived transcript interface.",
+          "toText": "TranscriptionExecutorOptions"
+        },
+        {
+          "count": 17,
+          "fromText": "LocalSubtitleJobBatchExecutionContext",
+          "kind": "exact-text",
+          "reason": "Name the derived transcript interface.",
+          "toText": "TranscriptionBatchExecutionContext"
+        },
+        {
+          "count": 7,
+          "fromText": "LocalSubtitleJobTaskExecutionContext",
+          "kind": "exact-text",
+          "reason": "Name the derived transcript interface.",
+          "toText": "TranscriptionTaskExecutionContext"
+        },
+        {
+          "count": 2,
+          "fromText": "LocalSubtitleJobTaskExecutionResult",
+          "kind": "exact-text",
+          "reason": "Name the derived transcript interface.",
+          "toText": "TranscriptExecutionResult"
+        },
+        {
+          "count": 1,
+          "fromText": "  TranscriptionBatchExecutionContext as NativeBatchExecutionContext,",
+          "kind": "exact-text",
+          "reason": "Retain the exact T02 admitted batch source type.",
+          "toText": "  LocalSubtitleJobBatchExecutionContext as NativeBatchExecutionContext,"
+        },
+        {
+          "count": 1,
+          "fromText": "  TranscriptionTaskExecutionContext as NativeTaskExecutionContext,",
+          "kind": "exact-text",
+          "reason": "Retain the exact T02 admitted task source type.",
+          "toText": "  LocalSubtitleJobTaskExecutionContext as NativeTaskExecutionContext,"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-variant-overlap-resolver.ts",
+          "from": "./cue-variant-overlap-resolver",
+          "kind": "relative-import",
+          "to": "./native/cue-variant-overlap-resolver"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/overlap-group-review.ts",
+          "from": "./overlap-group-review",
+          "kind": "relative-import",
+          "to": "./native/overlap-group-review"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/overlap-group-selection.ts",
+          "from": "./overlap-group-selection",
+          "kind": "relative-import",
+          "to": "./native/overlap-group-selection"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-summary.ts",
+          "from": "./cue-summary",
+          "kind": "relative-import",
+          "to": "./native/cue-summary"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-display-separators.ts",
+          "from": "./cue-display-separators",
+          "kind": "relative-import",
+          "to": "./native/cue-display-separators"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-variant-overlap-evidence.ts",
+          "from": "./cue-variant-overlap-evidence",
+          "kind": "relative-import",
+          "to": "./native/cue-variant-overlap-evidence"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-short-onset-evidence.ts",
+          "from": "./cue-short-onset-evidence",
+          "kind": "relative-import",
+          "to": "./native/cue-short-onset-evidence"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-contained-overlap-resolver.ts",
+          "from": "./cue-contained-overlap-resolver",
+          "kind": "relative-import",
+          "to": "./native/cue-contained-overlap-resolver"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-contained-overlap-evidence.ts",
+          "from": "./cue-contained-overlap-evidence",
+          "kind": "relative-import",
+          "to": "./native/cue-contained-overlap-evidence"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/quiet-audio.ts",
+          "from": "./quiet-audio",
+          "kind": "relative-import",
+          "to": "./native/quiet-audio"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-overlap-resolver.ts",
+          "from": "./cue-overlap-resolver",
+          "kind": "relative-import",
+          "to": "./native/cue-overlap-resolver"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-resolver.ts",
+          "from": "./cue-prefix-overlap-resolver",
+          "kind": "relative-import",
+          "to": "./native/cue-prefix-overlap-resolver"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-multi-overlap-resolver.ts",
+          "from": "./cue-multi-overlap-resolver",
+          "kind": "relative-import",
+          "to": "./native/cue-multi-overlap-resolver"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-multi-overlap-evidence.ts",
+          "from": "./cue-multi-overlap-evidence",
+          "kind": "relative-import",
+          "to": "./native/cue-multi-overlap-evidence"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-prefix-overlap-evidence.ts",
+          "from": "./cue-prefix-overlap-evidence",
+          "kind": "relative-import",
+          "to": "./native/cue-prefix-overlap-evidence"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/cue-separator-restorer.ts",
+          "from": "./cue-separator-restorer",
+          "kind": "relative-import",
+          "to": "./native/cue-separator-restorer"
+        },
+        {
+          "destinationPath": "src/subtitle-studio/transcription/domain.ts",
+          "from": "../../../../../src/subtitle-studio/transcription/domain",
+          "kind": "relative-import",
+          "to": "../../../../src/subtitle-studio/transcription/domain"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/job-manager.ts",
+          "from": "./job-manager",
+          "kind": "relative-import",
+          "to": "./native/job-manager"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/backend-resolver.ts",
+          "from": "./backend-resolver",
+          "kind": "relative-import",
+          "to": "./native/backend-resolver"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/accelerator-manager.ts",
+          "from": "./accelerator-manager",
+          "kind": "relative-import",
+          "to": "./native/accelerator-manager"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/media-normalizer.ts",
+          "from": "./media-normalizer",
+          "kind": "relative-import",
+          "to": "./native/media-normalizer"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/resource-path.ts",
+          "from": "./resource-path",
+          "kind": "relative-import",
+          "to": "./native/resource-path"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+          "from": "./server-contract",
+          "kind": "relative-import",
+          "to": "./native/server-contract"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/server-supervisor.ts",
+          "from": "./server-supervisor",
+          "kind": "relative-import",
+          "to": "./native/server-supervisor"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/filesystem-object-identity.ts",
+          "from": "./filesystem-object-identity",
+          "kind": "relative-import",
+          "to": "./native/filesystem-object-identity"
+        },
+        {
+          "destinationPath": "electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts",
+          "from": "./subtitle-post-processor",
+          "kind": "relative-import",
+          "to": "./native/subtitle-post-processor"
+        }
+      ]
+    }
+  ],
+  "recipeSha256": "8e2b4eb7bb73c2de763a34a8f20ff463e5266fdfc05ad1f3bb013df70d761a0b",
+  "schemaVersion": 1,
+  "scope": {
+    "documentPersistenceEnabled": false,
+    "fileExportEnabled": false,
+    "inferenceChanged": false,
+    "taskAdmissionEnabled": false
+  },
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "sourceProvenancePath": "resources/subtitle-studio/provenance/transcription-fork.json",
+  "sourceProvenanceSha256": "993e57a72b3a191e8ba6afe50d90899baefd4f6af4f8f62ad25cc3d6371befa3",
+  "status": "transcript-executor-derived-unregistered"
+}

@@ -45,14 +45,22 @@ v1 不在生产依赖链中。SubtitleDocument 是内部版本化数据契约，
 ## 3. 统一文档与身份
 
 ```ts
-type SubtitleDocument = {
-  schemaVersion: 1;
+// 关键概念示意；完整字段与判别联合以 src/subtitle-studio/domain.ts 为准。
+type SubtitleDocument = TextSubtitleDocument | MediaSubtitleDocument;
+type DocumentCore = {
   id: string;
   revision: number;
   origin: SourceDescriptor;
   cues: SubtitleCue[];
   translationTracks: TranslationTrack[];
-  preservation?: FormatPreservation;
+};
+type TextSubtitleDocument = DocumentCore & {
+  schemaVersion: 1;
+  preservation: FormatPreservation;
+};
+type MediaSubtitleDocument = DocumentCore & {
+  schemaVersion: 2;
+  preservation: { schemaVersion: 1; kind: 'transcription'; transcript: CanonicalTranscript };
 };
 
 type SubtitleCue = {
@@ -80,9 +88,11 @@ type TranslationTrack = {
 };
 ```
 
-SourceDescriptor 保存来源格式、显示名、编码、内容摘要，或转写模型和运行时身份。路径不是文档身份，源文件消失不能影响已导入文本的预览和导出。可选媒体引用失效时重新选择，不影响文档本身。
+字幕SourceDescriptor保存来源格式、显示名、编码及原文件摘要。T04媒体来源保存format=media、显示名、可选时长与transcriptDigest；该摘要只证明规范转录内容，不是媒体文件hash。媒体未复制进文档仓库，preserveSource=false；完整模型/语言/词时间等已存在证据保存在canonical transcript，cue以segmentId按原顺序对应。路径不是文档身份，源文件消失不影响已导入文本的预览、翻译和SRT/LRC投影。
 
 SubtitleText 表达文本、受支持的内联 span 和换行，不是可执行 HTML。源换行和标签有到原节点的映射；模型结果不能直接执行或插入 HTML。preservation 保存格式元数据、原节点、原始内容与 cue 映射，有 schema 和大小限制。只保存 rawText 而没有对应关系不足以支持编辑后保真导出。
+
+媒体preservation保存严格转录结构，没有伪造字幕raw节点或编码；文档保持100000 cues和128MiB快照上限，超限整体拒绝。T04内部生产者在task清理和batch pin释放后调用绑定owner/task/generation的sink。创建发布返回同一文档身份；迟到取消不反转已发布结果，同步故障以durability=uncertain保留事实。任务准入/调度及转写UI尚未接入。
 
 不变量：
 

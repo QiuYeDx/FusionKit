@@ -17,7 +17,7 @@ export const exportOptionsSchema = z.object({
 }).strict();
 export const exportIssueCodeSchema = z.enum([
   'track_missing', 'translation_missing', 'translation_stale', 'missing_end', 'estimated_end',
-  'invalid_time', 'styles_removed', 'line_breaks_flattened', 'metadata_omitted', 'end_times_omitted',
+  'invalid_time', 'styles_removed', 'line_breaks_flattened', 'metadata_omitted', 'transcription_evidence_omitted', 'end_times_omitted',
   'unsupported_text', 'empty_output', 'encoding_unrepresentable', 'skipped_cues', 'source_fallback',
 ]);
 export type ExportOptions = z.infer<typeof exportOptionsSchema>;

@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "status": "independent-verifier-sources",
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "sourceBaselineSha256": "c6367bddd06cf2e31ecf04dbbe8766f70edff888775fbd14a46114ea8c29ac66",
+  "recipeSha256": "64e3f8e15eb2f46c1a12b95b3247b54ff02af79942bf8468cff23f09bbea942b",
+  "files": [
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/runtime-manifest.mjs",
+      "sourceBlobOid": "fbcd5ed755dbd1b05f961298cdfa0ce0e508c6b8",
+      "sourceSha256": "76259f1955c8229ba3c86d8e9c9c74b66855cfd48fda608d3c034c795312779a",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/runtime-manifest.mjs",
+      "destinationSha256": "76259f1955c8229ba3c86d8e9c9c74b66855cfd48fda608d3c034c795312779a",
+      "byteSize": 43145,
+      "transforms": []
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/staging-contract.mjs",
+      "sourceBlobOid": "4f1003b511768966f3e1f44fcc6500d743fc71c5",
+      "sourceSha256": "a2384ce81dd9fba3ef8ed102e94f4f94985bd2fa6253f7a3c2ce05e408cbb60e",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/staging-contract.mjs",
+      "destinationSha256": "dbfe3844d71bbf8c5095cfd6e32197a54639428694b9ee669ac13994496abb0b",
+      "byteSize": 17688,
+      "transforms": [
+        {
+          "start": 314,
+          "end": 361,
+          "from": "\"build/local-subtitle-resources/local-subtitle\"",
+          "to": "\"build/subtitle-studio-resources/transcription\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 400,
+          "end": 416,
+          "from": "\"local-subtitle\"",
+          "to": "\"subtitle-studio/transcription\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 474,
+          "end": 516,
+          "from": "\"manifests/local-subtitle-runtime.v1.json\"",
+          "to": "\"manifests/subtitle-studio-runtime.v1.json\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 987,
+          "end": 1063,
+          "from": "\"../../../resources/local-subtitle/manifests/local-subtitle-staging.v1.json\"",
+          "to": "\"../../../../resources/subtitle-studio/transcription/manifests/subtitle-studio-staging.v1.json\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        }
+      ]
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/runtime-manifest.test.mjs",
+      "sourceBlobOid": "6755dbe15f921f97fd0fb00f12da9db023ac9b82",
+      "sourceSha256": "6bac4355b99fec230d548496f86d5926e012f5a83cf1e6d53fe5d50b14c93e59",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/runtime-manifest.test.mjs",
+      "destinationSha256": "557c2b1dab3e56f0e19110d6aeda9c581e0bb31446502f0a20e23706e5e7e565",
+      "byteSize": 24285,
+      "transforms": [
+        {
+          "start": 822,
+          "end": 866,
+          "from": "\"../../../resources/local-subtitle/licenses\"",
+          "to": "\"../../../../resources/subtitle-studio/transcription/licenses\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 13964,
+          "end": 13985,
+          "from": "\"real-local-subtitle\"",
+          "to": "\"real-subtitle-studio\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 20016,
+          "end": 20032,
+          "from": "\"local-subtitle\"",
+          "to": "\"subtitle-studio\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 21674,
+          "end": 21692,
+          "from": "`local-subtitle-${",
+          "to": "`subtitle-studio-${",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        }
+      ]
+    },
+    {
+      "sourcePath": "scripts/local-subtitle/runtime/staging-contract.test.mjs",
+      "sourceBlobOid": "265204679b475744d9910429e6e6e23876681772",
+      "sourceSha256": "d6cba59e9b5b4df4d96c1fe8cc58c768ad915118f6a40b1a033b4a5cdf995421",
+      "destinationPath": "scripts/subtitle-studio/transcription/runtime/staging-contract.test.mjs",
+      "destinationSha256": "8e250d595d7e2403fdc51a947997de3a8a16add801795a69b04e3ee46a26771a",
+      "byteSize": 5478,
+      "transforms": [
+        {
+          "start": 709,
+          "end": 756,
+          "from": "\"build/local-subtitle-resources/local-subtitle\"",
+          "to": "\"build/subtitle-studio-resources/transcription\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 761,
+          "end": 814,
+          "from": "assert.equal(PACKAGED_RUNTIME_ROOT, \"local-subtitle\")",
+          "to": "assert.equal(PACKAGED_RUNTIME_ROOT, \"subtitle-studio/transcription\")",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 880,
+          "end": 922,
+          "from": "\"manifests/local-subtitle-runtime.v1.json\"",
+          "to": "\"manifests/subtitle-studio-runtime.v1.json\"",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 5235,
+          "end": 5312,
+          "from": "path.join(projectRoot, \"build\", \"local-subtitle-resources\", \"local-subtitle\")",
+          "to": "path.join(projectRoot, \"build\", \"subtitle-studio-resources\", \"transcription\")",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        },
+        {
+          "start": 5391,
+          "end": 5450,
+          "from": "path.join(projectRoot, \"build\", \"local-subtitle-resources\")",
+          "to": "path.join(projectRoot, \"build\", \"subtitle-studio-resources\")",
+          "count": 1,
+          "reason": "Independent Studio resource root, manifest identity or fixture location; verification behavior and upstream pins are unchanged."
+        }
+      ]
+    }
+  ],
+  "deferred": [
+    "These verifier sources do not stage an ASR runtime, download upstream files, create installed receipts, or prove a complete application package.",
+    "Native source and overwrite tooling have their own T03 provenance; T01 and the 120-file T02 fork remain immutable.",
+    "Full macOS/Windows runtime staging and outer application signing remain later work. Outer signing must preserve both frozen resource roots and receive independent system verification."
+  ]
+}

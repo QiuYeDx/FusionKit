@@ -1,0 +1,443 @@
+[
+  {
+    "sourcePath": "electron/main/local-subtitle/accelerator-manager.ts",
+    "from": "\"fusionkit.local-subtitle.verified-accelerator-pack\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.verified-accelerator-pack\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/accelerator-manifest.ts",
+    "from": "\"local-subtitle-windows-x64-cuda-12.4-v1\"",
+    "to": "\"subtitle-studio-windows-x64-cuda-12.4-v1\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/accelerator-manifest.ts",
+    "from": "\"manifests/local-subtitle-windows-cuda-pack.v1.json\"",
+    "to": "\"manifests/subtitle-studio-windows-cuda-pack.v1.json\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/backend-resolver.ts",
+    "from": "\"fusionkit.local-subtitle.verified-backend-resolution\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.verified-backend-resolution\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/media-normalizer.ts",
+    "from": "\"fusionkit.local-subtitle.media-owner-released\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.media-owner-released\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/media-normalizer.ts",
+    "from": "\"fusionkit.local-subtitle.media-owner-faulted\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.media-owner-faulted\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/model-manager.ts",
+    "from": "`.fusionkit-model-move-${",
+    "to": "`.fusionkit-studio-model-move-${",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/model-manager.ts",
+    "from": "\".fusionkit-model-move-\"",
+    "to": "\".fusionkit-studio-model-move-\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "\"local-subtitle-overwrite.v1.json\"",
+    "to": "\"subtitle-studio-overwrite.v1.json\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "\"fusionkit.local-subtitle.verified-overwrite-native-addon\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.verified-overwrite-native-addon\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "\"local-subtitle-overwrite\"",
+    "to": "\"subtitle-studio-overwrite\"",
+    "count": 5,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "`fusionkit.local-subtitle-overwrite\\0${",
+    "to": "`fusionkit.subtitle-studio.transcription-overwrite\\0${",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "}/local-subtitle-overwrite.${",
+    "to": "}/subtitle-studio-overwrite.${",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "\"local-subtitle-overwrite.node\"",
+    "to": "\"subtitle-studio-overwrite.node\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "\"build/local-subtitle-resources/local-subtitle\"",
+    "to": "\"build/subtitle-studio-resources/transcription\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "\"local-subtitle\"",
+    "to": "\"subtitle-studio/transcription\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-native-resource.ts",
+    "from": "\"local-subtitle-overwrite.<sha256>.node\"",
+    "to": "\"subtitle-studio-overwrite.<sha256>.node\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/overwrite-recovery-owner.ts",
+    "from": "\"fusionkit-overwrite-recovery\\0\"",
+    "to": "\"fusionkit-subtitle-studio-overwrite-recovery\\0\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/resource-manifest.ts",
+    "from": "\"manifests/local-subtitle-runtime.v1.json\"",
+    "to": "\"manifests/subtitle-studio-runtime.v1.json\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/resource-manifest.ts",
+    "from": "\"build/local-subtitle-resources/local-subtitle\"",
+    "to": "\"build/subtitle-studio-resources/transcription\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/resource-manifest.ts",
+    "from": "\"local-subtitle\"",
+    "to": "\"subtitle-studio/transcription\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/resource-path.ts",
+    "from": "\"fusionkit.local-subtitle.verified-runtime-bundle\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.verified-runtime-bundle\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/server-session.ts",
+    "from": "\"fusionkit.local-subtitle.server-session\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.server-session\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/server-supervisor.ts",
+    "from": "\"fusionkit.local-subtitle.server-supervisor-lease\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.server-supervisor-lease\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/server-supervisor.ts",
+    "from": "\"fusionkit.local-subtitle.server-supervisor-runtime-pin\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.server-supervisor-runtime-pin\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/server-supervisor.ts",
+    "from": "\"fusionkit.local-subtitle.server-supervisor-request\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.server-supervisor-request\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/server-supervisor.ts",
+    "from": "\"fusionkit.local-subtitle.server-backend-evidence\"",
+    "to": "\"fusionkit.subtitle-studio.transcription.server-backend-evidence\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/subtitle-exporter.ts",
+    "from": "`.fusionkit-local-subtitle-${",
+    "to": "`.fusionkit-subtitle-studio-${",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "electron/main/local-subtitle/subtitle-exporter.ts",
+    "from": "\".fusionkit-local-subtitle-\"",
+    "to": "\".fusionkit-subtitle-studio-\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.test.ts",
+    "from": "\"local-subtitle:\"",
+    "to": "\"subtitle-studio:transcription:\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:probe-media\"",
+    "to": "\"subtitle-studio:transcription:probe-media\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:probe-runtime\"",
+    "to": "\"subtitle-studio:transcription:probe-runtime\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:preview-backend\"",
+    "to": "\"subtitle-studio:transcription:preview-backend\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:list-managed-resources\"",
+    "to": "\"subtitle-studio:transcription:list-managed-resources\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:start-resource-install\"",
+    "to": "\"subtitle-studio:transcription:start-resource-install\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:cancel-resource-job\"",
+    "to": "\"subtitle-studio:transcription:cancel-resource-job\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:delete-managed-resource\"",
+    "to": "\"subtitle-studio:transcription:delete-managed-resource\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:get-session-snapshot\"",
+    "to": "\"subtitle-studio:transcription:get-session-snapshot\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:enqueue\"",
+    "to": "\"subtitle-studio:transcription:enqueue\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:retry-task\"",
+    "to": "\"subtitle-studio:transcription:retry-task\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:retry-task-on-cpu\"",
+    "to": "\"subtitle-studio:transcription:retry-task-on-cpu\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:cancel-batch\"",
+    "to": "\"subtitle-studio:transcription:cancel-batch\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:cancel-task\"",
+    "to": "\"subtitle-studio:transcription:cancel-task\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:remove-task\"",
+    "to": "\"subtitle-studio:transcription:remove-task\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:complete-post-action\"",
+    "to": "\"subtitle-studio:transcription:complete-post-action\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:read-artifact-text\"",
+    "to": "\"subtitle-studio:transcription:read-artifact-text\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:reveal-artifact\"",
+    "to": "\"subtitle-studio:transcription:reveal-artifact\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:handoff-artifact\"",
+    "to": "\"subtitle-studio:transcription:handoff-artifact\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:list-overwrite-recoveries\"",
+    "to": "\"subtitle-studio:transcription:list-overwrite-recoveries\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:internal:register-owner-session\"",
+    "to": "\"subtitle-studio:transcription:internal:register-owner-session\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:internal:authorize-input-files\"",
+    "to": "\"subtitle-studio:transcription:internal:authorize-input-files\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:internal:revoke-input-file\"",
+    "to": "\"subtitle-studio:transcription:internal:revoke-input-file\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:internal:select-output-directory\"",
+    "to": "\"subtitle-studio:transcription:internal:select-output-directory\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:internal:revoke-output-directory\"",
+    "to": "\"subtitle-studio:transcription:internal:revoke-output-directory\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:internal:import-model\"",
+    "to": "\"subtitle-studio:transcription:internal:import-model\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:internal:recover-overwrite\"",
+    "to": "\"subtitle-studio:transcription:internal:recover-overwrite\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:task-event\"",
+    "to": "\"subtitle-studio:transcription:task-event\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "src/type/localSubtitleIpc.ts",
+    "from": "\"local-subtitle:resource-event\"",
+    "to": "\"subtitle-studio:transcription:resource-event\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "test/local-subtitle/acceleratorFixture.ts",
+    "from": "\"fusionkit-local-subtitle-accelerator-\"",
+    "to": "\"fusionkit-subtitle-studio-accelerator-\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "test/local-subtitle/acceleratorFixture.ts",
+    "from": "\"local-subtitle-windows-x64-cuda-test-v1\"",
+    "to": "\"subtitle-studio-windows-x64-cuda-test-v1\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "test/local-subtitle/runtimeFixture.ts",
+    "from": "\"../../resources/local-subtitle/licenses\"",
+    "to": "\"../../../resources/subtitle-studio/transcription/licenses\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "test/local-subtitle/runtimeFixture.ts",
+    "from": "`local-subtitle-runtime-${",
+    "to": "`subtitle-studio-runtime-${",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  },
+  {
+    "sourcePath": "test/local-subtitle/runtimeFixture.ts",
+    "from": "\"fusionkit-local-subtitle-runtime-\"",
+    "to": "\"fusionkit-subtitle-studio-runtime-\"",
+    "count": 1,
+    "reason": "Independent Studio IPC, resource, temporary-file or module-brand identity; algorithm and upstream content identity remain unchanged."
+  }
+]

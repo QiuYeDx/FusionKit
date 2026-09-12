@@ -9,6 +9,7 @@ import { planSubtitleExport } from './export-planner';
 
 export function sourceBytes(value: SubtitleDocument): Buffer {
   const doc = validateDocument(value);
+  if (doc.schemaVersion === 2) throw new StudioError('unsupported_feature');
   return iconv.encode(doc.preservation.rawText, doc.origin.encoding, { addBOM: doc.preservation.bom });
 }
 

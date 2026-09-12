@@ -1,0 +1,121 @@
+[
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/component",
+    "from": "local-subtitle-overwrite",
+    "to": "subtitle-studio-overwrite",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/developmentRuntimeRoot",
+    "from": "build/local-subtitle-resources/local-subtitle",
+    "to": "build/subtitle-studio-resources/transcription",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/packagedRuntimeRoot",
+    "from": "local-subtitle",
+    "to": "subtitle-studio/transcription",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/manifestRelativePath",
+    "from": "overwrite/v1/local-subtitle-overwrite.v1.json",
+    "to": "overwrite/v1/subtitle-studio-overwrite.v1.json",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/artifactLeafPattern",
+    "from": "local-subtitle-overwrite.<sha256>.node",
+    "to": "subtitle-studio-overwrite.<sha256>.node",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/targets/0/build/recipe",
+    "from": "scripts/local-subtitle/overwrite-native/build-addon-macos-arm64.mjs",
+    "to": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-macos-arm64.mjs",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/targets/0/build/source",
+    "from": "native/local-subtitle-overwrite/src/addon.cc",
+    "to": "native/subtitle-studio-overwrite/src/addon.cc",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/targets/1/build/recipe",
+    "from": "scripts/local-subtitle/overwrite-native/build-addon-windows-x64.mjs",
+    "to": "scripts/subtitle-studio/transcription/overwrite-native/build-addon-windows-x64.mjs",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/targets/1/build/source",
+    "from": "native/local-subtitle-overwrite/src/addon-win32.cc",
+    "to": "native/subtitle-studio-overwrite/src/addon-win32.cc",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-overwrite-staging.v1.json",
+    "pointer": "/targets/1/build/delayLoadHook",
+    "from": "native/local-subtitle-overwrite/src/win-delay-load-hook.cc",
+    "to": "native/subtitle-studio-overwrite/src/win-delay-load-hook.cc",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-staging.v1.json",
+    "pointer": "/developmentRuntimeRoot",
+    "from": "build/local-subtitle-resources/local-subtitle",
+    "to": "build/subtitle-studio-resources/transcription",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-staging.v1.json",
+    "pointer": "/packagedRuntimeRoot",
+    "from": "local-subtitle",
+    "to": "subtitle-studio/transcription",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-staging.v1.json",
+    "pointer": "/runtimeManifestRelativePath",
+    "from": "manifests/local-subtitle-runtime.v1.json",
+    "to": "manifests/subtitle-studio-runtime.v1.json",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+    "pointer": "/packId",
+    "from": "local-subtitle-windows-x64-cuda-12.4-v1",
+    "to": "subtitle-studio-windows-x64-cuda-12.4-v1",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+    "pointer": "/staging/developmentPackRoot",
+    "from": "build/local-subtitle-accelerators/win32-x64/cuda-12.4/v1",
+    "to": "build/subtitle-studio-accelerators/win32-x64/cuda-12.4/v1",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+    "pointer": "/staging/baseRuntimeRoot",
+    "from": "build/local-subtitle-resources/local-subtitle",
+    "to": "build/subtitle-studio-resources/transcription",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  },
+  {
+    "sourcePath": "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+    "pointer": "/staging/manifestRelativePath",
+    "from": "manifests/local-subtitle-windows-cuda-pack.v1.json",
+    "to": "manifests/subtitle-studio-windows-cuda-pack.v1.json",
+    "reason": "Independent future Studio resource contract. Expected upstream bytes stay unchanged; no native-ready receipt is created."
+  }
+]

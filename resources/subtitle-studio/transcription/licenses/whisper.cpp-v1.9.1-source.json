@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "component": "whisper.cpp",
+  "version": "v1.9.1",
+  "upstreamTag": "v1.9.1",
+  "upstreamCommit": "f049fff95a089aa9969deb009cdd4892b3e74916",
+  "sourceUrl": "https://github.com/ggml-org/whisper.cpp/tree/f049fff95a089aa9969deb009cdd4892b3e74916",
+  "license": {
+    "spdxExpression": "MIT",
+    "licenseFile": "whisper.cpp-MIT.txt"
+  },
+  "macosArm64Build": {
+    "sourceKind": "exact_upstream_git_clone",
+    "recipe": "scripts/local-subtitle/runtime/build-whisper-server-macos-arm64.mjs",
+    "cmakeFlags": [
+      "CMAKE_BUILD_TYPE=Release",
+      "CMAKE_OSX_ARCHITECTURES=arm64",
+      "CMAKE_OSX_DEPLOYMENT_TARGET=11.0",
+      "BUILD_SHARED_LIBS=OFF",
+      "GGML_NATIVE=OFF",
+      "GGML_METAL=ON",
+      "GGML_METAL_EMBED_LIBRARY=ON",
+      "WHISPER_BUILD_SERVER=ON",
+      "file/debug prefix maps for the exact source and temporary build roots"
+    ],
+    "buildReceiptRequired": true,
+    "privateBuildPathScanRequired": true,
+    "implementationRecord": "docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_implementation_records/2026-07-28_NATIVE-002A_macos-arm64-official-runtime-assembly.md"
+  },
+  "windowsX64CpuPrebuilt": {
+    "archiveFileName": "whisper-bin-x64.zip",
+    "archiveByteSize": 7982101,
+    "archiveSha256": "7d8be46ecd31828e1eb7a2ecdd0d6b314feafd82163038ab6092594b0a063539",
+    "selectedProgram": "whisper-server.exe",
+    "selectedDependencyCount": 12,
+    "selectionScript": "scripts/local-subtitle/runtime/stage-runtime-windows-x64.mjs",
+    "candidateScope": "PRE-005 packaging and unsigned integrity proof only"
+  },
+  "releaseRequirement": "PRE-006 must freeze the reproducible artifact acquisition/build path before production packaging."
+}

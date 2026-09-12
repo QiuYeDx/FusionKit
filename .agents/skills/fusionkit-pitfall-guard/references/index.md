@@ -137,6 +137,16 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0128 | Frontend / repeated controls / geometry | master checkbox,row checkbox,nested padding,animated dialog; Share the selection column origin and measure related frames in one DOM sample. | [align-repeated-selection-controls-from-one-layout-origin.md](align-repeated-selection-controls-from-one-layout-origin.md) |
 
 | FK-PIT-0129 | Frontend / selectable lists / state composition | nested hover,current preview,multiselection,checkbox outside highlight; A row wrapper owns the single state surface while child controls stay transparent. | [give-combined-row-states-one-visual-surface.md](give-combined-row-states-one-visual-surface.md) |
+| FK-PIT-0130 | Dependency boundaries / regression validation | unit suite green, standalone checker red, Unaudited package, shared UI; Run the real source graph alongside synthetic negative fixtures and audit exact new dependencies. | [check-the-real-source-tree-alongside-boundary-fixtures.md](check-the-real-source-tree-alongside-boundary-fixtures.md) |
+| FK-PIT-0131 | Subtitle Studio / dependency boundaries | createRequire, computed native loader, alias, source hash, AST boundary; Direct import checks miss createRequire aliases and computed loaders; bind module factory access and the reviewed call to exact source hashes. | [audit-module-factories-alongside-direct-imports.md](audit-module-factories-alongside-direct-imports.md) |
+
+| FK-PIT-0132 | Subtitle Studio / capability isolation | mechanical copy, paired replay, branded PCM, validateWindowBrand; Algorithm harnesses can bypass brands, so prove isolation separately with real issuers and bidirectional consumer rejection. | [verify-fork-isolation-with-real-branded-capabilities.md](verify-fork-isolation-with-real-branded-capabilities.md) |
+
+| FK-PIT-0133 | Provenance / Node child processes | spawnSync, hash-object stdin, stalled source check; Bound Git checks and use direct file input while retaining Git normalization and filter rejection. | [bound-git-source-hashing-with-direct-file-input.md](bound-git-source-hashing-with-direct-file-input.md) |
+
+| FK-PIT-0134 | Subtitle Studio / runtime lifetime | runtime factory,releaseOwner,capability registry,async revocation; Extracted lifecycle cleanup must retain separate registry revocation and fence asynchronous results after owner release. | [revoke-capabilities-when-extracting-runtime-lifecycle.md](revoke-capabilities-when-extracting-runtime-lifecycle.md) |
+
+| FK-PIT-0135 | Subtitle Studio / durable publication | document sink,current pointer,post-publish fsync,late cancellation; Preserve a published document and its creation identity when later cancellation or durability confirmation fails. | [distinguish-document-publication-from-late-cancellation.md](distinguish-document-publication-from-late-cancellation.md) |
 
 ## Add new cases
 

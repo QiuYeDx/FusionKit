@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "component": "FFmpeg",
+  "version": "8.1.2",
+  "upstreamTag": "n8.1.2",
+  "upstreamCommit": "38b88335f99e76ed89ff3c93f877fdefce736c13",
+  "sourceArchive": {
+    "fileName": "ffmpeg-8.1.2.tar.xz",
+    "url": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz",
+    "byteSize": 11710924,
+    "sha256": "464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c"
+  },
+  "detachedSignature": {
+    "fileName": "ffmpeg-8.1.2.tar.xz.asc",
+    "url": "https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz.asc",
+    "byteSize": 520,
+    "sha256": "0a0963fccd70597838073f3e31b20f4a4d8cc2b5e577472c9a5a1f22624246f8",
+    "signingKeyUrl": "https://ffmpeg.org/ffmpeg-devel.asc",
+    "signingKeySha256": "397b3becedcd5a98769967ff1ff8501ddc89f8368b8f766e4701377d7dbaabe5",
+    "signingKeyFingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+    "releaseRequirement": "Verify the detached signature with the pinned full fingerprint before producing release artifacts."
+  },
+  "license": {
+    "spdxExpression": "LGPL-2.1-or-later",
+    "gplEnabled": false,
+    "nonfreeEnabled": false,
+    "version3Enabled": false,
+    "licenseFile": "FFmpeg-COPYING.LGPLv2.1.txt",
+    "upstreamLicenseNotes": "FFmpeg-LICENSE.md"
+  },
+  "build": {
+    "recipe": "scripts/local-subtitle/runtime/build-ffmpeg-macos-arm64.mjs",
+    "logicalPrefix": "/opt/fusionkit/local-subtitle/ffmpeg/8.1.2",
+    "macosDeploymentTarget": "11.0",
+    "networkEnabled": false,
+    "externalLibrariesEnabled": [],
+    "requiredFormats": [
+      "mp3",
+      "wav",
+      "flac",
+      "aac",
+      "m4a",
+      "mp4",
+      "mkv",
+      "mov",
+      "webm"
+    ]
+  },
+  "distributionSourcePolicy": {
+    "status": "pre005_contract",
+    "requirement": "Publish the exact source archive, detached signature, license texts and build recipe alongside every FusionKit release that distributes this binary build.",
+    "releaseOwner": "QA-005"
+  },
+  "legalReview": "This engineering record is not legal advice; final release compliance remains a QA-005 gate."
+}
