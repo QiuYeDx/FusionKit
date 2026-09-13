@@ -3,7 +3,7 @@
 
 由各模块 tasks.md 生成；它不是第二份任务状态来源。
 
-规模：L；风险：medium；当前批次：I6。
+规模：L；风险：medium；当前批次：I7。
 
 | 任务 | 模块 | 标题 | 状态 | 批次 | 需求 | 依赖 | 负责人 | 实施记录 | 集成版本 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -15,6 +15,10 @@
 | T-EXPERIENCE-02 | EXPERIENCE | 转写设置与自动翻译 | 已完成 | I5 | R-EXPERIENCE-01, R-EXPERIENCE-03, R-EXPERIENCE-04, R-EXPERIENCE-05 | - | admission_design | records/2026-09-13-experience-02.md | 3855c2c72bfa45740f248406f7266cf0342ae1f6加本轮未提交工作树；records/2026-09-13-experience.snapshot.json |
 | T-EXPERIENCE-03 | EXPERIENCE | 静默刷新与译文工具条 | 已完成 | I5 | R-EXPERIENCE-08, R-EXPERIENCE-09 | - | ipc_design | records/2026-09-13-experience-03.md | 3855c2c72bfa45740f248406f7266cf0342ae1f6加本轮未提交工作树；records/2026-09-13-experience.snapshot.json |
 | T-EXPERIENCE-04 | EXPERIENCE | 导出默认值与统一文档列表 | 已完成 | I5 | R-EXPERIENCE-06, R-EXPERIENCE-07, R-EXPERIENCE-10 | - | windows_baseline | records/2026-09-13-experience-04.md | 3855c2c72bfa45740f248406f7266cf0342ae1f6加本轮未提交工作树；records/2026-09-13-experience.snapshot.json |
+| T-FEEDBACK-01 | FEEDBACK | 共享完成反馈 | 已完成 | I7 | R-FEEDBACK-01 | - | Codex root | records/2026-09-13-feedback-01.md | feat/subtitle-studio-transcription，8589872a54d012199a3ebebc30aae2d9f3184f98加I7未提交工作树；精确文件与证据见2026-09-13-feedback.snapshot.json |
+| T-FEEDBACK-02 | FEEDBACK | 导出结果接入 | 已完成 | I7 | R-FEEDBACK-01 | - | admission_design | records/2026-09-13-feedback-02.md | feat/subtitle-studio-transcription，8589872a54d012199a3ebebc30aae2d9f3184f98加I7未提交工作树；精确文件与证据见2026-09-13-feedback.snapshot.json |
+| T-FEEDBACK-03 | FEEDBACK | 导入管理和翻译接入 | 已完成 | I7 | R-FEEDBACK-01 | - | ipc_design | records/2026-09-13-feedback-03.md | feat/subtitle-studio-transcription，8589872a54d012199a3ebebc30aae2d9f3184f98加I7未提交工作树；精确文件与证据见2026-09-13-feedback.snapshot.json |
+| T-FEEDBACK-04 | FEEDBACK | 集成与视觉复验 | 已完成 | I7 | R-FEEDBACK-01 | - | windows_baseline | records/2026-09-13-feedback-04.md | feat/subtitle-studio-transcription，8589872a54d012199a3ebebc30aae2d9f3184f98加I7未提交工作树；精确文件与证据见2026-09-13-feedback.snapshot.json |
 | T-INTERACTION-01 | INTERACTION | 队列密度与进度反馈 | 已完成 | I6 | R-INTERACTION-01, R-INTERACTION-02 | - | admission_design | records/2026-09-13-interaction-01.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
 | T-INTERACTION-02 | INTERACTION | 复制菜单与结果反馈 | 已完成 | I6 | R-INTERACTION-03, R-INTERACTION-06 | - | Codex root | records/2026-09-13-interaction-02.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
 | T-INTERACTION-03 | INTERACTION | 导出检查与结果步骤 | 已完成 | I6 | R-INTERACTION-04, R-INTERACTION-05, R-INTERACTION-06 | - | windows_baseline | records/2026-09-13-interaction-03.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
@@ -46,4 +50,5 @@
 | I3 | 人工验收完善与VTT/ASS格式扩展 | verifying | approved | pending |
 | I5 | 第二轮体验完善与可选自动翻译 | verifying | approved | pending |
 | I6 | 第三轮交互简化与布局稳定 | verifying | approved | pending |
+| I7 | 操作结果C端反馈重设计 | verifying | approved | pending |
 | I4 | 校正、时间编辑与译文版本 | planning | pending | pending |

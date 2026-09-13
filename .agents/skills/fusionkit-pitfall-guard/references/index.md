@@ -169,6 +169,7 @@ Read this index first, then open only the detail files that plausibly match the 
 | FK-PIT-0147 | Frontend / event-driven document readers | translation progress, global busy, disabled flash, silent refresh, queued click; Repository events must update content silently without borrowing foreground loading state or dropping explicit actions. | [keep-background-reconciliation-separate-from-foreground-activity.md](keep-background-reconciliation-separate-from-foreground-activity.md) |
 | FK-PIT-0148 | Electron / native File drag admission | FileList, webUtils, drag event, first await, queued action, rejected Promise; Capture OS-backed File paths synchronously in the originating drop event before deferring UI reconciliation. | [capture-native-drop-authority-before-queuing-reader-work.md](capture-native-drop-authority-before-queuing-reader-work.md) |
 | FK-PIT-0149 | Frontend / bulk document selection | select all, global busy, reading flash, pending clear; Keep selection local and fence delayed cross-page reads against newer checkbox intent. | [keep-document-selection-local-and-cancel-stale-bulk-reads.md](keep-document-selection-local-and-cancel-stale-bulk-reads.md) |
+| FK-PIT-0150 | Frontend / dialog exit | result dialog, closed animation, form flash, empty shell; Keep operation authority separate from the presentation receipt retained through exit. | [retain-dialog-result-content-through-exit.md](retain-dialog-result-content-through-exit.md) |
 
 ## Add new cases
 

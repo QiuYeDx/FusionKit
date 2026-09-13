@@ -544,6 +544,59 @@
     "skipped_details": "查看跳过详情",
     "details": "查看文件详情",
     "queued": "已提交 {{count}} 个翻译任务",
-    "empty": "没有需要处理的项目"
+    "empty": "没有需要处理的项目",
+    "done": "完成",
+    "none_processed": "没有执行任何操作",
+    "empty_description": "可以返回工作台继续操作。",
+    "failed_count": "{{count}} 项失败",
+    "skipped_count": "{{count}} 项已跳过",
+    "details_count": "查看 {{count}} 项详情",
+    "separator": " · ",
+    "item_success": "已完成",
+    "item_failed": "未成功",
+    "item_skipped": "已跳过",
+    "item_requested": "请求已提交",
+    "export": {
+      "title": "字幕已导出",
+      "partial": "部分字幕已导出",
+      "failed": "未能导出字幕",
+      "count": "已保存 {{count}} 份字幕文件"
+    },
+    "source": {
+      "title": "原文件已保存",
+      "partial": "部分原文件已保存",
+      "failed": "未能保存原文件",
+      "count": "已保存 {{count}} 份原文件"
+    },
+    "import": {
+      "title": "字幕已导入",
+      "partial": "部分字幕已导入",
+      "failed": "未能导入字幕",
+      "count": "已添加 {{count}} 份文档"
+    },
+    "translation": {
+      "title": "翻译任务已提交",
+      "partial": "部分翻译任务已提交",
+      "failed": "未能提交翻译任务",
+      "count": "已提交 {{count}} 个翻译任务"
+    },
+    "delete": {
+      "title": "文档已删除",
+      "partial": "部分文档已删除",
+      "failed": "未能删除文档",
+      "count": "已删除 {{count}} 份文档"
+    },
+    "resume": {
+      "title": "继续请求已提交",
+      "partial": "部分继续请求已提交",
+      "failed": "未能继续翻译",
+      "count": "已提交 {{count}} 个继续请求"
+    },
+    "cancel": {
+      "title": "取消请求已提交",
+      "partial": "部分取消请求已提交",
+      "failed": "未能取消任务",
+      "count": "已提交 {{count}} 个取消请求"
+    }
   }
 }

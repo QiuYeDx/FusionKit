@@ -35,7 +35,7 @@ import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
 import { StudioTranscription } from './StudioTranscription';
 import { StudioCueCopy } from './StudioCueCopy';
-import { StudioOperationResult } from './StudioOperationResult';
+import { STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, StudioOperationResult } from './StudioOperationResult';
 import './studio.css';
 
 const errorKeys: Record<ErrorCode, string> = {
@@ -102,7 +102,27 @@ export default function SubtitleStudio() {
     selectedRef.current = next; setSelected(next);
   };
   const clearSelection = () => { invalidateSelectionRequest(); updateSelection(() => []); };
-  const [results, setResults] = useState<{ title: string; kind: 'import' | 'delete' | 'cancel' | 'resume'; items: OperationResult[] } | null>(null);
+  const [results, setResults] = useState<{ kind: 'import' | 'delete' | 'cancel' | 'resume'; items: OperationResult[] } | null>(null);
+  const resultReceipt = useRef<NonNullable<typeof results> | null>(null);
+  // Radix keeps the dialog mounted during its exit animation. Retain only its
+  // receipt; open state still requires a new result, which replaces this snapshot.
+  if (results) resultReceipt.current = results;
+  const displayedResults = results ?? resultReceipt.current;
+  const resultReturnTarget = useRef<HTMLElement | null>(null);
+  const resultOrigin = useRef<'import' | 'batch'>('import');
+  const captureResultFocus = (origin: 'import' | 'batch') => {
+    resultOrigin.current = origin;
+    resultReturnTarget.current = origin === 'batch' ? document.getElementById('studio-library-batch-actions') : document.activeElement instanceof HTMLElement && document.activeElement !== document.body && document.activeElement !== document.documentElement ? document.activeElement : null;
+  };
+  const restoreResultFocus = () => {
+    if (!mounted.current) return;
+    const fallbackSelectors = resultOrigin.current === 'batch'
+      ? ['#studio-library-batch-actions', '[data-testid=studio-library-select-all]', '#studio-library-trigger']
+      : ['#studio-import-trigger', '.studio-import button'];
+    const candidates = [resultReturnTarget.current, ...fallbackSelectors.map(selector => document.querySelector<HTMLElement>(selector)), workspaceRoot.current?.querySelector<HTMLElement>('[role=tab][aria-selected=true]')];
+    const target = candidates.find(candidate => candidate?.isConnected && candidate.getClientRects().length && !candidate.matches(':disabled, [aria-disabled=true]'));
+    target?.focus({ preventScroll: true });
+  };
   const [batchConfirm, setBatchConfirm] = useState<'delete' | 'resume' | null>(null);
   const [selectionLimit, setSelectionLimit] = useState(false);
   const observedRevisions = useRef(new Map<string, number>());
@@ -238,9 +258,9 @@ export default function SubtitleStudio() {
     changeQuery(defaultLibraryQuery); clearSelection();
     await load(0);
     if (added[0]) { await select(added[0]); setView('preview'); setImportedId(result.items.length === 1 ? added[0].id : ''); }
-    if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ title: t('studio:library.import_result'), kind: 'import', items: result.items.map(item => ({ name: item.fileName, ...(item.ok ? { documentId: item.document.id } : { error: item.error }) })) });
+    if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ kind: 'import', items: result.items.map(item => ({ name: item.fileName, ...(item.ok ? { documentId: item.document.id } : { error: item.error }) })) });
   };
-  const importDocument = () => void run('import', async () => acceptImportResult(await unwrapStudio(window.subtitleStudio.importSubtitles({ encoding }))));
+  const importDocument = () => { captureResultFocus('import'); void run('import', async () => acceptImportResult(await unwrapStudio(window.subtitleStudio.importSubtitles({ encoding })))); };
   const fileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes('Files');
   const canDrop = (event: DragEvent) => workspaceView === 'documents' && !((event.target as HTMLElement).closest?.('[role=dialog]'));
   const dropFiles = (event: DragEvent) => {
@@ -249,6 +269,7 @@ export default function SubtitleStudio() {
     if (!canDrop(event) || busy || operation.current) return;
     const files = Array.from(event.dataTransfer.files);
     if (!files.length) { retry.current = null; setError('invalid_input'); return; }
+    captureResultFocus('import');
     // Capture native File paths inside this event, before a queued reader action can yield.
     let submitted: ReturnType<typeof window.subtitleStudio.importDroppedSubtitles>;
     try { submitted = window.subtitleStudio.importDroppedSubtitles(files, { encoding }); }
@@ -404,6 +425,7 @@ export default function SubtitleStudio() {
   };
   const processSelected = (kind: 'delete' | 'cancel' | 'resume') => {
     const targets = [...selected];
+    captureResultFocus('batch');
     setBatchConfirm(null);
     void run('batch', async () => {
       const items: OperationResult[] = [];
@@ -434,7 +456,7 @@ export default function SubtitleStudio() {
       }
       if (!mounted.current) return;
       if (kind === 'delete') updateSelection(values => values.filter(value => !items.some(item => item.documentId === value.id && !item.error)));
-      setResults({ title: t(kind === 'delete' ? 'studio:library.delete_result' : kind === 'resume' ? 'studio:library.resume_result' : 'studio:library.cancel_result'), kind, items });
+      setResults({ kind, items });
       await load(currentOffset.current, true);
     });
   };
@@ -491,7 +513,7 @@ export default function SubtitleStudio() {
         {!wide && workspaceView === 'documents' && <StudioTranslationOverview compact onOpenDocument={openTranscriptionDocument} />}
         <div className="min-w-0 flex-1 studio-mobile-picker">{documentPicker}</div>
         <div className="w-[116px] shrink-0">{encodingField}</div>
-        {page && <StudioIconButton label={t('studio:open_file')} disabled={busy} onClick={importDocument}>{activity === 'import' ? <LoaderCircle className="studio-spin" /> : <FolderOpen />}</StudioIconButton>}
+        {page && <StudioIconButton id="studio-import-trigger" label={t('studio:open_file')} disabled={busy} onClick={importDocument}>{activity === 'import' ? <LoaderCircle className="studio-spin" /> : <FolderOpen />}</StudioIconButton>}
         {refresh}{recoveryButton}
       </div>
       {error && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span>{retry.current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button>}<StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></div>}
@@ -563,10 +585,8 @@ export default function SubtitleStudio() {
       <ScrollableDialogContent className="studio-batch-confirm-content"><div className="space-y-3"><StudioSelectedDocuments documents={selected} collapsible={false} />{batchConfirm === 'resume' && <p className="text-xs leading-5 text-amber-600 dark:text-amber-400">{t('studio:library.resume_uncertain')}</p>}</div></ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3"><Button id="studio-batch-cancel" variant="ghost" size="sm" onClick={() => setBatchConfirm(null)}>{t('studio:cancel')}</Button><Button size="sm" variant={batchConfirm === 'delete' ? 'destructive' : 'default'} disabled={busy} onClick={() => batchConfirm && processSelected(batchConfirm)}>{t(batchConfirm === 'delete' ? 'studio:library.confirm_delete' : 'studio:library.confirm_resume')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
-    <ScrollableDialog open={!!results} onOpenChange={open => { if (!open) setResults(null); }} maxWidth="sm:max-w-[600px]" onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-result-close')?.focus(); }}>
-      <ScrollableDialogHeader><DialogTitle>{results?.title}</DialogTitle><DialogDescription className="sr-only">{t('studio:library.result_summary', { success: results?.items.filter(item => !item.error && !item.skipped).length ?? 0, skipped: results?.items.filter(item => item.skipped).length ?? 0, failed: results?.items.filter(item => item.error).length ?? 0 })}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent><StudioOperationResult testId="studio-library-result" successLabel={results?.kind === 'resume' ? count => t('studio:library.resume_requested_count', { count }) : results?.kind === 'cancel' ? count => t('studio:library.cancel_requested_count', { count }) : undefined} items={results?.items.map((item, index) => ({ id: `${item.documentId ?? item.name}:${index}`, name: item.name, state: item.error ? 'failed' : item.skipped ? 'skipped' : 'success', detail: item.error ? t(errorKeys[item.error]) : item.skipped ? t(item.skipped) : t(results.kind === 'resume' ? 'studio:library.resume_requested' : results.kind === 'cancel' ? 'studio:library.cancel_requested' : 'studio:library.succeeded') })) ?? []} /></ScrollableDialogContent>
-      <ScrollableDialogFooter className="flex justify-end"><Button id="studio-result-close" variant="outline" size="sm" onClick={() => setResults(null)}>{t('studio:recovery.close')}</Button></ScrollableDialogFooter>
+    <ScrollableDialog open={!!results} onOpenChange={open => { if (!open) setResults(null); }} maxWidth={STUDIO_RESULT_DIALOG_WIDTH} contentClassName={STUDIO_RESULT_DIALOG_CLASS} onCloseAutoFocus={event => { event.preventDefault(); restoreResultFocus(); }}>
+      {displayedResults && <StudioOperationResult operation={displayedResults.kind} testId="studio-library-result" closeButtonId="studio-result-close" onClose={() => setResults(null)} items={displayedResults.items.map((item, index) => ({ id: `${item.documentId ?? item.name}:${index}`, name: item.name, state: item.error ? 'failed' : item.skipped ? 'skipped' : 'success', detail: item.error ? t(errorKeys[item.error]) : item.skipped ? t(item.skipped) : t(displayedResults.kind === 'resume' ? 'studio:library.resume_requested' : displayedResults.kind === 'cancel' ? 'studio:library.cancel_requested' : 'studio:library.succeeded') }))} />}
     </ScrollableDialog>
     <ScrollableDialog open={!!deleting} onOpenChange={open => { if (!open) setDeleting(null); }} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-delete-cancel')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('studio-delete-trigger')?.focus(); }}>
       <ScrollableDialogHeader><DialogTitle className="pr-6">{t('studio:delete_document')}</DialogTitle><DialogDescription>{t('studio:delete_description')}</DialogDescription></ScrollableDialogHeader>

@@ -20,7 +20,7 @@ import { STUDIO_BATCH_LIMIT, type ExportBatchPlan, type ExportBatchResult, type 
 import { StudioPlanDocuments } from './StudioPlanDocuments';
 import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioIconButton } from './StudioControls';
-import { StudioOperationResult, type StudioOperationResultItem } from './StudioOperationResult';
+import { StudioOperationResult, STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, type StudioOperationResultItem } from './StudioOperationResult';
 import './StudioExport.css';
 import './StudioBatch.css';
 
@@ -243,7 +243,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
           destination,
         }));
         if (result && mounted.current && dialogOpen.current && currentDocumentId.current === currentPlan.documentId && currentIdentity.current === requestIdentity) {
-          setResultItems([{ id: currentPlan.documentId, name: page?.summary.origin.displayName ?? result.fileName, state: 'success', detail: result.fileName }]);
+          setResultItems([{ id: currentPlan.documentId, name: page?.summary.origin.displayName ?? result.fileName, state: 'success', outputName: result.fileName }]);
           setPlan(null); setStep('result'); onExported(result.fileName);
         }
       }
@@ -265,8 +265,9 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
       setSelectedTrackId(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
       setBatchDocuments(documents ? [...documents] : []);
       setBatchTracks(Object.fromEntries((documents ?? []).map(item => [item.id, item.translationTracks?.at(-1)?.id ?? ''])));
+      setStep('settings'); setPlan(null); setBatchPlan(null); setResultItems(null); setReviewDetailsOpen(false); setError(null);
     }
-    setOpen(value); setStep('settings'); setPlan(null); setBatchPlan(null); setResultItems(null); setReviewDetailsOpen(false); setError(null);
+    setOpen(value);
   };
 
   const rebindSource = async (documentId: string) => {
@@ -289,7 +290,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   };
   const toResultItems = (result: ExportBatchResult | SourceBatchResult): StudioOperationResultItem[] => result.items.map(item => ({
     id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed',
-    detail: item.ok ? 'result' in item ? item.result.fileName : item.fileName : t(errorKeys[item.error]),
+    ...(item.ok ? { outputName: 'result' in item ? item.result.fileName : item.fileName } : { detail: t(errorKeys[item.error]) }),
   }));
   const openSource = () => { changeOpen(true); setSourceMode(true); };
   const downloadSource = async () => {
@@ -304,7 +305,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
       } else if (page) {
         const result = await unwrapStudio(window.subtitleStudio.exportSource({ documentId: page.summary.id, revision: page.summary.revision, destination }));
         if (result && mounted.current && dialogOpen.current && currentIdentity.current === requestIdentity) {
-          setResultItems([{ id: page.summary.id, name: page.summary.origin.displayName, state: 'success', detail: result.fileName }]);
+          setResultItems([{ id: page.summary.id, name: page.summary.origin.displayName, state: 'success', outputName: result.fileName }]);
           setStep('result'); onExported(result.fileName);
         }
       }
@@ -335,11 +336,13 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
 
   return <>
     {triggerContainer === null ? null : triggerContainer ? createPortal(triggerControl, triggerContainer) : triggerControl}
-    <ScrollableDialog open={open} onOpenChange={changeOpen} maxWidth="sm:max-w-[600px]" contentClassName="studio-export-dialog" onOpenAutoFocus={event => {
+    <ScrollableDialog open={open} onOpenChange={changeOpen} maxWidth={step === 'result' ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[600px]'} contentClassName={step === 'result' ? STUDIO_RESULT_DIALOG_CLASS : 'studio-export-dialog'} onOpenAutoFocus={event => {
       if (!sourceMode) { event.preventDefault(); document.getElementById(`${controlId}-mode`)?.focus({ preventScroll: true }); }
     }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+      {step === 'result' ? <StudioOperationResult operation={sourceMode ? 'source' : 'export'} items={resultItems ?? []}
+        onClose={() => changeOpen(false)} titleRef={stepTitle} closeButtonId={`${controlId}-close`} testId={batch ? 'studio-batch-result' : 'studio-export-result'} /> : <>
       <ScrollableDialogHeader className="relative p-3 pr-12">
-        <DialogTitle ref={stepTitle} tabIndex={-1} className="studio-export-step-title flex items-center gap-2 text-base"><ArrowDownToLine className="size-4" />{t(step === 'review' ? 'studio:export.review_title' : step === 'result' ? 'studio:export.result_title' : sourceMode ? batch ? 'studio:batch.download_sources' : 'studio:export_source' : batch ? 'studio:batch.export' : 'studio:export.action')}</DialogTitle>
+        <DialogTitle ref={stepTitle} tabIndex={-1} className="studio-export-step-title flex items-center gap-2 text-base"><ArrowDownToLine className="size-4" />{t(step === 'review' ? 'studio:export.review_title' : sourceMode ? batch ? 'studio:batch.download_sources' : 'studio:export_source' : batch ? 'studio:batch.export' : 'studio:export.action')}</DialogTitle>
         <DialogDescription className={batch ? 'text-xs' : 'sr-only'}>{batch ? t('studio:batch.document_count', { count: batchDocuments.length }) : page?.summary.origin.displayName}</DialogDescription>
       </ScrollableDialogHeader>
       <ScrollableDialogContent key={step} className="studio-export-content" fadeMaskHeight={16}>
@@ -494,11 +497,10 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
           </section>}
           {error && <p className="studio-export-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
           {sourceMode && pending && <p role="status" className="studio-batch-note">{t('studio:loading')}</p>}
-          {step === 'result' && resultItems && <StudioOperationResult items={resultItems} testId={batch ? 'studio-batch-result' : 'studio-export-result'} />}
         </div>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="studio-export-footer flex flex-wrap items-center justify-end gap-2 p-3">
-        <Button id={`${controlId}-close`} variant="ghost" size="sm" onClick={() => changeOpen(false)} disabled={pending}>{t(step === 'result' || sourceMode ? 'studio:batch.close' : 'studio:cancel')}</Button>
+        <Button id={`${controlId}-close`} variant="ghost" size="sm" onClick={() => changeOpen(false)} disabled={pending}>{t(sourceMode ? 'studio:batch.close' : 'studio:cancel')}</Button>
         {step === 'settings' && (sourceMode
           ? <Button size="sm" onClick={() => void downloadSource()} disabled={!canSaveOriginal}>{activity === 'source' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t(destination === 'source-directory' ? 'studio:export.save_to_source' : 'studio:export.save_original')}</Button>
           : <Button size="sm" onClick={() => void prepare()} disabled={!canPlan}>{activity === 'plan' ? <LoaderCircle className="studio-spin" /> : <ClipboardCheck />}{t('studio:export.prepare')}</Button>)}
@@ -507,6 +509,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
           <Button size="sm" onClick={() => void save()} disabled={!canSave}>{activity === 'save' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}{t('studio:export.review_confirm', { count: readyCount })}</Button>
         </>}
       </ScrollableDialogFooter>
+      </>}
     </ScrollableDialog>
   </>;
 }

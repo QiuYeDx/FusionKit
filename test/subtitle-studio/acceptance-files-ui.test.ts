@@ -68,10 +68,10 @@ describe.runIf(enabled)('I3 native files, format preservation and export UI', ()
         const transfer = new DataTransfer(); Array.from(files).forEach(file => transfer.items.add(file));
         document.querySelector('[data-testid=subtitle-studio]')!.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
       });
-      await uiExpect(page.getByTestId('studio-library-result')).toContainText('成功 2 份');
-      await uiExpect(page.getByRole('dialog', { name: '导入结果' })).toContainText('成功 2 份');
-      await uiExpect(page.getByRole('dialog', { name: '导入结果' })).toContainText('失败 1 份');
-      await page.getByRole('dialog', { name: '导入结果' }).getByRole('button', { name: '关闭', exact: true }).click();
+      await uiExpect(page.getByTestId('studio-library-result')).toContainText('已添加 2 份文档');
+      await uiExpect(page.getByRole('dialog', { name: '部分字幕已导入' })).toContainText('已添加 2 份文档');
+      await uiExpect(page.getByRole('dialog', { name: '部分字幕已导入' })).toContainText('1 项失败');
+      await page.getByRole('dialog', { name: '部分字幕已导入' }).getByRole('button', { name: '完成', exact: true }).click();
       await page.locator('[data-studio-drop-fixture]').evaluate(element => element.remove());
       const imported = await page.evaluate(async () => {
         const result = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!result.ok) throw new Error(result.error); return result.value.documents;
@@ -99,8 +99,8 @@ describe.runIf(enabled)('I3 native files, format preservation and export UI', ()
       await prepareAndAccept(page);
       await page.screenshot({ path: path.join(root, '03-vtt-source-export.png'), animations: 'disabled' });
       await page.getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份');
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份字幕文件');
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       await uiExpect(page.getByRole('dialog')).toHaveCount(0);
       const vttOutput = await readFile(path.join(a, 'Session (1).vtt'), 'utf8');
       expect(vttOutput).toContain('NOTE keep-note'); expect(vttOutput).toContain('align:start position:20%'); expect(vttOutput).toContain('这是经过翻译的字幕。');
@@ -121,8 +121,8 @@ describe.runIf(enabled)('I3 native files, format preservation and export UI', ()
       const dialogBox = await page.getByRole('dialog').boundingBox(); expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
       await page.screenshot({ path: path.join(root, '04-ass-custom-export-narrow-dark.png'), animations: 'disabled' });
       await page.getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份');
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份字幕文件');
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       await uiExpect(page.getByRole('dialog')).toHaveCount(0);
       const assOutput = await readFile(path.join(b, 'Dialogue.zh-CN.ass'), 'utf8');
       expect(assOutput).toContain('[V4+ Styles]'); expect(assOutput).toContain('keep-comment'); expect(assOutput).toContain('{\\an8}'); expect(assOutput).toContain('这是经过翻译的字幕。'); expect(assOutput).not.toContain('Another scene');
@@ -133,19 +133,19 @@ describe.runIf(enabled)('I3 native files, format preservation and export UI', ()
       await openExport(page, true); await selectOption(page, '保存位置', '来源文件所在目录'); await selectOption(page, '字幕格式', 'SRT');
       await selectOption(page, '导出内容', '双语'); await prepareAndAccept(page);
       await page.getByRole('button', { name: '确认并导出 2 份', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-batch-result')).toContainText('成功 2 份');
-      await uiExpect(page.getByTestId('studio-batch-result').locator('.studio-document-row')).toHaveCount(0);
-      await page.getByTestId('studio-batch-result').locator('[data-result-group="success"] > summary').click();
+      await uiExpect(page.getByTestId('studio-batch-result')).toContainText('已保存 2 份字幕文件');
+      await uiExpect(page.getByTestId('studio-batch-result').locator('[data-result-id]')).toHaveCount(0);
+      await page.getByTestId('studio-batch-result').locator('[data-result-details] > summary').click();
       await uiExpect(page.getByTestId('studio-batch-result')).toContainText('Session.srt');
       await uiExpect(page.getByTestId('studio-batch-result')).toContainText('Dialogue.srt');
       expect(await readFile(path.join(a, 'Session.srt'), 'utf8')).toContain('这是经过翻译的字幕。');
       expect(await readFile(path.join(b, 'Dialogue.srt'), 'utf8')).toContain('这是经过翻译的字幕。');
       await page.screenshot({ path: path.join(root, '05-batch-separate-source-folders.png'), animations: 'disabled' });
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       await page.getByRole('button', { name: '下载', exact: true }).click(); await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
       await selectOption(page, '保存位置', '来源文件所在目录'); await page.getByRole('button', { name: '保存到来源目录', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份');
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份原文件');
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       await uiExpect(page.getByRole('dialog')).toHaveCount(0);
       expect(await readFile(path.join(b, 'Dialogue (1).ass'), 'utf8')).toBe(ass);
 
@@ -179,8 +179,8 @@ describe.runIf(enabled)('I3 native files, format preservation and export UI', ()
       await prepareAndAccept(page);
       await page.screenshot({ path: path.join(root, '06-historical-source-rebound.png'), animations: 'disabled' });
       await page.getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份');
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份字幕文件');
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       await uiExpect(page.getByRole('dialog')).toHaveCount(0);
       expect(await readFile(vttFile, 'utf8')).toBe(vtt);
       expect(pageErrors).toEqual([]); expect(requests).toHaveLength(2);

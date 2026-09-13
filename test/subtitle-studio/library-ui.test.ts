@@ -39,7 +39,7 @@ async function expandOperationResult(page: Page, testId = 'studio-library-result
   const result = page.getByTestId(testId);
   await uiExpect(result).toBeVisible();
   await uiExpect(result.locator('li')).toHaveCount(0);
-  for (const disclosure of await result.locator('details > summary').all()) await disclosure.click();
+  await result.locator('[data-result-details] > summary').click();
 }
 
 async function documentPage(page: Page, id: string): Promise<DocumentPage> {
@@ -249,7 +249,7 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     await expandOperationResult(page);
     await uiExpect(page.getByTestId('studio-library-result')).toContainText('无效字幕.srt');
     await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(42);
-    await page.getByRole('dialog', { name: label('library.import_result'), exact: true }).getByRole('button', { name: label('recovery.close'), exact: true }).click();
+    await page.getByRole('dialog').filter({ has: page.getByTestId('studio-library-result') }).getByRole('button', { name: '完成', exact: true }).click();
     const documents = await listDocuments(page);
     expect(documents.map(document => document.origin.displayName).sort()).toEqual([...originals.keys()].map(file => path.basename(file)).sort());
     let library = page.getByTestId('studio-library');
@@ -386,8 +386,8 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     await capture(page, 'batch-translation-plan-desktop');
     await translation.getByRole('button', { name: label('batch.start_ready').replace('{{count}}', '2'), exact: true }).click();
     await expandOperationResult(page, 'studio-batch-result');
-    await uiExpect(translation.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
-    await translation.getByRole('button', { name: label('batch.close'), exact: true }).click();
+    await uiExpect(page.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
+    await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
     await uiExpect.poll(async () => (await listDocuments(page)).filter(document => document.id === firstId || document.id === secondId).map(document => document.task?.status), { timeout: 30000 }).toEqual(['completed', 'completed']);
     expect(requests).toHaveLength(2);
     for (const [id, scene] of [[firstId, 1], [secondId, 21]] as const) {
@@ -451,7 +451,7 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     }, outputs);
     await capture(page, 'batch-export-plan-desktop');
     await save.click();
-    await uiExpect(exporting).toHaveAccessibleName('导出结果');
+    await uiExpect(exporting).toHaveAccessibleName(label('operation_result.export.title'));
     await expandOperationResult(page, 'studio-batch-result');
     await uiExpect(exporting.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
     await application!.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(786, 540); });
@@ -467,7 +467,7 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     expect(exported.some(text => text.includes('译文：Library scene 1.'))).toBe(true);
     expect(exported.some(text => text.includes('译文：Library scene 21.'))).toBe(true);
     await capture(page, 'batch-export-results-desktop');
-    await exporting.getByRole('button', { name: label('batch.close'), exact: true }).click();
+    await exporting.getByRole('button', { name: '完成', exact: true }).click();
     expect(requests).toHaveLength(2);
 
     await batchAction('library.delete_selected');
@@ -476,7 +476,7 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     await removing.getByRole('button', { name: label('library.confirm_delete'), exact: true }).click();
     await expandOperationResult(page);
     await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(2);
-    await page.getByRole('dialog', { name: label('library.delete_result'), exact: true }).getByRole('button', { name: label('recovery.close'), exact: true }).click();
+    await page.getByRole('dialog').filter({ has: page.getByTestId('studio-library-result') }).getByRole('button', { name: '完成', exact: true }).click();
     expect(await listDocuments(page)).toHaveLength(39);
     expect((await listDocuments(page)).some(document => document.id === firstId || document.id === secondId)).toBe(false);
     expect(await readFile(collision, 'utf8')).toBe('Existing output must survive.');
@@ -507,8 +507,8 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
       await uiExpect(dialog.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
       await dialog.getByRole('button', { name: label('batch.start_ready').replace('{{count}}', '2'), exact: true }).click();
       await expandOperationResult(page, 'studio-batch-result');
-      await uiExpect(dialog.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
-      await dialog.getByRole('button', { name: label('batch.close'), exact: true }).click();
+      await uiExpect(page.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
     };
     const resumeIds = ['02-', '22-'].map(prefix => documents.find(document => document.origin.displayName.startsWith(prefix))!.id);
     await selectDocuments(resumeIds);
@@ -553,7 +553,7 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     await resuming.getByRole('button', { name: label('library.confirm_resume'), exact: true }).click();
     await expandOperationResult(page);
     await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(2);
-    await page.getByRole('dialog', { name: label('library.resume_result'), exact: true }).getByRole('button', { name: label('recovery.close'), exact: true }).click();
+    await page.getByRole('dialog').filter({ has: page.getByTestId('studio-library-result') }).getByRole('button', { name: '完成', exact: true }).click();
     await uiExpect.poll(async () => (await listDocuments(page)).filter(document => resumeIds.includes(document.id)).map(document => document.task?.status), { timeout: 30000 }).toEqual(['completed', 'completed']);
     const resumedTexts = requests.slice(requestCountAtRestart).flatMap(request => (JSON.parse(request.messages[1].content) as { items: { text: string }[] }).items.map(item => item.text));
     expect(resumedTexts.sort()).toEqual(remainingTexts.sort());
@@ -574,7 +574,7 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     await batchAction('library.cancel_selected');
     await expandOperationResult(page);
     await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(2);
-    await page.getByRole('dialog', { name: label('library.cancel_result'), exact: true }).getByRole('button', { name: label('recovery.close'), exact: true }).click();
+    await page.getByRole('dialog').filter({ has: page.getByTestId('studio-library-result') }).getByRole('button', { name: '完成', exact: true }).click();
     await uiExpect.poll(async () => (await listDocuments(page)).filter(document => cancelIds.includes(document.id)).map(document => document.task?.status)).toEqual(['cancelled', 'cancelled']);
     const cancelled = await Promise.all(cancelIds.map(id => documentPage(page, id)));
     for (const pending of held.splice(0)) respond(pending.response, pending.body);

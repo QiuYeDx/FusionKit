@@ -544,6 +544,59 @@
     "skipped_details": "スキップした項目を表示",
     "details": "ファイルの詳細を表示",
     "queued": "{{count}} 件の翻訳タスクを送信しました",
-    "empty": "処理対象の項目はありません"
+    "empty": "処理対象の項目はありません",
+    "done": "完了",
+    "none_processed": "変更はありません",
+    "empty_description": "作業台に戻って操作を続けられます。",
+    "failed_count": "失敗 {{count}} 件",
+    "skipped_count": "スキップ {{count}} 件",
+    "details_count": "{{count}} 件の詳細を表示",
+    "separator": "・",
+    "item_success": "完了",
+    "item_failed": "失敗",
+    "item_skipped": "スキップ",
+    "item_requested": "リクエスト送信済み",
+    "export": {
+      "title": "字幕を書き出しました",
+      "partial": "一部の字幕を書き出しました",
+      "failed": "字幕を書き出せませんでした",
+      "count": "字幕ファイル {{count}} 件を保存しました"
+    },
+    "source": {
+      "title": "元ファイルを保存しました",
+      "partial": "一部の元ファイルを保存しました",
+      "failed": "元ファイルを保存できませんでした",
+      "count": "元ファイル {{count}} 件を保存しました"
+    },
+    "import": {
+      "title": "字幕を読み込みました",
+      "partial": "一部の字幕を読み込みました",
+      "failed": "字幕を読み込めませんでした",
+      "count": "ドキュメント {{count}} 件を追加しました"
+    },
+    "translation": {
+      "title": "翻訳タスクを送信しました",
+      "partial": "一部の翻訳タスクを送信しました",
+      "failed": "翻訳タスクを送信できませんでした",
+      "count": "翻訳タスク {{count}} 件を送信しました"
+    },
+    "delete": {
+      "title": "ドキュメントを削除しました",
+      "partial": "一部のドキュメントを削除しました",
+      "failed": "ドキュメントを削除できませんでした",
+      "count": "ドキュメント {{count}} 件を削除しました"
+    },
+    "resume": {
+      "title": "再開をリクエストしました",
+      "partial": "一部の再開をリクエストしました",
+      "failed": "翻訳を再開できませんでした",
+      "count": "再開リクエスト {{count}} 件を送信しました"
+    },
+    "cancel": {
+      "title": "キャンセルをリクエストしました",
+      "partial": "一部のキャンセルをリクエストしました",
+      "failed": "キャンセルできませんでした",
+      "count": "キャンセルリクエスト {{count}} 件を送信しました"
+    }
   }
 }

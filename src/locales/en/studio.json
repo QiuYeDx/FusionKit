@@ -544,6 +544,59 @@
     "skipped_details": "View skipped items",
     "details": "View file details",
     "queued": "{{count}} translation tasks submitted",
-    "empty": "No items to process"
+    "empty": "No items to process",
+    "done": "Done",
+    "none_processed": "No changes made",
+    "empty_description": "You can return to the studio to continue.",
+    "failed_count": "Failed: {{count}}",
+    "skipped_count": "Skipped: {{count}}",
+    "details_count": "View details ({{count}})",
+    "separator": " · ",
+    "item_success": "Completed",
+    "item_failed": "Failed",
+    "item_skipped": "Skipped",
+    "item_requested": "Request submitted",
+    "export": {
+      "title": "Subtitles exported",
+      "partial": "Some subtitles exported",
+      "failed": "Couldn’t export subtitles",
+      "count": "Subtitle files saved: {{count}}"
+    },
+    "source": {
+      "title": "Original files saved",
+      "partial": "Some original files saved",
+      "failed": "Couldn’t save original files",
+      "count": "Original files saved: {{count}}"
+    },
+    "import": {
+      "title": "Subtitles imported",
+      "partial": "Some subtitles imported",
+      "failed": "Couldn’t import subtitles",
+      "count": "Documents added: {{count}}"
+    },
+    "translation": {
+      "title": "Translation submitted",
+      "partial": "Some translations submitted",
+      "failed": "Couldn’t submit translations",
+      "count": "Translation tasks submitted: {{count}}"
+    },
+    "delete": {
+      "title": "Documents deleted",
+      "partial": "Some documents deleted",
+      "failed": "Couldn’t delete documents",
+      "count": "Documents deleted: {{count}}"
+    },
+    "resume": {
+      "title": "Resume requested",
+      "partial": "Some resume requests submitted",
+      "failed": "Couldn’t resume translation",
+      "count": "Resume requests submitted: {{count}}"
+    },
+    "cancel": {
+      "title": "Cancellation requested",
+      "partial": "Some cancellations requested",
+      "failed": "Couldn’t cancel tasks",
+      "count": "Cancellation requests submitted: {{count}}"
+    }
   }
 }

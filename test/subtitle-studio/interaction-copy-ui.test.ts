@@ -71,12 +71,13 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       await app.evaluate(({ dialog }, files) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: files }); }, [...srts, invalid]);
       await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
       const result = page.getByTestId('studio-library-result'); await uiExpect(result).toBeVisible();
-      await uiExpect(result.locator('.studio-document-row')).toHaveCount(0);
-      await uiExpect(result).toContainText('成功 2 份'); await uiExpect(result).toContainText('失败 1 份');
+      await uiExpect(result.locator('[data-result-id]')).toHaveCount(0);
+      await uiExpect(result).toHaveAttribute('data-operation', 'import'); await uiExpect(result).toHaveAttribute('data-outcome', 'partial');
       await page.screenshot({ path: path.join(root, '02-import-result-summary.png'), animations: 'disabled' });
-      await result.locator('summary', { hasText: '查看失败详情' }).click();
-      await uiExpect(result.locator('.studio-document-row')).toHaveCount(1); await uiExpect(result).toContainText('04-invalid.bin');
-      await page.getByRole('button', { name: '关闭', exact: true }).click();
+      await result.locator('[data-result-details] > summary').click();
+      await uiExpect(result.locator('[data-result-id]')).toHaveCount(3);
+      await uiExpect(result.locator('[data-result-id][data-state="failed"]')).toHaveCount(1); await uiExpect(result).toContainText('04-invalid.bin');
+      await page.getByRole('button', { name: '完成', exact: true }).click();
       await page.locator('.studio-document').filter({ hasText: path.basename(srts[0]) }).click();
       await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(1);
       const sourceTrigger = page.locator('.studio-cue-table').getByRole('button', { name: '选择复制内容', exact: true });
@@ -91,10 +92,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       expect(await translation.locator('.studio-translation-plan-details').evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
       await translation.getByRole('button', { name: /开始翻译.*就绪/ }).click();
       const submitted = page.getByTestId('studio-batch-result'); await uiExpect(submitted).toBeVisible();
-      await uiExpect(submitted.locator('.studio-document-row')).toHaveCount(0); await uiExpect(submitted).toContainText('已提交');
+      await uiExpect(submitted.locator('[data-result-id]')).toHaveCount(0); await uiExpect(submitted).toHaveAttribute('data-operation', 'translation'); await uiExpect(submitted).toContainText('已提交');
       await page.screenshot({ path: path.join(root, '03-translation-submitted-summary.png'), animations: 'disabled' });
-      await submitted.locator('summary', { hasText: '查看成功详情' }).click(); await uiExpect(submitted.locator('.studio-document-row')).toHaveCount(3);
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await submitted.locator('[data-result-details] > summary').click(); await uiExpect(submitted.locator('[data-result-id]')).toHaveCount(3);
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       evidence.results = { importSummaryBeforeDetails: true, failureOnDemand: true, translationSubmittedNotCompleted: true, translationDetailsOnDemand: true };
 
       await uiExpect.poll(() => requests).toBe(3);

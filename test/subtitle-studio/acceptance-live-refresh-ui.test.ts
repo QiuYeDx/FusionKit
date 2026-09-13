@@ -157,8 +157,9 @@ describe.runIf(enabled)('I5 real Electron reader refresh and toolbar', () => {
       const destination = page.getByRole('dialog').getByRole('combobox', { name: '保存位置', exact: true }); await destination.click(); await page.getByRole('option', { name: '来源文件所在目录', exact: true }).click();
       await page.getByRole('dialog').getByRole('button', { name: '保存到来源目录', exact: true }).click();
       await uiExpect(page.getByTestId('studio-export-result')).toBeVisible();
-      await uiExpect(page.getByTestId('studio-export-result').locator('li')).toHaveCount(0);
-      await page.getByRole('dialog', { name: '导出结果', exact: true }).getByRole('button', { name: '关闭', exact: true }).click();
+      await uiExpect(page.getByTestId('studio-export-result').locator('[data-result-id][data-state="success"]')).toHaveCount(1);
+      await uiExpect(page.getByTestId('studio-export-result').locator('[data-result-details]')).toHaveCount(0);
+      await page.getByRole('dialog', { name: '原文件已保存', exact: true }).getByRole('button', { name: '完成', exact: true }).click();
       await uiExpect(page.getByRole('dialog')).toHaveCount(0);
       await uiExpect(page.locator('.studio-notice').filter({ hasText: '已下载' })).toBeVisible();
       await start(second.id); await uiExpect.poll(() => replies.length).toBeGreaterThan(0);

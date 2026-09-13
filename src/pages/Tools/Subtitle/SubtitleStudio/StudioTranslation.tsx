@@ -20,7 +20,7 @@ import { StudioIconButton } from './StudioControls';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import { StudioBatchItems } from './StudioBatchItems';
 import { StudioDocumentRow } from './StudioDocumentList';
-import { StudioOperationResult } from './StudioOperationResult';
+import { STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, StudioOperationResult } from './StudioOperationResult';
 import { translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from '@/subtitle-studio/translation-contract';
 import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
 import './StudioTranslation.css';
@@ -99,6 +99,7 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
   const operation = useRef(false);
   const mounted = useRef(true);
   const trigger = useRef<HTMLButtonElement>(null);
+  const handingOffToOverview = useRef(false);
   const selected = profiles.find(profile => profile.id === profileId);
   const model = useMemo(() => translationModelSchema.safeParse(selected ? {
     profileId: selected.id,
@@ -146,7 +147,6 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
     if (batch && (activity === 'start' || batchResult)) return;
     setPlan(null); setBatchPlan(null); setBatchResult(null); setError(null);
   }, [identity]);
-  useEffect(() => { if (batchResult) document.getElementById(`${controlId}-close`)?.focus({ preventScroll: true }); }, [batchResult, controlId]);
   useEffect(() => {
     if (!profileId && profiles.length) setProfileId(assignment ?? profiles[0].id);
   }, [assignment, profileId, profiles]);
@@ -202,21 +202,34 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
     }
   };
 
-  const triggerControl = <StudioIconButton ref={trigger} label={t(batch ? 'studio:batch.translation' : 'studio:translation.action')} disabled={busy || activeTask || unavailable || pending} onClick={() => { setBatchDocuments(documents ? [...documents] : []); setBatchResult(null); setBatchPlan(null); setError(null); setOpen(true); }}><Languages /></StudioIconButton>;
+  const triggerControl = <StudioIconButton ref={trigger} label={t(batch ? 'studio:batch.translation' : 'studio:translation.action')} disabled={busy || activeTask || unavailable || pending} onClick={() => { handingOffToOverview.current = false; setBatchDocuments(documents ? [...documents] : []); setBatchResult(null); setBatchPlan(null); setError(null); setOpen(true); }}><Languages /></StudioIconButton>;
 
   return <>
     {triggerContainer === null ? null : triggerContainer ? createPortal(triggerControl, triggerContainer) : triggerControl}
-    <ScrollableDialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }} maxWidth="sm:max-w-[560px]" contentClassName="studio-translation-dialog" onOpenAutoFocus={event => {
-      event.preventDefault(); document.getElementById(`${controlId}-${profiles.length ? 'model' : 'language'}`)?.focus({ preventScroll: true });
-    }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+    <ScrollableDialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }} maxWidth={batchResult ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[560px]'} contentClassName={batchResult ? STUDIO_RESULT_DIALOG_CLASS : 'studio-translation-dialog'} onOpenAutoFocus={event => {
+      event.preventDefault(); if (!batchResult) document.getElementById(`${controlId}-${profiles.length ? 'model' : 'language'}`)?.focus({ preventScroll: true });
+    }} onCloseAutoFocus={event => {
+      event.preventDefault();
+      if (!mounted.current) return;
+      if (handingOffToOverview.current) {
+        handingOffToOverview.current = false;
+        // The user may already have dismissed the next dialog during this exit.
+        if (getStudioTranslationOverviewController().getState().detailsOpen) {
+          const nextDialog = document.querySelector<HTMLElement>('.studio-translation-overview-dialog');
+          if (nextDialog?.isConnected && nextDialog.getClientRects().length) nextDialog.focus({ preventScroll: true });
+        }
+        return;
+      }
+      trigger.current?.focus({ preventScroll: true });
+    }}>
+      {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={() => setOpen(false)} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; setOpen(false); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
       <ScrollableDialogHeader className="relative p-3 pr-12">
         <DialogTitle className="flex items-center gap-2 text-base"><Languages className="size-4" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle>
         <DialogDescription className={batch ? 'text-xs' : 'sr-only'}>{batch ? t('studio:batch.document_count', { count: batchDocuments.length }) : page?.summary.origin.displayName}</DialogDescription>
       </ScrollableDialogHeader>
       <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}>
         <div className="studio-translation-form">
-          {!batchResult && <>
-          {batch && !batchPlan && !batchResult && <StudioSelectedDocuments documents={batchDocuments} />}
+          {batch && !batchPlan && <StudioSelectedDocuments documents={batchDocuments} />}
           <div className="studio-translation-fields">
             <ToolField label={t('studio:translation.model')} htmlFor={`${controlId}-model`}>
               <Select value={selected?.id ?? ''} onValueChange={setProfileId} disabled={pending || !profiles.length}>
@@ -270,18 +283,14 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
             <details key={batchPlan.batchId} className="studio-translation-plan-details"><summary>{t('studio:operation_result.details')}<ChevronDown aria-hidden="true" /></summary><StudioBatchItems>{batchPlan.items.map(item => <StudioDocumentRow key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'} name={item.displayName} status={item.ok ? t('studio:batch.ready') : t(errorKeys[item.error])} />)}</StudioBatchItems></details>
             </>}
           </section>}
-          </>}
-          {batchResult && <section data-testid="studio-batch-result">
-            <StudioOperationResult items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} successLabel={count => t('studio:operation_result.queued', { count })} />
-            {batchResult.items.some(item => item.ok) && <Button variant="ghost" size="sm" className="studio-translation-view-progress" onClick={() => { setOpen(false); getStudioTranslationOverviewController().setDetailsOpen(true); }}>{t('studio:overview.view_progress')}</Button>}
-          </section>}
         </div>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3">
-        <Button id={`${controlId}-close`} variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>{t(batchResult ? 'studio:batch.close' : 'studio:cancel')}</Button>
+        <Button id={`${controlId}-close`} variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>{t('studio:cancel')}</Button>
         {batchPlan && <Button variant="outline" size="sm" disabled={!canPlan} onClick={() => void prepare()}>{t('studio:translation.prepare')}</Button>}
-        {!batchResult && (currentPlan || batchPlan ? <Button size="sm" disabled={!canPlan || !!batchPlan && !batchPlan.items.some(item => item.ok)} onClick={() => void start()}>{activity === 'start' ? <LoaderCircle className="studio-spin" /> : <Play />}{batchPlan ? t('studio:batch.start_ready', { count: batchPlan.items.filter(item => item.ok).length }) : t('studio:translation.start')}</Button> : <Button size="sm" disabled={!canPlan} onClick={() => void prepare()}>{activity === 'plan' ? <LoaderCircle className="studio-spin" /> : <Calculator />}{t('studio:translation.prepare')}</Button>)}
+        {currentPlan || batchPlan ? <Button size="sm" disabled={!canPlan || !!batchPlan && !batchPlan.items.some(item => item.ok)} onClick={() => void start()}>{activity === 'start' ? <LoaderCircle className="studio-spin" /> : <Play />}{batchPlan ? t('studio:batch.start_ready', { count: batchPlan.items.filter(item => item.ok).length }) : t('studio:translation.start')}</Button> : <Button size="sm" disabled={!canPlan} onClick={() => void prepare()}>{activity === 'plan' ? <LoaderCircle className="studio-spin" /> : <Calculator />}{t('studio:translation.prepare')}</Button>}
       </ScrollableDialogFooter>
+      </>}
     </ScrollableDialog>
   </>;
 }

@@ -117,8 +117,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       const file = path.join(root, name);
       await app!.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, file);
       await exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份');
-      await exportDialog().getByRole('button', { name: '关闭', exact: true }).click();
+      await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份字幕文件');
+      await uiExpect(page.getByTestId('studio-export-result').locator('[data-result-id][data-state="success"]')).toContainText(name);
+      await exportDialog().getByRole('button', { name: '完成', exact: true }).click();
       await uiExpect(exportDialog()).toHaveCount(0);
       return file;
     };
@@ -130,7 +131,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await page.getByRole('option', { name: '选择其他位置', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: '保存原始文件…', exact: true }).click();
     await uiExpect.poll(async () => readFile(originalDownload, 'utf8').catch(() => '')).toBe(original);
-    await exportDialog().getByRole('button', { name: '关闭', exact: true }).click();
+    await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份原文件');
+    await exportDialog().getByRole('button', { name: '完成', exact: true }).click();
 
     await openExport();
     await page.keyboard.press('Escape');
@@ -273,8 +275,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       const globals = globalThis as typeof globalThis & { studioExportSave?: (result: { canceled: boolean; filePath: string }) => void };
       globals.studioExportSave!({ canceled: false, filePath: file }); delete globals.studioExportSave;
     }, frozenFile);
-    await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份');
-    await exportDialog().getByRole('button', { name: '关闭', exact: true }).click();
+    await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份字幕文件');
+    await exportDialog().getByRole('button', { name: '完成', exact: true }).click();
     await uiExpect(exportDialog()).toHaveCount(0);
     expect((await parsedFile(frozenFile, 'lrc')).document.cues.map(cue => cue.source.plain)).toEqual(targetLines);
     await openExport();

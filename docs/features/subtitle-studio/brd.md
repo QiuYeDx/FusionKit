@@ -153,9 +153,24 @@ SRT/LRC 解析为稳定身份的字幕文档，原文与译文轨分离保存。
 
 先总览后详情，关键动作明确；选择/切换不扰动无关内容。见module-interaction，按用户新要求调整I5界面决策，保留业务保护。
 
+### BR-10 操作结果的C端完成反馈
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | active |
+| 批次 | I7 |
+
+#### 说明
+
+2026-09-13用户指出成功弹窗丑，明确要求参考Apple/Vercel质量重新设计并实现全部类似结果提示。
+
+#### 验收要点
+
+直接表达结果、尺寸与内容匹配、主要操作明确、失败和批量信息按需查看。详见module-feedback，不回退I6真实结果与渐进披露约束。
+
 ## 模块与契约索引
 
-当前展开[第二轮体验模块](modules/module-experience/requirements.md)，覆盖BR-08；已完成[人工验收模块](modules/module-acceptance/requirements.md)，覆盖BR-04、BR-07；workspace与transcription保留既有合同。总体边界见 [architecture.md](architecture.md)，转写与可删除性见 [transcription-fork.md](transcription-fork.md)。
+当前展开[操作结果反馈模块](modules/module-feedback/requirements.md)，覆盖BR-10；第二轮体验模块保留BR-08历史合同；已完成[人工验收模块](modules/module-acceptance/requirements.md)，覆盖BR-04、BR-07；workspace与transcription保留既有合同。总体边界见 [architecture.md](architecture.md)，转写与可删除性见 [transcription-fork.md](transcription-fork.md)。
 
 ## 批次顺序
 
@@ -166,6 +181,7 @@ SRT/LRC 解析为稳定身份的字幕文档，原文与译文轨分离保存。
 | I3 | 六项人工验收完善及VTT/ASS | I1 格式边界可用，不强依赖 ASR 算法改进 |
 | I5 | 第二轮十项体验完善与可选自动翻译 | 已完成I3，用户明确连续实施；在后置I4之前执行 |
 | I6 | 第三轮交互简化、密度及稳定 | I5可用，用户十项反馈 |
+| I7 | 统一精致的操作结果反馈 | I5/I6已提交，用户最新截图及明确重设计要求 |
 | I4 | 编辑、修订及版本对比 | I1 并发控制可用，临近实施再细化 |
 
 I2/I3 可以按用户优先级交换；默认先保护转写连续性。原始规划未并行；2026-09-12本轮按spec登记的单写权并行完成六项，不提前实施I4。

@@ -64,6 +64,8 @@
     "localSubtitleApi"
   ],
   "infrastructure": [
+    "src/locales/zh/studio.json",
+    "src/locales/en/studio.json",
     "src/components/ui/",
     "src/components/qiuye-ui/",
     "src/lib/",

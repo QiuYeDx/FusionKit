@@ -26,9 +26,10 @@ async function review(page: Page, count: number) {
 }
 async function closeResult(page: Page, successCount: number, testId = 'studio-export-result') {
   const result = page.getByTestId(testId);
-  await uiExpect(result).toContainText(`成功 ${successCount} 份`);
-  await uiExpect(result.locator('.studio-document-row')).toHaveCount(0);
-  await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+  await uiExpect(result).toHaveAttribute('data-outcome', 'success');
+  await uiExpect(result.locator('[data-result-id]')).toHaveCount(successCount === 1 ? 1 : 0);
+  if (successCount === 1) await uiExpect(result.locator('[data-result-details]')).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
   await uiExpect(page.getByRole('dialog')).toHaveCount(0);
 }
 
@@ -54,7 +55,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       const capture = async (name: string) => {
         await page!.waitForFunction(() => !document.getAnimations().some(animation => animation.playState === 'running'));
         const data = await page!.getByRole('dialog').evaluate(dialog => {
-          const box = dialog.getBoundingClientRect(); const footer = dialog.querySelector(':scope > .contents > .border-t')!.getBoundingClientRect();
+          const box = dialog.getBoundingClientRect();
+          const done = [...dialog.querySelectorAll('button')].find(button => button.textContent?.trim() === '完成');
+          const footer = (done?.parentElement ?? dialog.querySelector(':scope > .contents > .border-t'))!.getBoundingClientRect();
           return { x: box.x, right: box.right, bottom: box.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, overflow: dialog.scrollWidth - dialog.clientWidth, footerBottom: footer.bottom };
         });
         expect(data.x).toBeGreaterThanOrEqual(0); expect(data.right).toBeLessThanOrEqual(data.viewportWidth + 1); expect(data.bottom).toBeLessThanOrEqual(data.viewportHeight + 1); expect(data.footerBottom).toBeLessThanOrEqual(data.viewportHeight + 1); expect(data.overflow).toBeLessThanOrEqual(1);
@@ -62,10 +65,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       };
       await app.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, files);
       await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-library-result')).toContainText('成功 3 份');
-      await uiExpect(page.getByTestId('studio-library-result').locator('.studio-document-row')).toHaveCount(0);
+      await uiExpect(page.getByTestId('studio-library-result')).toHaveAttribute('data-outcome', 'success');
+      await uiExpect(page.getByTestId('studio-library-result').locator('[data-result-id]')).toHaveCount(0);
       await capture('01-import-result-light');
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       await page.locator('.studio-document').filter({ hasText: names[0] }).click();
       await openExport(page);
       const scope = page.getByTestId('studio-selected-documents');
@@ -114,7 +117,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       const output = path.join(root, 'confirmed.srt');
       await app.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, output);
       await page.getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-export-result')).toContainText('成功 1 份'); await capture('05-single-result-light');
+      await uiExpect(page.getByTestId('studio-export-result')).toHaveAttribute('data-outcome', 'success');
+      await uiExpect(page.getByTestId('studio-export-result').locator('[data-result-id]')).toContainText('confirmed.srt'); await capture('05-single-result-light');
       expect(await readFile(output, 'utf8')).toBe(sourceText + '\n');
       await closeResult(page, 1);
       await page.locator('.studio-document').filter({ hasText: names[2] }).click();
@@ -133,12 +137,13 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       await uiExpect(details.locator('[data-state="failed"]')).toHaveCount(1);
       await details.evaluate(element => element.scrollIntoView({ block: 'center' })); await capture('07-partial-details-narrow-dark');
       await page.getByRole('button', { name: '确认并导出 2 份', exact: true }).click();
-      const result = page.getByTestId('studio-batch-result'); await uiExpect(result).toContainText('成功 2 份'); await uiExpect(result).toContainText('失败 1 份');
-      await uiExpect(result.locator('.studio-document-row')).toHaveCount(0); await capture('08-partial-result-narrow-dark');
-      await result.locator('[data-result-group="failed"] > summary').focus(); await page.keyboard.press('Enter');
-      await uiExpect(result.locator('.studio-document-row')).toHaveCount(1); await uiExpect(result.locator('.studio-document-row')).toContainText(names[2]); await capture('09-failure-details-narrow-dark');
+      const result = page.getByTestId('studio-batch-result'); await uiExpect(result).toHaveAttribute('data-outcome', 'partial');
+      await uiExpect(result.locator('[data-result-id]')).toHaveCount(0); await capture('08-partial-result-narrow-dark');
+      await result.locator('[data-result-details] > summary').focus(); await page.keyboard.press('Enter');
+      await uiExpect(result.locator('[data-result-id]')).toHaveCount(3);
+      await uiExpect(result.locator('[data-result-id][data-state="failed"]')).toHaveCount(1); await uiExpect(result.locator('[data-result-id][data-state="failed"]')).toContainText(names[2]); await capture('09-failure-details-narrow-dark');
       for (const file of files.slice(0, 2)) expect(await readFile(file.replace(/\.srt$/, ' (1).srt'), 'utf8')).toBe(sourceText + '\n');
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       await openExport(page, false, true);
       await uiExpect(page.getByRole('button', { name: '检查导出', exact: true })).toHaveCount(0);
       await page.getByRole('button', { name: '保存到来源目录', exact: true }).click(); await closeResult(page, 1);
@@ -151,12 +156,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       try {
         for (const file of files) { await rename(file, `${file}.moved`); moved.push(file); }
         await page.getByRole('button', { name: '保存到来源目录', exact: true }).click();
-        await uiExpect(page.getByTestId('studio-batch-result')).toContainText('失败 3 份');
+        await uiExpect(page.getByTestId('studio-batch-result')).toHaveAttribute('data-outcome', 'failed');
         await uiExpect(page.getByTestId('studio-batch-result')).not.toContainText('成功');
-        await uiExpect(page.getByTestId('studio-batch-result').locator('.studio-document-row')).toHaveCount(0);
+        await uiExpect(page.getByTestId('studio-batch-result').locator('[data-result-id]')).toHaveCount(0);
         await capture('10-all-failed-original-result-narrow-dark');
       } finally { for (const file of moved) await rename(`${file}.moved`, file); }
-      await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       for (let index = 0; index < files.length; index++) expect(digest(await readFile(files[index]))).toBe(digest(sourceBytes[index]));
       expect(pageErrors).toEqual([]);
       await writeFile(path.join(root, 'result.json'), JSON.stringify({ geometry, pageErrors, realPlans: true, nativeSaveCancellation: 'review retained', realPlanTtl: 'main clock advanced 16 minutes then restored; rejection before native picker', partialBatch: { success: 2, failed: 1 }, rawSourceBytesPreserved: true, noAsrOrTranslationCalls: true, productionMainSha256: digest(await readFile('dist-electron/main/index.js')), preloadSha256: digest(await readFile('dist-electron/preload/index.mjs')), rendererHtmlSha256: digest(await readFile('dist/index.html')) }, null, 2));

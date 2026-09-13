@@ -4,6 +4,8 @@
 
 ## 当前进度（2026-09-13）
 
+**I7结果反馈重设计已完成技术验证**：依据最新截图重写导出/原文下载/导入/翻译提交/管理结果。见[问题记录](records/2026-09-13-feedback-findings.md)、[需求与验收](modules/module-feedback/requirements.md)、[设计](modules/module-feedback/design.md)、[任务](modules/module-feedback/tasks.md)。8套实际Electron及静态检查通过，见[综合收尾与证据](records/2026-09-13-feedback-closeout.md)，用户验收保持pending。当前代码基线为已提交推送的8589872（含I5/I6）；历史记录中的未提交描述对应当时验证快照，保持原始证据。本次I7尚未提交。
+
 I1 的 T-WORKSPACE-01 至 T-WORKSPACE-08 功能均已完成。涵盖 SRT/LRC 文档、权限与持久化、文本翻译、双语整理、恢复/取消、多模式导出，以及文档库搜索/分页/跨页选择、批量翻译/导出/管理。用户整体验收仍由 spec.json 单独记录为 pending。
 
 已集成版本：`a742746` 文档库批量工作流、`2878b94` 范围预览、`d5e98d4` 配置折叠与批量确认、`3a0f50e` 计划概览与列表渐变。2026-09-11 进度盘点已核对本地和远端均为 `3a0f50e`；当时工作树干净。历史实施记录中的“未提交”是验证当时的状态，不代表这些改动现在未集成。
