@@ -33,8 +33,8 @@ const CATEGORIES: Category[] = [
       {
         id: "subtitleStudio",
         titleKey: "studio:title",
-        descKey: "studio:documents",
-        chips: ["SRT · LRC"],
+        descKey: "tools:field_desc.subtitle_studio",
+        chipKeys: ["tools:chips.studio_transcription", "tools:chips.studio_translation", "tools:chips.studio_formats"],
       },
       {
         id: "translator",

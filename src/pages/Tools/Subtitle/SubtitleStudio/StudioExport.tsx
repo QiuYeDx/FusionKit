@@ -84,6 +84,8 @@ type StudioExportProps = {
   page?: DocumentPage;
   documents?: DocumentSummary[];
   triggerContainer?: HTMLElement | null;
+  openRequest?: import('./StudioLibraryContextMenu').LibraryDialogRequest;
+  onRequestClosed?: () => void;
   trackId?: string;
   busy: boolean;
   onExported: (fileName: string) => void;
@@ -94,7 +96,7 @@ export function StudioBatchExport(props: Omit<StudioExportProps, 'page' | 'docum
   return <StudioExport {...props} />;
 }
 
-export function StudioExport({ page, documents, triggerContainer, trackId, busy, onExported, onError }: StudioExportProps) {
+export function StudioExport({ page, documents, triggerContainer, openRequest, onRequestClosed, trackId, busy, onExported, onError }: StudioExportProps) {
   const { t, i18n } = useTranslation();
   const controlId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -294,6 +296,13 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
     ...(item.ok ? { outputName: 'result' in item ? item.result.fileName : item.fileName } : { detail: t(errorKeys[item.error]) }),
   }));
   const openSource = () => { changeOpen(true); setSourceMode(true); };
+  const consumedRequest = useRef(openRequest);
+  useEffect(() => {
+    if (openRequest && consumedRequest.current !== openRequest) {
+      consumedRequest.current = openRequest;
+      if (openRequest.original) openSource(); else changeOpen(true);
+    }
+  }, [openRequest]);
   const downloadSource = async () => {
     if (operation.current || !canSaveOriginal) return;
     operation.current = true; setActivity('source'); setError(null);
@@ -339,7 +348,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
     {triggerContainer === null ? null : triggerContainer ? createPortal(triggerControl, triggerContainer) : triggerControl}
     <ScrollableDialog open={open} onOpenChange={changeOpen} maxWidth={step === 'result' ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[600px]'} contentClassName={step === 'result' ? STUDIO_RESULT_DIALOG_CLASS : 'studio-export-dialog'} onOpenAutoFocus={event => {
       if (!sourceMode) { event.preventDefault(); document.getElementById(`${controlId}-mode`)?.focus({ preventScroll: true }); }
-    }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+    }} onCloseAutoFocus={event => { event.preventDefault(); onRequestClosed?.(); if (openRequest) openRequest.restoreFocus(); else trigger.current?.focus({ preventScroll: true }); }}>
       {step === 'result' ? <StudioOperationResult operation={sourceMode ? 'source' : 'export'} items={resultItems ?? []}
         onClose={() => changeOpen(false)} titleRef={stepTitle} closeButtonId={`${controlId}-close`} testId={batch ? 'studio-batch-result' : 'studio-export-result'} /> : <>
       <ScrollableDialogHeader className="relative p-3 pr-12">

@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
-import { ChevronDown, Files } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
+import { StudioDocumentDisclosureHeading } from './StudioDocumentDisclosureHeading';
 import './StudioSelectedDocuments.css';
 import './StudioPlanDocuments.css';
 
@@ -16,13 +16,8 @@ export function StudioPlanDocuments({ documents, collapsible = true, tracks, ren
   rowState?: (document: DocumentSummary) => string | undefined;
   renderActions?: (document: DocumentSummary) => ReactNode;
 }) {
-  const { t, i18n } = useTranslation();
-  const heading = <>
-    <span className="studio-selected-documents-icon" aria-hidden="true"><Files /></span>
-    <span className="studio-selected-documents-heading"><span>{t('studio:batch.selected_title')}</span>
-      <Badge variant="secondary" className="studio-selected-documents-count" aria-hidden="true">{documents.length.toLocaleString(i18n.language)}</Badge>
-    </span>
-  </>;
+  const { t } = useTranslation();
+  const heading = <StudioDocumentDisclosureHeading title={t('studio:batch.selected_title')} count={documents.length} collapsible={collapsible} />;
   const list = <div className="studio-plan-documents-body"><StudioDocumentList label={t('studio:library.selected', { count: documents.length })} maxHeight="min(240px, 32vh)">
     {documents.map((document, index) => <StudioDocumentRow key={document.id} data-document-id={document.id} data-state={rowState?.(document)} name={document.origin.displayName} index={index + 1}
       status={<span className="studio-plan-document-status"><Badge variant="outline" className="studio-selected-documents-format">{document.origin.format.toUpperCase()}</Badge>{renderStatus?.(document)}</span>}
@@ -39,7 +34,7 @@ export function StudioPlanDocuments({ documents, collapsible = true, tracks, ren
   </section>;
   return <details className="studio-selected-documents" data-testid="studio-selected-documents">
     <summary className="studio-selected-documents-header" aria-label={t('studio:batch.selected_documents', { count: documents.length })}>
-      {heading}<ChevronDown className="studio-selected-documents-chevron" aria-hidden="true" />
+      {heading}
     </summary>{list}
   </details>;
 }

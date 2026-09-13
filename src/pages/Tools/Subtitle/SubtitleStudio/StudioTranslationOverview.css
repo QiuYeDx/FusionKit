@@ -1,6 +1,6 @@
 .studio-translation-overview { width: 100%; min-width: 0; font-size: 11px; line-height: 18px; }
-.studio-translation-overview [data-slot=tool-panel-header] button { height: 28px; font-size: 11px; }
-.studio-translation-overview [data-slot=tool-panel-body] { padding: 8px 12px; }
+.studio-translation-overview [data-slot=tool-panel-header] button { height: 24px; font-size: 11px; padding-inline: 6px; }
+.studio-translation-overview [data-slot=tool-panel-body] { padding: 0; }
 .studio-translation-overview-counts { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--muted-foreground); min-width: 0; }
 .studio-translation-overview-compact { height: 32px; padding-inline: 8px; gap: 5px; flex-shrink: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
 .studio-translation-overview-counts > span { display: inline-flex; gap: 5px; }
@@ -25,14 +25,15 @@
 .studio-translation-overview-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; }
 .studio-translation-overview-footer > .studio-pagination { flex: 1; }
 
-.studio-overview-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding-block: 2px 8px; }
-.studio-overview-board > div { display: flex; flex-direction: column; gap: 3px; padding-inline: 10px; border-left: 1px solid var(--border); }
-.studio-overview-board > div:first-child { border-left: 0; padding-left: 0; }
-.studio-overview-board dd { font-size: 22px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
+.studio-overview-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; }
+.studio-overview-board > div { display: flex; flex-direction: row-reverse; align-items: baseline; justify-content: space-between; gap: 4px; padding: 8px 12px; border-left: 1px solid var(--border); }
+.studio-overview-board > div:first-child { border-left: 0; }
+.studio-overview-board dd { font-size: 16px; line-height: 22px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
 .studio-overview-board dt { font-size: 11px; color: var(--muted-foreground); }
 .studio-overview-board [data-state=attention] dd { color: var(--color-amber-600); }
-.studio-overview-cancelled, .studio-overview-idle { color: var(--muted-foreground); margin: 0; padding-block: 2px 6px; }
-.studio-translation-overview-round { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding-block: 4px 10px; }
+.studio-overview-cancelled, .studio-overview-idle { color: var(--muted-foreground); margin: 0; padding: 8px 12px; }
+.studio-overview-cancelled { border-top: 1px solid var(--border); }
+.studio-translation-overview-round { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding: 8px 12px; border-top: 1px solid var(--border); }
 .studio-translation-overview-round > progress { grid-column: 1 / -1; width: 100%; }
 .studio-translation-overview-round > strong { font-weight: 500; color: var(--foreground); font-variant-numeric: tabular-nums; }
 .studio-overview-usage { padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--border); font-size: 11px; line-height: 18px; }
@@ -44,4 +45,10 @@
 .studio-overview-usage dd { font-variant-numeric: tabular-nums; }
 .studio-overview-usage-scope { display: inline-block; margin-top: 4px; color: var(--muted-foreground); font-size: 10px; text-decoration: underline dotted; text-underline-offset: 3px; }
 .studio-overview-usage-scope:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.studio-overview-usage-inline { padding: 6px 12px; margin-top: 0; }
+.studio-overview-usage-inline .studio-overview-usage-heading { cursor: help; border-radius: 3px; }
+.studio-overview-usage-inline .studio-overview-usage-heading:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.studio-overview-usage-inline strong { font-size: 12px; }
 .studio-translation-overview-content > .studio-overview-usage { border-top: 0; padding: 0 0 12px; margin: 0 0 12px; border-bottom: 1px solid var(--border); }
+
+.studio-translation-overview [data-slot=tool-panel-body] > .studio-translation-overview-warning { margin: 0; padding: 6px 12px; border-top: 1px solid var(--border); }

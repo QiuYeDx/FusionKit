@@ -14,9 +14,9 @@
 .studio-translation-error { display: flex; align-items: flex-start; gap: 6px; color: var(--destructive); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-translation-error svg { flex-shrink: 0; }
 .studio-translation-plan { min-width: 0; margin-inline: -12px; border-top: 1px solid var(--border); padding: 12px 12px 0; }
-.studio-translation-plan-details { margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; }
-.studio-translation-plan-details > .studio-batch-results { margin: 0; padding: 8px; }
-.studio-translation-plan-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; font-size: 12px; cursor: pointer; list-style: none; }
+.studio-translation-plan-details { margin: 8px -12px 0; border-top: 1px solid var(--border); }
+.studio-translation-plan-details > .studio-batch-results { margin: 0; padding: 8px 12px; }
+.studio-translation-plan-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; font-size: 12px; cursor: pointer; list-style: none; }
 .studio-translation-plan-details > summary::-webkit-details-marker { display: none; }
 .studio-translation-plan-details > summary > svg { width: 14px; height: 14px; }
 .studio-translation-plan-details[open] > summary { border-bottom: 1px solid var(--border); }

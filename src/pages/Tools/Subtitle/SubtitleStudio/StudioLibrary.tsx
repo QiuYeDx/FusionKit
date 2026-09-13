@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, Check, ChevronDown, ListFilter, LoaderCircle, Search, Settings2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import type { DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { STUDIO_BATCH_LIMIT } from '@/subtitle-studio/batch-contract';
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import { StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
+import { StudioLibraryContextMenu, type LibraryContextAction, type LibraryContextScope } from './StudioLibraryContextMenu';
 
 export const LIBRARY_PAGE_SIZE = 20;
 export type LibraryQuery = {
@@ -36,11 +37,21 @@ type Props = {
   onSelectAll: () => void; onClearScope: () => void; onClear: () => void;
   selectionPending: boolean; selectionLimit: boolean; onDismissLimit: () => void;
   encoding: ReactNode; actions: ReactNode;
+  onContextAction: (action: LibraryContextAction, scope: LibraryContextScope) => void;
 };
 
 export function StudioLibrary(props: Props) {
   const { t } = useTranslation();
   const { documents, selected, query, total, allTotal, offset, busy } = props;
+  const [context, setContext] = useState<LibraryContextScope | null>(null);
+  useEffect(() => { setContext(null); }, [query, offset]);
+  const openContext = (doc: DocumentSummary, row: HTMLElement, point?: { x: number; y: number }) => {
+    if (busy || props.selectionPending) return;
+    const origin = row.querySelector<HTMLElement>('.studio-document')!;
+    const rect = origin.getBoundingClientRect();
+    setContext({ documents: selected.some(item => item.id === doc.id) ? [...selected] : [doc],
+      origin, x: point?.x ?? rect.left + 8, y: point?.y ?? rect.bottom, query, offset });
+  };
   const selectedIds = new Set(selected.map(doc => doc.id));
   const selectedOnPage = documents.filter(doc => selectedIds.has(doc.id)).length;
   const selectedInScope = selected.filter(doc => matchesLibraryQuery(doc, query)).length;
@@ -68,7 +79,6 @@ export function StudioLibrary(props: Props) {
         <PopoverContent align="end" className="w-[240px] p-3"><ToolField label={t('studio:encoding')}>{props.encoding}</ToolField></PopoverContent>
       </Popover>
     </div>
-    {filtered && <div className="studio-library-filter-summary"><span>{t('studio:library.matches', { count: total, total: allTotal })}</span><Button variant="ghost" size="sm" onClick={() => props.onQuery({ ...defaultLibraryQuery, sort: query.sort })}>{t('studio:library.reset_filters')}</Button></div>}
     <div className="studio-library-selection" data-testid="studio-library-selection">
       <label><Checkbox data-testid="studio-library-select-all" aria-label={t(filtered ? 'studio:library.select_matches' : 'studio:library.select_all')} checked={allSelected ? true : selectedInScope ? 'indeterminate' : false} disabled={busy || !total} onCheckedChange={() => allSelected ? props.onClearScope() : props.onSelectAll()} /><span>{t(filtered ? 'studio:library.select_matches' : 'studio:library.select_all')}</span></label>
       <DropdownMenu>
@@ -82,22 +92,30 @@ export function StudioLibrary(props: Props) {
           <p className="px-2 py-1.5 text-[11px] leading-5 text-muted-foreground">{t('studio:library.selection_rule')} {t('studio:library.limit_hint', { count: STUDIO_BATCH_LIMIT })}</p>
         </DropdownMenuContent>
       </DropdownMenu>
-      <span className="studio-library-selection-scope">{props.selectionPending && <span role="status" data-testid="studio-library-selection-pending"><LoaderCircle aria-hidden="true" className="studio-spin size-3" /><span className="sr-only">{t('studio:library.selecting')}</span></span>}{t('studio:library.scope_count', { count: total })}</span>
+      {filtered && <div className="studio-library-filter-summary"><span>{t('studio:library.matches', { count: total, total: allTotal })}</span><StudioIconButton size="icon-xs" label={t('studio:library.reset_filters')} onClick={() => props.onQuery({ ...defaultLibraryQuery, sort: query.sort })}><X /></StudioIconButton></div>}
+      <span className="studio-library-selection-scope">{props.selectionPending && <span role="status" data-testid="studio-library-selection-pending"><LoaderCircle aria-hidden="true" className="studio-spin size-3" /><span className="sr-only">{t('studio:library.selecting')}</span></span>}{!filtered && t('studio:library.scope_count', { count: total })}</span>
     </div>
     {props.selectionLimit && <div role="status" data-testid="studio-library-selection-limit" className="studio-library-selection-notice"><span>{t('studio:library.limit', { count: STUDIO_BATCH_LIMIT })}</span><StudioIconButton size="icon-xs" label={t('studio:dismiss')} onClick={props.onDismissLimit}><X /></StudioIconButton></div>}
     <div className="studio-library-scroll" aria-busy={busy}>
       {documents.length ? <ul className="studio-document-list studio-library-items">{documents.map(doc => {
         const active = doc.task?.status === 'queued' || doc.task?.status === 'running';
         const attention = doc.task && ['failed', 'interrupted', 'needs_configuration'].includes(doc.task.status);
-        return <li key={doc.id} className="studio-library-row" data-testid="studio-library-row" data-document-id={doc.id} data-current={props.previewId === doc.id || undefined} data-selected={selectedIds.has(doc.id) || undefined}>
+        return <li key={doc.id} className="studio-library-row" data-testid="studio-library-row" data-document-id={doc.id} data-current={props.previewId === doc.id || undefined} data-selected={selectedIds.has(doc.id) || undefined}
+          data-context-target={context?.origin.closest('[data-document-id]')?.getAttribute('data-document-id') === doc.id || undefined}
+          onContextMenu={event => { event.preventDefault(); openContext(doc, event.currentTarget, { x: event.clientX, y: event.clientY }); }}
+          onKeyDown={event => { if (event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') { event.preventDefault(); openContext(doc, event.currentTarget); } }}>
           <Checkbox className="studio-document-checkbox" checked={selectedIds.has(doc.id)} aria-label={t('studio:library.select_name', { name: doc.origin.displayName })} disabled={busy} onCheckedChange={() => props.onToggle(doc)} />
           <button disabled={busy} aria-current={props.previewId === doc.id ? 'true' : undefined} className="studio-document" onClick={() => props.onPreview(doc)}>
-            <span className="min-w-0 flex-1"><StudioFileName name={doc.origin.displayName} /><span className="studio-library-metadata"><Badge variant="outline" className="px-1 py-0 font-mono text-[10px] font-normal">{doc.origin.format.toUpperCase()}</Badge><span>{t('studio:cue_count', { count: doc.cueCount })}</span><span className={attention ? 'text-amber-600 dark:text-amber-400' : ''}>{doc.task && doc.task.status !== 'completed' && doc.task.status !== 'cancelled' ? t(taskKeys[doc.task.status]) : t(doc.translationStatus === 'complete' ? 'studio:library.translated' : doc.translationStatus === 'partial' ? 'studio:library.partial' : 'studio:source_only')}</span></span>{active && doc.task && <span className="studio-library-progress">{t('studio:translation.batch_progress', { completed: doc.task.completedBatches, total: doc.task.totalBatches })}</span>}</span>
+            <span className="min-w-0 flex-1"><StudioFileName name={doc.origin.displayName} /><span className="studio-library-metadata"><Badge variant="outline" className="px-1 py-0 font-mono text-[10px] font-normal">{doc.origin.format.toUpperCase()}</Badge><span>{t('studio:cue_count', { count: doc.cueCount })}</span><span className={`studio-library-task ${attention ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+              {active && doc.task ? <><LoaderCircle className="size-3 studio-spin" aria-hidden="true" /><span>{t(taskKeys[doc.task.status])}</span><span className="studio-library-progress" aria-label={t('studio:translation.batch_progress', { completed: doc.task.completedBatches, total: doc.task.totalBatches })}>{doc.task.completedBatches} / {doc.task.totalBatches}</span></> : <span>{doc.task && doc.task.status !== 'completed' && doc.task.status !== 'cancelled' ? t(taskKeys[doc.task.status]) : t(doc.translationStatus === 'complete' ? 'studio:library.translated' : doc.translationStatus === 'partial' ? 'studio:library.partial' : 'studio:source_only')}</span>}
+            </span></span></span>
             {doc.diagnostics.length ? <AlertCircle className="mt-1 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-label={t('studio:document_checks')} /> : props.previewId === doc.id ? <Check className="mt-1 size-3.5 shrink-0" aria-hidden="true" /> : null}
           </button>
         </li>;
       })}</ul> : <p className="studio-library-empty">{t(filtered ? 'studio:library.no_matches' : 'studio:empty')}</p>}
     </div>
+    <StudioLibraryContextMenu scope={context?.query === query && context.offset === offset ? context : null} disabled={busy || props.selectionPending}
+      onClose={() => setContext(null)} onAction={props.onContextAction} />
     <div className="studio-library-footer" data-has-selection={!!selected.length || undefined}>
       {!!selected.length && <div className="studio-library-batch" data-testid="studio-batch-toolbar">
         <Tooltip delayDuration={350}><TooltipTrigger asChild><span tabIndex={0} className="studio-library-selected-count" aria-label={t(fullSelection ? 'studio:library.selected_all' : 'studio:library.selected', { count: selected.length })}>{t('studio:library.selected', { count: selected.length })}</span></TooltipTrigger><TooltipContent>{t(fullSelection ? 'studio:library.selected_all' : 'studio:library.selected', { count: selected.length })}</TooltipContent></Tooltip>

@@ -29,6 +29,7 @@ import { StudioTranslation, StudioTranslationStatus, StudioBatchTranslation } fr
 import { StudioTranslationTask } from './StudioTranslationTask';
 import { StudioTranslationOverview } from './StudioTranslationOverview';
 import { StudioExport, StudioBatchExport } from './StudioExport';
+import { restoreLibraryFocus, type LibraryContextAction, type LibraryContextScope, type LibraryDialogRequest } from './StudioLibraryContextMenu';
 import { StudioLibrary, LIBRARY_PAGE_SIZE, defaultLibraryQuery, type LibraryQuery } from './StudioLibrary';
 import { StudioRecovery } from './StudioRecovery';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
@@ -87,6 +88,7 @@ export default function SubtitleStudio() {
   const [loadedQuery, setLoadedQuery] = useState<LibraryQuery>(defaultLibraryQuery);
   const queryRef = useRef(query);
   const [selected, setSelected] = useState<DocumentSummary[]>([]);
+  const [contextDialog, setContextDialog] = useState<{ kind: 'translate' | 'export' | 'source'; documents: DocumentSummary[]; request: LibraryDialogRequest } | null>(null);
   const [translationSlot, setTranslationSlot] = useState<HTMLSpanElement | null>(null);
   const [exportSlot, setExportSlot] = useState<HTMLSpanElement | null>(null);
   const selectedRef = useRef(selected);
@@ -111,12 +113,15 @@ export default function SubtitleStudio() {
   const displayedResults = results ?? resultReceipt.current;
   const resultReturnTarget = useRef<HTMLElement | null>(null);
   const resultOrigin = useRef<'import' | 'batch'>('import');
-  const captureResultFocus = (origin: 'import' | 'batch') => {
+  const resultReturnAction = useRef<(() => void) | undefined>(undefined);
+  const captureResultFocus = (origin: 'import' | 'batch', restore?: () => void) => {
+    resultReturnAction.current = restore;
     resultOrigin.current = origin;
     resultReturnTarget.current = origin === 'batch' ? document.getElementById('studio-library-batch-actions') : document.activeElement instanceof HTMLElement && document.activeElement !== document.body && document.activeElement !== document.documentElement ? document.activeElement : null;
   };
   const restoreResultFocus = () => {
     if (!mounted.current) return;
+    if (resultReturnAction.current) { resultReturnAction.current(); return; }
     const fallbackSelectors = resultOrigin.current === 'batch'
       ? ['#studio-library-batch-actions', '[data-testid=studio-library-select-all]', '#studio-library-trigger']
       : ['#studio-import-trigger', '.studio-import button'];
@@ -124,11 +129,25 @@ export default function SubtitleStudio() {
     const target = candidates.find(candidate => candidate?.isConnected && candidate.getClientRects().length && !candidate.matches(':disabled, [aria-disabled=true]'));
     target?.focus({ preventScroll: true });
   };
-  const [batchConfirm, setBatchConfirm] = useState<'delete' | 'resume' | null>(null);
+  const [batchConfirm, setBatchConfirm] = useState<{ kind: 'delete' | 'resume'; documents: DocumentSummary[]; restore?: () => void } | null>(null);
+  const confirmationReceipt = useRef<NonNullable<typeof batchConfirm> | null>(null);
+  if (batchConfirm) confirmationReceipt.current = batchConfirm;
+  const displayedConfirmation = batchConfirm ?? confirmationReceipt.current;
+  const confirmReturnAction = useRef<(() => void) | undefined>(undefined);
+  const confirmBatch = (kind: 'delete' | 'resume', targets = selected, restore?: () => void) => {
+    confirmReturnAction.current = restore; setBatchConfirm({ kind, documents: [...targets], restore });
+  };
   const [selectionLimit, setSelectionLimit] = useState(false);
   const observedRevisions = useRef(new Map<string, number>());
   const [listOffset, setListOffset] = useState(0);
   const [page, setPage] = useState<DocumentPage | null>(null);
+  const [previewRequest, setPreviewRequest] = useState<{ document: DocumentSummary; error?: ErrorCode } | null>(null);
+  const previewReceipt = useRef<typeof previewRequest>(null);
+  if (previewRequest) previewReceipt.current = previewRequest;
+  const displayedPreviewRequest = previewRequest ?? previewReceipt.current;
+  const previewGeneration = useRef(0);
+  const previewTarget = useRef<string | null>(null);
+  const invalidatePreview = () => { previewGeneration.current++; previewTarget.current = null; setPreviewRequest(null); };
   const [activity, setActivity] = useState<Activity | null>('load');
   const [error, setError] = useState<ErrorCode | null>(null);
   const [exported, setExported] = useState('');
@@ -162,9 +181,10 @@ export default function SubtitleStudio() {
   }, [page?.summary]);
   const flaggedNodes = useMemo(() => new Set(page?.summary.diagnostics.map(item => item.nodeId).filter(Boolean)), [page?.summary]);
 
-  const run = async (kind: Activity, action: () => Promise<void>, retryable = true) => {
+  const run = async (kind: Activity, action: () => Promise<unknown>, retryable = true) => {
     const owner = coordinator.current;
     if (operation.current || !readerIsCurrent(owner)) return;
+    invalidatePreview();
     operation.current = true;
     let settle!: () => void;
     operationSettled.current = new Promise<void>(resolve => { settle = resolve; });
@@ -174,16 +194,19 @@ export default function SubtitleStudio() {
     catch (failure) { if (readerIsCurrent(owner)) setError(failure instanceof StudioError ? failure.code : 'document_unavailable'); }
     finally { settle(); if (readerIsCurrent(owner)) { operation.current = false; setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); } }
   };
-  const select = async (doc: DocumentSummary, offset = 0, nodeOffset = 0, options: { silent?: boolean; query?: LibraryQuery } = {}) => {
+  const select = async (doc: DocumentSummary, offset = 0, nodeOffset = 0, options: { silent?: boolean; query?: LibraryQuery; navigation?: number } = {}) => {
     const owner = coordinator.current;
+    const generation = options.navigation ?? previewGeneration.current;
     const previous = currentPage.current;
     const revision = Math.max(doc.revision, observedRevisions.current.get(doc.id) ?? 0);
     const result = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: doc.id, revision, offset, nodeOffset }));
     if (options.query && options.query !== queryRef.current) { dirty.current = true; return; }
+    if (generation !== previewGeneration.current || (previewTarget.current && options.navigation === undefined)) return;
     if (readerIsCurrent(owner) && observations.current.acceptsDocument(result.summary)) {
       showPage(result);
       if (!options.silent) { setCopied(null); setCopyFailed(false); }
       if (previous?.summary.id !== doc.id || previous.offset !== offset || previous.nodeOffset !== nodeOffset) reader.current?.scrollTo({ top: 0 });
+      return true;
     }
   };
   const load = async (offset: number, openFirst = false, silent = false): Promise<void> => {
@@ -283,13 +306,42 @@ export default function SubtitleStudio() {
       await acceptImportResult(await unwrapStudio(Promise.resolve(result.value)));
     }, false);
   };
-  const chooseDocument = (doc: DocumentSummary) => void run('select', async () => { await select(doc); if (mounted.current) { setView('preview'); setLibraryOpen(false); } });
+  const chooseDocument = (doc: DocumentSummary) => {
+    const owner = coordinator.current;
+    if (busy || operation.current || !readerIsCurrent(owner)) return;
+    const generation = ++previewGeneration.current;
+    previewTarget.current = doc.id;
+    setPreviewRequest({ document: doc }); setLibraryOpen(false);
+    setCopied(null); setCopyFailed(false);
+    const isCurrent = () => readerIsCurrent(owner) && generation === previewGeneration.current;
+    // Keep one reader, but skip superseded queued clicks and never acquire global busy state.
+    void owner.runForeground(async () => {
+      if (!isCurrent()) return;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          if (await select(doc, 0, 0, { navigation: generation })) break;
+          if (!isCurrent()) return;
+          throw new StudioError('revision_conflict');
+        } catch (failure) {
+          if (!isCurrent()) return;
+          if (attempt >= 2 || !(failure instanceof StudioError) || failure.code !== 'revision_conflict') throw failure;
+        }
+      }
+      if (!isCurrent()) return;
+      if (currentPage.current?.summary.id !== doc.id) throw new StudioError('document_unavailable');
+      setView('preview'); setTrackId('');
+      previewTarget.current = null; setPreviewRequest(null);
+    }).catch(failure => {
+      if (isCurrent()) setPreviewRequest({ document: doc, error: failure instanceof StudioError ? failure.code : 'document_unavailable' });
+    });
+  };
   const openTranscriptionDocument = async (documentId: string, preferredTrackId?: string): Promise<void> => {
     // Completion can coincide with the document-created refresh; join it before taking the reader.
     while (operation.current) await operationSettled.current;
     const owner = coordinator.current;
     if (!readerIsCurrent(owner)) return;
     operation.current = true; setActivity('select');
+    invalidatePreview();
     let settle!: () => void;
     operationSettled.current = new Promise<void>(resolve => { settle = resolve; });
     try {
@@ -337,6 +389,7 @@ export default function SubtitleStudio() {
       observedRevisions.current.set(event.documentId, event.revision);
       if (event.deleted) updateSelection(items => items.filter(item => item.id !== event.documentId));
       if (event.deleted) {
+        if (previewTarget.current === event.documentId) invalidatePreview();
         setDocuments(items => items.filter(item => item.id !== event.documentId));
         if (currentPage.current?.summary.id === event.documentId) showPage(null);
         setDeleting(value => value?.id === event.documentId ? null : value);
@@ -424,9 +477,9 @@ export default function SubtitleStudio() {
       }
     });
   };
-  const processSelected = (kind: 'delete' | 'cancel' | 'resume') => {
-    const targets = [...selected];
-    captureResultFocus('batch');
+  const processSelected = (kind: 'delete' | 'cancel' | 'resume', scope = selected, restore?: () => void) => {
+    const targets = [...scope];
+    captureResultFocus('batch', restore);
     setBatchConfirm(null);
     void run('batch', async () => {
       const items: OperationResult[] = [];
@@ -466,8 +519,9 @@ export default function SubtitleStudio() {
     <SelectTrigger aria-label={t('studio:encoding')} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
     <SelectContent>{encodingSchema.options.map(value => <SelectItem key={value} value={value}>{value.toUpperCase()}</SelectItem>)}</SelectContent>
   </Select>;
-  const documentPicker = <Select value={documents.some(doc => doc.id === page?.summary.id) ? page?.summary.id : ''} onValueChange={id => { const doc = documents.find(item => item.id === id); if (doc) chooseDocument(doc); }} disabled={busy || !documents.length}>
-    <SelectTrigger aria-label={t('studio:select_document')} className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:select_document')}>{page && documents.some(doc => doc.id === page.summary.id) ? <StudioFileName name={page.summary.origin.displayName} /> : undefined}</SelectValue></SelectTrigger>
+  const activeDocument = previewRequest?.document ?? page?.summary;
+  const documentPicker = <Select value={documents.some(doc => doc.id === activeDocument?.id) ? activeDocument?.id : ''} onValueChange={id => { const doc = documents.find(item => item.id === id); if (doc) chooseDocument(doc); }} disabled={busy || !documents.length}>
+    <SelectTrigger aria-label={t('studio:select_document')} className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:select_document')}>{activeDocument && documents.some(doc => doc.id === activeDocument.id) ? <StudioFileName name={activeDocument.origin.displayName} /> : undefined}</SelectValue></SelectTrigger>
     <SelectContent className="max-w-[calc(100vw-2rem)]">{documents.map(doc => <SelectItem key={doc.id} value={doc.id} className="whitespace-normal break-all">{doc.origin.displayName}</SelectItem>)}</SelectContent>
   </Select>;
   const refresh = <StudioIconButton label={t('studio:refresh')} disabled={busy} onClick={() => void run('load', () => load(listOffset, !page))}><RefreshCw className={activity === 'load' ? 'studio-spin' : ''} /></StudioIconButton>;
@@ -478,16 +532,25 @@ export default function SubtitleStudio() {
     <DropdownMenu>
       <Tooltip delayDuration={350}><TooltipTrigger asChild><DropdownMenuTrigger asChild><Button id="studio-library-batch-actions" variant="ghost" size="icon-sm" aria-label={t('studio:library.batch_actions')} disabled={busy || !selected.length}><Ellipsis /></Button></DropdownMenuTrigger></TooltipTrigger><TooltipContent>{t('studio:library.batch_actions')}</TooltipContent></Tooltip>
       <DropdownMenuContent align="start" side="top" className="w-48" onCloseAutoFocus={event => { if (batchConfirm) event.preventDefault(); }}>
-        <DropdownMenuItem disabled={busy || !selected.some(doc => doc.task && ['failed', 'interrupted', 'needs_configuration'].includes(doc.task.status))} onSelect={() => setBatchConfirm('resume')}><Play />{t('studio:library.resume_selected')}</DropdownMenuItem>
+        <DropdownMenuItem disabled={busy || !selected.some(doc => doc.task && ['failed', 'interrupted', 'needs_configuration'].includes(doc.task.status))} onSelect={() => confirmBatch('resume')}><Play />{t('studio:library.resume_selected')}</DropdownMenuItem>
         <DropdownMenuItem disabled={busy || !selected.some(doc => doc.task && ['queued', 'running', 'failed', 'interrupted', 'needs_configuration'].includes(doc.task.status))} onSelect={() => processSelected('cancel')}><Square />{t('studio:library.cancel_selected')}</DropdownMenuItem>
-        <DropdownMenuItem disabled={busy || !selected.length} onSelect={() => setBatchConfirm('delete')}><Trash2 />{t('studio:library.delete_selected')}</DropdownMenuItem>
+        <DropdownMenuItem disabled={busy || !selected.length} onSelect={() => confirmBatch('delete')}><Trash2 />{t('studio:library.delete_selected')}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={busy || !selected.length} onSelect={clearSelection}><X />{t('studio:library.clear_selection')}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   </>;
   const recoveryButton = unavailable.length > 0 ? <Button data-testid="studio-recovery-manage" variant="ghost" size="sm" onClick={() => setRecoveryOpen(true)}><AlertCircle className="text-amber-600 dark:text-amber-400" />{t('studio:recovery.count', { count: unavailable.length })}</Button> : null;
-  const library = <StudioLibrary documents={documents} selected={selected} previewId={page?.summary.id} query={query} onQuery={changeQuery} total={total} allTotal={allTotal} offset={listOffset} busy={busy} onPage={offset => void run('load', () => load(offset))} onPreview={chooseDocument} onToggle={toggleDocument} onSelectPage={selectPage} onSelectAll={selectAll} onClearScope={() => { invalidateSelectionRequest(); updateSelection(items => items.filter(doc => !matchesLibraryQuery(doc, queryRef.current))); }} onClear={clearSelection} selectionPending={selectionPending} selectionLimit={selectionLimit} onDismissLimit={() => setSelectionLimit(false)} encoding={encodingField} actions={batchActions} />;
+  const latestScope = (targets: DocumentSummary[]) => targets.map(target => [...selected, ...documents].filter(doc => doc.id === target.id && doc.revision >= target.revision).sort((a, b) => b.revision - a.revision)[0] ?? target);
+  const contextAction = (action: LibraryContextAction, scope: LibraryContextScope) => {
+    if (busy || selectionPending) return;
+    const targets = latestScope(scope.documents);
+    const restore = () => restoreLibraryFocus(scope.origin);
+    if (action === 'translate' || action === 'export' || action === 'source') setContextDialog({ kind: action, documents: targets, request: { original: action === 'source', restoreFocus: restore } });
+    else if (action === 'cancel') processSelected(action, targets, restore);
+    else confirmBatch(action, targets, restore);
+  };
+  const library = <StudioLibrary documents={documents} selected={selected} previewId={activeDocument?.id} query={query} onQuery={changeQuery} total={total} allTotal={allTotal} offset={listOffset} busy={busy} onPage={offset => void run('load', () => load(offset))} onPreview={chooseDocument} onToggle={toggleDocument} onSelectPage={selectPage} onSelectAll={selectAll} onClearScope={() => { invalidateSelectionRequest(); updateSelection(items => items.filter(doc => !matchesLibraryQuery(doc, queryRef.current))); }} onClear={clearSelection} selectionPending={selectionPending} selectionLimit={selectionLimit} onDismissLimit={() => setSelectionLimit(false)} encoding={encodingField} actions={batchActions} onContextAction={contextAction} />;
 
   return <div ref={workspaceRoot} data-testid="subtitle-studio" data-workspace-view={workspaceView} className={page && workspaceView === 'documents' ? 'studio studio-has-document' : 'studio'}
     onDragEnter={event => { if (!fileDrag(event) || !canDrop(event)) return; event.preventDefault(); dragDepth.current++; setDragging(true); }}
@@ -523,7 +586,8 @@ export default function SubtitleStudio() {
       {cleanupPending && <div role="status" className="studio-notice"><AlertCircle /><span>{t('studio:cleanup_pending')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCleanupPending(false)}><X /></StudioIconButton></div>}
       <span className="sr-only" role="status">{busy ? t('studio:loading') : copied ? t('studio:copied') : ''}</span>
       {copyFailed && <div role="alert" className="studio-notice text-destructive"><AlertCircle /><span>{t('studio:copy_failed')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCopyFailed(false)}><X /></StudioIconButton></div>}
-      <div aria-busy={busy} className="studio-preview-region">
+      <div aria-busy={busy || (!!previewRequest && !previewRequest.error)} className="studio-preview-region" data-preview-pending={!!previewRequest || undefined}>
+        <div className="studio-preview-surface" inert={!!previewRequest} aria-hidden={previewRequest ? true : undefined}>
         <ToolPanel
           title={t('studio:preview')}
           icon={Subtitles}
@@ -570,6 +634,15 @@ export default function SubtitleStudio() {
             </ClipPathTabs>
           </> : <div className="studio-content-empty py-14">{busy ? <LoaderCircle className="studio-spin" /> : <Subtitles />}<p>{busy ? t('studio:loading') : t('studio:empty')}</p></div>}
         </ToolPanel>
+        </div>
+        <div className="studio-preview-loading" data-testid="studio-preview-loading" data-visible={!!previewRequest} aria-hidden={!previewRequest} inert={!previewRequest}>
+          {displayedPreviewRequest && <div role={displayedPreviewRequest.error ? 'alert' : 'status'}>
+            {displayedPreviewRequest.error ? <AlertCircle className="text-destructive" /> : <LoaderCircle className="studio-spin" />}
+            <strong><StudioFileName name={displayedPreviewRequest.document.origin.displayName} /></strong>
+            <span>{t(displayedPreviewRequest.error ? errorKeys[displayedPreviewRequest.error] : 'studio:loading')}</span>
+            {displayedPreviewRequest.error && <Button size="sm" variant="outline" onClick={() => chooseDocument(displayedPreviewRequest.document)}>{t('studio:retry')}</Button>}
+          </div>}
+        </div>
       </div>
     </ToolDetailLayout>
     </ClipPathTabsContent>
@@ -577,14 +650,14 @@ export default function SubtitleStudio() {
       {workspaceView === 'transcription' && <StudioTranscription header={null} onOpenDocument={openTranscriptionDocument} />}
     </ClipPathTabsContent>
     </ClipPathTabs>
-    <StudioBatchTranslation triggerContainer={translationSlot} documents={selected} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />
-    <StudioBatchExport triggerContainer={exportSlot} documents={selected} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} />
+    <StudioBatchTranslation triggerContainer={translationSlot} documents={contextDialog?.kind === 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog?.kind === 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind === 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />
+    <StudioBatchExport triggerContainer={exportSlot} documents={contextDialog && contextDialog.kind !== 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog && contextDialog.kind !== 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind !== 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} />
     {!wide && <ScrollableDialog open={libraryOpen} onOpenChange={setLibraryOpen} maxWidth="sm:max-w-[540px]" contentClassName="studio-library-dialog" onOpenAutoFocus={event => { event.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid=studio-library-search]')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('studio-library-trigger')?.focus(); }}><ScrollableDialogHeader><DialogTitle>{t('studio:documents')} · {allTotal}</DialogTitle><DialogDescription className="sr-only">{t('studio:library.selection_rule')}</DialogDescription></ScrollableDialogHeader><ScrollableDialogContent>{library}</ScrollableDialogContent></ScrollableDialog>}
     <StudioRecovery open={recoveryOpen} onOpenChange={setRecoveryOpen} documents={unavailable} onChanged={pending => { if (pending) setCleanupPending(true); dirty.current = true; refreshPending.current(); }} onError={code => { retry.current = null; setError(code); }} />
-    <ScrollableDialog open={!!batchConfirm} maxWidth="sm:max-w-[560px]" contentClassName="studio-batch-confirm-dialog" onOpenChange={open => { if (!open) setBatchConfirm(null); }} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-batch-cancel')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); (document.getElementById('studio-library-batch-actions') ?? document.querySelector<HTMLElement>('[data-testid=studio-library-select-all]'))?.focus({ preventScroll: true }); }}>
-      <ScrollableDialogHeader className="relative p-3 pr-12"><DialogTitle className="flex items-center gap-2 text-sm">{batchConfirm === 'delete' ? <Trash2 className="size-4" /> : <Play className="size-4" />}{t(batchConfirm === 'delete' ? 'studio:library.delete_selected' : 'studio:library.resume_selected')}</DialogTitle><DialogDescription className="text-xs leading-5">{t(batchConfirm === 'delete' ? 'studio:delete_description' : 'studio:library.resume_description')}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent className="studio-batch-confirm-content"><div className="space-y-3"><StudioSelectedDocuments documents={selected} collapsible={false} />{batchConfirm === 'resume' && <p className="text-xs leading-5 text-amber-600 dark:text-amber-400">{t('studio:library.resume_uncertain')}</p>}</div></ScrollableDialogContent>
-      <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3"><Button id="studio-batch-cancel" variant="ghost" size="sm" onClick={() => setBatchConfirm(null)}>{t('studio:cancel')}</Button><Button size="sm" variant={batchConfirm === 'delete' ? 'destructive' : 'default'} disabled={busy} onClick={() => batchConfirm && processSelected(batchConfirm)}>{t(batchConfirm === 'delete' ? 'studio:library.confirm_delete' : 'studio:library.confirm_resume')}</Button></ScrollableDialogFooter>
+    <ScrollableDialog open={!!batchConfirm} maxWidth="sm:max-w-[560px]" contentClassName="studio-batch-confirm-dialog" onOpenChange={open => { if (!open) setBatchConfirm(null); }} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-batch-cancel')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); if (operation.current || results) return; if (confirmReturnAction.current) { confirmReturnAction.current(); return; } (document.getElementById('studio-library-batch-actions') ?? document.querySelector<HTMLElement>('[data-testid=studio-library-select-all]'))?.focus({ preventScroll: true }); }}>
+      <ScrollableDialogHeader className="relative p-3 pr-12"><DialogTitle className="flex items-center gap-2 text-sm">{displayedConfirmation?.kind === 'delete' ? <Trash2 className="size-4" /> : <Play className="size-4" />}{t(displayedConfirmation?.kind === 'delete' ? 'studio:library.delete_selected' : 'studio:library.resume_selected')}</DialogTitle><DialogDescription className="text-xs leading-5">{t(displayedConfirmation?.kind === 'delete' ? 'studio:delete_description' : 'studio:library.resume_description')}</DialogDescription></ScrollableDialogHeader>
+      <ScrollableDialogContent className="studio-batch-confirm-content"><div className="space-y-3"><StudioSelectedDocuments documents={displayedConfirmation?.documents ?? []} collapsible={false} />{displayedConfirmation?.kind === 'resume' && <p className="text-xs leading-5 text-amber-600 dark:text-amber-400">{t('studio:library.resume_uncertain')}</p>}</div></ScrollableDialogContent>
+      <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3"><Button id="studio-batch-cancel" variant="ghost" size="sm" onClick={() => setBatchConfirm(null)}>{t('studio:cancel')}</Button><Button size="sm" variant={displayedConfirmation?.kind === 'delete' ? 'destructive' : 'default'} disabled={busy} onClick={() => batchConfirm && processSelected(batchConfirm.kind, batchConfirm.documents, batchConfirm.restore)}>{t(displayedConfirmation?.kind === 'delete' ? 'studio:library.confirm_delete' : 'studio:library.confirm_resume')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
     <ScrollableDialog open={!!results} onOpenChange={open => { if (!open) setResults(null); }} maxWidth={STUDIO_RESULT_DIALOG_WIDTH} contentClassName={STUDIO_RESULT_DIALOG_CLASS} onCloseAutoFocus={event => { event.preventDefault(); restoreResultFocus(); }}>
       {displayedResults && <StudioOperationResult operation={displayedResults.kind} testId="studio-library-result" closeButtonId="studio-result-close" onClose={() => setResults(null)} items={displayedResults.items.map((item, index) => ({ id: `${item.documentId ?? item.name}:${index}`, name: item.name, state: item.error ? 'failed' : item.skipped ? 'skipped' : 'success', detail: item.error ? t(errorKeys[item.error]) : item.skipped ? t(item.skipped) : t(displayedResults.kind === 'resume' ? 'studio:library.resume_requested' : displayedResults.kind === 'cancel' ? 'studio:library.cancel_requested' : 'studio:library.succeeded') }))} />}

@@ -37,7 +37,8 @@
     "audio_transcriber": "グローバル ASR 設定でローカル音声ファイルを文字起こしします",
     "speech_synthesizer": "グローバル TTS 設定で音声を生成して再生します",
     "realtime_captions": "マイク入力からリアルタイムまたは準リアルタイム字幕を生成します",
-    "realtime_voice": "Realtime/WebRTC で双方向音声セッションを開始します"
+    "realtime_voice": "Realtime/WebRTC で双方向音声セッションを開始します",
+    "subtitle_studio": "音声・動画の文字起こし、AI 字幕翻訳、対訳字幕の一括出力"
   },
   "chips": {
     "name_translator_files": "ファイル · フォルダ",
@@ -53,7 +54,10 @@
     "webrtc": "WebRTC",
     "duplex": "双方向音声",
     "local_offline": "オフライン文字起こし",
-    "local_batch_formats": "一括 · SRT/LRC"
+    "local_batch_formats": "一括 · SRT/LRC",
+    "studio_transcription": "ローカル文字起こし",
+    "studio_translation": "AI 翻訳",
+    "studio_formats": "SRT · LRC · VTT · ASS"
   },
   "coming_soon": {
     "title": "近日公開",

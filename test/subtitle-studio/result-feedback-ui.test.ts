@@ -196,7 +196,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
         const list = element.querySelector('.studio-document-list')!.getBoundingClientRect();
         return [list.top-box.top, list.left-box.left, box.right-list.right, box.bottom-list.bottom];
       });
-      padding.forEach(value => expect(value).toBe(8));
+      expect(padding).toEqual([8, 12, 12, 8]);
       await page!.screenshot({ path: path.join(root, 'i8-plan-details-padding-dark.png'), animations: 'disabled' });
       await page!.getByRole('button', { name: text('batch.start_ready', 'zh', { count: 2 }), exact: true }).click();
       await assertResult('translation', 'success', 2, 'studio-batch-result');
@@ -217,7 +217,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await uiExpect(page!.getByTestId('studio-translation-round')).toHaveCount(0);
       const measuredUsage = await page!.evaluate(async () => { const list = await window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 1 }); if (!list.ok) throw Error(list.error); return list.value.usage; });
       expect(measuredUsage).toMatchObject({ inputTokens: 200, outputTokens: 80, totalTokens: 280, unknownInput: 1, unknownOutput: 1, unknownTotal: 1 });
-      await uiExpect(page!.getByTestId('studio-overview-usage')).toContainText(measuredUsage.inputTokens.toLocaleString());
+      await uiExpect(page!.getByTestId('studio-overview-usage')).toContainText(measuredUsage.totalTokens.toLocaleString());
+      await page!.locator('.studio-overview-usage-inline .studio-overview-usage-heading').focus();
+      await uiExpect(page!.getByRole('tooltip')).toContainText(measuredUsage.inputTokens.toLocaleString());
+      await page!.keyboard.press('Escape');
       actions.push({ measuredUsage });
       await page!.screenshot({ path: path.join(root, 'i8-usage-dashboard-dark.png'), animations: 'disabled' });
       await page!.evaluate(() => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })));

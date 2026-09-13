@@ -23,13 +23,18 @@ const errorKeys = { translation_failed: 'studio:errors.translation_failed', tran
   limit_exceeded: 'studio:errors.limit_exceeded', revision_conflict: 'studio:errors.revision_conflict', interrupted: 'studio:errors.interrupted' } as const;
 const attention = (status: TranslationTaskStatus) => ['failed', 'interrupted', 'needs_configuration'].includes(status);
 
-function UsageSummary({ snapshot }: { snapshot: TranslationTasksSnapshot }) {
+function UsageSummary({ snapshot, compact = false }: { snapshot: TranslationTasksSnapshot; compact?: boolean }) {
   const { t } = useTranslation();
   const usage = snapshot.usage;
   if (!usage || !snapshot.total) return null;
   const value = (count: number, unknown: number) => unknown === snapshot.total ? t('studio:overview.usage_unknown')
     : `${unknown ? '≥ ' : ''}${count.toLocaleString()}`;
   const incomplete = usage.unknownInput + usage.unknownOutput + usage.unknownTotal > 0 || snapshot.unavailableDocuments > 0;
+  if (compact) return <div className="studio-overview-usage studio-overview-usage-inline" data-testid="studio-overview-usage">
+    <Tooltip><TooltipTrigger asChild><span tabIndex={0} className="studio-overview-usage-heading"><span>{t('studio:overview.actual_tokens')}{incomplete ? ' *' : ''}</span><strong>{value(usage.totalTokens, usage.unknownTotal)}</strong></span></TooltipTrigger>
+      <TooltipContent><div>{t('studio:overview.input_tokens')} {value(usage.inputTokens, usage.unknownInput)} · {t('studio:overview.output_tokens')} {value(usage.outputTokens, usage.unknownOutput)}</div><div>{t(incomplete ? 'studio:overview.usage_partial' : 'studio:overview.usage_scope', { count: snapshot.total })}</div><div>{t('studio:overview.usage_explanation')}</div></TooltipContent>
+    </Tooltip>
+  </div>;
   return <div className="studio-overview-usage" data-testid="studio-overview-usage">
     <div className="studio-overview-usage-heading"><span>{t('studio:overview.actual_tokens')}</span><strong>{value(usage.totalTokens, usage.unknownTotal)}</strong></div>
     <dl><div><dt>{t('studio:overview.input_tokens')}</dt><dd>{value(usage.inputTokens, usage.unknownInput)}</dd></div><div><dt>{t('studio:overview.output_tokens')}</dt><dd>{value(usage.outputTokens, usage.unknownOutput)}</dd></div></dl>
@@ -85,7 +90,7 @@ export function StudioTranslationOverview({ onOpenDocument, compact = false }: {
           <span>{t('studio:overview.round_submitted', { count: state.roundTaskIds.length })}</span><strong>{percent}%</strong>
           <progress max={100} value={percent} aria-label={t('studio:overview.confirmed_progress')} />
         </div>}
-        <UsageSummary snapshot={snapshot} />
+        <UsageSummary snapshot={snapshot} compact />
       </> : <p className="studio-overview-idle">{t(snapshot ? 'studio:overview.empty' : 'studio:overview.loading')}</p>}
       {(state.error || !!snapshot?.unavailableDocuments) && <p className="studio-translation-overview-warning" role="status"><AlertCircle className="size-3.5" />{state.error ? t('studio:overview.read_error') : t('studio:overview.unavailable', { count: snapshot?.unavailableDocuments })}</p>}
       </ToolPanel>

@@ -18,7 +18,7 @@ Subtitle Studio routed every repository change through the same run/load wrapper
 
 ## Do
 
-Use one bounded reader coordinator with coalesced background invalidations and a foreground queue. A background read preserves the rendered data and feedback; an explicit action acquires visible busy state and runs after the current reader. Re-read the current body only when its revision changes. Keep query identity, observed revisions, deletion tombstones and component-lifetime guards when applying results. New events during a read request a subsequent read.
+Use one bounded reader coordinator with coalesced background invalidations and a foreground queue. A background read preserves the rendered data and feedback; an explicit mutation acquires visible busy state and runs after the current reader. Document navigation instead uses local pending state and generation fences (FK-PIT-0152). Re-read the current body only when its revision changes. Keep query identity, observed revisions, deletion tombstones and component-lifetime guards when applying results. New events during a read request a subsequent read.
 
 ## Avoid
 

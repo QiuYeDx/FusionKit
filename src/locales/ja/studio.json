@@ -335,7 +335,9 @@
     "resume_requested": "翻訳再開を要求しました",
     "cancel_requested_count": "{{count}} 件のキャンセルを要求しました",
     "cancel_requested": "キャンセルを要求しました",
-    "selecting": "ドキュメントを選択中…"
+    "selecting": "ドキュメントを選択中…",
+    "context_actions": "ドキュメント操作",
+    "context_count": "{{count}} 件のドキュメントを操作"
   },
   "recovery": {
     "title": "復元できないドキュメントの管理",

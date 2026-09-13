@@ -63,6 +63,8 @@ type StudioTranslationProps = {
   page?: DocumentPage;
   documents?: DocumentSummary[];
   triggerContainer?: HTMLElement | null;
+  openRequest?: import('./StudioLibraryContextMenu').LibraryDialogRequest;
+  onRequestClosed?: () => void;
   busy: boolean;
   onStarted: () => void;
   onError: (error: ErrorCode) => void;
@@ -72,7 +74,7 @@ export function StudioBatchTranslation(props: Omit<StudioTranslationProps, 'page
   return <StudioTranslation {...props} />;
 }
 
-export function StudioTranslation({ page, documents, triggerContainer, busy, onStarted, onError }: StudioTranslationProps) {
+export function StudioTranslation({ page, documents, triggerContainer, openRequest, onRequestClosed, busy, onStarted, onError }: StudioTranslationProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const controlId = useId();
@@ -202,7 +204,12 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
     }
   };
 
-  const triggerControl = <StudioIconButton ref={trigger} label={t(batch ? 'studio:batch.translation' : 'studio:translation.action')} disabled={busy || activeTask || unavailable || pending} onClick={() => { handingOffToOverview.current = false; setBatchDocuments(documents ? [...documents] : []); setBatchResult(null); setBatchPlan(null); setError(null); setOpen(true); }}><Languages /></StudioIconButton>;
+  const begin = () => { handingOffToOverview.current = false; setBatchDocuments(documents ? [...documents] : []); setBatchResult(null); setBatchPlan(null); setError(null); setOpen(true); };
+  const consumedRequest = useRef(openRequest);
+  useEffect(() => {
+    if (openRequest && consumedRequest.current !== openRequest) { consumedRequest.current = openRequest; begin(); }
+  }, [openRequest]);
+  const triggerControl = <StudioIconButton ref={trigger} label={t(batch ? 'studio:batch.translation' : 'studio:translation.action')} disabled={busy || activeTask || unavailable || pending} onClick={begin}><Languages /></StudioIconButton>;
 
   return <>
     {triggerContainer === null ? null : triggerContainer ? createPortal(triggerControl, triggerContainer) : triggerControl}
@@ -211,6 +218,7 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
     }} onCloseAutoFocus={event => {
       event.preventDefault();
       if (!mounted.current) return;
+      onRequestClosed?.();
       if (handingOffToOverview.current) {
         handingOffToOverview.current = false;
         // The user may already have dismissed the next dialog during this exit.
@@ -220,7 +228,7 @@ export function StudioTranslation({ page, documents, triggerContainer, busy, onS
         }
         return;
       }
-      trigger.current?.focus({ preventScroll: true });
+      if (openRequest) openRequest.restoreFocus(); else trigger.current?.focus({ preventScroll: true });
     }}>
       {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={() => setOpen(false)} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; setOpen(false); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
       <ScrollableDialogHeader className="relative p-3 pr-12">

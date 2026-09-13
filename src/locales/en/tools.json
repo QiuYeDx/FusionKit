@@ -37,7 +37,8 @@
     "audio_transcriber": "Transcribe local audio files with the global ASR configuration",
     "speech_synthesizer": "Generate and play speech audio with the global TTS configuration",
     "realtime_captions": "Create realtime or near-realtime captions from microphone input",
-    "realtime_voice": "Start a duplex voice session through Realtime/WebRTC"
+    "realtime_voice": "Start a duplex voice session through Realtime/WebRTC",
+    "subtitle_studio": "Transcribe, translate and batch export bilingual subtitles"
   },
   "chips": {
     "name_translator_files": "Files · Folders",
@@ -53,7 +54,10 @@
     "webrtc": "WebRTC",
     "duplex": "Duplex",
     "local_offline": "Offline transcription",
-    "local_batch_formats": "Batch · SRT/LRC"
+    "local_batch_formats": "Batch · SRT/LRC",
+    "studio_transcription": "Local transcription",
+    "studio_translation": "AI translation",
+    "studio_formats": "SRT · LRC · VTT · ASS"
   },
   "coming_soon": {
     "title": "Coming Soon",

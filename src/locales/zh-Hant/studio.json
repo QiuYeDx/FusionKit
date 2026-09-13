@@ -335,7 +335,9 @@
     "resume_requested": "已請求繼續翻譯",
     "cancel_requested_count": "已請求取消 {{count}} 份",
     "cancel_requested": "已請求取消",
-    "selecting": "正在選擇文件…"
+    "selecting": "正在選擇文件…",
+    "context_actions": "文件操作",
+    "context_count": "處理 {{count}} 份文件"
   },
   "recovery": {
     "title": "處理無法還原的文件",

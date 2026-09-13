@@ -335,7 +335,9 @@
     "resume_requested": "已请求继续翻译",
     "cancel_requested_count": "已请求取消 {{count}} 份",
     "cancel_requested": "已请求取消",
-    "selecting": "正在选择文档…"
+    "selecting": "正在选择文档…",
+    "context_actions": "文档操作",
+    "context_count": "处理 {{count}} 份文档"
   },
   "recovery": {
     "title": "处理无法恢复的文档",

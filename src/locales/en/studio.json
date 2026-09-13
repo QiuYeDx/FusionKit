@@ -335,7 +335,9 @@
     "resume_requested": "Resume requested",
     "cancel_requested_count": "Cancellation requested for {{count}} documents",
     "cancel_requested": "Cancellation requested",
-    "selecting": "Selecting documents…"
+    "selecting": "Selecting documents…",
+    "context_actions": "Document actions",
+    "context_count": "Documents to process: {{count}}"
   },
   "recovery": {
     "title": "Manage unavailable documents",

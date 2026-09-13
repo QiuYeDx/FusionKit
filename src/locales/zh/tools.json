@@ -37,7 +37,8 @@
     "audio_transcriber": "用全局 ASR 配置转写本地音频文件",
     "speech_synthesizer": "用全局 TTS 配置生成并播放语音音频",
     "realtime_captions": "使用麦克风输入生成实时或近实时字幕",
-    "realtime_voice": "通过 Realtime/WebRTC 建立双向语音会话"
+    "realtime_voice": "通过 Realtime/WebRTC 建立双向语音会话",
+    "subtitle_studio": "本地转写音视频、AI 翻译字幕，批量导出双语文件"
   },
   "chips": {
     "name_translator_files": "文件 · 文件夹",
@@ -53,7 +54,10 @@
     "webrtc": "WebRTC",
     "duplex": "双向语音",
     "local_offline": "离线转写",
-    "local_batch_formats": "批量 · SRT/LRC"
+    "local_batch_formats": "批量 · SRT/LRC",
+    "studio_transcription": "本地转写",
+    "studio_translation": "AI 翻译",
+    "studio_formats": "SRT · LRC · VTT · ASS"
   },
   "coming_soon": {
     "title": "敬请期待",

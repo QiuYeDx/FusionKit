@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
-import { ArrowUpRight, Check, ChevronDown, CircleAlert, FileText, Minus } from 'lucide-react';
+import { ArrowUpRight, Check, CircleAlert, FileText, Minus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { DialogDescription, DialogTitle, ScrollableDialogContent, ScrollableDialogFooter, ScrollableDialogHeader } from '@/components/qiuye-ui/scrollable-dialog';
 import { StudioFileName } from './StudioControls';
+import { StudioDocumentDisclosureHeading } from './StudioDocumentDisclosureHeading';
 import './StudioOperationResult.css';
 
 export const STUDIO_RESULT_DIALOG_CLASS = 'studio-result-dialog';
@@ -73,8 +74,8 @@ export function StudioOperationResult({ operation, items, onClose, closeButtonId
         <FileText aria-hidden="true" />
         <StudioFileName name={items[0].outputName ?? items[0].name} focusable />
         {items[0].actions}
-      </div> : items.length > 0 && <details className="studio-result-details" data-result-details onToggle={event => setExpanded(event.currentTarget.open)}>
-        <summary><span>{t('studio:operation_result.details_count', { count: items.length })}</span><ChevronDown aria-hidden="true" /></summary>
+      </div> : items.length > 0 && <details className="studio-selected-documents studio-result-details" data-result-details onToggle={event => setExpanded(event.currentTarget.open)}>
+        <summary className="studio-selected-documents-header" aria-label={t('studio:operation_result.details_count', { count: items.length })}><StudioDocumentDisclosureHeading title={t('studio:export.review_details')} count={items.length} /></summary>
         {expanded && <ul className="studio-result-files">
           {[...items].sort((a, b) => stateOrder[a.state] - stateOrder[b.state]).map(item => {
             const ItemIcon = item.state === 'success' && requested ? ArrowUpRight : stateIcons[item.state];

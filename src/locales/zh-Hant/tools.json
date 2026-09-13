@@ -37,7 +37,8 @@
     "audio_transcriber": "使用全域 ASR 設定轉寫本機音訊檔案",
     "speech_synthesizer": "使用全域 TTS 設定產生並播放語音音訊",
     "realtime_captions": "使用麥克風輸入產生即時或近即時字幕",
-    "realtime_voice": "透過 Realtime/WebRTC 建立雙向語音會話"
+    "realtime_voice": "透過 Realtime/WebRTC 建立雙向語音會話",
+    "subtitle_studio": "本機轉寫音訊影片、AI 翻譯字幕，批次匯出雙語檔案"
   },
   "chips": {
     "name_translator_files": "檔案 · 資料夾",
@@ -53,7 +54,10 @@
     "webrtc": "WebRTC",
     "duplex": "雙向語音",
     "local_offline": "離線轉寫",
-    "local_batch_formats": "批次 · SRT/LRC"
+    "local_batch_formats": "批次 · SRT/LRC",
+    "studio_transcription": "本機轉寫",
+    "studio_translation": "AI 翻譯",
+    "studio_formats": "SRT · LRC · VTT · ASS"
   },
   "coming_soon": {
     "title": "敬請期待",
