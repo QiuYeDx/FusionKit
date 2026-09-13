@@ -190,7 +190,10 @@ export interface SubtitleStudioApi {
 
 export function summarizeDocument(doc: SubtitleDocument, tasks: DocumentSnapshot['tasks'] = [], updatedAt?: number): DocumentSummary {
   const nonempty = doc.cues.filter(cue => cue.source.plain.trim());
-  const translated = Math.max(0, ...doc.translationTracks.map(track => nonempty.filter(cue => track.entries[cue.id]?.sourceRevision === cue.sourceRevision).length));
+  const translated = Math.max(0, ...doc.translationTracks.map(track => nonempty.filter(cue => {
+    const entry = track.entries[cue.id];
+    return entry?.sourceRevision === cue.sourceRevision && !!entry.text.plain.trim();
+  }).length));
   const task = tasks.find(item => ['queued', 'running'].includes(item.status)) ?? [...tasks].reverse().find(item => ['interrupted', 'failed', 'needs_configuration'].includes(item.status)) ?? tasks.at(-1);
   return { id: doc.id, revision: doc.revision, origin: doc.origin, capabilities: doc.capabilities, diagnostics: doc.diagnostics, cueCount: doc.cues.length,
     ...(updatedAt !== undefined ? { updatedAt } : {}),

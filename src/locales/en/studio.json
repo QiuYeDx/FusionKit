@@ -185,6 +185,7 @@
       "encoding_not_supported": "VTT and newly generated ASS files require UTF-8 encoding."
     },
     "source_attention": "Source folders are unavailable for {{count}} documents. Expand the document list below to select folders, or choose another save location.",
+    "source_only_note": "These documents have no translations. Only source text will be exported.",
     "no_translation_fallback": "Documents without a translation will export their original text.",
     "destination": "Save location",
     "destination_source": "Source file folder",

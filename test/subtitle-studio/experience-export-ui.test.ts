@@ -14,13 +14,14 @@ async function option(page: Page, name: string, value: string) {
   await page.getByRole('dialog').getByRole('combobox', { name, exact: true }).click();
   await page.getByRole('option', { name: value, exact: true }).click();
 }
-async function exporting(page: Page, batch = false) {
+async function exporting(page: Page, batch = false, sourceOnly = false) {
   await page.getByRole('button', { name: batch ? '批量下载' : '下载', exact: true }).click();
   await page.getByRole('menuitem', { name: batch ? '批量导出字幕' : '导出字幕', exact: true }).click();
   const dialog = page.getByRole('dialog'); await uiExpect(dialog).toBeVisible();
-  await uiExpect(dialog.getByRole('combobox', { name: '导出内容', exact: true })).toContainText('双语');
+  await uiExpect(dialog.getByRole('combobox', { name: '导出内容', exact: true })).toContainText(sourceOnly ? '仅原文' : '双语');
   await uiExpect(dialog.getByRole('combobox', { name: '保存位置', exact: true })).toContainText('来源文件所在目录');
-  await uiExpect(dialog.getByRole('combobox', { name: '缺失或过期的译文', exact: true })).toContainText('未完成处使用原文');
+  if (!sourceOnly) await uiExpect(dialog.getByRole('combobox', { name: '缺失或过期的译文', exact: true })).toContainText('未完成处使用原文');
+  else await uiExpect(dialog.getByRole('combobox', { name: '导出内容', exact: true })).toBeDisabled();
   await uiExpect(dialog.getByRole('combobox', { name: '文件名后缀', exact: true })).toContainText('无');
   await uiExpect(dialog.getByTestId('studio-selected-documents')).toHaveCount(1);
   expect(await dialog.getByTestId('studio-selected-documents').evaluate(element => element.hasAttribute('open'))).toBe(false);
@@ -103,8 +104,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await page.locator('.studio-document').filter({ hasText: names[1] }).click(); dialog = await exporting(page);
       await dialog.getByTestId('studio-selected-documents').locator('summary').click(); await uiExpect(dialog.getByTestId('studio-selected-documents').getByRole('combobox')).toHaveCount(0);
       await dialog.getByRole('button', { name: '取消', exact: true }).click();
-      await page.locator('.studio-document').filter({ hasText: names[2] }).click(); dialog = await exporting(page);
-      await prepare(page); await uiExpect(dialog.locator('[data-issue="source_fallback"]')).toContainText('2');
+      await page.locator('.studio-document').filter({ hasText: names[2] }).click(); dialog = await exporting(page, false, true);
+      await prepare(page); await uiExpect(dialog.locator('[data-issue="source_fallback"]')).toHaveCount(0);
       await dialog.getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
       await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份字幕文件');
       await dialog.getByRole('button', { name: '完成', exact: true }).click(); await uiExpect(page.getByRole('dialog')).toHaveCount(0);
@@ -139,7 +140,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await dialog.getByRole('button', { name: '完成', exact: true }).click();
       await win.evaluate(window => window.setSize(1280, 860));
       await page.locator('.studio-document').filter({ hasText: names[3] }).click();
-      await rename(files[3], `${files[3]}.moved`); dialog = await exporting(page);
+      await rename(files[3], `${files[3]}.moved`); dialog = await exporting(page, false, true);
       await uiExpect(dialog).toContainText('来源目录不可用'); await prepare(page);
       await uiExpect(dialog.getByRole('button', { name: '确认并导出 0 份', exact: true })).toBeDisabled();
       await dialog.getByRole('button', { name: '返回设置', exact: true }).click();

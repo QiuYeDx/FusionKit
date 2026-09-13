@@ -185,6 +185,7 @@
       "encoding_not_supported": "VTT 與新產生的 ASS 需要 UTF-8 編碼。"
     },
     "source_attention": "{{count}} 份文件的來源目錄無法使用，請展開下方文件清單重新指定，或選擇其他儲存位置。",
+    "source_only_note": "所選文件尚無譯文，將僅匯出原文。",
     "no_translation_fallback": "尚無譯文的文件將使用原文匯出。",
     "destination": "儲存位置",
     "destination_source": "來源檔案所在目錄",

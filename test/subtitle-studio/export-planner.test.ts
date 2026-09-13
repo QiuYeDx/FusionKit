@@ -6,6 +6,7 @@ import type { ExportOptions } from '../../src/subtitle-studio/export-contract';
 import { applyBilingual } from '../../src/subtitle-studio/bilingual';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
 import { planSubtitleExport } from '../../electron/main/subtitle-studio/export-planner';
+import { summarizeDocument } from '../../src/subtitle-studio/ipc-contract';
 
 const parse = (text: string, format: 'srt' | 'lrc' | 'vtt' | 'ass' = 'lrc') => {
   const document = importSubtitleText(text, { format, displayName: `synthetic.${format}`, encoding: 'utf-8', digest: 'a'.repeat(64) }, randomUUID);
@@ -28,6 +29,41 @@ function back(doc: SubtitleDocument, config: ExportOptions) {
 }
 
 describe('local subtitle export projection', () => {
+  it('does not advertise translation content for empty tracks or whitespace-only entries', () => {
+    const doc = parse('[00:01]source');
+    translated(doc);
+    const entry = doc.translationTracks[0].entries[doc.cues[0].id];
+    entry.text = plain('   ');
+    expect(summarizeDocument(doc).translationStatus).toBe('none');
+    entry.text = plain('译文');
+    expect(summarizeDocument(doc).translationStatus).toBe('complete');
+    doc.translationTracks[0].entries = {};
+    expect(summarizeDocument(doc).translationStatus).toBe('none');
+  });
+
+  it.each(['srt', 'lrc', 'vtt', 'ass'] as const)('keeps missing, empty and stale lines once in mixed %s exports', format => {
+    const doc = parse(['Alpha', 'Beta', 'Gamma', 'Delta'].map((line, index) => `${index + 1}\n00:00:0${index + 1},000 --> 00:00:0${index + 2},000\n${line}\n`).join('\n'), 'srt');
+    const trackId = translated(doc); const entries = doc.translationTracks[0].entries;
+    delete entries[doc.cues[1].id];
+    entries[doc.cues[2].id].text = plain('   ');
+    entries[doc.cues[3].id].sourceHash = 'stale';
+    const before = structuredClone(doc);
+    for (const mode of ['target', 'bilingual'] as const) for (const order of ['source-first', 'target-first'] as const) {
+      const result = back(doc, options({ format, mode, order, trackId, incomplete: 'source-fallback' }));
+      const lines = result.doc.cues.flatMap(cue => cue.source.plain.split('\n'));
+      const first = mode === 'target' ? ['译文1'] : order === 'source-first' ? ['Alpha', '译文1'] : ['译文1', 'Alpha'];
+      expect(lines).toEqual([...first, 'Beta', 'Gamma', 'Delta']);
+      expect(result.plan).toMatchObject({ cueCount: 4, missingCount: 2, staleCount: 1 });
+      expect(result.plan.issues).toContainEqual({ code: 'source_fallback', count: 3, blocking: false, confirmation: false });
+    }
+    doc.translationTracks = [];
+    for (const mode of ['target', 'bilingual'] as const) {
+      const result = back(doc, options({ format, mode, incomplete: 'source-fallback' }));
+      expect(result.doc.cues.map(cue => cue.source.plain)).toEqual(['Alpha', 'Beta', 'Gamma', 'Delta']);
+    }
+    expect({ ...doc, translationTracks: before.translationTracks }).toEqual(before);
+  });
+
   it.each(['target', 'bilingual'] as const)('exports an untracked document as source under %s fallback without inventing a track', mode => {
     const doc = parse('1\n00:00:01,000 --> 00:00:02,000\n<b>First</b>\n\n2\n00:00:03,000 --> 00:00:04,000\nSecond\n', 'srt');
     const before = structuredClone(doc);

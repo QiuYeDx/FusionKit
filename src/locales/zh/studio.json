@@ -185,6 +185,7 @@
       "encoding_not_supported": "VTT 和新生成的 ASS 需要 UTF-8 编码。"
     },
     "source_attention": "{{count}} 份文档的来源目录不可用，请展开下方文档列表重新指定，或选择其他保存位置。",
+    "source_only_note": "所选文档暂无译文，将仅导出原文。",
     "no_translation_fallback": "尚无译文的文档将使用原文导出。",
     "destination": "保存位置",
     "destination_source": "来源文件所在目录",

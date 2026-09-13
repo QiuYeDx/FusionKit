@@ -185,6 +185,7 @@
       "encoding_not_supported": "VTT と新しく生成する ASS には UTF-8 が必要です。"
     },
     "source_attention": "{{count}} 件の元のフォルダーを使用できません。下の文書一覧を開いて再指定するか、別の保存先を選んでください。",
+    "source_only_note": "選択した文書には訳文がないため、原文のみを書き出します。",
     "no_translation_fallback": "訳文がない文書は原文で書き出します。",
     "destination": "保存先",
     "destination_source": "元ファイルのフォルダー",

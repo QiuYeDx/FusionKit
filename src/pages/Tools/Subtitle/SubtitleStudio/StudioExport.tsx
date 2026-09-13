@@ -25,6 +25,8 @@ import './StudioExport.css';
 import './StudioBatch.css';
 
 const modeKeys = { source: 'studio:export.source', target: 'studio:export.target', bilingual: 'studio:export.bilingual' } as const;
+const hasTranslation = (document: DocumentSummary) => document.translationStatus
+  ? document.translationStatus !== 'none' : !!document.translationTracks?.length;
 const issueKeys = {
   track_missing: 'studio:export.issues.track_missing',
   translation_missing: 'studio:export.issues.translation_missing',
@@ -120,7 +122,10 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [rebinding, setRebinding] = useState<string | null>(null);
   const locationEpoch = useRef(0);
-  const [mode, setMode] = useState<ExportOptions['mode']>('bilingual');
+  const sourceDocuments = batch ? batchDocuments : page ? [page.summary] : [];
+  const hasTranslations = sourceDocuments.some(hasTranslation);
+  const [selectedMode, setMode] = useState<ExportOptions['mode']>('bilingual');
+  const mode = hasTranslations ? selectedMode : 'source';
   const [format, setFormat] = useState<ExportOptions['format']>(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
   const [selectedTrackId, setSelectedTrackId] = useState(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
   const [order, setOrder] = useState<ExportOptions['order']>('source-first');
@@ -161,7 +166,6 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   const newerRevision = !!currentPlan && currentPlan.revision !== page?.summary.revision;
   const missingEnds = format !== 'lrc' && (batch ? batchDocuments.some(document => document.origin.format === 'lrc') : page?.summary.origin.format === 'lrc' || page?.cues.some(cue => cue.timing.endMs === null));
   const number = (value: number) => value.toLocaleString(i18n.language);
-  const sourceDocuments = batch ? batchDocuments : page ? [page.summary] : [];
   const sourceScope = sourceDocuments.map(document => document.id).join(',');
   const canSaveOriginal = !busy && !pending && (destination !== 'source-directory' || !locationsLoading && sourceDocuments.some(document => sourceLocations[document.id]?.status === 'ready'));
   const suffixValid = suffixMode !== 'custom' || fileNameSuffixSchema.safeParse({ mode: 'custom', value: customSuffix }).success;
@@ -193,7 +197,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   }, [step, open]);
   useEffect(() => {
     if (batch) return;
-    setOpen(false); setMode('bilingual'); setDestination('source-directory'); setFormat(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
+    setOpen(false); setMode(page && hasTranslation(page.summary) ? 'bilingual' : 'source'); setDestination('source-directory'); setFormat(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
     setSelectedTrackId(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
     setEstimateEnd(false); setIncomplete('source-fallback');
     // Reset only on document selection, never for a background revision change.
@@ -264,7 +268,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
     if (pending) return;
     dialogOpen.current = value;
     if (value) {
-      setSourceMode(false); setMode('bilingual'); setDestination('source-directory'); setIncomplete('source-fallback');
+      setSourceMode(false); setMode((documents ?? (page ? [page.summary] : [])).some(hasTranslation) ? 'bilingual' : 'source'); setDestination('source-directory'); setIncomplete('source-fallback');
       setSelectedTrackId(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
       setBatchDocuments(documents ? [...documents] : []);
       setBatchTracks(Object.fromEntries((documents ?? []).map(item => [item.id, item.translationTracks?.at(-1)?.id ?? ''])));
@@ -360,9 +364,9 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
           {step === 'settings' && <>
             <div className="studio-export-fields">
               {!sourceMode && <><ToolField label={t('studio:export.mode')} htmlFor={`${controlId}-mode`}>
-              <Select value={mode} onValueChange={value => setMode(value as ExportOptions['mode'])} disabled={pending}>
+              <Select value={mode} onValueChange={value => setMode(value as ExportOptions['mode'])} disabled={pending || !hasTranslations}>
                 <SelectTrigger id={`${controlId}-mode`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>{(Object.keys(modeKeys) as ExportOptions['mode'][]).map(value => <SelectItem key={value} value={value}>{t(modeKeys[value])}</SelectItem>)}</SelectContent>
+                <SelectContent>{(Object.keys(modeKeys) as ExportOptions['mode'][]).filter(value => value === 'source' || hasTranslations).map(value => <SelectItem key={value} value={value}>{t(modeKeys[value])}</SelectItem>)}</SelectContent>
               </Select>
             </ToolField><ToolField label={t('studio:export.format')} htmlFor={`${controlId}-format`}>
               <Select value={format} onValueChange={value => setFormat(value as ExportOptions['format'])} disabled={pending}>
@@ -407,6 +411,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
               </Select>
             </ToolField>}
             </div>
+            {!sourceMode && !hasTranslations && <p className="studio-export-note">{t('studio:export.source_only_note')}</p>}
             <p className="studio-export-note">{t(destination === 'source-directory' ? 'studio:export.destination_source_note' : 'studio:export.destination_choose_note')}</p>
             {!sourceMode && conflictPolicy === 'overwrite' && <p className="studio-export-note">{t('studio:export.conflict_overwrite_note')}</p>}
             {destination === 'source-directory' && (locationsLoading || sourceDocuments.some(document => sourceLocations[document.id]?.status !== 'ready')) && <p className="studio-export-note" role="status">{locationsLoading ? t('studio:export.source_loading')
