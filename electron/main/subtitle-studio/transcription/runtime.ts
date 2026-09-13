@@ -339,6 +339,11 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
         try { return completeOwner(owner, current.tasks.enqueue(owner, parsed, signal)).finally(() => use.release()); }
         catch (error) { use.release(); throw error; }
       },
+      revealInput(value: LocalSubtitleOwnerKey, taskId: string, action: (inputPath: string) => void, guard: () => void) {
+        const { current, owner } = requireOwner(value);
+        if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
+        return completeOwner(owner, current.tasks.revealInput(owner, taskId, action, guard));
+      },
       list(value: LocalSubtitleOwnerKey) {
         const { current, owner } = requireOwner(value);
         if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');

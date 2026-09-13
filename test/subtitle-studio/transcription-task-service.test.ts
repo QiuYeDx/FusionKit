@@ -375,3 +375,22 @@ it('reclaims clean released-owner task history so later owners do not inherit ex
   await expect(f.service.enqueue(ownerB, later)).resolves.toBeDefined(); await f.service.waitForIdle();
   expect(f.service.list(ownerB)).toHaveLength(1);
 }, 15000);
+
+it('reveals only the admitted unchanged source for the live owner, including after lease release', async () => {
+  const f = await fixture(), request = await f.request();
+  const source = await f.inputs.resolveDraft(ownerA, request.files[0].fileToken, 'transcribe');
+  const admission = await f.service.enqueue(ownerA, request), id = admission.tasks[0].taskId;
+  await f.service.waitForIdle();
+  const reveal = vi.fn();
+  await f.service.revealInput(ownerA, id, reveal, () => {});
+  expect(reveal).toHaveBeenCalledWith(source.filePath);
+  expect(JSON.stringify(f.service.list(ownerA))).not.toContain(source.filePath);
+  reveal.mockClear();
+  await expect(f.service.revealInput(ownerB, id, reveal, () => {})).rejects.toMatchObject({ code: 'access_denied' });
+  await expect(f.service.revealInput(ownerA, id, reveal, () => { throw new StudioError('access_denied'); })).rejects.toMatchObject({ code: 'access_denied' });
+  await writeFile(source.filePath, 'replaced source content');
+  await expect(f.service.revealInput(ownerA, id, reveal, () => {})).rejects.toMatchObject({ code: 'output_write_failed' });
+  f.service.remove(ownerA, id);
+  await expect(f.service.revealInput(ownerA, id, reveal, () => {})).rejects.toMatchObject({ code: 'access_denied' });
+  expect(reveal).not.toHaveBeenCalled();
+});

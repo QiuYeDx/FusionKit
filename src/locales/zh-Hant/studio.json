@@ -189,7 +189,7 @@
     "destination": "儲存位置",
     "destination_source": "來源檔案所在目錄",
     "destination_choose": "選擇其他位置",
-    "destination_source_note": "每份檔案儲存至各自的來源目錄；重名時自動新增序號。",
+    "destination_source_note": "每份檔案儲存至各自的來源目錄。",
     "destination_choose_note": "儲存時選擇檔案或目錄。",
     "source_ready": "來源目錄可用",
     "source_missing": "此文件尚未記錄來源目錄。",
@@ -241,7 +241,11 @@
       "opaque_omitted": "省略非正文結構",
       "encoding_not_supported": "不支援的編碼"
     },
-    "result_title": "匯出結果"
+    "result_title": "匯出結果",
+    "conflict_policy": "同名檔案",
+    "conflict_indexed": "自動添加序號",
+    "conflict_overwrite": "覆寫同名檔案",
+    "conflict_overwrite_note": "已有檔案將被取代；同一批次內的重名檔案仍添加序號。"
   },
   "errors": {
     "invalid_input": "字幕結構無效。",
@@ -496,8 +500,8 @@
     "shared_busy_error": "共用資源正在使用中，請等待兩個字幕工具中的工作或資源操作結束後重試。",
     "delete_resource": "刪除資源",
     "delete_shared_confirmation": "刪除「{{name}}」的共用資源？本機字幕轉寫與字幕工作室都會失去此資源；再次使用前需要重新安裝。現有字幕文件不受影響。",
-    "clear_completed": "清理已完成",
-    "clear_terminal": "清理已結束",
+    "clear_completed": "清理成功任務",
+    "clear_terminal": "清理所有已結束任務",
     "queue_actions": "佇列操作",
     "cancel_all": "取消所有未完成",
     "confirm_cancel_all": "確認取消",
@@ -506,7 +510,9 @@
     "cancel_result": "已請求取消 {{count}} 項，{{failed}} 項失敗，{{skipped}} 項狀態已變更。任務將在實際停止後顯示為已結束。",
     "auto_translation_pending_short": "自動翻譯",
     "auto_translation_admitted_short": "翻譯已交接",
-    "auto_translation_recovery_short": "翻譯待恢復"
+    "auto_translation_recovery_short": "翻譯待恢復",
+    "clear_completed_hint": "僅移除成功記錄，保留字幕文件",
+    "clear_terminal_hint": "包含成功、失敗和取消；保留字幕文件"
   },
   "overview": {
     "title": "翻譯任務",
@@ -523,7 +529,18 @@
     "open_error": "無法開啟此文件，請重新整理後重試。",
     "open_document": "開啟文件",
     "can_resume": "可在文件中檢查並繼續",
-    "view_progress": "查看翻譯進度"
+    "view_progress": "查看翻譯進度",
+    "active": "進行中",
+    "done": "已完成",
+    "attention": "需處理",
+    "cancelled_count": "已取消 {{count}} 項",
+    "actual_tokens": "實際 tokens",
+    "input_tokens": "輸入",
+    "output_tokens": "輸出",
+    "usage_unknown": "未提供",
+    "usage_scope": "共 {{count}} 項任務",
+    "usage_partial": "用量統計不完整",
+    "usage_explanation": "統計文件庫全部可讀翻譯任務的 API 實際回傳值，包括重試；不受分頁影響。≥ 表示已知用量下限；未提供的用量及不可讀文件不計入。不等同於帳戶帳單。"
   },
   "copy_options": {
     "choose": "選擇複製內容",
@@ -598,5 +615,7 @@
       "failed": "無法取消任務",
       "count": "已提交 {{count}} 個取消請求"
     }
-  }
+  },
+  "source_folder": "開啟所在資料夾",
+  "source_folder_failed": "無法開啟來源資料夾，請確認原始檔案仍在原位後重試"
 }

@@ -8,6 +8,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     return ipc.invoke(channel, { capability, payload });
   };
   return Object.freeze({
+    revealSource: request => invoke(STUDIO_CHANNELS.revealSource, request),
     getSourceLocation: request => invoke(STUDIO_CHANNELS.getSourceLocation, request),
     selectSourceDirectory: request => invoke(STUDIO_CHANNELS.selectSourceDirectory, request),
     importDroppedSubtitles: (files, request) => {

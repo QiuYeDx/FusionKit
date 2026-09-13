@@ -22,6 +22,8 @@ const recordSchema = z.object({ schemaVersion: z.literal(1), documentId: idSchem
   originFingerprint: z.string().regex(/^[a-f0-9]{64}$/), capture: sourceLocationCaptureSchema }).strict();
 export type SourceLocationRecord = z.infer<typeof recordSchema>;
 export const SOURCE_LOCATION_FILE = 'source-location.private.json';
+export const sameSourcePath = (left: string, right: string) => process.platform === 'win32'
+  ? path.resolve(left).toLowerCase() === path.resolve(right).toLowerCase() : path.resolve(left) === path.resolve(right);
 
 const fingerprint = (doc: SubtitleDocument) => createHash('sha256').update(JSON.stringify(doc.origin)).digest('hex');
 export function bindSourceLocation(doc: SubtitleDocument, capture: SourceLocationCapture): SourceLocationRecord {
@@ -93,12 +95,17 @@ export class SourceLocationService {
     return { status: 'ready', origin: 'user-selected-directory' };
   }
   async publish<T>(documentId: string, bindingId: string | undefined,
-    action: (directory: string, verify: () => Promise<void>) => Promise<T>, guard: () => void = () => {}, revision?: number): Promise<T> {
+    action: (directory: string, verify: () => Promise<void>) => Promise<T>, guard: () => void = () => {}, revision?: number, refreshOverwrittenInput = false): Promise<T> {
     if (!bindingId) throw new StudioError('needs_configuration');
-    return this.repository.withSourceLocation(documentId, bindingId, async record => {
+    return this.repository.withSourceLocation(documentId, bindingId, async (record, update) => {
       const verify = async () => { guard(); await verifySourceLocation(record.capture); guard(); };
       await verify();
-      return action(record.capture.directoryPath, verify);
+      const output = await action(record.capture.directoryPath, verify);
+      if (refreshOverwrittenInput && typeof output === 'string' && record.capture.origin === 'input'
+        && sameSourcePath(output, record.capture.inputPath)) {
+        await update(await captureSourceInput(record.capture.inputPath, undefined, record.capture.directoryIdentity));
+      }
+      return output;
     }, revision);
   }
 }

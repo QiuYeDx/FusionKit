@@ -189,7 +189,7 @@
     "destination": "保存位置",
     "destination_source": "来源文件所在目录",
     "destination_choose": "选择其他位置",
-    "destination_source_note": "每份文件保存到各自的来源目录；重名时自动添加序号。",
+    "destination_source_note": "每份文件保存到各自的来源目录。",
     "destination_choose_note": "保存时选择文件或目录。",
     "source_ready": "来源目录可用",
     "source_missing": "此文档尚未记录来源目录。",
@@ -241,7 +241,11 @@
       "opaque_omitted": "省略非正文结构",
       "encoding_not_supported": "不支持的编码"
     },
-    "result_title": "导出结果"
+    "result_title": "导出结果",
+    "conflict_policy": "同名文件",
+    "conflict_indexed": "自动添加序号",
+    "conflict_overwrite": "覆盖同名文件",
+    "conflict_overwrite_note": "已有文件将被替换；同一批次内的重名文件仍添加序号。"
   },
   "errors": {
     "invalid_input": "字幕结构无效。",
@@ -496,8 +500,8 @@
     "shared_busy_error": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。",
     "delete_resource": "删除资源",
     "delete_shared_confirmation": "删除“{{name}}”的共享资源？本地字幕转写和字幕工作室都会失去此资源；再次使用前需要重新安装。已有字幕文档不受影响。",
-    "clear_completed": "清理已完成",
-    "clear_terminal": "清理已结束",
+    "clear_completed": "清理成功任务",
+    "clear_terminal": "清理所有已结束任务",
     "queue_actions": "队列操作",
     "cancel_all": "取消所有未完成",
     "confirm_cancel_all": "确认取消",
@@ -506,7 +510,9 @@
     "cancel_result": "已请求取消 {{count}} 项，{{failed}} 项失败，{{skipped}} 项状态已变化。任务将在实际停止后显示为已结束。",
     "auto_translation_pending_short": "自动翻译",
     "auto_translation_admitted_short": "翻译已交接",
-    "auto_translation_recovery_short": "翻译待恢复"
+    "auto_translation_recovery_short": "翻译待恢复",
+    "clear_completed_hint": "仅移除成功记录，保留字幕文档",
+    "clear_terminal_hint": "包含成功、失败和取消；保留字幕文档"
   },
   "overview": {
     "title": "翻译任务",
@@ -523,7 +529,18 @@
     "open_error": "无法打开此文档，请刷新后重试。",
     "open_document": "打开文档",
     "can_resume": "可在文档中检查并继续",
-    "view_progress": "查看翻译进度"
+    "view_progress": "查看翻译进度",
+    "active": "进行中",
+    "done": "已完成",
+    "attention": "需处理",
+    "cancelled_count": "已取消 {{count}} 项",
+    "actual_tokens": "实际 tokens",
+    "input_tokens": "输入",
+    "output_tokens": "输出",
+    "usage_unknown": "未提供",
+    "usage_scope": "共 {{count}} 项任务",
+    "usage_partial": "用量统计不完整",
+    "usage_explanation": "统计文档库全部可读翻译任务的 API 实际返回值，包括重试；不受分页影响。≥ 表示已知用量下限；未提供的用量及不可读文档不计入。不等同于账户账单。"
   },
   "copy_options": {
     "choose": "选择复制内容",
@@ -598,5 +615,7 @@
       "failed": "未能取消任务",
       "count": "已提交 {{count}} 个取消请求"
     }
-  }
+  },
+  "source_folder": "打开所在文件夹",
+  "source_folder_failed": "无法打开来源文件夹，请确认源文件仍在原位后重试"
 }

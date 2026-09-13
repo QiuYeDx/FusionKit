@@ -189,7 +189,7 @@
     "destination": "保存先",
     "destination_source": "元ファイルのフォルダー",
     "destination_choose": "別の場所を選択",
-    "destination_source_note": "各ファイルをそれぞれの元フォルダーに保存します。同名のファイルがある場合は番号を追加します。",
+    "destination_source_note": "各ファイルをそれぞれの元のフォルダーに保存します。",
     "destination_choose_note": "保存時にファイルまたはフォルダーを選択します。",
     "source_ready": "元フォルダーを利用できます",
     "source_missing": "この文書の元フォルダーは記録されていません。",
@@ -241,7 +241,11 @@
       "opaque_omitted": "本文以外の構造の省略",
       "encoding_not_supported": "非対応の文字コード"
     },
-    "result_title": "書き出し結果"
+    "result_title": "書き出し結果",
+    "conflict_policy": "同名ファイルがある場合",
+    "conflict_indexed": "連番を付ける",
+    "conflict_overwrite": "同名ファイルを上書き",
+    "conflict_overwrite_note": "既存のファイルを置き換えます。同じバッチ内の重複名には連番を付けます。"
   },
   "errors": {
     "invalid_input": "字幕の構造が無効です。",
@@ -496,8 +500,8 @@
     "shared_busy_error": "共有リソースは使用中です。両方の字幕ツールのタスクやリソース操作が終了してから再試行してください。",
     "delete_resource": "リソースを削除",
     "delete_shared_confirmation": "共有リソース「{{name}}」を削除しますか？ローカル文字起こしと字幕スタジオの両方で、使用前に再インストールが必要になります。既存の字幕文書は保持されます。",
-    "clear_completed": "完了済みを削除",
-    "clear_terminal": "終了済みを削除",
+    "clear_completed": "成功したタスクを整理",
+    "clear_terminal": "終了した全タスクを整理",
     "queue_actions": "キュー操作",
     "cancel_all": "未完了をすべてキャンセル",
     "confirm_cancel_all": "キャンセルを確定",
@@ -506,7 +510,9 @@
     "cancel_result": "{{count}} 件に停止を要求、{{failed}} 件が失敗、{{skipped}} 件は状態が変わりました。実際に停止した後に終了状態になります。",
     "auto_translation_pending_short": "自動翻訳",
     "auto_translation_admitted_short": "翻訳へ引き継ぎ済み",
-    "auto_translation_recovery_short": "翻訳の再開が必要"
+    "auto_translation_recovery_short": "翻訳の再開が必要",
+    "clear_completed_hint": "成功の履歴のみ削除し、字幕文書は保持",
+    "clear_terminal_hint": "成功・失敗・キャンセルを含む。字幕文書は保持"
   },
   "overview": {
     "title": "翻訳タスク",
@@ -523,7 +529,18 @@
     "open_error": "文書を開けませんでした。再読み込みしてお試しください。",
     "open_document": "文書を開く",
     "can_resume": "文書で確認して再開できます",
-    "view_progress": "翻訳の進捗を表示"
+    "view_progress": "翻訳の進捗を表示",
+    "active": "処理中",
+    "done": "完了",
+    "attention": "要確認",
+    "cancelled_count": "キャンセル {{count}} 件",
+    "actual_tokens": "実測 tokens",
+    "input_tokens": "入力",
+    "output_tokens": "出力",
+    "usage_unknown": "未提供",
+    "usage_scope": "全 {{count}} 件のタスク",
+    "usage_partial": "使用量は一部のみ",
+    "usage_explanation": "ページに関係なく、読み取り可能な全翻訳タスクのAPI実測値（再試行を含む）を集計。≥ は既知の下限です。未提供値と読めない文書は含みません。アカウントの請求額ではありません。"
   },
   "copy_options": {
     "choose": "コピーする内容を選択",
@@ -598,5 +615,7 @@
       "failed": "キャンセルできませんでした",
       "count": "キャンセルリクエスト {{count}} 件を送信しました"
     }
-  }
+  },
+  "source_folder": "保存元のフォルダーを開く",
+  "source_folder_failed": "保存元のフォルダーを開けません。元ファイルが移動されていないか確認し、再試行してください。"
 }

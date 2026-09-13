@@ -10,7 +10,7 @@ import type { TranslationService } from './translation-service';
 import { planTranslation } from './translation-planner';
 import { planSubtitleExport } from './export-planner';
 import { publishBytes, publishSource, sourceBytes } from './export-service';
-import { SourceLocationService } from './source-location-service';
+import { SourceLocationService, sameSourcePath } from './source-location-service';
 
 type EntryBase = { owner: number; created: number; executing: boolean };
 type TranslationEntry = EntryBase & { kind: 'translation'; config: TranslationConfig; summary: TranslationBatchPlan; documents: DocumentReference[] };
@@ -121,6 +121,14 @@ export class BatchService {
     entry.executing = true;
     const alive = () => { guard(); if (this.plans.get(batchId) !== entry) throw new StudioError('access_denied'); };
     const result: ExportBatchResult = { items: [] };
+    const written = new Set<string>();
+    const outputKey = (file: string) => process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file);
+    const publishItem = async (bytes: Buffer, file: string, verify: () => void | Promise<void>, options: ExportOptions) => {
+      const policy = written.has(outputKey(file)) ? 'indexed' : options.conflictPolicy ?? 'indexed';
+      const output = await publishBytes(bytes, file, verify, policy);
+      written.add(outputKey(output));
+      return output;
+    };
     try {
       for (const item of entry.summary.items) {
         alive();
@@ -132,11 +140,13 @@ export class BatchService {
           if (doc.revision !== prepared.reference.revision) throw new StudioError('revision_conflict');
           const rebuilt = planSubtitleExport(doc, prepared.options);
           if (!rebuilt.bytes || contentDigest(rebuilt.bytes) !== prepared.digest) throw new StudioError('revision_conflict');
-          const output = destination === 'source-directory'
+          const location = destination !== 'source-directory' && prepared.options.conflictPolicy === 'overwrite' ? await this.repository.readSourceLocation(item.documentId) : null;
+          const replacesInput = location?.capture.origin === 'input' && sameSourcePath(path.join(directory!, path.basename(item.plan.fileName)), location.capture.inputPath);
+          const output = destination === 'source-directory' || replacesInput
             ? await this.sources.publish(item.documentId, prepared.sourceBindingId,
-              (directory, verify) => publishBytes(rebuilt.bytes!, path.join(directory, path.basename(item.plan.fileName)), verify, 'indexed'), alive, prepared.reference.revision)
-            : await publishBytes(rebuilt.bytes, path.join(directory!, path.basename(item.plan.fileName)), alive, 'indexed',
-              action => this.repository.withDocument(item.documentId, prepared.reference.revision, async () => action()));
+              (directory, verify) => publishItem(rebuilt.bytes!, path.join(directory, path.basename(item.plan.fileName)), verify, prepared.options), alive, prepared.reference.revision, prepared.options.conflictPolicy === 'overwrite')
+            : await this.repository.withDocument(item.documentId, prepared.reference.revision,
+              async () => publishItem(rebuilt.bytes!, path.join(directory!, path.basename(item.plan.fileName)), alive, prepared.options));
           result.items.push({ documentId: item.documentId, displayName: item.displayName, ok: true, result: { fileName: path.basename(output), revision: prepared.reference.revision, partial: item.plan.partial, mode: item.plan.options.mode, incomplete: item.plan.options.incomplete } });
         } catch (error) { alive(); result.items.push(failure(item.documentId, item.displayName, error)); }
       }

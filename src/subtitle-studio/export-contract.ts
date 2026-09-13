@@ -3,6 +3,8 @@ import { encodingSchema, idSchema } from './domain';
 
 export const exportDestinationSchema = z.enum(['choose-location', 'source-directory']);
 export type ExportDestination = z.infer<typeof exportDestinationSchema>;
+export const exportConflictPolicySchema = z.enum(['indexed', 'overwrite']);
+export type ExportConflictPolicy = z.infer<typeof exportConflictPolicySchema>;
 export type SourceLocationSummary = { status: 'ready' | 'missing' | 'unavailable'; origin?: 'input' | 'user-selected-directory' };
 export const fileNameSuffixSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('none') }).strict(),
@@ -14,6 +16,7 @@ export const exportOptionsSchema = z.object({
   mode: z.enum(['source', 'target', 'bilingual']),
   format: z.enum(['srt', 'lrc', 'vtt', 'ass']),
   fileNameSuffix: fileNameSuffixSchema.optional(),
+  conflictPolicy: exportConflictPolicySchema.optional(),
   trackId: idSchema.optional(),
   order: z.enum(['source-first', 'target-first']),
   encoding: encodingSchema,

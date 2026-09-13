@@ -24,3 +24,24 @@
 .studio-translation-overview-empty { padding: 24px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center; }
 .studio-translation-overview-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; }
 .studio-translation-overview-footer > .studio-pagination { flex: 1; }
+
+.studio-overview-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding-block: 2px 8px; }
+.studio-overview-board > div { display: flex; flex-direction: column; gap: 3px; padding-inline: 10px; border-left: 1px solid var(--border); }
+.studio-overview-board > div:first-child { border-left: 0; padding-left: 0; }
+.studio-overview-board dd { font-size: 22px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.025em; }
+.studio-overview-board dt { font-size: 11px; color: var(--muted-foreground); }
+.studio-overview-board [data-state=attention] dd { color: var(--color-amber-600); }
+.studio-overview-cancelled, .studio-overview-idle { color: var(--muted-foreground); margin: 0; padding-block: 2px 6px; }
+.studio-translation-overview-round { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; padding-block: 4px 10px; }
+.studio-translation-overview-round > progress { grid-column: 1 / -1; width: 100%; }
+.studio-translation-overview-round > strong { font-weight: 500; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.studio-overview-usage { padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--border); font-size: 11px; line-height: 18px; }
+.studio-overview-usage-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.studio-overview-usage-heading > strong { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.studio-overview-usage dl { display: flex; gap: 16px; margin-top: 4px; }
+.studio-overview-usage dl > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.studio-overview-usage dt { color: var(--muted-foreground); }
+.studio-overview-usage dd { font-variant-numeric: tabular-nums; }
+.studio-overview-usage-scope { display: inline-block; margin-top: 4px; color: var(--muted-foreground); font-size: 10px; text-decoration: underline dotted; text-underline-offset: 3px; }
+.studio-overview-usage-scope:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.studio-translation-overview-content > .studio-overview-usage { border-top: 0; padding: 0 0 12px; margin: 0 0 12px; border-bottom: 1px solid var(--border); }

@@ -99,8 +99,13 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
           await page.reload(); await ready(page); await uiExpect(page.locator('html')).toHaveClass(/dark/);
         }
         const window = await app.browserWindow(page);
-        await window.evaluate((window, theme) => window.setSize(theme === 'light' ? 1281 : 787, theme === 'light' ? 860 : 540), theme);
-        await uiExpect.poll(() => page!.evaluate(() => ({ width: innerWidth, height: innerHeight })))
+        await window.evaluate(window => { if (window.isMaximized()) window.unmaximize(); if (window.isMinimized()) window.restore(); });
+        // Apply the requested geometry after reload as well as waiting for the renderer;
+        // Windows can defer a resize while the native window is transitioning.
+        await uiExpect.poll(async () => {
+          await window.evaluate((window, theme) => window.setSize(theme === 'light' ? 1281 : 787, theme === 'light' ? 860 : 540), theme);
+          return page!.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+        })
           .toEqual(theme === 'light' ? { width: 1280, height: 860 } : { width: 786, height: 540 });
         await page.getByRole('tab', { name: locale.workspace_transcription, exact: true }).click();
         await control(app, { operation: 'resources-ready' });
@@ -135,16 +140,17 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
             standaloneHelp: element.querySelectorAll(':scope > .studio-transcription-help').length };
         }));
         expect(geometry[0].height).toBe(geometry[1].height); expect(geometry[1].height).toBeLessThanOrEqual(82);
-        expect(geometry[4].height).toBeLessThanOrEqual(70);
+        expect(geometry[4].height).toBeLessThanOrEqual(62);
+        expect(await page.locator('.studio-transcription-session-note').count()).toBe(0);
         for (const entry of geometry) {
           expect(entry.metaHeight).toBe(18); expect(entry.metaSingleLine).toBe(true); expect(entry.noOverflow).toBe(true); expect(entry.standaloneHelp).toBe(0);
-          expect(entry.buttons.every(button => button.width >= 32 && button.height >= 32)).toBe(true);
+          expect(entry.buttons.every(button => button.width === 28 && button.height === 28)).toBe(true);
         }
         expect(await page.locator('.studio-transcription-layout, .studio-transcription-workspace, .studio-transcription-task-list').evaluateAll(elements =>
           elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
         await uiExpect(rows[5].locator('.studio-transcription-row-warning')).toHaveText(t.durability_uncertain);
         await uiExpect(rows[6].locator('.studio-transcription-row-warning')).toHaveText([t.task_failed, t.task_cleanup_pending]);
-        await uiExpect(rows[6].getByRole('button')).toBeDisabled();
+        await uiExpect(rows[6].getByRole('button', { name: t.remove_task, exact: true })).toBeDisabled();
         const tooltips: Record<string, string> = {};
         for (const [index, description] of [[1, t.auto_translation_pending], [4, t.auto_translation_admitted], [5, t.auto_translation_recovery]] as const) {
           const tag = rows[index].locator('.studio-transcription-auto-label');
@@ -173,9 +179,21 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
           else expect(colorDistance(hover.colors.start, hover.colors.end)).toBeGreaterThan(12);
           progress[String(value)] = { idle, hover };
         }
+        await rows[4].scrollIntoViewIfNeeded();
+        const viewButton = rows[4].getByRole('button', { name: t.open_document, exact: true });
+        await app.evaluate(({ shell }) => { (globalThis as any).__i8QueueReveal = []; shell.showItemInFolder = file => { (globalThis as any).__i8QueueReveal.push(file); }; });
+        await rows[4].getByTestId('studio-reveal-source').click();
+        await uiExpect.poll(() => app!.evaluate(() => (globalThis as any).__i8QueueReveal)).toEqual([files[4]]);
+        await viewButton.hover();
+        await uiExpect(page.getByRole('tooltip')).toHaveText(t.open_document);
+        expect(await viewButton.getAttribute('data-variant')).toBe('ghost');
+        expect(await viewButton.innerText()).toBe('');
+        expect(await viewButton.evaluate(element => getComputedStyle(element).backgroundColor !== getComputedStyle(element.closest('li')!).backgroundColor)).toBe(true);
+        await page.screenshot({ path: path.join(fixture.artifacts, `i8-queue-completed-hover-${theme}.png`), animations: 'disabled' });
         await rows[1].scrollIntoViewIfNeeded(); await rows[1].hover({ position: { x: 6, y: 6 } });
         await page.screenshot({ path: path.join(fixture.artifacts, `i6-queue-${theme}.png`), animations: 'disabled' });
         const stop = rows[1].locator('.studio-transcription-stop'); await stop.hover();
+        await uiExpect(page.getByRole('tooltip')).toHaveText(t.cancel_task);
         await stop.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished.catch(() => undefined))); });
         const stopHover = await stop.evaluate(element => {
           const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
@@ -188,7 +206,7 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
         expect(await stop.evaluate(element => getComputedStyle(element).outlineStyle)).toBe('solid');
         await app.evaluate((_, id) => { delete (globalThis as any).__studioI6Queue.decorations[id]; }, tasks[1].taskId);
         await page.keyboard.press('Enter'); await uiExpect(rows[1]).toHaveAttribute('data-state', 'cancelled');
-        await rows[1].getByRole('button').click(); await uiExpect(rows[1]).toHaveCount(0);
+        await rows[1].getByRole('button', { name: t.remove_task, exact: true }).click(); await uiExpect(rows[1]).toHaveCount(0);
         const final = await control(app, { operation: 'snapshot' });
         expect(final.traces.some(trace => trace.operation === 'cancel-task')).toBe(true);
         expect(final.traces.some(trace => trace.operation === 'remove-task')).toBe(true);

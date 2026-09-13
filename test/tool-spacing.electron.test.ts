@@ -64,7 +64,11 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool page spacing in 
             return { slot: element.getAttribute('data-slot'), padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft] };
           }));
           expect(insets.length, label).toBeGreaterThan(0);
-          for (const inset of insets) expect(inset.padding, `${label} ${inset.slot}`).toEqual(['12px', '12px', '12px', '12px']);
+          for (const inset of insets) {
+            // Studio's compact workbench header was explicitly accepted in I6.
+            const compact = route === 'subtitle/studio' && ['tool-panel-header', 'tool-config-header'].includes(inset.slot ?? '');
+            expect(inset.padding, `${label} ${inset.slot}`).toEqual(compact ? ['8px', '12px', '8px', '12px'] : ['12px', '12px', '12px', '12px']);
+          }
           expect(await page.locator('[data-slot=tool-detail-layout], [data-slot=tool-detail-layout] main, [data-slot=tool-file-picker], [data-slot=tool-panel-header]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1)), label).toBe(true);
           if (route.startsWith('audio/')) {
             const workspace = { 'audio/transcriber': 'transcriber-workspace', 'audio/speech-synthesis': 'speech-generate', 'audio/realtime-captions': 'captions-workspace', 'audio/realtime-voice': 'voice-workspace' }[route]!;

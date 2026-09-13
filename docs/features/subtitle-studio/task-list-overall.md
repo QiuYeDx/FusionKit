@@ -3,7 +3,7 @@
 
 由各模块 tasks.md 生成；它不是第二份任务状态来源。
 
-规模：L；风险：medium；当前批次：I7。
+规模：L；风险：medium；当前批次：I8。
 
 | 任务 | 模块 | 标题 | 状态 | 批次 | 需求 | 依赖 | 负责人 | 实施记录 | 集成版本 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -23,6 +23,7 @@
 | T-INTERACTION-02 | INTERACTION | 复制菜单与结果反馈 | 已完成 | I6 | R-INTERACTION-03, R-INTERACTION-06 | - | Codex root | records/2026-09-13-interaction-02.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
 | T-INTERACTION-03 | INTERACTION | 导出检查与结果步骤 | 已完成 | I6 | R-INTERACTION-04, R-INTERACTION-05, R-INTERACTION-06 | - | windows_baseline | records/2026-09-13-interaction-03.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
 | T-INTERACTION-04 | INTERACTION | 工作区布局与局部选择 | 已完成 | I6 | R-INTERACTION-07, R-INTERACTION-08, R-INTERACTION-09, R-INTERACTION-10 | - | ipc_design | records/2026-09-13-interaction-04.md | feat/subtitle-studio-transcription，3855c2c72bfa45740f248406f7266cf0342ae1f6加I5及I6未提交工作树；精确源码和证据见2026-09-13-interaction.snapshot.json |
+| T-POLISH-01 | POLISH | 实现与集成验收 | 已完成 | I8 | R-POLISH-01 | - | Codex root | records/2026-09-13-polish.md | feat/subtitle-studio-transcription，3a3fcdf加I8未提交工作树；精确源码及证据见2026-09-13-polish.snapshot.json |
 | T-TRANSCRIPTION-01 | TRANSCRIPTION | 生产基线、依赖与资源来源冻结 | 已完成 | I2 | R-TRANSCRIPTION-01 | T-WORKSPACE-06, T-WORKSPACE-08 | Codex root | records/2026-09-11-transcription-baseline.md | 3a0f50e加本轮未提交维护工具/规格工作树；最终基线SHA-256 c6367bddd06cf2e31ecf04dbbe8766f70edff888775fbd14a46114ea8c29ac66，完整工具摘要见记录 |
 | T-TRANSCRIPTION-02 | TRANSCRIPTION | 独立源码副本与等价回放 | 已完成 | I2 | R-TRANSCRIPTION-02 | T-TRANSCRIPTION-01 | Codex root | records/2026-09-11-transcription-copy-replay.md | 3a0f50e加本次未提交共享工作树；120文件副本，fork SHA-256 993e57a72b3a191e8ba6afe50d90899baefd4f6af4f8f62ad25cc3d6371befa3；完整工具及回放证据摘要见记录 |
 | T-TRANSCRIPTION-03 | TRANSCRIPTION | 独立资源工厂与原生构建组合 | 已完成 | I2 | R-TRANSCRIPTION-03 | T-TRANSCRIPTION-02 | Codex root | records/2026-09-12-transcription-runtime-native.md | 3a0f50e加T01/T02及本次共享工作树；42文件集成快照SHA-256 cfba72e89fc0320771051c2484aac4273d0fec6fd5f2194c13d2ce403a52d86b；新版native/tooling fork和真实签名后addon摘要见实施记录 |
@@ -51,4 +52,5 @@
 | I5 | 第二轮体验完善与可选自动翻译 | verifying | approved | pending |
 | I6 | 第三轮交互简化与布局稳定 | verifying | approved | pending |
 | I7 | 操作结果C端反馈重设计 | verifying | approved | pending |
+| I8 | 队列密度、来源入口与翻译看板 | verifying | approved | pending |
 | I4 | 校正、时间编辑与译文版本 | planning | pending | pending |

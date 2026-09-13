@@ -1,3 +1,4 @@
+import { captureSourceInput, verifySourceLocation, type SourceLocationCapture } from '../../../electron/main/subtitle-studio/source-location-service';
 /** Test-only native boundary. Production main, IPC, preload and repository stay real. */
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -11,7 +12,7 @@ import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '../.
 import { localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
 
 type Owner = LocalSubtitleOwnerKey;
-type Task = { owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string } };
+type Task = { source: SourceLocationCapture; owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string } };
 type Job = { owner: string; value: ReturnType<typeof localSubtitleResourceJobSummarySchema.parse> };
 type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { operation: 'probe-recovered' }
   | { operation: 'revoke-failures'; count: number }
@@ -32,7 +33,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
     { resourceId: 'whisper-cuda-win32-x64', resourceType: 'accelerator', displayName: 'CUDA · Windows', status: 'not_installed',
       byteSize: 536870912, isDefault: false, compatibleBackends: ['cuda'] },
   ]);
-  const tokens = new Map<string, { owner: string; displayName: string; sourceKey: string }>();
+  const tokens = new Map<string, { owner: string; displayName: string; sourceKey: string; source: SourceLocationCapture }>();
   const tasks: Task[] = [], jobs: Job[] = [], traces: Array<{ operation: string; detail?: unknown }> = [];
   const released = new Set<string>();
   let recoveredProbe = false, revokeFailures = 0;
@@ -109,7 +110,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
     media: {
       async authorizeInput(owner: Owner, filePath: string) {
         const fileToken = randomUUID(), sourceKey = randomUUID(), displayName = path.basename(filePath);
-        tokens.set(fileToken, { owner: check(owner), displayName, sourceKey }); trace('authorize-media', { displayName });
+        tokens.set(fileToken, { owner: check(owner), displayName, sourceKey, source: await captureSourceInput(filePath) }); trace('authorize-media', { displayName });
         return { fileToken, sourceKey, displayName, byteSize: 64000, expiresAt: Date.now() + 600000 };
       },
       async probe(owner: Owner, fileToken: string) {
@@ -142,6 +143,13 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
       async waitForIdle() {},
     },
     tasks: {
+      async revealInput(owner: Owner, taskId: string, action: (inputPath: string) => void, guard: () => void) {
+        const task = getTask(taskId);
+        if (task.owner !== check(owner)) throw new Error('Wrong fixture owner');
+        await verifySourceLocation(task.source); guard(); check(owner);
+        if (task.source.origin !== 'input') throw new Error('Missing fixture source');
+        action(task.source.inputPath);
+      },
       async enqueue(owner: Owner, request: EnqueueTranscriptionRequest) {
         const batchId = randomUUID(), now = new Date().toISOString();
         const created = request.files.map(file => {
@@ -153,7 +161,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
           if (automatic && !dependencies.automaticTranslation) throw new Error('Real automatic translation coordinator is required.');
           if (automatic) value = { ...value, automaticTranslation: { status: 'pending' } };
           const sink = createTranscriptionDocumentSink({ repository, owner, taskId: value.taskId, generation: 1, assertActive: () => {}, ...(automatic ? { automaticTranslation: automatic.intent } : {}) });
-          tasks.push({ owner: check(owner), value, sink, automatic }); return value;
+          tasks.push({ source: media.source, owner: check(owner), value, sink, automatic }); return value;
         });
         trace('enqueue', structuredClone({ ...request, ...(request.autoTranslation ? { autoTranslation: { config: request.autoTranslation.config } } : {}) })); return structuredClone({ batchId, tasks: created });
       },

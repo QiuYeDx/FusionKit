@@ -168,9 +168,24 @@ SRT/LRC 解析为稳定身份的字幕文档，原文与译文轨分离保存。
 
 直接表达结果、尺寸与内容匹配、主要操作明确、失败和批量信息按需查看。详见module-feedback，不回退I6真实结果与渐进披露约束。
 
+### BR-11 紧凑队列与可理解的翻译看板
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | active |
+| 批次 | I8 |
+
+#### 说明
+
+2026-09-13四图八项反馈：队列密度与图标动作、详情内边距、结果按钮光学平衡、进退场位移、来源文件夹入口、删除队列footer、状态看板与实际用量、清理语义。
+
+#### 验收要点
+
+见module-polish；保留业务保护、来源权限、真实用量与局部刷新，串行实施和验证。
+
 ## 模块与契约索引
 
-当前展开[操作结果反馈模块](modules/module-feedback/requirements.md)，覆盖BR-10；第二轮体验模块保留BR-08历史合同；已完成[人工验收模块](modules/module-acceptance/requirements.md)，覆盖BR-04、BR-07；workspace与transcription保留既有合同。总体边界见 [architecture.md](architecture.md)，转写与可删除性见 [transcription-fork.md](transcription-fork.md)。
+当前展开[队列与看板打磨模块](modules/module-polish/requirements.md)，覆盖BR-11；已完成[操作结果反馈模块](modules/module-feedback/requirements.md)，覆盖BR-10；第二轮体验模块保留BR-08历史合同；已完成[人工验收模块](modules/module-acceptance/requirements.md)，覆盖BR-04、BR-07；workspace与transcription保留既有合同。总体边界见 [architecture.md](architecture.md)，转写与可删除性见 [transcription-fork.md](transcription-fork.md)。
 
 ## 批次顺序
 
@@ -182,6 +197,7 @@ SRT/LRC 解析为稳定身份的字幕文档，原文与译文轨分离保存。
 | I5 | 第二轮十项体验完善与可选自动翻译 | 已完成I3，用户明确连续实施；在后置I4之前执行 |
 | I6 | 第三轮交互简化、密度及稳定 | I5可用，用户十项反馈 |
 | I7 | 统一精致的操作结果反馈 | I5/I6已提交，用户最新截图及明确重设计要求 |
+| I8 | 队列、来源入口、看板和路由稳定 | I7已提交，用户八项反馈 |
 | I4 | 编辑、修订及版本对比 | I1 并发控制可用，临近实施再细化 |
 
 I2/I3 可以按用户优先级交换；默认先保护转写连续性。原始规划未并行；2026-09-12本轮按spec登记的单写权并行完成六项，不提前实施I4。

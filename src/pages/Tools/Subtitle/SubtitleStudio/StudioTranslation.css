@@ -15,6 +15,7 @@
 .studio-translation-error svg { flex-shrink: 0; }
 .studio-translation-plan { min-width: 0; margin-inline: -12px; border-top: 1px solid var(--border); padding: 12px 12px 0; }
 .studio-translation-plan-details { margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; }
+.studio-translation-plan-details > .studio-batch-results { margin: 0; padding: 8px; }
 .studio-translation-plan-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; font-size: 12px; cursor: pointer; list-style: none; }
 .studio-translation-plan-details > summary::-webkit-details-marker { display: none; }
 .studio-translation-plan-details > summary > svg { width: 14px; height: 14px; }

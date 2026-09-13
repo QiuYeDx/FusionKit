@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, Check, Clock3, Languages, LoaderCircle, RefreshCw, Subtitles } from 'lucide-react';
+import { AlertCircle, Clock3, Languages, LoaderCircle, RefreshCw, Subtitles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { getStudioTranslationOverviewController, getTranslationRoundProgress } from '@/services/subtitle-studio/translation-overview-controller';
-import type { TranslationTaskStatus } from '@/subtitle-studio/ipc-contract';
+import type { TranslationTasksSnapshot, TranslationTaskStatus } from '@/subtitle-studio/ipc-contract';
 import { StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { ToolPanel } from '../../_shared/ui/ToolPanel';
@@ -22,6 +22,20 @@ const errorKeys = { translation_failed: 'studio:errors.translation_failed', tran
   translation_output_limit: 'studio:errors.translation_output_limit', needs_configuration: 'studio:errors.needs_configuration',
   limit_exceeded: 'studio:errors.limit_exceeded', revision_conflict: 'studio:errors.revision_conflict', interrupted: 'studio:errors.interrupted' } as const;
 const attention = (status: TranslationTaskStatus) => ['failed', 'interrupted', 'needs_configuration'].includes(status);
+
+function UsageSummary({ snapshot }: { snapshot: TranslationTasksSnapshot }) {
+  const { t } = useTranslation();
+  const usage = snapshot.usage;
+  if (!usage || !snapshot.total) return null;
+  const value = (count: number, unknown: number) => unknown === snapshot.total ? t('studio:overview.usage_unknown')
+    : `${unknown ? '≥ ' : ''}${count.toLocaleString()}`;
+  const incomplete = usage.unknownInput + usage.unknownOutput + usage.unknownTotal > 0 || snapshot.unavailableDocuments > 0;
+  return <div className="studio-overview-usage" data-testid="studio-overview-usage">
+    <div className="studio-overview-usage-heading"><span>{t('studio:overview.actual_tokens')}</span><strong>{value(usage.totalTokens, usage.unknownTotal)}</strong></div>
+    <dl><div><dt>{t('studio:overview.input_tokens')}</dt><dd>{value(usage.inputTokens, usage.unknownInput)}</dd></div><div><dt>{t('studio:overview.output_tokens')}</dt><dd>{value(usage.outputTokens, usage.unknownOutput)}</dd></div></dl>
+    <Tooltip><TooltipTrigger asChild><span tabIndex={0} className="studio-overview-usage-scope">{t(incomplete ? 'studio:overview.usage_partial' : 'studio:overview.usage_scope', { count: snapshot.total })}</span></TooltipTrigger><TooltipContent>{t('studio:overview.usage_explanation')}</TooltipContent></Tooltip>
+  </div>;
+}
 
 export function StudioTranslationOverview({ onOpenDocument, compact = false }: { onOpenDocument: (documentId: string, trackId?: string) => void | Promise<void>; compact?: boolean }) {
   const { t } = useTranslation();
@@ -53,7 +67,6 @@ export function StudioTranslationOverview({ onOpenDocument, compact = false }: {
     finally { if (instance === lifetime.current) setOpening(null); }
   };
   const roundActive = !!round && round.counts.running + round.counts.queued > 0;
-  const roundAttention = round ? round.counts.failed + round.counts.interrupted + round.counts.needs_configuration : 0;
   const activeCount = snapshot ? snapshot.counts.running + snapshot.counts.queued : 0;
   const attentionCount = snapshot ? snapshot.counts.failed + snapshot.counts.interrupted + snapshot.counts.needs_configuration : 0;
   const summary = snapshot?.total ? statuses.filter(status => snapshot.counts[status] > 0).map(status => `${t(statusKeys[status])} ${snapshot.counts[status]}`).join(' · ') : t(snapshot ? 'studio:overview.empty' : 'studio:overview.loading');
@@ -61,19 +74,25 @@ export function StudioTranslationOverview({ onOpenDocument, compact = false }: {
   return <>
     {compact ? <Tooltip><TooltipTrigger asChild><Button ref={trigger} variant="ghost" size="sm" className="studio-translation-overview-compact" data-testid="studio-translation-overview-details" aria-label={t('studio:overview.title')} onClick={showDetails}><Languages />{activeCount + attentionCount > 0 && <span className={attentionCount ? 'text-destructive' : undefined}>{activeCount + attentionCount}</span>}{(state.error || !!snapshot?.unavailableDocuments) && <AlertCircle className="text-destructive" />}</Button></TooltipTrigger><TooltipContent><span>{t('studio:overview.title')} · {summary}</span></TooltipContent></Tooltip> : <section className="studio-translation-overview" data-testid="studio-translation-overview" aria-label={t('studio:overview.title')}>
       <ToolPanel title={t('studio:overview.title')} icon={Languages} actions={<Button ref={trigger} variant="ghost" size="sm" data-testid="studio-translation-overview-details" onClick={showDetails}>{t('studio:overview.details')}</Button>}>
-      <div className="studio-translation-overview-counts" role="status">{snapshot?.total ? statuses.filter(status => snapshot.counts[status] > 0).map(status => <span key={status} className={attention(status) ? 'text-destructive' : undefined}>{t(statusKeys[status])}<b>{snapshot.counts[status]}</b></span>) : <span>{t(snapshot ? 'studio:overview.empty' : 'studio:overview.loading')}</span>}</div>
-      {!!state.roundTaskIds.length && <div className="studio-translation-overview-round" data-testid="studio-translation-round" role="status">
-        {roundActive ? <LoaderCircle className="size-3 studio-spin" /> : round?.counts.completed === state.roundTaskIds.length ? <Check className="size-3" /> : <Clock3 className="size-3" />}
-        <span>{t('studio:overview.round_submitted', { count: state.roundTaskIds.length })}</span>
-        {percent !== null && round ? <><progress max={100} value={percent} aria-label={t('studio:overview.confirmed_progress')} /><span className="studio-translation-overview-percent">{percent}%</span><span>{t('studio:translation.batch_progress', { completed: round.completedBatches, total: round.totalBatches })}</span></> : <span>{t(round ? 'studio:overview.round_unavailable' : 'studio:overview.loading')}</span>}
-        {round && <span>{t('studio:overview.round_counts', { completed: round.counts.completed, active: round.counts.running + round.counts.queued, attention: roundAttention, cancelled: round.counts.cancelled })}</span>}
-      </div>}
+      {snapshot?.total ? <>
+        <dl className="studio-overview-board" data-testid="studio-overview-board">
+          <div data-state="active"><dd>{activeCount}</dd><dt>{t('studio:overview.active')}</dt></div>
+          <div><dd>{snapshot.counts.completed}</dd><dt>{t('studio:overview.done')}</dt></div>
+          <div data-state={attentionCount ? 'attention' : 'idle'}><dd>{attentionCount}</dd><dt>{t('studio:overview.attention')}</dt></div>
+        </dl>
+        {snapshot.counts.cancelled > 0 && <p className="studio-overview-cancelled">{t('studio:overview.cancelled_count', { count: snapshot.counts.cancelled })}</p>}
+        {roundActive && round && percent !== null && <div className="studio-translation-overview-round" data-testid="studio-translation-round">
+          <span>{t('studio:overview.round_submitted', { count: state.roundTaskIds.length })}</span><strong>{percent}%</strong>
+          <progress max={100} value={percent} aria-label={t('studio:overview.confirmed_progress')} />
+        </div>}
+        <UsageSummary snapshot={snapshot} />
+      </> : <p className="studio-overview-idle">{t(snapshot ? 'studio:overview.empty' : 'studio:overview.loading')}</p>}
       {(state.error || !!snapshot?.unavailableDocuments) && <p className="studio-translation-overview-warning" role="status"><AlertCircle className="size-3.5" />{state.error ? t('studio:overview.read_error') : t('studio:overview.unavailable', { count: snapshot?.unavailableDocuments })}</p>}
       </ToolPanel>
     </section>}
     <ScrollableDialog open={state.detailsOpen} onOpenChange={controller.setDetailsOpen} maxWidth="sm:max-w-[720px]" contentClassName="studio-translation-overview-dialog" onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader><DialogTitle className="flex items-center gap-2 text-sm"><Languages className="size-4" />{t('studio:overview.title')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:overview.description')}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent fadeMaskHeight={16}><div className="studio-translation-overview-content">
+      <ScrollableDialogContent fadeMaskHeight={16}><div className="studio-translation-overview-content">{snapshot && <UsageSummary snapshot={snapshot} />}
         {(state.error || openError) && <p role="alert" className="studio-translation-overview-warning"><AlertCircle className="size-4" />{t(openError ? 'studio:overview.open_error' : 'studio:overview.read_error')}</p>}
         {!!snapshot?.unavailableDocuments && <p role="status" className="studio-translation-overview-warning">{t('studio:overview.unavailable', { count: snapshot.unavailableDocuments })}</p>}
         {snapshot?.items.length ? <StudioDocumentList scroll={false} className="studio-translation-overview-list" data-testid="studio-translation-overview-list">{snapshot.items.map(task => <StudioDocumentRow key={task.taskId} data-task-id={task.taskId} data-state={task.status} name={task.displayName} density="detail"

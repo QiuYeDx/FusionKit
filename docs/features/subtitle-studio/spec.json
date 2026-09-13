@@ -3,7 +3,7 @@
   "feature": "subtitle-studio",
   "tier": "L",
   "risk": "medium",
-  "current_increment": "I7",
+  "current_increment": "I8",
   "modules": [
     {
       "slug": "workspace",
@@ -34,6 +34,11 @@
       "slug": "feedback",
       "code": "FEEDBACK",
       "path": "modules/module-feedback"
+    },
+    {
+      "slug": "polish",
+      "code": "POLISH",
+      "path": "modules/module-polish"
     }
   ],
   "increments": [
@@ -146,6 +151,24 @@
       }
     },
     {
+      "id": "I8",
+      "title": "队列密度、来源入口与翻译看板",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前任务）",
+        "basis": "2026-09-13用户提供四图八项问题，明确要求先梳理记录到文档再逐一解决；授权本范围内实现与隔离验证，不提交推送、不打包、不进入I4。",
+        "digest": "fbb2cfc2c11afade32ce6509fa693cc7a357dcad55bc1c58bd24ef68ee2aff6a"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "八项技术实现及隔离验证完成；70项单元/IPC回归、4套实际Electron检查通过，等待用户验收。",
+        "record": "records/2026-09-13-polish.md",
+        "digest": ""
+      }
+    },
+    {
       "title": "校正、时间编辑与译文版本",
       "approval": {
         "by": "",
@@ -247,7 +270,7 @@
     }
   ],
   "parallel": {
-    "enabled": true,
+    "enabled": false,
     "integrator": "Codex root",
     "shared_files": [
       {
@@ -276,7 +299,7 @@
       },
       {
         "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
-        "owner": "ipc_design"
+        "owner": "Codex root"
       }
     ]
   }

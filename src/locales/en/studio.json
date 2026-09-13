@@ -189,7 +189,7 @@
     "destination": "Save location",
     "destination_source": "Source file folder",
     "destination_choose": "Choose another location",
-    "destination_source_note": "Each file is saved to its source folder. A number is added if the name already exists.",
+    "destination_source_note": "Save each file in its source folder.",
     "destination_choose_note": "Choose a file or folder when saving.",
     "source_ready": "Source folder available",
     "source_missing": "No source folder has been recorded for this document.",
@@ -241,7 +241,11 @@
       "opaque_omitted": "Non-text structure omitted",
       "encoding_not_supported": "Unsupported encoding"
     },
-    "result_title": "Export result"
+    "result_title": "Export result",
+    "conflict_policy": "If a file exists",
+    "conflict_indexed": "Add a number",
+    "conflict_overwrite": "Overwrite existing file",
+    "conflict_overwrite_note": "Existing files will be replaced. Duplicate names within this batch still receive a number."
   },
   "errors": {
     "invalid_input": "Invalid subtitle structure.",
@@ -496,8 +500,8 @@
     "shared_busy_error": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
     "delete_resource": "Delete resource",
     "delete_shared_confirmation": "Delete the shared “{{name}}” resource? Local transcription and Subtitle Studio will both need it installed again before use. Existing subtitle documents are kept.",
-    "clear_completed": "Clear completed",
-    "clear_terminal": "Clear finished",
+    "clear_completed": "Clear successful tasks",
+    "clear_terminal": "Clear all finished tasks",
     "queue_actions": "Queue actions",
     "cancel_all": "Cancel all unfinished",
     "confirm_cancel_all": "Confirm cancellation",
@@ -506,7 +510,9 @@
     "cancel_result": "Cancellation requested for {{count}}; {{failed}} failed; {{skipped}} changed state. Tasks are marked finished only after they stop.",
     "auto_translation_pending_short": "Auto translate",
     "auto_translation_admitted_short": "Translation linked",
-    "auto_translation_recovery_short": "Needs attention"
+    "auto_translation_recovery_short": "Needs attention",
+    "clear_completed_hint": "Remove successful records only; keep subtitle documents",
+    "clear_terminal_hint": "Includes success, failure and cancellation; keeps subtitle documents"
   },
   "overview": {
     "title": "Translation tasks",
@@ -523,7 +529,18 @@
     "open_error": "This document could not be opened. Refresh and try again.",
     "open_document": "Open document",
     "can_resume": "Review and resume in the document",
-    "view_progress": "View translation progress"
+    "view_progress": "View translation progress",
+    "active": "Active",
+    "done": "Completed",
+    "attention": "Needs attention",
+    "cancelled_count": "{{count}} cancelled",
+    "actual_tokens": "Actual tokens",
+    "input_tokens": "Input",
+    "output_tokens": "Output",
+    "usage_unknown": "Not reported",
+    "usage_scope": "Across {{count}} tasks",
+    "usage_partial": "Usage is incomplete",
+    "usage_explanation": "Actual API-reported usage across all readable translation tasks, including retries, before pagination. ≥ indicates a known lower bound; unreported usage and unreadable documents are excluded. This is not an account bill."
   },
   "copy_options": {
     "choose": "Choose what to copy",
@@ -598,5 +615,7 @@
       "failed": "Couldn’t cancel tasks",
       "count": "Cancellation requests submitted: {{count}}"
     }
-  }
+  },
+  "source_folder": "Open containing folder",
+  "source_folder_failed": "Could not open the source folder. Check that the original file is still in place and try again."
 }

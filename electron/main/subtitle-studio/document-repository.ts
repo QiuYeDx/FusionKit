@@ -165,13 +165,17 @@ export class DocumentRepository {
       await this.syncDirectory(this.directory(id));
     });
   }
-  withSourceLocation<T>(id: string, bindingId: string, action: (record: SourceLocationRecord) => Promise<T>, revision?: number) {
+  withSourceLocation<T>(id: string, bindingId: string, action: (record: SourceLocationRecord, update: (capture: SourceLocationCapture) => Promise<void>) => Promise<T>, revision?: number) {
     return this.serial(async () => {
       const document = (await this.committed(id)).snapshot.document;
       if (revision !== undefined && document.revision !== revision) throw new StudioError('revision_conflict');
       const record = await this.sourceLocation(document);
       if (!record || record.bindingId !== bindingId) throw new StudioError('revision_conflict');
-      return action(record);
+      return action(record, async capture => {
+        const next = bindSourceLocation(document, capture);
+        await this.publish(path.join(this.directory(id), SOURCE_LOCATION_FILE), JSON.stringify(next));
+        await this.syncDirectory(this.directory(id));
+      });
     });
   }
   create(value: SubtitleDocument, guard: () => void = () => {}, sourceLocation?: SourceLocationCapture): Promise<SubtitleDocument> {

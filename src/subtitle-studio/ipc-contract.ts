@@ -16,6 +16,7 @@ export const STUDIO_CHANNELS = {
   importDroppedSubtitles: 'subtitle-studio:internal:import-dropped-subtitles',
   dropTranscriptionMedia: 'subtitle-studio:internal:drop-transcription-media',
   listTranslationTasks: 'subtitle-studio:list-translation-tasks',
+  revealSource: 'subtitle-studio:reveal-source',
   getSourceLocation: 'subtitle-studio:get-source-location',
   selectSourceDirectory: 'subtitle-studio:select-source-directory',
   importSubtitle: 'subtitle-studio:import',
@@ -83,6 +84,7 @@ export const droppedTranscriptionMediaRequestSchema = z.object({
 export const requestSchemas = {
   ...transcriptionRequestSchemas,
   listTranslationTasks: z.object({ offset: z.number().int().min(0).max(100000000), pageSize: z.number().int().min(1).max(100), taskIds: z.array(idSchema).max(100).refine(ids => new Set(ids).size === ids.length).optional() }).strict(),
+  revealSource: z.object({ kind: z.enum(['document', 'transcription']), id: idSchema }).strict(),
   getSourceLocation: z.object({ documentId: idSchema }).strict(),
   selectSourceDirectory: z.object({ documentId: idSchema }).strict(),
   importSubtitle: z.object({ encoding: encodingSchema }).strict(),
@@ -125,6 +127,8 @@ export type TranslationTaskSummary = {
 export type TranslationTasksSnapshot = {
   sequence: number; total: number; unavailableDocuments: number;
   counts: Record<TranslationTaskStatus, number>; completedBatches: number; totalBatches: number;
+  usage: { inputTokens: number; outputTokens: number; totalTokens: number;
+    unknownInput: number; unknownOutput: number; unknownTotal: number };
   items: TranslationTaskSummary[];
 };
 export type DocumentTask = Omit<StoredTask, 'translation'> & { translation?: Omit<NonNullable<StoredTask['translation']>, 'checkpoint'> & { checkpoint?: { version: 1 } } };
@@ -139,6 +143,7 @@ export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSu
 export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneration: string; target: { platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64' } }
   | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
+  revealSource(request: z.infer<typeof requestSchemas.revealSource>): Promise<StudioResult<null>>;
   getSourceLocation(request: z.infer<typeof requestSchemas.getSourceLocation>): Promise<StudioResult<SourceLocationSummary>>;
   selectSourceDirectory(request: z.infer<typeof requestSchemas.selectSourceDirectory>): Promise<StudioResult<SourceLocationSummary | null>>;
   importDroppedSubtitles(files: readonly File[], request: z.infer<typeof requestSchemas.importSubtitles>): Promise<StudioResult<BatchImportResult>>;

@@ -137,6 +137,23 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
         const parsed = requestSchemas[method].safeParse(payload);
         if (!parsed.success) throw new StudioError('invalid_input');
         const alive = () => { if (closed || owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
+        if (method === 'revealSource') {
+          const request = requestSchemas.revealSource.parse(payload);
+          if (request.kind === 'transcription') {
+            const current = await ensureRuntime(); alive();
+            await current.tasks.revealInput({ webContentsId: event.sender.id, ownerSessionId: owner.capability }, request.id,
+              inputPath => { alive(); shell.showItemInFolder(inputPath); }, alive);
+          } else {
+            if (!owner.documents.has(request.id)) throw new StudioError('access_denied');
+            const source = await sources.inspect(request.id, alive);
+            if (source.summary.status !== 'ready') throw new StudioError('output_write_failed');
+            await sources.publish(request.id, source.bindingId, async (directory, verify) => {
+              await verify(); alive();
+              if (await shell.openPath(directory)) throw new StudioError('output_write_failed');
+            }, alive);
+          }
+          alive(); return { ok: true, value: null };
+        }
         if (Object.hasOwn(transcriptionRequestSchemas, method)) {
           if (method === 'enqueueTranscription' && requestSchemas.enqueueTranscription.parse(payload).autoTranslation) {
             await automaticTranslation.initialize(); alive();
@@ -234,7 +251,8 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
           if (destination === 'source-directory') return { ok: true, value: await exports.publishToSource(event.sender.id, request.documentId, request.revision, planId, acceptedLosses, alive) };
           const window = BrowserWindow.fromWebContents(event.sender);
           if (!window) throw new StudioError('access_denied');
-          const defaultPath = await unusedOutputPath(app.getPath('downloads'), plan.fileName); alive();
+          const defaultPath = plan.options.conflictPolicy === 'overwrite' ? path.join(app.getPath('downloads'), plan.fileName)
+            : await unusedOutputPath(app.getPath('downloads'), plan.fileName); alive();
           const selection = await dialog.showSaveDialog(window, { defaultPath, filters: [{ name: plan.options.format.toUpperCase(), extensions: [plan.options.format] }] }); alive();
           if (selection.canceled || !selection.filePath) return { ok: true, value: null };
           const usingDefault = process.platform === 'win32'
@@ -242,7 +260,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
             : path.resolve(selection.filePath) === path.resolve(defaultPath);
           // Re-evaluate indices from the original leaf if a competing export claimed the suggestion.
           const outputPath = usingDefault ? path.join(path.dirname(defaultPath), plan.fileName) : selection.filePath;
-          const value = await exports.publish(event.sender.id, request.documentId, request.revision, planId, acceptedLosses, outputPath, alive, usingDefault ? 'indexed' : 'replace');
+          const value = await exports.publish(event.sender.id, request.documentId, request.revision, planId, acceptedLosses, outputPath, alive, plan.options.conflictPolicy ?? 'indexed');
           return { ok: true, value };
         }
         if (method === 'cancelTask') {

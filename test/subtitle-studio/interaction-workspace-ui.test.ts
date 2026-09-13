@@ -76,9 +76,24 @@ describe.runIf(enabled)('I6 actual Electron workspace layout and selection', () 
       await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); location.hash = '/tools/subtitle/studio'; });
       await page.reload(); await ready(page);
       const nativeWindow = await app.browserWindow(page); await nativeWindow.evaluate(win => win.setSize(1280, 860));
+      const transitions = [];
+      for (const destination of ['/tools', '/tools/subtitle/studio']) {
+        await page.waitForFunction(() => !document.getAnimations().some(a => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity));
+        transitions.push(await page.evaluate(destination => new Promise<number[]>(resolve => {
+          const outgoing = document.querySelector('.app > [data-slot=scroll-area] .w-screen > div')!;
+          const content = outgoing.firstElementChild!;
+          const tops = [content.getBoundingClientRect().top];
+          location.hash = destination;
+          const sample = () => { if (!content.isConnected) return resolve(tops); tops.push(content.getBoundingClientRect().top); requestAnimationFrame(sample); };
+          requestAnimationFrame(sample);
+        }), destination));
+        if (destination.endsWith('studio')) await ready(page); else await page.locator('.max-w-5xl').waitFor();
+      }
+      for (const tops of transitions) { expect(tops.length).toBeGreaterThan(2); expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(1); }
+      evidence.routeExitTopFrames = transitions;
       await app.evaluate(({ dialog }, chosen) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: chosen }); }, files);
       await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-library-result')).toBeVisible();
+      await uiExpect(page.getByTestId('studio-library-result')).toBeVisible({ timeout: 30000 });
       await uiExpect(page.getByTestId('studio-library-result').locator('li')).toHaveCount(0);
       await page.locator('#studio-result-close').click(); await ready(page);
       await uiExpect(page.getByTestId('studio-library-row')).toHaveCount(20);

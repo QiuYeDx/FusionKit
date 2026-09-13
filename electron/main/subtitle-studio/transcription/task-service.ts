@@ -27,7 +27,7 @@ type Execution = Omit<TranscriptionBatchExecutionContext, 'signal'>;
 type PublicError = NonNullable<TranscriptionTaskSummary['error']>;
 interface Record {
   readonly owner: LocalSubtitleOwnerKey; readonly ownerKey: string; readonly taskId: string; readonly fileToken: string;
-  readonly sourceKey: string; readonly inputIdentity: LocalSubtitleFileIdentity; readonly audioStreamId?: string;
+  readonly sourceKey: string; readonly inputPath: string; readonly inputIdentity: LocalSubtitleFileIdentity; readonly audioStreamId?: string;
   readonly execution: Execution; readonly controller: AbortController;
   summary: TranscriptionTaskSummary; running: boolean; leased: boolean; selectionBound: boolean; cleanupPending: boolean;
   leaseFailure?: unknown;
@@ -329,7 +329,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       for (let index = 0; index < inputs.length; index++) {
         const input = inputs[index]!, file = request.files[index]!, taskId = randomUUID(), now = timestamp();
         created.push({ owner: owner.owner, ownerKey: owner.key, taskId, fileToken: file.fileToken, sourceKey: input.sourceKey,
-          inputIdentity: input.identity, ...(file.audioStreamId ? { audioStreamId: file.audioStreamId } : {}), execution,
+          inputPath: input.filePath, inputIdentity: input.identity, ...(file.audioStreamId ? { audioStreamId: file.audioStreamId } : {}), execution,
           controller: new AbortController(), running: false, leased: false, selectionBound: false, cleanupPending: false,
           ...(request.autoTranslation ? { automatic: { apiKey: request.autoTranslation.apiKey,
             intent: { intentId: randomUUID(), sourceTaskId: taskId, generation: 1 as const, config: structuredClone(request.autoTranslation.config), state: 'pending' as const } } } : {}),
@@ -420,6 +420,14 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     return operation;
   }
   return Object.freeze({ enqueue, waitForIdle, releaseOwner, shutdown,
+    async revealInput(value: LocalSubtitleOwnerKey, taskId: string, action: (inputPath: string) => void, guard: () => void) {
+      const record = owned(value, taskId);
+      const capture = await captureSourceInput(record.inputPath, record.inputIdentity);
+      guard();
+      if (owned(value, taskId) !== record) throw new StudioError('access_denied');
+      if (capture.origin !== 'input') throw new StudioError('access_denied');
+      action(capture.inputPath);
+    },
     list(value: LocalSubtitleOwnerKey): readonly TranscriptionTaskSummary[] {
       const owner = ownerFor(value); return Object.freeze([...records.values()].filter(record => record.ownerKey === owner.key).map(record => record.summary));
     },

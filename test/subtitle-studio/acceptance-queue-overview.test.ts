@@ -22,6 +22,7 @@ function task(number: number, status: TranscriptionTaskSummary['status'], cleanu
 async function queue(initial: TranscriptionTaskSummary[]) {
   let tasks = initial;
   const api = {
+    dropTranscriptionMedia: vi.fn<SubtitleStudioApi['dropTranscriptionMedia']>(),
     selectTranscriptionMedia: vi.fn<SubtitleStudioApi['selectTranscriptionMedia']>().mockResolvedValue(ok(null)),
     probeTranscriptionMedia: vi.fn<SubtitleStudioApi['probeTranscriptionMedia']>(),
     revokeTranscriptionMedia: vi.fn<SubtitleStudioApi['revokeTranscriptionMedia']>(),
@@ -111,7 +112,7 @@ function snapshot(items: TranslationTaskSummary[], sequence = 1): TranslationTas
   const counts: TranslationTasksSnapshot['counts'] = { queued: 0, running: 0, completed: 0, cancelled: 0, failed: 0, interrupted: 0, needs_configuration: 0 };
   for (const item of items) counts[item.status]++;
   return { sequence, items, total: items.length, counts, completedBatches: items.reduce((sum, item) => sum + item.completedBatches, 0),
-    totalBatches: items.reduce((sum, item) => sum + item.totalBatches, 0), unavailableDocuments: 0 };
+    totalBatches: items.reduce((sum, item) => sum + item.totalBatches, 0), unavailableDocuments: 0, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, unknownInput: items.length, unknownOutput: items.length, unknownTotal: items.length } };
 }
 function overview(initial: TranslationTaskSummary[]) {
   let all = initial, sequence = 1;

@@ -4,6 +4,10 @@
 
 ## 当前进度（2026-09-13）
 
+**I8 后续三项调整**：底栏批量下载菜单向上左对齐，字幕导出增加默认自动序号 / 显式覆盖策略，队列操作 Tooltip 仅显示动作。实现范围与验证见[补充记录](records/2026-09-13-export-followup.md)；历史 I8 快照保持原样。
+
+**I8八项打磨技术完成**：队列小号ghost操作与来源文件夹、详情等距、结果按钮、稳定路由、实际token看板及清理语义。见[需求清单](modules/module-polish/requirements.md)与[实施和验证记录](records/2026-09-13-polish.md)。70项针对性回归、4套实际Electron（含11工具页面矩阵）通过；等待用户验收，本轮未提交推送。
+
 **I7结果反馈重设计已完成技术验证**：依据最新截图重写导出/原文下载/导入/翻译提交/管理结果。见[问题记录](records/2026-09-13-feedback-findings.md)、[需求与验收](modules/module-feedback/requirements.md)、[设计](modules/module-feedback/design.md)、[任务](modules/module-feedback/tasks.md)。8套实际Electron及静态检查通过，见[综合收尾与证据](records/2026-09-13-feedback-closeout.md)，用户验收保持pending。当前代码基线为已提交推送的8589872（含I5/I6）；历史记录中的未提交描述对应当时验证快照，保持原始证据。本次I7尚未提交。
 
 I1 的 T-WORKSPACE-01 至 T-WORKSPACE-08 功能均已完成。涵盖 SRT/LRC 文档、权限与持久化、文本翻译、双语整理、恢复/取消、多模式导出，以及文档库搜索/分页/跨页选择、批量翻译/导出/管理。用户整体验收仍由 spec.json 单独记录为 pending。

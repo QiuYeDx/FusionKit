@@ -6,7 +6,8 @@ import { LIMITS, StudioError, validateDocument, type SubtitleDocument } from '..
 import { exportOptionsSchema, type ExportIssueCode, type ExportOptions, type ExportPlanSummary, type ExportResult } from '../../../src/subtitle-studio/export-contract';
 import type { DocumentRepository } from './document-repository';
 import { planSubtitleExport } from './export-planner';
-import { SourceLocationService } from './source-location-service';
+import { SourceLocationService, sameSourcePath } from './source-location-service';
+import { prepareExportOverwrite } from './export-overwrite';
 import { localSubtitleFilesystemObjectIdentityForHandle, localSubtitleFilesystemObjectIdentityForPath, sameLocalSubtitleFilesystemObjectIdentity,
   type LocalSubtitleFilesystemObjectIdentity } from './transcription/native/filesystem-object-identity';
 
@@ -26,13 +27,17 @@ export async function unusedOutputPath(directory: string, displayName: string): 
   throw new StudioError('output_write_failed');
 }
 
-type PublishPolicy = 'replace' | 'indexed';
+type PublishPolicy = 'replace' | 'indexed' | 'overwrite';
 export async function publishBytes(bytes: Buffer, authorizedPath: string, beforePublish: () => void | Promise<void> = () => {}, policy: PublishPolicy = 'replace', commit: (action: () => Promise<string>) => Promise<string> = action => action()): Promise<string> {
   if (bytes.byteLength > LIMITS.snapshotBytes) throw new StudioError('limit_exceeded');
-  const temporary = path.join(path.dirname(authorizedPath), `.subtitle-studio-${randomUUID()}.tmp`);
+  const transactionId = randomUUID();
+  const temporary = path.join(path.dirname(authorizedPath), policy === 'overwrite'
+    ? `.fusionkit-subtitle-studio-${transactionId}.partial` : `.subtitle-studio-${transactionId}.tmp`);
   let identity: LocalSubtitleFilesystemObjectIdentity | undefined;
   try {
     await beforePublish();
+    const overwrite = policy === 'overwrite' ? await prepareExportOverwrite() : undefined;
+    const directoryIdentity = overwrite ? await localSubtitleFilesystemObjectIdentityForPath(path.dirname(authorizedPath)) : undefined;
     const handle = await open(temporary, 'wx+', 0o600);
     try {
       identity = await localSubtitleFilesystemObjectIdentityForHandle(handle);
@@ -50,6 +55,12 @@ export async function publishBytes(bytes: Buffer, authorizedPath: string, before
     return await commit(async () => {
       await beforePublish();
       if (!identity || !sameLocalSubtitleFilesystemObjectIdentity(identity, await localSubtitleFilesystemObjectIdentityForPath(temporary))) throw new StudioError('output_write_failed');
+      if (overwrite && directoryIdentity) {
+        await beforePublish();
+        overwrite({ transactionId, directoryPath: path.dirname(authorizedPath), expectedDirectoryIdentity: directoryIdentity,
+          partialLeaf: path.basename(temporary), finalLeaf: path.basename(authorizedPath), expectedPartialIdentity: identity, expectedByteSize: bytes.byteLength });
+        return authorizedPath;
+      }
       if (policy === 'replace') { await rename(temporary, authorizedPath); return authorizedPath; }
       const name = path.parse(authorizedPath);
       for (let index = 0; index < 10000; index++) {
@@ -114,7 +125,12 @@ export class ExportService {
     const alive = () => { guard(); if (this.plans.get(planId) !== plan) throw new StudioError('access_denied'); };
     try {
       alive();
-      const output = await publishBytes(plan.bytes, authorizedPath, alive, policy, action => this.repository.withExistingDocument(documentId, action));
+      const location = policy === 'overwrite' ? await this.repository.readSourceLocation(documentId) : null;
+      alive();
+      const replacesInput = location?.capture.origin === 'input' && sameSourcePath(authorizedPath, location.capture.inputPath);
+      const output = replacesInput
+        ? await this.sources.publish(documentId, plan.sourceBindingId, (_directory, verify) => publishBytes(plan.bytes, authorizedPath, verify, policy), alive, undefined, true)
+        : await publishBytes(plan.bytes, authorizedPath, alive, policy, action => this.repository.withExistingDocument(documentId, action));
       this.plans.delete(planId);
       return { fileName: path.basename(output), revision, partial: plan.summary.partial, mode: plan.summary.options.mode, incomplete: plan.summary.options.incomplete };
     } finally { plan.publishing = false; }
@@ -126,7 +142,7 @@ export class ExportService {
     const alive = () => { guard(); if (this.plans.get(planId) !== plan) throw new StudioError('access_denied'); };
     try {
       const output = await this.sources.publish(documentId, plan.sourceBindingId,
-        (directory, verify) => publishBytes(plan.bytes, path.join(directory, plan.summary.fileName), verify, 'indexed'), alive);
+        (directory, verify) => publishBytes(plan.bytes, path.join(directory, plan.summary.fileName), verify, plan.summary.options.conflictPolicy ?? 'indexed'), alive, undefined, plan.summary.options.conflictPolicy === 'overwrite');
       this.plans.delete(planId);
       return { fileName: path.basename(output), revision, partial: plan.summary.partial, mode: plan.summary.options.mode, incomplete: plan.summary.options.incomplete };
     } finally { plan.publishing = false; }

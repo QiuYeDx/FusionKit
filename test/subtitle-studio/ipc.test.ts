@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
@@ -12,12 +12,12 @@ import { planTranslation } from '../../electron/main/subtitle-studio/translation
 import { checkpointForPlan } from '../../electron/main/subtitle-studio/translation-recovery';
 import type { ExportOptions } from '../../src/subtitle-studio/export-contract';
 
-const adapter = vi.hoisted(() => ({ handlers: new Map<string, Function>(), listeners: new Map<string, Function>(), directory: '', open: vi.fn(), save: vi.fn(), reveal: vi.fn() }));
+const adapter = vi.hoisted(() => ({ handlers: new Map<string, Function>(), listeners: new Map<string, Function>(), directory: '', open: vi.fn(), save: vi.fn(), reveal: vi.fn(), openFolder: vi.fn() }));
 vi.mock('electron', () => ({
   app: { getPath: () => adapter.directory, getAppPath: () => process.cwd() },
   BrowserWindow: { fromWebContents: () => ({}) },
   dialog: { showOpenDialog: adapter.open, showSaveDialog: adapter.save },
-  shell: { showItemInFolder: adapter.reveal },
+  shell: { showItemInFolder: adapter.reveal, openPath: adapter.openFolder },
   ipcMain: { on: (channel: string, handler: Function) => adapter.listeners.set(channel, handler), handle: (channel: string, handler: Function) => adapter.handlers.set(channel, handler), removeAllListeners: (channel: string) => adapter.listeners.delete(channel), removeHandler: (channel: string) => adapter.handlers.delete(channel) },
 }));
 import { registerSubtitleStudio } from '../../electron/main/subtitle-studio';
@@ -48,10 +48,25 @@ async function setup(content = '[00:01.00]<script>window.injected=true</script>\
 afterEach(async () => {
   await registration?.dispose(); registration = undefined;
   if (adapter.directory) await rm(adapter.directory, { recursive: true, force: true });
-  adapter.open.mockReset(); adapter.save.mockReset(); adapter.reveal.mockReset();
+  adapter.open.mockReset(); adapter.save.mockReset(); adapter.reveal.mockReset(); adapter.openFolder.mockReset();
 });
 
 describe('production Subtitle Studio IPC handler composition', () => {
+  it('reveals a bound source folder without granting path or cross-owner authority', async () => {
+    const { owner, doc } = await setup();
+    adapter.openFolder.mockResolvedValue('');
+    const payload = { kind: 'document', id: doc.id };
+    expect(await owner.invoke(STUDIO_CHANNELS.revealSource, payload)).toEqual({ ok: true, value: null });
+    expect(adapter.openFolder).toHaveBeenCalledWith(await realpath(adapter.directory));
+    adapter.openFolder.mockClear();
+    expect(await attach().invoke(STUDIO_CHANNELS.revealSource, payload)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.revealSource, { ...payload, path: adapter.directory })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.revealSource, payload, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    await writeFile(path.join(adapter.directory, 'sample.lrc'), 'replaced input');
+    expect(await owner.invoke(STUDIO_CHANNELS.revealSource, payload)).toEqual({ ok: false, error: 'output_write_failed' });
+    expect(adapter.openFolder).not.toHaveBeenCalled();
+  });
+
   it('imports native dropped files with per-file results and rejects other frames and forged payload fields', async () => {
     const parent = path.resolve('test-results'); await mkdir(parent, { recursive: true });
     adapter.directory = await mkdtemp(path.join(parent, 'studio-drop-ipc-'));

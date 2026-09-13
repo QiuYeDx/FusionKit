@@ -18,6 +18,21 @@ function fixture() {
 }
 
 describe('global translation overview', () => {
+  it('sums API usage before pagination and preserves unknown field coverage without estimates', () => {
+    const snapshot = fixture();
+    snapshot.records[0].snapshot.tasks[0].translation!.usage = { inputTokens: 100, outputTokens: null, totalTokens: null };
+    snapshot.records[1].snapshot.tasks[0].translation = undefined;
+    const result = selectTranslationTasks(snapshot, { offset: 4, pageSize: 1 });
+    expect(result.usage).toEqual({ inputTokens: 105, outputTokens: 5, totalTokens: 10, unknownInput: 1, unknownOutput: 2, unknownTotal: 2 });
+    expect(selectTranslationTasks(snapshot, { offset: 0, pageSize: 1 }).usage).toEqual(result.usage);
+    const id = snapshot.records[0].snapshot.tasks[0].id;
+    expect(selectTranslationTasks(snapshot, { offset: 0, pageSize: 10, taskIds: [id] }).usage).toEqual({ inputTokens: 100, outputTokens: 0, totalTokens: 0, unknownInput: 0, unknownOutput: 1, unknownTotal: 1 });
+    snapshot.records[0].snapshot.tasks[0].translation!.usage.inputTokens = Number.MAX_SAFE_INTEGER;
+    const overflow = selectTranslationTasks(snapshot, { offset: 0, pageSize: 1 }).usage;
+    expect(Number.isSafeInteger(overflow.inputTokens)).toBe(true);
+    expect(overflow.unknownInput).toBeGreaterThan(1);
+  });
+
   it('aggregates all documents before paging and sends only the safe task projection', () => {
     const snapshot = fixture(); const result = selectTranslationTasks(snapshot, { offset: 0, pageSize: 2 });
     expect(result).toMatchObject({ sequence: 19, total: 7, unavailableDocuments: 2, counts: { completed: 1, cancelled: 1, failed: 1, interrupted: 1, needs_configuration: 1, queued: 1, running: 1 }, totalBatches: 70, completedBatches: 22 });

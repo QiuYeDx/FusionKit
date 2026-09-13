@@ -82,11 +82,11 @@ function App() {
     <div className="app bg-background text-foreground h-screen flex flex-col overflow-hidden">
       <AppTitleBar />
       {/* 占位用, 防止 AppTitleBar 遮挡有效内容 */}
-      <div className="h-10"></div>
+      <div className="h-10 shrink-0"></div>
 
       {/* 使用 ScrollArea 替代 HTML 滚动 */}
-      <ScrollArea className="flex-1 h-full">
-        <div className={location.pathname === '/tools/subtitle/studio' ? 'w-screen overflow-x-clip' : 'pt-10 w-screen overflow-x-clip'}>
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="w-screen overflow-x-clip">
           <AnimatePresence
             mode="wait"
             custom={directionRef.current}
@@ -95,7 +95,7 @@ function App() {
             <motion.div
               key={location.pathname}
               custom={directionRef.current}
-              className="relative"
+              className={location.pathname === '/tools/subtitle/studio' ? 'relative' : 'relative pt-10'}
               variants={pageVariants}
               initial="enter"
               animate="center"

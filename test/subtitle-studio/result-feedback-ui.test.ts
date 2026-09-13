@@ -45,7 +45,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
     const respond = (response: ServerResponse, payload: Payload) => {
       if (response.destroyed || response.writableEnded) return;
       response.setHeader('Content-Type', 'application/json');
-      response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ items: payload.items.map(item => ({ id: item.id, text: 'Controlled translated line.' })) }) } }] }));
+      response.end(JSON.stringify({ usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 }, choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ items: payload.items.map(item => ({ id: item.id, text: 'Controlled translated line.' })) }) } }] }));
     };
     try {
       server = createServer(async (request, response) => {
@@ -188,7 +188,17 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await uiExpect.poll(async () => (await documents()).find(item => item.id === runningDocument.id)?.task?.status).toBe('cancelled'); actions.push({ cancelledTaskId: admittedTask, oneNoTaskDocumentSkipped: true });
       await nativeWindow.evaluate(win => win.setSize(1281, 860));
       await choose([names[1], names[3]]); await page!.getByRole('button', { name: text('batch.translation'), exact: true }).click();
-      await page!.getByRole('button', { name: text('translation.prepare'), exact: true }).click(); await page!.getByRole('button', { name: text('batch.start_ready', 'zh', { count: 2 }), exact: true }).click();
+      await page!.getByRole('button', { name: text('translation.prepare'), exact: true }).click();
+      const planDetails = page!.locator('.studio-translation-plan-details');
+      await planDetails.locator('summary').click();
+      const padding = await planDetails.evaluate(element => {
+        const box = element.querySelector('.studio-batch-results')!.getBoundingClientRect();
+        const list = element.querySelector('.studio-document-list')!.getBoundingClientRect();
+        return [list.top-box.top, list.left-box.left, box.right-list.right, box.bottom-list.bottom];
+      });
+      padding.forEach(value => expect(value).toBe(8));
+      await page!.screenshot({ path: path.join(root, 'i8-plan-details-padding-dark.png'), animations: 'disabled' });
+      await page!.getByRole('button', { name: text('batch.start_ready', 'zh', { count: 2 }), exact: true }).click();
       await assertResult('translation', 'success', 2, 'studio-batch-result');
       await uiExpect(result('studio-batch-result').getByRole('heading')).toContainText('已提交');
       const snapshot = await page!.evaluate(async () => { const list = await window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100 }); if (!list.ok) throw new Error(list.error); return list.value; });
@@ -202,7 +212,22 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await page!.keyboard.press('Escape'); await uiExpect(page!.getByRole('dialog')).toHaveCount(0);
       hold = false; for (const item of held.splice(0)) respond(item.response, item.payload);
       await uiExpect.poll(async () => { const list = await page!.evaluate(() => window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100 })); return list.ok ? list.value.counts.completed : -1; }, { timeout: 20000 }).toBe(2);
-      await nativeWindow.evaluate(win => win.setSize(1281, 860)); await choose([names[1], names[3]]); await batchAction('library.delete_selected');
+      await nativeWindow.evaluate(win => win.setSize(1281, 860));
+      await uiExpect(page!.getByTestId('studio-overview-board')).toBeVisible();
+      await uiExpect(page!.getByTestId('studio-translation-round')).toHaveCount(0);
+      const measuredUsage = await page!.evaluate(async () => { const list = await window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 1 }); if (!list.ok) throw Error(list.error); return list.value.usage; });
+      expect(measuredUsage).toMatchObject({ inputTokens: 200, outputTokens: 80, totalTokens: 280, unknownInput: 1, unknownOutput: 1, unknownTotal: 1 });
+      await uiExpect(page!.getByTestId('studio-overview-usage')).toContainText(measuredUsage.inputTokens.toLocaleString());
+      actions.push({ measuredUsage });
+      await page!.screenshot({ path: path.join(root, 'i8-usage-dashboard-dark.png'), animations: 'disabled' });
+      await page!.evaluate(() => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })));
+      await page!.reload(); await ready(page!);
+      await uiExpect(page!.getByTestId('studio-overview-board')).toBeVisible();
+      await page!.screenshot({ path: path.join(root, 'i8-usage-dashboard-light.png'), animations: 'disabled' });
+      await app!.evaluate(({ shell }) => { (globalThis as any).__i8Folders = []; shell.openPath = async folder => { (globalThis as any).__i8Folders.push(folder); return ''; }; });
+      await page!.getByTestId('studio-reveal-source').click();
+      await uiExpect.poll(() => app!.evaluate(() => (globalThis as any).__i8Folders)).toEqual([root]);
+      await choose([names[1], names[3]]); await batchAction('library.delete_selected');
       await page!.getByRole('button', { name: text('library.confirm_delete'), exact: true }).click(); await assertResult('delete', 'success', 2);
       await capture('10-delete-completed-dark'); await closeResult(); expect(await documents()).toHaveLength(2);
       await importFiles([files[1], files[3]]); await assertResult('import', 'success', 2); await capture('11-multiple-import-completed-dark'); await closeResult();

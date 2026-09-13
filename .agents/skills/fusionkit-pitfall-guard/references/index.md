@@ -174,3 +174,4 @@ Read this index first, then open only the detail files that plausibly match the 
 ## Add new cases
 
 Use `scripts/add_pitfall.py` from the skill root when possible. Each pitfall should live as one Markdown file directly under `references/`, and every new file must have one index row here.
+| FK-PIT-0151 | Frontend / route motion | route padding, AnimatePresence, :has, outgoing page jumps; Route-dependent insets belong to the keyed exiting page, shared flex geometry stays stable. | [keep-route-insets-with-the-exiting-page.md](keep-route-insets-with-the-exiting-page.md) |

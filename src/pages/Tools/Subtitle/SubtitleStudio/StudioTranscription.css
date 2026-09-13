@@ -41,7 +41,7 @@
 .studio-transcription-task-name { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; font-size: 12px; line-height: 20px; }
 .studio-transcription-task-name > svg { width: 15px; height: 15px; flex-shrink: 0; }
 .studio-transcription-task-name > .studio-file-name { flex: 1; }
-.studio-transcription-task-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; padding-left: 23px; font-size: 11px; line-height: 18px; color: var(--muted-foreground); }
+.studio-transcription-task-meta { display: flex; align-items: center; gap: 8px; margin-top: 0; padding-left: 23px; font-size: 11px; line-height: 18px; color: var(--muted-foreground); }
 .studio-transcription-task-meta > * { flex-shrink: 0; white-space: nowrap; }
 .studio-transcription-task-meta > .studio-transcription-task-model { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .studio-transcription-task-percentage { margin-left: auto; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
@@ -55,7 +55,6 @@
 .studio-transcription-progress::-webkit-progress-bar { background: var(--studio-transcription-progress-track, var(--muted)); border-radius: 4px; }
 .studio-transcription-progress::-webkit-progress-value { background: var(--primary); border-radius: 4px; transition: width 150ms ease-out; }
 .studio-transcription-progress::-moz-progress-bar { background: var(--primary); border-radius: 4px; }
-.studio-transcription-session-note { padding: 8px 20px 12px; font-size: 10px; line-height: 16px; color: var(--muted-foreground); }
 .studio-transcription-queue-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
 .studio-transcription-queue-result { padding: 10px 20px 0; color: var(--muted-foreground); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-transcription-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 28px 16px; color: var(--muted-foreground); text-align: center; }
@@ -90,3 +89,9 @@
 .studio-transcription-stop:not(:disabled):hover { background: color-mix(in srgb, var(--destructive) 14%, transparent); color: var(--destructive); }
 .studio-transcription-stop:not(:disabled):active { background: color-mix(in srgb, var(--destructive) 23%, transparent); color: var(--destructive); }
 .studio-transcription-stop:focus-visible { outline: 2px solid var(--destructive); outline-offset: 2px; }
+
+.studio-transcription-task-heading .studio-transcription-row-actions > button { width: 28px; height: 28px; padding: 0; }
+.studio-transcription-task-heading .studio-transcription-row-actions > button:not(:disabled):hover { background: color-mix(in srgb, var(--foreground) 12%, var(--card)); }
+.studio-transcription-task-heading .studio-transcription-row-actions > .studio-transcription-stop:not(:disabled):hover { background: color-mix(in srgb, var(--destructive) 24%, var(--card)); }
+.studio-queue-menu-label { display: grid; gap: 2px; }
+.studio-queue-menu-label > small { color: var(--muted-foreground); font-size: 11px; font-weight: 400; }

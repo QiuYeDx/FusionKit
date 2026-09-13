@@ -93,7 +93,7 @@ export function StudioOperationResult({ operation, items, onClose, closeButtonId
     </ScrollableDialogContent>
     <ScrollableDialogFooter className="studio-result-footer">
       <Button id={closeButtonId} variant={primaryAction ? 'outline' : 'default'} onClick={onClose}>{t('studio:operation_result.done')}</Button>
-      {primaryAction && <Button onClick={primaryAction.onClick}>{primaryAction.label}<ArrowUpRight aria-hidden="true" /></Button>}
+      {primaryAction && <Button onClick={primaryAction.onClick}>{primaryAction.label}</Button>}
     </ScrollableDialogFooter>
   </section>;
 }

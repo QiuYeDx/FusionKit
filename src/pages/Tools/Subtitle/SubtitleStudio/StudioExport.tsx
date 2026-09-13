@@ -111,6 +111,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   const stepTitle = useRef<HTMLHeadingElement>(null);
   const [sourceMode, setSourceMode] = useState(false);
   const [destination, setDestination] = useState<ExportDestination>('source-directory');
+  const [conflictPolicy, setConflictPolicy] = useState<'indexed' | 'overwrite'>('indexed');
   const [suffixMode, setSuffixMode] = useState<'none' | 'content-mode' | 'target-language' | 'custom'>('none');
   const [customSuffix, setCustomSuffix] = useState('');
   const [sourceLocations, setSourceLocations] = useState<Record<string, SourceLocationSummary>>({});
@@ -135,9 +136,9 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
   const options = useMemo(() => exportOptionsSchema.safeParse({
     mode, format, ...(mode !== 'source' && selectedTrackId ? { trackId: selectedTrackId } : {}),
     fileNameSuffix: suffixMode === 'custom' ? { mode: 'custom', value: customSuffix } : suffixMode === 'none' ? { mode: 'none' } : { mode: 'preset', preset: suffixMode },
-    order, encoding, bom: unicode && bom, newline, incomplete,
+    order, encoding, bom: unicode && bom, newline, incomplete, conflictPolicy,
     missingEnd: estimateEnd && format !== 'lrc' ? { mode: 'next-start', finalDurationMs: Number(finalDuration) } : { mode: 'block' },
-  }), [mode, format, selectedTrackId, order, encoding, unicode, bom, newline, incomplete, estimateEnd, finalDuration, suffixMode, customSuffix]);
+  }), [mode, format, selectedTrackId, order, encoding, unicode, bom, newline, incomplete, estimateEnd, finalDuration, suffixMode, customSuffix, conflictPolicy]);
   // A checked plan keeps its own revision while newer translation results arrive.
   const identity = JSON.stringify([batch ? batchDocuments.map(item => item.id) : page?.summary.id, options.success ? options.data : null, batch ? batchTracks : null, destination]);
   const currentIdentity = useRef(identity);
@@ -328,7 +329,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
 
   const triggerControl = <DropdownMenu>
       <Tooltip delayDuration={350}><TooltipTrigger asChild><DropdownMenuTrigger asChild><Button ref={trigger} variant="ghost" size="icon-sm" aria-label={t(batch ? 'studio:batch.download' : 'studio:batch.download_single')} disabled={busy || pending || (batch ? !documents?.length || documents.length > STUDIO_BATCH_LIMIT : !page)}>{activity === 'source' ? <LoaderCircle className="studio-spin" /> : <ArrowDownToLine />}</Button></DropdownMenuTrigger></TooltipTrigger><TooltipContent sideOffset={6}>{t(batch ? 'studio:batch.download' : 'studio:batch.download_single')}</TooltipContent></Tooltip>
-      <DropdownMenuContent align="end" data-testid="studio-download-menu" onCloseAutoFocus={event => { if (dialogOpen.current) event.preventDefault(); }}>
+      <DropdownMenuContent side={batch ? 'top' : 'bottom'} align={batch ? 'start' : 'end'} className={batch ? 'w-48' : undefined} data-testid="studio-download-menu" onCloseAutoFocus={event => { if (dialogOpen.current) event.preventDefault(); }}>
         {(batch ? documents?.every(document => document.capabilities.preserveSource) : page?.summary.capabilities.preserveSource) && <DropdownMenuItem onSelect={openSource}><ArrowDownToLine />{t(batch ? 'studio:batch.download_sources' : 'studio:export_source')}</DropdownMenuItem>}
         <DropdownMenuItem onSelect={() => changeOpen(true)}><ClipboardCheck />{t(batch ? 'studio:batch.export' : 'studio:export.action')}</DropdownMenuItem>
       </DropdownMenuContent>
@@ -390,8 +391,15 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
                 className="h-8 text-xs" disabled={pending} aria-invalid={!suffixValid} aria-describedby={!suffixValid ? `${controlId}-suffix-error` : undefined} />
             </ToolField>}
               </>}
+            {!sourceMode && <ToolField label={t('studio:export.conflict_policy')} htmlFor={`${controlId}-conflict`}>
+              <Select value={conflictPolicy} onValueChange={value => setConflictPolicy(value as typeof conflictPolicy)} disabled={pending}>
+                <SelectTrigger id={`${controlId}-conflict`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="indexed">{t('studio:export.conflict_indexed')}</SelectItem><SelectItem value="overwrite">{t('studio:export.conflict_overwrite')}</SelectItem></SelectContent>
+              </Select>
+            </ToolField>}
             </div>
             <p className="studio-export-note">{t(destination === 'source-directory' ? 'studio:export.destination_source_note' : 'studio:export.destination_choose_note')}</p>
+            {!sourceMode && conflictPolicy === 'overwrite' && <p className="studio-export-note">{t('studio:export.conflict_overwrite_note')}</p>}
             {destination === 'source-directory' && (locationsLoading || sourceDocuments.some(document => sourceLocations[document.id]?.status !== 'ready')) && <p className="studio-export-note" role="status">{locationsLoading ? t('studio:export.source_loading')
               : sourceDocuments.some(document => sourceLocations[document.id]?.status !== 'ready') ? t('studio:export.source_attention', { count: sourceDocuments.filter(document => sourceLocations[document.id]?.status !== 'ready').length }) : null}</p>}
             {!sourceMode && mode !== 'source' && incomplete === 'source-fallback' && sourceDocuments.some(document => !document.translationTracks?.length) && <p className="studio-export-note" role="status">{t('studio:export.no_translation_fallback')}</p>}
@@ -459,6 +467,7 @@ export function StudioExport({ page, documents, triggerContainer, trackId, busy,
               <h3>{t('studio:export.review_output')}</h3>
               <dl>
                 <div><dt>{t('studio:export.mode')}</dt><dd>{t(modeKeys[reviewedOptions.mode])} · {reviewedOptions.format.toUpperCase()}</dd></div>
+                <div><dt>{t('studio:export.conflict_policy')}</dt><dd>{t(reviewedOptions.conflictPolicy === 'overwrite' ? 'studio:export.conflict_overwrite' : 'studio:export.conflict_indexed')}</dd></div>
                 <div><dt>{t('studio:export.destination')}</dt><dd>{t(destination === 'source-directory' ? 'studio:export.destination_source' : 'studio:export.destination_choose')}</dd></div>
                 {reviewedOptions.mode === 'bilingual' && <div><dt>{t('studio:export.order')}</dt><dd>{t(reviewedOptions.order === 'source-first' ? 'studio:export.source_first' : 'studio:export.target_first')}</dd></div>}
                 {reviewedOptions.mode !== 'source' && <div><dt>{t('studio:export.incomplete')}</dt><dd>{t(reviewedOptions.incomplete === 'block' ? 'studio:export.incomplete_block' : reviewedOptions.incomplete === 'skip' ? 'studio:export.incomplete_skip' : 'studio:export.incomplete_fallback')}</dd></div>}

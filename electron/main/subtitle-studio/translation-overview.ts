@@ -9,12 +9,19 @@ export function selectTranslationTasks(snapshot: Awaited<ReturnType<DocumentRepo
   const requested = request.taskIds ? new Set(request.taskIds) : undefined;
   const counts: TranslationTasksSnapshot['counts'] = { queued: 0, running: 0, completed: 0, failed: 0, cancelled: 0, interrupted: 0, needs_configuration: 0 };
   const items: TranslationTaskSummary[] = [];
+  const usage: TranslationTasksSnapshot['usage'] = { inputTokens: 0, outputTokens: 0, totalTokens: 0,
+    unknownInput: 0, unknownOutput: 0, unknownTotal: 0 };
   let completedBatches = 0; let totalBatches = 0;
   for (const { snapshot: { document, tasks } } of snapshot.records) {
     const hasActive = tasks.some(task => task.status === 'queued' || task.status === 'running');
     for (const task of tasks) {
       if (requested && !requested.has(task.id)) continue;
       const progress = task.translation;
+      for (const [field, missing] of [['inputTokens', 'unknownInput'], ['outputTokens', 'unknownOutput'], ['totalTokens', 'unknownTotal']] as const) {
+        const value = progress?.usage[field];
+        if (value == null || !Number.isSafeInteger(value) || value < 0 || !Number.isSafeInteger(usage[field] + value)) usage[missing]++;
+        else usage[field] += value;
+      }
       const total = progress?.totalBatches ?? task.completedBatchIds.length;
       const completed = Math.min(task.completedBatchIds.length, total);
       counts[task.status]++; totalBatches += total; completedBatches += completed;
@@ -29,5 +36,5 @@ export function selectTranslationTasks(snapshot: Awaited<ReturnType<DocumentRepo
   }
   items.sort((a, b) => priority[a.status] - priority[b.status] || a.documentId.localeCompare(b.documentId) || a.taskId.localeCompare(b.taskId));
   return { sequence: snapshot.sequence, total: items.length, unavailableDocuments: snapshot.unavailableDocuments,
-    counts, completedBatches, totalBatches, items: items.slice(request.offset, request.offset + request.pageSize) };
+    counts, completedBatches, totalBatches, usage, items: items.slice(request.offset, request.offset + request.pageSize) };
 }
