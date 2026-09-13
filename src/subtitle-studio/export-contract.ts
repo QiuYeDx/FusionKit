@@ -16,6 +16,7 @@ export const exportOptionsSchema = z.object({
   mode: z.enum(['source', 'target', 'bilingual']),
   format: z.enum(['srt', 'lrc', 'vtt', 'ass']),
   fileNameSuffix: fileNameSuffixSchema.optional(),
+  stripMediaExt: z.boolean().optional(),
   conflictPolicy: exportConflictPolicySchema.optional(),
   trackId: idSchema.optional(),
   order: z.enum(['source-first', 'target-first']),

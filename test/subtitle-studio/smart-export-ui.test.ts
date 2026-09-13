@@ -7,7 +7,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_SMART_EXPORT_UI === '1')('content-aw
   it('restricts source-only scopes and exports mixed target/bilingual files with one source fallback', async () => {
     const artifacts = path.resolve('test-results/studio-smart-export'); await mkdir(artifacts, { recursive: true });
     const root = await mkdtemp(path.join(artifacts, 'run-')); const profile = path.join(root, 'profile');
-    const names = ['paired.srt', 'source.srt'];
+    const names = ['paired.wav.srt', 'source.MP4.srt'];
     const original = ['1\n00:00:01,000 --> 00:00:02,000\nHello\n你好\n\n2\n00:00:03,000 --> 00:00:04,000\nUntranslated line\n', '1\n00:00:01,000 --> 00:00:02,000\nSource only\n'];
     const files = names.map(name => path.join(root, name));
     for (let i = 0; i < files.length; i++) await writeFile(files[i], original[i]);
@@ -32,6 +32,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_SMART_EXPORT_UI === '1')('content-aw
       let dialog = await openExport();
       await uiExpect(dialog.getByRole('combobox', { name: '导出内容', exact: true })).toContainText('仅原文');
       await uiExpect(dialog.getByRole('combobox', { name: '导出内容', exact: true })).toBeDisabled();
+      const strip = dialog.getByTestId('studio-export-strip-media-extension').getByRole('switch');
+      await uiExpect(strip).toBeChecked(); await uiExpect(dialog.getByTestId('studio-export-file-name')).toContainText('source.srt');
+      await strip.uncheck(); await uiExpect(dialog.getByTestId('studio-export-file-name')).toContainText('source.MP4.srt');
+      await strip.check();
       await page.getByRole('dialog').screenshot({ path: path.join(root, 'single-source.png'), animations: 'disabled' }); await close();
       for (const name of names) await page.getByRole('checkbox', { name: `选择 ${name}`, exact: true }).check();
       dialog = await openExport(true);
@@ -40,7 +44,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_SMART_EXPORT_UI === '1')('content-aw
       await dialog.screenshot({ path: path.join(root, 'batch-source.png'), animations: 'disabled' }); await close();
       await page.evaluate(async () => {
         const listed = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!listed.ok) throw Error(listed.error);
-        const document = listed.value.documents.find(doc => doc.origin.displayName === 'paired.srt')!;
+        const document = listed.value.documents.find(doc => doc.origin.displayName === 'paired.wav.srt')!;
         const result = await window.subtitleStudio.applyBilingual({ documentId: document.id, revision: document.revision, options: { sourceSide: 'first', splitInline: false, overrides: [] } });
         if (!result.ok) throw Error(result.error);
       });
@@ -54,20 +58,22 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_SMART_EXPORT_UI === '1')('content-aw
         await choice.click(); await uiExpect(page.getByRole('option')).toHaveCount(3);
         await page.getByRole('option', { name: mode, exact: true }).click();
         await uiExpect(dialog.getByRole('combobox', { name: '缺失或过期的译文', exact: true })).toContainText('未完成处使用原文');
+        const namingSwitch = dialog.getByTestId('studio-export-strip-media-extension').getByRole('switch');
+        if (index === 1) { await uiExpect(namingSwitch).toBeChecked(); await namingSwitch.uncheck(); } else await namingSwitch.check();
         await dialog.screenshot({ path: path.join(root, `mixed-${index}.png`), animations: 'disabled' });
         await dialog.getByRole('button', { name: '检查导出', exact: true }).click();
         await dialog.getByRole('button', { name: '确认并导出 2 份', exact: true }).click();
         await uiExpect(page.getByTestId('studio-batch-result')).toHaveAttribute('data-outcome', 'success');
         await page.getByRole('button', { name: '完成', exact: true }).click();
-        const paired = await readFile(path.join(root, `paired (${index}).srt`), 'utf8');
-        const source = await readFile(path.join(root, `source (${index}).srt`), 'utf8');
+        const paired = await readFile(path.join(root, index === 1 ? 'paired.wav (1).srt' : 'paired.srt'), 'utf8');
+        const source = await readFile(path.join(root, index === 1 ? 'source.MP4 (1).srt' : 'source.srt'), 'utf8');
         expect(source.match(/Source only/g)).toHaveLength(1);
         expect(paired.match(/Untranslated line/g)).toHaveLength(1);
         expect(paired).toContain('你好');
         expect(paired.includes('Hello')).toBe(mode === '双语');
       }
       for (let i = 0; i < files.length; i++) expect(await readFile(files[i], 'utf8')).toBe(original[i]);
-      await writeFile(path.join(root, 'result.json'), JSON.stringify({ sourceOnlySingleAndBatch: true, mixedExports: ['target', 'bilingual'], fallbackOnce: true, sourceUnchanged: true }));
+      await writeFile(path.join(root, 'result.json'), JSON.stringify({ sourceOnlySingleAndBatch: true, mixedExports: ['target', 'bilingual'], fallbackOnce: true, stripMediaExtensionDefault: true, singlePreviewToggle: true, batchNamingOnAndOff: true, sourceUnchanged: true }));
     } finally {
       await app?.close();
       if (path.dirname(profile) !== root || !root.startsWith(artifacts + path.sep)) throw Error('Unsafe profile cleanup');

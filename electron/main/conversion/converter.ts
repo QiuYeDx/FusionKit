@@ -10,6 +10,7 @@
  *  - VTT：类似 SRT 但以 "WEBVTT" 头部开头，时间戳用点分隔毫秒 HH:MM:SS.mmm
  */
 import path from "path";
+import { stripTrailingMediaExtension } from "../../../src/lib/media-file-name";
 
 /** 转换输入参数 */
 export type ConvertParams = {
@@ -39,33 +40,6 @@ export type ConvertResult = {
 };
 
 /**
- * 常见音视频文件扩展名集合。
- * 用于 stripMediaExt 功能：当字幕文件名形如 "song.wav.srt" 时，
- * 可以额外剥离中间的 ".wav"，得到干净的基础名 "song"。
- */
-const COMMON_MEDIA_EXTS = new Set([
-  // 音频
-  ".wav",
-  ".mp3",
-  ".flac",
-  ".m4a",
-  ".aac",
-  ".ogg",
-  ".opus",
-  ".wma",
-  // 视频
-  ".mp4",
-  ".mkv",
-  ".avi",
-  ".mov",
-  ".wmv",
-  ".webm",
-  ".m4v",
-  ".ts",
-  ".m2ts",
-]);
-
-/**
  * 从原始文件名推导输出文件的基础名（不含扩展名）。
  *
  * 处理流程示例（stripMediaExt = true）：
@@ -79,11 +53,7 @@ function getOutputBaseName(fileName: string, stripMediaExt?: boolean): string {
   let base = path.parse(fileName).name;
 
   if (stripMediaExt) {
-    const parsed2 = path.parse(base);
-    const ext2 = parsed2.ext.toLowerCase();
-    if (ext2 && COMMON_MEDIA_EXTS.has(ext2)) {
-      base = parsed2.name;
-    }
+    base = stripTrailingMediaExtension(base);
   }
 
   return base || "subtitle";

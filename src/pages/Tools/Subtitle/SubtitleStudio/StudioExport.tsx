@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { ToolField } from '../../_shared/ui/ToolField';
+import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
 import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { encodingSchema, StudioError, type Encoding, type ErrorCode } from '@/subtitle-studio/domain';
@@ -118,6 +119,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   const [conflictPolicy, setConflictPolicy] = useState<'indexed' | 'overwrite'>('indexed');
   const [suffixMode, setSuffixMode] = useState<'none' | 'content-mode' | 'target-language' | 'custom'>('none');
   const [customSuffix, setCustomSuffix] = useState('');
+  const [stripMediaExt, setStripMediaExt] = useState(true);
   const [sourceLocations, setSourceLocations] = useState<Record<string, SourceLocationSummary>>({});
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [rebinding, setRebinding] = useState<string | null>(null);
@@ -143,9 +145,9 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   const options = useMemo(() => exportOptionsSchema.safeParse({
     mode, format, ...(mode !== 'source' && selectedTrackId ? { trackId: selectedTrackId } : {}),
     fileNameSuffix: suffixMode === 'custom' ? { mode: 'custom', value: customSuffix } : suffixMode === 'none' ? { mode: 'none' } : { mode: 'preset', preset: suffixMode },
-    order, encoding, bom: unicode && bom, newline, incomplete, conflictPolicy,
+    order, encoding, bom: unicode && bom, newline, incomplete, conflictPolicy, stripMediaExt,
     missingEnd: estimateEnd && format !== 'lrc' ? { mode: 'next-start', finalDurationMs: Number(finalDuration) } : { mode: 'block' },
-  }), [mode, format, selectedTrackId, order, encoding, unicode, bom, newline, incomplete, estimateEnd, finalDuration, suffixMode, customSuffix, conflictPolicy]);
+  }), [mode, format, selectedTrackId, order, encoding, unicode, bom, newline, incomplete, estimateEnd, finalDuration, suffixMode, customSuffix, conflictPolicy, stripMediaExt]);
   // A checked plan keeps its own revision while newer translation results arrive.
   const identity = JSON.stringify([batch ? batchDocuments.map(item => item.id) : page?.summary.id, options.success ? options.data : null, batch ? batchTracks : null, destination]);
   const currentIdentity = useRef(identity);
@@ -411,6 +413,9 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
               </Select>
             </ToolField>}
             </div>
+            {!sourceMode && <ToolSwitchRow id={`${controlId}-strip-media-ext`} testId="studio-export-strip-media-extension"
+              label={t('subtitle:converter.fields.strip_media_ext_label')} hint={t('subtitle:converter.fields.strip_media_ext_hint')}
+              checked={stripMediaExt} onCheckedChange={setStripMediaExt} disabled={pending} />}
             {!sourceMode && !hasTranslations && <p className="studio-export-note">{t('studio:export.source_only_note')}</p>}
             <p className="studio-export-note">{t(destination === 'source-directory' ? 'studio:export.destination_source_note' : 'studio:export.destination_choose_note')}</p>
             {!sourceMode && conflictPolicy === 'overwrite' && <p className="studio-export-note">{t('studio:export.conflict_overwrite_note')}</p>}
