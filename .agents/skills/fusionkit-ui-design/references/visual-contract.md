@@ -89,3 +89,4 @@
 | 证据 | 测试通过但截图还带 loading、导航遮挡、未打开浮层或只测空状态 |
 
 结果信息弹窗复用 StudioOperationResult：外围 header/content/footer 留白为 12px，图标到标题、底栏按钮间距为 12px。多项结果的文件详情与已选文档复用 StudioDocumentDisclosureHeading 和 studio-selected-documents 的卡片、徽标、箭头及折叠状态；默认折叠。单文件成功保留简洁文件回执，不能恢复成宽大空白弹窗。
+结果态的状态图标、标题与说明居中排列；隐藏右上角关闭图标，通过底部完成按钮关闭。详情清单继续使用统一文档模块的阅读布局。

@@ -4,13 +4,11 @@
   box-shadow: 0 18px 64px -16px rgb(0 0 0 / 22%), 0 2px 8px rgb(0 0 0 / 5%);
 }
 .studio-result-dialog > [data-slot="dialog-close"] {
-  top: 12px; right: 12px; display: grid; place-items: center;
-  width: 28px; height: 28px; border-radius: 7px; opacity: 1; color: var(--muted-foreground);
+  display: none;
 }
-.studio-result-dialog > [data-slot="dialog-close"]:hover { background: var(--muted); color: var(--foreground); }
 .studio-operation-result { display: contents; }
 .studio-result-header { border: 0; padding: 12px; }
-.studio-result-header [data-slot="dialog-header"] { align-items: flex-start; gap: 0; text-align: left; }
+.studio-result-header [data-slot="dialog-header"] { align-items: center; gap: 0; text-align: center; }
 .studio-result-emblem {
   display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0;
   margin-bottom: 12px; border-radius: 50%; color: #16815b; background: #edf8f2;
