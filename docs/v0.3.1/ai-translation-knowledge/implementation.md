@@ -122,8 +122,66 @@ Electron 场景覆盖原生选择导入、五类资料审核/编辑、预览后�
 
 主任务和独立界面 Agent 实际读图并修复：归档/恢复/撤销请求误带永久清除确认字段、历史清除后误称早期记录、备份被误标为主动选集、清除说明重复、来源署名与操作间距。统一改用共享 ScrollableDialog 的固定头尾与内容滚动。截图保存在 Git 忽略目录 `test-results/translation-knowledge/`，新增维护历史、撤销/恢复/归档、清除确认、方案依赖导出及深色窄窗历史/导出；撤销截图明确等待预览标题，避免保存等待态。
 
-### 当前交接与下一步
+### P0.2 交接基线（已进入下方 P1.1）
 
-P0.2 代码及本记录保留在工作区待审阅，尚未另行提交或推送。下一阶段从 P1 的任务选用与确定性检索/编译开始：先冻结资料作用范围、冲突处理、调用契约及验收样例，再接入两个字幕工具、试译和冻结快照。当前管理页和文件往返可用，但翻译请求还没有读取这些资料，因此尚不能宣称字幕翻译质量已得到实际验证。
+P0.2 已按用户后续要求提交为 `422fa7b`，未推送。下一阶段从 P1 的任务选用与确定性检索/编译开始：先冻结资料作用范围、冲突处理、调用契约及验收样例，再接入两个字幕工具、试译和冻结快照。P0.2 提交时管理页和文件往返可用，翻译请求尚未读取这些资料。P1.1 的试译接入进展见下文；实际翻译质量仍需后续评测。
 
 继续保持以下边界：本地单进程仓库；无云端依赖；完整备份覆盖当前实体而非本机采纳/完整历史；方案分享不携带无关库级来源声明，备份保留；相同 namespace 的不同根扩展仍明确拒绝导入，元数据冲突编辑待后续。永久清除本版需要明确确认清理全部本地历史，保留其他当前资料、包级说明和另行保留的来源，不能保证独立文本副本或外部备份一并删除。任务影响追踪、完整历史恢复 UI、原生 Windows 和真实断电耐久仍未验收。原生导出依赖支持硬链接的文件系统，FAT32/exFAT 可先导出本机再复制。
+
+
+## 已完成增量 P1.1：工作台资料检查与独立试译
+
+用户再次明确要求提交后继续开发；沿用 V3 §5–6、§13 第一个纵向切片和 AC-05/11–15/18/19/24。P0.2 提交后工作区干净。实现授权来自本任务连续用户指令，无真实数据迁移、远程发布或付费验收调用。
+
+当前实现范围：字幕工作台单文件的资料选择、逐句范围检查、按完整请求预算编译，以及独立试译对照。支持背景/术语/规则；表达和参考译文明确提示尚未参与。本次来源语言由用户明确指定，不作自动识别或混合语种保证；目标语言明确为BCP47（简繁分开）。方案的角色只提供建议，不能自动确认人物说话范围；当前主题/人物和条件确认绑定本次选中的cue，默认开头最多20句，可选当前页具体句子。冲突可通过本次禁用条目或调整逐句范围解决。
+
+正式翻译的旧 strict 配置保持不接收增强字段；正式任务、批量、自动与独立翻译器尚未启用资料增强。该分期来自实查：工作台批量目前只保存config并在start时重规划；checkpoint v1缺知识正文/实际请求，清理task还会删掉唯一任务快照。旧入口wire cue ID逐片重置，checkpoint v2缺调度模式且成功即清理，预算也尚未采用最终HTTP体。正式接入须另做冻结存储和全入口矩阵，不能只拼接prompt宣称P1完成。
+
+| 任务 | 写集与负责人 | 状态 |
+| --- | --- | --- |
+| T09 中立执行契约、可信范围/冲突/编译 | `src/translation-knowledge/execution-contract.ts` / `execution.ts`；主任务 | 已完成 |
+| T10 固定Unicode匹配和反例 | `src/translation-knowledge/matching.ts` / Unicode数据、matching/execution测试；匹配Agent | 已完成 |
+| T11 工作台试译生命周期和真实请求预算 | 新 `electron/main/subtitle-studio/knowledge-trial.ts` / `test/subtitle-studio/knowledge-trial.test.ts`；工作台Agent | 已完成 |
+| T12 应用注入、IPC、工作台UI和集成 | 试译契约、主入口/preload/工作台index、StudioKnowledgeTrial/StudioTranslation、四语言、边界审计、Electron验证和本记录；主任务 | 已完成 |
+
+设计基准：在现有单文件翻译配置中提供次级“资料检查与试译”入口，沿用模型与预算，不替换正式开始按钮。独立ScrollableDialog固定头尾，12px内容padding，选语言→选资料/方案→确认范围→检查→调用模型；高级角色/条件按需要展开，内容逐句和资料来源可展开。原译对照与实际usage留在当前会话，不写正式轨、不确认、不积累；关闭取消尚未完成调用并清理会话。长条目/错误可换行，820×700、1280×860、深浅主题、中英文真实Electron验证。预览变更使旧结果失效，异步结果以草稿身份隔离，失败保留输入。
+
+必要验收：没有资料仍能试译；未经准确摘要采纳不得进入请求；多主体AND、仅提及/未知人物不串范围；条件仅确认的cue生效；同形/重叠强制冲突阻断；可选冲突不随排序随机取值；准确简繁/方向；完整Unicode匹配；必需条目不被预算截断，最终HTTP序列化估算与实际一致；旧协议输出仍严格校验，缺强制术语只提示；owner/TTL/新草稿/取消/源文变更/删除/退出清理；真实试译请求捕获和结果不修改正式文档。真实模型质量与正式恢复继续待后续，不把本地固定响应验收作为翻译提升证据。
+
+### P1.1 关键实现约定
+
+- `execution-contract.ts` 保存本次任务的选择与逐句确认，FK-TK/1 文件仍不包含字幕 cue ID。本轮 UI 每句每种角色可选择一个对象；执行层支持多对象 AND，但任意多主题的批量绑定界面留待后续。语言要求规范 BCP47，中文必须明确 Hans/Hant。
+- 采纳要求 entry 的 revision 与规范内容摘要同时一致；背景、术语和规则只能在满足主体、角色、语言及额外条件的句子中使用。方案人物不自动成为说话者。背景采用已选资料范围，不进行语义检索；可选术语优先，其余按固定实体 ID 次序保留。规则同维度且文本不同采用保守冲突判断，不声称能够自动判断语义兼容。
+- `matching.ts` 固定 Unicode 16.0 NFC、完整大小写折叠和 L/M/N/Pc 边界，保留重叠命中及规范化原文的 UTF-16 范围。数据来源、哈希与离线生成器随源码提供；Unicode License V3 同时进入 `public/licenses/` 并随 renderer 产物分发。
+- 本轮检查上限由 `KNOWLEDGE_EXECUTION_LIMITS` 统一定义：2,000 条资料、术语与规则合计 500 条、每术语含原词最多 128 个变体、5,000 个去重命中、累计 8 MiB 匹配与目标规范化扫描、100 万次冲突比较。另限 20 句、单句 64 KiB UTF-8、单预览 8 MiB。任何计算上限触发均阻止整次试译，不把部分检查当成完整结果；用户可缩短片段或减少资料。
+- `KnowledgeTrialService` 由应用主入口注入只读资料快照；Studio 不导入旧字幕翻译实现或知识仓库。首次检查绑定界面所见 knowledgeGeneration，变化时拒绝旧确认；界面刷新资料、清除额外条件确认及临时禁用，再让用户重新检查。正常运行使用主进程已冻结的请求，不重新读取后来编辑的资料。
+- 使用最终 HTTP 请求的序列化路径估算输入，包含固定系统约束、原文、任务要求、必要资料与可选资料，并预留输出。超预算先减可选资料，再减相邻原文，最后缩小批次；必要资料仍无法容纳则阻断。前一批试译不注入下一批，避免计划后动态追加内容。父表单要求作为默认本次要求，显式空字符串允许覆盖清空。
+- 只有固定 plan/run/cancel IPC 可操作试译，所有者与文档授权均校验；主进程不向模型发送本地 UUID、文件名或来源摘录。逐条资料正文以请求内字幕 ID 限定作用范围。输出继续使用 Studio 严格逐句协议，缺少强制术语仅提示复核，不自动改写或采纳。
+- 试译结束、失败或取消均返回实际调用次数及可获得的 token 用量；未知用量保留未知。关闭、文档变更、所有者失效和应用退出都取消并等待已开始的调用结束。没有正式译文轨、审核、学习或恢复快照写入。
+- 边界审查仅增加 11 个确实共用的纯协议/执行文件，不放行整个目录；冻结 ASR 来源与副本不改。应用组合变化仅更新当前组合审计的准确文件摘要及说明。
+
+### 后续 P1.2 接入顺序
+
+先设计持久化的知识/请求冻结快照及任务影响索引，确定编辑资料、暂停恢复、清除任务与保留译文时的行为，再接入工作台正式单文件、批量与自动翻译；随后适配独立翻译器。两条入口共享中立执行模块，各自保留任务与持久化边界。表达/参考译文检索、全局偏好应用、混合语言判定、译文确认与学习另行细化，不由本轮试译模拟实现。真实模型质量需要用户选定模型与授权语料的对照评测，本地响应验证只证明应用流程和请求范围。
+
+
+### 2026-09-14 P1.1 验证结果
+
+| 检查 | 结果 |
+| --- | --- |
+| 领域及受影响回归 | `node node_modules/vitest/vitest.mjs run test/translation-knowledge test/subtitle-studio/knowledge-trial.test.ts test/subtitle-studio/ipc.test.ts test/subtitle-studio/translation-service.test.ts test/subtitle-studio/translation-checkpoint.test.ts test/subtitle-studio/translation-recovery.test.ts test/subtitle-studio/automatic-translation.test.ts test/subtitle-studio/batch-service.test.ts test/subtitle-studio/boundaries.test.ts --maxWorkers=4 --minWorkers=1`：336 项通过；4 项按环境跳过（两个 Electron 场景及两个 Windows 专用用例） |
+| 新执行与 IPC 定向复验 | execution 60、Unicode matching 34、trial service 16、Studio IPC 26，共 136 项通过；2 项 Windows 条件跳过 |
+| 最终构建上的 Electron | `FUSIONKIT_KNOWLEDGE_E2E=1 node node_modules/vitest/vitest.mjs run test/translation-knowledge/trial-electron.test.ts --maxWorkers=1 --minWorkers=1`：1 条完整场景通过，约 16 秒 |
+| TypeScript / 三段构建 / preload | `tsc --noEmit`、`vite build --mode=test`、`check-preload-bundle.mjs` 全部通过；沿用已有 bundle 大小与混合导入提示 |
+| 语言完整性与实际使用 | `check-i18n.mjs`、`check-i18n-usage.mjs` 通过；468 个 knowledge key 四语言齐全，2,481 个调用均可解析；21 项既有同文案提示无新增 |
+| 文件协议与来源 | `build-artifacts.mjs --check` 的 3 个便携产物一致；`copy.mjs --check` 的 120 个冻结副本、执行器 1 文件/26 依赖检查通过；Unicode 原始许可证与 dist 分发副本逐字节相同 |
+| 依赖边界 | `check-boundaries.mjs`：463 个文件、0 错误；边界反例测试通过 |
+| 工作区 | `git diff --check` 通过；没有修改 package.json、pnpm-lock.yaml 或冻结 ASR 副本 |
+
+验证环境为 macOS、Node 20.19.5（Unicode 16.0 / ICU 77.1）、Electron 41.10.6、已安装的 Vitest 2.1.9。未调用 pnpm、未安装依赖。Electron 只使用临时 profile、虚构知识包、原生选择文件与真实应用 IPC/业务服务；模型 HTTP 连接本机测试服务器，不调用付费模型。
+
+最终 Electron 场景完成：导入不自动采纳→逐条审核→导入两句字幕→继承当前翻译要求→选择方案但不自动确认人物→逐句主题/说话者/被提及对象→仅第一句确认条件→查看第二句排除原因→调用模型→对照和实际用量。捕获请求验证术语及说话规则只进入第一句，来源摘录、文件名、本地 UUID 和未支持类型不发送；完整对比正式文档、译文轨、任务及资料库均无试译写入。另覆盖协议错误不留下旧成功结果、停止调用、取消期间关闭重开、旧 generation 拒绝后自动刷新再检查。
+
+截图位于 Git 忽略的 `test-results/translation-knowledge-trial/`：`preview-light.png`、`result-light.png`、`result-dark-narrow.png`、`form-english-narrow.png`。主任务及界面 Agent 实际审图，按项目 UI/避坑 Skill 修复逐句提示不可定位、关闭重开忙状态残留、额外条件确认跨资料版本沿用；最终截图重新检查。820×700 和 1280×860、深浅主题与中英文场景均验证内部滚动容器无横向溢出，头尾按钮可用。
+
+P0.2 已提交为 `422fa7b`；P1.1 本轮新增尚未再次提交，保留在 `codex/feat-subtitle-ai-knowledge` 供审阅。没有启动 Vite 开发服务；Electron 和本地 HTTP 服务器通过 afterAll 关闭并验证退出，临时目录清理完成。正式双入口接入、持久化恢复与实际模型翻译质量未冒充通过，下一增量见上方 P1.2 顺序。

@@ -20,10 +20,13 @@ import { STUDIO_BATCH_LIMIT, type BatchImportResult } from '../../../src/subtitl
 import { createTranscriptionRuntime, type TranscriptionRuntime } from './transcription/runtime';
 import { authorizeTranscriptionMedia, handleTranscriptionRequest, transcriptionIpcError } from './transcription-ipc';
 import type { SpeechResourceService } from '../speech-resources/service';
+import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
+import { KnowledgeTrialService } from './knowledge-trial';
 
-export function registerSubtitleStudio(sharedResources?: SpeechResourceService) {
+export function registerSubtitleStudio(sharedResources?: SpeechResourceService, readKnowledge?: () => Promise<LibrarySnapshot>) {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
   const translation = new TranslationService(repository);
+  const knowledgeTrial = new KnowledgeTrialService(repository, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))));
   const automaticTranslation = createAutomaticTranslationCoordinator({ repository, translation });
   const bilingual = new BilingualService(repository);
   const exports = new ExportService(repository);
@@ -48,7 +51,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
   function forgetOwner(id: number) {
     const owner = owners.get(id);
     owners.delete(id);
-    for (const service of [translation, exports, batches]) {
+    for (const service of [translation, exports, batches, knowledgeTrial]) {
       try { service.forgetOwner(id); } catch (error) { retirementFailures.push(error); }
     }
     if (!owner || !runtime) return;
@@ -137,6 +140,16 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
         const parsed = requestSchemas[method].safeParse(payload);
         if (!parsed.success) throw new StudioError('invalid_input');
         const alive = () => { if (closed || owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
+        if (method === 'cancelKnowledgeTrial') { await knowledgeTrial.cancel(event.sender.id); alive(); return { ok: true, value: null }; }
+        if (method === 'runKnowledgeTrial') {
+          const value = await knowledgeTrial.run(event.sender.id, requestSchemas.runKnowledgeTrial.parse(payload), alive); alive();
+          return { ok: true, value };
+        }
+        if (method === 'planKnowledgeTrial') {
+          const request = requestSchemas.planKnowledgeTrial.parse(payload);
+          if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
+          return { ok: true, value: await knowledgeTrial.plan(event.sender.id, request, alive) };
+        }
         if (method === 'revealSource') {
           const request = requestSchemas.revealSource.parse(payload);
           if (request.kind === 'transcription') {
@@ -353,6 +366,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService) 
       shutdown = Promise.resolve().then(async () => {
         const failures = retirementFailures; retirementFailures = [];
         const results = await Promise.allSettled([
+          knowledgeTrial.dispose(),
           Promise.resolve().then(async () => {
             // Stop and join admissions before interrupting the translation runs they created.
             try { await automaticCleanup; } catch (error) { failures.push(error); }

@@ -135,6 +135,7 @@ export function protocolKey(key: string) {
 }
 
 const DIAGNOSTIC_KEYS = {
+  "diagnostic.TRIAL_ONLY_EXECUTION": "diagnostic.TRIAL_ONLY_EXECUTION",
   "diagnostic.CONFLICT_REVIEW_REQUIRED": "diagnostic.CONFLICT_REVIEW_REQUIRED",
   "diagnostic.LANGUAGE_TAG": "diagnostic.LANGUAGE_TAG",
   "diagnostic.SPEAKER_NOT_PERSON": "diagnostic.SPEAKER_NOT_PERSON",

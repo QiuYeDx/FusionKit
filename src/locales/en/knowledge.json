@@ -199,7 +199,7 @@
   },
   "plans": {
     "category": "Category",
-    "notice": "Prepare, maintain and share plans and styles here. They are not yet connected to subtitle translation tasks."
+    "notice": "Approved background, terms and rules are available for checks and independent trials in Subtitle Studio. Formal translation and global preference inheritance are not enabled yet."
   },
   "empty": {
     "options": "No items available",
@@ -417,7 +417,8 @@
     "AI_PROPOSAL_READY": "An AI proposal cannot approve itself; review the content.",
     "STYLE_NOT_READY": "A style's rule or related material is not ready.",
     "RECIPE_STYLE_ARCHIVED": "The plan contains an archived style.",
-    "TERM_TRANSLATION_CONFLICT": "A term has competing translations; check scope and sources."
+    "TERM_TRANSLATION_CONFLICT": "A term has competing translations; check scope and sources.",
+    "TRIAL_ONLY_EXECUTION": "Approved background, terms and rules are available for checks and independent trials in Subtitle Studio. Formal translation and global preference inheritance are not enabled yet."
   },
   "languages": {
     "ja": "Japanese",
@@ -498,5 +499,62 @@
       "unavailable": "Unavailable"
     },
     "imports_losing_undo": "View imports that will lose undo support"
+  },
+  "trial": {
+    "open": "Check materials & try translation",
+    "title": "Materials check & trial translation",
+    "description": "Choose materials, check their scope, then try up to 20 cues. Results stay in this window.",
+    "language_help": "Specify the source and target languages for this sample. Mixed languages are not detected; simplified and traditional Chinese match separately.",
+    "recipe": "Translation recipe",
+    "no_recipe": "Choose materials manually",
+    "collections": "Collections for this trial",
+    "empty": "No collections yet. You can still try translating without materials.",
+    "choose_cues": "Trial sample (up to {{count}} cues)",
+    "cues_help": "With no selection, use the first 20 cues in the file. Or select cues from this page. Changing the sample clears scope confirmations.",
+    "requirements": "Trial requirements (override recipe)",
+    "context": "Context for this trial",
+    "scope": "Confirm topics and speakers per cue",
+    "scope_help": "Check once to load the sample, then confirm each cue. Recipe speakers are suggestions only. Keep unknown speakers unset and check again after edits.",
+    "speaker": "Confirmed speaker",
+    "topic": "Current topic",
+    "mentioned": "Mentioned subject",
+    "unknown": "Unconfirmed",
+    "conditions": "Confirm additional conditions",
+    "disable": "Disable entries for this trial (resolve conflicts)",
+    "error": "The check or trial did not finish. Verify the configuration, model and file, then check again.",
+    "estimate": "{{cues}} cues · {{batches}} batches · estimated input: {{tokens}} tokens",
+    "cues_count": "{{count}} cues",
+    "related_entry": "Related material",
+    "more_issues": "Showing the first 100 of {{count}} notices. Reduce the selected materials and check again.",
+    "result": "Trial comparison (not human reviewed)",
+    "partial_result": "Trial incomplete; returned results are shown below",
+    "usage": "Actual requests: {{requests}} · input: {{input}} · output: {{output}} tokens",
+    "unknown_usage": "unknown",
+    "cost_help": "A trial sends the sample and applicable materials to the selected model and may incur charges. It does not save official translations, confirm content or learn from it. Knowledge enhancement for regular translation is not enabled yet.",
+    "cancel": "Stop trial",
+    "check": "Check materials",
+    "run": "Run trial translation",
+    "issue": {
+      "selection_invalid": "Invalid selection or scope. Confirm again.",
+      "resource_limit": "Selected materials or term matches exceed the trial check limit. Use fewer materials or a shorter sample.",
+      "resource_missing": "Required material is missing or library cleanup is pending.",
+      "resource_archived": "Material or a required subject is archived.",
+      "style_unavailable": "Rules required by the recipe style are unavailable.",
+      "language_mismatch": "Language or translation direction does not match.",
+      "untrusted": "This version has not been approved locally and is excluded.",
+      "unsupported_kind": "Expression and reference-translation retrieval is not enabled in this trial.",
+      "subject_unbound": "A required topic or subject role is unconfirmed; entry excluded.",
+      "speaker_conflict": "Multiple confirmed speakers overlap in a cue. Adjust the scope.",
+      "condition_unconfirmed": "Additional conditions are unconfirmed for these cues; entry excluded.",
+      "disabled": "Disabled for this trial.",
+      "no_match": "This term does not occur in the source.",
+      "term_conflict": "Conflicting term translations in the same cue. Resolve mandatory conflicts; conflicting optional suggestions are excluded.",
+      "rule_conflict": "Rules in the same dimension conflict. Choose which rules to use.",
+      "budget_excluded": "Optional material was excluded to fit the request budget.",
+      "budget_required": "A single cue and required materials exceed the model budget. Shorten requirements or reduce core materials.",
+      "preferences_not_applied": "Global translation preferences are not inherited yet; recipe requirements remain available.",
+      "required_term_suspect": "The literal required term was not found. Review this translation."
+    },
+    "materials_changed": "Materials changed. Earlier condition confirmations were cleared. Review the updated materials and check again."
   }
 }

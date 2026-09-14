@@ -7,10 +7,14 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { STUDIO_CHANNELS } from '../../src/subtitle-studio/ipc-contract';
 import { createSubtitleStudioApi } from '../../electron/preload/subtitle-studio-api';
+import { assertLegacyStudioChannelAllowed, isPublicStudioChannel } from '../../electron/preload/subtitle-studio-channel-policy';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
+import * as modelRuntime from '../../electron/main/ai/model-runtime-client';
 import { planTranslation } from '../../electron/main/subtitle-studio/translation-planner';
 import { checkpointForPlan } from '../../electron/main/subtitle-studio/translation-recovery';
 import type { ExportOptions } from '../../src/subtitle-studio/export-contract';
+import type { KnowledgeTrialRequest } from '../../src/subtitle-studio/knowledge-trial-contract';
+import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
 
 const adapter = vi.hoisted(() => ({ handlers: new Map<string, Function>(), listeners: new Map<string, Function>(), directory: '', open: vi.fn(), save: vi.fn(), reveal: vi.fn(), openFolder: vi.fn() }));
 vi.mock('electron', () => ({
@@ -34,12 +38,12 @@ function attach(client = sender()) {
   adapter.listeners.get(STUDIO_CHANNELS.register)!(event, {});
   return { client, capability: event.returnValue, invoke: (method: string, payload: unknown, overrides = {}) => adapter.handlers.get(method)!({ sender: client, senderFrame: client.mainFrame, ...overrides }, { capability: event.returnValue, payload }) };
 }
-async function setup(content = '[00:01.00]<script>window.injected=true</script>\n') {
+async function setup(content = '[00:01.00]<script>window.injected=true</script>\n', readKnowledge?: () => Promise<LibrarySnapshot>) {
   adapter.directory = await mkdtemp(path.join(tmpdir(), 'studio-ipc-'));
   const source = path.join(adapter.directory, 'sample.lrc');
   await writeFile(source, content);
   adapter.open.mockResolvedValue({ canceled: false, filePaths: [source] });
-  registration = registerSubtitleStudio();
+  registration = registerSubtitleStudio(undefined, readKnowledge);
   const owner = attach();
   const imported = await owner.invoke(STUDIO_CHANNELS.importSubtitle, { encoding: 'utf-8' });
   expect(imported.ok).toBe(true);
@@ -49,9 +53,131 @@ afterEach(async () => {
   await registration?.dispose(); registration = undefined;
   if (adapter.directory) await rm(adapter.directory, { recursive: true, force: true });
   adapter.open.mockReset(); adapter.save.mockReset(); adapter.reveal.mockReset(); adapter.openFolder.mockReset();
+  vi.restoreAllMocks();
 });
 
+function trialLibrary(): LibrarySnapshot {
+  return { generation: 1, data: {
+    format: 'fusionkit.translation-knowledge', schemaVersion: 1,
+    package: { id: randomUUID(), revision: 1, name: 'IPC trial fixture', description: '', purpose: 'backup', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'IPC test' } },
+    subjects: [], collections: [], sources: [], entries: [], styles: [], recipes: [], preferenceTemplates: [],
+  }, approvals: {}, imports: [] };
+}
+function trialInput(document: { documentId: string; revision: number }): KnowledgeTrialRequest {
+  return { ...document, knowledgeGeneration: 1,
+    config: { model: { profileId: 'trial-profile', modelKey: 'fixture-model', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' }, language: 'zh-Hans', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 20 },
+    knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], bindings: [], confirmations: [], disabledEntryIds: [] },
+  };
+}
+function mockTrialProvider() {
+  return vi.spyOn(modelRuntime, 'sendModelRuntimeText').mockImplementation(async input => ({
+    apiFormat: input.model.apiFormat, finishReason: 'stop', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    content: JSON.stringify({ items: (JSON.parse(input.messages[1].content).items as Array<{ id: string }>).map(item => ({ id: item.id, text: '试译结果' })) }),
+  }));
+}
+
 describe('production Subtitle Studio IPC handler composition', () => {
+  it('runs the three fixed trial methods through the real preload and authorized main handlers without document writes', async () => {
+    const send = mockTrialProvider();
+    const readKnowledge = vi.fn(async () => trialLibrary());
+    const { owner, request } = await setup('[00:01]A source sentence.\n', readKnowledge);
+    const initial = await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { ...request, offset: 0 });
+    const ipc = {
+      sendSync: () => owner.capability,
+      invoke: vi.fn((channel: string, envelope: unknown) => adapter.handlers.get(channel)!({ sender: owner.client, senderFrame: owner.client.mainFrame }, envelope)),
+      on: vi.fn(), removeListener: vi.fn(),
+    };
+    const api = createSubtitleStudioApi(ipc);
+    const input = trialInput(request);
+    const planned = await api.planKnowledgeTrial(input);
+    expect(planned).toMatchObject({ ok: true, value: { canRun: true, cueCount: 1, documentId: request.documentId, revision: 1 } });
+    if (!planned.ok) throw new Error('Trial planning failed.');
+    const run = { planId: planned.value.planId, apiKey: 'IPC_TEST_KEY' };
+    expect(await api.runKnowledgeTrial(run)).toMatchObject({ ok: true, value: { status: 'completed', requestCount: 1, items: [{ target: '试译结果' }] } });
+    expect(await api.cancelKnowledgeTrial({})).toEqual({ ok: true, value: null });
+    expect(ipc.invoke.mock.calls).toEqual([
+      [STUDIO_CHANNELS.planKnowledgeTrial, { capability: owner.capability, payload: input }],
+      [STUDIO_CHANNELS.runKnowledgeTrial, { capability: owner.capability, payload: run }],
+      [STUDIO_CHANNELS.cancelKnowledgeTrial, { capability: owner.capability, payload: {} }],
+    ]);
+    expect(readKnowledge).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].model.apiKey).toBe('IPC_TEST_KEY');
+    expect(JSON.stringify(planned)).not.toContain('IPC_TEST_KEY');
+    expect(await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { ...request, offset: 0 })).toEqual(initial);
+    expect(Object.keys(api)).not.toContain('capability');
+    expect(Object.keys(api)).not.toContain('invoke');
+  });
+
+  it('rejects unauthorized trial plans and forged DTOs and keeps cancellation isolated to its owner', async () => {
+    const send = mockTrialProvider();
+    const readKnowledge = vi.fn(async () => trialLibrary());
+    const { owner, request } = await setup('[00:01]Another sentence.\n', readKnowledge);
+    const other = attach();
+    const input = trialInput(request);
+    expect(await other.invoke(STUDIO_CHANNELS.planKnowledgeTrial, input)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTrial, input, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    for (const payload of [
+      { ...input, path: '/private/forged.lrc' },
+      { ...input, knowledgeGeneration: undefined },
+      { ...input, knowledge: { ...input.knowledge, snapshotId: randomUUID() } },
+      { ...input, config: { ...input.config, model: { ...input.config.model, apiKey: 'injected' } } },
+    ]) expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTrial, payload)).toEqual({ ok: false, error: 'invalid_input' });
+    expect(readKnowledge).not.toHaveBeenCalled();
+    expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTrial, { ...input, knowledgeGeneration: 2 })).toEqual({ ok: false, error: 'revision_conflict' });
+    expect(send).not.toHaveBeenCalled();
+    const planned = await owner.invoke(STUDIO_CHANNELS.planKnowledgeTrial, input);
+    expect(planned.ok).toBe(true);
+    const run = { planId: planned.value.planId, apiKey: 'IPC_TEST_KEY' };
+    // Even learning the document through listDocuments does not grant another owner's plan.
+    await other.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 });
+    expect(await other.invoke(STUDIO_CHANNELS.runKnowledgeTrial, run)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.runKnowledgeTrial, { ...run, documentId: request.documentId })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.runKnowledgeTrial, run, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.cancelKnowledgeTrial, { owner: other.client.id })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await other.invoke(STUDIO_CHANNELS.cancelKnowledgeTrial, {})).toEqual({ ok: true, value: null });
+    expect(send).not.toHaveBeenCalled();
+    expect(await owner.invoke(STUDIO_CHANNELS.runKnowledgeTrial, run)).toMatchObject({ ok: true, value: { status: 'completed', requestCount: 1 } });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('revokes a trial plan with its owner session and rejects reusing it after re-registration', async () => {
+    const send = mockTrialProvider();
+    const { owner, request } = await setup('[00:01]Session-bound sample.\n', async () => trialLibrary());
+    const planned = await owner.invoke(STUDIO_CHANNELS.planKnowledgeTrial, trialInput(request));
+    expect(planned.ok).toBe(true);
+    const run = { planId: planned.value.planId, apiKey: 'IPC_TEST_KEY' };
+    const replacement = attach(owner.client);
+    expect(replacement.capability).not.toEqual(owner.capability);
+    for (const [channel, payload] of [
+      [STUDIO_CHANNELS.planKnowledgeTrial, trialInput(request)],
+      [STUDIO_CHANNELS.runKnowledgeTrial, run],
+      [STUDIO_CHANNELS.cancelKnowledgeTrial, {}],
+    ] as const) expect(await owner.invoke(channel, payload)).toEqual({ ok: false, error: 'access_denied' });
+    await replacement.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 });
+    expect(await replacement.invoke(STUDIO_CHANNELS.runKnowledgeTrial, run)).toEqual({ ok: false, error: 'access_denied' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('exposes exactly the public trial channels and rejects internal, suffixed and legacy bridge access', async () => {
+    const methods = ['planKnowledgeTrial', 'runKnowledgeTrial', 'cancelKnowledgeTrial'] as const;
+    for (const method of methods) {
+      expect(isPublicStudioChannel(STUDIO_CHANNELS[method])).toBe(true);
+      expect(isPublicStudioChannel(`${STUDIO_CHANNELS[method]}:internal`)).toBe(false);
+      expect(() => assertLegacyStudioChannelAllowed(STUDIO_CHANNELS[method])).toThrow();
+    }
+    for (const channel of [STUDIO_CHANNELS.register, STUDIO_CHANNELS.changed, STUDIO_CHANNELS.importDroppedSubtitles, 'subtitle-studio:internal:run-knowledge-trial', 'subtitle-studio:invoke']) {
+      expect(isPublicStudioChannel(channel)).toBe(false);
+    }
+    const ipc = { sendSync: () => null, invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn() };
+    const api = createSubtitleStudioApi(ipc);
+    expect(await api.planKnowledgeTrial(trialInput({ documentId: randomUUID(), revision: 1 }))).toEqual({ ok: false, error: 'access_denied' });
+    expect(await api.runKnowledgeTrial({ planId: randomUUID(), apiKey: 'IPC_TEST_KEY' })).toEqual({ ok: false, error: 'access_denied' });
+    expect(await api.cancelKnowledgeTrial({})).toEqual({ ok: false, error: 'access_denied' });
+    expect(ipc.invoke).not.toHaveBeenCalled();
+    for (const internal of ['invoke', 'register', 'capability', 'internal']) expect(api).not.toHaveProperty(internal);
+  });
+
   it('reveals a bound source folder without granting path or cross-owner authority', async () => {
     const { owner, doc } = await setup();
     adapter.openFolder.mockResolvedValue('');

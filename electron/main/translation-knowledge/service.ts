@@ -137,7 +137,7 @@ export class KnowledgeService {
     }
     if (checked.data.entries.some(highRisk)) warnings.push(diagnostic('INDIVIDUAL_REVIEW_REQUIRED', 'Required rules and core facts are saved for individual review; bulk import acceptance does not approve them.'));
     if (items.some(item => item.status === 'conflict')) warnings.push(diagnostic('CONFLICT_REVIEW_REQUIRED', 'Imports with identity conflicts are saved for review; review the resulting versions after resolving their dependencies.'));
-    if (checked.data.entries.length || checked.data.styles.length || checked.data.recipes.length || checked.data.preferenceTemplates.length) warnings.push(diagnostic('P0_PRESERVED_NOT_EXECUTED', 'This version manages and preserves translation knowledge. Translation retrieval, applying recipes and applying preference templates arrive in a later increment.'));
+    if (checked.data.entries.length || checked.data.styles.length || checked.data.recipes.length || checked.data.preferenceTemplates.length) warnings.push(diagnostic('TRIAL_ONLY_EXECUTION', 'Approved background, terms and rules can be checked in Subtitle Studio independent trials. Formal translation and global preference inheritance are not enabled.'));
     const preview: ImportPreview = { planId: randomUUID(), generation: state.generation, packageName: checked.data.package.name, items, warnings, counts: { added: items.filter(item => item.status === 'new').length, unchanged: items.filter(item => item.status === 'unchanged').length, conflicts: items.filter(item => item.status === 'conflict').length } };
     this.plans.set(preview.planId, { owner, expiresAt: Date.now() + PLAN_TTL_MS, data: clone(checked.data), preview: clone(preview) });
     return preview;

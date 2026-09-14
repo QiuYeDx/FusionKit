@@ -199,7 +199,7 @@
   },
   "plans": {
     "category": "管理内容",
-    "notice": "当前可准备、维护和分享方案与风格；尚未接入字幕翻译任务，不会改变现有翻译行为。"
+    "notice": "已采纳的背景、术语和规则可在字幕工作台中检查与独立试译。正式翻译与全局偏好继承尚未启用。"
   },
   "empty": {
     "options": "暂无可选项目",
@@ -417,7 +417,8 @@
     "AI_PROPOSAL_READY": "AI 提议不能自行获得采纳，请检查内容。",
     "STYLE_NOT_READY": "风格引用的规则或关联资料尚不可用。",
     "RECIPE_STYLE_ARCHIVED": "方案中包含已归档风格。",
-    "TERM_TRANSLATION_CONFLICT": "同一原词存在不同译法，请检查范围与来源。"
+    "TERM_TRANSLATION_CONFLICT": "同一原词存在不同译法，请检查范围与来源。",
+    "TRIAL_ONLY_EXECUTION": "已采纳的背景、术语和规则可在字幕工作台中检查与独立试译。正式翻译与全局偏好继承尚未启用。"
   },
   "languages": {
     "ja": "日语",
@@ -498,5 +499,62 @@
       "unavailable": "资料暂不可用"
     },
     "imports_losing_undo": "查看将失去撤销能力的导入"
+  },
+  "trial": {
+    "open": "资料检查与试译",
+    "title": "资料检查与独立试译",
+    "description": "选择本次资料，检查适用范围，再试译最多 20 句。结果仅保留在此窗口。",
+    "language_help": "请明确所选片段的原文语言与目标语言。此处不自动识别混合语言；简体与繁体分别匹配。",
+    "recipe": "翻译方案",
+    "no_recipe": "自行选择资料",
+    "collections": "本次使用的资料集",
+    "empty": "尚无资料集，也可以不加资料直接试译。",
+    "choose_cues": "试译片段（最多 {{count}} 句）",
+    "cues_help": "不勾选时使用全文开头最多 20 句；也可从当前页勾选具体句子。改变片段会清除旧范围确认。",
+    "requirements": "本次翻译要求（优先于方案）",
+    "context": "本次内容说明",
+    "scope": "逐句确认主题与说话者",
+    "scope_help": "先检查以读取实际片段，再按句确认。方案中的人物只是建议；未知说话者保持未知。修改后请重新检查。",
+    "speaker": "确定说话者",
+    "topic": "当前主题",
+    "mentioned": "被提及对象",
+    "unknown": "未确认",
+    "conditions": "确认额外适用条件",
+    "disable": "本次不使用的条目（解决冲突）",
+    "error": "检查或试译未完成。请核对配置、模型和文件是否仍有效，再重新检查。",
+    "estimate": "{{cues}} 句 · {{batches}} 批 · 估算输入 {{tokens}} Token",
+    "cues_count": "{{count}} 句",
+    "related_entry": "相关资料",
+    "more_issues": "显示前 100 项，共 {{count}} 项提示。请缩小资料选择后重查。",
+    "result": "试译对照（未人工确认）",
+    "partial_result": "试译未全部完成，以下为已返回的结果",
+    "usage": "实际请求 {{requests}} 次 · 输入 {{input}} · 输出 {{output}} Token",
+    "unknown_usage": "未知",
+    "cost_help": "试译会将选中字幕和适用资料发送到所选模型，可能产生费用。不写入正式译文、不确认或积累资料。正式翻译的资料增强尚未启用。",
+    "cancel": "停止试译",
+    "check": "检查资料",
+    "run": "调用模型试译",
+    "issue": {
+      "selection_invalid": "选择或范围无效，请重新确认。",
+      "resource_limit": "所选资料或术语命中量超出试译检查上限，请减少资料或缩短片段。",
+      "resource_missing": "所需资料缺失或资料库正在清理。",
+      "resource_archived": "资料或必要对象已归档。",
+      "style_unavailable": "方案风格所需规则尚不可用。",
+      "language_mismatch": "语言或翻译方向不匹配。",
+      "untrusted": "尚未在本机采纳此版本，未使用。",
+      "unsupported_kind": "当前试译暂不检索表达和参考译文。",
+      "subject_unbound": "必要主题或人物角色尚未确认，未使用。",
+      "speaker_conflict": "同句有多个确定说话者，请调整范围。",
+      "condition_unconfirmed": "额外条件尚未在这些句子中确认，未使用。",
+      "disabled": "本次已禁用。",
+      "no_match": "原文没有命中此术语。",
+      "term_conflict": "同句术语译法冲突。强制冲突须处理；可选冲突已排除建议项。",
+      "rule_conflict": "同维度规则冲突。请明确本次选用的规则。",
+      "budget_excluded": "可选资料因预算不足未发送。",
+      "budget_required": "最小字幕与必要资料仍超出模型预算，请缩短要求或减少核心资料。",
+      "preferences_not_applied": "本次尚不继承全局翻译偏好；方案内要求仍可使用。",
+      "required_term_suspect": "强制术语的字面译法未找到，请人工复核。"
+    },
+    "materials_changed": "资料已更新，旧的适用条件确认已清除。请核对后重新检查。"
   }
 }

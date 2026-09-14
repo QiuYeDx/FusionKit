@@ -156,6 +156,7 @@ export function registerTranslationKnowledge() {
     });
   }
   return {
+    readForExecution: () => service.read(),
     attach(contents: WebContents) {
       if (closed || allowed.has(contents.id)) return;
       allowed.add(contents.id);

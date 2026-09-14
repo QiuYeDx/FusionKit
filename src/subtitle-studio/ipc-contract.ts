@@ -10,8 +10,12 @@ import { enqueueTranscriptionRequestSchema, type TranscriptionTaskSummary, type 
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
 import type { SpeechResourcesStatus } from '../speech-resources/events';
+import { knowledgeTrialRequestSchemas, type KnowledgeTrialPreview, type KnowledgeTrialResult } from './knowledge-trial-contract';
 
 export const STUDIO_CHANNELS = {
+  planKnowledgeTrial: 'subtitle-studio:plan-knowledge-trial',
+  runKnowledgeTrial: 'subtitle-studio:run-knowledge-trial',
+  cancelKnowledgeTrial: 'subtitle-studio:cancel-knowledge-trial',
   register: 'subtitle-studio:internal:register',
   importDroppedSubtitles: 'subtitle-studio:internal:import-dropped-subtitles',
   dropTranscriptionMedia: 'subtitle-studio:internal:drop-transcription-media',
@@ -82,6 +86,7 @@ export const droppedTranscriptionMediaRequestSchema = z.object({
   paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(20),
 }).strict();
 export const requestSchemas = {
+  ...knowledgeTrialRequestSchemas,
   ...transcriptionRequestSchemas,
   listTranslationTasks: z.object({ offset: z.number().int().min(0).max(100000000), pageSize: z.number().int().min(1).max(100), taskIds: z.array(idSchema).max(100).refine(ids => new Set(ids).size === ids.length).optional() }).strict(),
   revealSource: z.object({ kind: z.enum(['document', 'transcription']), id: idSchema }).strict(),
@@ -143,6 +148,9 @@ export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSu
 export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneration: string; target: { platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64' } }
   | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
+  planKnowledgeTrial(request: z.infer<typeof requestSchemas.planKnowledgeTrial>): Promise<StudioResult<KnowledgeTrialPreview>>;
+  runKnowledgeTrial(request: z.infer<typeof requestSchemas.runKnowledgeTrial>): Promise<StudioResult<KnowledgeTrialResult>>;
+  cancelKnowledgeTrial(request: z.infer<typeof requestSchemas.cancelKnowledgeTrial>): Promise<StudioResult<null>>;
   revealSource(request: z.infer<typeof requestSchemas.revealSource>): Promise<StudioResult<null>>;
   getSourceLocation(request: z.infer<typeof requestSchemas.getSourceLocation>): Promise<StudioResult<SourceLocationSummary>>;
   selectSourceDirectory(request: z.infer<typeof requestSchemas.selectSourceDirectory>): Promise<StudioResult<SourceLocationSummary | null>>;

@@ -284,7 +284,10 @@ app.whenReady().then(async () => {
   if (speechResourcesInitialized) await cleanupSpeechResourceSessionStartupOrphans({ managedResourceRoot: localSubtitleManagedResourceRoot });
   const detachSpeechResources = installSpeechResourceWindowBridge({ service: speechResources, ipc: ipcMain,
     getWindow: () => win, rendererUrl: VITE_DEV_SERVER_URL || pathToFileURL(indexHtml).href });
-  try { subtitleStudio = registerSubtitleStudio(speechResources); }
+  try { subtitleStudio = registerSubtitleStudio(speechResources, () => {
+    if (!translationKnowledge) throw new Error('Translation knowledge unavailable');
+    return translationKnowledge.readForExecution();
+  }); }
   catch { console.error("Subtitle Studio initialization failed."); }
   try { translationKnowledge = registerTranslationKnowledge(); }
   catch { console.error("Translation knowledge initialization failed."); }

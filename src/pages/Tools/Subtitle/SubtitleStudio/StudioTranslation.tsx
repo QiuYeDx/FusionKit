@@ -25,6 +25,7 @@ import { translationConfigSchema, translationModelSchema, type TranslationPlanSu
 import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
 import './StudioTranslation.css';
 import './StudioBatch.css';
+import { StudioKnowledgeTrial } from './StudioKnowledgeTrial';
 
 const errorKeys = {
   invalid_input: 'studio:errors.invalid_input',
@@ -262,6 +263,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           <ToolField label={t('studio:translation.instructions')} htmlFor={`${controlId}-instructions`}>
             <Textarea id={`${controlId}-instructions`} className="studio-translation-instructions text-xs" value={instructions} onChange={event => setInstructions(event.target.value)} maxLength={4000} disabled={pending} />
           </ToolField>
+          {!batch && page && config.success && <StudioKnowledgeTrial key={page.summary.id} page={page} config={config.data} apiKey={selected?.apiKey ?? ''} disabled={pending || busy || activeTask || unavailable} />}
           <ToolConfigDisclosure testId="studio-translation-advanced" className="studio-translation-advanced border-b-0" icon={SlidersHorizontal} title={t('studio:translation.advanced')}>
             <div className="studio-translation-budget-fields">
               <ToolField label={t('studio:translation.context_window')} htmlFor={`${controlId}-context`}>
