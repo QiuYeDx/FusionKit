@@ -1,0 +1,148 @@
+{
+  "format": "fusionkit.translation-knowledge",
+  "schemaVersion": 1,
+  "package": {
+    "id": "10000000-0000-4000-8000-000000000001",
+    "revision": 1,
+    "name": "游戏 X 英中字幕资料示例",
+    "description": "虚构示例，仅用于验证文件协议与导入流程。",
+    "purpose": "share",
+    "createdAt": "2026-09-14T00:00:00Z",
+    "generator": {
+      "name": "FusionKit protocol example",
+      "version": "1"
+    },
+    "author": "示例作者",
+    "sharingNote": "示例文本，不包含真实作品设定或外部网页摘录。"
+  },
+  "subjects": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "revision": 1,
+      "archived": false,
+      "kind": "work",
+      "name": "游戏 X",
+      "aliases": [
+        "Game X"
+      ],
+      "tags": [
+        "协议示例"
+      ],
+      "description": "仅用于演示译名范围的虚构作品。"
+    }
+  ],
+  "collections": [
+    {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "revision": 1,
+      "archived": false,
+      "name": "游戏 X 自订资料",
+      "description": "用户约定的背景与译名，等待本机确认。",
+      "aboutSubjectIds": [
+        "20000000-0000-4000-8000-000000000001"
+      ],
+      "defaultLanguagePair": {
+        "source": "en",
+        "target": "zh-Hans"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "revision": 1,
+      "kind": "user_note",
+      "title": "虚构示例的用户译名约定",
+      "excerpt": "本示例讨论游戏中的保存进度机制。用户约定该语境下 checkpoint 译为存档点，不将这一约定推广到软件调试。",
+      "attribution": "协议演示用用户说明；未声称官方来源。"
+    }
+  ],
+  "entries": [
+    {
+      "id": "50000000-0000-4000-8000-000000000001",
+      "revision": 1,
+      "title": "示例场景说明",
+      "collectionId": "30000000-0000-4000-8000-000000000001",
+      "aboutSubjectIds": [
+        "20000000-0000-4000-8000-000000000001"
+      ],
+      "scope": {
+        "languagePair": {
+          "source": "en",
+          "target": "zh-Hans"
+        },
+        "requiredSubjects": [
+          {
+            "subjectId": "20000000-0000-4000-8000-000000000001",
+            "role": "topic"
+          }
+        ],
+        "condition": {
+          "mode": "none"
+        }
+      },
+      "state": "candidate",
+      "evidence": [
+        {
+          "sourceId": "40000000-0000-4000-8000-000000000001",
+          "support": "direct"
+        }
+      ],
+      "derivedFrom": [],
+      "kind": "context",
+      "payload": {
+        "text": "用户说明：这份示例字幕讨论游戏中的保存进度机制。",
+        "assertion": "reported",
+        "core": false
+      }
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "title": "checkpoint：游戏保存机制",
+      "collectionId": "30000000-0000-4000-8000-000000000001",
+      "aboutSubjectIds": [
+        "20000000-0000-4000-8000-000000000001"
+      ],
+      "scope": {
+        "languagePair": {
+          "source": "en",
+          "target": "zh-Hans"
+        },
+        "requiredSubjects": [
+          {
+            "subjectId": "20000000-0000-4000-8000-000000000001",
+            "role": "topic"
+          }
+        ],
+        "condition": {
+          "mode": "requires_confirmation",
+          "text": "该字幕片段确实讨论游戏保存进度机制。"
+        }
+      },
+      "state": "candidate",
+      "evidence": [
+        {
+          "sourceId": "40000000-0000-4000-8000-000000000001",
+          "support": "direct"
+        }
+      ],
+      "derivedFrom": [],
+      "kind": "term",
+      "payload": {
+        "source": "checkpoint",
+        "target": "存档点",
+        "aliases": [],
+        "sense": "游戏中的保存进度位置，不包含软件调试含义。",
+        "match": {
+          "mode": "whole_term",
+          "caseSensitive": false
+        },
+        "strength": "preferred"
+      }
+    }
+  ],
+  "styles": [],
+  "recipes": [],
+  "preferenceTemplates": []
+}

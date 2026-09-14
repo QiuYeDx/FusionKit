@@ -1,0 +1,3 @@
+interface:
+  display_name: "FusionKit 字幕翻译知识"
+  short_description: "准备、维护并校验可供 FusionKit 导入的字幕翻译知识文件"

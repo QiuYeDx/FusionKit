@@ -11,6 +11,7 @@ interface ImportMeta {
 }
 
 interface Window {
+  translationKnowledge: import('./translation-knowledge/ipc-contract').TranslationKnowledgeApi;
   speechResources: import('./speech-resources/events').SpeechResourcesNotifications;
   // expose in the `electron/preload/index.ts`
   ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge

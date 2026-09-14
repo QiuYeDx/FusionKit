@@ -11,6 +11,7 @@ import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
 import SubtitleTranslator from "./pages/Tools/Subtitle/SubtitleTranslator";
 import SubtitleStudio from "./pages/Tools/Subtitle/SubtitleStudio";
+import TranslationKnowledge from "./pages/TranslationKnowledge";
 import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
 import LocalSubtitleTranscriber from "./pages/Tools/Subtitle/LocalSubtitleTranscriber";
@@ -112,6 +113,7 @@ function App() {
 
                 {/* 二级页面 */}
                 <Route path="/tools/subtitle/studio" element={<SubtitleStudio />} />
+                <Route path="/tools/translation-knowledge" element={<TranslationKnowledge />} />
                 <Route
                   path="/tools/subtitle/translator"
                   element={<SubtitleTranslator />}

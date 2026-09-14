@@ -1,6 +1,7 @@
 import { StudioRevealSource } from './StudioRevealSource';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { AlertCircle, ArrowRight, AudioLines, CheckCheck, ChevronDown, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -562,7 +563,7 @@ export default function SubtitleStudio() {
       { value: 'documents', label: t('studio:workspace_documents'), icon: <Library /> },
       { value: 'transcription', label: t('studio:workspace_transcription'), icon: <AudioLines /> },
     ]}>
-    <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} description={t('tools:field_desc.subtitle_studio')} /></div>
+    <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} description={<span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1"><span>{t('tools:field_desc.subtitle_studio')}</span><Link to="/tools/translation-knowledge" className="font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground">{t('knowledge:title')}</Link></span>} /></div>
     <ClipPathTabsContent value="documents" forceMount hidden={workspaceView !== 'documents'} className="studio-workspace-content">
     <ToolDetailLayout
       className="studio-layout"

@@ -2,6 +2,7 @@ export const LOCAL_SUBTITLE_TRANSCRIBER_ROUTE =
   "/tools/subtitle/local-transcriber" as const;
 
 export const ToolNameMap: { [key: string]: string } = {
+  "/tools/translation-knowledge": "knowledge:title",
   "/tools/subtitle/studio": "studio:title",
   "/tools/subtitle/translator": "menu.subtitle.translator",
   "/tools/subtitle/converter": "menu.subtitle.converter",

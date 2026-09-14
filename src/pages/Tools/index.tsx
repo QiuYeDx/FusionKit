@@ -43,6 +43,11 @@ const CATEGORIES: Category[] = [
         chips: ["LRC · SRT", "DeepSeek · OpenAI"],
       },
       {
+        id: "translationKnowledge",
+        titleKey: "knowledge:title",
+        descKey: "knowledge:description",
+      },
+      {
         id: "converter",
         titleKey: "tools:fields.subtitle_formatter",
         descKey: "tools:field_desc.subtitle_formatter",

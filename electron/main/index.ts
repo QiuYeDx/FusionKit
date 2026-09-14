@@ -69,6 +69,7 @@ import {
 } from "@/type/localSubtitleIpc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 import { registerSubtitleStudio } from "./subtitle-studio";
+import { registerTranslationKnowledge } from "./translation-knowledge";
 import { createSharedResourceApplicationShutdown, createResourceConsumerLifecycle } from "./app-shutdown";
 import { SpeechResourceService } from "./speech-resources/service";
 import { SPEECH_CUDA_RESOURCE_ID } from "./speech-resources/catalog";
@@ -112,6 +113,7 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null;
 let subtitleStudio: ReturnType<typeof registerSubtitleStudio> | undefined;
+let translationKnowledge: ReturnType<typeof registerTranslationKnowledge> | undefined;
 let localSubtitleServerLifecycle: LocalSubtitleServerAppLifecycle | undefined;
 let translationService: TranslationService = new TranslationService();
 const subtitleTranslationDirectoryCapabilities =
@@ -153,6 +155,7 @@ async function createWindow() {
   });
 
   subtitleStudio?.attach(win.webContents);
+  translationKnowledge?.attach(win.webContents);
   const loadingWindow = win;
   let loadingVisibilityTimer: ReturnType<typeof setTimeout> | undefined;
   let loadingVisibilityDeadline = 0;
@@ -283,6 +286,8 @@ app.whenReady().then(async () => {
     getWindow: () => win, rendererUrl: VITE_DEV_SERVER_URL || pathToFileURL(indexHtml).href });
   try { subtitleStudio = registerSubtitleStudio(speechResources); }
   catch { console.error("Subtitle Studio initialization failed."); }
+  try { translationKnowledge = registerTranslationKnowledge(); }
+  catch { console.error("Translation knowledge initialization failed."); }
   const localSubtitleInputAuthorizations =
     new LocalSubtitleInputAuthorizationRegistry();
   const localSubtitleOutputAuthorizations =
@@ -401,7 +406,7 @@ app.whenReady().then(async () => {
   localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
     createSharedResourceApplicationShutdown({
       resources: { fence: () => speechResources.fence(), async shutdown() { await speechResources.shutdown(); detachSpeechResources(); } },
-      runtimes: [localSubtitleResourceConsumer, { shutdown: reason => subtitleStudio?.dispose(reason) ?? Promise.resolve() }],
+      runtimes: [localSubtitleResourceConsumer, { shutdown: reason => subtitleStudio?.dispose(reason) ?? Promise.resolve() }, { shutdown: () => translationKnowledge?.dispose() ?? Promise.resolve() }],
       smokeServer: speechResourceSmoke,
     }),
   );

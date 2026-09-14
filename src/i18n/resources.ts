@@ -1,4 +1,8 @@
 import type { Resource } from "i18next";
+import enKnowledge from "@/locales/en/knowledge.json";
+import jaKnowledge from "@/locales/ja/knowledge.json";
+import zhKnowledge from "@/locales/zh/knowledge.json";
+import zhHantKnowledge from "@/locales/zh-Hant/knowledge.json";
 import enStudio from "@/locales/en/studio.json";
 import jaStudio from "@/locales/ja/studio.json";
 import zhStudio from "@/locales/zh/studio.json";
@@ -47,6 +51,7 @@ import zhHantAudio from "@/locales/zh-Hant/audio.json";
 
 export const resources: Resource = {
   [LangEnum.EN]: {
+    knowledge: enKnowledge,
     studio: enStudio,
     common: enCommon,
     home: enHome,
@@ -59,6 +64,7 @@ export const resources: Resource = {
     audio: enAudio,
   },
   [LangEnum.JA]: {
+    knowledge: jaKnowledge,
     studio: jaStudio,
     common: jaCommon,
     home: jaHome,
@@ -71,6 +77,7 @@ export const resources: Resource = {
     audio: jaAudio,
   },
   [LangEnum.ZH]: {
+    knowledge: zhKnowledge,
     studio: zhStudio,
     common: zhCommon,
     home: zhHome,
@@ -83,6 +90,7 @@ export const resources: Resource = {
     audio: zhAudio,
   },
   [LangEnum.ZH_HANT]: {
+    knowledge: zhHantKnowledge,
     studio: zhHantStudio,
     common: zhHantCommon,
     home: zhHantHome,
