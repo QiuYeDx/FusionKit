@@ -9,20 +9,20 @@
 .studio-translation-overview-round > svg { flex-shrink: 0; }
 .studio-translation-overview-round > progress { width: clamp(60px, 8vw, 120px); }
 .studio-translation-overview-percent { color: var(--foreground); font-variant-numeric: tabular-nums; }
-.studio-translation-overview progress, .studio-translation-overview-list progress { display: block; height: 4px; border: 0; border-radius: 4px; overflow: hidden; appearance: none; background: var(--muted); }
-.studio-translation-overview progress::-webkit-progress-bar, .studio-translation-overview-list progress::-webkit-progress-bar { background: var(--muted); }
-.studio-translation-overview progress::-webkit-progress-value, .studio-translation-overview-list progress::-webkit-progress-value { background: var(--primary); border-radius: 4px; }
+.studio-translation-overview progress { display: block; height: 4px; border: 0; border-radius: 4px; overflow: hidden; appearance: none; background: var(--muted); }
+.studio-translation-overview progress::-webkit-progress-bar { background: var(--muted); }
+.studio-translation-overview progress::-webkit-progress-value { background: var(--primary); border-radius: 4px; }
 .studio-translation-overview-dialog [data-slot=scroll-area-viewport] > div { display: block !important; min-width: 0; width: 100%; }
-.studio-translation-overview-dialog [data-slot=scroll-area-viewport] > div > div { padding: 12px; }
+.studio-translation-overview-dialog [data-slot=scroll-area-viewport] > div > div { padding: 0; }
 .studio-translation-overview-content { min-width: 0; }
-.studio-translation-overview-task-meta { display: flex; flex-wrap: wrap; gap: 3px 12px; margin-block: 5px 8px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
-.studio-translation-overview-list progress { width: 100%; }
+.studio-translation-overview-content > .studio-translation-overview-warning { margin: 8px 20px; }
+.studio-translation-overview-list .studio-translation-overview-task-note, .studio-translation-overview-list .studio-translation-overview-warning { margin-left: 23px; }
 .studio-translation-overview-task-note, .studio-translation-overview-warning { display: flex; align-items: flex-start; gap: 5px; margin-top: 6px; font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-translation-overview-task-note { color: var(--muted-foreground); }
 .studio-translation-overview-warning { color: var(--destructive); }
 .studio-translation-overview-task-note > svg, .studio-translation-overview-warning > svg { flex-shrink: 0; margin-top: 2px; }
 .studio-translation-overview-empty { padding: 24px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center; }
-.studio-translation-overview-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; }
+.studio-translation-overview-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
 .studio-translation-overview-footer > .studio-pagination { flex: 1; }
 
 .studio-overview-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; padding: 0; }
@@ -39,16 +39,9 @@
 .studio-overview-usage { padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--border); font-size: 11px; line-height: 18px; }
 .studio-overview-usage-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .studio-overview-usage-heading > strong { font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.studio-overview-usage dl { display: flex; gap: 16px; margin-top: 4px; }
-.studio-overview-usage dl > div { display: flex; flex-wrap: wrap; gap: 4px; }
-.studio-overview-usage dt { color: var(--muted-foreground); }
-.studio-overview-usage dd { font-variant-numeric: tabular-nums; }
-.studio-overview-usage-scope { display: inline-block; margin-top: 4px; color: var(--muted-foreground); font-size: 10px; text-decoration: underline dotted; text-underline-offset: 3px; }
-.studio-overview-usage-scope:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .studio-overview-usage-inline { padding: 6px 12px; margin-top: 0; }
 .studio-overview-usage-inline .studio-overview-usage-heading { cursor: help; border-radius: 3px; }
 .studio-overview-usage-inline .studio-overview-usage-heading:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .studio-overview-usage-inline strong { font-size: 12px; }
-.studio-translation-overview-content > .studio-overview-usage { border-top: 0; padding: 0 0 12px; margin: 0 0 12px; border-bottom: 1px solid var(--border); }
 
 .studio-translation-overview [data-slot=tool-panel-body] > .studio-translation-overview-warning { margin: 0; padding: 6px 12px; border-top: 1px solid var(--border); }

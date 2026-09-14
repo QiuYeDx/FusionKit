@@ -130,13 +130,13 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
         await uiExpect(rows[3].locator('progress')).toHaveAttribute('value', '100');
         await uiExpect(rows[6]).toHaveAttribute('data-state', 'failed');
         const geometry = await page.getByTestId('studio-transcription-task-row').evaluateAll(elements => elements.map(element => {
-          const row = element.getBoundingClientRect(), heading = element.querySelector('.studio-transcription-task-heading')!.getBoundingClientRect();
-          const meta = element.querySelector('.studio-transcription-task-meta')!, metadata = meta.getBoundingClientRect();
+          const row = element.getBoundingClientRect(), heading = element.querySelector('.studio-task-heading')!.getBoundingClientRect();
+          const meta = element.querySelector('.studio-task-meta')!, metadata = meta.getBoundingClientRect();
           const rects = Array.from(meta.children).map(child => child.getBoundingClientRect());
           return { height: row.height, headingHeight: heading.height, metaHeight: metadata.height,
             metaSingleLine: rects.every(rect => Math.abs(rect.top + rect.height / 2 - metadata.top - metadata.height / 2) < 1),
             noOverflow: element.scrollWidth <= element.clientWidth + 1 && rects.every(rect => rect.left >= row.left && rect.right <= row.right + 1),
-            buttons: Array.from(element.querySelectorAll('.studio-transcription-task-heading button')).map(button => ({ width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height })),
+            buttons: Array.from(element.querySelectorAll('.studio-task-heading button')).map(button => ({ width: button.getBoundingClientRect().width, height: button.getBoundingClientRect().height })),
             standaloneHelp: element.querySelectorAll(':scope > .studio-transcription-help').length };
         }));
         expect(geometry[0].height).toBe(geometry[1].height); expect(geometry[1].height).toBeLessThanOrEqual(82);

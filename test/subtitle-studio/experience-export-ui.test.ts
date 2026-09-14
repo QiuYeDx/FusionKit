@@ -150,7 +150,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await prepare(page); await uiExpect(dialog.getByRole('button', { name: '确认并导出 1 份', exact: true })).toBeEnabled(); await capture('08-source-rebind-dark');
       await dialog.getByRole('button', { name: '取消', exact: true }).click(); await rename(`${files[3]}.moved`, files[3]);
       await page.getByRole('button', { name: '查看全部', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-translation-overview-list').locator('.studio-document-row')).toHaveCount(3);
+      await uiExpect(page.getByTestId('studio-translation-overview-list').locator('.studio-task-row')).toHaveCount(3);
       await capture('09-translation-overview-shared-rows-dark');
       await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
       await page.getByRole('button', { name: '批量翻译', exact: true }).click();

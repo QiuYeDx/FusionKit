@@ -1,0 +1,20 @@
+.studio-task-list { list-style: none; display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; padding: 8px 12px; }
+.studio-task-row { min-width: 0; padding: 8px; border-radius: 8px; }
+.studio-task-row:hover { background: var(--muted); }
+.studio-task-heading { display: flex; gap: 8px; align-items: center; }
+.studio-task-name { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; font-size: 12px; line-height: 20px; }
+.studio-task-name > svg { width: 15px; height: 15px; flex-shrink: 0; }
+.studio-task-name > .studio-file-name { flex: 1; }
+.studio-task-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.studio-task-actions > button { width: 28px; height: 28px; padding: 0; }
+.studio-task-actions > button:not(:disabled):hover { background: color-mix(in srgb, var(--foreground) 12%, var(--card)); }
+.studio-task-meta { display: flex; align-items: center; gap: 8px; margin-top: 0; padding-left: 23px; font-size: 11px; line-height: 18px; color: var(--muted-foreground); }
+.studio-task-meta > * { flex-shrink: 0; white-space: nowrap; }
+.studio-task-meta > .studio-task-model { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.studio-task-model:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.studio-task-percentage { margin-left: auto; min-width: 3ch; text-align: right; font-variant-numeric: tabular-nums; }
+.studio-task-progress { display: block; width: 100%; height: 4px; overflow: hidden; border: 0; border-radius: 4px; margin-top: 8px; appearance: none; background: color-mix(in srgb, var(--foreground) 18%, var(--card)); }
+.studio-task-progress::-webkit-progress-bar { background: color-mix(in srgb, var(--foreground) 18%, var(--card)); border-radius: 4px; }
+.studio-task-progress::-webkit-progress-value { background: var(--primary); border-radius: 4px; transition: width 150ms ease-out; }
+.studio-task-progress::-moz-progress-bar { background: var(--primary); border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .studio-task-progress::-webkit-progress-value { transition: none; } }
