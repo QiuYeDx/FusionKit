@@ -101,6 +101,9 @@ export function createSpeechResourceSmoke(options: {
   let startupCleanup: Promise<unknown> | undefined;
   let closing = false;
   let shutdownOperation: Promise<void> | undefined;
+  // Shared resource jobs use application owner 0. The isolated native supervisor
+  // requires a positive owner ID; its private session never belongs to a renderer.
+  const smokeOwner = Object.freeze({ webContentsId: 1, ownerSessionId: randomUUID() });
   const requireOpen = () => { if (closing) throw new SpeechResourceSmokeError('owner_released', 'The shared speech resource load check is closed.'); };
   const supervisor = new LocalSubtitleServerSupervisor({ managedResourceRoot: options.managedResourceRoot,
     dependencies: { async createSession() {
@@ -120,19 +123,23 @@ export function createSpeechResourceSmoke(options: {
   };
   const smokeModel: SpeechResourceModelSmoke = async input => {
     try {
+      requireOpen();
       input.signal.throwIfAborted();
       const verifiedRuntime = await verifyLocalSubtitleRuntimeBundle({ environment: options.environment, scope: 'server' });
       input.signal.throwIfAborted();
-      await supervisor.smokeModelLoad(input.owner, { purpose: 'model_load_smoke', backend: 'cpu', verifiedRuntime,
+      requireOpen();
+      await supervisor.smokeModelLoad(smokeOwner, { purpose: 'model_load_smoke', backend: 'cpu', verifiedRuntime,
         serverArtifactId: selectLocalSubtitleCpuServerArtifactId(verifiedRuntime), model: input.model, threads: 1 }, input.signal);
     } catch (error) { failure(error); }
   };
   const smokeVad: SpeechResourceVadSmoke = async input => {
     try {
+      requireOpen();
       input.signal.throwIfAborted();
       const verifiedRuntime = await verifyLocalSubtitleRuntimeBundle({ environment: options.environment, scope: 'server' });
       input.signal.throwIfAborted();
-      await supervisor.smokeVadLoad(input.owner, { purpose: 'vad_load_smoke', backend: 'cpu', verifiedRuntime,
+      requireOpen();
+      await supervisor.smokeVadLoad(smokeOwner, { purpose: 'vad_load_smoke', backend: 'cpu', verifiedRuntime,
         serverArtifactId: selectLocalSubtitleCpuServerArtifactId(verifiedRuntime), model: input.model, vadModel: input.vad, threads: 1 }, input.signal);
     } catch (error) { failure(error); }
   };

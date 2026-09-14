@@ -1,0 +1,98 @@
+{
+  "date": "2026-09-14",
+  "target": "darwin-arm64",
+  "tests": {
+    "sharedResourcesAndProvenance": {
+      "passedFiles": 23,
+      "skippedFiles": 2,
+      "passedTests": 227,
+      "skippedTests": 5
+    },
+    "affectedWiringAndExport": {
+      "passedFiles": 5,
+      "passedTests": 113,
+      "skippedTests": 2
+    },
+    "nativeTooling": {
+      "passedTests": 35
+    },
+    "packagingSigning": {
+      "passedTests": 23
+    },
+    "loadingLifecycle": {
+      "passed": true,
+      "run": "test-results/preload-loading/run-TxzOBj",
+      "seconds": 41.09
+    },
+    "operationResults": {
+      "passed": true,
+      "run": "test-results/studio-i7-results/run-8GemQ8",
+      "seconds": 28.04
+    },
+    "developmentRealWorkflow": {
+      "passed": true,
+      "run": "test-results/studio-release-real/run-YEYFrf",
+      "seconds": 35.73
+    },
+    "packagedRealWorkflow": {
+      "passed": true,
+      "run": "test-results/studio-release-real/run-oUQrQE",
+      "seconds": 44.91
+    }
+  },
+  "checks": {
+    "productionTypeScript": true,
+    "workflowTypeScript": true,
+    "preloadUiTypeScript": true,
+    "rendererMainPreloadBuild": true,
+    "preloadBundle": true,
+    "i18nKeysPerLanguage": 2439,
+    "i18nLanguages": 4,
+    "i18nUsageResolved": true,
+    "i18nExistingSameValueWarnings": 21,
+    "boundaries": {
+      "files": 446,
+      "errors": []
+    },
+    "historicalBaseline": {
+      "mode": "check",
+      "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+      "files": 279,
+      "dependencies": 1605,
+      "status": "passed"
+    },
+    "sourceAndFrozenCopy": {
+      "passed": true,
+      "files": 120,
+      "method": "copy.mjs --check, bounded Git file input"
+    },
+    "sharedIntegration": {
+      "entries": 11,
+      "legacyWorktreeAudits": 5,
+      "exact": true
+    },
+    "diffWhitespace": true,
+    "lockfileUnchanged": true,
+    "specDone": {
+      "passed": true,
+      "approvalChecked": true,
+      "overallChecked": true,
+      "scopeDigest": "88b9d5a8ddcf6d7e1d7b29a673475f69ea96672fb2447d87f54e33ef74024662",
+      "incrementDigest": "42759043084f7748d253392cdc42cadf8314abcc398a614b683367e24aedf384",
+      "acceptance": "pending"
+    },
+    "snapshotReadbackMatched": true
+  },
+  "processAudit": {
+    "matchingProcesses": [],
+    "allIsolatedProfilesRemoved": true,
+    "nativeContainerProbeProcessesAlive": 0,
+    "containerMountAndTempRemoved": true
+  },
+  "limitations": [
+    "No Developer ID identity or notarization credentials were provided.",
+    "No Windows final-candidate target host was provided.",
+    "CUDA redistribution and Windows external-library notices remain pending.",
+    "JFK real workflow is a short sample with VAD disabled; user acceptance remains pending."
+  ]
+}

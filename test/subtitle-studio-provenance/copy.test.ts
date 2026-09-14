@@ -11,7 +11,7 @@ const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 const hash = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 
-function fixture(large = false, composition = false) {
+function fixture(large = false, composition = false, buildComposition = false, packageVersion = '1.0.0') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-copy-')); roots.push(root);
   const write = (name: string, bytes: string) => { fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true }); fs.writeFileSync(path.join(root, name), bytes); };
   const git = (...args: string[]) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
@@ -20,13 +20,19 @@ function fixture(large = false, composition = false) {
   write('old/value.ts', 'export const value = 42;\nexport type Value = number;\n' + (large ? '// Large source for direct Git file hashing.\n'.repeat(8192) : ''));
   write('old/fixture.json', '{"root":"old/runtime","upstreamHash":"unchanged"}\n');
   if (composition) write('app/main.ts', 'export const shutdown = "legacy";\n');
+  if (buildComposition) {
+    write('package.json', JSON.stringify({ name: 'fixture', version: packageVersion, scripts: { build: 'vite build && electron-builder', dev: 'vite' }, dependencies: { fixture: '1.0.0' }, devDependencies: { vite: '5.4.11' } }, null, 2) + '\n');
+    write('electron-builder.json', '{"extraResources":[]}\n');
+    write('pnpm-lock.yaml', 'lockfileVersion: 6.0\n');
+  }
   git('add', '.'); git('-c', 'user.name=Copy test', '-c', 'user.email=copy@example.invalid', 'commit', '-qm', 'frozen');
   const sourceCommit = git('rev-parse', 'HEAD');
-  const baselinePolicy = { version: 1, roots: composition ? ['old/', 'app/'] : ['old/'], rules: [
+  const baselinePolicy = { version: 1, roots: ['old/', ...(composition ? ['app/'] : []), ...(buildComposition ? ['package.json', 'electron-builder.json', 'pnpm-lock.yaml'] : [])], rules: [
     { source: 'old/index.ts', destination: 'new/transcription/index.ts', category: 'source', disposition: 'planned-copy', reason: 'test' },
     { source: 'old/value.ts', destination: 'new/domain.ts', category: 'source', disposition: 'planned-copy', reason: 'test' },
     { source: 'old/fixture.json', destination: 'new/data/fixture.json', category: 'resource', disposition: 'planned-copy', reason: 'test' },
     ...(composition ? [{ source: 'app/main.ts', destination: null, category: 'application-composition', disposition: 'reference-only', follow: false, reason: 'Application wiring is evidence only.' }] : []),
+    ...(buildComposition ? ['package.json', 'electron-builder.json', 'pnpm-lock.yaml'].map(source => ({ source, destination: null, category: 'build-composition', disposition: 'reference-only', follow: false, reason: 'Build wiring is evidence only.' })) : []),
   ], dynamicAudits: [], snapshots: [], manualAudits: [], runtimeReferences: [], excludedScopes: [] };
   const baseline = generateBaseline({ root, sourceCommit, policy: baselinePolicy });
   write('baseline.json', serialize(baseline));
@@ -51,6 +57,25 @@ function compositionFixture() {
   const writeAudit = () => f.write(COMPOSITION_AUDIT_PATH, JSON.stringify(audit));
   writeAudit();
   return { ...f, audit, writeAudit, originalPlan, baselineBytes, original, current };
+}
+
+function packageCompositionFixture(packageVersion = '1.0.0') {
+  const f = fixture(false, false, true, packageVersion);
+  const originalPlan = createCopyPlan(f.options);
+  const baselineBytes = fs.readFileSync(path.join(f.root, 'baseline.json'));
+  const current = JSON.parse(fs.readFileSync(path.join(f.root, 'package.json'), 'utf8'));
+  current.scripts.build += ' --config electron-builder.subtitle-studio.json --publish never';
+  const source = f.baseline.files.find(file => file.sourcePath === 'package.json')!;
+  const audit = { schemaVersion: 1, sourceCommit: f.baseline.sourceCommit, entries: [{ sourcePath: source.sourcePath,
+    sourceBlobOid: source.blobOid, sourceSha256: source.sha256, currentBlobOid: '', reason: 'Reviewed only the default build resource composition.' }] };
+  const writeAudit = () => f.write(COMPOSITION_AUDIT_PATH, JSON.stringify(audit));
+  const writeCurrent = () => {
+    f.write('package.json', JSON.stringify(current, null, 2) + '\n');
+    audit.entries[0].currentBlobOid = f.git('hash-object', '--path=package.json', '--', 'package.json');
+    writeAudit();
+  };
+  writeCurrent();
+  return { ...f, current, audit, writeAudit, writeCurrent, originalPlan, baselineBytes };
 }
 
 describe('transcription source copy', () => {
@@ -197,5 +222,74 @@ describe('transcription source copy', () => {
     f.write('linked-main.ts', f.current);
     fs.symlinkSync(path.join(f.root, 'linked-main.ts'), path.join(f.root, 'app/main.ts'));
     expect(() => createCopyPlan(f.options)).toThrow(/Worktree symlink/);
+  });
+
+  it('permits the exact reviewed package build command while leaving frozen replay and baseline bytes unchanged', () => {
+    const f = packageCompositionFixture();
+    expect(createCopyPlan(f.options)).toEqual(f.originalPlan);
+    expect(fs.readFileSync(path.join(f.root, 'baseline.json'))).toEqual(f.baselineBytes);
+    expect(createCopyPlan(f.options).files.some(file => file.sourcePath === 'package.json')).toBe(false);
+    f.write('.gitattributes', '*.json text eol=lf\n');
+    f.write('package.json', (JSON.stringify(f.current, null, 2) + '\n').replaceAll('\n', '\r\n'));
+    expect(createCopyPlan(f.options)).toEqual(f.originalPlan);
+  });
+
+  it.each(['dependencies', 'devDependencies', 'other-script', 'name', 'version', 'added-field', 'deleted-field', 'unchanged-build', 'missing-build', 'invalid-build'] as const)
+    ('refuses a package audit that also changes %s even with the exact current blob hash', kind => {
+      const f = packageCompositionFixture();
+      if (kind === 'dependencies') f.current.dependencies.fixture = '2.0.0';
+      if (kind === 'devDependencies') f.current.devDependencies.vite = '6.0.0';
+      if (kind === 'other-script') f.current.scripts.dev = 'vite --host';
+      if (kind === 'name') f.current.name = 'changed';
+      if (kind === 'version') f.current.version = '2.0.0';
+      if (kind === 'added-field') f.current.packageManager = 'pnpm@10.0.0';
+      if (kind === 'deleted-field') delete f.current.dependencies;
+      if (kind === 'unchanged-build') f.current.scripts.build = 'vite build && electron-builder';
+      if (kind === 'missing-build') delete f.current.scripts.build;
+      if (kind === 'invalid-build') f.current.scripts.build = ['vite build'];
+      f.writeCurrent();
+      expect(() => createCopyPlan(f.options)).toThrow(/composition audit/);
+      expect(fs.readFileSync(path.join(f.root, 'baseline.json'))).toEqual(f.baselineBytes);
+    });
+
+  it('accepts only the reviewed release version migration alongside the exact build change', () => {
+    const f = packageCompositionFixture('0.3.0');
+    f.current.version = '0.3.1';
+    f.writeCurrent();
+    expect(createCopyPlan(f.options)).toEqual(f.originalPlan);
+    expect(fs.readFileSync(path.join(f.root, 'baseline.json'))).toEqual(f.baselineBytes);
+    f.current.dependencies.fixture = '2.0.0';
+    f.writeCurrent();
+    expect(() => createCopyPlan(f.options)).toThrow(/permits only a scripts.build change/);
+  });
+
+  it.each([['0.2.11', '0.3.1'], ['0.3.0', '0.3.2'], ['0.3.1', '0.3.0']])('rejects an unaudited version migration %s -> %s', (sourceVersion, currentVersion) => {
+    const f = packageCompositionFixture(sourceVersion);
+    f.current.version = currentVersion;
+    f.writeCurrent();
+    expect(() => createCopyPlan(f.options)).toThrow(/permits only a scripts.build change/);
+  });
+
+  it.each(['missing-audit', 'stale-current', 'wrong-source-oid', 'wrong-source-sha', 'empty-reason'] as const)
+    ('keeps exact package audit identities and reason mandatory: %s', kind => {
+      const f = packageCompositionFixture();
+      if (kind === 'missing-audit') fs.unlinkSync(path.join(f.root, COMPOSITION_AUDIT_PATH));
+      else {
+        if (kind === 'stale-current') f.audit.entries[0].currentBlobOid = '0'.repeat(40);
+        if (kind === 'wrong-source-oid') f.audit.entries[0].sourceBlobOid = '0'.repeat(40);
+        if (kind === 'wrong-source-sha') f.audit.entries[0].sourceSha256 = '0'.repeat(64);
+        if (kind === 'empty-reason') f.audit.entries[0].reason = '  ';
+        f.writeAudit();
+      }
+      expect(() => createCopyPlan(f.options)).toThrow(/Worktree drift|composition audit/i);
+    });
+
+  it.each(['electron-builder.json', 'pnpm-lock.yaml'])('does not extend the build exception to %s', sourcePath => {
+    const f = packageCompositionFixture();
+    const source = f.baseline.files.find(file => file.sourcePath === sourcePath)!;
+    const entry = f.audit.entries[0];
+    Object.assign(entry, { sourcePath, sourceBlobOid: source.blobOid, sourceSha256: source.sha256 });
+    f.writeAudit();
+    expect(() => createCopyPlan(f.options)).toThrow(/Composition audit is not supported reference-only evidence/);
   });
 });

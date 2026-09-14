@@ -18,7 +18,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && node scripts/check-preload-bundle.mjs && electron-builder --publish never",
+    "build": "tsc && vite build && node scripts/check-preload-bundle.mjs && electron-builder --config electron-builder.subtitle-studio.json --publish never",
     "check:preload-bundle": "node scripts/check-preload-bundle.mjs",
     "preview": "vite preview",
     "pretest": "vite build --mode=test && node scripts/check-preload-bundle.mjs",

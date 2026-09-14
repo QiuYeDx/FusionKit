@@ -92,7 +92,7 @@ type TranslationTrack = {
 
 SubtitleText 表达文本、受支持的内联 span 和换行，不是可执行 HTML。源换行和标签有到原节点的映射；模型结果不能直接执行或插入 HTML。preservation 保存格式元数据、原节点、原始内容与 cue 映射，有 schema 和大小限制。只保存 rawText 而没有对应关系不足以支持编辑后保真导出。
 
-媒体preservation保存严格转录结构，没有伪造字幕raw节点或编码；文档保持100000 cues和128MiB快照上限，超限整体拒绝。T04内部生产者在task清理和batch pin释放后调用绑定owner/task/generation的sink。创建发布返回同一文档身份；迟到取消不反转已发布结果，同步故障以durability=uncertain保留事实。任务准入/调度及转写UI尚未接入。
+媒体preservation保存严格转录结构，没有伪造字幕raw节点或编码；文档保持100000 cues和128MiB快照上限，超限整体拒绝。内部生产者在task清理和batch pin释放后调用绑定owner/task/generation的sink。创建发布返回同一文档身份；迟到取消不反转已发布结果，同步故障以durability=uncertain保留事实。任务准入、FIFO调度、取消和转写UI已通过main/preload接入；完成文档独立持久化，转写队列保留至本renderer会话。模型/VAD/兼容CUDA由应用级共享服务维护，两工具的任务与推理会话保持隔离。
 
 不变量：
 

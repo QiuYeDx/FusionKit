@@ -153,23 +153,50 @@ async function createWindow() {
   });
 
   subtitleStudio?.attach(win.webContents);
+  const loadingWindow = win;
+  let loadingVisibilityTimer: ReturnType<typeof setTimeout> | undefined;
+  let loadingVisibilityDeadline = 0;
+  const stopLoadingVisibilityCheck = () => {
+    if (loadingVisibilityTimer !== undefined) clearTimeout(loadingVisibilityTimer);
+    loadingVisibilityTimer = undefined;
+    loadingVisibilityDeadline = 0;
+  };
   const startLoadingProgress = () => {
-    if (!win || win.webContents.isDestroyed()) return;
-    win.webContents.send(START_LOADING_PROGRESS_CHANNEL);
+    if (loadingWindow.isDestroyed() || loadingWindow.webContents.isDestroyed()) {
+      stopLoadingVisibilityCheck();
+      return true;
+    }
+    if (!loadingWindow.isVisible()) return false;
+    stopLoadingVisibilityCheck();
+    loadingWindow.webContents.send(START_LOADING_PROGRESS_CHANNEL);
+    return true;
+  };
+  const checkLoadingVisibility = () => {
+    loadingVisibilityTimer = undefined;
+    if (startLoadingProgress() || Date.now() >= loadingVisibilityDeadline) return;
+    loadingVisibilityTimer = setTimeout(checkLoadingVisibility, 50);
   };
 
+  // A reload can finish while the native window is hidden. Its dom-ready
+  // handler cannot start the loader yet, so later shows need a fresh signal.
+  win.on("show", startLoadingProgress);
   win.once("ready-to-show", () => {
     if (!win || win.isDestroyed()) return;
 
     win.show();
-    startLoadingProgress();
   });
 
   win.webContents.on("dom-ready", () => {
-    if (win?.isVisible()) {
-      startLoadingProgress();
-    }
+    // Native show notifications can be omitted during a quick hide/reload/show
+    // on macOS. Only a hidden loading window needs this short, bounded check.
+    stopLoadingVisibilityCheck();
+    loadingVisibilityDeadline = Date.now() + 5000;
+    checkLoadingVisibility();
   });
+  win.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) stopLoadingVisibilityCheck();
+  });
+  win.once("closed", stopLoadingVisibilityCheck);
 
   if (VITE_DEV_SERVER_URL) {
     // #298

@@ -498,6 +498,7 @@ function useLoading() {
   })
 
   let hasMounted = false
+  let hasDisposed = false
   let hasCompleted = false
   let readyRequested = false
   let minimumCountCompleted = false
@@ -519,6 +520,7 @@ function useLoading() {
   let exitRevealStartTimer: ReturnType<typeof setTimeout> | undefined
   let exitRevealCleanupTimer: ReturnType<typeof setTimeout> | undefined
   let initialProgressHoldTimer: ReturnType<typeof setTimeout> | undefined
+  let loadingDeadlineTimer: ReturnType<typeof setTimeout> | undefined
   let initialProgressFrameOne: number | undefined
   let initialProgressFrameTwo: number | undefined
   let handleLoadingProgressStart: Parameters<typeof ipcRenderer.on>[1] | undefined
@@ -592,6 +594,9 @@ function useLoading() {
   const unsubscribeExitReveal = exitRevealMotion.on('change', renderExitReveal)
 
   const cleanupLoading = () => {
+    if (hasDisposed) return
+    hasDisposed = true
+
     progressAnimation?.stop()
     completeAnimation?.stop()
     exitRevealAnimation?.stop()
@@ -612,6 +617,7 @@ function useLoading() {
       exitRevealStartTimer,
       exitRevealCleanupTimer,
       initialProgressHoldTimer,
+      loadingDeadlineTimer,
     ].forEach((timer) => {
       if (timer !== undefined) clearTimeout(timer)
     })
@@ -621,6 +627,7 @@ function useLoading() {
     exitRevealStartTimer = undefined
     exitRevealCleanupTimer = undefined
     initialProgressHoldTimer = undefined
+    loadingDeadlineTimer = undefined
 
     if (initialProgressFrameOne !== undefined) {
       window.cancelAnimationFrame(initialProgressFrameOne)
@@ -644,11 +651,12 @@ function useLoading() {
     unsubscribeExitReveal()
 
     window.removeEventListener('resize', updateViewportMetrics)
-    safeDOM.remove(document.head, oStyle)
-    safeDOM.remove(document.body, oDiv)
+    oStyle.remove()
+    oDiv.remove()
   }
 
   const playExitReveal = () => {
+    if (hasDisposed) return
     oDiv.classList.add('fk-exiting')
 
     if (progressStack) {
@@ -683,7 +691,7 @@ function useLoading() {
   }
 
   const enterCompleteHold = () => {
-    if (hasCompleted) return
+    if (hasCompleted || hasDisposed) return
 
     hasCompleted = true
     progressMotion.set(100)
@@ -709,7 +717,7 @@ function useLoading() {
   }
 
   const playCompleteSweep = () => {
-    if (isCompleting || hasCompleted) return
+    if (isCompleting || hasCompleted || hasDisposed) return
     isCompleting = true
     progressAnimation?.stop()
     progressAnimation = undefined
@@ -722,7 +730,7 @@ function useLoading() {
   }
 
   const completeMinimumCount = () => {
-    if (minimumCountCompleted || hasCompleted) return
+    if (minimumCountCompleted || hasCompleted || hasDisposed) return
 
     minimumCountCompleted = true
     progressAnimation?.stop()
@@ -739,7 +747,7 @@ function useLoading() {
   }
 
   const startProgress = () => {
-    if (progressAnimation !== undefined || hasCompleted) return
+    if (progressAnimation !== undefined || hasCompleted || hasDisposed) return
 
     progressAnimation = animate(progressMotion, syntheticProgressCeiling, {
       ...springTransition(minimumCountDuration),
@@ -754,6 +762,7 @@ function useLoading() {
     if (
       progressStartScheduled ||
       hasCompleted ||
+      hasDisposed ||
       !progressStartRequested ||
       !hasMounted ||
       !canStartProgress()
@@ -778,7 +787,7 @@ function useLoading() {
   }
 
   const requestProgressStart = () => {
-    if (hasCompleted || progressStartScheduled) return
+    if (hasCompleted || hasDisposed || progressStartScheduled) return
 
     progressStartRequested = true
     scheduleProgressStart()
@@ -795,7 +804,7 @@ function useLoading() {
 
   return {
     appendLoading() {
-      if (hasCompleted) return
+      if (hasCompleted || hasDisposed) return
 
       safeDOM.append(document.head, oStyle)
       safeDOM.append(document.body, oDiv)
@@ -805,9 +814,13 @@ function useLoading() {
       scheduleProgressStart()
     },
     removeLoading() {
-      if (hasCompleted) return
+      if (hasCompleted || hasDisposed) return
 
       readyRequested = true
+      // Once the renderer is ready, release the overlay independently of the
+      // start signal, visibility and animation frames. A missed start otherwise
+      // waits for minimumCountCompleted forever. Never reveal an unready page.
+      loadingDeadlineTimer ??= setTimeout(cleanupLoading, 4999)
 
       if (!hasMounted) {
         return
@@ -830,5 +843,3 @@ domReady().then(appendLoading)
 window.onmessage = (ev) => {
   ev.data.payload === 'removeLoading' && removeLoading()
 }
-
-setTimeout(removeLoading, 4999)

@@ -27,6 +27,18 @@ function context(root, config = readConfig(), platform = 'darwin', arch = 3) {
   return { electronPlatformName: platform, arch, packager: { config, platform: { nodeName: platform }, info: { projectDir: root } } };
 }
 
+test('the default build resolves the complete dual-resource configuration and never publishes', async () => {
+  const { scripts } = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+  const stages = scripts.build.split('&&').map(value => value.trim());
+  assert.deepEqual(stages.slice(0, -1), ['tsc', 'vite build', 'node scripts/check-preload-bundle.mjs']);
+  const args = stages.at(-1).split(/\s+/u);
+  assert.equal(args[0], 'electron-builder');
+  assert.deepEqual(args.slice(1), ['--config', 'electron-builder.subtitle-studio.json', '--publish', 'never']);
+  const config = await getConfig(projectRoot, path.join(projectRoot, args[2]));
+  await validateConfig(config);
+  assert.equal(assertPackagingConfig(config), true);
+});
+
 test('validates the real electron-builder resolved configuration without modifying the old entry', async () => {
   const config = await getConfig(projectRoot, path.join(projectRoot, 'electron-builder.subtitle-studio.json'));
   await validateConfig(config);

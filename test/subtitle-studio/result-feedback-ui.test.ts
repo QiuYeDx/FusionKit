@@ -114,9 +114,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
           const bounds = dialog.getBoundingClientRect(); const close = dialog.querySelector('button[id$="-close"]')!;
           const closeBounds = close.getBoundingClientRect();
           const innerScrollWidths = [...dialog.querySelectorAll('.studio-result-content [data-slot="scroll-area-viewport"], .studio-result-content [data-slot="scroll-area-viewport"] > div')].map(element => ({ slot: element.getAttribute('data-slot') ?? 'inner-wrapper', scrollWidth: element.scrollWidth, clientWidth: element.clientWidth, display: getComputedStyle(element).display }));
-          return { width: bounds.width, height: bounds.height, x: bounds.x, right: bounds.right, bottom: bounds.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, overflow: dialog.scrollWidth - dialog.clientWidth, closeBottom: closeBounds.bottom, closeHeight: closeBounds.height, innerScrollWidths };
+          return { width: bounds.width, height: bounds.height, x: bounds.x, right: bounds.right, bottom: bounds.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, overflow: dialog.scrollWidth - dialog.clientWidth, closeBottom: closeBounds.bottom, closeHeight: closeBounds.height, innerScrollWidths, dark: document.documentElement.classList.contains('dark') };
         });
         geometry.push({ name, ...data });
+        expect(data.dark).toBe(name.endsWith('-dark'));
         expect(data.x).toBeGreaterThanOrEqual(0); expect(data.right).toBeLessThanOrEqual(data.viewportWidth + 1); expect(data.bottom).toBeLessThanOrEqual(data.viewportHeight + 1); expect(data.closeBottom).toBeLessThanOrEqual(data.viewportHeight + 1); expect(data.overflow).toBeLessThanOrEqual(1); expect(data.closeHeight).toBe(36);
         expect(data.innerScrollWidths).toHaveLength(2);
         for (const inner of data.innerScrollWidths) { expect(inner.clientWidth).toBeGreaterThan(0); expect(inner.scrollWidth).toBeLessThanOrEqual(inner.clientWidth + 1); }
@@ -232,9 +233,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await uiExpect.poll(() => app!.evaluate(() => (globalThis as any).__i8Folders)).toEqual([root]);
       await choose([names[1], names[3]]); await batchAction('library.delete_selected');
       await page!.getByRole('button', { name: text('library.confirm_delete'), exact: true }).click(); await assertResult('delete', 'success', 2);
-      await capture('10-delete-completed-dark'); await closeResult(); expect(await documents()).toHaveLength(2);
-      await importFiles([files[1], files[3]]); await assertResult('import', 'success', 2); await capture('11-multiple-import-completed-dark'); await closeResult();
-      language = 'en'; await page!.evaluate(() => localStorage.setItem('lang', 'en')); await page!.reload(); await ready(page!); await nativeWindow.evaluate(win => win.setSize(787, 540));
+      await capture('10-delete-completed-light'); await closeResult(); expect(await documents()).toHaveLength(2);
+      await importFiles([files[1], files[3]]); await assertResult('import', 'success', 2); await capture('11-multiple-import-completed-light'); await closeResult();
+      language = 'en'; await page!.evaluate(() => {
+        localStorage.setItem('lang', 'en');
+        localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 }));
+      }); await page!.reload(); await ready(page!); await uiExpect(page!.locator('html')).toHaveClass(/dark/); await nativeWindow.evaluate(win => win.setSize(787, 540));
       await importFiles(invalidFiles); await assertResult('import', 'failed', 2); await capture('12-failed-overview-English-narrow-dark');
       await result().locator('[data-result-details] > summary').focus(); await page!.keyboard.press('Enter'); await uiExpect(result().locator('[data-result-id][data-state="failed"]')).toHaveCount(2);
       await capture('13-failed-details-English-narrow-dark'); await closeResult(undefined, true);

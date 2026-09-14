@@ -2,7 +2,13 @@
 
 工作名称：字幕工作台 / Subtitle Studio。工具身份 `subtitleStudio`，路由 `/tools/subtitle/studio`。独立文档、翻译和导出与现有 v1 工具共存。
 
-## 当前进度（2026-09-13）
+## 当前进度（2026-09-14）
+
+当前基线为 `v0.3.1` 的 `dec9010`。I1/I2/I3/I5/I6/I7/I8 的34项实施任务与后续导出改进均已集成，用户整体验收保持独立状态。以下历史段落中的“未提交”只描述对应验证时刻。
+
+本轮用户明确要求先处理macOS原生资源、完整真实流程和打包发布验证，I4继续后置；此前暂停打包的指令已由本次授权替代。I9已完成本机实现与真实应用流程，范围与唯一任务状态见[需求](modules/module-release/requirements.md)、[设计](modules/module-release/design.md)、[任务](modules/module-release/tasks.md)。实测与交付见[收尾记录](records/2026-09-14-release-closeout.md)，正式签名/公证与Windows目标机条件见[发行条件记录](records/2026-09-14-release-signing-readiness.md)。
+
+## 已集成能力与历史证据（2026-09-13）
 
 **按译文内容调整导出**：无译文的单份及批量默认并限定仅原文；空译文轨不视为已有译文；混合导出的原文补齐及双语缺译行不重复已通过四格式和实际文件验证。见[本轮记录](records/2026-09-13-smart-export.md)。
 
@@ -40,7 +46,7 @@ T06证据见[转写工作区](records/2026-09-12-transcription-ui.md)：1161项�
 
 **I3六项人工验收完善已完成**：字幕拖入、转写队列批量维护、全库翻译总览与本轮进度、VTT/ASS完整工作流、字幕/媒体来源目录导出、默认无后缀及可选命名均已接通。最终3项实际Electron综合场景、两套生产与测试严格TS、i18n/边界/相关来源回归通过，小窗口遮挡和Windows默认保存路径大小写保护已修复。见[原始问题](records/2026-09-12-manual-acceptance-findings.md)、[综合收尾记录](records/2026-09-12-acceptance-closeout.md)、[需求](modules/module-acceptance/requirements.md)、[设计](modules/module-acceptance/design.md)、[任务](modules/module-acceptance/tasks.md)。I3已按用户要求提交并推送3855c2c；用户整体验收仍pending。
 
-**I5第二轮十项体验完善已完成**：媒体拖入、可选自动翻译（默认关闭）、转写设置重启恢复、停止按钮与环境状态布局、导出默认与统一折叠清单、译文工具条及静默进度刷新均已实现。最终7套实际Electron场景、248项受影响复验、两套生产及测试TS、四语/边界/集成审计通过。见[综合收尾与验证边界](records/2026-09-13-experience-closeout.md)、[问题记录](records/2026-09-12-experience-findings.md)、[需求](modules/module-experience/requirements.md)、[设计](modules/module-experience/design.md)、[任务](modules/module-experience/tasks.md)。用户整体验收保持pending，本轮改动尚未提交；I4编辑保持后置，打包继续暂停。
+**I5第二轮十项体验完善已完成**：媒体拖入、可选自动翻译（默认关闭）、转写设置重启恢复、停止按钮与环境状态布局、导出默认与统一折叠清单、译文工具条及静默进度刷新均已实现。最终7套实际Electron场景、248项受影响复验、两套生产及测试TS、四语/边界/集成审计通过。见[综合收尾与验证边界](records/2026-09-13-experience-closeout.md)、[问题记录](records/2026-09-12-experience-findings.md)、[需求](modules/module-experience/requirements.md)、[设计](modules/module-experience/design.md)、[任务](modules/module-experience/tasks.md)。该记录创建时用户整体验收pending、改动未提交且打包暂停；当前已集成，打包由I9恢复，I4继续后置。
 
 **I6第三轮十项交互优化已完成**：队列进度与提示压缩、明确复制菜单、独立导出确认步骤、按需结果详情、紧凑标题、稳定视图切换、文档侧栏翻译总览及局部全选均已实现。实际Electron及必要回归已通过，见[综合收尾记录](records/2026-09-13-interaction-closeout.md)、[问题记录](records/2026-09-13-interaction-findings.md)、[需求](modules/module-interaction/requirements.md)、[设计](modules/module-interaction/design.md)、[任务](modules/module-interaction/tasks.md)。I5证据保留为上一轮验证时状态。
 
@@ -63,9 +69,9 @@ T06证据见[转写工作区](records/2026-09-12-transcription-ui.md)：1161项�
 
 ## 下一步
 
-用户明确暂停打包演练，T09共享资源范围已完成，当前无需要继续实施的共享资源子项。两个入口共用同一兼容资源，未来从任一资源页安装或删除会同步影响另一工具。原生staging保持既有闭包；任务状态只在本会话保留，新文档继续持久化，容量保持100000 cues/128MiB、超限整体拒绝。
+I9补齐macOS原生资源，修复首次模型导入、启动遮罩和ad-hoc签名配置，并完成实际候选app的CPU/Metal、文档重开、真实翻译和单批导出。I4继续后置；下一步是具备凭据/目标机后完成正式签名、公证和Windows发行验证。两个入口共用同一兼容资源，从任一资源页安装或删除会同步影响另一工具。转写任务状态只在本会话保留，新文档继续持久化，容量保持100000 cues/128MiB、超限整体拒绝。
 
-T07短样本与T08固定Windows矩阵不替代所有媒体质量、macOS完整资源、共存/移除后的完整应用包或签名/公证验证；这些仍待后续任务。build实物被Git忽略，换机需按固定来源重新制作，不能只凭清单hash宣称就绪。
+T07/T08历史Windows矩阵与本轮macOS JFK双设备短样本均不替代广泛媒体质量或安装、更新、卸载全生命周期验证。I9已有双资源macOS本地候选，Developer ID、公证、Windows最终包和CUDA分发条件仍待补齐。build实物被Git忽略，换机需按固定来源重新制作，不能只凭清单hash宣称就绪。
 
 保留旧版已经接受的转写质量局限；I3六项已完成并推送；I5十项也已完成并留待用户验收，当前没有未完成的本轮实施子项；I4编辑继续后置。全产品安装更新卸载、分发许可、音频真实设备/供应商验收独立安排，不从旧研究台账重启无限调参。
 
@@ -80,7 +86,7 @@ T07短样本与T08固定Windows矩阵不替代所有媒体质量、macOS完整�
 
 ## 换机器接续
 
-先保护未提交改动，再拉取 `feat/subtitle-studio-transcription`（T01–T04已在e80ef6b；T05–T08由本次提交接续）。源码、当前规格和项目级避坑技能随 Git 同步；用户级技能、模型设置、凭据、node_modules、test-results、模型及本机原生资源不随 Git 同步。使用兼容旧 lockfile 的 pnpm；只需检查时优先直接调用已安装工具的 Node 入口，不触发包装器自动安装。
+先保护未提交改动，再核对当前 `v0.3.1` 分支与远端。源码、当前规格和项目级避坑技能随 Git 同步；用户级技能、模型设置、凭据、node_modules、test-results、模型及本机原生资源不随 Git 同步。使用兼容旧 lockfile 的 pnpm；只需检查时优先直接调用已安装工具的 Node 入口，不触发包装器自动安装。
 
 Windows/macOS 历史绝对路径只作为当时环境证据。新平台按当前任务执行适用检查，缺环境如实登记；原生资源身份不等于本机实测通过。没有用户级规格 checker 时可按本仓库明确的 R/AC/T/V 人工核验并记录工具缺失，不制造业务阻塞。
 

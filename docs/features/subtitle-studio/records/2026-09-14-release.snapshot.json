@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 1,
+  "baseline": "dec90103b34904b73e6a5fc4479552daad31a58b",
+  "branch": "v0.3.1",
+  "state": "uncommitted I9",
+  "scope": "Changed implementation, tests, build configuration, current audits, pitfall guidance and explanatory docs. Status metadata and records excluded to avoid self-referential hashes; unchanged files inherit the baseline.",
+  "files": [
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/adapt-application-resource-ownership-at-the-native-smoke-boundary.md",
+      "bytes": 5087,
+      "sha256": "c6eb3f5214fbc4349d0135fa6c4d05f1b27c5b5ec8efde61c1ecb8f55505f412"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/index.md",
+      "bytes": 58751,
+      "sha256": "5ba5ec70a534efd8f7ed638aa2e36d5700bc73d7f1594ba07992fb8a606d994c"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/recover-loading-from-native-visibility-without-revealing-an-unready-renderer.md",
+      "bytes": 3932,
+      "sha256": "c2bb31c9c4f7829752c970883e25128a5d8c7480e57adc41dbf37a1a665438ea"
+    },
+    {
+      "path": ".agents/skills/fusionkit-pitfall-guard/references/verify-ad-hoc-electron-launch-separately-from-strict-signatures.md",
+      "bytes": 3643,
+      "sha256": "6898235b7ffa06a44e3a25da6227d87ad307c19ad6455782f96fa53b30cd20f7"
+    },
+    {
+      "path": "README.md",
+      "bytes": 22646,
+      "sha256": "9a2f876cf780d95deabaf1698552d55c86ede8af553c9ca6245f1767aa76e02e"
+    },
+    {
+      "path": "docs/features/subtitle-studio/README.md",
+      "bytes": 15677,
+      "sha256": "d8575654dc1317313ff8a80117c91f5f72969091c7b811de91d49f7e83d1d642"
+    },
+    {
+      "path": "docs/features/subtitle-studio/architecture.md",
+      "bytes": 14591,
+      "sha256": "29409dfda0b7dda90dea93f9e8211192d8af43589704886d4eea24b0df3a7ca1"
+    },
+    {
+      "path": "docs/features/subtitle-studio/modules/module-release/design.md",
+      "bytes": 2829,
+      "sha256": "31daeca3655fcdc9ff81541e89b68bb0dadf18a950bf5fd61d627e3de25a3a36"
+    },
+    {
+      "path": "docs/features/subtitle-studio/modules/module-release/requirements.md",
+      "bytes": 2783,
+      "sha256": "c12ec073a09553daecb302b3c9fe165cbad31f9939401731d106b8295c8ba8ed"
+    },
+    {
+      "path": "electron/main/index.ts",
+      "bytes": 24157,
+      "sha256": "fae1ad06688b34ee88f8b20533df35b3b83abd4f572ac3c82250b7069c3663a4"
+    },
+    {
+      "path": "electron/main/subtitle-studio/transcription/shared-resources.ts",
+      "bytes": 11456,
+      "sha256": "d644146359803a224ffdf4855e4a3f5c893c692debc5767137edcec0e4697e4c"
+    },
+    {
+      "path": "electron/preload/index.ts",
+      "bytes": 25771,
+      "sha256": "3e0b2cdd30cee2e80ec1cbd635484cc04151d953b1247c5e110ed40dc36ecfed"
+    },
+    {
+      "path": "package.json",
+      "bytes": 3384,
+      "sha256": "239f3a96ac4274d9bd836506c93947b900de19efbe16a4945836363a9068d783"
+    },
+    {
+      "path": "resources/speech-resources/provenance/current-integration-audits.v1.json",
+      "bytes": 10625,
+      "sha256": "ae047ece935ecbdc2da98e25694b5e57f384823e267258b5b2ca720dabce69c6"
+    },
+    {
+      "path": "scripts/packaging/licenses/NVIDIA-CUDA-12.4-EULA.html",
+      "bytes": 82548,
+      "sha256": "182734e0cee7c6217b911ef88fc92c4a1f487d1003c24dd9dab1597a399fb7c5"
+    },
+    {
+      "path": "scripts/packaging/licenses/NVIDIA-CUDA-12.4-component-mapping.json",
+      "bytes": 3446,
+      "sha256": "a6118576c8ffffc27363ecfb71e9046e56c4d8b79367c4d1095cf27e81732275"
+    },
+    {
+      "path": "scripts/packaging/sign-subtitle-studio.mjs",
+      "bytes": 10376,
+      "sha256": "82385019326c8265dec0b1c158d6d13bc798244d35a0c5283e7ec9ad707e40ab"
+    },
+    {
+      "path": "scripts/packaging/sign-subtitle-studio.test.mjs",
+      "bytes": 12653,
+      "sha256": "3db1dd7d766e7c1dafa8ba08fb02cfd96b956f3c21528818e212d976aa5d95d6"
+    },
+    {
+      "path": "scripts/packaging/subtitle-studio-packaging.test.mjs",
+      "bytes": 14580,
+      "sha256": "6b731df178acbd5f013ca2a62d9811a2f2c08a4f11d813f155d3c35e94046119"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/copy.mjs",
+      "bytes": 19664,
+      "sha256": "15cf720a6aea93a1247c827f86cff79e3ec7b43bdbec269e0b4a9db01163b022"
+    },
+    {
+      "path": "scripts/subtitle-studio-provenance/current-composition-audits.json",
+      "bytes": 3049,
+      "sha256": "c71de5a7b8be0b1b2b9f396281adbef567732eeb066e6deb6e7fedfb58baabfd"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/build-ffmpeg-macos-arm64.mjs",
+      "bytes": 16839,
+      "sha256": "fbb504bd547726746e71caa43020cb61492daec3524c6e34a63ff9de316b4927"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/build-ffmpeg-macos-arm64.test.mjs",
+      "bytes": 5600,
+      "sha256": "e16b696c1b9dcd1f49e3d22d4a158d1ff15c978fde65efba372b7f99fabcaee9"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/build-whisper-server-macos-arm64.mjs",
+      "bytes": 26693,
+      "sha256": "beac6104f43432207f5367c9c6b0d6f793d218f9c979a100f7bca4c32a17d25a"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/build-whisper-server-macos-arm64.test.mjs",
+      "bytes": 5018,
+      "sha256": "c8f50bffbd07819903a7bb9b943e2b8b6fff0e7de6253755ef674645916ebe04"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/metal-evidence.mjs",
+      "bytes": 1677,
+      "sha256": "744e4cf433eeab52c9c6d209e83e39f9f355bd018fa2bf0f5c0aa9d53b3772db"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/run-macos-runtime-smoke.mjs",
+      "bytes": 24615,
+      "sha256": "0cff65895906bb54724f847344d1baa191b6f492bd9effb55e50eee96f3d11e5"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/run-macos-runtime-smoke.test.mjs",
+      "bytes": 8904,
+      "sha256": "fcc507ad619f90488681c6637cf431b9f05b357e7bb871b60e96a13a5ae5c010"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/stage-runtime.mjs",
+      "bytes": 19504,
+      "sha256": "82d3d8c1304983113ceac72c50b31fd504700622818a5b2bf2d3cfe37b8b717c"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/stage-runtime.test.mjs",
+      "bytes": 4974,
+      "sha256": "55dd83cf20a9397a4761450436f3040a468870553723e456c3e1a7c5dc2b9be1"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/verify-ffmpeg-source-signature.mjs",
+      "bytes": 5782,
+      "sha256": "7f93affe9b85a84a57eacce017411cc5829ceadada4769b36c4aa5645bcff35b"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/verify-ffmpeg-source-signature.test.mjs",
+      "bytes": 3156,
+      "sha256": "e1166261b85892f97597f8ce174165ef828e8b0d55e51a15bcebb49648fa2115"
+    },
+    {
+      "path": "test/preload-loading-ui.test.ts",
+      "bytes": 11249,
+      "sha256": "3b71d990f53888e9c045fd2d66f1b7292f93de56a233138a113f91c68805a066"
+    },
+    {
+      "path": "test/speech-resources/integration/smoke-owner-admission.test.ts",
+      "bytes": 7469,
+      "sha256": "d3be2c47548ee8cf69476ca8f3d418203818fb5c397c7bd880d66badf1100cc7"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/copy.test.ts",
+      "bytes": 20288,
+      "sha256": "5490dab7e0189b59e2082f0b4fdfa0bb499d573e3c42a2caca4461a70c304c4c"
+    },
+    {
+      "path": "test/subtitle-studio-provenance/release-real-workflow.test.ts",
+      "bytes": 28550,
+      "sha256": "a2bc4bc34f9b7a918b5acbc38ae68652985978ae1dce0a7a4bd1c010cc7ccf24"
+    },
+    {
+      "path": "test/subtitle-studio/result-feedback-ui.test.ts",
+      "bytes": 26047,
+      "sha256": "bbcf2b20638303c4beb693e458d1e12acffe67500ad731a619f853c3a20ce8b4"
+    }
+  ],
+  "builtApplicationEntries": [
+    {
+      "path": "dist-electron/main/index.js",
+      "bytes": 2961596,
+      "sha256": "db6182310edcc2c34c38163d19948dffb170c1c4a38ac7e4bb3b6f209f1d8f72"
+    },
+    {
+      "path": "dist-electron/preload/index.mjs",
+      "bytes": 272565,
+      "sha256": "baf2fe7b927018b9ee7e888415d98a6338aba61eb495dd6865e3fbf10d52ad40"
+    },
+    {
+      "path": "dist/index.html",
+      "bytes": 556,
+      "sha256": "75d9d65fb23a766c3b9865038707e513ff721c257996003c26e7b9e1531f015a"
+    }
+  ]
+}

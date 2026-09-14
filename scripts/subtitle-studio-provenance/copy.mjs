@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import ts from 'typescript';
 import { BASELINE_PATH, POLICY as BASELINE_POLICY } from './policy.mjs';
 import { checkBaseline, serialize } from './generate.mjs';
@@ -42,6 +43,8 @@ export function checkCopyWorktree(root, baseline, policy = BASELINE_POLICY) {
       const compositionAudit = compositionAudits.get(file.sourcePath) ?? sharedIntegrationAudits.get(file.sourcePath);
       if (compositionAudit ? oid !== compositionAudit.currentBlobOid : oid !== file.blobOid) {
         errors.push(`${compositionAudit ? 'Changed audited composition source' : 'Changed source'}: ${file.sourcePath}`);
+      } else if (compositionAudit && file.sourcePath === 'package.json') {
+        assertPackageBuildComposition(root, file, fs.readFileSync(absolute));
       }
     } catch (error) { errors.push(error.code === 'ENOENT' ? `Deleted source: ${file.sourcePath}` : error.message); }
   }
@@ -67,16 +70,37 @@ function readCompositionAudits(root, baseline) {
       || !/^[a-f0-9]{40}$/.test(audit.currentBlobOid)) throw new Error('Invalid composition audit entry');
     const sourcePath = relativePath(audit.sourcePath);
     const source = baseline.files.find(file => file.sourcePath === sourcePath);
-    // Only explicitly inventoried application-composition evidence can evolve.
-    // Copied v1 code, build inputs and the frozen replay graph retain their pins.
-    if (!source || source.category !== 'application-composition' || source.disposition !== 'reference-only'
-      || source.plannedDestination !== null) throw new Error(`Composition audit is not reference-only application evidence: ${sourcePath}`);
+    // The application entry points can evolve through full-file review. The only
+    // build-composition exception is package.json: scripts.build plus the exact
+    // already-committed 0.3.0 -> 0.3.1 release version migration checked below.
+    // All other build inputs and the frozen copy/replay graph retain their pins.
+    const allowedCategory = sourcePath === 'package.json' ? source?.category === 'build-composition' :
+      source?.category === 'application-composition';
+    if (!source || !allowedCategory || source.disposition !== 'reference-only'
+      || source.plannedDestination !== null) throw new Error(`Composition audit is not supported reference-only evidence: ${sourcePath}`);
     if (audits.has(sourcePath)) throw new Error(`Duplicate composition audit: ${sourcePath}`);
     if (audit.sourceBlobOid !== source.blobOid || audit.sourceSha256 !== source.sha256
       || audit.currentBlobOid === source.blobOid) throw new Error(`Stale composition audit source identity: ${sourcePath}`);
     audits.set(sourcePath, audit);
   }
   return audits;
+}
+
+function assertPackageBuildComposition(root, source, currentBytes) {
+  const sourceBytes = gitRead(root, ['cat-file', 'blob', source.blobOid]);
+  if (sourceBytes.length !== source.byteSize || sha256(sourceBytes) !== source.sha256) throw new Error('Package composition audit source identity differs');
+  const readManifest = bytes => {
+    const value = JSON.parse(bytes.toString('utf8'));
+    const isObject = item => item !== null && typeof item === 'object' && !Array.isArray(item);
+    if (!isObject(value) || !isObject(value.scripts) || typeof value.scripts.build !== 'string' || !value.scripts.build.trim()) throw new Error('Package composition audit requires a scripts.build string');
+    const { build, ...scripts } = value.scripts;
+    return { build, remainder: { ...value, scripts } };
+  };
+  const original = readManifest(sourceBytes), current = readManifest(currentBytes);
+  // Commit 87d22d9 already bumped the pulled release before this build change.
+  // This is a single reviewed transition, not permission for arbitrary versions.
+  if (original.remainder.version === '0.3.0' && current.remainder.version === '0.3.1') current.remainder.version = original.remainder.version;
+  if (original.build === current.build || !isDeepStrictEqual(original.remainder, current.remainder)) throw new Error('Package composition audit permits only a scripts.build change');
 }
 
 function relativePath(value) {

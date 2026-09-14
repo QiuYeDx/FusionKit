@@ -1,0 +1,270 @@
+{
+  "realAsr": true,
+  "provider": "configured-real-provider",
+  "runtimeSubstitutions": 0,
+  "packaged": true,
+  "chains": [
+    {
+      "backend": "cpu",
+      "taskId": "2cd1aeaf-73b8-41a6-aed1-e7bf05fccd12",
+      "documentId": "5a60c50b-96f9-4e7f-8394-bec67a9ce6fc",
+      "status": "completed",
+      "cueCount": 3
+    },
+    {
+      "backend": "metal",
+      "taskId": "e1138415-52d1-4ce5-8e9a-8050c33490f2",
+      "documentId": "6f6a025b-097e-4a1f-bdfe-f758737f289e",
+      "status": "completed",
+      "cueCount": 3
+    }
+  ],
+  "checkpoints": [
+    {
+      "stage": "prepare_app",
+      "at": "2026-09-14T04:40:45.067Z"
+    },
+    {
+      "stage": "launch_configuration_transfer",
+      "at": "2026-09-14T04:40:45.075Z"
+    },
+    {
+      "stage": "launch_first_window",
+      "at": "2026-09-14T04:40:47.327Z"
+    },
+    {
+      "stage": "launch_transfer_configuration",
+      "at": "2026-09-14T04:40:48.937Z"
+    },
+    {
+      "stage": "reopen_configured_app",
+      "at": "2026-09-14T04:40:49.497Z"
+    },
+    {
+      "stage": "launch_first_window",
+      "at": "2026-09-14T04:40:50.653Z"
+    },
+    {
+      "stage": "model_import_start",
+      "at": "2026-09-14T04:40:54.539Z"
+    },
+    {
+      "stage": "model_import_wait",
+      "at": "2026-09-14T04:40:54.567Z",
+      "jobId": "resource-job-63638155-0eac-450b-86da-91bd2d9c5880"
+    },
+    {
+      "stage": "model_import_completed",
+      "at": "2026-09-14T04:41:04.641Z"
+    },
+    {
+      "stage": "transcription_cpu_start",
+      "at": "2026-09-14T04:41:04.947Z"
+    },
+    {
+      "stage": "transcription_cpu_completed",
+      "at": "2026-09-14T04:41:13.803Z"
+    },
+    {
+      "stage": "transcription_metal_start",
+      "at": "2026-09-14T04:41:13.819Z"
+    },
+    {
+      "stage": "transcription_metal_completed",
+      "at": "2026-09-14T04:41:18.655Z"
+    },
+    {
+      "stage": "reopen_documents",
+      "at": "2026-09-14T04:41:18.676Z"
+    },
+    {
+      "stage": "launch_first_window",
+      "at": "2026-09-14T04:41:19.602Z"
+    },
+    {
+      "stage": "real_translation_start",
+      "at": "2026-09-14T04:41:23.783Z"
+    },
+    {
+      "stage": "real_translation_completed",
+      "at": "2026-09-14T04:41:24.924Z"
+    },
+    {
+      "stage": "single_export_start",
+      "at": "2026-09-14T04:41:25.053Z"
+    },
+    {
+      "stage": "single_export_completed",
+      "at": "2026-09-14T04:41:26.145Z",
+      "addedFileCount": 1
+    },
+    {
+      "stage": "batch_export_start",
+      "at": "2026-09-14T04:41:26.583Z"
+    },
+    {
+      "stage": "batch_export_completed",
+      "at": "2026-09-14T04:41:27.594Z",
+      "addedFileCount": 2
+    },
+    {
+      "stage": "workflow_completed",
+      "at": "2026-09-14T04:41:28.600Z"
+    }
+  ],
+  "launches": [
+    {
+      "packaged": true,
+      "version": "0.3.1",
+      "executableSha256": "1275fab92f650b7ab6de7ee8191f0460a26deba9701b6a0ffc748946fc93d7d2",
+      "asarSha256": "94e2270ae244cc73a7180f091bfa37d6296b76148425616e836505214e47263b"
+    },
+    {
+      "packaged": true,
+      "version": "0.3.1",
+      "executableSha256": "1275fab92f650b7ab6de7ee8191f0460a26deba9701b6a0ffc748946fc93d7d2",
+      "asarSha256": "94e2270ae244cc73a7180f091bfa37d6296b76148425616e836505214e47263b"
+    },
+    {
+      "packaged": true,
+      "version": "0.3.1",
+      "executableSha256": "1275fab92f650b7ab6de7ee8191f0460a26deba9701b6a0ffc748946fc93d7d2",
+      "asarSha256": "94e2270ae244cc73a7180f091bfa37d6296b76148425616e836505214e47263b"
+    }
+  ],
+  "exports": [
+    {
+      "scope": "single",
+      "files": [
+        {
+          "name": "jfk-cpu.srt",
+          "byteSize": 346,
+          "sha256": "d9de2a09902b8b407782bf8c68c8d4d5193b66be0ce68be3a99eda8a0bb02104"
+        }
+      ]
+    },
+    {
+      "scope": "batch",
+      "files": [
+        {
+          "name": "jfk-cpu (1).srt",
+          "byteSize": 346,
+          "sha256": "d9de2a09902b8b407782bf8c68c8d4d5193b66be0ce68be3a99eda8a0bb02104"
+        },
+        {
+          "name": "jfk-metal.srt",
+          "byteSize": 322,
+          "sha256": "886ed11e330723c9a5c0cf9b31ce026e974626124edc3d2c744098b1941d902f"
+        }
+      ]
+    }
+  ],
+  "sample": {
+    "name": "whisper.cpp upstream JFK",
+    "sha256": "59dfb9a4acb36fe2a2affc14bacbee2920ff435cb13cc314a08c13f66ba7860e"
+  },
+  "sourceModelSha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1",
+  "stage": "workflow_completed",
+  "configurationTransferred": true,
+  "configurationAvailable": true,
+  "runtime": {
+    "status": "verified",
+    "runtimeGeneration": "e3cc55da97696ce6d606eb1cf513ec28a156a750798e159177512fcd3794db4f",
+    "target": {
+      "platform": "darwin",
+      "arch": "arm64"
+    }
+  },
+  "documentIds": [
+    "5a60c50b-96f9-4e7f-8394-bec67a9ce6fc",
+    "6f6a025b-097e-4a1f-bdfe-f758737f289e"
+  ],
+  "reopened": true,
+  "realTranslationCompleted": true,
+  "sourceModelUnchanged": true,
+  "singleAndBatchFilesVerified": true,
+  "sourcesUnchanged": true,
+  "processes": [
+    {
+      "pid": 65916,
+      "alive": false
+    },
+    {
+      "pid": 65952,
+      "alive": false
+    },
+    {
+      "pid": 65953,
+      "alive": false
+    },
+    {
+      "pid": 65957,
+      "alive": false
+    },
+    {
+      "pid": 66004,
+      "alive": false
+    },
+    {
+      "pid": 66083,
+      "alive": false
+    },
+    {
+      "pid": 66111,
+      "alive": false
+    },
+    {
+      "pid": 66112,
+      "alive": false
+    },
+    {
+      "pid": 66113,
+      "alive": false
+    },
+    {
+      "pid": 66117,
+      "alive": false
+    },
+    {
+      "pid": 66239,
+      "alive": false
+    },
+    {
+      "pid": 66297,
+      "alive": false
+    },
+    {
+      "pid": 66305,
+      "alive": false
+    },
+    {
+      "pid": 66306,
+      "alive": false
+    },
+    {
+      "pid": 66307,
+      "alive": false
+    },
+    {
+      "pid": 66313,
+      "alive": false
+    }
+  ],
+  "cleanup": {
+    "applicationClosed": true,
+    "processAuditSucceeded": true,
+    "directories": [
+      {
+        "name": "profile",
+        "removed": true
+      },
+      {
+        "name": "app",
+        "removed": true
+      }
+    ],
+    "failures": []
+  },
+  "status": "passed",
+  "pageErrors": []
+}

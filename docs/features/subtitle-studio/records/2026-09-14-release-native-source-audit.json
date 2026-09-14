@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "dec90103b34904b73e6a5fc4479552daad31a58b",
+  "priorEvidence": {
+    "path": "test-results/subtitle-studio-native-20260914-i9/macos-tooling-origin.json",
+    "sha256": "734f068aab05219c8e712e0b343d9d2baef1df353fdb12b4f6c700cc5af4fbfa"
+  },
+  "scope": "Final independent maintenance tooling source review; frozen source/copy manifests and native artifact bytes remain unchanged.",
+  "review": [
+    "FFmpeg inputs are copied to a private snapshot before signature verification and extraction.",
+    "Build child processes and descendants have bounded cleanup, including failed probes.",
+    "Every pinned FFmpeg configuration parameter is checked, including quoted values.",
+    "Existing FFmpeg/ffprobe bytes and receipts were rechecked; no second full native compilation was performed."
+  ],
+  "files": [
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/build-whisper-server-macos-arm64.mjs",
+      "bytes": 26693,
+      "sha256": "beac6104f43432207f5367c9c6b0d6f793d218f9c979a100f7bca4c32a17d25a",
+      "priorSha256": "7e468cfc280817b1580a51c9787e87e9b090cacbc27a1aedcb624743d3e6f21a"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/build-whisper-server-macos-arm64.test.mjs",
+      "bytes": 5018,
+      "sha256": "c8f50bffbd07819903a7bb9b943e2b8b6fff0e7de6253755ef674645916ebe04",
+      "priorSha256": "0b0584a0643dba2432d6d46db09e2a32d6aa45bcf3f878dece7e2f3442b82282"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/build-ffmpeg-macos-arm64.mjs",
+      "bytes": 16839,
+      "sha256": "fbb504bd547726746e71caa43020cb61492daec3524c6e34a63ff9de316b4927",
+      "priorSha256": "211241d4250122b0dc6a66365be606117e8430f17c034cf80db11c209dcdbe81"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/build-ffmpeg-macos-arm64.test.mjs",
+      "bytes": 5600,
+      "sha256": "e16b696c1b9dcd1f49e3d22d4a158d1ff15c978fde65efba372b7f99fabcaee9",
+      "priorSha256": "bd318333e378a2b5752d171244d12ceaff2ceed0112d2e348ce832614921ac33"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/stage-runtime.mjs",
+      "bytes": 19504,
+      "sha256": "82d3d8c1304983113ceac72c50b31fd504700622818a5b2bf2d3cfe37b8b717c",
+      "priorSha256": "82d3d8c1304983113ceac72c50b31fd504700622818a5b2bf2d3cfe37b8b717c"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/stage-runtime.test.mjs",
+      "bytes": 4974,
+      "sha256": "55dd83cf20a9397a4761450436f3040a468870553723e456c3e1a7c5dc2b9be1",
+      "priorSha256": "55dd83cf20a9397a4761450436f3040a468870553723e456c3e1a7c5dc2b9be1"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/run-macos-runtime-smoke.mjs",
+      "bytes": 24615,
+      "sha256": "0cff65895906bb54724f847344d1baa191b6f492bd9effb55e50eee96f3d11e5",
+      "priorSha256": "0cff65895906bb54724f847344d1baa191b6f492bd9effb55e50eee96f3d11e5"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/run-macos-runtime-smoke.test.mjs",
+      "bytes": 8904,
+      "sha256": "fcc507ad619f90488681c6637cf431b9f05b357e7bb871b60e96a13a5ae5c010",
+      "priorSha256": "fcc507ad619f90488681c6637cf431b9f05b357e7bb871b60e96a13a5ae5c010"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/metal-evidence.mjs",
+      "bytes": 1677,
+      "sha256": "744e4cf433eeab52c9c6d209e83e39f9f355bd018fa2bf0f5c0aa9d53b3772db",
+      "priorSha256": "744e4cf433eeab52c9c6d209e83e39f9f355bd018fa2bf0f5c0aa9d53b3772db"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/verify-ffmpeg-source-signature.mjs",
+      "bytes": 5782,
+      "sha256": "7f93affe9b85a84a57eacce017411cc5829ceadada4769b36c4aa5645bcff35b",
+      "priorSha256": "7f93affe9b85a84a57eacce017411cc5829ceadada4769b36c4aa5645bcff35b"
+    },
+    {
+      "path": "scripts/subtitle-studio/transcription/runtime/verify-ffmpeg-source-signature.test.mjs",
+      "bytes": 3156,
+      "sha256": "e1166261b85892f97597f8ce174165ef828e8b0d55e51a15bcebb49648fa2115",
+      "priorSha256": "e1166261b85892f97597f8ce174165ef828e8b0d55e51a15bcebb49648fa2115"
+    }
+  ]
+}

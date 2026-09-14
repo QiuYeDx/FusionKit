@@ -6,15 +6,22 @@
       "sourcePath": "electron/main/index.ts",
       "sourceBlobOid": "ed4ba596e22176c94e65b946008aa2b1bed0fc27",
       "sourceSha256": "fee4e67693be2185c217629739d92f69490905c58e9c02b2e67f619ed352a06b",
-      "currentBlobOid": "4bd3f2c6272e4b08dc112bd4acc53cbcac81285c",
-      "reason": "T09 full-file current composition review: compose neutral shared resources and global sanitized resource revision/status events while retaining domain-private runtime sessions and coordinated shutdown. Reference-only application evidence; frozen copied source and replay remain unchanged."
+      "currentBlobOid": "2a2ff2b180020efbb3db21a6b48d3a1e160324b3",
+      "reason": "T09 full-file current composition review: compose neutral shared resources and global sanitized resource revision/status events while retaining domain-private runtime sessions and coordinated shutdown. Reference-only application evidence; frozen copied source and replay remain unchanged. 2026-09-14 I9 reviewed native window lifecycle: each show sends the existing loader start signal so a reload completed while hidden can start on reveal; no IPC authority or ASR contract change. 2026-09-14 I9 final review: capture the specific BrowserWindow; a hidden dom-ready uses a 50ms visibility check bounded to 5s because macOS show can be omitted. Starting, main-frame navigation and closed each cancel the pending check. Existing fixed loading signal and authority remain unchanged."
     },
     {
       "sourcePath": "electron/preload/index.ts",
       "sourceBlobOid": "baf7d05a0ccbe0a075403d4b91ab32b412410b2f",
       "sourceSha256": "b78a51436d4185b558f1b2afec6175166b30e2d086279e64926ea75bcb668be5",
-      "currentBlobOid": "4a80f3a2537f15c32df5d957ccd48b8a432ff8e2",
-      "reason": "T09 full-file current composition review: compose neutral shared resources and global sanitized resource revision/status events while retaining domain-private runtime sessions and coordinated shutdown. Reference-only application evidence; frozen copied source and replay remain unchanged. 2026-09-12 I3 adds webUtils only to the fixed native File drop bridge; generic protected namespace routing remains denied."
+      "currentBlobOid": "3ff305f168e1e073343defb9c4ffc8d33a267ff7",
+      "reason": "T09 full-file current composition review: compose neutral shared resources and global sanitized resource revision/status events while retaining domain-private runtime sessions and coordinated shutdown. Reference-only application evidence; frozen copied source and replay remain unchanged. 2026-09-12 I3 adds webUtils only to the fixed native File drop bridge; generic protected namespace routing remains denied. 2026-09-14 I9 reviewed readiness-bounded loading cleanup: a deadline begins only on renderer readiness, independently clears a missed-start overlay, and disposed guards cancel timers/frames/subscriptions without revealing an unready renderer; protected bridge routing is unchanged."
+    },
+    {
+      "sourcePath": "package.json",
+      "sourceBlobOid": "f4796e097b5a65d616db065ae00d96592486982b",
+      "sourceSha256": "5f0b1ac63571268d43475f20febf10422c672d95751e5a3e093815f2628df39e",
+      "currentBlobOid": "c423f3912de428166940e848995792a97d3778d6",
+      "reason": "2026-09-14 I9 exact package build-composition review: scripts.build selects electron-builder.subtitle-studio.json with --publish never after the existing TypeScript, Vite and preload checks. The only other difference from the frozen baseline is version 0.3.0 -> 0.3.1, already committed in pulled release commit 87d22d9 before this build change; the validator accepts only that exact migration. This composes both legacy and Studio resource roots for the default build. Dependencies, every other package field, frozen source baseline and copied replay remain unchanged."
     }
   ]
 }

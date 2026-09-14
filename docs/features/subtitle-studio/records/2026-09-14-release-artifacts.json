@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "status": "local-adhoc-candidate",
+  "formallySigned": false,
+  "notarized": false,
+  "publiclyPublished": false,
+  "artifacts": [
+    {
+      "file": "FusionKit_0.3.1_arm64.dmg",
+      "byteSize": 189509284,
+      "sha256": "0ef230d8e0646d023aac76912c7b2242cb7ae52c37738ce1ff29126cb2152324"
+    },
+    {
+      "file": "FusionKit_0.3.1_arm64.dmg.blockmap",
+      "byteSize": 199800,
+      "sha256": "160aec1d0ad34c28a696be9a777cc4c9cc0e812512acd57d3c391cb2d1c2968c"
+    },
+    {
+      "file": "FusionKit_0.3.1_arm64.zip",
+      "byteSize": 182429197,
+      "sha256": "36f7a8ae2e414e79b238f3a5d04fe9031354bfa7718ceb80aa81c36f3c482d53"
+    },
+    {
+      "file": "FusionKit_0.3.1_arm64.zip.blockmap",
+      "byteSize": 190251,
+      "sha256": "2fb319353feea5b6d3735f2eb2dc14bf4b31a2a03b629ca5082834fca6c8d2dc"
+    },
+    {
+      "file": "FusionKit_0.3.1_third-party-materials.tar.gz",
+      "byteSize": 11822020,
+      "sha256": "7ff8648f1a37d10cbc1e61c3ebca64f6bd19cad5327020947dbb0cf55e8121fa"
+    }
+  ]
+}

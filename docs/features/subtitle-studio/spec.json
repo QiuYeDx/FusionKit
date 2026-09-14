@@ -3,7 +3,7 @@
   "feature": "subtitle-studio",
   "tier": "L",
   "risk": "medium",
-  "current_increment": "I8",
+  "current_increment": "I9",
   "modules": [
     {
       "slug": "workspace",
@@ -39,6 +39,11 @@
       "slug": "polish",
       "code": "POLISH",
       "path": "modules/module-polish"
+    },
+    {
+      "slug": "release",
+      "code": "RELEASE",
+      "path": "modules/module-release"
     }
   ],
   "increments": [
@@ -185,6 +190,24 @@
         "basis": ""
       },
       "id": "I4"
+    },
+    {
+      "id": "I9",
+      "title": "macOS原生资源、真实流程与发布候选",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前Codex任务）",
+        "basis": "2026-09-14用户原文：先不要推进l4的工作，先把1、2、4提到的都处理一下。明确承接macOS原生资源、完整真实流程和恢复打包验证，替代此前打包暂停；I4继续后置。本轮制作并验证本地候选，公开发布独立处理。",
+        "digest": "88b9d5a8ddcf6d7e1d7b29a673475f69ea96672fb2447d87f54e33ef74024662"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
     }
   ],
   "decisions": [
@@ -267,6 +290,14 @@
       "increment": "I2",
       "text": "共享资源及已有下载接管，暂停打包演练。",
       "resolution": "2026-09-12用户明确要求完整完成共享资源调整。A-02及transcription-fork中默认双份安装条款仅保留为T01–T08历史决策，现由R-TRANSCRIPTION-09替代：应用级唯一资源服务管理模型/VAD/兼容CUDA，受控接管两固定旧资源目录；工具不得直接读取彼此实现，原生proof仍由各域签发。资源作业由应用拥有，页面退出只退订；安装删除与跨工具使用互斥。"
+    },
+    {
+      "id": "A-09",
+      "increment": "I9",
+      "blocking": false,
+      "state": "resolved",
+      "text": "恢复原生资源与打包验收，I4后置。",
+      "resolution": "2026-09-14当前用户明确要求处理进度盘点的1、2、4。本轮资源制作、真实流程和本地发布候选验收继续执行，替代此前暂停打包的范围；不代签整体验收或自动公开发布。"
     }
   ],
   "parallel": {
@@ -295,11 +326,15 @@
       },
       {
         "path": "electron/preload/index.ts",
-        "owner": "Codex root"
+        "owner": "progress_docs"
       },
       {
         "path": "src/pages/Tools/Subtitle/SubtitleStudio/index.tsx",
         "owner": "Codex root"
+      },
+      {
+        "path": "package.json",
+        "owner": "release_status"
       }
     ]
   }

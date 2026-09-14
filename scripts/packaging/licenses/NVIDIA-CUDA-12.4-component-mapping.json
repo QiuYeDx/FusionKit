@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-14",
+  "status": "redistributable_component_list_matched",
+  "licenseClosure": "pending",
+  "artifactSharingApproved": false,
+  "source": {
+    "url": "https://docs.nvidia.com/cuda/archive/12.4.0/eula/index.html",
+    "documentVersion": "CUDA 12.4",
+    "documentLastUpdated": "2024-01-12",
+    "localFile": "NVIDIA-CUDA-12.4-EULA.html",
+    "byteSize": 82548,
+    "sha256": "182734e0cee7c6217b911ef88fc92c4a1f487d1003c24dd9dab1597a399fb7c5"
+  },
+  "componentListClause": "2.6 Attachment A",
+  "filenameVariationRule": "Attachment A explicitly includes variations containing version numbers and architecture information.",
+  "distributionConditionsClause": "1.1.2 Distribution Requirements",
+  "distributionConditionsOutstanding": [
+    "Record how the on-demand accelerator remains accessible only by the application.",
+    "Complete terms-of-distribution and notice review for the actual accelerator delivery.",
+    "Include the applicable NVIDIA terms with the final distribution materials.",
+    "Record the completed decision and update both manifests and exact contracts together."
+  ],
+  "manifests": [
+    "resources/local-subtitle/manifests/local-subtitle-windows-cuda-pack.v1.json",
+    "resources/subtitle-studio/transcription/manifests/subtitle-studio-windows-cuda-pack.v1.json"
+  ],
+  "archive": {
+    "fileName": "whisper-cublas-12.4.0-bin-x64.zip",
+    "downloadUrl": "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.1/whisper-cublas-12.4.0-bin-x64.zip",
+    "allowedDownloadHosts": [
+      "github.com",
+      "release-assets.githubusercontent.com"
+    ],
+    "byteSize": 677887125,
+    "sha256": "106a2030eff8998e4ef320fe72e263a78449e9040386ee27c41ea80b001b601b",
+    "expandedFileCount": 44,
+    "expandedByteSize": 1209487872
+  },
+  "artifacts": [
+    {
+      "fileName": "cublas64_12.dll",
+      "byteSize": 100033536,
+      "sha256": "e40202fe4223c1cd2d2dce7beec59e1ed61c7801bd827309183be9b50e358f4c",
+      "attachmentAComponent": "CUDA BLAS Library",
+      "attachmentAFileName": "cublas.dll"
+    },
+    {
+      "fileName": "cublasLt64_12.dll",
+      "byteSize": 473551360,
+      "sha256": "2a896460bef60ed57ef32b0875812f355a6984e671d638bb632f5e8c1d7a831f",
+      "attachmentAComponent": "CUDA BLAS Library",
+      "attachmentAFileName": "cublasLt.dll"
+    },
+    {
+      "fileName": "cudart64_12.dll",
+      "byteSize": 553984,
+      "sha256": "d28e42265da7462162a54da6b7a99ea4fa2caf8139d862bb500db875d0b32dfc",
+      "attachmentAComponent": "CUDA Runtime",
+      "attachmentAFileName": "cudart.dll"
+    },
+    {
+      "fileName": "nvblas64_12.dll",
+      "byteSize": 331776,
+      "sha256": "e42a77405e6e4b1cc661dcfcddead35ec62dcf59c6f9be1a3b5fab73d1f4c616",
+      "attachmentAComponent": "NVIDIA Drop-in BLAS Library",
+      "attachmentAFileName": "nvblas.dll"
+    },
+    {
+      "fileName": "nvrtc-builtins64_124.dll",
+      "byteSize": 5367808,
+      "sha256": "79888dba26c51475ea21fc7b47d2b9dd5b1ffaecc8e5ea22a49fa5f5a722eb43",
+      "attachmentAComponent": "NVIDIA Runtime Compilation Library and Header",
+      "attachmentAFileName": "nvrtc-builtins.dll"
+    },
+    {
+      "fileName": "nvrtc64_120_0.dll",
+      "byteSize": 44738048,
+      "sha256": "3aa3cd8aa10437e212760c0e1ed730807811ec3bc330216dbfde4b26211d2243",
+      "attachmentAComponent": "NVIDIA Runtime Compilation Library and Header",
+      "attachmentAFileName": "nvrtc.dll"
+    }
+  ]
+}

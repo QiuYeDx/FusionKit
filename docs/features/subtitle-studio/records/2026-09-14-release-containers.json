@@ -1,0 +1,330 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "status": "passed",
+  "treeContract": [
+    "all relative paths",
+    "regular file SHA-256 and size",
+    "file and directory executable permission bits",
+    "symlink targets"
+  ],
+  "cleanup": {
+    "dmgDetached": true,
+    "temporaryFilesRemoved": true,
+    "boundedCommandGroupsJoined": true,
+    "matchingProbeProcessesAlive": 0
+  },
+  "original": {
+    "treeDigest": "0779aa1b8962b90417f561270913744dde6acd9a22893e6f099e2da84d8f1620",
+    "counts": {
+      "files": 293,
+      "directories": 339,
+      "symlinks": 14,
+      "executableFiles": 23
+    },
+    "signature": {
+      "appSignatureKind": "adhoc",
+      "appHardenedRuntimeEnabled": false,
+      "deepStrictVerificationPassed": true,
+      "resourceDigest": "e9c2d3d51c277f239f9c58e620aec0128b8557f55bca43518e25e6aa02bd875e",
+      "contributions": [
+        {
+          "id": "legacy",
+          "manifestSha256": "19271b1fdd4b8ec9a78731893a096f329154acbaea1504be9aaf01f175d22530",
+          "artifactHashes": [
+            {
+              "id": "whisper-server-mac-arm64-metal-cpu",
+              "sha256": "b5227f8b3e36aff1c1f32249027901ec6b2beae39dad9dc8a95714fe6e23b65e",
+              "signatureKind": "adhoc"
+            },
+            {
+              "id": "ffmpeg-mac-arm64",
+              "sha256": "55f36865bfedfef597c1c6462ec92fcab1392bf418815e66b416195493bacc53",
+              "signatureKind": "adhoc"
+            },
+            {
+              "id": "ffprobe-mac-arm64",
+              "sha256": "8dfe0a7aba414a65a284eca637b04713c0ad0cabaf290f9b5f2679664fb60d09",
+              "signatureKind": "adhoc"
+            }
+          ],
+          "overwriteNative": {
+            "generation": "cce55b2e09ea353fad28e4c2808faa12a7d8186505da5e4d4f174a2cce0530d5",
+            "artifactSha256": "f54671efeab266008a9324112f753416368e6a72fa9eda6b5fdca50ce773ecc2",
+            "signatureKind": "adhoc",
+            "buildReceiptSha256": "e623bc37bd3fc31459a69d4c84495cc94eb916116ac93fb1aaa7f086a6ad315d",
+            "moduleExportsVerified": true
+          }
+        },
+        {
+          "id": "studio",
+          "manifestSha256": "e3cc55da97696ce6d606eb1cf513ec28a156a750798e159177512fcd3794db4f",
+          "artifactHashes": [
+            {
+              "id": "whisper-server-mac-arm64-metal-cpu",
+              "sha256": "b8488ebd36fa59ca1d0f0030d1d6de59b736f6be42cd96ad038603d0b321e2a6",
+              "signatureKind": "adhoc"
+            },
+            {
+              "id": "ffmpeg-mac-arm64",
+              "sha256": "4ea76d8f287ddc58ab050496fc09f7c0861f9b0e915ce0f394d776c7e02acda8",
+              "signatureKind": "adhoc"
+            },
+            {
+              "id": "ffprobe-mac-arm64",
+              "sha256": "e823026d62cae64c283f159fab804f3c45a9f9223767cb72c14fcd0661100f69",
+              "signatureKind": "adhoc"
+            }
+          ],
+          "overwriteNative": {
+            "generation": "749036d48182829798b12f7751c4e35d98bc9a41995d5bdbe83dcd8c46c2a3cc",
+            "artifactSha256": "0e86674a51ea1f78f8a9cc5295a21e948a94f707b999d195f3582ee703021d81",
+            "signatureKind": "adhoc",
+            "buildReceiptSha256": "8e67cada750610c1e9031ef634b4686cd7d37bc002c634de37f57cda7d876935",
+            "moduleExportsVerified": true
+          }
+        }
+      ],
+      "gatekeeper": {
+        "status": "rejected",
+        "exitCode": 3
+      },
+      "notarizationPerformed": false
+    }
+  },
+  "containers": {
+    "zip": {
+      "fileName": "FusionKit_0.3.1_arm64.zip",
+      "byteSize": 182429197,
+      "sha256": "36f7a8ae2e414e79b238f3a5d04fe9031354bfa7718ceb80aa81c36f3c482d53",
+      "initialIdentity": {
+        "dev": "16777230",
+        "ino": "131037980",
+        "size": "182429197",
+        "mode": "33188",
+        "mtimeNs": "1789360907122677311",
+        "ctimeNs": "1789360907122677311"
+      },
+      "appTreeIdentical": true,
+      "treeDigest": "0779aa1b8962b90417f561270913744dde6acd9a22893e6f099e2da84d8f1620",
+      "counts": {
+        "files": 293,
+        "directories": 339,
+        "symlinks": 14,
+        "executableFiles": 23
+      },
+      "signature": {
+        "appSignatureKind": "adhoc",
+        "appHardenedRuntimeEnabled": false,
+        "deepStrictVerificationPassed": true,
+        "resourceDigest": "e9c2d3d51c277f239f9c58e620aec0128b8557f55bca43518e25e6aa02bd875e",
+        "contributions": [
+          {
+            "id": "legacy",
+            "manifestSha256": "19271b1fdd4b8ec9a78731893a096f329154acbaea1504be9aaf01f175d22530",
+            "artifactHashes": [
+              {
+                "id": "whisper-server-mac-arm64-metal-cpu",
+                "sha256": "b5227f8b3e36aff1c1f32249027901ec6b2beae39dad9dc8a95714fe6e23b65e",
+                "signatureKind": "adhoc"
+              },
+              {
+                "id": "ffmpeg-mac-arm64",
+                "sha256": "55f36865bfedfef597c1c6462ec92fcab1392bf418815e66b416195493bacc53",
+                "signatureKind": "adhoc"
+              },
+              {
+                "id": "ffprobe-mac-arm64",
+                "sha256": "8dfe0a7aba414a65a284eca637b04713c0ad0cabaf290f9b5f2679664fb60d09",
+                "signatureKind": "adhoc"
+              }
+            ],
+            "overwriteNative": {
+              "generation": "cce55b2e09ea353fad28e4c2808faa12a7d8186505da5e4d4f174a2cce0530d5",
+              "artifactSha256": "f54671efeab266008a9324112f753416368e6a72fa9eda6b5fdca50ce773ecc2",
+              "signatureKind": "adhoc",
+              "buildReceiptSha256": "e623bc37bd3fc31459a69d4c84495cc94eb916116ac93fb1aaa7f086a6ad315d",
+              "moduleExportsVerified": true
+            }
+          },
+          {
+            "id": "studio",
+            "manifestSha256": "e3cc55da97696ce6d606eb1cf513ec28a156a750798e159177512fcd3794db4f",
+            "artifactHashes": [
+              {
+                "id": "whisper-server-mac-arm64-metal-cpu",
+                "sha256": "b8488ebd36fa59ca1d0f0030d1d6de59b736f6be42cd96ad038603d0b321e2a6",
+                "signatureKind": "adhoc"
+              },
+              {
+                "id": "ffmpeg-mac-arm64",
+                "sha256": "4ea76d8f287ddc58ab050496fc09f7c0861f9b0e915ce0f394d776c7e02acda8",
+                "signatureKind": "adhoc"
+              },
+              {
+                "id": "ffprobe-mac-arm64",
+                "sha256": "e823026d62cae64c283f159fab804f3c45a9f9223767cb72c14fcd0661100f69",
+                "signatureKind": "adhoc"
+              }
+            ],
+            "overwriteNative": {
+              "generation": "749036d48182829798b12f7751c4e35d98bc9a41995d5bdbe83dcd8c46c2a3cc",
+              "artifactSha256": "0e86674a51ea1f78f8a9cc5295a21e948a94f707b999d195f3582ee703021d81",
+              "signatureKind": "adhoc",
+              "buildReceiptSha256": "8e67cada750610c1e9031ef634b4686cd7d37bc002c634de37f57cda7d876935",
+              "moduleExportsVerified": true
+            }
+          }
+        ],
+        "gatekeeper": {
+          "status": "rejected",
+          "exitCode": 3
+        },
+        "notarizationPerformed": false
+      },
+      "finalIdentity": {
+        "dev": "16777230",
+        "ino": "131037980",
+        "size": "182429197",
+        "mode": "33188",
+        "mtimeNs": "1789360907122677311",
+        "ctimeNs": "1789360907122677311"
+      },
+      "finalSha256": "36f7a8ae2e414e79b238f3a5d04fe9031354bfa7718ceb80aa81c36f3c482d53"
+    },
+    "dmg": {
+      "fileName": "FusionKit_0.3.1_arm64.dmg",
+      "byteSize": 189509284,
+      "sha256": "0ef230d8e0646d023aac76912c7b2242cb7ae52c37738ce1ff29126cb2152324",
+      "initialIdentity": {
+        "dev": "16777230",
+        "ino": "131038135",
+        "size": "189509284",
+        "mode": "33188",
+        "mtimeNs": "1789360857917694760",
+        "ctimeNs": "1789361131505813810"
+      },
+      "privateImageSnapshotVerified": true,
+      "readOnlyMountVerified": true,
+      "appTreeIdentical": true,
+      "treeDigest": "0779aa1b8962b90417f561270913744dde6acd9a22893e6f099e2da84d8f1620",
+      "counts": {
+        "files": 293,
+        "directories": 339,
+        "symlinks": 14,
+        "executableFiles": 23
+      },
+      "signature": {
+        "appSignatureKind": "adhoc",
+        "appHardenedRuntimeEnabled": false,
+        "deepStrictVerificationPassed": true,
+        "resourceDigest": "e9c2d3d51c277f239f9c58e620aec0128b8557f55bca43518e25e6aa02bd875e",
+        "contributions": [
+          {
+            "id": "legacy",
+            "manifestSha256": "19271b1fdd4b8ec9a78731893a096f329154acbaea1504be9aaf01f175d22530",
+            "artifactHashes": [
+              {
+                "id": "whisper-server-mac-arm64-metal-cpu",
+                "sha256": "b5227f8b3e36aff1c1f32249027901ec6b2beae39dad9dc8a95714fe6e23b65e",
+                "signatureKind": "adhoc"
+              },
+              {
+                "id": "ffmpeg-mac-arm64",
+                "sha256": "55f36865bfedfef597c1c6462ec92fcab1392bf418815e66b416195493bacc53",
+                "signatureKind": "adhoc"
+              },
+              {
+                "id": "ffprobe-mac-arm64",
+                "sha256": "8dfe0a7aba414a65a284eca637b04713c0ad0cabaf290f9b5f2679664fb60d09",
+                "signatureKind": "adhoc"
+              }
+            ],
+            "overwriteNative": {
+              "generation": "cce55b2e09ea353fad28e4c2808faa12a7d8186505da5e4d4f174a2cce0530d5",
+              "artifactSha256": "f54671efeab266008a9324112f753416368e6a72fa9eda6b5fdca50ce773ecc2",
+              "signatureKind": "adhoc",
+              "buildReceiptSha256": "e623bc37bd3fc31459a69d4c84495cc94eb916116ac93fb1aaa7f086a6ad315d",
+              "moduleExportsVerified": true
+            }
+          },
+          {
+            "id": "studio",
+            "manifestSha256": "e3cc55da97696ce6d606eb1cf513ec28a156a750798e159177512fcd3794db4f",
+            "artifactHashes": [
+              {
+                "id": "whisper-server-mac-arm64-metal-cpu",
+                "sha256": "b8488ebd36fa59ca1d0f0030d1d6de59b736f6be42cd96ad038603d0b321e2a6",
+                "signatureKind": "adhoc"
+              },
+              {
+                "id": "ffmpeg-mac-arm64",
+                "sha256": "4ea76d8f287ddc58ab050496fc09f7c0861f9b0e915ce0f394d776c7e02acda8",
+                "signatureKind": "adhoc"
+              },
+              {
+                "id": "ffprobe-mac-arm64",
+                "sha256": "e823026d62cae64c283f159fab804f3c45a9f9223767cb72c14fcd0661100f69",
+                "signatureKind": "adhoc"
+              }
+            ],
+            "overwriteNative": {
+              "generation": "749036d48182829798b12f7751c4e35d98bc9a41995d5bdbe83dcd8c46c2a3cc",
+              "artifactSha256": "0e86674a51ea1f78f8a9cc5295a21e948a94f707b999d195f3582ee703021d81",
+              "signatureKind": "adhoc",
+              "buildReceiptSha256": "8e67cada750610c1e9031ef634b4686cd7d37bc002c634de37f57cda7d876935",
+              "moduleExportsVerified": true
+            }
+          }
+        ],
+        "gatekeeper": {
+          "status": "rejected",
+          "exitCode": 3
+        },
+        "notarizationPerformed": false
+      },
+      "finalIdentity": {
+        "dev": "16777230",
+        "ino": "131038135",
+        "size": "189509284",
+        "mode": "33188",
+        "mtimeNs": "1789360857917694760",
+        "ctimeNs": "1789361131505813810"
+      },
+      "finalSha256": "0ef230d8e0646d023aac76912c7b2242cb7ae52c37738ce1ff29126cb2152324",
+      "privateImageMetadata": {
+        "initialIdentity": {
+          "dev": "16777230",
+          "ino": "131053236",
+          "size": "189509284",
+          "mode": "33188",
+          "mtimeNs": "1789361316622591506",
+          "ctimeNs": "1789361316622591506"
+        },
+        "finalIdentity": {
+          "dev": "16777230",
+          "ino": "131053236",
+          "size": "189509284",
+          "mode": "33188",
+          "mtimeNs": "1789361316622591506",
+          "ctimeNs": "1789361317525913231"
+        },
+        "xattrNamesBefore": [
+          "com.apple.provenance"
+        ],
+        "xattrNamesAfter": [
+          "com.apple.diskimages.recentcksum",
+          "com.apple.provenance"
+        ],
+        "ctimeChanged": true,
+        "byteHashUnchanged": true,
+        "note": "hdiutil checksum cache metadata is confined to the private image copy; original container identity is checked without exceptions."
+      }
+    }
+  },
+  "originalContainersUnchanged": true,
+  "originalTreeUnchanged": true
+}
