@@ -562,7 +562,7 @@ export default function SubtitleStudio() {
       { value: 'documents', label: t('studio:workspace_documents'), icon: <Library /> },
       { value: 'transcription', label: t('studio:workspace_transcription'), icon: <AudioLines /> },
     ]}>
-    <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} /></div>
+    <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} description={t('tools:field_desc.subtitle_studio')} /></div>
     <ClipPathTabsContent value="documents" forceMount hidden={workspaceView !== 'documents'} className="studio-workspace-content">
     <ToolDetailLayout
       className="studio-layout"

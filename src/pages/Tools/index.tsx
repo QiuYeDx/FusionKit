@@ -251,6 +251,7 @@ function ToolCard({
 
   return (
     <SmoothCorners
+      data-tool-card={item.id}
       onClick={() => !isSoon && onOpen(item.id)}
       radius={16}
       smoothing={0.72}
@@ -312,14 +313,14 @@ function ToolCard({
 
       {((item.chipKeys && item.chipKeys.length > 0) ||
         (item.chips && item.chips.length > 0)) && (
-        <div className="flex flex-wrap gap-1.5 mt-3.5">
+        <div data-slot="tool-card-chips" className="flex flex-wrap gap-x-1 gap-y-1.5 mt-3.5">
           {(item.chipKeys ?? item.chips ?? []).map((c, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 px-2 py-[3px] rounded-md border bg-muted/30 text-[11px] font-medium text-foreground/80"
+              className="inline-flex max-w-full items-center gap-1 px-1.5 py-[3px] rounded-md border bg-muted/30 text-[11px] font-medium text-foreground/80"
             >
               <span
-                className="h-1.5 w-1.5 rounded-full"
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
                 style={{ background: tone }}
               />
               {item.chipKeys ? t(c) : c}

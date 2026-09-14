@@ -32,7 +32,7 @@ function UsageSummary({ snapshot, compact = false }: { snapshot: TranslationTask
   const incomplete = usage.unknownInput + usage.unknownOutput + usage.unknownTotal > 0 || snapshot.unavailableDocuments > 0;
   if (compact) return <div className="studio-overview-usage studio-overview-usage-inline" data-testid="studio-overview-usage">
     <Tooltip><TooltipTrigger asChild><span tabIndex={0} className="studio-overview-usage-heading"><span>{t('studio:overview.actual_tokens')}{incomplete ? ' *' : ''}</span><strong>{value(usage.totalTokens, usage.unknownTotal)}</strong></span></TooltipTrigger>
-      <TooltipContent><div>{t('studio:overview.input_tokens')} {value(usage.inputTokens, usage.unknownInput)} · {t('studio:overview.output_tokens')} {value(usage.outputTokens, usage.unknownOutput)}</div><div>{t(incomplete ? 'studio:overview.usage_partial' : 'studio:overview.usage_scope', { count: snapshot.total })}</div><div>{t('studio:overview.usage_explanation')}</div></TooltipContent>
+      <TooltipContent side="bottom"><div>{t('studio:overview.input_tokens')} {value(usage.inputTokens, usage.unknownInput)} · {t('studio:overview.output_tokens')} {value(usage.outputTokens, usage.unknownOutput)}</div><div>{t(incomplete ? 'studio:overview.usage_partial' : 'studio:overview.usage_scope', { count: snapshot.total })}</div></TooltipContent>
     </Tooltip>
   </div>;
   return <div className="studio-overview-usage" data-testid="studio-overview-usage">

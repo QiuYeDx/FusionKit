@@ -91,7 +91,7 @@
 .studio-preview-panel > :is([data-slot=tool-panel-header], [data-slot=tool-panel-footer]) { flex-shrink: 0; }
 .studio-preview-panel > [data-slot=tool-panel-body] { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
 .studio-preview-panel > [data-slot=tool-panel-body] > .studio-content-empty { height: 100%; min-height: 0; }
-.studio-library { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
+.studio-library { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
 .studio-library :is([data-slot=tool-panel-header]) { padding-block: 6px; }
 .studio-library-panel [data-slot=tool-panel-header] { padding-right: 6px; }
 .studio-library-panel [data-slot=tool-panel-header] button { width: 28px; height: 28px; }
@@ -218,7 +218,7 @@
 @media (max-height: 650px) {
   .studio-workspace-header { padding-top: 20px; }
   .studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { margin-top: 26px; margin-bottom: 8px; }
-  .studio-main { gap: 8px; }
+  .studio-main, .studio-library { gap: 8px; }
 }
 
 .studio-library-row[data-context-target="true"] { background: var(--accent); box-shadow: inset 0 0 0 1px var(--border); }
