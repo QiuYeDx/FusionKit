@@ -1,3 +1,4 @@
+import type { MaintenancePreview } from "@/translation-knowledge/maintenance-contract";
 import { optionKey, type FieldName } from "./labels";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -86,6 +87,8 @@ export function CatalogEditor({
   snapshot,
   onSave,
   onClose,
+  onMaintenance,
+  blocked = false,
 }: {
   group: CatalogGroup;
   initial: CatalogRecord;
@@ -94,6 +97,10 @@ export function CatalogEditor({
     request: SaveRecordRequest,
   ) => Promise<KnowledgeResult<LibrarySnapshot>>;
   onClose: () => void;
+  onMaintenance: (
+    action: "archive" | "restore" | "purge",
+  ) => Promise<KnowledgeResult<MaintenancePreview>>;
+  blocked?: boolean;
 }) {
   const { t } = useTranslation("knowledge");
   const [record, setRecord] = useState(initial);
@@ -140,8 +147,25 @@ export function CatalogEditor({
         required={required}
       />
     );
+  const maintain = async (action: "archive" | "restore" | "purge") => {
+    if (blocked || pending) return;
+    setPending(true);
+    setError(null);
+    setDiagnostics([]);
+    try {
+      const result = await onMaintenance(action);
+      if (!result.ok) {
+        setError(result.error);
+        setDiagnostics(result.diagnostics ?? []);
+      }
+    } catch {
+      setError("unexpected");
+    } finally {
+      setPending(false);
+    }
+  };
   const submit = async () => {
-    if (pending) return;
+    if (pending || blocked) return;
     if (
       !record.name.trim() ||
       ("ruleEntryIds" in record && !record.ruleEntryIds.length) ||
@@ -213,12 +237,16 @@ export function CatalogEditor({
       pending={pending}
       onClose={onClose}
       footer={
-        <Button size="sm" disabled={pending} onClick={() => void submit()}>
+        <Button
+          size="sm"
+          disabled={pending || blocked}
+          onClick={() => void submit()}
+        >
           {t(pending ? "actions.saving" : "actions.save_catalog")}
         </Button>
       }
     >
-      <fieldset disabled={pending} className="space-y-4">
+      <fieldset disabled={pending || blocked} className="space-y-4">
         {text(
           "name",
           record.name,
@@ -523,16 +551,43 @@ export function CatalogEditor({
             true,
           )}
         {existing && (
-          <>
-            <Check
-              label={t("editor.archived")}
-              checked={record.archived}
-              onChange={(archived) => setRecord({ ...record, archived })}
-            />
+          <section className="space-y-3 border-t pt-4">
             <p className="text-xs text-muted-foreground">
-              {t("editor.archive_help")}
+              {t("maintenance.saved_version")}
             </p>
-          </>
+            <Button
+              data-testid="knowledge-catalog-maintenance"
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                void maintain(initial.archived ? "restore" : "archive")
+              }
+            >
+              {t(
+                initial.archived
+                  ? "maintenance.preview_restore"
+                  : "maintenance.preview_archive",
+              )}
+            </Button>
+            {initial.archived && (
+              <details>
+                <summary className="cursor-pointer text-xs text-muted-foreground">
+                  {t("maintenance.advanced")}
+                </summary>
+                <Button
+                  data-testid="knowledge-catalog-purge"
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3"
+                  onClick={() => void maintain("purge")}
+                >
+                  {t("maintenance.preview_purge")}
+                </Button>
+              </details>
+            )}
+          </section>
         )}
       </fieldset>
       <ErrorNotice error={error} diagnostics={diagnostics} />

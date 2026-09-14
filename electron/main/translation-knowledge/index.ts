@@ -4,7 +4,9 @@ import { open, link, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { KNOWLEDGE_CHANNELS, type KnowledgeResult, type SaveRecordRequest } from '../../../src/translation-knowledge/ipc-contract';
-import { KnowledgeService, KnowledgeServiceError } from './service';
+import { KnowledgeService } from './service';
+import { KnowledgeServiceError } from './errors';
+import { KnowledgeExportPlans } from './export-plans';
 import { knowledgeEnvelopeSchema, knowledgeRequestSchemas, publicKnowledgeChannels, trustedKnowledgeUrl } from './ipc';
 
 const MAX_FILE_BYTES = 32 * 1024 * 1024;
@@ -62,6 +64,7 @@ export async function publishKnowledgeFile(filePath: string, contents: string, a
 
 export function registerTranslationKnowledge() {
   const service = new KnowledgeService(path.join(app.getPath('userData'), 'translation-knowledge'));
+  const exportPlans = new KnowledgeExportPlans(() => service.read());
   const rendererUrl = process.env.VITE_DEV_SERVER_URL || pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
   const allowed = new Set<number>();
   const owners = new Map<number, { sender: WebContents; capability: string }>();
@@ -79,7 +82,7 @@ export function registerTranslationKnowledge() {
   ]);
   function forgetOwner(id: number) {
     const owner = owners.get(id); owners.delete(id);
-    if (owner) service.releaseOwner(owner.capability);
+    if (owner) { service.releaseOwner(owner.capability); exportPlans.releaseOwner(owner.capability); }
   }
   const register = (event: IpcMainEvent, input: unknown) => {
     if (closed || !allowed.has(event.sender.id) || event.senderFrame !== event.sender.mainFrame || !event.senderFrame || !trustedKnowledgeUrl(event.senderFrame.url, rendererUrl) || !knowledgeRequestSchemas.read.safeParse(input).success) { event.returnValue = null; return; }
@@ -103,6 +106,11 @@ export function registerTranslationKnowledge() {
           if (!window) throw new KnowledgeServiceError('access_denied');
           let value: unknown;
           if (method === 'read') { value = await service.read(); alive(); }
+          else if (method === 'importDroppedFile') {
+            const request = knowledgeRequestSchemas.importDroppedFile.parse(payload.data);
+            const text = await readKnowledgeFile(request.path); alive();
+            value = await service.planImport(owner.capability, text); alive();
+          }
           else if (method === 'selectImport') {
             const selected = await waitForDialog(dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: 'FusionKit Translation Knowledge', extensions: ['fktk.json', 'json'] }] }));
             alive();
@@ -110,20 +118,31 @@ export function registerTranslationKnowledge() {
             const text = await readKnowledgeFile(selected.filePaths[0]); alive();
             value = await service.planImport(owner.capability, text); alive();
           } else if (method === 'commitImport') {
+            exportPlans.invalidate();
             value = await service.commitImport(owner.capability, knowledgeRequestSchemas.commitImport.parse(payload.data), alive);
           } else if (method === 'saveRecord') {
+            exportPlans.invalidate();
             value = await service.saveRecord(payload.data as SaveRecordRequest, alive);
           } else if (method === 'reviewEntries') {
+            exportPlans.invalidate();
             value = await service.reviewEntries(knowledgeRequestSchemas.reviewEntries.parse(payload.data), alive);
+          } else if (method === 'planMaintenance') {
+            value = await service.planMaintenance(owner.capability, knowledgeRequestSchemas.planMaintenance.parse(payload.data)); alive();
+          } else if (method === 'commitMaintenance') {
+            exportPlans.invalidate();
+            value = await service.commitMaintenance(owner.capability, knowledgeRequestSchemas.commitMaintenance.parse(payload.data), alive);
+          } else if (method === 'planExport') {
+            value = await exportPlans.plan(owner.capability, knowledgeRequestSchemas.planExport.parse(payload.data), alive);
           } else {
             const request = knowledgeRequestSchemas.exportFile.parse(payload.data);
-            const exported = await service.exportPackage(request); alive();
+            await exportPlans.prepare(owner.capability, request, alive);
             const fileName = `translation-knowledge-${new Date().toISOString().replace(/[:.]/g, '-')}.fktk.json`;
             const selected = await waitForDialog(dialog.showSaveDialog(window, { defaultPath: fileName, filters: [{ name: 'FusionKit Translation Knowledge', extensions: ['fktk.json'] }] }));
             alive();
             if (selected.canceled || !selected.filePath) return { ok: true, value: null };
-            await publishKnowledgeFile(selected.filePath, `${JSON.stringify(exported, null, 2)}\n`, alive);
-            value = { fileName: path.basename(selected.filePath), entries: exported.entries.length, purpose: request.purpose };
+            const exported = await exportPlans.prepare(owner.capability, request, alive);
+            await publishKnowledgeFile(selected.filePath, exported.text, () => { alive(); exportPlans.guard(owner.capability, request.planId); });
+            value = { fileName: path.basename(selected.filePath), entries: exported.preview.counts.entries, purpose: exported.preview.purpose };
           }
           return { ok: true, value };
         } catch (error) {
@@ -148,6 +167,7 @@ export function registerTranslationKnowledge() {
     dispose(): Promise<void> {
       if (disposing) return disposing;
       closed = true;
+      exportPlans.dispose();
       resolveClosing();
       for (const id of owners.keys()) forgetOwner(id);
       for (const remove of detach.values()) remove(); detach.clear(); allowed.clear();

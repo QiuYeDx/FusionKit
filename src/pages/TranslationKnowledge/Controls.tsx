@@ -14,11 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
+  ScrollableDialog,
+  ScrollableDialogHeader,
+  ScrollableDialogContent,
+  ScrollableDialogFooter,
   DialogDescription,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/components/qiuye-ui/scrollable-dialog";
 import { ToolField } from "@/pages/Tools/_shared/ui/ToolField";
 import type { KnowledgeErrorCode } from "@/translation-knowledge/ipc-contract";
 import type { Diagnostic } from "@/translation-knowledge/validation";
@@ -216,36 +218,40 @@ export function KnowledgeDialog({
 }) {
   const { t } = useTranslation("knowledge");
   return (
-    <Dialog
+    <ScrollableDialog
       open
       onOpenChange={(open) => {
         if (!open && !pending) onClose();
       }}
+      maxWidth={wide ? "sm:max-w-3xl" : "sm:max-w-xl"}
+      contentClassName="max-h-[88vh] grid-rows-[auto_minmax(0,1fr)_auto] [&>button]:hidden"
+      onOpenAutoFocus={() => {}}
     >
-      <DialogContent
-        showCloseButton={false}
-        className={`grid max-h-[88vh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 ${wide ? "sm:max-w-3xl" : "sm:max-w-xl"}`}
+      <ScrollableDialogHeader className="p-3">
+        <DialogTitle className="text-base">{title}</DialogTitle>
+        <DialogDescription className={description ? "text-xs" : "sr-only"}>
+          {description ?? title}
+        </DialogDescription>
+      </ScrollableDialogHeader>
+      <ScrollableDialogContent
+        fadeMasks
+        fadeMaskHeight={24}
+        className="min-h-0 [&>[data-slot=scroll-area-viewport]>div>div]:p-3"
       >
-        <header className="space-y-2 border-b p-3">
-          <DialogTitle className="text-base">{title}</DialogTitle>
-          <DialogDescription className={description ? "text-xs" : "sr-only"}>
-            {description ?? title}
-          </DialogDescription>
-        </header>
-        <div className="min-h-0 space-y-4 overflow-y-auto p-3">{children}</div>
-        <footer className="flex flex-wrap items-center justify-end gap-2 border-t p-3">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={onClose}
-          >
-            {t("actions.close")}
-          </Button>
-          {footer}
-        </footer>
-      </DialogContent>
-    </Dialog>
+        <div className="space-y-4">{children}</div>
+      </ScrollableDialogContent>
+      <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={onClose}
+        >
+          {t("actions.close")}
+        </Button>
+        {footer}
+      </ScrollableDialogFooter>
+    </ScrollableDialog>
   );
 }
 export function Pagination({

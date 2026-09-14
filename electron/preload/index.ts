@@ -84,7 +84,7 @@ const assertLegacyListenChannelAllowed = (channel: string) => {
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('subtitleStudio', createSubtitleStudioApi(ipcRenderer, webUtils))
-contextBridge.exposeInMainWorld('translationKnowledge', createTranslationKnowledgeApi(ipcRenderer))
+contextBridge.exposeInMainWorld('translationKnowledge', createTranslationKnowledgeApi(ipcRenderer, webUtils))
 contextBridge.exposeInMainWorld('speechResources', createSpeechResourcesApi(ipcRenderer))
 contextBridge.exposeInMainWorld(
   'ipcRenderer',

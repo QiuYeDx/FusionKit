@@ -14,6 +14,9 @@ const state = vi.hoisted(() => ({
   select: vi.fn(async () => ({ canceled: true, filePaths: [] as string[] })),
   save: vi.fn(async () => ({ canceled: true, filePath: undefined as string | undefined })),
   export: vi.fn(async () => ({ entries: [] })), plan: vi.fn(),
+  planMaintenance: vi.fn(), commitMaintenance: vi.fn(),
+  prepareExport: vi.fn(async () => ({ text: '{}\n', preview: { counts: { entries: 0 }, purpose: 'backup' } })),
+  planExport: vi.fn(), invalidateExports: vi.fn(), exportGuard: vi.fn(),
 }));
 vi.mock('electron', () => ({
   app: { getPath: () => '/unused/knowledge-test', getAppPath: () => process.cwd() },
@@ -31,8 +34,14 @@ vi.mock('node:fs/promises', async importOriginal => {
   return { ...actual, link: vi.fn(actual.link) };
 });
 vi.mock('../../electron/main/translation-knowledge/service', () => ({
-  KnowledgeService: class { read = state.read; releaseOwner = state.release; dispose = state.dispose; exportPackage = state.export; planImport = state.plan; },
+  KnowledgeService: class { read = state.read; releaseOwner = state.release; dispose = state.dispose; exportPackage = state.export; planImport = state.plan; planMaintenance = state.planMaintenance; commitMaintenance = state.commitMaintenance; },
   KnowledgeServiceError: class extends Error { constructor(public code: string, public diagnostics?: unknown[]) { super(code); } },
+}));
+vi.mock('../../electron/main/translation-knowledge/export-plans', () => ({
+  KnowledgeExportPlans: class {
+    prepare = state.prepareExport; plan = state.planExport; invalidate = state.invalidateExports; guard = state.exportGuard;
+    releaseOwner() {} dispose() {}
+  },
 }));
 import { publishKnowledgeFile, readKnowledgeFile, registerTranslationKnowledge } from '../../electron/main/translation-knowledge';
 
@@ -90,6 +99,39 @@ describe('knowledge IPC and native publication', () => {
     expect(knowledgeRequestSchemas.reviewEntries.safeParse({ generation: 0, ids: [id, id], action: 'adopt' }).success).toBe(false);
     expect(knowledgeRequestSchemas.selectImport.safeParse({ filePath: '/etc/passwd' }).success).toBe(false);
     expect(knowledgeRequestSchemas.exportFile.safeParse({ generation: 0, purpose: 'backup', collectionIds: [], includeMemories: false, path: '/etc/passwd' }).success).toBe(false);
+    expect(knowledgeRequestSchemas.importDroppedFile.safeParse({ path: '../secret.json' }).success).toBe(false);
+    expect(knowledgeRequestSchemas.commitMaintenance.safeParse({ planId: id, action: 'purge', targets: [] }).success).toBe(false);
+  });
+
+  it('converts only OS-backed File objects in the private preload drop method', async () => {
+    const native = {} as File;
+    const invoke = vi.fn(async () => ({ ok: true, value: {} }));
+    const api = createTranslationKnowledgeApi({ sendSync: () => 'capability', invoke }, {
+      getPathForFile(file) { if (file !== native) throw new TypeError('Not a native File'); return '/tmp/selected.fktk.json'; },
+    });
+    expect(await api.importDroppedFile('/etc/passwd' as unknown as File)).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await api.importDroppedFile({ path: '/etc/passwd' } as unknown as File)).toEqual({ ok: false, error: 'invalid_input' });
+    expect(invoke).not.toHaveBeenCalled();
+    await api.importDroppedFile(native);
+    expect(invoke).toHaveBeenCalledWith(KNOWLEDGE_CHANNELS.importDroppedFile, { capability: 'capability', payload: { path: '/tmp/selected.fktk.json' } });
+  });
+
+  it('checks the export plan again after native selection and fences publication', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'knowledge-export-plan-')); directories.push(directory);
+    const destination = path.join(directory, 'previewed.fktk.json');
+    state.save.mockResolvedValueOnce({ canceled: false, filePath: destination });
+    const bridge = registerTranslationKnowledge();
+    const contents = Object.assign(new EventEmitter(), { id: 72, mainFrame: { url: pathToFileURL(path.join(process.cwd(), 'dist/index.html')).href }, isDestroyed: () => false });
+    bridge.attach(contents as any);
+    const event = { sender: contents, senderFrame: contents.mainFrame, returnValue: undefined as unknown };
+    state.listeners.get(KNOWLEDGE_CHANNELS.register)!(event, {});
+    const planId = '10000000-0000-4000-8000-000000000001';
+    const result = await state.handlers.get(KNOWLEDGE_CHANNELS.exportFile)!(event, { capability: event.returnValue, payload: { planId } });
+    expect(result).toMatchObject({ ok: true, value: { entries: 0, purpose: 'backup' } });
+    expect(state.prepareExport).toHaveBeenCalledTimes(2);
+    expect(state.exportGuard).toHaveBeenCalledWith(event.returnValue, planId);
+    expect(await readFile(destination, 'utf8')).toBe('{}\n');
+    await bridge.dispose();
   });
 
   it.each(['selectImport', 'exportFile'] as const)('closes while %s has an open dialog and ignores its later selection', async method => {
@@ -105,7 +147,7 @@ describe('knowledge IPC and native publication', () => {
     bridge.attach(contents as any);
     const event = { sender: contents, senderFrame: contents.mainFrame, returnValue: undefined as unknown };
     state.listeners.get(KNOWLEDGE_CHANNELS.register)!(event, {});
-    const payload = method === 'selectImport' ? {} : { generation: 0, purpose: 'backup', collectionIds: [], includeMemories: false };
+    const payload = method === 'selectImport' ? {} : { planId: '10000000-0000-4000-8000-000000000001' };
     const operation = state.handlers.get(KNOWLEDGE_CHANNELS[method])!(event, { capability: event.returnValue, payload });
     await opened;
     try {

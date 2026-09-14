@@ -80,6 +80,7 @@ export function EntryEditor({
   snapshot,
   onSave,
   onClose,
+  blocked = false,
 }: {
   initial: Entry;
   snapshot: LibrarySnapshot;
@@ -87,6 +88,7 @@ export function EntryEditor({
     request: SaveRecordRequest,
   ) => Promise<KnowledgeResult<LibrarySnapshot>>;
   onClose: () => void;
+  blocked?: boolean;
 }) {
   const { t } = useTranslation("knowledge");
   const [entry, setEntry] = useState(initial);
@@ -127,7 +129,7 @@ export function EntryEditor({
     );
   const pair = entry.scope.languagePair;
   const submit = async () => {
-    if (pending) return;
+    if (pending || blocked) return;
     const summary = entrySummary(entry).trim();
     if (
       entry.scope.condition.mode !== "none" &&
@@ -172,7 +174,12 @@ export function EntryEditor({
         )
           .trim()
           .slice(0, 120),
-      state: adopt ? "ready" : "candidate",
+      state:
+        initial.state === "archived" && existing
+          ? "archived"
+          : adopt
+            ? "ready"
+            : "candidate",
       evidence: source
         ? [...entry.evidence, { sourceId: source.id, support: "direct" }]
         : entry.evidence,
@@ -185,7 +192,7 @@ export function EntryEditor({
         group: "entries",
         record,
         source,
-        adopt,
+        adopt: initial.state === "archived" && existing ? false : adopt,
       });
       if (!problem.ok) {
         setError(problem.error);
@@ -204,18 +211,24 @@ export function EntryEditor({
       onClose={onClose}
       pending={pending}
       footer={
-        <Button size="sm" disabled={pending} onClick={() => void submit()}>
+        <Button
+          size="sm"
+          disabled={pending || blocked}
+          onClick={() => void submit()}
+        >
           {t(
             pending
               ? "actions.saving"
-              : adopt
-                ? "actions.save_adopt"
-                : "actions.save",
+              : existing && initial.state === "archived"
+                ? "actions.save_catalog"
+                : adopt
+                  ? "actions.save_adopt"
+                  : "actions.save",
           )}
         </Button>
       }
     >
-      <fieldset disabled={pending} className="space-y-4">
+      <fieldset disabled={pending || blocked} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <Choice
             label={t("fields.kind")}
@@ -691,7 +704,12 @@ export function EntryEditor({
         <p className="text-xs text-muted-foreground">
           {t(existing ? "editor.source_existing" : "editor.source_default")}
         </p>
-        <Check label={t("editor.adopt")} checked={adopt} onChange={setAdopt} />
+        <Check
+          disabled={initial.state === "archived" && existing}
+          label={t("editor.adopt")}
+          checked={adopt}
+          onChange={setAdopt}
+        />
       </fieldset>
       <ErrorNotice error={error} diagnostics={diagnostics} />
     </KnowledgeDialog>

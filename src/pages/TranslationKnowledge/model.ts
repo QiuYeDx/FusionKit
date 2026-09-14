@@ -9,8 +9,14 @@ import type {
   ImportItem,
   LibrarySnapshot,
 } from "@/translation-knowledge/ipc-contract";
+import type { MaintenanceCommit, MaintenancePreview } from "@/translation-knowledge/maintenance-contract";
 
 export const PAGE_SIZE = 30;
+export function maintenanceCommitFor(preview: Pick<MaintenancePreview, "planId" | "action" | "history">, confirmed: boolean): MaintenanceCommit {
+  return preview.action === "purge" && preview.history.scope === "all"
+    ? { planId: preview.planId, confirmHistoryRemoval: confirmed }
+    : { planId: preview.planId };
+}
 export type EntryStatus = Entry["state"] | "unconfirmed";
 export type LibraryQuery = {
   subject: string;
@@ -187,4 +193,24 @@ export function newEntry(
       strength: "preferred",
     },
   };
+}
+
+/** Sources remain referenced by either direct evidence or historical derivation excerpts. */
+export function isSourceUnreferenced(sourceId: string, data: KnowledgePackage) {
+  return !data.entries.some(
+    (entry) =>
+      entry.evidence.some((evidence) => evidence.sourceId === sourceId) ||
+      entry.derivedFrom.some((parent) => parent.evidenceSourceId === sourceId),
+  );
+}
+export function acceptsKnowledgeDrop(files: readonly { name: string }[]) {
+  return (
+    files.length === 1 && files[0].name.toLowerCase().endsWith(".fktk.json")
+  );
+}
+export function exportPreviewCurrent(
+  preview: { generation: number } | null,
+  generation: number,
+) {
+  return !!preview && preview.generation === generation;
 }

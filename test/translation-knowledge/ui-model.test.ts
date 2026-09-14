@@ -144,3 +144,66 @@ describe("new entry defaults", () => {
     expect(entry.scope.languagePair.target).toBe("zh-Hans");
   });
 });
+
+describe("maintenance and file exchange controls", () => {
+  it("accepts one knowledge file and rejects ambiguous drops", async () => {
+    const { acceptsKnowledgeDrop } = await import(
+      "../../src/pages/TranslationKnowledge/model"
+    );
+    expect(acceptsKnowledgeDrop([{ name: "作品.fktk.json" }])).toBe(true);
+    expect(acceptsKnowledgeDrop([{ name: "PACKAGE.FKTK.JSON" }])).toBe(true);
+    expect(acceptsKnowledgeDrop([])).toBe(false);
+    expect(
+      acceptsKnowledgeDrop([{ name: "a.fktk.json" }, { name: "b.fktk.json" }]),
+    ).toBe(false);
+    expect(acceptsKnowledgeDrop([{ name: "subtitles.srt" }])).toBe(false);
+  });
+  it("keeps both direct and derived evidence out of the unused source list", async () => {
+    const { isSourceUnreferenced } = await import(
+      "../../src/pages/TranslationKnowledge/model"
+    );
+    const data = knowledgeFixture();
+    const entry = data.entries[0];
+    const sourceId = entry.evidence[0].sourceId;
+    expect(isSourceUnreferenced(sourceId, data)).toBe(false);
+    data.entries = [
+      {
+        ...entry,
+        evidence: [],
+        derivedFrom: [
+          {
+            entryId: entry.id,
+            revision: 1,
+            digest: "0".repeat(64),
+            evidenceSourceId: sourceId,
+          },
+        ],
+      },
+    ];
+    expect(isSourceUnreferenced(sourceId, data)).toBe(false);
+    data.entries = [];
+    expect(isSourceUnreferenced(sourceId, data)).toBe(true);
+  });
+  it("requires an export preview at the current library generation", async () => {
+    const { exportPreviewCurrent } = await import(
+      "../../src/pages/TranslationKnowledge/model"
+    );
+    expect(exportPreviewCurrent(null, 3)).toBe(false);
+    expect(exportPreviewCurrent({ generation: 2 }, 3)).toBe(false);
+    expect(exportPreviewCurrent({ generation: 3 }, 3)).toBe(true);
+  });
+});
+
+it('omits history consent entirely for archive, restore and import undo commits', async () => {
+  const { maintenanceCommitFor } = await import('../../src/pages/TranslationKnowledge/model');
+  const history = {snapshots:4,importsLosingUndo:2,scope:'all' as const};
+  for (const action of ['archive','restore','undo_import'] as const) {
+    for (const confirmed of [false,true]) {
+      const request=maintenanceCommitFor({planId:'plan',action,history},confirmed);
+      expect(request).toEqual({planId:'plan'});
+      expect(Object.hasOwn(request,'confirmHistoryRemoval')).toBe(false);
+    }
+  }
+  expect(maintenanceCommitFor({planId:'purge',action:'purge',history},true)).toEqual({planId:'purge',confirmHistoryRemoval:true});
+  expect(maintenanceCommitFor({planId:'purge',action:'purge',history},false)).toEqual({planId:'purge',confirmHistoryRemoval:false});
+});

@@ -6,6 +6,8 @@ import { parseKnowledgePackage, validatePackage, type Diagnostic } from '../../.
 import type { CommitImportRequest, EntityGroup, ExportRequest, ImportItem, ImportPreview, ImportReceipt, KnowledgeEntity, LibrarySnapshot, ReviewEntriesRequest, SaveRecordRequest } from '../../../src/translation-knowledge/ipc-contract';
 import { diagnostic, KnowledgeServiceError } from './errors';
 import { emptyPackage, KnowledgeRepository, type RepositoryOptions, type StoredLibrary } from './repository';
+import type { MaintenanceCommit, MaintenancePreview, MaintenanceReceipt, MaintenanceRequest } from '../../../src/translation-knowledge/maintenance-contract';
+import { buildMaintenance, captureImportChanges, maintenanceCommitRequestSchema, maintenanceRequestSchema } from './maintenance';
 export { KnowledgeServiceError } from './errors';
 
 const generation = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -16,9 +18,10 @@ const exportSchema = z.strictObject({ generation, purpose: z.enum(['backup', 'sh
 const entitySchemas = { subjects: subjectSchema, collections: collectionSchema, sources: sourceSchema, entries: entrySchema, styles: styleSchema, recipes: recipeSchema, preferenceTemplates: preferenceTemplateSchema };
 const PLAN_TTL_MS = 15 * 60 * 1000;
 interface Plan { owner: string; expiresAt: number; data: KnowledgePackage; preview: ImportPreview; requestDigest?: string }
+interface MaintenancePlan { owner: string; expiresAt: number; request: MaintenanceRequest; preview: MaintenancePreview; historyDigest?: string; requestDigest?: string }
 const ownerDigest = (owner: string) => createHash('sha256').update(owner).digest('hex');
 const clone = <T>(value: T): T => structuredClone(value);
-const snapshot = (state: StoredLibrary): LibrarySnapshot => clone({ generation: state.generation, data: state.data, approvals: state.approvals, imports: state.imports });
+const snapshot = (state: StoredLibrary): LibrarySnapshot => clone({ generation: state.generation, data: state.data, approvals: state.approvals, imports: state.imports, maintenance: { undoableImportIds: Object.keys(state.importChanges).filter(id => !state.undoneImportIds.includes(id)), undoneImportIds: state.undoneImportIds, cleanupPending: state.cleanupPending } });
 const fail = (code: string, message: string, path?: string): never => { throw new KnowledgeServiceError('invalid_input', [diagnostic(code, message, path)]); };
 function parse<T>(schema: z.ZodType<T>, input: unknown): T {
   const checked = schema.safeParse(input);
@@ -104,6 +107,7 @@ function remap(group: EntityGroup, incoming: KnowledgeEntity, ids: Map<string, s
 export class KnowledgeService {
   private readonly repository: KnowledgeRepository;
   private readonly plans = new Map<string, Plan>();
+  private readonly maintenancePlans = new Map<string, MaintenancePlan>();
   private readonly released = new Set<string>();
   private disposed = false;
   constructor(rootPath: string, options: RepositoryOptions = {}) { this.repository = new KnowledgeRepository(rootPath, options); }
@@ -157,6 +161,7 @@ export class KnowledgeService {
       if (plan.owner !== owner) throw new KnowledgeServiceError('access_denied');
       if (plan.expiresAt <= Date.now() || plan.preview.generation !== state.generation) throw new KnowledgeServiceError('plan_expired');
       if (plan.requestDigest && plan.requestDigest !== requestDigest) throw new KnowledgeServiceError('import_conflict', [diagnostic('PLAN_DECISION_CHANGED', 'Create a new preview before changing a previously attempted import.')]);
+      const beforeImport = { data: clone(state.data), approvals: clone(state.approvals) };
       const choices = new Map(input.decisions.map(item => [item.id, item.action]));
       const incoming = records(plan.data);
       for (const id of choices.keys()) if (!incoming.has(id)) fail('UNKNOWN_DECISION', 'An import decision refers to a record outside this preview.');
@@ -228,6 +233,7 @@ export class KnowledgeService {
       state.imports.push(receipt);
       state.commits[input.planId] = { ownerDigest: ownerDigest(owner), requestDigest, packageDigest: sha256Canonical(plan.data), receiptId: receipt.id };
       state.importedOriginal = clone(plan.data);
+      state.importChanges[input.planId] = captureImportChanges(beforeImport, state, input.planId);
       plan.requestDigest = requestDigest;
       return { state, result: () => clone(receipt) };
     }, fence);
@@ -301,6 +307,61 @@ export class KnowledgeService {
     }, guard);
   }
 
+  async planMaintenance(owner: string, request: MaintenanceRequest): Promise<MaintenancePreview> {
+    this.checkOwner(owner);
+    const input = parse(maintenanceRequestSchema, request);
+    const state = await this.repository.read();
+    const history = input.action === 'purge' && !state.cleanupPending ? await this.repository.historyInventory() : undefined;
+    this.checkOwner(owner);
+    for (const [id, plan] of this.maintenancePlans) if (plan.owner === owner || plan.expiresAt <= Date.now()) this.maintenancePlans.delete(id);
+    if (this.maintenancePlans.size >= 64) throw new KnowledgeServiceError('limit_exceeded');
+    const { preview } = buildMaintenance(state, input, randomUUID(), history?.length);
+    this.maintenancePlans.set(preview.planId, { owner, expiresAt: Date.now() + PLAN_TTL_MS, request: clone(input), preview: clone(preview), ...(history ? { historyDigest: sha256Canonical([...history].sort((a, b) => a.name.localeCompare(b.name))) } : {}) });
+    return preview;
+  }
+
+  async commitMaintenance(owner: string, request: MaintenanceCommit, guard?: () => void): Promise<MaintenanceReceipt> {
+    this.checkOwner(owner);
+    const input = parse(maintenanceCommitRequestSchema, request);
+    const requestDigest = sha256Canonical(input);
+    const fence = () => { this.checkOwner(owner); guard?.(); };
+    const pendingPlan = this.maintenancePlans.get(input.planId);
+    let historyDigest: string | undefined;
+    if (pendingPlan?.request.action === 'purge') {
+      // Already-published retries must reach their receipt even while cleanup is
+      // pending; the repository performs recovery before this transaction.
+      const current = await this.repository.read();
+      if (!current.maintenanceCommits[input.planId]) {
+        const history = await this.repository.historyInventory();
+        historyDigest = sha256Canonical([...history].sort((a, b) => a.name.localeCompare(b.name)));
+      }
+    }
+    return this.repository.transact(state => {
+      const committed = state.maintenanceCommits[input.planId];
+      if (committed) {
+        if (committed.ownerDigest !== ownerDigest(owner)) throw new KnowledgeServiceError('access_denied');
+        if (committed.requestDigest !== requestDigest) throw new KnowledgeServiceError('import_conflict', [diagnostic('MAINTENANCE_DECISION_CHANGED', 'This maintenance operation already committed with different decisions.')]);
+        return { result: current => ({ ...clone(committed.receipt), cleanupPending: committed.receipt.action === 'purge' && current.purgeOperationId === input.planId && current.cleanupPending }) };
+      }
+      const plan = this.maintenancePlans.get(input.planId);
+      if (!plan || plan.expiresAt <= Date.now()) throw new KnowledgeServiceError('plan_expired');
+      if (plan.owner !== owner) throw new KnowledgeServiceError('access_denied');
+      if (plan.request.generation !== state.generation) throw new KnowledgeServiceError('plan_expired');
+      if (plan.requestDigest && plan.requestDigest !== requestDigest) throw new KnowledgeServiceError('import_conflict');
+      if (plan.request.action === 'purge' && input.confirmHistoryRemoval !== true) fail('HISTORY_REMOVAL_CONFIRMATION', 'Confirm that permanently clearing these records also removes all library history snapshots.');
+      if (plan.request.action !== 'purge' && input.confirmHistoryRemoval !== undefined) fail('UNEXPECTED_HISTORY_CONFIRMATION', 'History removal confirmation applies only to permanent clearing.');
+      if (plan.historyDigest !== historyDigest) throw new KnowledgeServiceError('plan_expired');
+      const outcome = buildMaintenance(state, plan.request, input.planId, plan.preview.history.snapshots);
+      if (!outcome.preview.canCommit) throw new KnowledgeServiceError('import_conflict', outcome.preview.blockers);
+      const receipt: MaintenanceReceipt = { id: input.planId, action: plan.request.action, generation: state.generation + 1, changed: outcome.changed, cleanupPending: plan.request.action === 'purge' };
+      outcome.state.maintenanceCommits[input.planId] = { ownerDigest: ownerDigest(owner), requestDigest, receipt };
+      if (plan.request.action === 'purge') outcome.state.purgeOperationId = input.planId;
+      delete outcome.state.importedOriginal;
+      plan.requestDigest = requestDigest;
+      return { state: outcome.state, ...(plan.request.action === 'purge' ? { purgeOperationId: input.planId } : {}), result: current => ({ ...clone(receipt), cleanupPending: receipt.action === 'purge' && current.cleanupPending }) };
+    }, fence);
+  }
+
   async exportPackage(request: ExportRequest): Promise<KnowledgePackage> {
     const input = parse(exportSchema, request);
     if (new Set(input.collectionIds).size !== input.collectionIds.length) fail('DUPLICATE_COLLECTION', 'Select each collection once.');
@@ -331,8 +392,9 @@ export class KnowledgeService {
   releaseOwner(owner: string): void {
     this.released.add(owner);
     for (const [id, plan] of this.plans) if (plan.owner === owner) this.plans.delete(id);
+    for (const [id, plan] of this.maintenancePlans) if (plan.owner === owner) this.maintenancePlans.delete(id);
   }
-  async dispose(): Promise<void> { this.disposed = true; this.plans.clear(); await this.repository.dispose(); }
+  async dispose(): Promise<void> { this.disposed = true; this.plans.clear(); this.maintenancePlans.clear(); await this.repository.dispose(); }
   private checkOwner(owner: string): void {
     if (typeof owner !== 'string' || !owner.trim() || owner.length > 512 || this.disposed || this.released.has(owner)) throw new KnowledgeServiceError('access_denied');
   }

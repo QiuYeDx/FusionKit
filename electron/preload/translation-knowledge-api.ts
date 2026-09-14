@@ -9,7 +9,7 @@ export function assertLegacyKnowledgeChannelAllowed(channel: string) {
 export function createTranslationKnowledgeApi(ipc: {
   sendSync(channel: string, request: unknown): unknown;
   invoke(channel: string, request: unknown): Promise<any>;
-}): TranslationKnowledgeApi {
+}, files?: { getPathForFile(file: File): string }): TranslationKnowledgeApi {
   const capability = ipc.sendSync(KNOWLEDGE_CHANNELS.register, {});
   const invoke = (channel: string, payload: unknown) => typeof capability === 'string' && isPublicKnowledgeChannel(channel)
     ? ipc.invoke(channel, { capability, payload })
@@ -17,9 +17,20 @@ export function createTranslationKnowledgeApi(ipc: {
   return Object.freeze({
     read: () => invoke(KNOWLEDGE_CHANNELS.read, {}),
     selectImport: () => invoke(KNOWLEDGE_CHANNELS.selectImport, {}),
+    importDroppedFile: async file => {
+      try {
+        if (!files || !file || typeof file !== 'object') return { ok: false, error: 'invalid_input' };
+        const path = files.getPathForFile(file);
+        if (!path) return { ok: false, error: 'invalid_input' };
+        return invoke(KNOWLEDGE_CHANNELS.importDroppedFile, { path });
+      } catch { return { ok: false, error: 'invalid_input' }; }
+    },
     commitImport: request => invoke(KNOWLEDGE_CHANNELS.commitImport, request),
     saveRecord: request => invoke(KNOWLEDGE_CHANNELS.saveRecord, request),
     reviewEntries: request => invoke(KNOWLEDGE_CHANNELS.reviewEntries, request),
+    planMaintenance: request => invoke(KNOWLEDGE_CHANNELS.planMaintenance, request),
+    commitMaintenance: request => invoke(KNOWLEDGE_CHANNELS.commitMaintenance, request),
+    planExport: request => invoke(KNOWLEDGE_CHANNELS.planExport, request),
     exportFile: request => invoke(KNOWLEDGE_CHANNELS.exportFile, request),
   } satisfies TranslationKnowledgeApi);
 }
