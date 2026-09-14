@@ -77,6 +77,46 @@ function mockTrialProvider() {
 }
 
 describe('production Subtitle Studio IPC handler composition', () => {
+  it('reads one frozen execution batch through the fixed preload after task cleanup, with owner and private data boundaries', async () => {
+    const send = mockTrialProvider();
+    const { owner, request } = await setup('[00:01]First source.\n[00:02]Second source.\n');
+    const config = { ...trialInput(request).config, maxBatchCues: 1 };
+    const plan = await owner.invoke(STUDIO_CHANNELS.planTranslation, { ...request, config });
+    expect(plan.ok).toBe(true);
+    const started = await owner.invoke(STUDIO_CHANNELS.createTranslation, { ...request, planId: plan.value.planId, apiKey: 'PRIVATE_EXECUTION_KEY' });
+    expect(started.ok).toBe(true);
+    const repository = new DocumentRepository(path.join(adapter.directory, 'subtitle-studio/documents'));
+    await vi.waitFor(async () => expect((await repository.readSnapshot(request.documentId)).tasks[0].status).toBe('completed'));
+    const snapshot = await repository.readSnapshot(request.documentId);
+    const trackId = snapshot.document.translationTracks[0].id;
+    const ipc = { sendSync: () => owner.capability,
+      invoke: vi.fn((channel: string, envelope: unknown) => adapter.handlers.get(channel)!({ sender: owner.client, senderFrame: owner.client.mainFrame }, envelope)),
+      on: vi.fn(), removeListener: vi.fn() };
+    const api = createSubtitleStudioApi(ipc);
+    const query = { documentId: request.documentId, trackId, batchOffset: 1 };
+    const detail = await api.readExecutionRecord(query);
+    expect(detail).toMatchObject({ ok: true, value: { state: 'available', batchOffset: 1, totalBatches: 2,
+      batch: { items: [{ id: 'u2', text: 'Second source.' }], request: { priorModelTranslations: ['试译结果'] } } } });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(detail)).not.toContain('PRIVATE_EXECUTION_KEY');
+    const page = await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { documentId: request.documentId, revision: snapshot.document.revision, offset: 0 });
+    expect(page.value.tasks[0].translation.checkpoint).toEqual({ version: 2 });
+    expect(page.value.translationTracks[0].executionRef).toBeDefined();
+    for (const forbidden of ['executionRecords', 'baseRequests', 'httpBody', 'PRIVATE_EXECUTION_KEY']) expect(JSON.stringify(page)).not.toContain(forbidden);
+    const other = attach();
+    expect(await other.invoke(STUDIO_CHANNELS.readExecutionRecord, query)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.readExecutionRecord, query, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    for (const invalid of [{ ...query, batchOffset: -1 }, { ...query, batchOffset: 100001 }, { ...query, path: '/forged' }, { ...query, apiKey: 'forged' }])
+      expect(await owner.invoke(STUDIO_CHANNELS.readExecutionRecord, invalid)).toEqual({ ok: false, error: 'invalid_input' });
+    const cleared = await owner.invoke(STUDIO_CHANNELS.removeTask, { documentId: request.documentId, revision: snapshot.document.revision, taskId: started.value.taskId });
+    expect(cleared.ok).toBe(true);
+    expect(await api.readExecutionRecord(query)).toEqual(detail);
+    const stored = await repository.readSnapshot(request.documentId);
+    expect(stored.tasks).toEqual([]);
+    expect(stored.executionRecords).toBeDefined();
+    expect(isPublicStudioChannel(STUDIO_CHANNELS.readExecutionRecord)).toBe(true);
+  });
+
   it('runs the three fixed trial methods through the real preload and authorized main handlers without document writes', async () => {
     const send = mockTrialProvider();
     const readKnowledge = vi.fn(async () => trialLibrary());

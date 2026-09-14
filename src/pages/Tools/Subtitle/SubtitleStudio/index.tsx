@@ -44,7 +44,7 @@ import './studio.css';
 const errorKeys: Record<ErrorCode, string> = {
   resource_busy: 'studio:errors.resource_busy',
   translation_output_limit: 'studio:errors.translation_output_limit',
-  needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_failed: 'studio:errors.translation_failed', interrupted: 'studio:errors.interrupted',
+  needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable', translation_failed: 'studio:errors.translation_failed', interrupted: 'studio:errors.interrupted',
   transcription_failed: 'studio:errors.transcription_failed',
   invalid_input: 'studio:errors.invalid_input', unsupported_feature: 'studio:errors.unsupported_feature', encoding_required: 'studio:errors.encoding_required', limit_exceeded: 'studio:errors.limit_exceeded', revision_conflict: 'studio:errors.revision_conflict', access_denied: 'studio:errors.access_denied', document_unavailable: 'studio:errors.document_unavailable', output_write_failed: 'studio:errors.output_write_failed',
 };

@@ -263,7 +263,8 @@
     "translation_failed": "翻譯請求失敗，請檢查模型服務後重試。",
     "transcription_failed": "轉寫失敗，請檢查媒體和本機資源後重試。",
     "interrupted": "翻譯已中斷，已完成的譯文已保留。",
-    "resource_busy": "共用資源正在使用中，請等待兩個字幕工具中的工作或資源操作結束後重試。"
+    "resource_busy": "共用資源正在使用中，請等待兩個字幕工具中的工作或資源操作結束後重試。",
+    "translation_record_unavailable": "執行記錄遺失、損毀或與目前版本不相容，無法安全繼續。已有譯文已保留；請修復記錄或重新建立翻譯。"
   },
   "diagnostics": {
     "empty_document": "沒有帶時間的字幕正文",
@@ -620,5 +621,34 @@
     }
   },
   "source_folder": "開啟所在資料夾",
-  "source_folder_failed": "無法開啟來源資料夾，請確認原始檔案仍在原位後重試"
+  "source_folder_failed": "無法開啟來源資料夾，請確認原始檔案仍在原位後重試",
+  "execution": {
+    "open": "執行記錄",
+    "title": "翻譯執行記錄",
+    "description": "檢視本次翻譯儲存的輸入與請求。內容按執行時的版本保留，不隨目前字幕或資料修改。",
+    "legacy": "這條舊翻譯沒有儲存執行記錄，無法追溯當時的輸入與請求。",
+    "load_error": "無法讀取執行記錄，請重試。已儲存的翻譯不會因此變更。",
+    "refresh": "重新整理記錄",
+    "retry": "重試讀取",
+    "saved_at": "儲存時間",
+    "model": "翻譯模型",
+    "language": "目標語言",
+    "instructions": "本次翻譯要求",
+    "no_instructions": "未新增額外要求",
+    "batch": "第 {{current}} / {{total}} 批",
+    "request_saved": "已儲存請求",
+    "request_saved_help": "請求已在傳送前儲存；這不代表服務商已收到請求或翻譯已完成。",
+    "not_sent": "尚未傳送",
+    "not_sent_help": "這一批尚未儲存傳送請求。目前僅展示規劃時保留的原文與上下文。",
+    "source": "本批原文",
+    "before": "前文",
+    "after": "後文",
+    "prior_ai": "上批 AI 譯文 · 未經人工確認",
+    "no_context": "無此類上下文",
+    "technical": "技術細節",
+    "http_body": "精確 HTTP 請求內容",
+    "policy_version": "執行策略版本",
+    "request_saved_at": "請求儲存時間",
+    "unknown": "未知"
+  }
 }

@@ -18,7 +18,7 @@ const statusKeys = {
   needs_configuration: 'studio:translation.needs_configuration',
 } as const satisfies Record<TranslationTaskStatus, string>;
 const statuses = Object.keys(statusKeys) as TranslationTaskStatus[];
-const errorKeys = { translation_failed: 'studio:errors.translation_failed', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid',
+const errorKeys = { translation_failed: 'studio:errors.translation_failed', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable',
   translation_output_limit: 'studio:errors.translation_output_limit', needs_configuration: 'studio:errors.needs_configuration',
   limit_exceeded: 'studio:errors.limit_exceeded', revision_conflict: 'studio:errors.revision_conflict', interrupted: 'studio:errors.interrupted' } as const;
 const attention = (status: TranslationTaskStatus) => ['failed', 'interrupted', 'needs_configuration'].includes(status);

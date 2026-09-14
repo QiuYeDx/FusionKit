@@ -27,7 +27,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     const artifacts = path.resolve('test-results/subtitle-studio-recovery');
     await mkdir(artifacts, { recursive: true });
     type Request = { model: string; messages: { content: string }[]; thinking?: { type: string } };
-    const requests: { body: Request; authorization: string | undefined }[] = [];
+    const requests: { body: Request; raw: string; authorization: string | undefined }[] = [];
     const pending: { response: ServerResponse; body: Request }[] = [];
     let mode: 'hold-second' | 'success' | 'provider-wait' = 'hold-second';
     let wave = 0;
@@ -42,7 +42,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     server = createServer(async (request, response) => {
       let text = ''; for await (const chunk of request) text += chunk.toString();
       const body = JSON.parse(text) as Request;
-      requests.push({ body, authorization: request.headers.authorization });
+      requests.push({ body, raw: text, authorization: request.headers.authorization });
       wave++;
       if (mode === 'provider-wait') {
         response.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '31' });
@@ -121,6 +121,23 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     expect(beforeRestart.tasks[0].completedBatchIds).toHaveLength(1);
     expect(beforeRestart.tasks[0].translation?.checkpoint).toBeDefined();
     const taskId = beforeRestart.tasks[0].id;
+    const trace = (page: Page, batchOffset: number) => page.evaluate(async ({ documentId, trackId, batchOffset }) => {
+      const result = await window.subtitleStudio.readExecutionRecord({ documentId, trackId, batchOffset });
+      if (!result.ok || result.value.state !== 'available') throw new Error('Missing execution record');
+      return result.value;
+    }, { documentId: beforeRestart.summary.id, trackId: beforeRestart.translationTracks[0].id, batchOffset });
+    expect(beforeRestart.tasks[0].translation?.checkpoint).toEqual({ version: 2 });
+    expect((await trace(page, 1)).batch.request?.httpBody).toBe(requests[1].raw);
+    expect((await trace(page, 2)).batch.request).toBeNull();
+    await page.getByRole('button', { name: '执行记录', exact: true }).click();
+    const executionDialog = (page: Page) => page.getByRole('dialog', { name: '翻译执行记录', exact: true });
+    await uiExpect(executionDialog(page)).toContainText('Restart-proof scene 1.');
+    await executionDialog(page).getByRole('button', { name: '下一页', exact: true }).click();
+    await uiExpect(executionDialog(page)).toContainText('译文：Restart-proof scene 1.');
+    await page.screenshot({ path: path.join(artifacts, 'execution-context-light.png'), animations: 'disabled' });
+    await executionDialog(page).getByRole('button', { name: '下一页', exact: true }).click();
+    await uiExpect(executionDialog(page)).toContainText('尚未发送');
+    await executionDialog(page).getByRole('button', { name: '关闭', exact: true }).click();
     await page.screenshot({ path: path.join(artifacts, 'running-before-restart.png'), animations: 'disabled' });
     const crashedProcess = app!.process();
     const crashed = new Promise<void>((resolve, reject) => {
@@ -171,6 +188,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 15000 });
     await uiExpect(page.locator('.studio-target-text').filter({ hasText: '译文：' })).toHaveCount(6);
     expect(requests).toHaveLength(4);
+    expect(requests[2].raw).toBe(requests[1].raw);
+    expect((await trace(page, 1)).batch.request?.httpBody).toBe(requests[2].raw);
+    expect((await trace(page, 2)).batch.request?.httpBody).toBe(requests[3].raw);
     expect(requests.slice(2).every(item => item.authorization === 'Bearer synthetic-rotated-key')).toBe(true);
     const resumedTexts = requests.slice(2).flatMap(item => JSON.parse(item.body.messages[1].content).items.map((cue: { text: string }) => cue.text));
     expect(resumedTexts).toEqual(['Restart-proof scene 3.', 'Restart-proof scene 4.', 'Restart-proof scene 5.', 'Restart-proof scene 6.']);
@@ -181,6 +201,13 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     expect(afterResume.tasks[0].translation?.uncertainAttempts).toBeGreaterThan(0);
     expect(afterResume.translationTracks[0].entries[afterResume.cues[0].id]).toEqual(beforeRestart.translationTracks[0].entries[beforeRestart.cues[0].id]);
     await page.screenshot({ path: path.join(artifacts, 'resumed-completed-narrow.png'), animations: 'disabled' });
+    await page.getByRole('button', { name: '执行记录', exact: true }).click();
+    await uiExpect(executionDialog(page)).toContainText('已保存请求');
+    await executionDialog(page).getByRole('button', { name: '下一页', exact: true }).click();
+    await uiExpect(executionDialog(page)).toContainText('译文：Restart-proof scene 1.');
+    expect(await executionDialog(page).evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    await page.screenshot({ path: path.join(artifacts, 'execution-dark-narrow.png'), animations: 'disabled' });
+    await executionDialog(page).getByRole('button', { name: '关闭', exact: true }).click();
 
     await window.evaluate(win => win.setSize(1280, 860));
     await configureProfiles(page, [originalProfile, fallbackProfile], originalProfile.id);
@@ -233,6 +260,37 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await uiExpect(page.getByRole('button', { name: '继续翻译', exact: true })).toHaveCount(0);
     await uiExpect(page.getByRole('button', { name: '翻译', exact: true })).toBeEnabled();
     expect(requests).toHaveLength(7);
+    const retained = await trace(page, 1);
+    const taskForRemoval = await snapshot(page, restartName);
+    await page.evaluate(async ({ documentId, revision, taskId }) => {
+      const result = await window.subtitleStudio.removeTask({ documentId, revision, taskId });
+      if (!result.ok) throw new Error(result.error);
+    }, { documentId: taskForRemoval.summary.id, revision: taskForRemoval.summary.revision, taskId });
+    await uiExpect(page.getByRole('button', { name: '执行记录', exact: true })).toBeVisible();
+    expect(await trace(page, 1)).toEqual(retained);
+    await app!.close(); app = undefined;
+    page = await launch();
+    await page.locator('.studio-document').filter({ hasText: restartName }).click();
+    expect((await snapshot(page, restartName)).tasks).toEqual([]);
+    expect(await trace(page, 1)).toEqual(retained);
+    await page.getByRole('button', { name: '执行记录', exact: true }).click();
+    await uiExpect(executionDialog(page)).toContainText('已保存请求');
+    await page.screenshot({ path: path.join(artifacts, 'execution-after-task-cleanup.png'), animations: 'disabled' });
+    await executionDialog(page).getByRole('button', { name: '关闭', exact: true }).click();
+    await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
+    await reload(page);
+    window = await app!.browserWindow(page); await window.evaluate(win => win.setSize(1280, 860));
+    await page.locator('.studio-document').filter({ hasText: restartName }).click();
+    await window.evaluate(win => win.setSize(820, 700));
+    await page.getByRole('button', { name: 'Execution record', exact: true }).click();
+    const englishRecord = page.getByRole('dialog', { name: 'Translation execution record', exact: true });
+    await uiExpect(englishRecord).toContainText('Request saved');
+    await page.screenshot({ path: path.join(artifacts, 'execution-english-narrow.png'), animations: 'disabled' });
+    await page.getByTestId('studio-execution-technical').locator('summary').click();
+    await uiExpect(englishRecord.locator('pre')).toHaveText((await trace(page, 0)).batch.request!.httpBody);
+    await englishRecord.locator('pre').scrollIntoViewIfNeeded();
+    expect(await englishRecord.evaluate(element => [...element.querySelectorAll<HTMLElement>('[data-slot=scroll-area-viewport]')].every(viewport => viewport.scrollWidth <= viewport.clientWidth + 1))).toBe(true);
+    await page.screenshot({ path: path.join(artifacts, 'execution-http-body-narrow.png'), animations: 'disabled' });
     expect(errors).toEqual([]);
   }, 180000);
 });

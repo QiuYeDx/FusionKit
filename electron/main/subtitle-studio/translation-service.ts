@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { StudioError } from '../../../src/subtitle-studio/domain';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
+import { assertExecutionRecordsSize } from '../../../src/subtitle-studio/execution-record-contract';
 import type { TranslationConfig, TranslationModel, TranslationPlanSummary, TranslationUsage } from '../../../src/subtitle-studio/translation-contract';
 import { validateTranslationResponse } from '../../../src/subtitle-studio/translation-protocol';
 import { sendModelRuntimeText, type ModelRuntimeTextRequest, type ModelRuntimeTextResult, type ModelRuntimeUsage } from '../ai/model-runtime-client';
@@ -8,6 +9,7 @@ import { ModelRuntimeClientError } from '../ai/model-runtime-errors';
 import { DocumentRepository } from './document-repository';
 import { buildTranslationRequest, planTranslation, requestTokenEstimate, type TranslationPlan } from './translation-planner';
 import { checkpointForPlan, documentSourceDigest, publishTransaction, restoreTranslationPlan, sameTranslationModel, translationScheduler, type TranslationScheduler } from './translation-recovery';
+import { createExecutionRecord, requestForExecution, resolveExecutionRecord, runtimeExecutionRequest } from './execution-records';
 
 type Task = DocumentSnapshot['tasks'][number];
 type AttemptReceipt = { batchId: string; attempt: number; usage: TranslationUsage; uncertain: boolean };
@@ -46,8 +48,8 @@ function interruptTask(task: Task, status: 'interrupted' | 'cancelled', receipt?
   task.status = status;
   task.generation++;
 }
-function failureCode(error: unknown): 'needs_configuration' | 'translation_protocol_invalid' | 'translation_output_limit' | 'translation_failed' | 'limit_exceeded' | 'revision_conflict' | 'interrupted' {
-  if (error instanceof StudioError && ['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'limit_exceeded', 'revision_conflict', 'interrupted'].includes(error.code)) return error.code as ReturnType<typeof failureCode>;
+function failureCode(error: unknown): 'needs_configuration' | 'translation_protocol_invalid' | 'translation_output_limit' | 'translation_record_unavailable' | 'translation_failed' | 'limit_exceeded' | 'revision_conflict' | 'interrupted' {
+  if (error instanceof StudioError && ['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_record_unavailable', 'limit_exceeded', 'revision_conflict', 'interrupted'].includes(error.code)) return error.code as ReturnType<typeof failureCode>;
   if (error instanceof ModelRuntimeClientError) {
     if (['http_unauthorized', 'http_forbidden', 'http_non_retryable'].includes(error.code)) return 'needs_configuration';
     if (error.code === 'length_truncated') return 'translation_output_limit';
@@ -137,17 +139,29 @@ export class TranslationService {
     const intent = snapshot.automaticTranslation!;
     if (intent.state !== 'pending') throw new StudioError('revision_conflict');
     const taskId = randomUUID(), trackId = randomUUID();
-    const plan = prepared.plan;
+    let plan = prepared.plan;
+    let preparationError = prepared.error;
+    let execution: ReturnType<typeof createExecutionRecord> | undefined;
+    if (plan) {
+      try {
+        execution = createExecutionRecord(plan, documentSourceDigest(snapshot.document), taskId, trackId);
+        assertExecutionRecordsSize({ ...snapshot.executionRecords, [execution.record.id]: execution.record });
+      } catch (error) {
+        // An unpersistable automatic plan must remain visible without blocking startup.
+        preparationError = failureCode(error); plan = undefined; execution = undefined;
+      }
+    }
     const conflict = launch && snapshot.tasks.some(activeStatus);
     const status = !plan || conflict ? 'failed' : launch ? 'queued' : 'needs_configuration';
-    const error = prepared.error ?? (conflict ? 'revision_conflict' : launch ? undefined : 'needs_configuration');
-    snapshot.document.translationTracks.push({ id: trackId, revision: 1, language: intent.config.language, entries: {} });
+    const error = preparationError ?? (conflict ? 'revision_conflict' : launch ? undefined : 'needs_configuration');
+    if (execution) (snapshot.executionRecords ??= {})[execution.record.id] = execution.record;
+    snapshot.document.translationTracks.push({ id: trackId, revision: 1, language: intent.config.language, entries: {}, ...(execution ? { executionRef: execution.ref } : {}) });
     snapshot.tasks.push({ id: taskId, trackId, generation: 1, status, completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
       translation: { config: plan?.config ?? intent.config, totalBatches: plan?.batches.length ?? 1,
         estimatedInputTokens: plan?.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0) ?? 0,
         outputTokenReserve: (plan?.batches.length ?? 1) * intent.config.maxOutputTokens,
         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, uncertainAttempts: 0,
-        ...(plan ? { checkpoint: checkpointForPlan(plan, snapshot.document) } : {}), ...(error ? { error } : {}) } });
+        ...(plan && execution ? { checkpoint: checkpointForPlan(plan, snapshot.document, 1, execution.ref) } : {}), ...(error ? { error } : {}) } });
     intent.state = 'admitted'; intent.translationTaskId = taskId;
     return taskId;
   }
@@ -195,10 +209,12 @@ export class TranslationService {
     const taskId = randomUUID(); const trackId = randomUUID();
     const snapshot = await publishTransaction(this.repository, documentId, revision, value => {
       if (value.tasks.some(activeStatus)) throw new StudioError('revision_conflict');
-      value.document.translationTracks.push({ id: trackId, language: plan.config.language, revision: 1, entries: {} });
+      const execution = createExecutionRecord(plan, documentSourceDigest(value.document), taskId, trackId);
+      (value.executionRecords ??= {})[execution.record.id] = execution.record;
+      value.document.translationTracks.push({ id: trackId, language: plan.config.language, revision: 1, entries: {}, executionRef: execution.ref });
       value.tasks.push({ id: taskId, trackId, generation: 1, status: 'queued', completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
         translation: { config: plan.config, totalBatches: plan.batches.length, estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * plan.config.maxOutputTokens,
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checkpoint: checkpointForPlan(plan, value.document), uncertainAttempts: 0 } });
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checkpoint: checkpointForPlan(plan, value.document, 1, execution.ref), uncertainAttempts: 0 } });
     }, () => { this.assertOpen(); guard(); });
     this.launch(plan, snapshot, taskId, apiKey);
     return { taskId };
@@ -315,7 +331,8 @@ export class TranslationService {
         if (snapshot.tasks.find(task => task.id === run.taskId)!.completedBatchIds.includes(batch.id)) continue;
         const { track } = ensureActive(snapshot);
         const previous = index ? plan.batches[index - 1].units.slice(-2).map(unit => track.entries[unit.cueId]?.text.plain).filter((text): text is string => text !== undefined) : [];
-        const request = buildTranslationRequest(plan.config, batch, previous, apiKey, signal);
+        const frozen = progressOf(snapshot)?.checkpoint?.version === 2 ? requestForExecution(resolveExecutionRecord(snapshot, run.taskId), batch.id, previous) : undefined;
+        const request = frozen ? runtimeExecutionRequest(frozen, apiKey, signal) : buildTranslationRequest(plan.config, batch, previous, apiKey, signal);
         if (requestTokenEstimate(request) > batch.estimatedInputTokens || requestTokenEstimate(request) + plan.config.maxOutputTokens > plan.config.contextWindow) throw new StudioError('limit_exceeded');
         for (let attempt = 0; ; attempt++) {
           const release = await this.scheduler.acquire(signal);
@@ -326,13 +343,21 @@ export class TranslationService {
           try {
             await mutate(value => {
               const { task } = ensureActive(value);
+              if (frozen) {
+                const record = resolveExecutionRecord(value, run.taskId);
+                const existing = record.requests[batch.id];
+                if (existing && existing.digest !== frozen.digest) throw new StudioError('revision_conflict');
+                record.requests[batch.id] = frozen;
+                value.executionRecords![record.id] = record;
+              }
               task.status = 'running'; task.attempts++; task.translation!.inFlightBatchId = batch.id;
               delete task.translation!.notBefore;
-            }, value => progressOf(value)?.inFlightBatchId === batch.id && value.tasks.find(task => task.id === run.taskId)?.attempts === attemptNumber);
+            }, value => progressOf(value)?.inFlightBatchId === batch.id && value.tasks.find(task => task.id === run.taskId)?.attempts === attemptNumber
+              && (!frozen || resolveExecutionRecord(value, run.taskId).requests[batch.id]?.digest === frozen.digest));
             attempted = true; run.receipt = { batchId: batch.id, attempt: attemptNumber, usage: normalizeUsage(), uncertain: true };
             if (signal.aborted || this.closed) throw new StudioError('interrupted');
             let result: ModelRuntimeTextResult;
-            try { result = await this.send(request); } finally { release(); }
+            try { result = await this.send(frozen ? runtimeExecutionRequest(frozen, apiKey, signal) : request); } finally { release(); }
             responseReceived = true; usage = result.usage;
             run.receipt = { batchId: batch.id, attempt: attemptNumber, usage: normalizeUsage(usage), uncertain: false };
             if (signal.aborted) throw new StudioError('interrupted');

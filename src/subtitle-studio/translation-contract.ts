@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idSchema, LIMITS, StudioError } from './domain';
+import { executionRefSchema, idSchema, LIMITS, StudioError } from './domain';
 
 const tokenCount = z.number().int().nonnegative().safe();
 export const translationModelSchema = z.object({
@@ -32,8 +32,7 @@ export const translationConfigSchema = z.object({
 export const translationUsageSchema = z.object({
   inputTokens: tokenCount.nullable(), outputTokens: tokenCount.nullable(), totalTokens: tokenCount.nullable(),
 }).strict();
-export const translationCheckpointSchema = z.object({
-  version: z.literal(1),
+const checkpointFields = {
   sourceDigest: z.string().regex(/^[a-f0-9]{64}$/),
   trackRevision: z.number().int().positive().safe(),
   batches: z.array(z.object({
@@ -44,7 +43,11 @@ export const translationCheckpointSchema = z.object({
     estimatedInputTokens: tokenCount,
     priorContextReserve: tokenCount,
   }).strict()).min(1).max(LIMITS.cues),
-}).strict();
+};
+export const translationCheckpointSchema = z.discriminatedUnion('version', [
+  z.object({ version: z.literal(1), ...checkpointFields }).strict(),
+  z.object({ version: z.literal(2), ...checkpointFields, executionRef: executionRefSchema }).strict(),
+]);
 export type TranslationCheckpoint = z.infer<typeof translationCheckpointSchema>;
 export const translationProgressSchema = z.object({
   config: translationConfigSchema,
@@ -56,7 +59,7 @@ export const translationProgressSchema = z.object({
   inFlightBatchId: z.string().min(1).max(100).optional(),
   uncertainAttempts: tokenCount.optional(),
   notBefore: tokenCount.optional(),
-  error: z.enum(['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_failed', 'limit_exceeded', 'revision_conflict', 'interrupted']).optional(),
+  error: z.enum(['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_record_unavailable', 'translation_failed', 'limit_exceeded', 'revision_conflict', 'interrupted']).optional(),
 }).strict();
 export type TranslationConfig = z.infer<typeof translationConfigSchema>;
 export type TranslationUsage = z.infer<typeof translationUsageSchema>;

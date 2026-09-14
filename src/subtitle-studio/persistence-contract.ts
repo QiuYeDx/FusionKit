@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { documentSchema, idSchema, LIMITS, StudioError, validateDocument } from './domain';
 import { translationProgressSchema } from './translation-contract';
 import { automaticTranslationIntentSchema } from './automatic-translation-contract';
+import { assertExecutionRecordsSize, executionRecordsSchema } from './execution-record-contract';
 
 export const taskCheckpointSchema = z.object({
   id: idSchema, generation: z.number().int().positive().safe(), trackId: idSchema,
@@ -12,10 +13,11 @@ export const taskCheckpointSchema = z.object({
   translation: translationProgressSchema.optional(),
 }).strict();
 const snapshotSchema = z.object({ schemaVersion: z.literal(1), document: documentSchema, tasks: z.array(taskCheckpointSchema).max(1000),
-  automaticTranslation: automaticTranslationIntentSchema.optional() }).strict();
+  automaticTranslation: automaticTranslationIntentSchema.optional(), executionRecords: executionRecordsSchema.optional() }).strict();
 export type DocumentSnapshot = z.infer<typeof snapshotSchema>;
 
 export function validateSnapshot(value: unknown): DocumentSnapshot {
+  if (value && typeof value === 'object' && 'executionRecords' in value && value.executionRecords !== undefined) assertExecutionRecordsSize(value.executionRecords);
   const result = snapshotSchema.safeParse(value);
   if (!result.success) throw new StudioError('invalid_input');
   const snapshot = result.data;

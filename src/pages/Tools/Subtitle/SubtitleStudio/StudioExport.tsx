@@ -77,7 +77,7 @@ const errorKeys = {
   encoding_required: 'studio:errors.encoding_required', limit_exceeded: 'studio:errors.limit_exceeded',
   revision_conflict: 'studio:errors.revision_conflict', access_denied: 'studio:errors.access_denied',
   document_unavailable: 'studio:errors.document_unavailable', output_write_failed: 'studio:errors.output_write_failed',
-  needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid',
+  needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable',
   translation_output_limit: 'studio:errors.translation_output_limit', translation_failed: 'studio:errors.translation_failed',
   transcription_failed: 'studio:errors.transcription_failed', resource_busy: 'studio:errors.resource_busy',
   interrupted: 'studio:errors.interrupted',

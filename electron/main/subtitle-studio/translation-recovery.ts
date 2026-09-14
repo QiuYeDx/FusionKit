@@ -1,17 +1,18 @@
 import { createHash } from 'node:crypto';
-import { StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
+import { StudioError, type ExecutionRef, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
 import { projectTranslationUnits } from '../../../src/subtitle-studio/translation-protocol';
 import { normalizeTranslationModel, type TranslationCheckpoint, type TranslationModel } from '../../../src/subtitle-studio/translation-contract';
 import { validateSnapshot, type DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import type { DocumentRepository } from './document-repository';
 import { buildTranslationRequest, requestTokenEstimate, sourceDigest, type TranslationPlan } from './translation-planner';
+import { resolveExecutionRecord, validateExecutionPlan } from './execution-records';
 
 export function documentSourceDigest(document: SubtitleDocument): string {
   return createHash('sha256').update(JSON.stringify(document.cues.map(cue => [cue.id, cue.sourceRevision, sourceDigest(cue)]))).digest('hex');
 }
 
-export function checkpointForPlan(plan: TranslationPlan, document: SubtitleDocument, trackRevision = 1): TranslationCheckpoint {
-  return { version: 1, sourceDigest: documentSourceDigest(document), trackRevision,
+export function checkpointForPlan(plan: TranslationPlan, document: SubtitleDocument, trackRevision = 1, executionRef?: ExecutionRef): TranslationCheckpoint {
+  return { ...(executionRef ? { version: 2 as const, executionRef } : { version: 1 as const }), sourceDigest: documentSourceDigest(document), trackRevision,
     batches: plan.batches.map(batch => ({ id: batch.id, cueIds: batch.units.map(unit => unit.cueId), before: [...batch.before], after: [...batch.after], estimatedInputTokens: batch.estimatedInputTokens, priorContextReserve: batch.priorContextReserve })) };
 }
 
@@ -51,6 +52,25 @@ export function restoreTranslationPlan(snapshot: DocumentSnapshot, taskId: strin
   if (!task || !progress || !checkpoint) throw new StudioError('invalid_input');
   const track = snapshot.document.translationTracks.find(item => item.id === task.trackId);
   if (!track || track.revision !== checkpoint.trackRevision || documentSourceDigest(snapshot.document) !== checkpoint.sourceDigest) throw new StudioError('revision_conflict');
+  if (checkpoint.version === 2) {
+    const record = resolveExecutionRecord(snapshot, taskId);
+    validateExecutionPlan(record);
+    const plan = record.plan;
+    const saved = checkpointForPlan(plan, snapshot.document, track.revision, checkpoint.executionRef);
+    if (JSON.stringify(checkpoint.batches) !== JSON.stringify(saved.batches) || progress.totalBatches !== plan.batches.length
+      || task.completedBatchIds.some((id, index) => id !== plan.batches[index]?.id)
+      || [...task.completedBatchIds, ...task.uncertainBatchIds, ...(progress.inFlightBatchId ? [progress.inFlightBatchId] : [])].some(id => !record.requests[id])) throw new StudioError('translation_record_unavailable');
+    const memberships = plan.batches.flatMap(batch => batch.units);
+    const cues = snapshot.document.cues.filter(cue => /\S/u.test(cue.source.plain));
+    if (memberships.length !== cues.length || memberships.some((unit, index) => unit.cueId !== cues[index].id || unit.sourceRevision !== cues[index].sourceRevision || unit.sourceHash !== sourceDigest(cues[index]))) throw new StudioError('revision_conflict');
+    const completed = new Set(task.completedBatchIds);
+    for (const batch of plan.batches) for (const unit of batch.units) {
+      const entry = track.entries[unit.cueId];
+      if (completed.has(batch.id) ? !entry || entry.sourceRevision !== unit.sourceRevision || entry.sourceHash !== unit.sourceHash : !!entry) throw new StudioError('revision_conflict');
+    }
+    // Frozen unit text and marker topology belong to the admitted task, never a new projection.
+    return structuredClone(plan);
+  }
   const projected = projectTranslationUnits(snapshot.document);
   const cues = new Map(snapshot.document.cues.map(cue => [cue.id, cue]));
   const units = new Map(projected.map(unit => [unit.cueId, { ...unit, sourceHash: sourceDigest(cues.get(unit.cueId)!) }]));

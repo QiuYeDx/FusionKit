@@ -263,7 +263,8 @@
     "translation_failed": "The translation request failed. Check the model service and try again.",
     "transcription_failed": "Transcription failed. Check the media and local resources, then try again.",
     "interrupted": "Translation was interrupted. Completed translations have been kept.",
-    "resource_busy": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry."
+    "resource_busy": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
+    "translation_record_unavailable": "The execution record is missing, damaged, or incompatible with this version. The task cannot continue safely. Saved translations are retained; repair the record or create a new translation."
   },
   "diagnostics": {
     "empty_document": "No timed subtitle text",
@@ -620,5 +621,34 @@
     }
   },
   "source_folder": "Open containing folder",
-  "source_folder_failed": "Could not open the source folder. Check that the original file is still in place and try again."
+  "source_folder_failed": "Could not open the source folder. Check that the original file is still in place and try again.",
+  "execution": {
+    "open": "Execution record",
+    "title": "Translation execution record",
+    "description": "Inspect saved inputs and requests from this translation. They retain the version used at execution time.",
+    "legacy": "This older translation has no execution record; its original inputs and requests cannot be inspected.",
+    "load_error": "The execution record could not be loaded. Retry; the saved translation is unchanged.",
+    "refresh": "Refresh record",
+    "retry": "Retry loading",
+    "saved_at": "Saved at",
+    "model": "Translation model",
+    "language": "Target language",
+    "instructions": "Translation instructions",
+    "no_instructions": "No additional instructions",
+    "batch": "Batch {{current}} of {{total}}",
+    "request_saved": "Request saved",
+    "request_saved_help": "The request was saved before sending. This does not confirm provider receipt or translation completion.",
+    "not_sent": "Not yet sent",
+    "not_sent_help": "No outgoing request has been saved for this batch. Only planned source text and context are shown.",
+    "source": "Batch source text",
+    "before": "Preceding source",
+    "after": "Following source",
+    "prior_ai": "Previous AI translations · not human reviewed",
+    "no_context": "No context of this type",
+    "technical": "Technical details",
+    "http_body": "Exact HTTP request body",
+    "policy_version": "Execution policy version",
+    "request_saved_at": "Request saved at",
+    "unknown": "Unknown"
+  }
 }

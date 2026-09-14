@@ -3,8 +3,11 @@ import { localSubtitleTranscriptSchema } from './transcription/ipc-contract';
 
 export const LIMITS = { inputBytes: 16 * 1024 * 1024, cues: 100000, nodes: 200000, cueBytes: 64 * 1024, snapshotBytes: 128 * 1024 * 1024, pageSize: 100 } as const;
 export const idSchema = z.string().uuid();
+/** Public provenance is an opaque reference; execution inputs stay in the private snapshot. */
+export const executionRefSchema = z.object({ version: z.literal(1), id: idSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
+export type ExecutionRef = z.infer<typeof executionRefSchema>;
 export const encodingSchema = z.enum(['utf-8', 'gb18030', 'shift_jis', 'utf-16le']);
-export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_failed', 'transcription_failed', 'interrupted', 'resource_busy']);
+export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'translation_protocol_invalid', 'translation_record_unavailable', 'translation_output_limit', 'translation_failed', 'transcription_failed', 'interrupted', 'resource_busy']);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 export class StudioError extends Error {
   constructor(public readonly code: ErrorCode) { super(code); }
@@ -32,6 +35,7 @@ const textDocumentSchema = z.object({
   translationTracks: z.array(z.object({
     id: idSchema, language: z.string().max(100), revision,
     origin: z.enum(['imported', 'ai', 'human']).optional(),
+    executionRef: executionRefSchema.optional(),
     entries: z.record(idSchema, z.object({ sourceRevision: revision, sourceHash: z.string(), text: textSchema, origin: z.enum(['ai', 'human', 'imported']), reviewStatus: z.enum(['unreviewed', 'reviewed']) }).strict()),
   }).strict()).max(100),
   bilingualImport: z.object({ sourceSide: z.enum(['first', 'second']), sourceLanguage: z.enum(['ja', 'zh', 'en', 'ko', 'und']), targetLanguage: z.enum(['ja', 'zh', 'en', 'ko', 'und']) }).strict().optional(),

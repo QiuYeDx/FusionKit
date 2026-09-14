@@ -13,6 +13,7 @@ import { TranslationService } from '../../electron/main/subtitle-studio/translat
 import { BatchService } from '../../electron/main/subtitle-studio/batch-service';
 import { TranslationScheduler } from '../../electron/main/subtitle-studio/translation-recovery';
 import type { ModelRuntimeTextRequest, ModelRuntimeTextResult } from '../../electron/main/ai/model-runtime-client';
+import { resolveExecutionRecord } from '../../electron/main/subtitle-studio/execution-records';
 
 const config: TranslationConfig = { model: { profileId: 'batch-fixture', modelKey: 'fixture', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' }, language: 'zh', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 1 };
 const options: ExportOptions = { mode: 'source', format: 'lrc', order: 'source-first', encoding: 'utf-8', bom: false, newline: 'lf', incomplete: 'block', missingEnd: { mode: 'block' } };
@@ -68,6 +69,8 @@ describe('bounded document batches', () => {
     for (const doc of current.documents) {
       const snapshot = await current.repository.readSnapshot(doc.id);
       expect(snapshot.tasks).toHaveLength(1); expect(snapshot.tasks[0].status).toBe('interrupted');
+      expect(snapshot.tasks[0].translation?.checkpoint?.version).toBe(2);
+      expect(resolveExecutionRecord(snapshot, snapshot.tasks[0].id).baseRequests.b1).toBeDefined();
       const resumed = await restarted.resume(doc.id, snapshot.document.revision, snapshot.tasks[0].id, config.model, 'secret');
       await restarted.settled(resumed.taskId);
       expect((await current.repository.readSnapshot(doc.id)).tasks[0].status).toBe('completed');

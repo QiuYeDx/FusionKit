@@ -263,7 +263,8 @@
     "translation_failed": "翻译请求失败，请检查模型服务后重试。",
     "transcription_failed": "转写失败，请检查媒体和本地资源后重试。",
     "interrupted": "翻译已中断，已完成的译文已保留。",
-    "resource_busy": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。"
+    "resource_busy": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。",
+    "translation_record_unavailable": "执行记录缺失、损坏或与当前版本不兼容，无法安全继续。已有译文已保留；请修复记录或重新创建翻译。"
   },
   "diagnostics": {
     "empty_document": "没有带时间的字幕正文",
@@ -620,5 +621,34 @@
     }
   },
   "source_folder": "打开所在文件夹",
-  "source_folder_failed": "无法打开来源文件夹，请确认源文件仍在原位后重试"
+  "source_folder_failed": "无法打开来源文件夹，请确认源文件仍在原位后重试",
+  "execution": {
+    "open": "执行记录",
+    "title": "翻译执行记录",
+    "description": "查看本次翻译保存的输入与请求。内容按执行时的版本保留，不随当前字幕或资料修改。",
+    "legacy": "这条旧翻译没有保存执行记录，无法追溯当时的输入与请求。",
+    "load_error": "无法读取执行记录，请重试。已保存的翻译不会因此改变。",
+    "refresh": "刷新记录",
+    "retry": "重试读取",
+    "saved_at": "保存时间",
+    "model": "翻译模型",
+    "language": "目标语言",
+    "instructions": "本次翻译要求",
+    "no_instructions": "未添加额外要求",
+    "batch": "第 {{current}} / {{total}} 批",
+    "request_saved": "已保存请求",
+    "request_saved_help": "请求已在发送前保存；这不代表服务商已收到请求或翻译已完成。",
+    "not_sent": "尚未发送",
+    "not_sent_help": "这一批尚未保存发送请求。当前仅展示计划时保留的原文与上下文。",
+    "source": "本批原文",
+    "before": "前文",
+    "after": "后文",
+    "prior_ai": "上批 AI 译文 · 未经人工确认",
+    "no_context": "无此类上下文",
+    "technical": "技术细节",
+    "http_body": "精确 HTTP 请求正文",
+    "policy_version": "执行策略版本",
+    "request_saved_at": "请求保存时间",
+    "unknown": "未知"
+  }
 }

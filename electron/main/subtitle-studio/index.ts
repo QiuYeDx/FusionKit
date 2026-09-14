@@ -22,6 +22,7 @@ import { authorizeTranscriptionMedia, handleTranscriptionRequest, transcriptionI
 import type { SpeechResourceService } from '../speech-resources/service';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
 import { KnowledgeTrialService } from './knowledge-trial';
+import { readExecutionRecordPage } from './execution-view';
 
 export function registerSubtitleStudio(sharedResources?: SpeechResourceService, readKnowledge?: () => Promise<LibrarySnapshot>) {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
@@ -178,6 +179,12 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           return { ok: true, value };
         }
         await translation.initialize(); alive();
+        if (method === 'readExecutionRecord') {
+          const request = requestSchemas.readExecutionRecord.parse(payload);
+          if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
+          const snapshot = await repository.readSnapshot(request.documentId); alive();
+          return { ok: true, value: readExecutionRecordPage(snapshot, request.trackId, request.batchOffset) };
+        }
         if (method === 'listTranslationTasks') {
           const snapshot = await repository.listSnapshot(); alive();
           const value = selectTranslationTasks(snapshot, requestSchemas.listTranslationTasks.parse(payload));

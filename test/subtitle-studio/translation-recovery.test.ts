@@ -12,6 +12,10 @@ import { DocumentRepository } from '../../electron/main/subtitle-studio/document
 import { planTranslation, sourceDigest } from '../../electron/main/subtitle-studio/translation-planner';
 import { checkpointForPlan, restoreTranslationPlan, TranslationScheduler } from '../../electron/main/subtitle-studio/translation-recovery';
 import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
+import * as planner from '../../electron/main/subtitle-studio/translation-planner';
+import * as protocol from '../../src/subtitle-studio/translation-protocol';
+import { executionRequestDigest, recordBaseDigest, validateExecutionRecord } from '../../src/subtitle-studio/execution-record-contract';
+import { resolveExecutionRecord } from '../../electron/main/subtitle-studio/execution-records';
 
 const config = (): TranslationConfig => ({ model: { profileId: 'recovery-fixture', modelKey: 'deepseek-chat', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' }, language: 'zh', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 1 });
 const parse = (suffix = '') => importSubtitleText(`[00:01]First${suffix}\n[00:02]Second${suffix}\n[00:03]Third${suffix}`, { format: 'lrc', displayName: 'synthetic-recovery.lrc', encoding: 'utf-8', digest: 'a'.repeat(64) }, randomUUID);
@@ -462,5 +466,136 @@ describe('translation publication fault recovery', () => {
     expect(ids).toEqual(['u1', 'u2', 'u3']);
     expect(snapshot.tasks[0]).toMatchObject({ status: 'completed', attempts: 3, translation: { usage: { inputTokens: 30, outputTokens: 15, totalTokens: 45 } } });
     expect(restoreTranslationPlan(snapshot, started.taskId).batches).toHaveLength(3);
+  });
+});
+
+describe('version 2 frozen execution recovery', () => {
+  it.each(['chat_completions', 'responses'] as const)('publishes every %s template at admission and exact actual request before dispatch without persisting secrets', async apiFormat => {
+    const current = await fixture();
+    const input = config(); input.model.apiFormat = apiFormat;
+    const service = current.service(async request => {
+      const snapshot = await current.repository.readSnapshot(current.doc.id), task = snapshot.tasks[0];
+      expect(task.translation!.checkpoint!.version).toBe(2);
+      const record = resolveExecutionRecord(snapshot, task.id);
+      expect(record.baseRequests).toHaveProperty('b3');
+      expect(record.plan).toEqual(planTranslation(current.doc, input));
+      const batchId = task.translation!.inFlightBatchId!;
+      expect(record.requests[batchId].httpBody).toBe(planner.serializeTranslationRequest(request));
+      expect(record.requests[batchId].digest).toBe(executionRequestDigest(record.requests[batchId]));
+      expect(task.attempts).toBe(Number(batchId.slice(1)));
+      expect(JSON.stringify(record)).not.toMatch(/apiKey|signal|proxy|fixture-secret/);
+      return { ...success(request), apiFormat };
+    });
+    const plan = await service.plan(7, current.doc.id, current.doc.revision, input);
+    const started = await service.start(7, current.doc.id, current.doc.revision, plan.planId, 'fixture-secret'); await service.settled(started.taskId);
+    const completed = await current.repository.readSnapshot(current.doc.id);
+    expect(completed.tasks[0].status).toBe('completed');
+    expect(Object.keys(resolveExecutionRecord(completed, started.taskId).requests)).toEqual(['b1', 'b2', 'b3']);
+  });
+
+  it('keeps retry and restarted HTTP bytes, dynamic prior and unstarted templates despite current planner and projection changes', async () => {
+    const current = await fixture(); const bodies: string[] = [];
+    const first = current.service(async request => {
+      if (items(request)[0].id === 'u2') {
+        bodies.push(planner.serializeTranslationRequest(request));
+        request.messages[0].content = 'mutated supplier-side request object';
+        throw new ModelRuntimeClientError('network_error', 'controlled disconnect', true);
+      }
+      return success(request);
+    });
+    const started = await start(first, current.repository, current.doc.id); await first.settled(started.taskId);
+    const failed = await current.repository.readSnapshot(current.doc.id), frozen = resolveExecutionRecord(failed, started.taskId);
+    expect(bodies).toEqual([frozen.requests.b2.httpBody, frozen.requests.b2.httpBody]);
+    expect(JSON.parse(frozen.requests.b2.request.messages[1].content).context.priorModelTranslations).toEqual(['target u1']);
+    expect(frozen.requests.b3).toBeUndefined();
+    await first.dispose();
+    const rebuilt = vi.spyOn(planner, 'buildTranslationRequest').mockImplementation(() => { throw new Error('new prompt builder must not be called'); });
+    const projected = vi.spyOn(protocol, 'projectTranslationUnits').mockImplementation(() => { throw new Error('new source projection must not be called'); });
+    const resumedRequests: ModelRuntimeTextRequest[] = [];
+    const resumed = current.service(async request => { resumedRequests.push(request); return success(request); });
+    await resumed.resume(current.doc.id, failed.document.revision, started.taskId, config().model, 'rotated-key');
+    await resumed.settled(started.taskId);
+    expect(resumedRequests.map(request => items(request)[0].id)).toEqual(['u2', 'u3']);
+    expect(planner.serializeTranslationRequest(resumedRequests[0])).toBe(frozen.requests.b2.httpBody);
+    expect(resumedRequests[1].messages[0]).toEqual(frozen.baseRequests.b3.request.messages[0]);
+    expect(JSON.parse(resumedRequests[1].messages[1].content).context.priorModelTranslations).toEqual(['target u2']);
+    expect(resumedRequests.every(request => request.model.apiKey === 'rotated-key')).toBe(true);
+    expect(rebuilt).not.toHaveBeenCalled(); expect(projected).not.toHaveBeenCalled();
+    expect((await current.repository.readSnapshot(current.doc.id)).tasks[0].status).toBe('completed');
+  });
+
+  it.each(['missing-record', 'ref-mismatch', 'plan-digest', 'request-digest', 'http-bytes', 'unknown-policy', 'source', 'track-revision'] as const)('blocks recovery before dispatch for %s corruption', async kind => {
+    const current = await fixture(); const first = current.service(async () => { throw new Error('controlled stop'); });
+    const started = await start(first, current.repository, current.doc.id); await first.settled(started.taskId);
+    const broken = await current.repository.readSnapshot(current.doc.id), checkpoint = broken.tasks[0].translation!.checkpoint!;
+    if (checkpoint.version !== 2) throw new Error('expected v2');
+    const record = validateExecutionRecord(broken.executionRecords![checkpoint.executionRef.id]);
+    broken.executionRecords![record.id] = record;
+    if (kind === 'missing-record') delete broken.executionRecords![record.id];
+    if (kind === 'ref-mismatch') broken.document.translationTracks[0].executionRef!.digest = '0'.repeat(64);
+    if (kind === 'plan-digest') record.plan.config.instructions += 'changed';
+    if (kind === 'request-digest') record.requests.b1.digest = '0'.repeat(64);
+    if (kind === 'http-bytes') { record.requests.b1.httpBody += ' '; record.requests.b1.digest = executionRequestDigest(record.requests.b1); }
+    if (kind === 'unknown-policy') {
+      record.policyVersion = 'future-policy';
+      checkpoint.executionRef.digest = recordBaseDigest(record);
+      broken.document.translationTracks[0].executionRef = { ...checkpoint.executionRef };
+    }
+    if (kind === 'source') broken.document.cues[0].sourceRevision++;
+    if (kind === 'track-revision') broken.document.translationTracks[0].revision++;
+    const send = vi.fn(async (request: ModelRuntimeTextRequest) => success(request)), resumed = current.service(send);
+    await resumed.initialize();
+    vi.spyOn(current.repository, 'readSnapshot').mockResolvedValueOnce(broken);
+    await expect(resumed.resume(current.doc.id, broken.document.revision, started.taskId, config().model, 'secret')).rejects.toMatchObject({ code: ['source', 'track-revision'].includes(kind) ? 'revision_conflict' : 'translation_record_unavailable' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('blocks HTTP serializer drift for templates which have never been sent', async () => {
+    const current = await fixture();
+    const scheduler = new TranslationScheduler(1), hold = new AbortController();
+    const release = await scheduler.acquire(hold.signal);
+    current.releases.push(release);
+    const first = current.service(async request => success(request), scheduler);
+    const started = await start(first, current.repository, current.doc.id);
+    await first.dispose(); await first.settled(started.taskId); release();
+    const interrupted = await current.repository.readSnapshot(current.doc.id);
+    expect(resolveExecutionRecord(interrupted, started.taskId).requests).toEqual({});
+    const serializer = planner.serializeTranslationRequest;
+    vi.spyOn(planner, 'serializeTranslationRequest').mockImplementation(request => `${serializer(request)} `);
+    const send = vi.fn(async (request: ModelRuntimeTextRequest) => success(request)), resumed = current.service(send);
+    await expect(resumed.resume(current.doc.id, interrupted.document.revision, started.taskId, config().model, 'secret')).rejects.toMatchObject({ code: 'translation_record_unavailable' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it.each(['before', 'after'] as const)('keeps actual request and inFlight atomic when publication fails %s the pointer', async stage => {
+    class RequestPublicationRepository extends DocumentRepository {
+      failed = false;
+      override async transact(id: string, revision: number, action: (snapshot: DocumentSnapshot) => void, guard?: () => void) {
+        let frozen = false;
+        const value = await super.transact(id, revision, snapshot => {
+          action(snapshot);
+          frozen = !this.failed && snapshot.tasks[0]?.translation?.inFlightBatchId === 'b1';
+          if (frozen && stage === 'before') { this.failed = true; throw new Error('controlled prepublication failure'); }
+        }, guard);
+        if (frozen && stage === 'after') { this.failed = true; throw new Error('controlled postpublication failure'); }
+        return value;
+      }
+    }
+    const current = await fixture(root => new RequestPublicationRepository(root));
+    const send = vi.fn(async request => {
+      const snapshot = await current.repository.readSnapshot(current.doc.id), task = snapshot.tasks[0];
+      expect(resolveExecutionRecord(snapshot, task.id).requests[task.translation!.inFlightBatchId!].httpBody).toBe(planner.serializeTranslationRequest(request));
+      return success(request);
+    });
+    const service = current.service(send), started = await start(service, current.repository, current.doc.id); await service.settled(started.taskId);
+    let value = await current.repository.readSnapshot(current.doc.id);
+    if (stage === 'before') {
+      expect(send).not.toHaveBeenCalled(); expect(value.tasks[0].attempts).toBe(0);
+      expect(resolveExecutionRecord(value, started.taskId).requests).toEqual({});
+      expect(value.tasks[0].translation!.inFlightBatchId).toBeUndefined();
+      await service.resume(current.doc.id, value.document.revision, started.taskId, config().model, 'secret'); await service.settled(started.taskId);
+      value = await current.repository.readSnapshot(current.doc.id);
+    }
+    expect(send).toHaveBeenCalledTimes(3); expect(value.tasks[0]).toMatchObject({ status: 'completed', attempts: 3 });
   });
 });

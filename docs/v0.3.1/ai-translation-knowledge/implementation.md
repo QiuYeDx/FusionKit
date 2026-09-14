@@ -184,4 +184,57 @@ P0.2 已按用户后续要求提交为 `422fa7b`，未推送。下一阶段从 P
 
 截图位于 Git 忽略的 `test-results/translation-knowledge-trial/`：`preview-light.png`、`result-light.png`、`result-dark-narrow.png`、`form-english-narrow.png`。主任务及界面 Agent 实际审图，按项目 UI/避坑 Skill 修复逐句提示不可定位、关闭重开忙状态残留、额外条件确认跨资料版本沿用；最终截图重新检查。820×700 和 1280×860、深浅主题与中英文场景均验证内部滚动容器无横向溢出，头尾按钮可用。
 
-P0.2 已提交为 `422fa7b`；P1.1 本轮新增尚未再次提交，保留在 `codex/feat-subtitle-ai-knowledge` 供审阅。没有启动 Vite 开发服务；Electron 和本地 HTTP 服务器通过 afterAll 关闭并验证退出，临时目录清理完成。正式双入口接入、持久化恢复与实际模型翻译质量未冒充通过，下一增量见上方 P1.2 顺序。
+P0.2 已提交为 `422fa7b`；P1.1 已按用户要求提交为 `4853222`，未推送；继续在 `codex/feat-subtitle-ai-knowledge` 开发。没有启动 Vite 开发服务；Electron 和本地 HTTP 服务器通过 afterAll 关闭并验证退出，临时目录清理完成。正式双入口接入、持久化恢复与实际模型翻译质量未冒充通过，下一增量见上方 P1.2 顺序。
+
+
+## 已完成增量 P1.2a：正式翻译执行记录与冻结恢复输入
+
+用户再次要求“提交一下代码，然后继续推进后续的开发工作”；已先提交 P1.1 为 `4853222`。本增量沿用 V3 §6.5、AC-16 的恢复与追溯目标，先闭合正式翻译基础链路。知识完整资源版本、资料到任务的影响索引、永久清除协调及正式选用在后续增量接入，本次执行记录不冒充知识快照。
+
+| 任务 | 写集 / 负责人 | 状态 |
+| --- | --- | --- |
+| T13 私有执行记录、领域引用及生命周期 | 新 execution-record-contract、domain/persistence-contract、repository/bilingual 必要适配与测试；存储 Agent | 已完成 |
+| T14 正式任务冻结与恢复 | translation-service/recovery/contract、主进程执行记录 helper 与手动/批量/自动测试；运行 Agent | 已完成 |
+| T15 执行记录界面 | StudioExecutionRecord、StudioTranslationStatus、局部样式；界面 Agent | 已完成 |
+| T16 固定分页 IPC 与集成验收 | ipc-contract、preload、主入口、四语言、IPC/Electron 测试、组合审计及本记录；主任务 | 已完成 |
+
+实现约定：译文轨只保存小型版本化引用；文档私有表保存完整冻结计划、各批次基础提示词以及发送前保存的实际请求。创建任务和执行记录同一事务提交；每批首次发送前将实际动态上下文、请求字节与 inFlight/attempts 一起提交。重试及恢复不重读当前模型配置、不重新投影原文或生成系统提示词；序列化适配器若无法再生成相同 HTTP 字节，明确阻止恢复。密钥、代理、signal 只在调用时注入，不写执行记录。32 MiB 聚合记录上限采用显式拒绝，不能静默截断。
+
+旧 checkpoint v1 保持旧恢复路径，不编造历史请求；新手动、批量及自动 Studio 翻译统一创建 v2 任务。清理任务仍保留译文轨及执行记录；显式移除译文轨同时移除其记录。记录缺失、不支持或摘要不一致时，文档及已有译文仍可读取，恢复明确失败；不能因记录错误回退到较早的文档 generation。记录通过固定只读 IPC 每次读取一批，不在普通文档分页中传输整张私有表。
+
+界面基准：沿用工作台紧凑状态栏和 ScrollableDialog，入口绑定当前 AI 译文轨，清理任务后仍可打开；旧轨明确说明未保存执行记录。固定头尾、12px 内容留白，概览模型/语言/保存时间/要求，正文按批次展示实际原文与上下文，上一批译文明确是未人工确认的 AI 输出。请求已保存不等于供应商已接收；原始 HTTP 字节仅在技术详情中展开。长正文自然换行，分页首尾、快速切换、关闭重开、错误与运行中刷新均需验证。
+
+必要验收：新旧任务兼容、三个入口创建记录；实际发送字节与记录一致；中断/重试/恢复复用输入，未发送批次提示词也不漂移；源文/轨/模型变化和摘要/协议损坏阻止调用；首次发送前持久化失败无调用，发布后错误可对账；任务删除保留记录、轨删除清理记录；记录缺失不选择旧 generation；IPC 所有者、严格参数、私有字段和分页边界；真实 Electron 翻译→查看→中断重启恢复→清理任务后查看，深浅主题及窄窗截图。模型响应使用本地 fixture，验证流程和请求一致性，不宣称真实翻译质量提升已完成评测。
+
+
+### P1.2a 兼容与存储边界
+
+执行记录没有进入 FK-TK/1 知识导出协议；该协议的三个便携产物保持一致。记录当前随工作台文档 generation 保存，删除最后一个译文轨引用会清理当前记录表，previous generation 及用户外部备份不属于磁盘级永久清除。知识条目到任务的引用索引和清除协调仍须独立实现。
+
+“执行记录错误不回退”指外层文档提交校验成功后的记录缺失、引用/摘要失配、未知版本或结构错误：这些错误只影响追溯/恢复，不撤销当前文档。外层 JSON 字节或整代校验和损坏仍采用既有 current/previous 整份文档恢复机制，本增量未重新设计物理损坏的数据抢救。真正断电、Windows 原生运行和大规模长片性能尚未验收。
+
+策略固定为 `studio-translation/2;request-body/1`；未来变更须保留旧策略实现或明确拒绝继续，不能自动改写。执行记录上限为每文档聚合 32 MiB，文档总上限沿用 128 MiB。全量请求/预算校验只在准入和恢复执行一次，逐批运行校验当前批次；完整记录结构、摘要及文档仍有现有整份快照读写成本。自动任务若无法构造或容纳执行记录，会保存明确失败占位任务和源字幕，避免待处理意图阻塞初始化。
+
+本轮新增 `translation_record_unavailable` 专用错误及四语言提示；本地记录不兼容不会使用“模型返回格式错误”文案，也不触发供应商重试。未开始的批次仍使用准入时的完整模板，动态前批 AI 译文只在发送前加入并原子保存；查看器以“已保存请求”描述该状态，不将它当作服务商收到或完成的证明。
+
+
+### 2026-09-14 P1.2a 验证结果
+
+| 检查 | 结果 |
+| --- | --- |
+| 相关模块回归 | `node node_modules/vitest/vitest.mjs run test/translation-knowledge test/subtitle-studio/execution-record.test.ts test/subtitle-studio/repository.test.ts test/subtitle-studio/bilingual-service.test.ts test/subtitle-studio/knowledge-trial.test.ts test/subtitle-studio/ipc.test.ts test/subtitle-studio/translation-service.test.ts test/subtitle-studio/translation-checkpoint.test.ts test/subtitle-studio/translation-recovery.test.ts test/subtitle-studio/automatic-translation.test.ts test/subtitle-studio/batch-service.test.ts test/subtitle-studio/boundaries.test.ts --maxWorkers=4 --minWorkers=1`：424 项通过，4 项环境跳过（两项 Electron 场景和两项 Windows 专用用例），约 16 秒 |
+| 最终构建真实 Electron | `FUSIONKIT_STUDIO_E2E=1 node node_modules/vitest/vitest.mjs run test/subtitle-studio/translation-recovery-ui.test.ts --maxWorkers=1 --minWorkers=1`：1 条完整场景通过，约 48 秒 |
+| TypeScript / 三段构建 / preload | `tsc --noEmit`、`vite build --mode=test`、`check-preload-bundle.mjs` 通过；保留既有 bundle 大小和混合导入提示 |
+| 四语言与使用点 | `check-i18n.mjs`、`check-i18n-usage.mjs` 通过；2,507 个调用均可解析，既有 21 条同文案提示无新增 |
+| FK-TK 文件协议 / 边界 / 来源 | 3 个便携生成产物一致；工作台 469 文件、0 边界错误；120 个冻结副本及执行器 1 文件/26 依赖检查通过 |
+| 差异和环境 | `git diff --check` 通过；未改 package.json、pnpm-lock 或冻结 ASR 副本；使用已安装工具，无依赖安装或 pnpm 调用 |
+
+新增契约/追溯测试 22 项覆盖两个 HTTP 格式、完整模板/精确请求正文、禁止运行时凭据写入、标记结构、32 MiB UTF-8 聚合限制、不可改写既有请求、清理任务保留记录、最后译文轨引用清理、缺失/未知版本/结构损坏/摘要失配仍选择当前有效文档。运行测试还覆盖三入口、8 类恢复损坏反例、供应商适配器序列化变化、当前 planner/projection 改变后旧模板仍复用、发送前事务故障不调用及发布后故障对账；自动记录上限失败不会阻塞源文和初始化。
+
+最终 Electron 使用 macOS、Node 20.19.5、Electron 41.10.6、Vitest 2.1.9；隔离临时 profile、本地 HTTP fixture。先完成第一批、挂起第二批，查看已保存实际请求和第三批尚未发送状态；强制终止自身 Electron 后重启，原模型缺失/变化时阻止继续，密钥轮换可恢复。捕获第二批恢复前后 HTTP 字节完全一致，第三批保存的请求与实际发送相同。取消/迟到响应和供应商等待旧场景继续通过；清理任务再重启后记录与译文轨仍可查看。
+
+主任务实际审阅浅色上下文、深色窄窗、清理任务后记录、英文窄窗和展开 HTTP 正文；界面 Agent 独立审阅前三类，无需样式修补。截图保存在忽略目录 `test-results/subtitle-studio-recovery/`：`execution-context-light.png`、`execution-dark-narrow.png`、`execution-after-task-cleanup.png`、`execution-english-narrow.png`、`execution-http-body-narrow.png`。验证覆盖 1280×860、786×540、820×700；等待全局 loading 退出并检查真实滚动区域、头尾操作和横向边界。中途英文窄窗测试曾点击已隐藏的桌面列表，已改为选好文档后切换窗口尺寸，最终完整场景重新通过；没有把脚本错误当成应用故障。
+
+按项目避坑流程新增 FK-PIT-0156，记录“私有执行记录语义失败不能让当前有效文档回退”与未开始批次模板冻结、验证成本分层的规则。所有本轮 Electron/HTTP/Vitest 进程已退出，进程表只见用户其他项目原有 Vite，未处理该实例。
+
+P1.1 已提交为 `4853222`，本轮 P1.2a 新增尚未再次提交或推送，保留在 `codex/feat-subtitle-ai-knowledge`。下一增量先完善完整知识版本快照、资料任务引用索引与清除协调，再把正式工作台单文件/批量/自动任务接入资料选用，随后适配独立字幕翻译器；本轮未启用正式知识增强，也未进行真实模型翻译质量对照评测。

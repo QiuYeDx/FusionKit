@@ -5,6 +5,7 @@ import path from 'node:path';
 import { z } from 'zod';
 import { idSchema, LIMITS, StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
 import { validateSnapshot, type DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
+import { assertExecutionRecordsSize, recordBaseDigest, validateExecutionRecord } from '../../../src/subtitle-studio/execution-record-contract';
 import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/automatic-translation-contract';
 import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
 import { bindSourceLocation, validateSourceLocationRecord, SOURCE_LOCATION_FILE, type SourceLocationCapture, type SourceLocationRecord } from './source-location-service';
@@ -349,12 +350,30 @@ export class DocumentRepository {
     return this.serial(async () => {
       const { snapshot, pointer } = await this.committed(id);
       if (snapshot.document.revision !== expectedRevision) throw new StudioError('revision_conflict');
+      const priorRecords = new Map(Object.entries(snapshot.executionRecords ?? {}).map(([key, record]) => [key, JSON.stringify(record)]));
       const result: unknown = mutate(snapshot);
       if (result && typeof (result as Promise<unknown>).then === 'function') {
         void Promise.resolve(result).catch(() => undefined);
         throw new StudioError('invalid_input');
       }
       if (snapshot.document.id !== id || snapshot.document.revision !== expectedRevision) throw new StudioError('invalid_input');
+      if (snapshot.executionRecords !== undefined) assertExecutionRecordsSize(snapshot.executionRecords);
+      for (const [key, raw] of Object.entries(snapshot.executionRecords ?? {})) {
+        const before = priorRecords.get(key);
+        if (before === JSON.stringify(raw)) continue;
+        const record = validateExecutionRecord(raw, { documentId: id });
+        if (record.id !== key) throw new StudioError('invalid_input');
+        if (before !== undefined) {
+          // Inputs and already-published requests are immutable. Only new batch requests append.
+          let previous;
+          try { previous = validateExecutionRecord(JSON.parse(before)); } catch { /* Explicit replacement may repair an unreadable record. */ }
+          if (previous) {
+            if (recordBaseDigest(previous) !== recordBaseDigest(record)) throw new StudioError('invalid_input');
+            for (const [batchId, request] of Object.entries(previous.requests)) if (record.requests[batchId]?.digest !== request.digest) throw new StudioError('invalid_input');
+          }
+        }
+      }
+      for (const key of priorRecords.keys()) if (!Object.hasOwn(snapshot.executionRecords ?? {}, key) && snapshot.document.translationTracks.some(track => track.executionRef?.id === key)) throw new StudioError('invalid_input');
       snapshot.document.revision++;
       return this.commit(snapshot, pointer, guard);
     });
@@ -365,6 +384,7 @@ export class DocumentRepository {
       if (!task || !['completed', 'failed', 'cancelled'].includes(task.status)) throw new StudioError('invalid_input');
       if (snapshot.tasks.some(item => item.status === 'queued' || item.status === 'running')) throw new StudioError('revision_conflict');
       snapshot.tasks = snapshot.tasks.filter(item => item.id !== taskId);
+      // Execution provenance belongs to retained translation tracks, not task-list rows.
       if (snapshot.automaticTranslation?.translationTaskId === taskId) snapshot.automaticTranslation.state = 'cancelled';
     }, guard);
   }

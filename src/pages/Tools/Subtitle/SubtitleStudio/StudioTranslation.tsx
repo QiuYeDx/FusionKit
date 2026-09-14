@@ -26,6 +26,7 @@ import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchRes
 import './StudioTranslation.css';
 import './StudioBatch.css';
 import { StudioKnowledgeTrial } from './StudioKnowledgeTrial';
+import { StudioExecutionRecord, hasExecutionRecordEntry } from './StudioExecutionRecord';
 
 const errorKeys = {
   invalid_input: 'studio:errors.invalid_input',
@@ -38,6 +39,7 @@ const errorKeys = {
   output_write_failed: 'studio:errors.output_write_failed',
   needs_configuration: 'studio:errors.needs_configuration',
   translation_protocol_invalid: 'studio:errors.translation_protocol_invalid',
+  translation_record_unavailable: 'studio:errors.translation_record_unavailable',
   translation_output_limit: 'studio:errors.translation_output_limit',
   translation_failed: 'studio:errors.translation_failed',
   transcription_failed: 'studio:errors.transcription_failed', resource_busy: 'studio:errors.resource_busy',
@@ -310,7 +312,9 @@ export function StudioTranslationStatus({ page, trackId }: { page: DocumentPage;
   const tasks = trackId ? page.tasks.filter(item => item.trackId === trackId) : page.tasks;
   const task = tasks.find(item => item.translation && (item.status === 'queued' || item.status === 'running'))
     ?? [...tasks].reverse().find(item => item.translation);
-  if (!task?.translation) return null;
+  const track = page.translationTracks.find(item => item.id === (trackId ?? task?.trackId));
+  const execution = track && hasExecutionRecordEntry(track) ? <StudioExecutionRecord key={`${page.summary.id}:${track.id}`} page={page} track={track} /> : null;
+  if (!task?.translation) return execution ? <div className="studio-translation-status">{execution}</div> : null;
   const running = task.status === 'queued' || task.status === 'running';
   const failed = task.status === 'failed' || task.status === 'interrupted' || task.status === 'needs_configuration';
   const count = (value: number | null) => value === null ? t('studio:translation.unknown_usage') : value.toLocaleString(i18n.language);
@@ -320,5 +324,6 @@ export function StudioTranslationStatus({ page, trackId }: { page: DocumentPage;
     <span>{t('studio:translation.actual_usage', { input: count(task.translation.usage.inputTokens), output: count(task.translation.usage.outputTokens) })}</span>
     {(task.translation.uncertainAttempts ?? task.uncertainBatchIds.length) > 0 && <span>{t('studio:translation.uncertain_usage', { count: task.translation.uncertainAttempts ?? task.uncertainBatchIds.length })}</span>}
     {task.translation.error && <span className="text-destructive">{t(errorKeys[task.translation.error])}</span>}
+    {execution}
   </div>;
 }

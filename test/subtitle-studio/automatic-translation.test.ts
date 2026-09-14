@@ -12,6 +12,9 @@ import { automaticTranslationIntentSchema } from '../../src/subtitle-studio/auto
 import { validateSnapshot } from '../../src/subtitle-studio/persistence-contract';
 import type { TranslationConfig } from '../../src/subtitle-studio/translation-contract';
 import type { ModelRuntimeTextRequest, ModelRuntimeTextResult } from '../../electron/main/ai/model-runtime-client';
+import { resolveExecutionRecord } from '../../electron/main/subtitle-studio/execution-records';
+import * as executionRecords from '../../electron/main/subtitle-studio/execution-records';
+import { StudioError } from '../../src/subtitle-studio/domain';
 
 const config: TranslationConfig = { model: { profileId: 'profile', modelKey: 'deepseek-chat', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions', thinkingEnabled: true }, language: 'ja', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 32 };
 const transcript = { schemaVersion: 1, source: { displayName: 'synthetic.wav', durationMs: 4000 }, model: { engine: 'whisper_cpp', modelId: 'base', modelHash: 'a'.repeat(64), backend: 'cpu' }, segments: [{ id: 'one', startMs: 100, endMs: 1500, text: 'Hello world.' }] };
@@ -53,12 +56,16 @@ it('initializes a just-published intent then starts the same logical task exactl
   const value = await f.repository.readSnapshot(f.sink.documentId);
   expect(value.tasks).toHaveLength(1); expect(value.tasks[0].status).toBe('completed'); expect(value.document.translationTracks).toHaveLength(1);
   expect(value.tasks[0].translation?.config.model.thinkingEnabled).toBe(true);
+  expect(value.tasks[0].translation?.checkpoint?.version).toBe(2);
+  expect(resolveExecutionRecord(value, result.taskId).requests.b1).toBeDefined();
   expect(f.send).toHaveBeenCalledTimes(1); expect(await diskText(f.root)).not.toContain('secret-do-not-persist');
 });
 it('recovers pending intent after restart as visible needs_configuration with checkpoint and normal resume', async () => {
   const f = await fixture(); await f.sink.publish(transcript); await f.translation.initialize();
   let value = await f.repository.readSnapshot(f.sink.documentId), task = value.tasks[0];
   expect(task.status).toBe('needs_configuration'); expect(task.translation?.checkpoint).toBeDefined(); expect(f.send).not.toHaveBeenCalled();
+  expect(task.translation?.checkpoint?.version).toBe(2);
+  expect(resolveExecutionRecord(value, task.id)).toMatchObject({ requests: {}, baseRequests: { b1: expect.any(Object) } });
   expect(value.automaticTranslation).toMatchObject({ state: 'admitted', translationTaskId: task.id });
   const resumed = await f.translation.resume(value.document.id, value.document.revision, task.id, task.translation!.config.model, 'key');
   expect(resumed.taskId).toBe(task.id); await f.translation.settled(task.id);
@@ -77,6 +84,19 @@ it('makes impossible frozen planning visible without discarding the source docum
   await sink.publish(transcript); await f.translation.initialize();
   const value = await f.repository.readSnapshot(sink.documentId);
   expect(value.document.cues).toHaveLength(1); expect(value.tasks[0].status).toBe('failed'); expect(value.tasks[0].translation?.checkpoint).toBeUndefined(); expect(f.send).not.toHaveBeenCalled();
+});
+it('keeps an automatic execution-record limit failure visible and permits the next initialization', async () => {
+  const f = await fixture(); await f.sink.publish(transcript);
+  vi.spyOn(executionRecords, 'createExecutionRecord').mockImplementationOnce(() => { throw new StudioError('limit_exceeded'); });
+  await f.translation.initialize(); await f.translation.initialize();
+  const value = await f.repository.readSnapshot(f.sink.documentId);
+  expect(value.document.cues).toHaveLength(1);
+  expect(value.tasks[0]).toMatchObject({ status: 'failed', translation: { error: 'limit_exceeded' } });
+  expect(value.tasks[0].translation!.checkpoint).toBeUndefined();
+  expect(value.document.translationTracks[0].executionRef).toBeUndefined();
+  expect(value.executionRecords).toBeUndefined();
+  expect(value.automaticTranslation).toMatchObject({ state: 'admitted', translationTaskId: value.tasks[0].id });
+  expect(f.send).not.toHaveBeenCalled();
 });
 it.each(['task', 'track', 'document'] as const)('does not resurrect automatic translation after removing its %s', async removal => {
   const f = await fixture(); await f.sink.publish(transcript); const admitted = await f.coordinator.handoff(f.sink.documentId, f.intent.intentId, 'key'); await f.translation.settled(admitted.taskId);
