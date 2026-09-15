@@ -316,7 +316,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await ui.getByTestId('knowledge-entry-purge').click();
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
       await uiExpect(maintenance.getByRole('checkbox')).toBeDisabled();
-      await uiExpect(ui.getByTestId('knowledge-maintenance-reference-blocker')).toContainText('仍有执行记录保留这些资料');
+      await uiExpect(ui.getByTestId('knowledge-maintenance-reference-blocker')).toContainText('仍有任务或历史记录保留这些资料');
       await uiExpect(references).toContainText(sources[0].name);
       await uiExpect(references).toContainText(sources[1].name);
       await nativeWindow.evaluate(win => win.setSize(820, 700));

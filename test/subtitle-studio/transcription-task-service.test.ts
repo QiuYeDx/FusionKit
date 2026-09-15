@@ -15,6 +15,9 @@ import { StudioError } from '../../src/subtitle-studio/domain';
 import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
 import { createAutomaticTranslationCoordinator } from '../../electron/main/subtitle-studio/automatic-translation';
 import type { AutomaticTranslationRequest } from '../../src/subtitle-studio/automatic-translation-contract';
+import { buildFrozenAutomaticKnowledge } from '../../src/translation-knowledge/automatic-snapshot-contract';
+import { knowledgeFixture } from '../translation-knowledge/fixtures';
+import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 
 const disposals: (() => Promise<void>)[] = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const dispose of disposals.splice(0)) await dispose(); });
@@ -123,6 +126,152 @@ it('rejects enabled automatic translation without a coordinator before creating 
   await expect(f.service.enqueue(ownerA, request)).rejects.toMatchObject({ code: 'needs_configuration' });
   expect(f.executor.execute).not.toHaveBeenCalled(); expect(f.service.list(ownerA)).toEqual([]);
   await expect(f.inputs.resolveDraft(ownerA, request.files[0].fileToken, 'transcribe')).resolves.toBeDefined();
+});
+
+const automaticKnowledgeRequest = (): AutomaticTranslationRequest => ({ ...automaticRequest(), knowledge: {
+  knowledgeGeneration: 1,
+  selection: { version: 1, languagePair: { source: 'en', target: 'ja' }, collectionIds: [], disabledEntryIds: [] },
+  documentTopicIds: [],
+} });
+const automaticKnowledgeSnapshot = () => buildFrozenAutomaticKnowledge({
+  generation: 1, data: knowledgeFixture(), approvals: {}, imports: [],
+}, automaticKnowledgeRequest().knowledge!);
+
+it('rejects automatic knowledge without capture support before any native admission instead of dropping its selection', async () => {
+  const f = await fixture(), handoff = vi.fn(); Object.assign(f.options, { automaticTranslation: { handoff } });
+  const request = { ...await f.request(), autoTranslation: automaticKnowledgeRequest() };
+  await expect(f.service.enqueue(ownerA, request)).rejects.toMatchObject({ code: 'unsupported_feature' });
+  expect(f.modelResolver.resolveManagedModel).not.toHaveBeenCalled(); expect(f.media.verifyRuntime).not.toHaveBeenCalled();
+  expect(f.executor.execute).not.toHaveBeenCalled(); expect(handoff).not.toHaveBeenCalled();
+  await expect(f.inputs.resolveDraft(ownerA, request.files[0].fileToken, 'transcribe')).resolves.toBeDefined();
+});
+
+it('rejects a forged non-English knowledge source for English ASR output before capture or native work', async () => {
+  const f = await fixture(), capture = vi.fn(), handoff = vi.fn(), automatic = automaticKnowledgeRequest();
+  automatic.knowledge!.selection.languagePair.source = 'ja';
+  Object.assign(f.options, { automaticTranslation: { handoff }, automaticKnowledge: { capture } });
+  const request = { ...await f.request(), config: { ...config, taskMode: 'translate_to_english' as const }, autoTranslation: automatic };
+  await expect(f.service.enqueue(ownerA, request)).rejects.toMatchObject({ code: 'invalid_input' });
+  expect(capture).not.toHaveBeenCalled(); expect(f.modelResolver.resolveManagedModel).not.toHaveBeenCalled();
+  expect(f.media.verifyRuntime).not.toHaveBeenCalled(); expect(f.executor.execute).not.toHaveBeenCalled();
+});
+
+it('rejects a failed knowledge capture before native authorities and retains reusable input drafts', async () => {
+  const f = await fixture(), capture = vi.fn(async () => { throw new StudioError('revision_conflict'); }), handoff = vi.fn();
+  Object.assign(f.options, { automaticTranslation: { handoff }, automaticKnowledge: { capture } });
+  const request = { ...await f.request(), autoTranslation: automaticKnowledgeRequest() };
+  await expect(f.service.enqueue(ownerA, request)).rejects.toMatchObject({ code: 'revision_conflict' });
+  expect(capture).toHaveBeenCalledOnce(); expect(f.modelResolver.resolveManagedModel).not.toHaveBeenCalled();
+  expect(f.media.verifyRuntime).not.toHaveBeenCalled(); expect(f.executor.execute).not.toHaveBeenCalled();
+  expect(handoff).not.toHaveBeenCalled(); expect(await f.repository.list()).toEqual([]);
+  await expect(f.inputs.resolveDraft(ownerA, request.files[0].fileToken, 'transcribe')).resolves.toBeDefined();
+});
+
+it('captures once before native admission and holds the batch reference until every document has its durable intent', async () => {
+  const f = await fixture(), snapshot = automaticKnowledgeSnapshot(), release = vi.fn(), gate = deferred();
+  const capture = vi.fn(async () => ({ snapshot, release }));
+  const handoff = vi.fn(async (documentId: string) => {
+    expect((await f.repository.readSnapshot(documentId)).automaticTranslation?.knowledge).toEqual(snapshot);
+    return { taskId: '00000000-0000-4000-8000-000000000001' };
+  });
+  Object.assign(f.options, { automaticTranslation: { handoff }, automaticKnowledge: { capture } });
+  f.modelResolver.resolveManagedModel.mockImplementationOnce(async () => {
+    expect(capture).toHaveBeenCalledOnce(); expect(release).not.toHaveBeenCalled(); return f.model;
+  });
+  f.executor.execute.mockImplementationOnce(async () => ({ status: 'transcript_ready', transcript: f.transcript }))
+    .mockImplementationOnce(async () => { await gate.promise; return { status: 'transcript_ready', transcript: f.transcript }; });
+  const admission = await f.service.enqueue(ownerA, { ...await f.request(ownerA, 2), autoTranslation: automaticKnowledgeRequest() });
+  await eventually(() => f.executor.execute.mock.calls.length === 2);
+  expect(release).not.toHaveBeenCalled(); expect(handoff).toHaveBeenCalledOnce();
+  const first = f.service.list(ownerA)[0];
+  expect((await f.repository.readSnapshot(first.documentId!)).automaticTranslation?.knowledge?.digest).toBe(snapshot.digest);
+  gate.resolve(); await f.service.waitForIdle();
+  expect(release).toHaveBeenCalledOnce(); expect(capture).toHaveBeenCalledOnce(); expect(handoff).toHaveBeenCalledTimes(2);
+  for (const task of f.service.list(ownerA)) {
+    const saved = await f.repository.readSnapshot(task.documentId!);
+    expect(saved.automaticTranslation).toMatchObject({ sourceTaskId: task.taskId, knowledge: snapshot });
+    expect(JSON.stringify(saved)).not.toContain(automaticKnowledgeRequest().apiKey);
+  }
+  await f.service.releaseOwner(ownerA); expect(release).toHaveBeenCalledOnce();
+  expect(admission.tasks).toHaveLength(2);
+});
+
+it('releases the shared knowledge reference after queued and executing tasks cancel without publishing', async () => {
+  const f = await fixture(), release = vi.fn(), gate = deferred(), handoff = vi.fn();
+  Object.assign(f.options, { automaticTranslation: { handoff }, automaticKnowledge: { capture: vi.fn(async () => ({ snapshot: automaticKnowledgeSnapshot(), release })) } });
+  f.executor.execute.mockImplementationOnce(async () => { await gate.promise; return { status: 'cancelled' }; });
+  const admission = await f.service.enqueue(ownerA, { ...await f.request(ownerA, 2), autoTranslation: automaticKnowledgeRequest() });
+  await eventually(() => f.executor.execute.mock.calls.length === 1);
+  f.service.cancel(ownerA, admission.tasks[1].taskId); expect(release).not.toHaveBeenCalled();
+  f.service.cancel(ownerA, admission.tasks[0].taskId); expect(release).not.toHaveBeenCalled();
+  gate.resolve(); await f.service.waitForIdle();
+  expect(release).toHaveBeenCalledOnce(); expect(handoff).not.toHaveBeenCalled(); expect(await f.repository.list()).toEqual([]);
+});
+
+it('joins an in-flight capture during shutdown and releases its late lease without starting native work', async () => {
+  const f = await fixture(), release = vi.fn(), gate = deferred();
+  const capture = vi.fn(async () => { await gate.promise; return { snapshot: automaticKnowledgeSnapshot(), release }; });
+  Object.assign(f.options, { automaticTranslation: { handoff: vi.fn() }, automaticKnowledge: { capture } });
+  const pending = f.service.enqueue(ownerA, { ...await f.request(), autoTranslation: automaticKnowledgeRequest() });
+  const rejected = expect(pending).rejects.toMatchObject({ code: 'access_denied' });
+  let stopped = false; const shutdown = f.service.shutdown().then(() => { stopped = true; });
+  await Promise.resolve(); expect(stopped).toBe(false); expect(release).not.toHaveBeenCalled();
+  gate.resolve(); await rejected; await shutdown;
+  expect(release).toHaveBeenCalledOnce(); expect(f.modelResolver.resolveManagedModel).not.toHaveBeenCalled();
+  expect(f.media.verifyRuntime).not.toHaveBeenCalled(); expect(f.executor.execute).not.toHaveBeenCalled();
+});
+
+it('releases captured knowledge when later native admission fails', async () => {
+  const f = await fixture(), release = vi.fn();
+  Object.assign(f.options, { automaticTranslation: { handoff: vi.fn() }, automaticKnowledge: { capture: vi.fn(async () => ({ snapshot: automaticKnowledgeSnapshot(), release })) } });
+  f.media.bindTaskMediaSelection.mockImplementationOnce(() => { throw new StudioError('invalid_input'); });
+  await expect(f.service.enqueue(ownerA, { ...await f.request(ownerA, 2, true), autoTranslation: automaticKnowledgeRequest() })).rejects.toMatchObject({ code: 'invalid_input' });
+  expect(release).toHaveBeenCalledOnce(); expect(f.executor.execute).not.toHaveBeenCalled();
+  expect(f.service.list(ownerA)).toEqual([]); expect(await f.repository.list()).toEqual([]);
+});
+
+it('transfers knowledge before a delayed handoff and joins a late owner release without revoking the committed intent', async () => {
+  const f = await fixture(), release = vi.fn(), gate = deferred(), snapshot = automaticKnowledgeSnapshot();
+  const handoff = vi.fn(async (documentId: string) => {
+    expect(release).toHaveBeenCalledOnce();
+    expect((await f.repository.readSnapshot(documentId)).automaticTranslation?.knowledge).toEqual(snapshot);
+    await gate.promise; return { taskId: '00000000-0000-4000-8000-000000000001' };
+  });
+  Object.assign(f.options, { automaticTranslation: { handoff }, automaticKnowledge: { capture: vi.fn(async () => ({ snapshot, release })) } });
+  let released: Promise<void> | undefined, joined = false;
+  const unsubscribe = f.repository.subscribe(() => { released = f.service.releaseOwner(ownerA).then(() => { joined = true; }); });
+  try {
+    await f.service.enqueue(ownerA, { ...await f.request(), autoTranslation: automaticKnowledgeRequest() });
+    await eventually(() => handoff.mock.calls.length === 1); expect(joined).toBe(false);
+    gate.resolve(); await f.service.waitForIdle(); await released;
+    expect(joined).toBe(true); expect(release).toHaveBeenCalledOnce();
+    const documents = await f.repository.list(); expect(documents).toHaveLength(1);
+    expect((await f.repository.readSnapshot(documents[0].id)).automaticTranslation?.knowledge).toEqual(snapshot);
+  } finally { gate.resolve(); unsubscribe(); }
+});
+
+it('shows a knowledge conflict as automatic translation needing attention while retaining the successful transcription', async () => {
+  const f = await fixture(), data = knowledgeFixture(), release = vi.fn(), automatic = automaticKnowledgeRequest();
+  automatic.config.language = 'zh-Hans'; automatic.knowledge!.selection.languagePair.target = 'zh-Hans';
+  automatic.knowledge!.selection.collectionIds = [data.collections[0].id]; automatic.knowledge!.documentTopicIds = [data.subjects[0].id];
+  const term = data.entries.find(entry => entry.kind === 'term')!;
+  term.state = 'ready'; term.scope.condition = { mode: 'none' }; if (term.kind === 'term') term.payload.strength = 'required';
+  const conflicting = { ...structuredClone(term), id: '50000000-0000-4000-8000-000000000011', payload: { ...term.payload, target: '检查站' } };
+  data.entries.push(conflicting);
+  const approvals = Object.fromEntries([term, conflicting].map(entry => [entry.id, { revision: entry.revision, digest: sha256Canonical(entry), method: 'human' as const, approvedAt: '2026-09-14T00:00:00Z' }]));
+  const snapshot = buildFrozenAutomaticKnowledge({ generation: 1, data, approvals, imports: [] }, automatic.knowledge!);
+  f.transcript.segments[0].text = 'We reached the checkpoint.';
+  const send = vi.fn(), translation = new TranslationService(f.repository, send);
+  const coordinator = createAutomaticTranslationCoordinator({ repository: f.repository, translation });
+  Object.assign(f.options, { automaticTranslation: coordinator, automaticKnowledge: { capture: vi.fn(async () => ({ snapshot, release })) } });
+  try {
+    await coordinator.initialize(); await f.service.enqueue(ownerA, { ...await f.request(), autoTranslation: automatic }); await f.service.waitForIdle();
+    const task = f.service.list(ownerA)[0], saved = await f.repository.readSnapshot(task.documentId!);
+    expect(task).toMatchObject({ status: 'completed', automaticTranslation: { status: 'needs_configuration', taskId: saved.tasks[0].id } });
+    expect(saved.tasks[0]).toMatchObject({ status: 'failed', attempts: 0, translation: { error: 'knowledge_check_failed' } });
+    expect(saved.document.cues[0].source.plain).toBe('We reached the checkpoint.');
+    expect(saved.automaticTranslation?.knowledge).toEqual(snapshot); expect(send).not.toHaveBeenCalled(); expect(release).toHaveBeenCalledOnce();
+  } finally { await coordinator.shutdown(); await translation.dispose(); }
 });
 
 it('claims FIFO before await even when the later owner finishes admission first', async () => {

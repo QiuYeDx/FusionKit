@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { createStudioTranscriptionController, getTranscriptionReadiness, type StudioTranscriptionController } from '../../src/services/subtitle-studio/transcription-controller';
+import { createStudioTranscriptionController, getAutomaticKnowledgeProblem, getTranscriptionReadiness, type StudioTranscriptionController } from '../../src/services/subtitle-studio/transcription-controller';
 import type { SubtitleStudioApi, StudioResult, TranscriptionMediaSelection, TranscriptionResources } from '../../src/subtitle-studio/ipc-contract';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary } from '../../src/subtitle-studio/transcription/ipc-contract';
 import type { TranscriptionTaskSummary } from '../../src/subtitle-studio/transcription/task-contract';
 import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '../../src/subtitle-studio/transcription/domain';
 import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES, DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES } from '../../src/subtitle-studio/transcription/config';
-import { DEFAULT_TRANSCRIPTION_PREFERENCES } from '../../src/subtitle-studio/transcription/preferences-contract';
+import { DEFAULT_AUTOMATIC_KNOWLEDGE, DEFAULT_TRANSCRIPTION_PREFERENCES } from '../../src/subtitle-studio/transcription/preferences-contract';
+import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
+import { knowledgeFixture } from '../translation-knowledge/fixtures';
 
 const controllers: StudioTranscriptionController[] = [];
 const ok = <T>(value: T): StudioResult<T> => ({ ok: true, value });
@@ -101,6 +103,86 @@ it('blocks missing automatic configuration before enqueue and allows disabling i
   expect(await f.controller.enqueue()).toBeNull(); expect(f.api.enqueueTranscription).not.toHaveBeenCalled();
   f.controller.setAutoTranslation({ ...f.controller.getState().autoTranslation, enabled: false });
   expect(f.controller.getState().drafts).toHaveLength(1); expect(getTranscriptionReadiness(f.controller.getState()).canEnqueue).toBe(true);
+});
+
+function automaticKnowledgeFixture() {
+  const library: LibrarySnapshot = { generation: 12, data: knowledgeFixture(), approvals: {}, imports: [] };
+  const knowledge = { ...structuredClone(DEFAULT_AUTOMATIC_KNOWLEDGE), enabled: true, sourceLanguage: 'ja', collectionIds: [library.data.collections[0].id], documentTopicIds: [library.data.subjects[0].id] };
+  const automatic = { config: { model: { profileId: 'p', modelKey: 'controlled-model', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' as const }, language: 'zh', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 32 }, apiKey: 'ephemeral-key' };
+  const preferences = { ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), autoTranslation: { ...DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, enabled: true, knowledge } };
+  return { library, knowledge, automatic, preferences };
+}
+it('requires a library and captures shared choices, language and generation without persisting runtime authority', async () => {
+  const source = automaticKnowledgeFixture(), write = vi.fn();
+  const f = fixture(undefined, { preferences: { read: () => source.preferences, write }, resolveAutomaticTranslation: () => source.automatic, readAutomaticKnowledge: async () => source.library });
+  await f.choose(media());
+  expect(getTranscriptionReadiness(f.controller.getState()).reason).toBe('automatic_translation_not_ready');
+  expect(await f.controller.enqueue()).toBeNull(); expect(f.api.enqueueTranscription).not.toHaveBeenCalled();
+  await f.controller.refreshAutomaticKnowledge();
+  expect(getTranscriptionReadiness(f.controller.getState()).canEnqueue).toBe(true);
+  expect(f.controller.setAutomaticKnowledge({ ...source.knowledge, instructions: '' }, 12)).toBe(true);
+  const pending = f.controller.enqueue();
+  source.library.generation = 99; source.knowledge.collectionIds.length = 0; source.automatic.apiKey = 'changed-key';
+  f.controller.setAutoTranslation({ ...source.preferences.autoTranslation, enabled: false });
+  await pending;
+  const sent = f.api.enqueueTranscription.mock.calls[0][0].autoTranslation!;
+  expect(sent).toMatchObject({ apiKey: 'ephemeral-key', knowledge: { knowledgeGeneration: 12, documentTopicIds: source.knowledge.documentTopicIds,
+    selection: { version: 1, languagePair: { source: 'ja', target: 'zh-Hans' }, collectionIds: [source.library.data.collections[0].id], instructions: '' } } });
+  expect(sent.knowledge!.selection).not.toHaveProperty('bindings'); expect(sent.knowledge!.selection).not.toHaveProperty('confirmations');
+  expect(sent.knowledge!.selection).not.toHaveProperty('recipeId');
+  expect(JSON.stringify(write.mock.calls)).not.toMatch(/ephemeral-key|knowledgeGeneration|approvals|fileToken/);
+  expect(f.controller.getState().autoTranslation.enabled).toBe(true);
+});
+it('requires review after a stale generation rejection and retains the selected media', async () => {
+  const source = automaticKnowledgeFixture();
+  const f = fixture(undefined, { preferences: { read: () => source.preferences, write: vi.fn() }, resolveAutomaticTranslation: () => source.automatic, readAutomaticKnowledge: async () => source.library });
+  await f.choose(media()); await f.controller.refreshAutomaticKnowledge();
+  f.api.enqueueTranscription.mockResolvedValueOnce({ ok: false, error: 'revision_conflict' });
+  expect(await f.controller.enqueue()).toBeNull();
+  expect(f.controller.getState()).toMatchObject({ autoKnowledgeStale: true, autoTranslationReady: false, drafts: [{ status: 'ready' }] });
+  expect(await f.controller.enqueue()).toBeNull(); expect(f.api.enqueueTranscription).toHaveBeenCalledOnce();
+  source.library.generation = 13; await f.controller.refreshAutomaticKnowledge();
+  expect(f.controller.getState().autoKnowledgeStale).toBe(true);
+  expect(f.controller.setAutomaticKnowledge(source.knowledge, 12)).toBe(false);
+  expect(f.controller.setAutomaticKnowledge(source.knowledge, 13)).toBe(true);
+  await f.controller.enqueue();
+  expect(f.api.enqueueTranscription.mock.calls[1][0].autoTranslation?.knowledge?.knowledgeGeneration).toBe(13);
+});
+it('deduplicates library reads, blocks unavailable knowledge, and only omits it after an explicit disable', async () => {
+  const source = automaticKnowledgeFixture(), pending = deferred<LibrarySnapshot>();
+  const read = vi.fn().mockReturnValueOnce(pending.promise).mockRejectedValueOnce(new Error('unavailable'));
+  const f = fixture(undefined, { preferences: { read: () => source.preferences, write: vi.fn() }, resolveAutomaticTranslation: () => source.automatic, readAutomaticKnowledge: read });
+  await f.choose(media());
+  const first = f.controller.refreshAutomaticKnowledge(); expect(f.controller.refreshAutomaticKnowledge()).toBe(first);
+  expect(f.controller.getState().autoKnowledgeLoading).toBe(true);
+  pending.resolve(source.library); await first; expect(read).toHaveBeenCalledOnce();
+  await f.controller.refreshAutomaticKnowledge(); expect(f.controller.getState().autoKnowledgeLibrary).toBeNull();
+  expect(await f.controller.enqueue()).toBeNull(); expect(f.api.enqueueTranscription).not.toHaveBeenCalled();
+  expect(f.controller.getState().autoTranslation.knowledge).toEqual(source.knowledge);
+  f.controller.setAutoTranslation({ ...source.preferences.autoTranslation, knowledge: { ...source.knowledge, enabled: false } });
+  await f.controller.enqueue();
+  expect(f.api.enqueueTranscription.mock.calls[0][0].autoTranslation).not.toHaveProperty('knowledge');
+});
+it('uses generated English subtitles as the knowledge source and rejects a recipe for a different pair', async () => {
+  const source = automaticKnowledgeFixture();
+  const f = fixture(undefined, { preferences: { read: () => source.preferences, write: vi.fn() }, resolveAutomaticTranslation: () => source.automatic, readAutomaticKnowledge: async () => source.library });
+  await f.choose(media()); await f.controller.refreshAutomaticKnowledge();
+  f.controller.setConfig({ ...f.controller.getState().config, language: 'ja', taskMode: 'translate_to_english' });
+  await f.controller.enqueue();
+  expect(f.api.enqueueTranscription.mock.calls[0][0].autoTranslation?.knowledge?.selection.languagePair).toEqual({ source: 'en', target: 'zh-Hans' });
+  expect(f.controller.getState().autoTranslation.knowledge?.sourceLanguage).toBe('ja');
+  source.library.data.recipes[0].languagePair.source = 'ja';
+  expect(getAutomaticKnowledgeProblem({ ...source.knowledge, recipeId: source.library.data.recipes[0].id }, 'zh', true, source.library)).toBe('language');
+});
+it('makes missing or archived resources repairable while refusing unspecified source languages', () => {
+  const source = automaticKnowledgeFixture();
+  expect(getAutomaticKnowledgeProblem({ ...source.knowledge, sourceLanguage: '' }, 'zh', false, source.library)).toBe('source');
+  expect(getAutomaticKnowledgeProblem({ ...source.knowledge, collectionIds: ['11111111-1111-4111-8111-111111111111'] }, 'zh', false, source.library)).toBe('resources');
+  expect(getAutomaticKnowledgeProblem({ ...source.knowledge, disabledEntryIds: ['11111111-1111-4111-8111-111111111111'] }, 'zh', false, source.library)).toBe('resources');
+  source.library.data.subjects[0].archived = true;
+  expect(getAutomaticKnowledgeProblem(source.knowledge, 'zh', false, source.library)).toBe('resources');
+  source.library.data.subjects[0].archived = false; source.library.data.collections[0].archived = true;
+  expect(getAutomaticKnowledgeProblem(source.knowledge, 'zh', false, source.library)).toBe('resources');
 });
 
 it('keeps shared invalidation during a pending read and refreshes off-route without runtime probes', async () => {

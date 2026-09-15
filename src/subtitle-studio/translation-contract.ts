@@ -59,7 +59,7 @@ export const translationProgressSchema = z.object({
   inFlightBatchId: z.string().min(1).max(100).optional(),
   uncertainAttempts: tokenCount.optional(),
   notBefore: tokenCount.optional(),
-  error: z.enum(['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_record_unavailable', 'translation_failed', 'limit_exceeded', 'revision_conflict', 'interrupted']).optional(),
+  error: z.enum(['knowledge_check_failed', 'needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_record_unavailable', 'translation_failed', 'limit_exceeded', 'revision_conflict', 'interrupted']).optional(),
 }).strict();
 export type TranslationConfig = z.infer<typeof translationConfigSchema>;
 export type TranslationUsage = z.infer<typeof translationUsageSchema>;

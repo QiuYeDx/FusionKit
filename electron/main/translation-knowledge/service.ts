@@ -9,6 +9,7 @@ import { emptyPackage, KnowledgeRepository, type RepositoryOptions, type StoredL
 import type { MaintenanceCommit, MaintenancePreview, MaintenanceReceipt, MaintenanceRequest } from '../../../src/translation-knowledge/maintenance-contract';
 import { buildMaintenance, captureImportChanges, maintenanceCommitRequestSchema, maintenanceRequestSchema } from './maintenance';
 import type { KnowledgeReferenceInventory, KnowledgeTaskTracking } from '../../../src/translation-knowledge/task-reference-contract';
+import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
 export { KnowledgeServiceError } from './errors';
 
 const generation = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -18,10 +19,13 @@ const reviewSchema = z.strictObject({ generation, ids: z.array(z.uuid()).min(1).
 const exportSchema = z.strictObject({ generation, purpose: z.enum(['backup', 'share']), collectionIds: z.array(z.uuid()).max(20_000), includeMemories: z.boolean() });
 const entitySchemas = { subjects: subjectSchema, collections: collectionSchema, sources: sourceSchema, entries: entrySchema, styles: styleSchema, recipes: recipeSchema, preferenceTemplates: preferenceTemplateSchema };
 const PLAN_TTL_MS = 15 * 60 * 1000;
+const referenceFields = { displayName: z.string().max(255), status: z.enum(['active', 'retained']),
+  resources: z.array(z.strictObject({ group: z.enum(ENTITY_ARRAYS), id: z.uuid(), revision: generation.positive(), digest: z.string().regex(/^[a-f0-9]{64}$/) })).max(100000) };
 const taskInventorySchema = z.strictObject({
-  references: z.array(z.strictObject({ documentId: z.uuid(), taskId: z.uuid(), trackId: z.uuid(), recordId: z.uuid(), displayName: z.string().max(255), status: z.enum(['active', 'retained']),
-    resources: z.array(z.strictObject({ group: z.enum(ENTITY_ARRAYS), id: z.uuid(), revision: generation.positive(), digest: z.string().regex(/^[a-f0-9]{64}$/) })).max(100000),
-  })).max(10000), unknownDocuments: generation, digest: z.string().regex(/^[a-f0-9]{64}$/),
+  references: z.array(z.union([
+    z.strictObject({ kind: z.literal('execution').optional(), documentId: z.uuid(), taskId: z.uuid(), trackId: z.uuid(), recordId: z.uuid(), ...referenceFields }),
+    z.strictObject({ kind: z.literal('automatic_preparation'), preparationId: z.uuid(), documentId: z.uuid().optional(), ...referenceFields }),
+  ])).max(10000), unknownDocuments: generation, digest: z.string().regex(/^[a-f0-9]{64}$/),
 }).refine(value => value.references.reduce((sum, ref) => sum + ref.resources.length, 0) <= 200000);
 interface Plan { owner: string; expiresAt: number; data: KnowledgePackage; preview: ImportPreview; requestDigest?: string }
 interface MaintenancePlan { owner: string; expiresAt: number; request: MaintenanceRequest; preview: MaintenancePreview; historyDigest?: string; taskDigest?: string; requestDigest?: string }
@@ -346,7 +350,7 @@ export class KnowledgeService {
     const selected = new Set(targets.map(target => `${target.group}:${target.id}`));
     const matching = new Map<string, KnowledgeReferenceInventory['references'][number]>();
     for (const ref of inventory.references) if (ref.resources.some(resource => selected.has(`${resource.group}:${resource.id}`))) {
-      const key = `${ref.documentId}:${ref.recordId}`;
+      const key = knowledgeReferenceKey(ref);
       const previous = matching.get(key);
       if (!previous) matching.set(key, { ...clone(ref), resources: ref.resources.filter(resource => selected.has(`${resource.group}:${resource.id}`)) });
       else {
@@ -354,7 +358,7 @@ export class KnowledgeService {
         previous.resources = [...new Map([...previous.resources, ...ref.resources.filter(resource => selected.has(`${resource.group}:${resource.id}`))].map(resource => [`${resource.group}:${resource.id}:${resource.revision}:${resource.digest}`, resource])).values()];
       }
     }
-    const items = [...matching.values()].sort((a, b) => `${a.documentId}:${a.recordId}` < `${b.documentId}:${b.recordId}` ? -1 : `${a.documentId}:${a.recordId}` > `${b.documentId}:${b.recordId}` ? 1 : 0);
+    const items = [...matching.values()].sort((a, b) => knowledgeReferenceKey(a) < knowledgeReferenceKey(b) ? -1 : knowledgeReferenceKey(a) > knowledgeReferenceKey(b) ? 1 : 0);
     preview.taskTracking = 'connected';
     preview.tasks = { items: items.slice(0, 50), total: items.length, unknownDocuments: inventory.unknownDocuments };
     if (request.action !== 'purge') return;

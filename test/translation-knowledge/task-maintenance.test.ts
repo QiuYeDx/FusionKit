@@ -38,6 +38,15 @@ async function fixture(options: RepositoryOptions = {}) {
 }
 
 describe('knowledge maintenance with durable task references', () => {
+  it('keeps queued captures distinct and blocks clearing before any document or execution exists', async () => {
+    const f = await fixture();
+    for (let index = 0; index < 2; index++) f.inventory.references.push({ kind: 'automatic_preparation', preparationId: randomUUID(),
+      displayName: '', status: 'active', resources: f.reference().resources });
+    const preview = await f.plan('purge');
+    expect(preview).toMatchObject({ canCommit: false, tasks: { total: 2, unknownDocuments: 0 } });
+    expect(preview.tasks!.items.every(ref => ref.kind === 'automatic_preparation')).toBe(true);
+    await expect(f.service.commitMaintenance('owner', { planId: preview.planId, confirmHistoryRemoval: true })).rejects.toMatchObject({ code: 'import_conflict' });
+  });
   it.each(['active', 'retained'] as const)('blocks purging a %s record referencing an older entity revision', async status => {
     const f = await fixture(); f.inventory.references.push(f.reference(status));
     const before = await f.service.read(), preview = await f.plan('purge');

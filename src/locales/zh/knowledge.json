@@ -419,7 +419,7 @@
     "RECIPE_STYLE_ARCHIVED": "方案中包含已归档风格。",
     "TERM_TRANSLATION_CONFLICT": "同一原词存在不同译法，请检查范围与来源。",
     "TRIAL_ONLY_EXECUTION": "已采纳的背景、术语和规则可在字幕工作台中检查与独立试译。正式翻译与全局偏好继承尚未启用。",
-    "PURGE_TASK_REFERENCED": "仍有执行记录保留这些资料。可以先归档；永久清除须等相关文档及历史记录不再保留这些资料后进行。",
+    "PURGE_TASK_REFERENCED": "仍有任务或历史记录保留这些资料。可以先归档；永久清除须等转写队列、相关文档及历史记录不再保留这些资料后进行。",
     "PURGE_TASK_SCAN_INCOMPLETE": "部分文档记录无法完整核验，目前不能确认资料已无引用。请先处理不可用文档或残留记录。"
   },
   "languages": {
@@ -501,15 +501,18 @@
       "unavailable": "资料暂不可用"
     },
     "imports_losing_undo": "查看将失去撤销能力的导入",
-    "related_records": "关联执行记录（{{count}}）",
+    "related_records": "关联任务资料（{{count}}）",
     "task_references_help": "当前任务和历史保留的执行记录都可能引用这些资料，并阻止永久清理。存在引用只表示记录保留了资料，不表示所有内容都已发送给模型。",
     "task_references_unknown": "有 {{count}} 份文档无法完整检查关联记录；目前不能确认资料已无引用。",
     "record_active": "当前任务引用",
     "record_retained": "历史保留引用",
     "record_id": "执行记录：{{id}}",
     "record_resource": "{{group}} · {{title}} · 修订 {{revision}}",
-    "no_related_records": "未发现关联的执行记录。",
-    "records_limited": "显示 {{count}} / {{total}} 条关联记录。"
+    "no_related_records": "未发现关联的任务资料。",
+    "records_limited": "显示 {{count}} / {{total}} 条关联记录。",
+    "automatic_queue": "转写队列",
+    "automatic_preparation": "自动翻译准备资料",
+    "automatic_preparation_help": "这些资料已在开始转写时固定，可能保留在文档的历史版本中；归档不会影响已固定的内容。"
   },
   "trial": {
     "open": "资料检查与试译",
@@ -622,5 +625,27 @@
     "unavailable_recipe": "方案不可用",
     "exclusions": "排除资料条目",
     "not_started": "资料检查未通过，未创建任务。请单独打开此文件处理资料冲突或调整选择后重试。"
+  },
+  "automatic": {
+    "enable": "使用翻译资料",
+    "enable_hint": "开始转录时固定所选资料的版本",
+    "summary": "{{collections}} 个资料集 · {{topics}} 个共同主题",
+    "choose": "选择资料",
+    "title": "自动翻译资料",
+    "description": "选择所有媒体共用的资料。开始转录时保存这次使用的版本，后续资料修改不会影响已提交的任务。",
+    "choose_source": "选择字幕原文语言",
+    "english_source": "当前转录模式会生成英文字幕，因此原文语言固定为英语。目标语言沿用自动翻译设置。",
+    "source_help": "明确选择生成字幕的原文语言。目标语言沿用自动翻译设置。",
+    "topics_help": "只选择这些媒体共同讨论的主题，最多 20 个。主题不会被当作说话人，也不会自动套用方案中的人物建议。",
+    "scope_help": "每份字幕生成后分别检查资料。检查不通过时保留字幕，请在翻译页处理后继续；这里不设置逐行人物绑定或条件确认。",
+    "unavailable_item": "{{name}}（不可用）",
+    "removed_item": "已移除的选择",
+    "problem_library": "暂时无法读取资料，请打开选择资料后刷新重试。当前不会开始转录。",
+    "problem_source": "请先选择生成字幕的原文语言。",
+    "problem_resources": "部分选择已删除、归档或不在当前资料范围内。请移除不可用的选择，或更换方案。",
+    "problem_language": "方案与当前原文或目标语言不一致。请更换方案，或调整语言设置。",
+    "stale": "资料已变化。请重新打开选择资料，检查并应用后再开始转录。",
+    "configuration": "请检查自动翻译的模型、语言和资料设置。",
+    "save": "应用资料"
   }
 }

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { DEFAULT_TRANSCRIPTION_PREFERENCES, readTranscriptionPreferences, transcriptionPreferencesSchema } from '../../src/subtitle-studio/transcription/preferences-contract';
+import { DEFAULT_AUTOMATIC_KNOWLEDGE, DEFAULT_TRANSCRIPTION_PREFERENCES, readTranscriptionPreferences, transcriptionPreferencesSchema } from '../../src/subtitle-studio/transcription/preferences-contract';
 import { useStudioPreferences } from '../../src/store/tools/subtitle-studio/preferences';
 
 afterEach(() => { vi.unstubAllGlobals(); useStudioPreferences.setState({ encoding: 'utf-8', dismissedRecoveryKey: '', transcription: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES) }); });
@@ -31,4 +31,21 @@ it('keeps the valid live choice when local storage is unavailable and falls back
   await useStudioPreferences.persist.rehydrate();
   const next = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES); next.config.language = 'en';
   expect(() => useStudioPreferences.getState().setTranscription(next)).not.toThrow(); expect(useStudioPreferences.getState().transcription).toEqual(next);
+});
+it('reads older transcription settings without resetting ASR or automatic model preferences', () => {
+  const saved = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES);
+  saved.config.language = 'ja'; saved.config.advanced.beamSize = 7;
+  saved.autoTranslation = { ...saved.autoTranslation, enabled: true, profileId: 'saved-profile', language: 'en' };
+  expect(readTranscriptionPreferences(saved)).toEqual(saved);
+  expect(readTranscriptionPreferences(saved).autoTranslation).not.toHaveProperty('knowledge');
+});
+it('persists only shared automatic knowledge choices, including explicitly cleared recipe defaults', () => {
+  const knowledge = { ...DEFAULT_AUTOMATIC_KNOWLEDGE, enabled: true, sourceLanguage: 'ja', instructions: '', context: 'Shared episode background',
+    collectionIds: ['11111111-1111-4111-8111-111111111111'], documentTopicIds: ['22222222-2222-4222-8222-222222222222'] };
+  const saved = { ...DEFAULT_TRANSCRIPTION_PREFERENCES, autoTranslation: { ...DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, knowledge } };
+  expect(readTranscriptionPreferences(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  for (const extra of [{ knowledgeGeneration: 12 }, { apiKey: 'secret' }, { snapshot: {} }, { bindings: [] }, { confirmations: [] }, { targetLanguage: 'en' }]) {
+    expect(transcriptionPreferencesSchema.safeParse({ ...saved, autoTranslation: { ...saved.autoTranslation, knowledge: { ...knowledge, ...extra } } }).success).toBe(false);
+  }
+  expect(transcriptionPreferencesSchema.safeParse({ ...saved, autoTranslation: { ...saved.autoTranslation, knowledge: { ...knowledge, sourceLanguage: 'auto' } } }).success).toBe(false);
 });

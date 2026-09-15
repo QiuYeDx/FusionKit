@@ -7,7 +7,7 @@ export const idSchema = z.string().uuid();
 export const executionRefSchema = z.object({ version: z.literal(1), id: idSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export type ExecutionRef = z.infer<typeof executionRefSchema>;
 export const encodingSchema = z.enum(['utf-8', 'gb18030', 'shift_jis', 'utf-16le']);
-export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'translation_protocol_invalid', 'translation_record_unavailable', 'translation_output_limit', 'translation_failed', 'transcription_failed', 'interrupted', 'resource_busy']);
+export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'knowledge_check_failed', 'translation_protocol_invalid', 'translation_record_unavailable', 'translation_output_limit', 'translation_failed', 'transcription_failed', 'interrupted', 'resource_busy']);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 export class StudioError extends Error {
   constructor(public readonly code: ErrorCode) { super(code); }

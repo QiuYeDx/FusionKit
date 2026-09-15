@@ -35,6 +35,9 @@ export const enqueueTranscriptionRequestSchema = z.object({
     context.addIssue({ code: 'custom', path: ['files'], message: 'File tokens must be unique.' });
   if (value.config.windowStrategy === 'acoustic_quiet_v1' && !value.config.vadEnabled)
     context.addIssue({ code: 'custom', path: ['config', 'vadEnabled'], message: 'Pause-based chunking requires VAD.' });
+  if (value.config.taskMode === 'translate_to_english' && value.autoTranslation?.knowledge
+    && value.autoTranslation.knowledge.selection.languagePair.source !== 'en')
+    context.addIssue({ code: 'custom', path: ['autoTranslation', 'knowledge', 'selection', 'languagePair', 'source'], message: 'English transcription output requires English knowledge source.' });
 });
 
 export const transcriptionTaskSummarySchema = z.object({

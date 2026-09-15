@@ -158,7 +158,8 @@ describe.runIf(enabled)('I5 actual Electron transcription experience', () => {
       const compact = await page.evaluate(() => ({ width: innerWidth, height: innerHeight,
         noHorizontalOverflow: Array.from(document.querySelectorAll('.studio-transcription-layout, .studio-transcription-settings, .studio-transcription-workspace')).every(element => element.scrollWidth <= element.clientWidth + 1),
         runtimeRowVisible: (() => { const bounds = document.querySelector('[data-testid=studio-transcription-runtime-row]')!.getBoundingClientRect(); return bounds.top >= 0 && bounds.bottom <= innerHeight; })() }));
-      expect(compact.width).toBe(786); expect(compact.height).toBe(540);
+      // Native odd-pixel sizes can round by one CSS pixel on macOS displays.
+      expect([786, 787]).toContain(compact.width); expect(compact.height).toBe(540);
       expect(compact.noHorizontalOverflow).toBe(true); expect(compact.runtimeRowVisible).toBe(true); evidence.compactWindow = compact;
       await page.screenshot({ path: path.join(fixture.artifacts, 'i5-transcription-dark-small-runtime.png'), animations: 'disabled' });
       evidence.restart = { settingsRestored: true, completedTaskNotRepeated: true, requests: requests.length };

@@ -13,6 +13,7 @@ import { SourceLocationService } from './source-location-service';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
 import { createAutomaticTranslationCoordinator } from './automatic-translation';
+import { AutomaticKnowledgeService } from './automatic-knowledge';
 import { BilingualService } from './bilingual-service';
 import { BatchService } from './batch-service';
 import { selectLibrary } from './library-service';
@@ -22,6 +23,7 @@ import { authorizeTranscriptionMedia, handleTranscriptionRequest, transcriptionI
 import type { SpeechResourceService } from '../speech-resources/service';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
 import type { KnowledgeTaskGate, KnowledgeReferenceInventory } from '../../../src/translation-knowledge/task-reference-contract';
+import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
 import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
 import { KnowledgeBatchTranslationService } from './knowledge-batch-translation';
 import { KnowledgeTranslationService } from './knowledge-translation';
@@ -36,6 +38,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   const knowledgeBatchTranslation = new KnowledgeBatchTranslationService(repository, translation, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
   const knowledgeTrial = new KnowledgeTrialService(repository, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))));
   const automaticTranslation = createAutomaticTranslationCoordinator({ repository, translation });
+  const automaticKnowledge = new AutomaticKnowledgeService(readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
   const bilingual = new BilingualService(repository);
   const exports = new ExportService(repository);
   const batches = new BatchService(repository, translation);
@@ -51,7 +54,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
     if (closed) throw new StudioError('access_denied');
     runtime ??= createTranscriptionRuntime({ userDataRoot: app.getPath('userData'), environment: app.isPackaged
       ? { mode: 'packaged', resourcesPath: process.resourcesPath }
-      : { mode: 'development', appRoot: app.getAppPath() } }, { sharedResources, automaticTranslation }, repository);
+      : { mode: 'development', appRoot: app.getAppPath() } }, { sharedResources, automaticTranslation, automaticKnowledge }, repository);
     await runtime.initialize();
     if (closed) throw new StudioError('access_denied');
     return runtime;
@@ -390,13 +393,13 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   return {
     async inspectKnowledgeReferences(): Promise<KnowledgeReferenceInventory> {
       const retained = await repository.inspectKnowledgeReferences();
-      const merged = new Map(retained.references.map(ref => [`${ref.documentId}:${ref.recordId}`, ref]));
-      for (const ref of translation.activeKnowledgeReferences()) {
-        const key = `${ref.documentId}:${ref.recordId}`, prior = merged.get(key);
+      const merged = new Map(retained.references.map(ref => [knowledgeReferenceKey(ref), ref]));
+      for (const ref of [...translation.activeKnowledgeReferences(), ...automaticKnowledge.activeKnowledgeReferences()]) {
+        const key = knowledgeReferenceKey(ref), prior = merged.get(key);
         const resources = new Map([...(prior?.resources ?? []), ...ref.resources].map(item => [`${item.group}:${item.id}:${item.revision}:${item.digest}`, item]));
         merged.set(key, { ...ref, resources: [...resources.values()] });
       }
-      const references = [...merged.values()].sort((a, b) => `${a.documentId}:${a.recordId}`.localeCompare(`${b.documentId}:${b.recordId}`));
+      const references = [...merged.values()].sort((a, b) => knowledgeReferenceKey(a).localeCompare(knowledgeReferenceKey(b)));
       return { references, unknownDocuments: retained.unknownDocuments, digest: sha256Canonical({ references, unknownDocuments: retained.unknownDocuments }) };
     },
     attach(sender: WebContents) {
@@ -408,6 +411,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
     dispose(reason: 'app_quit' | 'update' | 'fatal' = 'app_quit'): Promise<void> {
       if (shutdown) return shutdown;
       closed = true;
+      automaticKnowledge.close();
       let automaticCleanup: Promise<void> | undefined;
       // Cache before owner cancellation can dispatch synchronous abort listeners.
       shutdown = Promise.resolve().then(async () => {

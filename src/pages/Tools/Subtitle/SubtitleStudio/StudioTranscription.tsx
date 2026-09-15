@@ -26,6 +26,7 @@ import { LOCAL_SUBTITLE_LIMITS, LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '@/sub
 import { StudioFileName, StudioIconButton } from './StudioControls';
 import { StudioScrollFade } from './StudioScrollFade';
 import { StudioTaskQueue, StudioTaskQueueRow } from './StudioTaskQueue';
+import { StudioAutomaticKnowledge } from './StudioAutomaticKnowledge';
 import './StudioTranscription.css';
 
 type Config = EnqueueTranscriptionRequest['config'];
@@ -37,7 +38,7 @@ const taskStatusKeys = {
 } as const;
 const resourceStatusKeys = { ready: 'studio:transcription.resource_ready', not_installed: 'studio:transcription.resource_not_installed', installing: 'studio:transcription.resource_installing', invalid: 'studio:transcription.resource_invalid' } as const;
 const readinessKeys = {
-  automatic_translation_not_ready: 'studio:transcription.auto_translation_configuration',
+  automatic_translation_not_ready: 'knowledge:automatic.configuration',
   busy: 'studio:transcription.readiness_busy', uncertain_submission: 'studio:transcription.readiness_unknown',
   configuration_invalid: 'studio:transcription.readiness_config', runtime_not_ready: 'studio:transcription.readiness_runtime',
   model_not_ready: 'studio:transcription.readiness_model', vad_not_ready: 'studio:transcription.readiness_vad',
@@ -143,7 +144,7 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
     <div><p>{t(state.runtime?.status === 'verified' ? 'studio:transcription.runtime_ready' : !state.runtime && state.phase === 'loading' ? 'studio:transcription.runtime_checking' : 'studio:transcription.runtime_unavailable')}</p>
       {state.runtime && state.runtime.status !== 'verified' && <p className="studio-transcription-help">{t('studio:transcription.runtime_missing_hint')}</p>}</div>
   </div>;
-  const errorMessage = state.error === 'resource_busy' ? 'studio:errors.resource_busy' : state.error === 'access_denied' ? 'studio:errors.access_denied' : state.error === 'limit_exceeded' ? 'studio:errors.limit_exceeded' : state.error === 'invalid_input' ? 'studio:errors.invalid_input' : state.error === 'needs_configuration' ? 'studio:errors.needs_configuration' : 'studio:errors.transcription_failed';
+  const errorMessage = state.error === 'knowledge_check_failed' ? 'studio:errors.knowledge_check_failed' : state.error === 'revision_conflict' ? 'knowledge:automatic.stale' : state.error === 'resource_busy' ? 'studio:errors.resource_busy' : state.error === 'access_denied' ? 'studio:errors.access_denied' : state.error === 'limit_exceeded' ? 'studio:errors.limit_exceeded' : state.error === 'invalid_input' ? 'studio:errors.invalid_input' : state.error === 'needs_configuration' ? 'studio:errors.needs_configuration' : 'studio:errors.transcription_failed';
 
   return <>
     <ToolDetailLayout header={header} className="studio-transcription-layout" asideClassName="studio-transcription-aside order-2 lg:order-1" mainClassName="studio-transcription-main order-1 lg:order-2"
@@ -181,7 +182,8 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
           {state.autoTranslation.enabled && <div className="studio-transcription-config-fields" data-testid="studio-transcription-auto-configuration">
             <ToolField label={t('studio:transcription.auto_translation_model')} htmlFor="studio-transcription-translation-model"><Select value={automaticProfile?.id ?? ''} onValueChange={profileId => controller.setAutoTranslation({ ...state.autoTranslation, profileId })} disabled={state.submitting || !profiles.length}><SelectTrigger id="studio-transcription-translation-model"><SelectValue placeholder={t('studio:transcription.auto_translation_configuration')} /></SelectTrigger><SelectContent>{profiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.modelKey}</SelectItem>)}</SelectContent></Select></ToolField>
             <ToolField label={t('studio:transcription.auto_translation_language')} htmlFor="studio-transcription-translation-language"><Select value={state.autoTranslation.language} onValueChange={language => controller.setAutoTranslation({ ...state.autoTranslation, language })} disabled={state.submitting}><SelectTrigger id="studio-transcription-translation-language"><SelectValue /></SelectTrigger><SelectContent>{languages.filter(([value]) => value !== 'auto').map(([value, key]) => <SelectItem key={value} value={value}>{t(key)}</SelectItem>)}{!languages.some(([value]) => value === state.autoTranslation.language) && <SelectItem value={state.autoTranslation.language}>{state.autoTranslation.language}</SelectItem>}</SelectContent></Select></ToolField>
-            {!state.autoTranslationReady && <p role="status" className="studio-transcription-row-warning">{t('studio:transcription.auto_translation_configuration')}</p>}
+            <StudioAutomaticKnowledge controller={controller} state={state} />
+            {!state.autoTranslationReady && <p role="status" className="studio-transcription-row-warning studio-transcription-wide-field">{t('knowledge:automatic.configuration')}</p>}
           </div>}
           <div className="studio-transcription-runtime-row" data-testid="studio-transcription-runtime-row">{runtimeNotice}<Button variant="ghost" size="sm" disabled={state.refreshing} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} />{t('studio:transcription.check_again')}</Button></div>
         </ToolConfigPanel>

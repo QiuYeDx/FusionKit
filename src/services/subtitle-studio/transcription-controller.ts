@@ -9,7 +9,9 @@ import { enqueueTranscriptionRequestSchema, transcriptionTaskConfigSchema, trans
   type EnqueueTranscriptionRequest, type TranscriptionBatchAdmission, type TranscriptionTaskSummary } from '../../subtitle-studio/transcription/task-contract';
 import { automaticTranslationRequestSchema, type AutomaticTranslationRequest } from '../../subtitle-studio/automatic-translation-contract';
 import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES, automaticTranslationPreferencesSchema, readTranscriptionPreferences,
-  type AutomaticTranslationPreferences, type TranscriptionPreferences } from '../../subtitle-studio/transcription/preferences-contract';
+  automaticKnowledgePreferencesSchema, type AutomaticKnowledgePreferences, type AutomaticTranslationPreferences, type TranscriptionPreferences } from '../../subtitle-studio/transcription/preferences-contract';
+import { batchKnowledgeSelectionSchema, type BatchKnowledgeSelection } from '../../subtitle-studio/knowledge-batch-contract';
+import type { LibrarySnapshot } from '../../translation-knowledge/ipc-contract';
 import { useStudioPreferences } from '../../store/tools/subtitle-studio/preferences';
 import useModelStore from '../../store/useModelStore';
 export { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG } from '../../subtitle-studio/transcription/preferences-contract';
@@ -37,6 +39,9 @@ export interface StudioTranscriptionState {
   readonly config: Config;
   readonly autoTranslation: AutomaticTranslationPreferences;
   readonly autoTranslationReady: boolean;
+  readonly autoKnowledgeLibrary: LibrarySnapshot | null;
+  readonly autoKnowledgeLoading: boolean;
+  readonly autoKnowledgeStale: boolean;
   readonly error: ErrorCode | null;
   readonly selecting: boolean; readonly submitting: boolean; readonly refreshing: boolean;
   readonly resourceActions: readonly string[]; readonly taskActions: readonly string[];
@@ -56,6 +61,33 @@ export interface StudioTranscriptionControllerOptions {
   readonly cleanupRetryDelaysMs?: readonly number[]; readonly cleanupAttemptTimeoutMs?: number;
   readonly preferences?: { read(): unknown; write(value: TranscriptionPreferences): void };
   readonly resolveAutomaticTranslation?: (value: AutomaticTranslationPreferences) => AutomaticTranslationRequest | null;
+  readonly readAutomaticKnowledge?: () => Promise<LibrarySnapshot>;
+}
+export const automaticKnowledgeTargetLanguage = (language: string) => language === 'zh' ? 'zh-Hans' : language;
+export type AutomaticKnowledgeProblem = 'library' | 'source' | 'resources' | 'language';
+/** Check shared references before submission; cue-dependent checks happen after transcription. */
+export function getAutomaticKnowledgeProblem(value: AutomaticKnowledgePreferences, target: string, englishOutput: boolean, library: LibrarySnapshot | null): AutomaticKnowledgeProblem | null {
+  if (!library) return 'library';
+  const source = englishOutput ? 'en' : value.sourceLanguage;
+  if (!source) return 'source';
+  const recipe = library.data.recipes.find(item => item.id === value.recipeId);
+  if (value.recipeId && (!recipe || recipe.archived)) return 'resources';
+  const collections = new Set([...value.collectionIds, ...recipe?.readCollectionIds ?? []]);
+  if ([...collections].some(id => !library.data.collections.some(item => item.id === id && !item.archived))
+    || value.documentTopicIds.some(id => !library.data.subjects.some(item => item.id === id && !item.archived))
+    || value.disabledEntryIds.some(id => !library.data.entries.some(item => item.id === id && collections.has(item.collectionId)))
+    || [recipe?.baseStyleId, ...recipe?.modifierStyleIds ?? []].some(id => id && !library.data.styles.some(item => item.id === id && !item.archived))) return 'resources';
+  const languagePair = { source, target: automaticKnowledgeTargetLanguage(target) };
+  if (!batchKnowledgeSelectionSchema.shape.languagePair.safeParse(languagePair).success
+    || recipe && (recipe.languagePair.source !== languagePair.source || recipe.languagePair.target !== languagePair.target)) return 'language';
+  return null;
+}
+function freezeAutomatic(value: AutomaticTranslationPreferences): AutomaticTranslationPreferences {
+  const copy = structuredClone(value);
+  if (copy.knowledge) {
+    Object.freeze(copy.knowledge.collectionIds); Object.freeze(copy.knowledge.disabledEntryIds); Object.freeze(copy.knowledge.documentTopicIds); Object.freeze(copy.knowledge);
+  }
+  return Object.freeze(copy);
 }
 const activeTask = (task: TranscriptionTaskSummary) => !['completed', 'failed', 'cancelled'].includes(task.status);
 const activeResource = (job: TranscriptionResourceJob) => !['completed', 'failed', 'cancelled'].includes(job.status);
@@ -102,6 +134,7 @@ export class StudioTranscriptionController {
   private readonly probing = new Map<string, object>();
   private state: StudioTranscriptionState = Object.freeze({ phase: 'idle', runtime: null, resources: [], resourceJobs: [], drafts: [], tasks: [],
     config: DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, autoTranslation: DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, autoTranslationReady: true,
+    autoKnowledgeLibrary: null, autoKnowledgeLoading: false, autoKnowledgeStale: false,
     error: null, selecting: false, submitting: false, refreshing: false,
     resourceActions: [], taskActions: [], cancellingTaskIds: [], cleanupPendingCount: 0, queueAction: null, queueResult: null });
   private queueOperation?: Promise<QueueActionResult>;
@@ -128,14 +161,21 @@ export class StudioTranscriptionController {
   private sharedStatusRead?: Promise<void>;
   private readonly preferences?: StudioTranscriptionControllerOptions['preferences'];
   private readonly resolveAutomatic?: StudioTranscriptionControllerOptions['resolveAutomaticTranslation'];
+  private readonly readAutomaticKnowledge: () => Promise<LibrarySnapshot>;
+  private automaticKnowledgeRead?: Promise<LibrarySnapshot | null>;
 
   constructor(options: StudioTranscriptionControllerOptions = {}) {
     this.preferences = options.preferences; this.resolveAutomatic = options.resolveAutomaticTranslation;
+    this.readAutomaticKnowledge = options.readAutomaticKnowledge ?? (async () => {
+      const result = await window.translationKnowledge.read();
+      if (!result.ok) throw new Error(result.error);
+      return result.value;
+    });
     if (this.preferences) {
       let value: unknown;
       try { value = this.preferences.read(); } catch { /* Defaults keep the tool usable. */ }
       const saved = readTranscriptionPreferences(value);
-      this.state = Object.freeze({ ...this.state, config: freezeConfig(saved.config), autoTranslation: Object.freeze(saved.autoTranslation) });
+      this.state = Object.freeze({ ...this.state, config: freezeConfig(saved.config), autoTranslation: freezeAutomatic(saved.autoTranslation) });
       this.configTouched = true;
     }
     this.api = options.getApi ?? (() => window.subtitleStudio);
@@ -281,17 +321,42 @@ export class StudioTranscriptionController {
     if (changed) this.emit({ drafts: Object.freeze(drafts) });
   }
   setConfig = (value: Config): void => {
+    if (this.state.submitting) return;
     const parsed = transcriptionTaskConfigSchema.safeParse(value);
     if (!parsed.success) { this.emit({ error: 'invalid_input' }); return; }
     this.configTouched = true;
     this.emit({ config: freezeConfig(parsed.data), error: null });
-    this.savePreferences();
+    this.refreshTranslationConfiguration(); this.savePreferences();
   };
   setAutoTranslation = (value: AutomaticTranslationPreferences): void => {
+    if (this.state.submitting) return;
     const parsed = automaticTranslationPreferencesSchema.safeParse(value);
     if (!parsed.success) { this.emit({ error: 'invalid_input' }); return; }
-    this.emit({ autoTranslation: Object.freeze(parsed.data), error: null });
+    this.emit({ autoTranslation: freezeAutomatic(parsed.data), error: null });
     this.refreshTranslationConfiguration(); this.savePreferences();
+  };
+  setAutomaticKnowledge = (value: AutomaticKnowledgePreferences, generation: number): boolean => {
+    if (this.state.submitting || this.state.autoKnowledgeLoading || this.state.autoKnowledgeLibrary?.generation !== generation) return false;
+    const parsed = automaticKnowledgePreferencesSchema.safeParse(value);
+    if (!parsed.success || getAutomaticKnowledgeProblem(parsed.data, this.state.autoTranslation.language, this.state.config.taskMode === 'translate_to_english', this.state.autoKnowledgeLibrary)) return false;
+    this.emit({ autoKnowledgeStale: false });
+    this.setAutoTranslation({ ...this.state.autoTranslation, knowledge: parsed.data });
+    return true;
+  };
+  refreshAutomaticKnowledge = (): Promise<LibrarySnapshot | null> => {
+    if (this.automaticKnowledgeRead) return this.automaticKnowledgeRead;
+    if (this.disposed) return Promise.resolve(null);
+    this.automaticKnowledgeRead = Promise.resolve().then(() => this.readAutomaticKnowledge()).then(value => {
+      if (this.disposed) return null;
+      const library = structuredClone(value);
+      this.emit({ autoKnowledgeLibrary: library, autoKnowledgeStale: this.state.autoKnowledgeStale
+        || this.state.autoKnowledgeLibrary !== null && this.state.autoKnowledgeLibrary.generation !== library.generation });
+      return library;
+    }).catch(() => { this.emit({ autoKnowledgeLibrary: null }); return null; }).finally(() => {
+      this.automaticKnowledgeRead = undefined; this.emit({ autoKnowledgeLoading: false }); this.refreshTranslationConfiguration();
+    });
+    this.emit({ autoKnowledgeLoading: true }); this.refreshTranslationConfiguration();
+    return this.automaticKnowledgeRead;
   };
   private savePreferences() {
     try { this.preferences?.write({ version: 1, config: this.state.config, autoTranslation: this.state.autoTranslation }); }
@@ -300,7 +365,23 @@ export class StudioTranscriptionController {
   private automaticRequest(): AutomaticTranslationRequest | undefined {
     if (!this.state.autoTranslation.enabled) return;
     try {
-      const result = automaticTranslationRequestSchema.safeParse(this.resolveAutomatic?.(this.state.autoTranslation));
+      const resolved = this.resolveAutomatic?.(this.state.autoTranslation);
+      if (!resolved) return;
+      const preferences = this.state.autoTranslation.knowledge;
+      let knowledge: AutomaticTranslationRequest['knowledge'];
+      if (preferences?.enabled) {
+        const library = this.state.autoKnowledgeLibrary;
+        if (this.state.autoKnowledgeLoading || this.state.autoKnowledgeStale || getAutomaticKnowledgeProblem(preferences, resolved.config.language, this.state.config.taskMode === 'translate_to_english', library)) return;
+        const selection: BatchKnowledgeSelection = { version: 1,
+          languagePair: { source: this.state.config.taskMode === 'translate_to_english' ? 'en' : preferences.sourceLanguage, target: automaticKnowledgeTargetLanguage(resolved.config.language) },
+          collectionIds: preferences.collectionIds, disabledEntryIds: preferences.disabledEntryIds,
+          ...(preferences.recipeId ? { recipeId: preferences.recipeId } : {}),
+          ...(preferences.instructions !== undefined ? { instructions: preferences.instructions } : {}),
+          ...(preferences.context !== undefined ? { context: preferences.context } : {}),
+        };
+        knowledge = { knowledgeGeneration: library!.generation, selection, documentTopicIds: preferences.documentTopicIds };
+      }
+      const result = automaticTranslationRequestSchema.safeParse({ config: resolved.config, apiKey: resolved.apiKey, ...(knowledge ? { knowledge } : {}) });
       if (result.success) return result.data;
     } catch { /* Readiness exposes missing or invalid model configuration. */ }
   }
@@ -400,6 +481,7 @@ export class StudioTranscriptionController {
         return null;
       }
       if (!response.ok) {
+        if (automatic?.knowledge && response.error === 'revision_conflict') this.emit({ autoKnowledgeStale: true, autoTranslationReady: false });
         this.emit({ error: response.error, drafts: Object.freeze(this.state.drafts.map(draft => ids.has(draft.id)
           ? Object.freeze({ ...draft, status: 'ready' as const }) : draft)) });
         return null;

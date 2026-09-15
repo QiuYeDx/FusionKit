@@ -12,6 +12,8 @@ import { checkpointForPlan, documentSourceDigest, publishTransaction, restoreTra
 import { assertKnowledgeExecutionCapacity, createExecutionRecord, requestForExecution, resolveExecutionRecord, runtimeExecutionRequest, type PreparedKnowledgeExecution } from './execution-records';
 import type { KnowledgeTaskGate, KnowledgeTaskReference } from '../../../src/translation-knowledge/task-reference-contract';
 import { knowledgeResourceReferences } from '../../../src/translation-knowledge/snapshot-contract';
+import { validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
+import { prepareKnowledgeTranslation } from './knowledge-translation';
 
 type Task = DocumentSnapshot['tasks'][number];
 type AttemptReceipt = { batchId: string; attempt: number; usage: TranslationUsage; uncertain: boolean };
@@ -50,8 +52,8 @@ function interruptTask(task: Task, status: 'interrupted' | 'cancelled', receipt?
   task.status = status;
   task.generation++;
 }
-function failureCode(error: unknown): 'needs_configuration' | 'translation_protocol_invalid' | 'translation_output_limit' | 'translation_record_unavailable' | 'translation_failed' | 'limit_exceeded' | 'revision_conflict' | 'interrupted' {
-  if (error instanceof StudioError && ['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_record_unavailable', 'limit_exceeded', 'revision_conflict', 'interrupted'].includes(error.code)) return error.code as ReturnType<typeof failureCode>;
+function failureCode(error: unknown): 'needs_configuration' | 'translation_protocol_invalid' | 'translation_output_limit' | 'translation_record_unavailable' | 'translation_failed' | 'knowledge_check_failed' | 'limit_exceeded' | 'revision_conflict' | 'interrupted' {
+  if (error instanceof StudioError && ['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_record_unavailable', 'knowledge_check_failed', 'limit_exceeded', 'revision_conflict', 'interrupted'].includes(error.code)) return error.code as ReturnType<typeof failureCode>;
   if (error instanceof ModelRuntimeClientError) {
     if (['http_unauthorized', 'http_forbidden', 'http_non_retryable'].includes(error.code)) return 'needs_configuration';
     if (error.code === 'length_truncated') return 'translation_output_limit';
@@ -88,7 +90,7 @@ export class TranslationService {
       for (const document of await this.repository.list()) {
         const current = await this.repository.readSnapshot(document.id);
         if (!current.tasks.some(activeStatus) && current.automaticTranslation?.state !== 'pending') continue;
-        const automatic = current.automaticTranslation?.state === 'pending' ? this.automaticPlan(current) : undefined;
+        const automatic = current.automaticTranslation?.state === 'pending' ? await this.automaticPlan(current) : undefined;
         await publishTransaction(this.repository, document.id, current.document.revision, value => {
           for (const task of value.tasks) if (activeStatus(task)) interruptTask(task, 'interrupted');
           if (automatic) this.appendAutomaticTask(value, automatic, false);
@@ -145,11 +147,25 @@ export class TranslationService {
     return this.admit(prepared.plan, apiKey, guard, prepared);
   }
 
-  private automaticPlan(snapshot: DocumentSnapshot): { plan?: TranslationPlan; error?: ReturnType<typeof failureCode> } {
-    try { return { plan: planTranslation(snapshot.document, snapshot.automaticTranslation!.config) }; }
-    catch (error) { return { error: failureCode(error) }; }
+  private async automaticPlan(snapshot: DocumentSnapshot): Promise<{ plan?: TranslationPlan; knowledge?: PreparedKnowledgeExecution; error?: ReturnType<typeof failureCode> }> {
+    const intent = snapshot.automaticTranslation!;
+    try {
+      if (!intent.knowledge) return { plan: planTranslation(snapshot.document, intent.config) };
+      // The durable pre-transcription material is the only source of knowledge.
+      // Initialization uses this same path, with no live-library reads or calls.
+      const frozen = validateFrozenAutomaticKnowledge(intent.knowledge);
+      if (frozen.selection.languagePair.target !== (intent.config.language === 'zh' ? 'zh-Hans' : intent.config.language)) return { error: 'knowledge_check_failed' };
+      const result = await prepareKnowledgeTranslation(this.repository, { documentId: snapshot.document.id, revision: snapshot.document.revision,
+        config: intent.config, knowledgeGeneration: frozen.generation,
+        knowledge: { ...frozen.selection, bindings: [], confirmations: [] }, documentTopicIds: frozen.documentTopicIds },
+      { generation: frozen.generation, data: frozen.data, approvals: frozen.approvals, imports: [] }, () => this.assertOpen());
+      if (!result.prepared || !result.preview.canRun) return { error: 'knowledge_check_failed' };
+      return { plan: result.prepared.plan, knowledge: result.prepared };
+    } catch (error) {
+      return { error: intent.knowledge && !(error instanceof StudioError) ? 'knowledge_check_failed' : failureCode(error) };
+    }
   }
-  private appendAutomaticTask(snapshot: DocumentSnapshot, prepared: ReturnType<TranslationService['automaticPlan']>, launch: boolean): string {
+  private appendAutomaticTask(snapshot: DocumentSnapshot, prepared: Awaited<ReturnType<TranslationService['automaticPlan']>>, launch: boolean): string {
     const intent = snapshot.automaticTranslation!;
     if (intent.state !== 'pending') throw new StudioError('revision_conflict');
     const taskId = randomUUID(), trackId = randomUUID();
@@ -158,8 +174,9 @@ export class TranslationService {
     let execution: ReturnType<typeof createExecutionRecord> | undefined;
     if (plan) {
       try {
-        execution = createExecutionRecord(plan, documentSourceDigest(snapshot.document), taskId, trackId);
+        execution = createExecutionRecord(plan, documentSourceDigest(snapshot.document), taskId, trackId, prepared.knowledge);
         assertExecutionRecordsSize({ ...snapshot.executionRecords, [execution.record.id]: execution.record });
+        if (prepared.knowledge) assertKnowledgeExecutionCapacity(snapshot, execution.record, 64 * 1024);
       } catch (error) {
         // An unpersistable automatic plan must remain visible without blocking startup.
         preparationError = failureCode(error); plan = undefined; execution = undefined;
@@ -168,14 +185,28 @@ export class TranslationService {
     const conflict = launch && snapshot.tasks.some(activeStatus);
     const status = !plan || conflict ? 'failed' : launch ? 'queued' : 'needs_configuration';
     const error = preparationError ?? (conflict ? 'revision_conflict' : launch ? undefined : 'needs_configuration');
-    if (execution) (snapshot.executionRecords ??= {})[execution.record.id] = execution.record;
-    snapshot.document.translationTracks.push({ id: trackId, revision: 1, language: intent.config.language, origin: 'ai', entries: {}, ...(execution ? { executionRef: execution.ref } : {}) });
-    snapshot.tasks.push({ id: taskId, trackId, generation: 1, status, completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
+    const track: DocumentSnapshot['document']['translationTracks'][number] = { id: trackId, revision: 1,
+      language: plan?.config.language ?? intent.knowledge?.selection.languagePair.target ?? intent.config.language,
+      origin: 'ai', entries: {}, ...(execution ? { executionRef: execution.ref } : {}) };
+    const task: Task = { id: taskId, trackId, generation: 1, status, completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
       translation: { config: plan?.config ?? intent.config, totalBatches: plan?.batches.length ?? 1,
         estimatedInputTokens: plan?.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0) ?? 0,
         outputTokenReserve: (plan?.batches.length ?? 1) * intent.config.maxOutputTokens,
         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, uncertainAttempts: 0,
-        ...(plan && execution ? { checkpoint: checkpointForPlan(plan, snapshot.document, 1, execution.ref) } : {}), ...(error ? { error } : {}) } });
+        ...(plan && execution ? { checkpoint: checkpointForPlan(plan, snapshot.document, 1, execution.ref) } : {}), ...(error ? { error } : {}) } };
+    if (prepared.knowledge && execution) {
+      try {
+        const candidate = { ...snapshot, document: { ...snapshot.document, translationTracks: [...snapshot.document.translationTracks, track] },
+          tasks: [...snapshot.tasks, task], executionRecords: { ...snapshot.executionRecords, [execution.record.id]: execution.record } };
+        restoreTranslationPlan(candidate, taskId);
+        assertKnowledgeExecutionCapacity(candidate, execution.record);
+      } catch (error) {
+        task.status = 'failed'; task.translation!.error = failureCode(error);
+        delete task.translation!.checkpoint; delete track.executionRef; execution = undefined;
+      }
+    }
+    if (execution) (snapshot.executionRecords ??= {})[execution.record.id] = execution.record;
+    snapshot.document.translationTracks.push(track); snapshot.tasks.push(task);
     intent.state = 'admitted'; intent.translationTaskId = taskId;
     return taskId;
   }
@@ -202,14 +233,17 @@ export class TranslationService {
         }
         return { taskId: task.id };
       }
-      const prepared = this.automaticPlan(current);
+      const prepared = await this.automaticPlan(current);
       let taskId = '';
-      const snapshot = await publishTransaction(this.repository, documentId, current.document.revision, value => {
-        if (value.automaticTranslation?.intentId !== intentId) throw new StudioError('revision_conflict');
-        taskId = this.appendAutomaticTask(value, prepared, configured);
-      }, () => { this.assertOpen(); guard(); });
-      if (prepared.plan && snapshot.tasks.find(task => task.id === taskId)?.status === 'queued') this.launch(prepared.plan, snapshot, taskId, apiKey);
-      return { taskId };
+      const admit = async () => {
+        const snapshot = await publishTransaction(this.repository, documentId, current.document.revision, value => {
+          if (value.automaticTranslation?.intentId !== intentId) throw new StudioError('revision_conflict');
+          taskId = this.appendAutomaticTask(value, prepared, configured);
+        }, () => { this.assertOpen(); guard(); });
+        if (prepared.plan && snapshot.tasks.find(task => task.id === taskId)?.status === 'queued') this.launch(prepared.plan, snapshot, taskId, apiKey);
+        return { taskId };
+      };
+      return intent.knowledge && this.knowledgeGate ? this.knowledgeGate.run(admit) : admit();
     });
     this.automaticAdmissions.set(key, operation);
     const release = () => { if (this.automaticAdmissions.get(key) === operation) this.automaticAdmissions.delete(key); };

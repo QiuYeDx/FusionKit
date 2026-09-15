@@ -10,6 +10,8 @@ import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/au
 import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
 import { bindSourceLocation, validateSourceLocationRecord, SOURCE_LOCATION_FILE, type SourceLocationCapture, type SourceLocationRecord } from './source-location-service';
 import { knowledgeResourceReferences, validateFrozenKnowledgeSnapshot } from '../../../src/translation-knowledge/snapshot-contract';
+import { automaticKnowledgeResourceReferences, validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
+import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
 import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
 import type { KnowledgeReferenceInventory, KnowledgeTaskReference } from '../../../src/translation-knowledge/task-reference-contract';
 
@@ -293,7 +295,7 @@ export class DocumentRepository {
         return this.readFile(file, maxBytes);
       };
       const finish = (): KnowledgeReferenceInventory => {
-        const items = [...references.values()].sort((a, b) => `${a.documentId}:${a.recordId}` < `${b.documentId}:${b.recordId}` ? -1 : `${a.documentId}:${a.recordId}` > `${b.documentId}:${b.recordId}` ? 1 : 0);
+        const items = [...references.values()].sort((a, b) => knowledgeReferenceKey(a) < knowledgeReferenceKey(b) ? -1 : knowledgeReferenceKey(a) > knowledgeReferenceKey(b) ? 1 : 0);
         for (const item of items) item.resources.sort((a, b) => `${a.group}:${a.id}:${a.revision}:${a.digest}` < `${b.group}:${b.id}:${b.revision}:${b.digest}` ? -1 : `${a.group}:${a.id}:${a.revision}:${a.digest}` > `${b.group}:${b.id}:${b.revision}:${b.digest}` ? 1 : 0);
         return { references: items, unknownDocuments: unknown.size, digest: sha256Canonical({ references: items, unknown: [...unknown].sort() }) };
       };
@@ -325,6 +327,26 @@ export class DocumentRepository {
         } catch { unknown.add('$deleted'); }
       }
       const inspectSnapshot = (snapshot: DocumentSnapshot, id: string, current: boolean) => {
+        const intent = snapshot.automaticTranslation;
+        if (intent?.knowledge !== undefined) {
+          if (++records > KNOWLEDGE_REFERENCE_SCAN_LIMITS.records) limit();
+          try {
+            const frozen = validateFrozenAutomaticKnowledge(intent.knowledge);
+            const refs = automaticKnowledgeResourceReferences(frozen);
+            resources += refs.length;
+            if (resources > KNOWLEDGE_REFERENCE_SCAN_LIMITS.resources) limit();
+            const identity = `automatic:${id}:${intent.intentId}`;
+            const previousDigest = recordDigests.get(identity);
+            if (previousDigest && previousDigest !== frozen.digest) unknown.add(id);
+            recordDigests.set(identity, frozen.digest);
+            const prior = references.get(identity);
+            references.set(identity, { kind: 'automatic_preparation', preparationId: intent.intentId, documentId: id,
+              displayName: snapshot.document.origin.displayName,
+              status: current && !deleted.has(id) && intent.state === 'pending' ? 'active' : prior?.status ?? 'retained',
+              resources: [...new Map([...(prior?.resources ?? []), ...refs].map(ref => [`${ref.group}:${ref.id}:${ref.revision}:${ref.digest}`, ref])).values()] });
+          } catch { unknown.add(id); }
+          if (exhausted) return;
+        }
         const checked = new Map<string, { record: ReturnType<typeof validateExecutionRecord>; digest: string }>();
         for (const [key, raw] of Object.entries(snapshot.executionRecords ?? {})) {
           if (++records > KNOWLEDGE_REFERENCE_SCAN_LIMITS.records) limit();

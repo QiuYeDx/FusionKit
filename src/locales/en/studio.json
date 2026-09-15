@@ -264,7 +264,8 @@
     "transcription_failed": "Transcription failed. Check the media and local resources, then try again.",
     "interrupted": "Translation was interrupted. Completed translations have been kept.",
     "resource_busy": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
-    "translation_record_unavailable": "The execution record is missing, damaged, or incompatible with this version. The task cannot continue safely. Saved translations are retained; repair the record or create a new translation."
+    "translation_record_unavailable": "The execution record is missing, damaged, or incompatible with this version. The task cannot continue safely. Saved translations are retained; repair the record or create a new translation.",
+    "knowledge_check_failed": "Automatic translation knowledge could not pass its checks. The source subtitles are saved; open Translation to select and check the knowledge again."
   },
   "diagnostics": {
     "empty_document": "No timed subtitle text",
@@ -390,7 +391,7 @@
     "auto_translation_configuration": "Choose a configured translation model and target language.",
     "auto_translation_pending": "Translation will be queued after transcription",
     "auto_translation_admitted": "Automatic translation handed off; open the document for progress",
-    "auto_translation_recovery": "Subtitles are saved; open the document to recover automatic translation",
+    "auto_translation_recovery": "Your subtitles are saved, but automatic translation has not started. Open the document in the translation view, check the model, materials, or other settings, then continue.",
     "media_drop_hint": "Drop to add audio or video",
     "media_drop_busy": "Wait for media selection or submission to finish",
     "configuration": "Transcription settings",
@@ -514,7 +515,7 @@
     "cancel_result": "Cancellation requested for {{count}}; {{failed}} failed; {{skipped}} changed state. Tasks are marked finished only after they stop.",
     "auto_translation_pending_short": "Auto translate",
     "auto_translation_admitted_short": "Translation linked",
-    "auto_translation_recovery_short": "Needs attention",
+    "auto_translation_recovery_short": "Translation needs attention",
     "clear_completed_hint": "Remove successful records only; keep subtitle documents",
     "clear_terminal_hint": "Includes success, failure and cancellation; keeps subtitle documents"
   },

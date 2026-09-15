@@ -124,6 +124,8 @@
     "resources/speech-resources/migration/studio/subtitle-studio-vad.v1.json",
     "resources/speech-resources/migration/studio/subtitle-studio-windows-cuda-pack.v1.json",
     "src/translation-knowledge/snapshot-contract.ts",
+    "src/translation-knowledge/automatic-snapshot-contract.ts",
+    "test/translation-knowledge/fixtures.ts",
     "src/translation-knowledge/task-reference-contract.ts",
     "electron/main/translation-knowledge/task-gate.ts"
   ],

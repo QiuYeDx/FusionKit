@@ -419,7 +419,7 @@
     "RECIPE_STYLE_ARCHIVED": "The plan contains an archived style.",
     "TERM_TRANSLATION_CONFLICT": "A term has competing translations; check scope and sources.",
     "TRIAL_ONLY_EXECUTION": "Approved background, terms and rules are available for checks and independent trials in Subtitle Studio. Formal translation and global preference inheritance are not enabled yet.",
-    "PURGE_TASK_REFERENCED": "Execution records still retain these materials. You can archive them; permanent removal is available once related documents and history no longer retain them.",
+    "PURGE_TASK_REFERENCED": "Tasks or retained history still contain these materials. You can archive them now; permanent clearing is available after the transcription queue, related documents and history no longer retain them.",
     "PURGE_TASK_SCAN_INCOMPLETE": "Some document records could not be fully checked. Resolve unavailable documents or retained remnants before permanently removing materials."
   },
   "languages": {
@@ -501,15 +501,18 @@
       "unavailable": "Unavailable"
     },
     "imports_losing_undo": "View imports that will lose undo support",
-    "related_records": "Related execution records ({{count}})",
+    "related_records": "Related task materials ({{count}})",
     "task_references_help": "Current tasks and retained historical execution records may reference these materials and prevent permanent removal. A reference means the record retains the materials; it does not mean all content was sent to the model.",
     "task_references_unknown": "References could not be fully checked for {{count}} documents. The materials cannot yet be confirmed as unreferenced.",
     "record_active": "Current task reference",
     "record_retained": "Retained historical reference",
     "record_id": "Execution record: {{id}}",
     "record_resource": "{{group}} · {{title}} · Revision {{revision}}",
-    "no_related_records": "No related execution records were found.",
-    "records_limited": "Showing {{count}} of {{total}} related records."
+    "no_related_records": "No related task materials found.",
+    "records_limited": "Showing {{count}} of {{total}} related records.",
+    "automatic_queue": "Transcription queue",
+    "automatic_preparation": "Prepared for automatic translation",
+    "automatic_preparation_help": "This knowledge was frozen when transcription started and may remain in document history. Archiving does not change the frozen content."
   },
   "trial": {
     "open": "Check materials & try translation",
@@ -622,5 +625,27 @@
     "unavailable_recipe": "Recipe unavailable",
     "exclusions": "Exclude material entries",
     "not_started": "The materials check did not pass, so no task was created. Open this file separately to resolve the conflicts or adjust the selection and try again."
+  },
+  "automatic": {
+    "enable": "Use translation materials",
+    "enable_hint": "Keep the selected versions when transcription starts",
+    "summary": "{{collections}} collections · {{topics}} shared topics",
+    "choose": "Choose materials",
+    "title": "Automatic translation materials",
+    "description": "Choose materials shared by all selected media. Their versions are saved when transcription starts, so later edits do not affect submitted tasks.",
+    "choose_source": "Choose subtitle source language",
+    "english_source": "This transcription mode produces English subtitles, so the source language is English. The target follows your automatic translation setting.",
+    "source_help": "Choose the language of the generated subtitles explicitly. The target follows your automatic translation setting.",
+    "topics_help": "Choose up to 20 topics shared by these media. Topics do not identify speakers, and character suggestions from a recipe are not applied automatically.",
+    "scope_help": "Materials are checked for each subtitle document after it is generated. If checks fail, your subtitles are kept; open the translation view to resolve the issues and continue. Cue roles and condition confirmations are not set here.",
+    "unavailable_item": "{{name}} (unavailable)",
+    "removed_item": "Removed selection",
+    "problem_library": "Materials could not be read. Open Choose materials and refresh to try again. Transcription cannot start yet.",
+    "problem_source": "Choose the source language of the generated subtitles first.",
+    "problem_resources": "Some choices were deleted, archived, or are outside the selected collections. Remove unavailable choices or choose another recipe.",
+    "problem_language": "The recipe does not match the source or target language. Choose another recipe or update the language settings.",
+    "stale": "Materials have changed. Open Choose materials, review your choices, and apply them before starting transcription.",
+    "configuration": "Check the model, languages, and materials for automatic translation.",
+    "save": "Use materials"
   }
 }

@@ -8,6 +8,7 @@ import { enqueueTranscriptionRequestSchema, transcriptionTaskSummarySchema, type
   type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from '../../../../src/subtitle-studio/transcription/task-contract';
 import type { DocumentRepository } from '../document-repository';
 import type { AutomaticTranslationCoordinator } from '../automatic-translation';
+import type { AutomaticKnowledgeCapture } from '../automatic-knowledge';
 import type { AutomaticTranslationIntent } from '../../../../src/subtitle-studio/automatic-translation-contract';
 import { captureSourceInput } from '../source-location-service';
 import { createTranscriptionDocumentSink } from './document-sink';
@@ -32,6 +33,7 @@ interface Record {
   summary: TranscriptionTaskSummary; running: boolean; leased: boolean; selectionBound: boolean; cleanupPending: boolean;
   leaseFailure?: unknown;
   automatic?: { intent: AutomaticTranslationIntent; apiKey?: string };
+  releaseAutomaticKnowledge?: () => void;
 }
 interface Admission {
   readonly ownerKey: string; readonly modelId: string; readonly vad: boolean; readonly device: string;
@@ -54,6 +56,7 @@ export interface TranscriptionTaskServiceOptions {
   readonly leaseRenewalIntervalMs?: number;
   readonly scheduleLeaseRenewal?: (operation: () => void, delayMs: number) => () => void;
   readonly automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'>;
+  readonly automaticKnowledge?: AutomaticKnowledgeCapture;
 }
 
 const ownerSchema = z.object({ webContentsId: z.number().int().positive().safe(),
@@ -137,7 +140,11 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
   }
   function finish(record: Record, change: Partial<TranscriptionTaskSummary>) {
     update(record, { ...change, ...(record.automatic && change.status !== 'completed' ? { automaticTranslation: undefined } : {}) });
-    if (record.automatic && change.status !== 'completed') record.automatic.apiKey = undefined;
+    record.automatic = undefined;
+    // Completion is reported only after the document and intent commit together.
+    // Failed/cancelled records can no longer publish; each returns its batch share once.
+    const releaseKnowledge = record.releaseAutomaticKnowledge; record.releaseAutomaticKnowledge = undefined;
+    releaseKnowledge?.();
     if (record.summary.error?.code === 'cleanup_failed' || record.summary.error?.code === 'cancel_failed') record.cleanupPending = true;
     const failures = releaseBindings(record);
     if (record.cleanupPending) update(record, { cleanupPending: true,
@@ -243,14 +250,17 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       const result = await producer.run();
       const duration = validDuration(result.durationMs) ? { durationMs: result.durationMs } : {};
       if (result.status === 'committed') {
+        const intentId = record.automatic?.intent.intentId, apiKey = record.automatic?.apiKey ?? '';
         finish(record, { status: 'completed', progress: 100, documentId: result.documentId, documentDurability: result.durability, ...duration });
-        if (record.automatic) {
-          const apiKey = record.automatic.apiKey ?? ''; record.automatic.apiKey = undefined;
+        if (intentId) {
           try {
             // Publication transferred ownership to the durable document. A late ASR
             // owner release must not invalidate its already-authorized translation.
-            const translation = await options.automaticTranslation!.handoff(result.documentId, record.automatic.intent.intentId, apiKey);
-            update(record, { automaticTranslation: { status: 'admitted', taskId: translation.taskId } });
+            const translation = await options.automaticTranslation!.handoff(result.documentId, intentId, apiKey);
+            const snapshot = await options.repository.readSnapshot(result.documentId);
+            const translated = snapshot.tasks.find(task => task.id === translation.taskId);
+            const blocked = translated?.status === 'failed' || translated?.status === 'needs_configuration';
+            update(record, { automaticTranslation: { status: blocked ? 'needs_configuration' : 'admitted', taskId: translation.taskId } });
           } catch {
             // Never turn a committed transcription into a retryable ASR failure.
             update(record, { automaticTranslation: { status: 'needs_configuration' } });
@@ -272,6 +282,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     const owner = ownerFor(value);
     const parsed = enqueueTranscriptionRequestSchema.safeParse(request);
     if (!parsed.success) return Promise.reject(new StudioError('invalid_input'));
+    if (parsed.data.autoTranslation?.knowledge && !options.automaticKnowledge) return Promise.reject(new StudioError('unsupported_feature'));
     if (parsed.data.autoTranslation && !options.automaticTranslation) return Promise.reject(new StudioError('needs_configuration'));
     if (signal?.aborted) return Promise.reject(new StudioError('interrupted'));
     if (records.size + [...admissions].reduce((sum, admission) => sum + admission.count, 0) + parsed.data.files.length > LOCAL_SUBTITLE_LIMITS.maxSessionTasks)
@@ -289,6 +300,9 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
   }
   async function admit(owner: Owner, admission: Admission, request: EnqueueTranscriptionRequest): Promise<TranscriptionBatchAdmission> {
     let transaction: Awaited<ReturnType<LocalSubtitleCapabilityLeaseCoordinator['reserveBatch']>> | undefined;
+    let knowledge: Awaited<ReturnType<AutomaticKnowledgeCapture['capture']>> | undefined;
+    let knowledgeReleased = false, knowledgeRemaining = request.files.length;
+    const releaseKnowledge = () => { if (!knowledgeReleased && knowledge) { knowledgeReleased = true; const captured = knowledge; knowledge = undefined; captured.release(); } };
     const claims: string[] = [];
     const created: Record[] = [];
     let published = false;
@@ -297,6 +311,10 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     try {
       const signal = admission.controller.signal;
       const batchId = randomUUID();
+      if (request.autoTranslation?.knowledge) {
+        knowledge = await options.automaticKnowledge!.capture(request.autoTranslation.knowledge, () => assertLive(owner, signal));
+        assertLive(owner, signal);
+      }
       const [managedModel, managedVad, inputs, runtime] = await joined([
         options.modelResolver.resolveManagedModel(request.config.modelId, signal),
         request.config.vadEnabled ? options.modelResolver.resolveManagedVad(LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id, signal) : undefined,
@@ -332,7 +350,9 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
           inputPath: input.filePath, inputIdentity: input.identity, ...(file.audioStreamId ? { audioStreamId: file.audioStreamId } : {}), execution,
           controller: new AbortController(), running: false, leased: false, selectionBound: false, cleanupPending: false,
           ...(request.autoTranslation ? { automatic: { apiKey: request.autoTranslation.apiKey,
-            intent: { intentId: randomUUID(), sourceTaskId: taskId, generation: 1 as const, config: structuredClone(request.autoTranslation.config), state: 'pending' as const } } } : {}),
+            intent: { intentId: randomUUID(), sourceTaskId: taskId, generation: 1 as const, config: structuredClone(request.autoTranslation.config), state: 'pending' as const,
+              ...(knowledge ? { knowledge: knowledge.snapshot } : {}) } } } : {}),
+          ...(knowledge ? { releaseAutomaticKnowledge: () => { if (--knowledgeRemaining === 0) releaseKnowledge(); } } : {}),
           summary: publicSummary({ taskId, batchId, generation: 1, displayName: input.displayName, status: 'queued', progress: 0,
             createdAt: now, updatedAt: now, modelId: managedModel.id, resolvedBackend: backendResolution.resolvedBackend,
             ...(request.autoTranslation ? { automaticTranslation: { status: 'pending' as const } } : {}) }) });
@@ -358,6 +378,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     } finally {
       const failures: unknown[] = [];
       if (!published) {
+        releaseKnowledge();
         try { transaction?.rollback(); } catch (error) { failures.push(error); }
         for (const record of created) {
           failures.push(...releaseBindings(record));

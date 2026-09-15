@@ -419,7 +419,7 @@
     "RECIPE_STYLE_ARCHIVED": "方案中包含已封存風格。",
     "TERM_TRANSLATION_CONFLICT": "同一原詞存在不同譯法，請檢查範圍與來源。",
     "TRIAL_ONLY_EXECUTION": "已採納的背景、術語和規則可在字幕工作台中檢查與獨立試譯。正式翻譯與全域偏好繼承尚未啟用。",
-    "PURGE_TASK_REFERENCED": "仍有執行記錄保留這些資料。可以先封存；永久清除須等相關文件及歷史記錄不再保留這些資料後進行。",
+    "PURGE_TASK_REFERENCED": "仍有任務或歷史記錄保留這些資料。可以先封存；永久清除須等轉寫佇列、相關文件及歷史記錄不再保留這些資料後進行。",
     "PURGE_TASK_SCAN_INCOMPLETE": "部分文件記錄無法完整核驗，目前不能確認資料已無引用。請先處理無法使用的文件或殘留記錄。"
   },
   "languages": {
@@ -501,15 +501,18 @@
       "unavailable": "資料暫不可用"
     },
     "imports_losing_undo": "檢視將失去撤銷能力的匯入",
-    "related_records": "關聯執行記錄（{{count}}）",
+    "related_records": "關聯任務資料（{{count}}）",
     "task_references_help": "目前任務和歷史保留的執行記錄都可能引用這些資料，並阻止永久清理。存在引用只表示記錄保留了資料，不表示所有內容都已傳送給模型。",
     "task_references_unknown": "有 {{count}} 份文件無法完整檢查關聯記錄；目前不能確認資料已無引用。",
     "record_active": "目前任務引用",
     "record_retained": "歷史保留引用",
     "record_id": "執行記錄：{{id}}",
     "record_resource": "{{group}} · {{title}} · 修訂 {{revision}}",
-    "no_related_records": "未發現關聯的執行記錄。",
-    "records_limited": "顯示 {{count}} / {{total}} 條關聯記錄。"
+    "no_related_records": "未發現關聯的任務資料。",
+    "records_limited": "顯示 {{count}} / {{total}} 條關聯記錄。",
+    "automatic_queue": "轉寫佇列",
+    "automatic_preparation": "自動翻譯準備資料",
+    "automatic_preparation_help": "這些資料已在開始轉寫時固定，可能保留在文件的歷史版本中；封存不會影響已固定的內容。"
   },
   "trial": {
     "open": "資料檢查與試譯",
@@ -622,5 +625,27 @@
     "unavailable_recipe": "方案不可用",
     "exclusions": "排除資料條目",
     "not_started": "資料檢查未通過，未建立任務。請單獨開啟此檔案處理資料衝突或調整選擇後重試。"
+  },
+  "automatic": {
+    "enable": "使用翻譯資料",
+    "enable_hint": "開始轉錄時固定所選資料的版本",
+    "summary": "{{collections}} 個資料集 · {{topics}} 個共同主題",
+    "choose": "選擇資料",
+    "title": "自動翻譯資料",
+    "description": "選擇所有媒體共用的資料。開始轉錄時儲存這次使用的版本，後續資料修改不會影響已提交的任務。",
+    "choose_source": "選擇字幕原文語言",
+    "english_source": "目前轉錄模式會產生英文字幕，因此原文語言固定為英語。目標語言沿用自動翻譯設定。",
+    "source_help": "明確選擇產生字幕的原文語言。目標語言沿用自動翻譯設定。",
+    "topics_help": "只選擇這些媒體共同討論的主題，最多 20 個。主題不會被當作說話者，也不會自動套用方案中的人物建議。",
+    "scope_help": "每份字幕產生後分別檢查資料。檢查未通過時保留字幕，請在翻譯頁處理後繼續；這裡不設定逐行人物綁定或條件確認。",
+    "unavailable_item": "{{name}}（無法使用）",
+    "removed_item": "已移除的選擇",
+    "problem_library": "暫時無法讀取資料，請開啟選擇資料後重新整理再試。目前不會開始轉錄。",
+    "problem_source": "請先選擇產生字幕的原文語言。",
+    "problem_resources": "部分選擇已刪除、封存或不在目前資料範圍內。請移除無法使用的選擇，或更換方案。",
+    "problem_language": "方案與目前原文或目標語言不一致。請更換方案，或調整語言設定。",
+    "stale": "資料已變更。請重新開啟選擇資料，檢查並套用後再開始轉錄。",
+    "configuration": "請檢查自動翻譯的模型、語言和資料設定。",
+    "save": "套用資料"
   }
 }

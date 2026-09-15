@@ -22,7 +22,7 @@ const errorKeys = {
   access_denied: 'studio:errors.access_denied',
   document_unavailable: 'studio:errors.document_unavailable',
   output_write_failed: 'studio:errors.output_write_failed',
-  needs_configuration: 'studio:errors.needs_configuration',
+  knowledge_check_failed: 'studio:errors.knowledge_check_failed', needs_configuration: 'studio:errors.needs_configuration',
   translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable',
   translation_output_limit: 'studio:errors.translation_output_limit',
   translation_failed: 'studio:errors.translation_failed',

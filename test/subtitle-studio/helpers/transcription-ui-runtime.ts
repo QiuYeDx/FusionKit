@@ -7,21 +7,23 @@ import { transcriptToDocument } from '../../../electron/main/subtitle-studio/tra
 import { createTranscriptionDocumentSink, type TranscriptionDocumentSink } from '../../../electron/main/subtitle-studio/transcription/document-sink';
 import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/automatic-translation-contract';
 import type { AutomaticTranslationCoordinator } from '../../../electron/main/subtitle-studio/automatic-translation';
+import type { AutomaticKnowledgeCapture } from '../../../electron/main/subtitle-studio/automatic-knowledge';
+import { StudioError } from '../../../src/subtitle-studio/domain';
 import type { LocalSubtitleOwnerKey } from '../../../electron/main/subtitle-studio/transcription/native/authorizations';
 import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '../../../src/subtitle-studio/transcription/task-contract';
 import { localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
 
 type Owner = LocalSubtitleOwnerKey;
-type Task = { source: SourceLocationCapture; owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string } };
+type Task = { source: SourceLocationCapture; owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string }; releaseKnowledge?: () => void };
 type Job = { owner: string; value: ReturnType<typeof localSubtitleResourceJobSummarySchema.parse> };
 type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { operation: 'probe-recovered' }
   | { operation: 'revoke-failures'; count: number }
   | { operation: 'resource-complete'; resourceId: string }
   | { operation: 'task-state'; taskId: string; status: 'preparing_media' | 'loading_model' | 'transcribing' | 'post_processing' | 'failed'; progress?: number; cleanupPending?: true }
-  | { operation: 'complete'; taskId: string; cueCount?: number }
+  | { operation: 'complete'; taskId: string; cueCount?: number; texts?: string[] }
   | { operation: 'seed-newer-documents' };
 
-export function createTranscriptionRuntime(_options: unknown, dependencies: { automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'> }, repository?: DocumentRepository) {
+export function createTranscriptionRuntime(_options: unknown, dependencies: { automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'>; automaticKnowledge?: AutomaticKnowledgeCapture }, repository?: DocumentRepository) {
   if (!repository) throw new Error('The UI fixture requires the production document repository.');
   const resources = localSubtitleManagedResourceListSchema.parse([
     { resourceId: 'large-v3-q5_0', resourceType: 'model', displayName: 'Large v3 · Q5', status: 'not_installed',
@@ -36,10 +38,12 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
   const tokens = new Map<string, { owner: string; displayName: string; sourceKey: string; source: SourceLocationCapture }>();
   const tasks: Task[] = [], jobs: Job[] = [], traces: Array<{ operation: string; detail?: unknown }> = [];
   const released = new Set<string>();
-  let recoveredProbe = false, revokeFailures = 0;
+  const admissions = new Map<Promise<unknown>, string>();
+  let recoveredProbe = false, revokeFailures = 0, closed = false;
   const key = (owner: Owner) => `${owner.webContentsId}:${owner.ownerSessionId}`;
   const trace = (operation: string, detail?: unknown) => { traces.push({ operation, detail }); if (traces.length > 200) traces.shift(); };
-  const check = (owner: Owner) => { if (released.has(key(owner))) throw Object.assign(new Error('Released owner'), { code: 'owner_released' }); return key(owner); };
+  const check = (owner: Owner) => { if (closed || released.has(key(owner))) throw Object.assign(new Error('Released owner'), { code: 'owner_released' }); return key(owner); };
+  const releaseKnowledge = (task: Task) => { const release = task.releaseKnowledge; task.releaseKnowledge = undefined; release?.(); };
   const getTask = (id: string) => { const task = tasks.find(item => item.value.taskId === id); if (!task) throw new Error(`Unknown fixture task ${id}`); return task; };
   const active = (status: string) => !['completed', 'cancelled', 'failed'].includes(status);
   const startResource = (owner: Owner, resourceId: string) => {
@@ -69,22 +73,32 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
       task.value = { ...task.value, status: command.status, progress: command.progress ?? 37, updatedAt: new Date().toISOString(),
         ...(command.status === 'failed' ? { error: { code: 'runtime_protocol_mismatch' as const } } : {}),
         ...(command.cleanupPending ? { cleanupPending: true } : {}) };
+      if (command.status === 'failed') { releaseKnowledge(task); task.automatic = undefined; }
     }
     if (command.operation === 'complete') {
       const task = getTask(command.taskId);
       if (task.value.status === 'cancelled' || task.value.status === 'failed') throw new Error('Terminal native failure cannot publish.');
       const transcript = { schemaVersion: 1, source: { displayName: task.value.displayName, durationMs: 315000 },
         model: { engine: 'whisper_cpp', modelId: task.value.modelId, modelHash: 'a'.repeat(64), backend: 'cpu' }, detectedLanguage: 'en',
-        segments: Array.from({ length: command.cueCount ?? 105 }, (_, index) => ({ id: `segment-${index}`, startMs: index * 3000, endMs: index * 3000 + 2000,
-          text: index === 2 ? 'A detailed interview keeps the full original words, punctuation, pauses, and context in the stored document.' : `Recorded interview sentence ${index + 1}.` })) };
-      const receipt = await task.sink.publish(transcript);
+        segments: Array.from({ length: command.texts?.length ?? command.cueCount ?? 105 }, (_, index) => ({ id: `segment-${index}`, startMs: index * 3000, endMs: index * 3000 + 2000,
+          text: command.texts?.[index] ?? (index === 2 ? 'A detailed interview keeps the full original words, punctuation, pauses, and context in the stored document.' : `Recorded interview sentence ${index + 1}.`) })) };
+      let receipt: Awaited<ReturnType<TranscriptionDocumentSink['publish']>>;
+      try { receipt = await task.sink.publish(transcript); }
+      catch (error) {
+        task.value = { ...task.value, status: 'failed', automaticTranslation: undefined };
+        task.automatic = undefined;
+        releaseKnowledge(task); throw error;
+      }
       task.value = { ...task.value, status: 'completed', progress: 100, documentId: receipt.documentId, documentDurability: receipt.durability, updatedAt: new Date().toISOString() };
+      releaseKnowledge(task);
       trace('document-created', { documentId: receipt.documentId });
-      if (task.automatic) {
-        const apiKey = task.automatic.apiKey ?? ''; task.automatic.apiKey = undefined;
+      const intentId = task.automatic?.intent.intentId, apiKey = task.automatic?.apiKey ?? ''; task.automatic = undefined;
+      if (intentId) {
         try {
-          const result = await dependencies.automaticTranslation!.handoff(receipt.documentId, task.automatic.intent.intentId, apiKey);
-          task.value = { ...task.value, automaticTranslation: { status: 'admitted', taskId: result.taskId } };
+          const result = await dependencies.automaticTranslation!.handoff(receipt.documentId, intentId, apiKey);
+          const snapshot = await repository.readSnapshot(receipt.documentId), translated = snapshot.tasks.find(task => task.id === result.taskId);
+          const blocked = translated?.status === 'failed' || translated?.status === 'needs_configuration';
+          task.value = { ...task.value, automaticTranslation: { status: blocked ? 'needs_configuration' : 'admitted', taskId: result.taskId } };
           trace('automatic-handoff', { documentId: receipt.documentId, taskId: result.taskId });
         } catch { task.value = { ...task.value, automaticTranslation: { status: 'needs_configuration' } }; }
       }
@@ -101,10 +115,11 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
   (globalThis as unknown as { __studioT06Control: typeof control }).__studioT06Control = control;
   return {
     async initialize() { trace('initialize'); },
-    async shutdown() { trace('shutdown'); tokens.clear(); tasks.length = 0; },
+    async shutdown() { trace('shutdown'); closed = true; tokens.clear(); tasks.forEach(releaseKnowledge); tasks.length = 0; await Promise.allSettled([...admissions.keys()]); },
     async releaseOwner(owner: Owner) { trace('release-owner'); released.add(key(owner));
       for (const [id, media] of tokens) if (media.owner === key(owner)) tokens.delete(id);
-      for (let index = tasks.length - 1; index >= 0; index--) if (tasks[index].owner === key(owner)) tasks.splice(index, 1);
+      for (let index = tasks.length - 1; index >= 0; index--) if (tasks[index].owner === key(owner)) { releaseKnowledge(tasks[index]); tasks.splice(index, 1); }
+      await Promise.allSettled([...admissions].filter(([, ownerKey]) => ownerKey === key(owner)).map(([operation]) => operation));
     },
     async inspectRuntime() { trace('inspect-runtime'); return { status: 'verified', runtimeGeneration: 'a'.repeat(64), target: { platform: 'win32', arch: 'x64' } }; },
     media: {
@@ -151,25 +166,48 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
         action(task.source.inputPath);
       },
       async enqueue(owner: Owner, request: EnqueueTranscriptionRequest) {
-        const batchId = randomUUID(), now = new Date().toISOString();
-        const created = request.files.map(file => {
-          const media = tokens.get(file.fileToken);
-          if (!media || media.owner !== check(owner)) throw Object.assign(new Error('Unknown token'), { code: 'invalid_token' });
-          let value: TranscriptionTaskSummary = { taskId: randomUUID(), batchId, generation: 1, displayName: media.displayName,
-            status: 'queued', progress: 0, createdAt: now, updatedAt: now, modelId: request.config.modelId, resolvedBackend: 'cpu', durationMs: 315000 };
-          const automatic = request.autoTranslation ? { intent: { intentId: randomUUID(), sourceTaskId: value.taskId, generation: 1 as const, state: 'pending' as const, config: structuredClone(request.autoTranslation.config) }, apiKey: request.autoTranslation.apiKey } : undefined;
-          if (automatic && !dependencies.automaticTranslation) throw new Error('Real automatic translation coordinator is required.');
-          if (automatic) value = { ...value, automaticTranslation: { status: 'pending' } };
-          const sink = createTranscriptionDocumentSink({ repository, owner, taskId: value.taskId, generation: 1, assertActive: () => {}, ...(automatic ? { automaticTranslation: automatic.intent } : {}) });
-          tasks.push({ source: media.source, owner: check(owner), value, sink, automatic }); return value;
+        const operation = Promise.resolve().then(async () => {
+          check(owner);
+          if (request.autoTranslation?.knowledge && !dependencies.automaticKnowledge) throw new StudioError('unsupported_feature');
+          if (request.autoTranslation && !dependencies.automaticTranslation) throw new StudioError('needs_configuration');
+          let capture: Awaited<ReturnType<AutomaticKnowledgeCapture['capture']>> | undefined;
+          let published = false, remaining = request.files.length, returned = false;
+          const returnCapture = () => { if (capture && !returned) { returned = true; const captured = capture; capture = undefined; captured.release(); } };
+          try {
+            // The production capture remains real. This controlled queue replaces
+            // native ASR only; production task-service lifecycle has separate tests.
+            if (request.autoTranslation?.knowledge) capture = await dependencies.automaticKnowledge!.capture(request.autoTranslation.knowledge, () => { check(owner); });
+            check(owner);
+            const batchId = randomUUID(), now = new Date().toISOString();
+            const created: Task[] = request.files.map(file => {
+              const media = tokens.get(file.fileToken);
+              if (!media || media.owner !== check(owner)) throw Object.assign(new Error('Unknown token'), { code: 'invalid_token' });
+              let value: TranscriptionTaskSummary = { taskId: randomUUID(), batchId, generation: 1, displayName: media.displayName,
+                status: 'queued', progress: 0, createdAt: now, updatedAt: now, modelId: request.config.modelId, resolvedBackend: 'cpu', durationMs: 315000 };
+              const automatic = request.autoTranslation ? { intent: { intentId: randomUUID(), sourceTaskId: value.taskId, generation: 1 as const, state: 'pending' as const,
+                config: structuredClone(request.autoTranslation.config), ...(capture ? { knowledge: capture.snapshot } : {}) }, apiKey: request.autoTranslation.apiKey } : undefined;
+              if (automatic) value = { ...value, automaticTranslation: { status: 'pending' } };
+              const sink = createTranscriptionDocumentSink({ repository, owner, taskId: value.taskId, generation: 1,
+                assertActive: () => { check(owner); const task = getTask(value.taskId); if (['cancelled', 'failed'].includes(task.value.status)) throw new StudioError('interrupted'); },
+                ...(automatic ? { automaticTranslation: automatic.intent } : {}) });
+              return { source: media.source, owner: check(owner), value, sink, automatic,
+                ...(capture ? { releaseKnowledge: () => { if (--remaining === 0) returnCapture(); } } : {}) };
+            });
+            tasks.push(...created); published = true;
+            trace('enqueue', structuredClone({ ...request, ...(request.autoTranslation ? { autoTranslation: { config: request.autoTranslation.config, ...(request.autoTranslation.knowledge ? { knowledge: request.autoTranslation.knowledge } : {}) } } : {}) }));
+            return structuredClone({ batchId, tasks: created.map(task => task.value) });
+          } finally { if (!published) returnCapture(); }
         });
-        trace('enqueue', structuredClone({ ...request, ...(request.autoTranslation ? { autoTranslation: { config: request.autoTranslation.config } } : {}) })); return structuredClone({ batchId, tasks: created });
+        admissions.set(operation, key(owner));
+        try { return await operation; } finally { admissions.delete(operation); }
       },
       async list(owner: Owner) { check(owner); trace('list-tasks'); return structuredClone(tasks.filter(task => task.owner === key(owner)).map(task => task.value)); },
       async cancel(owner: Owner, taskId: string) {
         const task = getTask(taskId);
         if (task.owner !== check(owner)) throw Object.assign(new Error('Wrong owner'), { code: 'owner_released' });
-        if (task.automatic) task.automatic.apiKey = undefined;
+        if (!active(task.value.status)) return structuredClone(task.value);
+        task.automatic = undefined;
+        releaseKnowledge(task);
         task.value = { ...task.value, status: 'cancelled', automaticTranslation: undefined, updatedAt: new Date().toISOString() }; trace('cancel-task', { taskId }); return structuredClone(task.value);
       },
       async remove(owner: Owner, taskId: string) {

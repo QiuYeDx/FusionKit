@@ -18,7 +18,7 @@ const errorKeys = {
   encoding_required: 'studio:errors.encoding_required', limit_exceeded: 'studio:errors.limit_exceeded',
   revision_conflict: 'studio:errors.revision_conflict', access_denied: 'studio:errors.access_denied',
   document_unavailable: 'studio:errors.document_unavailable', output_write_failed: 'studio:errors.output_write_failed',
-  needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable',
+  knowledge_check_failed: 'studio:errors.knowledge_check_failed', needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable',
   translation_output_limit: 'studio:errors.translation_output_limit', translation_failed: 'studio:errors.translation_failed',
   transcription_failed: 'studio:errors.transcription_failed', resource_busy: 'studio:errors.resource_busy',
   interrupted: 'studio:errors.interrupted',
@@ -113,11 +113,12 @@ function TranslationTaskControls({ page, busy, onChanged, onError, task }: Props
     } finally { operation.current = false; if (mounted.current) setActivity(null); }
   };
 
-  const hasNote = (stopped && !progress.checkpoint) || (waiting && (running || recoverable)) || task.status === 'cancelled';
+  const showMissingCheckpoint = stopped && !progress.checkpoint && progress.error !== 'knowledge_check_failed';
+  const hasNote = showMissingCheckpoint || (waiting && (running || recoverable)) || task.status === 'cancelled';
   if (!hasNote && !recoverable && !canCancel) return null;
 
   return <div className="studio-translation-task-controls">
-    {stopped && !progress.checkpoint && <span className="studio-translation-task-note">{t('studio:translation.legacy_restart')}</span>}
+    {showMissingCheckpoint && <span className="studio-translation-task-note">{t('studio:translation.legacy_restart')}</span>}
     {waiting && (running || recoverable) && <span className="studio-translation-task-note"><Clock3 className="size-3.5" />{t('studio:translation.provider_wait', { seconds: seconds.toLocaleString(i18n.language) })}</span>}
     {task.status === 'cancelled' && <span className="studio-translation-task-note">{t('studio:translation.cancelled_preserved')}</span>}
     {recoverable && <Button ref={trigger} variant="outline" size="sm" disabled={busy || pending || otherRunning} onClick={() => { setError(null); setOpen(true); }}><Play />{t('studio:translation.resume')}</Button>}

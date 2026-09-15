@@ -44,7 +44,7 @@ import './studio.css';
 const errorKeys: Record<ErrorCode, string> = {
   resource_busy: 'studio:errors.resource_busy',
   translation_output_limit: 'studio:errors.translation_output_limit',
-  needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable', translation_failed: 'studio:errors.translation_failed', interrupted: 'studio:errors.interrupted',
+  knowledge_check_failed: 'studio:errors.knowledge_check_failed', needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable', translation_failed: 'studio:errors.translation_failed', interrupted: 'studio:errors.interrupted',
   transcription_failed: 'studio:errors.transcription_failed',
   invalid_input: 'studio:errors.invalid_input', unsupported_feature: 'studio:errors.unsupported_feature', encoding_required: 'studio:errors.encoding_required', limit_exceeded: 'studio:errors.limit_exceeded', revision_conflict: 'studio:errors.revision_conflict', access_denied: 'studio:errors.access_denied', document_unavailable: 'studio:errors.document_unavailable', output_write_failed: 'studio:errors.output_write_failed',
 };
@@ -617,7 +617,7 @@ export default function SubtitleStudio() {
                 <div className="studio-document-meta text-[11px] text-muted-foreground">
                   <Badge variant="outline" className="font-mono text-[10px] font-normal">{page.summary.origin.format.toUpperCase()}</Badge>
                   {'encoding' in page.summary.origin && <span>{page.summary.origin.encoding.toUpperCase()}</span>}
-                  <span>{track ? t(track.origin === 'imported' ? 'studio:translation_imported' : 'studio:translation_unreviewed') : t('studio:source_only')}</span>
+                  <span>{t(track?.origin === 'imported' ? 'studio:translation_imported' : track && page.summary.translationStatus !== 'none' ? 'studio:translation_unreviewed' : 'studio:source_only')}</span>
                 </div>
               </div>
               {diagnostics.length > 0 && <details className="studio-diagnostics border-t bg-muted/30" key={page.summary.id}><summary><AlertCircle className="text-amber-600 dark:text-amber-400" /><span>{t('studio:document_checks')}</span><Badge variant="secondary" className="font-mono text-[10px]">{page.summary.diagnostics.length}</Badge><ChevronDown className="studio-disclosure" /></summary><ul>{diagnostics.map(([code, count]) => <li key={code}><span>{t(diagnosticKeys[code])}</span><span className="shrink-0 font-mono text-[10px]">{count}</span></li>)}</ul></details>}

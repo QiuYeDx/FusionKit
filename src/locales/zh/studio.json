@@ -264,7 +264,8 @@
     "transcription_failed": "转写失败，请检查媒体和本地资源后重试。",
     "interrupted": "翻译已中断，已完成的译文已保留。",
     "resource_busy": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。",
-    "translation_record_unavailable": "执行记录缺失、损坏或与当前版本不兼容，无法安全继续。已有译文已保留；请修复记录或重新创建翻译。"
+    "translation_record_unavailable": "执行记录缺失、损坏或与当前版本不兼容，无法安全继续。已有译文已保留；请修复记录或重新创建翻译。",
+    "knowledge_check_failed": "自动翻译资料检查未通过。原字幕已保留；请打开翻译页，重新选择资料并检查。"
   },
   "diagnostics": {
     "empty_document": "没有带时间的字幕正文",
@@ -390,7 +391,7 @@
     "auto_translation_configuration": "请选择可用翻译模型并填写目标语言。",
     "auto_translation_pending": "转写完成后将创建翻译任务",
     "auto_translation_admitted": "自动翻译已交接，可在文档中查看进度",
-    "auto_translation_recovery": "字幕已保存，自动翻译需在文档中恢复",
+    "auto_translation_recovery": "字幕已保留，但自动翻译尚未开始。请打开字幕，在翻译页检查模型、资料或其他设置后继续。",
     "media_drop_hint": "松开以添加音视频",
     "media_drop_busy": "当前正在处理选入或提交，请稍候",
     "configuration": "转写设置",
@@ -514,7 +515,7 @@
     "cancel_result": "已请求取消 {{count}} 项，{{failed}} 项失败，{{skipped}} 项状态已变化。任务将在实际停止后显示为已结束。",
     "auto_translation_pending_short": "自动翻译",
     "auto_translation_admitted_short": "翻译已交接",
-    "auto_translation_recovery_short": "翻译待恢复",
+    "auto_translation_recovery_short": "自动翻译需处理",
     "clear_completed_hint": "仅移除成功记录，保留字幕文档",
     "clear_terminal_hint": "包含成功、失败和取消；保留字幕文档"
   },

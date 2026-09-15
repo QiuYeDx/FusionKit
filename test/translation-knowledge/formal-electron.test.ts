@@ -255,7 +255,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await ui.getByTestId('knowledge-entry-purge').click();
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
       await uiExpect(maintenance.getByRole('checkbox')).toBeDisabled();
-      await uiExpect(ui.getByTestId('knowledge-maintenance-reference-blocker')).toContainText('仍有执行记录保留这些资料');
+      await uiExpect(ui.getByTestId('knowledge-maintenance-reference-blocker')).toContainText('仍有任务或历史记录保留这些资料');
       await uiExpect(maintenance).toContainText('历史保留引用');
       await ui.getByTestId('knowledge-maintenance-tasks').scrollIntoViewIfNeeded();
       await capture('maintenance-purge-blocked');

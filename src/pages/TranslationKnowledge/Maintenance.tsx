@@ -14,6 +14,7 @@ import type { Diagnostic } from "@/translation-knowledge/validation";
 import { Check, ErrorNotice, KnowledgeDialog, Pagination } from "./Controls";
 import { PAGE_SIZE, isSourceUnreferenced, maintenanceCommitFor } from "./model";
 import { diagnosticKey } from './labels';
+import { knowledgeReferenceKey } from '@/translation-knowledge/task-reference-contract';
 
 export function MaintenanceDialog({
   preview,
@@ -167,9 +168,9 @@ export function MaintenanceDialog({
         <h3 className="text-sm font-medium">{t("maintenance.related_records", { count: preview.tasks.total })}</h3>
         <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.task_references_help")}</p>
         {preview.tasks.unknownDocuments > 0 && <p role="status" className="text-xs leading-5 text-destructive">{t("maintenance.task_references_unknown", { count: preview.tasks.unknownDocuments })}</p>}
-        {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <details key={`${task.documentId}:${task.recordId}`} className="min-w-0 rounded-md border p-3">
-          <summary className="cursor-pointer text-xs [overflow-wrap:anywhere]">{task.displayName} · {t(task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</summary>
-          <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">{t("maintenance.record_id", { id: task.recordId })}</p>
+        {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <details key={knowledgeReferenceKey(task)} className="min-w-0 rounded-md border p-3">
+          <summary className="cursor-pointer text-xs [overflow-wrap:anywhere]">{task.displayName || t('maintenance.automatic_queue')} · {t(task.kind === 'automatic_preparation' ? 'maintenance.automatic_preparation' : task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</summary>
+          <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">{task.kind === 'automatic_preparation' ? t('maintenance.automatic_preparation_help') : t("maintenance.record_id", { id: task.recordId })}</p>
           <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
             {task.resources.map(resource => {
               const record = snapshot.data[resource.group].find(item => item.id === resource.id);

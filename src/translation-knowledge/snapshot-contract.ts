@@ -35,10 +35,10 @@ const same = (a: unknown, b: unknown) => sha256Canonical(a) === sha256Canonical(
 const invalid = (): never => { throw new TypeError('Invalid frozen knowledge snapshot'); };
 
 /** Capture every selected candidate and dependency, including excluded/untrusted
- * entries. A historical parent is provenance, not an instruction to read it. */
-export function buildFrozenKnowledgeSnapshot(library: LibrarySnapshot, input: KnowledgeSelection,
-  documentTopicIds: string[], batches: Record<string, CompiledKnowledge>): FrozenKnowledgeSnapshot {
-  const selection = normalizeKnowledgeSelection(input);
+ * entries. A historical parent is provenance, not an instruction to read it.
+ * This closure is also used before transcription, when no cue or batch exists. */
+export function captureKnowledgeSelectionData(library: LibrarySnapshot, selection: KnowledgeSelection,
+  documentTopicIds: string[]): Pick<LibrarySnapshot, 'data' | 'approvals'> {
   const included = new Set<string>(), records = new Map<string, { group: EntityGroup; entity: KnowledgeEntity }>();
   for (const group of ENTITY_ARRAYS) for (const entity of library.data[group]) records.set(entity.id, { group, entity });
   const add = (group: EntityGroup, entityId: string): void => {
@@ -76,6 +76,13 @@ export function buildFrozenKnowledgeSnapshot(library: LibrarySnapshot, input: Kn
   delete data.extensions; // Library-wide extension data is unrelated to this selection.
   for (const group of ENTITY_ARRAYS) (data[group] as KnowledgeEntity[]) = structuredClone(library.data[group].filter(entity => included.has(entity.id)));
   const approvals = Object.fromEntries(data.entries.filter(entry => library.approvals[entry.id]).map(entry => [entry.id, structuredClone(library.approvals[entry.id])]));
+  return { data, approvals };
+}
+
+export function buildFrozenKnowledgeSnapshot(library: LibrarySnapshot, input: KnowledgeSelection,
+  documentTopicIds: string[], batches: Record<string, CompiledKnowledge>): FrozenKnowledgeSnapshot {
+  const selection = normalizeKnowledgeSelection(input);
+  const { data, approvals } = captureKnowledgeSelectionData(library, selection, documentTopicIds);
   const policyVersion = Object.values(batches)[0]?.policyVersion;
   if (!policyVersion) invalid();
   const base = { version: 1 as const, generation: library.generation, policyVersion: policyVersion!, selection: structuredClone(selection),
