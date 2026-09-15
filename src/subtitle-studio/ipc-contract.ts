@@ -11,9 +11,13 @@ import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, Loca
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
 import type { SpeechResourcesStatus } from '../speech-resources/events';
 import { knowledgeTrialRequestSchemas, type KnowledgeTrialPreview, type KnowledgeTrialResult } from './knowledge-trial-contract';
+import { knowledgeTranslationRequestSchemas, type KnowledgeTranslationPreview } from './knowledge-translation-contract';
 import { readExecutionRecordSchema, type ExecutionRecordPage } from './execution-view-contract';
 
 export const STUDIO_CHANNELS = {
+  planKnowledgeTranslation: 'subtitle-studio:plan-knowledge-translation',
+  createKnowledgeTranslation: 'subtitle-studio:create-knowledge-translation',
+  cancelKnowledgeTranslationPlan: 'subtitle-studio:cancel-knowledge-translation-plan',
   readExecutionRecord: 'subtitle-studio:read-execution-record',
   planKnowledgeTrial: 'subtitle-studio:plan-knowledge-trial',
   runKnowledgeTrial: 'subtitle-studio:run-knowledge-trial',
@@ -90,6 +94,7 @@ export const droppedTranscriptionMediaRequestSchema = z.object({
 export const requestSchemas = {
   readExecutionRecord: readExecutionRecordSchema,
   ...knowledgeTrialRequestSchemas,
+  ...knowledgeTranslationRequestSchemas,
   ...transcriptionRequestSchemas,
   listTranslationTasks: z.object({ offset: z.number().int().min(0).max(100000000), pageSize: z.number().int().min(1).max(100), taskIds: z.array(idSchema).max(100).refine(ids => new Set(ids).size === ids.length).optional() }).strict(),
   revealSource: z.object({ kind: z.enum(['document', 'transcription']), id: idSchema }).strict(),
@@ -152,6 +157,9 @@ export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneratio
   | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
   readExecutionRecord(request: z.infer<typeof requestSchemas.readExecutionRecord>): Promise<StudioResult<ExecutionRecordPage>>;
+  planKnowledgeTranslation(request: z.infer<typeof requestSchemas.planKnowledgeTranslation>): Promise<StudioResult<KnowledgeTranslationPreview>>;
+  createKnowledgeTranslation(request: z.infer<typeof requestSchemas.createKnowledgeTranslation>): Promise<StudioResult<{ taskId: string }>>;
+  cancelKnowledgeTranslationPlan(request: z.infer<typeof requestSchemas.cancelKnowledgeTranslationPlan>): Promise<StudioResult<null>>;
   planKnowledgeTrial(request: z.infer<typeof requestSchemas.planKnowledgeTrial>): Promise<StudioResult<KnowledgeTrialPreview>>;
   runKnowledgeTrial(request: z.infer<typeof requestSchemas.runKnowledgeTrial>): Promise<StudioResult<KnowledgeTrialResult>>;
   cancelKnowledgeTrial(request: z.infer<typeof requestSchemas.cancelKnowledgeTrial>): Promise<StudioResult<null>>;

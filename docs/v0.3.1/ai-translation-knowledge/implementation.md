@@ -4,6 +4,8 @@
 
 分支：`codex/feat-subtitle-ai-knowledge`；起点：`f20ab93`。协调与集成：主任务。沿用现有设计作为权威需求，不复制另一份字段规范。
 
+最新完成范围见文末 P1.2b：单文件正式知识翻译、冻结追溯与资料清除保护；批量/自动知识选用、独立翻译器适配及校对积累尚未完成。
+
 ## 已完成增量 P0.1：协议与资料文件往返
 
 目标：用户能通过应用界面创建/导入资料，查看和审核，备份全部当前资料或分享选中资料集；外部 Agent 可用同一协议的便携校验器和 Skill 生成文件。尚不把知识加入翻译请求。
@@ -237,4 +239,58 @@ P0.2 已提交为 `422fa7b`；P1.1 已按用户要求提交为 `4853222`，未�
 
 按项目避坑流程新增 FK-PIT-0156，记录“私有执行记录语义失败不能让当前有效文档回退”与未开始批次模板冻结、验证成本分层的规则。所有本轮 Electron/HTTP/Vitest 进程已退出，进程表只见用户其他项目原有 Vite，未处理该实例。
 
-P1.1 已提交为 `4853222`，本轮 P1.2a 新增尚未再次提交或推送，保留在 `codex/feat-subtitle-ai-knowledge`。下一增量先完善完整知识版本快照、资料任务引用索引与清除协调，再把正式工作台单文件/批量/自动任务接入资料选用，随后适配独立字幕翻译器；本轮未启用正式知识增强，也未进行真实模型翻译质量对照评测。
+P1.1 已提交为 `4853222`，P1.2a 已提交为 `bbf572a`，尚未推送，保留在 `codex/feat-subtitle-ai-knowledge`。下一增量先完善完整知识版本快照、资料任务引用索引与清除协调，再把正式工作台单文件/批量/自动任务接入资料选用，随后适配独立字幕翻译器；本轮未启用正式知识增强，也未进行真实模型翻译质量对照评测。
+
+
+## 已完成增量 P1.2b：单文件正式知识翻译与资料引用保护（2026-09-14）
+
+授权沿用用户“提交一下代码，然后继续推进后续的开发工作”。本增量完成工作台单文件从选资料、全文检查、正式翻译到执行追溯、恢复和清除保护的闭环；批量/自动任务及独立翻译器的资料选用后续接入，原有普通翻译行为继续兼容。
+
+验收条件：全文按最多 20 句的分析窗口检查，统一投影与批次编号；明确的全文主题可覆盖全文，片段说话者/提及/条件确认不得扩散。完整资料版本、依赖、来源、采用状态、每批包含与排除原因随执行记录冻结；恢复不读取当前资料或重新编译。正式准入/恢复与永久清除最终核验共享串行门，运行引用保留至物理请求结束；维护列出 current/previous 快照及活动任务引用，损坏/遗漏状态标未知并禁止清除。保存前检查未来请求增长预算，全文超限明确阻止全部任务，不悄悄截断。真实 Electron 验证超过 20 句的正式流程、记录查看、维护阻止及原有试译/恢复兼容；使用本地模型 fixture，不宣称真实翻译质量评测完成。
+
+UI 设计沿用现有资料检查弹窗与执行记录查看器：片段试译/全文翻译为明确模式；设置在前、范围说明与检查结果随后、底部提交动作固定。全文主题独立呈现，片段角色与条件标明范围。维护沿用现有影响预览，在原任务追踪提示位置列出关联记录与未知数量。四语言、窄窗、深浅主题及真实滚动区域纳入最终审查。
+
+| 任务 | 负责人 / 写集 | 状态 |
+| --- | --- | --- |
+| T17 冻结完整知识契约、依赖闭包与记录校验 | root：snapshot-contract、execution-record-contract、相应测试 | 已完成 |
+| T18 磁盘引用盘点、共享门与维护核验 | p1_legacy_scout：repository inventory helper、task-gate、KnowledgeService/maintenance contract、相应测试 | 已完成 |
+| T19 全文规划、正式准入、冻结恢复与活动引用 | p1_studio_scout：knowledge-planner/translation service、trial 重用、execution-records、相应测试 | 已完成 |
+| T20 单文件资料正式翻译入口 | knowledge_ui：StudioKnowledgeTrial、StudioTranslation；locale 提案交 root | 已完成 |
+| T21 IPC/组合、追溯和维护 UI、四语言、整体验证与证据 | root：main/preload/contracts、ExecutionRecord/Maintenance、locales、审计与本文档 | 已完成 |
+
+共享门不得在供应商网络调用期间持有。磁盘盘点独立读取 current/previous，不能借用会清理或略过墓碑的列表接口；已发布清除回执重试保持幂等。完整快照不进入 FK-TK/1 便携协议，仍由任务记录保存；文件知识协议、Skill 和生成产物保持兼容。实体根级元数据不复制到执行子集，实体自身及原包头元数据保留。正式全文本轮最多 2000 个非空 cue；累计工作与存储预算也会独立限制，超限给出明确错误。
+
+
+### P1.2b 最终实现与边界
+
+工作台“翻译 → 检查资料并试译”内可切换“全文翻译”，选择全文主题、检查全部字幕并创建正式任务。先前片段里的主题/人物/条件仍只作用于原字幕；全文主题只增加 topic 事实，不推断 speaker 或 mentioned。每个分析窗口最多 20 条，全文统一 u/b 编号；窗口交界仍读取前后原文，并预留前批已提交 AI 译文。正式新建 AI 轨显式记录 `origin: ai`，旧轨识别保持兼容。
+
+完整知识快照保存所有选中资料集候选（包括未采用/不支持/未命中项）、方案、风格、规则、对象、来源及历史派生证据依赖；保留实体身份/修订/扩展、原包头和本机采用状态。历史父条目的身份只是出处，不自动读取父正文；库根级扩展不进入任务子集。每批保存编译结果和排除原因。快照、记录、作用范围、来源和实际 HTTP 请求相互校验；恢复不调用当前库或提示词编译。实际请求只允许按固定策略补入前批译文，不覆盖既有请求。查看器按批读取并核对该批正文，显示具体适用原文和来源；任务列表清理不删除译文轨上的记录。
+
+新执行策略为 `studio-knowledge-translation/1;request-body/1`，保留普通 `studio-translation/2;request-body/1`。规划限 2000 条非空字幕、128 MiB 累计扫描估算与候选序列化工作量、16 MiB prepared、32 MiB 计划缓存、15 分钟有效期；超限拒绝整份计划。每文档执行记录聚合 32 MiB/文档 128 MiB 上限不变；准入提前计算所有未来实际请求静态副本及每批最多 4096 字节增长，动态前批译文最多 512 tokens，空间不足时整条移除前批上下文，不截断必要资料。
+
+维护预览合并 current/previous 两代和活动请求的资料引用，最多列出 50 条关联记录，显示实际总数。永久清除按实体 ID 匹配全部版本；预览后出现新引用使计划失效，提交在共享门内重新盘点。损坏/未知版本或策略、遗漏依赖、额外 generation、符号链接、删除残留、扫描失败/上限均记为未知并阻止清除；不通过会清理/跳过记录的列表接口推断“无引用”。盘点预算为 1000 份文档、10000 个文件、256 MiB 累计读取、5000 条记录、100000 项引用。取消任务或删除文档后，物理请求未结束仍持有引用；共享门不等待网络响应。已发布清除的回执重试优先返回既有结果。
+
+尚未提供单独清理执行记录历史快照的界面，因此删除译文轨后 previous 仍可能保留引用并阻止资料永久清除；归档仍可用。当前实现不包含批量/自动资料选用、独立翻译器接入、表达/参考译文检索或积累、真实供应商翻译质量对照评测、Windows 原生及长片规模性能验收。FK-TK/1 文件协议、便携校验器和外部 Agent Skill 保持兼容，未引入云端依赖。
+
+
+### 2026-09-14 P1.2b 验证结果
+
+| 检查 | 结果 |
+| --- | --- |
+| 相关模块回归 | `node node_modules/vitest/vitest.mjs run test/translation-knowledge test/subtitle-studio/execution-record.test.ts test/subtitle-studio/knowledge-trial.test.ts test/subtitle-studio/knowledge-translation.test.ts test/subtitle-studio/knowledge-references.test.ts test/subtitle-studio/ipc.test.ts test/subtitle-studio/translation-service.test.ts test/subtitle-studio/translation-recovery.test.ts test/subtitle-studio/translation-checkpoint.test.ts test/subtitle-studio/repository.test.ts test/subtitle-studio/batch-service.test.ts test/subtitle-studio/automatic-translation.test.ts test/subtitle-studio/bilingual-service.test.ts test/subtitle-studio/boundaries.test.ts --maxWorkers=4 --minWorkers=1`：497 项通过，5 项默认跳过（3 个显式 Electron 场景、2 个 Windows 专用场景），16.62 秒 |
+| 最后查看器改动 | `execution-record.test.ts` + `ipc.test.ts`：52 项通过，2 个 Windows 跳过；补充具体作用原文后通过，最终界面另以 Electron 复验 |
+| 原有片段试译 | `FUSIONKIT_KNOWLEDGE_E2E=1 node node_modules/vitest/vitest.mjs run test/translation-knowledge/formal-electron.test.ts test/translation-knowledge/trial-electron.test.ts --maxWorkers=1 --minWorkers=1`：2 场景通过，30.39 秒；原试译的取消、格式失败、重开、正式文档不变继续通过 |
+| 最终构建真实 Electron | `FUSIONKIT_KNOWLEDGE_E2E=1 FUSIONKIT_STUDIO_E2E=1 node node_modules/vitest/vitest.mjs run test/translation-knowledge/formal-electron.test.ts test/subtitle-studio/translation-recovery-ui.test.ts --maxWorkers=1 --minWorkers=1`：2 场景通过，62.57 秒 |
+| TypeScript / 构建 / preload | `tsc --noEmit`、`vite build --mode=test` 三段构建、`check-preload-bundle.mjs` 通过；既有 bundle 大小/混合导入提示保留 |
+| 四语言 | `check-i18n.mjs`、`check-i18n-usage.mjs` 通过，2978 key 四语言齐全；21 个既有同值提示 |
+| 协议、边界、来源 | FK-TK/1 的 3 个便携产物一致；工作台 479 文件、0 边界错误；120 个冻结副本和执行器 1 文件/26 依赖通过。仅按评审结果加入 3 个精确中立基础设施与已安装 radio 包的边界许可，并更新 current composition 审计 |
+| 差异、依赖与进程 | `git diff --check` 通过；未更改依赖/lockfile、未调用 pnpm。最终进程表无本轮 Electron/Vitest/模型 fixture，只见用户其他项目原有 Vite，未处理该实例 |
+
+本增量新增 73 个非 UI 测试：知识快照 20、磁盘引用 23、清除/串行门 8、正式翻译 19、IPC 2、请求查看反例 1。覆盖完整依赖闭包与文件往返、重算摘要仍无法绕过的选择/作用范围/请求交叉校验、43 句跨窗口与两个 HTTP 格式、资料和当前 builder 改变后失败批次原字节及第三批未发送模板恢复、清理任务/文档后迟到供应商引用、容量增长预检、owner/过期/取消/伪造参数，以及引用盘点的损坏/残留/未知/预算反例。没有将 token 预算或本地 fixture 译文当作真实模型质量评测。
+
+最终 Electron 使用 macOS、Node 20.19.5、Electron 41.10.6、Vitest 2.1.9，隔离临时 profile 与本地 HTTP fixture。24 句分两批，术语仅作用于 u1/u21，u1 的人物/条件不扩散至第二窗口；改变全文主题使计划失效。开始正式任务后记录实际正文与服务器捕获字节一致，查看第二批与来源；清理任务后仍可查看，当前资料归档后快照不变，永久清除显示引用且不可勾选确认。旧恢复场景完成真实 Electron 中断重启、原模型修复、精确请求复用和迟到响应丢弃。
+
+主任务实际审阅浅色完整表单、深色窄窗全文统计、展开术语与证据/适用原文、永久清除关联记录；界面 Agent 独立复查四张图。发现并修复全文模式复用“片段/试译”的限定文案、受引用阻止时确认框仍可勾选且原因靠后的问题；最终构建重新运行正式流程并查看修补后的截图。1280×860 和 820×700 下控件、固定底栏、分页和正文换行正常，无横向溢出；全局 loading 已退出。英文普通记录窄窗由恢复场景覆盖，四语言新增文案完成静态 key/调用点检查。最终截图在忽略目录 `test-results/translation-knowledge-formal/` 与 `test-results/subtitle-studio-recovery/`，包含全文配置/检查、资料证据、原始 HTTP、任务清理后记录及维护引用。
+
+沿项目避坑流程新增 FK-PIT-0157，保存“完整保留代盘点 + 物理请求引用 + 最终清除串行核验”的实现与验证规则。上一轮 P1.2a 已按请求提交 `bbf572a`；本轮 P1.2b 新增保留未提交，未推送。下一增量优先接入批量/自动知识选用与一致的选用交互，再适配独立翻译器；长文件预算、显式记录历史清理及真实模型质量评测继续独立跟踪。

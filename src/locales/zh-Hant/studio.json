@@ -649,6 +649,17 @@
     "http_body": "精確 HTTP 請求內容",
     "policy_version": "執行策略版本",
     "request_saved_at": "請求儲存時間",
-    "unknown": "未知"
+    "unknown": "未知",
+    "knowledge_title": "本批資料依據",
+    "knowledge_help": "保存了 {{count}} 項資料及依賴的版本。這裡顯示建立任務時的檢查結果，後續資料修改不會改變這些記錄；納入資料不代表請求已經傳送。",
+    "knowledge_topics": "全文主題",
+    "knowledge_guidance": "實際翻譯要求與背景",
+    "knowledge_digest": "資料快照摘要",
+    "knowledge_included": "納入條目（{{count}}）",
+    "knowledge_required": "必要約束",
+    "knowledge_reference": "參考資料",
+    "knowledge_scope": "修訂 {{revision}} · 適用於本批 {{count}} 條字幕",
+    "knowledge_issues": "排除原因與提醒（{{count}}）",
+    "knowledge_cue_count": "涉及本批 {{count}} 條字幕"
   }
 }

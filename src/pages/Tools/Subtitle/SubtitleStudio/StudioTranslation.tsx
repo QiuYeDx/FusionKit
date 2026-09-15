@@ -100,6 +100,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   const [maxBatchCues, setMaxBatchCues] = useState('32');
   const [plan, setPlan] = useState<{ identity: string; value: TranslationPlanSummary } | null>(null);
   const [activity, setActivity] = useState<'plan' | 'start' | null>(null);
+  const [knowledgeStarting, setKnowledgeStarting] = useState(false);
   const [error, setError] = useState<ErrorCode | null>(null);
   const operation = useRef(false);
   const mounted = useRef(true);
@@ -134,7 +135,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   } : currentPlan;
   const activeTask = page?.tasks.some(task => task.status === 'queued' || task.status === 'running') ?? false;
   const unavailable = batch ? !documents?.length || documents.length > STUDIO_BATCH_LIMIT : !page?.summary.capabilities.translate || page.summary.cueCount === 0;
-  const pending = activity !== null;
+  const pending = activity !== null || knowledgeStarting;
   const needsConfiguration = !model.success || !selected?.apiKey.trim();
   const canPlan = !busy && !pending && !activeTask && !unavailable && !needsConfiguration && config.success;
   const reportError = (failure: unknown) => {
@@ -265,7 +266,10 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           <ToolField label={t('studio:translation.instructions')} htmlFor={`${controlId}-instructions`}>
             <Textarea id={`${controlId}-instructions`} className="studio-translation-instructions text-xs" value={instructions} onChange={event => setInstructions(event.target.value)} maxLength={4000} disabled={pending} />
           </ToolField>
-          {!batch && page && config.success && <StudioKnowledgeTrial key={page.summary.id} page={page} config={config.data} apiKey={selected?.apiKey ?? ''} disabled={pending || busy || activeTask || unavailable} />}
+          {!batch && page && config.success && <StudioKnowledgeTrial key={page.summary.id} page={page} config={config.data} apiKey={selected?.apiKey ?? ''} disabled={pending || busy || activeTask || unavailable} onAdmissionChange={value => { if (mounted.current) setKnowledgeStarting(value); }} onStarted={taskId => {
+            getStudioTranslationOverviewController().trackStarted([taskId]);
+            if (mounted.current) { setOpen(false); setPlan(null); onStarted(); }
+          }} />}
           <ToolConfigDisclosure testId="studio-translation-advanced" className="studio-translation-advanced border-b-0" icon={SlidersHorizontal} title={t('studio:translation.advanced')}>
             <div className="studio-translation-budget-fields">
               <ToolField label={t('studio:translation.context_window')} htmlFor={`${controlId}-context`}>

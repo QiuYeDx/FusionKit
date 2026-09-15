@@ -649,6 +649,17 @@
     "http_body": "精确 HTTP 请求正文",
     "policy_version": "执行策略版本",
     "request_saved_at": "请求保存时间",
-    "unknown": "未知"
+    "unknown": "未知",
+    "knowledge_title": "本批资料依据",
+    "knowledge_help": "保存了 {{count}} 项资料及依赖的版本。这里显示准入时的检查结果，后续资料修改不会改变这些记录；纳入资料不代表请求已经发送。",
+    "knowledge_topics": "全文主题",
+    "knowledge_guidance": "实际翻译要求与背景",
+    "knowledge_digest": "资料快照摘要",
+    "knowledge_included": "纳入条目（{{count}}）",
+    "knowledge_required": "必要约束",
+    "knowledge_reference": "参考资料",
+    "knowledge_scope": "修订 {{revision}} · 适用于本批 {{count}} 条字幕",
+    "knowledge_issues": "排除原因与提醒（{{count}}）",
+    "knowledge_cue_count": "涉及本批 {{count}} 条字幕"
   }
 }

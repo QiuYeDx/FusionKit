@@ -23,7 +23,7 @@ function fixture(apiFormat: 'chat_completions' | 'responses' = 'chat_completions
   const config = { model: { profileId: 'profile', modelKey: 'model', endpoint: 'https://example.com/v1', apiFormat }, language: 'zh-Hans', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 1 };
   const plan = planTranslation(doc, config);
   const record: ExecutionRecord = { version: 1, id: randomUUID(), documentId: doc.id, taskId: randomUUID(), trackId: randomUUID(), createdAt,
-    sourceDigest: sha('source'), configDigest: sha256Canonical(plan.config), policyVersion: 'studio-translation/1', plan, baseRequests: {}, requests: {} };
+    sourceDigest: sha('source'), configDigest: sha256Canonical(plan.config), policyVersion: 'studio-translation/2;request-body/1', plan, baseRequests: {}, requests: {} };
   return { doc, record };
 }
 async function prepared(apiFormat: 'chat_completions' | 'responses' = 'chat_completions') {
@@ -47,6 +47,17 @@ function snapshotFor(doc: ReturnType<typeof fixture>['doc'], record: ExecutionRe
 }
 
 describe('private translation execution records', () => {
+  it('refuses a saved body that disagrees with the frozen source even when its request checksum was recomputed', async () => {
+    const { doc, record } = await prepared();
+    const saved = requestFor(record), payload = JSON.parse(saved.request.messages[1].content);
+    payload.items[0].text = 'Different source';
+    saved.request.messages[1].content = JSON.stringify(payload);
+    saved.httpBody = serializeTranslationRequest(saved.request);
+    saved.digest = executionRequestDigest(saved);
+    record.requests[saved.batchId] = saved;
+    expect(validateExecutionRecord(record)).toEqual(record);
+    expect(readExecutionRecordPage(snapshotFor(doc, record), record.trackId, 0)).toEqual({ state: 'unavailable' });
+  });
   it.each(['chat_completions', 'responses'] as const)('returns one readable batch and the exact saved %s body, without reconstructing missing requests', async format => {
     const { doc, record } = await prepared(format);
     const saved = requestFor(record, 1, ['前一批机器译文']);

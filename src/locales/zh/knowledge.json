@@ -418,7 +418,9 @@
     "STYLE_NOT_READY": "风格引用的规则或关联资料尚不可用。",
     "RECIPE_STYLE_ARCHIVED": "方案中包含已归档风格。",
     "TERM_TRANSLATION_CONFLICT": "同一原词存在不同译法，请检查范围与来源。",
-    "TRIAL_ONLY_EXECUTION": "已采纳的背景、术语和规则可在字幕工作台中检查与独立试译。正式翻译与全局偏好继承尚未启用。"
+    "TRIAL_ONLY_EXECUTION": "已采纳的背景、术语和规则可在字幕工作台中检查与独立试译。正式翻译与全局偏好继承尚未启用。",
+    "PURGE_TASK_REFERENCED": "仍有执行记录保留这些资料。可以先归档；永久清除须等相关文档及历史记录不再保留这些资料后进行。",
+    "PURGE_TASK_SCAN_INCOMPLETE": "部分文档记录无法完整核验，目前不能确认资料已无引用。请先处理不可用文档或残留记录。"
   },
   "languages": {
     "ja": "日语",
@@ -498,13 +500,22 @@
       "referenced": "仍被其他资料引用",
       "unavailable": "资料暂不可用"
     },
-    "imports_losing_undo": "查看将失去撤销能力的导入"
+    "imports_losing_undo": "查看将失去撤销能力的导入",
+    "related_records": "关联执行记录（{{count}}）",
+    "task_references_help": "当前任务和历史保留的执行记录都可能引用这些资料，并阻止永久清理。存在引用只表示记录保留了资料，不表示所有内容都已发送给模型。",
+    "task_references_unknown": "有 {{count}} 份文档无法完整检查关联记录；目前不能确认资料已无引用。",
+    "record_active": "当前任务引用",
+    "record_retained": "历史保留引用",
+    "record_id": "执行记录：{{id}}",
+    "record_resource": "{{group}} · {{title}} · 修订 {{revision}}",
+    "no_related_records": "未发现关联的执行记录。",
+    "records_limited": "显示 {{count}} / {{total}} 条关联记录。"
   },
   "trial": {
     "open": "资料检查与试译",
     "title": "资料检查与独立试译",
     "description": "选择本次资料，检查适用范围，再试译最多 20 句。结果仅保留在此窗口。",
-    "language_help": "请明确所选片段的原文语言与目标语言。此处不自动识别混合语言；简体与繁体分别匹配。",
+    "language_help": "请明确字幕的原文语言与目标语言。此处不自动识别混合语言；简体与繁体分别匹配。",
     "recipe": "翻译方案",
     "no_recipe": "自行选择资料",
     "collections": "本次使用的资料集",
@@ -542,7 +553,7 @@
       "style_unavailable": "方案风格所需规则尚不可用。",
       "language_mismatch": "语言或翻译方向不匹配。",
       "untrusted": "尚未在本机采纳此版本，未使用。",
-      "unsupported_kind": "当前试译暂不检索表达和参考译文。",
+      "unsupported_kind": "当前翻译暂不使用表达和参考译文。",
       "subject_unbound": "必要主题或人物角色尚未确认，未使用。",
       "speaker_conflict": "同句有多个确定说话者，请调整范围。",
       "condition_unconfirmed": "额外条件尚未在这些句子中确认，未使用。",
@@ -556,5 +567,28 @@
       "required_term_suspect": "强制术语的字面译法未找到，请人工复核。"
     },
     "materials_changed": "资料已更新，旧的适用条件确认已清除。请核对后重新检查。"
+  },
+  "full": {
+    "mode": "翻译范围",
+    "mode_trial": "片段试译",
+    "mode_document": "全文翻译",
+    "title": "使用资料翻译全文",
+    "description": "检查当前文件的全部字幕（最多 2,000 条非空字幕），使用所选资料、方案和要求创建翻译任务。",
+    "topics": "全文主题（已选 {{count}} / 20）",
+    "topics_help": "仅勾选整份字幕共同围绕的对象，最多 20 个。它们只作为全文主题，不代表每条字幕的说话人或提及对象；留空时不添加全文主题。",
+    "no_topics": "资料库中还没有可选择的内容对象。",
+    "scope_help": "片段中指定的主题、说话人、提及对象和条件确认只作用于原来那些字幕，不会扩展到全文。需要调整时，可先切回片段试译选择和检查字幕。",
+    "other_page_cue": "其他页字幕 · {{id}}",
+    "plan_expired": "检查结果已失效，请重新检查后再开始。",
+    "ready": "全文检查通过",
+    "needs_attention": "请先处理检查中的错误",
+    "cue_count": "字幕条数",
+    "resource_count": "关联资料记录",
+    "entry_count": "纳入资料条目",
+    "start_help": "开始后会新增翻译轨道和任务，可在翻译任务中查看进度或取消。片段试译的译文不会写入正式结果。",
+    "cost_help": "检查不会请求模型；开始全文翻译后会请求已配置的模型并产生相应费用。预计用量仅供参考，实际以模型服务返回为准。",
+    "check": "检查全文",
+    "run": "开始全文翻译",
+    "starting": "正在创建任务…"
   }
 }

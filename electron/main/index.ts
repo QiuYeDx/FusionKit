@@ -69,6 +69,7 @@ import {
 } from "@/type/localSubtitleIpc";
 import { TextTranslationService } from "./text-translation/text-translation-service";
 import { registerSubtitleStudio } from "./subtitle-studio";
+import { KnowledgeTaskSerialGate } from "./translation-knowledge/task-gate";
 import { registerTranslationKnowledge } from "./translation-knowledge";
 import { createSharedResourceApplicationShutdown, createResourceConsumerLifecycle } from "./app-shutdown";
 import { SpeechResourceService } from "./speech-resources/service";
@@ -284,12 +285,16 @@ app.whenReady().then(async () => {
   if (speechResourcesInitialized) await cleanupSpeechResourceSessionStartupOrphans({ managedResourceRoot: localSubtitleManagedResourceRoot });
   const detachSpeechResources = installSpeechResourceWindowBridge({ service: speechResources, ipc: ipcMain,
     getWindow: () => win, rendererUrl: VITE_DEV_SERVER_URL || pathToFileURL(indexHtml).href });
+  const knowledgeTaskGate = new KnowledgeTaskSerialGate();
   try { subtitleStudio = registerSubtitleStudio(speechResources, () => {
     if (!translationKnowledge) throw new Error('Translation knowledge unavailable');
     return translationKnowledge.readForExecution();
-  }); }
+  }, knowledgeTaskGate); }
   catch { console.error("Subtitle Studio initialization failed."); }
-  try { translationKnowledge = registerTranslationKnowledge(); }
+  try { translationKnowledge = registerTranslationKnowledge({ gate: knowledgeTaskGate, inspect: async () => {
+    if (!subtitleStudio) throw new Error('Subtitle Studio reference inventory unavailable');
+    return subtitleStudio.inspectKnowledgeReferences();
+  } }); }
   catch { console.error("Translation knowledge initialization failed."); }
   const localSubtitleInputAuthorizations =
     new LocalSubtitleInputAuthorizationRegistry();

@@ -649,6 +649,17 @@
     "http_body": "正確な HTTP リクエスト本文",
     "policy_version": "実行ポリシーの版",
     "request_saved_at": "リクエスト保存日時",
-    "unknown": "不明"
+    "unknown": "不明",
+    "knowledge_title": "このバッチの資料",
+    "knowledge_help": "資料と依存レコード {{count}} 件の版を保存しています。開始時の確認結果は後の資料変更に影響されません。採用はリクエストの送信済みを意味しません。",
+    "knowledge_topics": "全文の主題",
+    "knowledge_guidance": "適用する翻訳要件と背景",
+    "knowledge_digest": "資料スナップショットのダイジェスト",
+    "knowledge_included": "採用項目（{{count}} 件）",
+    "knowledge_required": "必須の制約",
+    "knowledge_reference": "参考資料",
+    "knowledge_scope": "リビジョン {{revision}} · このバッチの字幕 {{count}} 件に適用",
+    "knowledge_issues": "除外理由と注意（{{count}} 件）",
+    "knowledge_cue_count": "このバッチの字幕 {{count}} 件が対象"
   }
 }

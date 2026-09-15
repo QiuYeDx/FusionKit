@@ -13,6 +13,7 @@ import type {
 import type { Diagnostic } from "@/translation-knowledge/validation";
 import { Check, ErrorNotice, KnowledgeDialog, Pagination } from "./Controls";
 import { PAGE_SIZE, isSourceUnreferenced, maintenanceCommitFor } from "./model";
+import { diagnosticKey } from './labels';
 
 export function MaintenanceDialog({
   preview,
@@ -31,6 +32,7 @@ export function MaintenanceDialog({
   const [pending, setPending] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [page, setPage] = useState(0);
+  const [taskPage, setTaskPage] = useState(0);
   const [error, setError] = useState<KnowledgeErrorCode | "unexpected" | null>(
     null,
   );
@@ -102,6 +104,9 @@ export function MaintenanceDialog({
               : "maintenance.archive_help",
         )}
       </p>}
+      {preview.action === 'purge' && preview.blockers.some(item => item.code.startsWith('PURGE_TASK_')) && <div role="alert" data-testid="knowledge-maintenance-reference-blocker" className="space-y-2 rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
+        {preview.blockers.filter(item => item.code.startsWith('PURGE_TASK_')).map(item => <p key={item.code}>{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
+      </div>}
       <div className="space-y-1">
         {preview.items
           .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -153,14 +158,30 @@ export function MaintenanceDialog({
           <Check
             label={t("maintenance.confirm_history")}
             checked={confirmed}
-            disabled={pending}
+            disabled={pending || !preview.canCommit}
             onChange={setConfirmed}
           />
         </div>
       )}
-      <p className="text-xs text-muted-foreground">
-        {t("maintenance.tasks_not_connected")}
-      </p>
+      {preview.taskTracking === "connected" && preview.tasks ? <section data-testid="knowledge-maintenance-tasks" className="min-w-0 space-y-3 border-t pt-3">
+        <h3 className="text-sm font-medium">{t("maintenance.related_records", { count: preview.tasks.total })}</h3>
+        <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.task_references_help")}</p>
+        {preview.tasks.unknownDocuments > 0 && <p role="status" className="text-xs leading-5 text-destructive">{t("maintenance.task_references_unknown", { count: preview.tasks.unknownDocuments })}</p>}
+        {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <details key={`${task.documentId}:${task.recordId}`} className="min-w-0 rounded-md border p-3">
+          <summary className="cursor-pointer text-xs [overflow-wrap:anywhere]">{task.displayName} · {t(task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</summary>
+          <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">{t("maintenance.record_id", { id: task.recordId })}</p>
+          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {task.resources.map(resource => {
+              const record = snapshot.data[resource.group].find(item => item.id === resource.id);
+              const title = record ? "title" in record ? record.title : record.name : resource.id;
+              return <li key={`${resource.group}:${resource.id}:${resource.revision}`} className="[overflow-wrap:anywhere]">{t("maintenance.record_resource", { group: t(`group.${resource.group}`), title, revision: resource.revision })}</li>;
+            })}
+          </ul>
+        </details>)}
+        {!preview.tasks.total && !preview.tasks.unknownDocuments && <p className="text-xs text-muted-foreground">{t("maintenance.no_related_records")}</p>}
+        <Pagination page={taskPage} total={preview.tasks.items.length} onChange={setTaskPage} />
+        {preview.tasks.total > preview.tasks.items.length && <p className="text-xs text-muted-foreground">{t("maintenance.records_limited", { count: preview.tasks.items.length, total: preview.tasks.total })}</p>}
+      </section> : <p className="text-xs text-muted-foreground">{t("maintenance.tasks_not_connected")}</p>}
       <ErrorNotice
         error={
           stale

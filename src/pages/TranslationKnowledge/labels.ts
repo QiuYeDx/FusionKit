@@ -135,6 +135,8 @@ export function protocolKey(key: string) {
 }
 
 const DIAGNOSTIC_KEYS = {
+  "diagnostic.PURGE_TASK_REFERENCED": "diagnostic.PURGE_TASK_REFERENCED",
+  "diagnostic.PURGE_TASK_SCAN_INCOMPLETE": "diagnostic.PURGE_TASK_SCAN_INCOMPLETE",
   "diagnostic.TRIAL_ONLY_EXECUTION": "diagnostic.TRIAL_ONLY_EXECUTION",
   "diagnostic.CONFLICT_REVIEW_REQUIRED": "diagnostic.CONFLICT_REVIEW_REQUIRED",
   "diagnostic.LANGUAGE_TAG": "diagnostic.LANGUAGE_TAG",

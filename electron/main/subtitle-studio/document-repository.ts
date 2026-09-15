@@ -1,4 +1,4 @@
-import { lstat, mkdir, open, readdir, rename, rm } from 'node:fs/promises';
+import { lstat, mkdir, open, opendir, readdir, rename, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -9,6 +9,9 @@ import { assertExecutionRecordsSize, recordBaseDigest, validateExecutionRecord }
 import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/automatic-translation-contract';
 import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
 import { bindSourceLocation, validateSourceLocationRecord, SOURCE_LOCATION_FILE, type SourceLocationCapture, type SourceLocationRecord } from './source-location-service';
+import { knowledgeResourceReferences, validateFrozenKnowledgeSnapshot } from '../../../src/translation-knowledge/snapshot-contract';
+import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
+import type { KnowledgeReferenceInventory, KnowledgeTaskReference } from '../../../src/translation-knowledge/task-reference-contract';
 
 export type CommitStage = 'generation-write' | 'generation-sync' | 'generation-ready' | 'previous-ready' | 'current-write' | 'current-sync' | 'current-publish' | 'current-directory-sync' | 'create-cleanup' | 'delete-publish' | 'delete-cleanup';
 export type RepositoryEvent = { documentId: string; revision: number; sequence: number; deleted: boolean };
@@ -22,6 +25,11 @@ const pointerSchema = z.object({ generation: idSchema, digest: digestSchema.opti
 type Pointer = z.infer<typeof pointerSchema>;
 type CreationPublication = { identity: z.infer<typeof creationSchema>; published: boolean; durability: 'confirmed' | 'uncertain' };
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
+export const KNOWLEDGE_REFERENCE_SCAN_LIMITS = { documents: 1000, files: 10000, bytes: 256 * 1024 * 1024, records: 5000, resources: 100000 } as const;
+const deletedDocumentSchema = z.union([
+  z.object({ schemaVersion: z.literal(1), documentId: idSchema, revision: z.number().int().positive().safe() }).strict(),
+  z.object({ schemaVersion: z.literal(1), documentId: idSchema, kind: z.literal('unavailable') }).strict(),
+]);
 function validateRepositorySnapshot(value: unknown): DocumentSnapshot {
   const snapshot = validateSnapshot(value);
   const document = snapshot.document;
@@ -259,6 +267,137 @@ export class DocumentRepository {
   }
   readSnapshot(id: string): Promise<DocumentSnapshot> { return this.serial(async () => (await this.committed(id)).snapshot); }
   async read(id: string): Promise<SubtitleDocument> { return (await this.readSnapshot(id)).document; }
+  /** Read-only safety inventory. Unlike listSnapshot/committed, inspect both pointers,
+   * retain deletion remnants, and never hide an unreadable generation behind fallback. */
+  inspectKnowledgeReferences(): Promise<KnowledgeReferenceInventory> {
+    return this.serial(async () => {
+      const unknown = new Set<string>();
+      const references = new Map<string, KnowledgeTaskReference>();
+      const recordDigests = new Map<string, string>();
+      let files = 0, bytes = 0, records = 0, resources = 0, exhausted = false;
+      const limit = () => { exhausted = true; unknown.add('$limit'); throw new StudioError('limit_exceeded'); };
+      const names = async (directory: string): Promise<string[]> => {
+        await this.assertDirectory(directory);
+        const found: string[] = [];
+        for await (const entry of await opendir(directory)) {
+          if (++files > KNOWLEDGE_REFERENCE_SCAN_LIMITS.files) limit();
+          found.push(entry.name);
+        }
+        return found.sort();
+      };
+      const read = async (file: string, maxBytes: number): Promise<string> => {
+        const stat = await lstat(file);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size > maxBytes) throw new StudioError('document_unavailable');
+        bytes += stat.size;
+        if (bytes > KNOWLEDGE_REFERENCE_SCAN_LIMITS.bytes) limit();
+        return this.readFile(file, maxBytes);
+      };
+      const finish = (): KnowledgeReferenceInventory => {
+        const items = [...references.values()].sort((a, b) => `${a.documentId}:${a.recordId}` < `${b.documentId}:${b.recordId}` ? -1 : `${a.documentId}:${a.recordId}` > `${b.documentId}:${b.recordId}` ? 1 : 0);
+        for (const item of items) item.resources.sort((a, b) => `${a.group}:${a.id}:${a.revision}:${a.digest}` < `${b.group}:${b.id}:${b.revision}:${b.digest}` ? -1 : `${a.group}:${a.id}:${a.revision}:${a.digest}` > `${b.group}:${b.id}:${b.revision}:${b.digest}` ? 1 : 0);
+        return { references: items, unknownDocuments: unknown.size, digest: sha256Canonical({ references: items, unknown: [...unknown].sort() }) };
+      };
+      let rootNames: string[];
+      try { rootNames = await names(this.root); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') unknown.add('$root'); return finish(); }
+      const documents = new Set<string>();
+      const deleted = new Set<string>();
+      for (const name of rootNames) {
+        if (name === '.deleted') continue;
+        if (idSchema.safeParse(name).success) documents.add(name);
+        else unknown.add('$root');
+      }
+      if (rootNames.includes('.deleted')) {
+        try {
+          for (const name of await names(path.join(this.root, '.deleted'))) {
+            const id = name.replace(/\.json$/, '');
+            if (!name.endsWith('.json') || !idSchema.safeParse(id).success) { unknown.add('$deleted'); continue; }
+            try {
+              const tombstone = deletedDocumentSchema.parse(JSON.parse(await read(path.join(this.root, '.deleted', name), 4096)));
+              if (tombstone.documentId !== id) throw new StudioError('invalid_input');
+              deleted.add(id);
+              // A valid, fully cleaned tombstone contains no execution body. In-memory
+              // supplier leases are merged by application composition before purge.
+              if (documents.has(id)) unknown.add(id);
+            } catch { unknown.add(id); }
+            if (exhausted) return finish();
+          }
+        } catch { unknown.add('$deleted'); }
+      }
+      const inspectSnapshot = (snapshot: DocumentSnapshot, id: string, current: boolean) => {
+        const checked = new Map<string, { record: ReturnType<typeof validateExecutionRecord>; digest: string }>();
+        for (const [key, raw] of Object.entries(snapshot.executionRecords ?? {})) {
+          if (++records > KNOWLEDGE_REFERENCE_SCAN_LIMITS.records) limit();
+          try {
+            const record = validateExecutionRecord(raw, { documentId: id });
+            if (record.id !== key) throw new StudioError('invalid_input');
+            const identity = `${id}:${record.id}`;
+            const baseDigest = recordBaseDigest(record), previousDigest = recordDigests.get(identity);
+            checked.set(key, { record, digest: baseDigest });
+            if (previousDigest && previousDigest !== baseDigest) unknown.add(id);
+            recordDigests.set(identity, baseDigest);
+            const knowledge = (record as typeof record & { knowledge?: unknown }).knowledge;
+            if (knowledge === undefined) {
+              // Only the shipped ordinary policy establishes that omitted knowledge
+              // means no resource references; an unknown policy may have new semantics.
+              if (record.policyVersion !== 'studio-translation/2;request-body/1') unknown.add(id);
+              continue;
+            }
+            const refs = knowledgeResourceReferences(validateFrozenKnowledgeSnapshot(knowledge));
+            resources += refs.length;
+            if (resources > KNOWLEDGE_REFERENCE_SCAN_LIMITS.resources) limit();
+            const existing = references.get(identity);
+            if (existing) {
+              existing.resources = [...new Map([...existing.resources, ...refs].map(ref => [`${ref.group}:${ref.id}:${ref.revision}:${ref.digest}`, ref])).values()];
+            } else {
+              const task = current && !deleted.has(id) ? snapshot.tasks.find(task => task.id === record.taskId) : undefined;
+              references.set(identity, { documentId: id, taskId: record.taskId, trackId: record.trackId, recordId: record.id,
+                displayName: snapshot.document.origin.displayName,
+                status: task && ['queued', 'running', 'failed', 'interrupted', 'needs_configuration'].includes(task.status) ? 'active' : 'retained', resources: refs });
+            }
+          } catch { unknown.add(id); }
+          if (exhausted) return;
+        }
+        for (const track of snapshot.document.translationTracks) if (track.executionRef) {
+          const found = checked.get(track.executionRef.id);
+          if (!found || found.digest !== track.executionRef.digest || found.record.trackId !== track.id) unknown.add(id);
+        }
+        for (const task of snapshot.tasks) if (task.translation?.checkpoint?.version === 2) {
+          const found = checked.get(task.translation.checkpoint.executionRef.id);
+          if (!found || found.digest !== task.translation.checkpoint.executionRef.digest || found.record.taskId !== task.id
+            || found.record.trackId !== task.trackId || found.record.sourceDigest !== task.translation.checkpoint.sourceDigest) unknown.add(id);
+        }
+      };
+      let documentCount = 0;
+      for (const id of [...documents].sort()) {
+        if (++documentCount > KNOWLEDGE_REFERENCE_SCAN_LIMITS.documents) { unknown.add('$limit'); break; }
+        const directory = this.directory(id);
+        try {
+          const entries = await names(directory), expected = new Set(['current.json', 'previous.json', SOURCE_LOCATION_FILE]);
+          for (const pointerName of ['current.json', 'previous.json']) {
+            if (!entries.includes(pointerName)) { if (pointerName === 'current.json') unknown.add(id); continue; }
+            try {
+              const pointer = pointerSchema.parse(JSON.parse(await read(path.join(directory, pointerName), 1024)));
+              const generationName = `${pointer.generation}.json`; expected.add(generationName);
+              const json = await read(path.join(directory, generationName), LIMITS.snapshotBytes);
+              if (pointer.digest && digest(json) !== pointer.digest) throw new StudioError('invalid_input');
+              const snapshot = validateRepositorySnapshot(JSON.parse(json));
+              if (snapshot.document.id !== id) throw new StudioError('invalid_input');
+              inspectSnapshot(snapshot, id, pointerName === 'current.json');
+            } catch { unknown.add(id); }
+            if (exhausted) return finish();
+          }
+          for (const name of entries) {
+            if (!expected.has(name)) { unknown.add(id); continue; }
+            const stat = await lstat(path.join(directory, name));
+            if (!stat.isFile() || stat.isSymbolicLink()) unknown.add(id);
+          }
+        } catch { unknown.add(id); }
+        if (exhausted) break;
+      }
+      return finish();
+    });
+  }
   withDocument<T>(id: string, revision: number, action: (document: SubtitleDocument) => Promise<T>) {
     return this.serial(async () => {
       const { snapshot } = await this.committed(id);

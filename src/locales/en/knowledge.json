@@ -418,7 +418,9 @@
     "STYLE_NOT_READY": "A style's rule or related material is not ready.",
     "RECIPE_STYLE_ARCHIVED": "The plan contains an archived style.",
     "TERM_TRANSLATION_CONFLICT": "A term has competing translations; check scope and sources.",
-    "TRIAL_ONLY_EXECUTION": "Approved background, terms and rules are available for checks and independent trials in Subtitle Studio. Formal translation and global preference inheritance are not enabled yet."
+    "TRIAL_ONLY_EXECUTION": "Approved background, terms and rules are available for checks and independent trials in Subtitle Studio. Formal translation and global preference inheritance are not enabled yet.",
+    "PURGE_TASK_REFERENCED": "Execution records still retain these materials. You can archive them; permanent removal is available once related documents and history no longer retain them.",
+    "PURGE_TASK_SCAN_INCOMPLETE": "Some document records could not be fully checked. Resolve unavailable documents or retained remnants before permanently removing materials."
   },
   "languages": {
     "ja": "Japanese",
@@ -498,13 +500,22 @@
       "referenced": "Still referenced",
       "unavailable": "Unavailable"
     },
-    "imports_losing_undo": "View imports that will lose undo support"
+    "imports_losing_undo": "View imports that will lose undo support",
+    "related_records": "Related execution records ({{count}})",
+    "task_references_help": "Current tasks and retained historical execution records may reference these materials and prevent permanent removal. A reference means the record retains the materials; it does not mean all content was sent to the model.",
+    "task_references_unknown": "References could not be fully checked for {{count}} documents. The materials cannot yet be confirmed as unreferenced.",
+    "record_active": "Current task reference",
+    "record_retained": "Retained historical reference",
+    "record_id": "Execution record: {{id}}",
+    "record_resource": "{{group}} · {{title}} · Revision {{revision}}",
+    "no_related_records": "No related execution records were found.",
+    "records_limited": "Showing {{count}} of {{total}} related records."
   },
   "trial": {
     "open": "Check materials & try translation",
     "title": "Materials check & trial translation",
     "description": "Choose materials, check their scope, then try up to 20 cues. Results stay in this window.",
-    "language_help": "Specify the source and target languages for this sample. Mixed languages are not detected; simplified and traditional Chinese match separately.",
+    "language_help": "Specify the source and target languages of the subtitles. Mixed languages are not detected; simplified and traditional Chinese match separately.",
     "recipe": "Translation recipe",
     "no_recipe": "Choose materials manually",
     "collections": "Collections for this trial",
@@ -542,7 +553,7 @@
       "style_unavailable": "Rules required by the recipe style are unavailable.",
       "language_mismatch": "Language or translation direction does not match.",
       "untrusted": "This version has not been approved locally and is excluded.",
-      "unsupported_kind": "Expression and reference-translation retrieval is not enabled in this trial.",
+      "unsupported_kind": "Expressions and reference translations are not used in the current translation.",
       "subject_unbound": "A required topic or subject role is unconfirmed; entry excluded.",
       "speaker_conflict": "Multiple confirmed speakers overlap in a cue. Adjust the scope.",
       "condition_unconfirmed": "Additional conditions are unconfirmed for these cues; entry excluded.",
@@ -556,5 +567,28 @@
       "required_term_suspect": "The literal required term was not found. Review this translation."
     },
     "materials_changed": "Materials changed. Earlier condition confirmations were cleared. Review the updated materials and check again."
+  },
+  "full": {
+    "mode": "Translation scope",
+    "mode_trial": "Excerpt trial",
+    "mode_document": "Full document",
+    "title": "Translate the full document with materials",
+    "description": "Check all subtitles in this file (up to 2,000 nonempty cues) and create a task using the selected materials, recipe, and requirements.",
+    "topics": "Document topics ({{count}} / 20 selected)",
+    "topics_help": "Select up to 20 subjects that the whole document is about. They apply only as topics, not as the speaker or a mentioned subject of every cue. Leave this empty to add no document topics.",
+    "no_topics": "There are no available subjects in the library.",
+    "scope_help": "Topics, speakers, mentioned subjects, and condition confirmations assigned in the excerpt remain limited to those cues. To change them, return to the excerpt trial to select and check cues.",
+    "other_page_cue": "Cue on another page · {{id}}",
+    "plan_expired": "The check is no longer valid. Check again before starting.",
+    "ready": "Full-document check passed",
+    "needs_attention": "Resolve the errors before starting",
+    "cue_count": "Subtitle cues",
+    "resource_count": "Related material records",
+    "entry_count": "Included entries",
+    "start_help": "Starting creates a translation track and task. View progress or cancel from translation tasks. Excerpt trial translations are not copied into the official result.",
+    "cost_help": "Checking does not request the model. Starting translation sends requests to the configured model and may incur charges. Usage estimates are approximate; actual usage comes from the provider.",
+    "check": "Check full document",
+    "run": "Start full translation",
+    "starting": "Creating task…"
   }
 }

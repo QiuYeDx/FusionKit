@@ -77,6 +77,54 @@ function mockTrialProvider() {
 }
 
 describe('production Subtitle Studio IPC handler composition', () => {
+  it('admits whole-file knowledge plans only through the owner-bound fixed bridge and exposes retained references', async () => {
+    const send = mockTrialProvider(), library = trialLibrary();
+    const { owner, request } = await setup(Array.from({ length: 21 }, (_, i) => `[00:${String(i + 1).padStart(2, '0')}]Sentence ${i + 1}.`).join('\n'), async () => library);
+    const ipc = { sendSync: () => owner.capability,
+      invoke: vi.fn((channel: string, envelope: unknown) => adapter.handlers.get(channel)!({ sender: owner.client, senderFrame: owner.client.mainFrame }, envelope)),
+      on: vi.fn(), removeListener: vi.fn() };
+    const api = createSubtitleStudioApi(ipc), input = { ...trialInput(request), documentTopicIds: [] };
+    const planned = await api.planKnowledgeTranslation(input);
+    expect(planned).toMatchObject({ ok: true, value: { canRun: true, cueCount: 21, batchCount: 2 } });
+    if (!planned.ok) throw new Error('Formal plan unavailable');
+    const other = attach(), start = { planId: planned.value.planId, apiKey: 'PRIVATE_FORMAL_KEY' };
+    await other.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 });
+    expect(await other.invoke(STUDIO_CHANNELS.createKnowledgeTranslation, start)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await other.invoke(STUDIO_CHANNELS.cancelKnowledgeTranslationPlan, {})).toEqual({ ok: true, value: null });
+    expect(send).not.toHaveBeenCalled();
+    const admitted = await api.createKnowledgeTranslation(start);
+    expect(admitted.ok).toBe(true);
+    const repository = new DocumentRepository(path.join(adapter.directory, 'subtitle-studio/documents'));
+    await vi.waitFor(async () => expect((await repository.readSnapshot(request.documentId)).tasks[0].status).toBe('completed'));
+    const snapshot = await repository.readSnapshot(request.documentId);
+    const detail = await api.readExecutionRecord({ documentId: request.documentId, trackId: snapshot.document.translationTracks[0].id, batchOffset: 1 });
+    expect(detail).toMatchObject({ ok: true, value: { state: 'available', knowledge: { generation: 1 }, batch: { items: [{ id: 'u21', text: 'Sentence 21.' }] } } });
+    expect(JSON.stringify(detail)).not.toContain('PRIVATE_FORMAL_KEY');
+    expect((await registration!.inspectKnowledgeReferences()).unknownDocuments).toBe(0);
+    await api.cancelKnowledgeTranslationPlan({});
+    for (const method of ['planKnowledgeTranslation', 'createKnowledgeTranslation', 'cancelKnowledgeTranslationPlan'] as const) {
+      expect(isPublicStudioChannel(STUDIO_CHANNELS[method])).toBe(true);
+      expect(ipc.invoke.mock.calls.some(([channel]) => channel === STUDIO_CHANNELS[method])).toBe(true);
+    }
+  });
+
+  it('rejects forged formal plan data, subframes and revoked owners before knowledge reads or model calls', async () => {
+    const send = mockTrialProvider(), read = vi.fn(async () => trialLibrary());
+    const { owner, request } = await setup('[00:01]One sentence.', read), other = attach();
+    const input = { ...trialInput(request), documentTopicIds: [] };
+    expect(await other.invoke(STUDIO_CHANNELS.planKnowledgeTranslation, input)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslation, input, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    for (const invalid of [{ ...input, prepared: {} }, { ...input, path: '/tmp/forged' }, { ...input, documentTopicIds: Array(21).fill(randomUUID()) }])
+      expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslation, invalid)).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.createKnowledgeTranslation, { planId: randomUUID(), apiKey: 'fixture', knowledge: {} })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(read).not.toHaveBeenCalled(); expect(send).not.toHaveBeenCalled();
+    const planned = await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslation, input);
+    expect(planned.ok).toBe(true);
+    owner.client.emit('did-start-navigation', {}, 'https://example.invalid', false, true);
+    expect(await owner.invoke(STUDIO_CHANNELS.createKnowledgeTranslation, { planId: planned.value.planId, apiKey: 'fixture' })).toEqual({ ok: false, error: 'access_denied' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('reads one frozen execution batch through the fixed preload after task cleanup, with owner and private data boundaries', async () => {
     const send = mockTrialProvider();
     const { owner, request } = await setup('[00:01]First source.\n[00:02]Second source.\n');

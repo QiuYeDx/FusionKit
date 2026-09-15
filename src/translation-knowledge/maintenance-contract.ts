@@ -1,5 +1,6 @@
 import type { EntityGroup } from './ipc-contract';
 import type { Diagnostic } from './validation';
+import type { KnowledgeTaskReference } from './task-reference-contract';
 
 export interface RecordTarget { group: EntityGroup; id: string }
 export type MaintenanceAction = 'archive' | 'restore' | 'undo_import' | 'purge';
@@ -19,7 +20,8 @@ export interface MaintenancePreview {
   blockers: Diagnostic[];
   canCommit: boolean;
   history: { snapshots: number; importsLosingUndo: number; scope: 'none' | 'all' };
-  taskTracking: 'not_connected';
+  taskTracking: 'not_connected' | 'connected';
+  tasks?: { items: KnowledgeTaskReference[]; total: number; unknownDocuments: number };
 }
 export interface MaintenanceCommit { planId: string; confirmHistoryRemoval?: boolean }
 export interface MaintenanceReceipt {

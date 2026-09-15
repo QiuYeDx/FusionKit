@@ -418,7 +418,9 @@
     "STYLE_NOT_READY": "風格參照的規則或關聯資料尚不可用。",
     "RECIPE_STYLE_ARCHIVED": "方案中包含已封存風格。",
     "TERM_TRANSLATION_CONFLICT": "同一原詞存在不同譯法，請檢查範圍與來源。",
-    "TRIAL_ONLY_EXECUTION": "已採納的背景、術語和規則可在字幕工作台中檢查與獨立試譯。正式翻譯與全域偏好繼承尚未啟用。"
+    "TRIAL_ONLY_EXECUTION": "已採納的背景、術語和規則可在字幕工作台中檢查與獨立試譯。正式翻譯與全域偏好繼承尚未啟用。",
+    "PURGE_TASK_REFERENCED": "仍有執行記錄保留這些資料。可以先封存；永久清除須等相關文件及歷史記錄不再保留這些資料後進行。",
+    "PURGE_TASK_SCAN_INCOMPLETE": "部分文件記錄無法完整核驗，目前不能確認資料已無引用。請先處理無法使用的文件或殘留記錄。"
   },
   "languages": {
     "ja": "日語",
@@ -498,13 +500,22 @@
       "referenced": "仍被其他資料參照",
       "unavailable": "資料暫不可用"
     },
-    "imports_losing_undo": "檢視將失去撤銷能力的匯入"
+    "imports_losing_undo": "檢視將失去撤銷能力的匯入",
+    "related_records": "關聯執行記錄（{{count}}）",
+    "task_references_help": "目前任務和歷史保留的執行記錄都可能引用這些資料，並阻止永久清理。存在引用只表示記錄保留了資料，不表示所有內容都已傳送給模型。",
+    "task_references_unknown": "有 {{count}} 份文件無法完整檢查關聯記錄；目前不能確認資料已無引用。",
+    "record_active": "目前任務引用",
+    "record_retained": "歷史保留引用",
+    "record_id": "執行記錄：{{id}}",
+    "record_resource": "{{group}} · {{title}} · 修訂 {{revision}}",
+    "no_related_records": "未發現關聯的執行記錄。",
+    "records_limited": "顯示 {{count}} / {{total}} 條關聯記錄。"
   },
   "trial": {
     "open": "資料檢查與試譯",
     "title": "資料檢查與獨立試譯",
     "description": "選擇本次資料，檢查適用範圍，再試譯最多 20 句。結果僅保留在此視窗。",
-    "language_help": "請明確所選片段的原文語言與目標語言。此處不自動識別混合語言；簡體與繁體分別匹配。",
+    "language_help": "請明確字幕的原文語言與目標語言。此處不自動識別混合語言；簡體與繁體分別匹配。",
     "recipe": "翻譯方案",
     "no_recipe": "自行選擇資料",
     "collections": "本次使用的資料集",
@@ -542,7 +553,7 @@
       "style_unavailable": "方案風格所需規則尚不可用。",
       "language_mismatch": "語言或翻譯方向不匹配。",
       "untrusted": "尚未在本機採納此版本，未使用。",
-      "unsupported_kind": "目前試譯暫不檢索表達和參考譯文。",
+      "unsupported_kind": "目前翻譯暫不使用表達和參考譯文。",
       "subject_unbound": "必要主題或人物角色尚未確認，未使用。",
       "speaker_conflict": "同句有多個確定說話者，請調整範圍。",
       "condition_unconfirmed": "額外條件尚未在這些句子中確認，未使用。",
@@ -556,5 +567,28 @@
       "required_term_suspect": "強制術語的字面譯法未找到，請人工複核。"
     },
     "materials_changed": "資料已更新，舊的適用條件確認已清除。請核對後重新檢查。"
+  },
+  "full": {
+    "mode": "翻譯範圍",
+    "mode_trial": "片段試譯",
+    "mode_document": "全文翻譯",
+    "title": "使用資料翻譯全文",
+    "description": "檢查目前檔案的全部字幕（最多 2,000 條非空字幕），使用所選資料、方案和要求建立翻譯任務。",
+    "topics": "全文主題（已選 {{count}} / 20）",
+    "topics_help": "僅勾選整份字幕共同圍繞的對象，最多 20 個。它們只作為全文主題，不代表每條字幕的說話人或提及對象；留空時不加入全文主題。",
+    "no_topics": "資料庫中還沒有可選擇的內容對象。",
+    "scope_help": "片段中指定的主題、說話人、提及對象和條件確認只作用於原來那些字幕，不會擴展到全文。需要調整時，可先切回片段試譯選擇和檢查字幕。",
+    "other_page_cue": "其他頁字幕 · {{id}}",
+    "plan_expired": "檢查結果已失效，請重新檢查後再開始。",
+    "ready": "全文檢查通過",
+    "needs_attention": "請先處理檢查中的錯誤",
+    "cue_count": "字幕條數",
+    "resource_count": "關聯資料記錄",
+    "entry_count": "納入資料條目",
+    "start_help": "開始後會新增翻譯軌道和任務，可在翻譯任務中查看進度或取消。片段試譯的譯文不會寫入正式結果。",
+    "cost_help": "檢查不會請求模型；開始全文翻譯後會請求已設定的模型並產生相應費用。預計用量僅供參考，實際以模型服務回傳為準。",
+    "check": "檢查全文",
+    "run": "開始全文翻譯",
+    "starting": "正在建立任務…"
   }
 }

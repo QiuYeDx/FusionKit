@@ -1,3 +1,4 @@
+import type { KnowledgeTaskTracking } from '../../../src/translation-knowledge/task-reference-contract';
 import { app, BrowserWindow, dialog, ipcMain, type WebContents, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { open, link, unlink } from 'node:fs/promises';
@@ -62,8 +63,8 @@ export async function publishKnowledgeFile(filePath: string, contents: string, a
   }
 }
 
-export function registerTranslationKnowledge() {
-  const service = new KnowledgeService(path.join(app.getPath('userData'), 'translation-knowledge'));
+export function registerTranslationKnowledge(taskTracking?: KnowledgeTaskTracking) {
+  const service = new KnowledgeService(path.join(app.getPath('userData'), 'translation-knowledge'), {}, taskTracking);
   const exportPlans = new KnowledgeExportPlans(() => service.read());
   const rendererUrl = process.env.VITE_DEV_SERVER_URL || pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
   const allowed = new Set<number>();

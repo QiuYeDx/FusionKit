@@ -12,6 +12,7 @@ import {
 } from "@/components/qiuye-ui/scrollable-dialog";
 import type { ExecutionRecordPage } from "@/subtitle-studio/execution-view-contract";
 import type { DocumentPage } from "@/subtitle-studio/ipc-contract";
+import { StudioExecutionKnowledge } from './StudioExecutionKnowledge';
 import {
   StudioFileName,
   StudioIconButton,
@@ -312,7 +313,7 @@ export function StudioExecutionRecord({
                     {t("studio:execution.instructions")}
                   </h3>
                   <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
-                    {available.config.instructions ||
+                    {available.knowledge?.compiled.instructions || available.config.instructions ||
                       t("studio:execution.no_instructions")}
                   </p>
                 </section>
@@ -344,6 +345,7 @@ export function StudioExecutionRecord({
                   title={t("studio:execution.source")}
                   texts={available.batch.items.map((item) => item.text.replace(/<\/?m[1-9]\d{0,2}>/g, ""))}
                 />
+                {available.knowledge && <StudioExecutionKnowledge key={`${available.recordId}-${available.batchOffset}`} knowledge={available.knowledge} />}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <TextContext
                     title={t("studio:execution.before")}

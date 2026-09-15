@@ -122,7 +122,10 @@
     "resources/speech-resources/migration/legacy/local-subtitle-windows-cuda-pack.v1.json",
     "resources/speech-resources/migration/studio/subtitle-studio-models.v1.json",
     "resources/speech-resources/migration/studio/subtitle-studio-vad.v1.json",
-    "resources/speech-resources/migration/studio/subtitle-studio-windows-cuda-pack.v1.json"
+    "resources/speech-resources/migration/studio/subtitle-studio-windows-cuda-pack.v1.json",
+    "src/translation-knowledge/snapshot-contract.ts",
+    "src/translation-knowledge/task-reference-contract.ts",
+    "electron/main/translation-knowledge/task-gate.ts"
   ],
   "packages": [
     "yauzl",
@@ -155,7 +158,8 @@
     "typescript",
     "axios",
     "gpt-tokenizer",
-    "react-router-dom"
+    "react-router-dom",
+    "@radix-ui/react-radio-group"
   ],
   "composition": [
     "src/App.tsx",

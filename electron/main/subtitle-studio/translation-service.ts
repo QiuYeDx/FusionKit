@@ -9,11 +9,13 @@ import { ModelRuntimeClientError } from '../ai/model-runtime-errors';
 import { DocumentRepository } from './document-repository';
 import { buildTranslationRequest, planTranslation, requestTokenEstimate, type TranslationPlan } from './translation-planner';
 import { checkpointForPlan, documentSourceDigest, publishTransaction, restoreTranslationPlan, sameTranslationModel, translationScheduler, type TranslationScheduler } from './translation-recovery';
-import { createExecutionRecord, requestForExecution, resolveExecutionRecord, runtimeExecutionRequest } from './execution-records';
+import { assertKnowledgeExecutionCapacity, createExecutionRecord, requestForExecution, resolveExecutionRecord, runtimeExecutionRequest, type PreparedKnowledgeExecution } from './execution-records';
+import type { KnowledgeTaskGate, KnowledgeTaskReference } from '../../../src/translation-knowledge/task-reference-contract';
+import { knowledgeResourceReferences } from '../../../src/translation-knowledge/snapshot-contract';
 
 type Task = DocumentSnapshot['tasks'][number];
 type AttemptReceipt = { batchId: string; attempt: number; usage: TranslationUsage; uncertain: boolean };
-type Run = { taskId: string; documentId: string; generation: number; controller: AbortController; done: Promise<void>; receipt?: AttemptReceipt };
+type Run = { taskId: string; documentId: string; generation: number; controller: AbortController; done: Promise<void>; receipt?: AttemptReceipt; knowledgeReference?: KnowledgeTaskReference };
 const activeStatus = (task: Task) => ['queued', 'running'].includes(task.status);
 const canResume = (task: Task) => ['failed', 'interrupted', 'needs_configuration'].includes(task.status);
 
@@ -74,7 +76,12 @@ export class TranslationService {
   private closed = false;
   private automaticAdmissions = new Map<string, Promise<{ taskId: string }>>();
   constructor(private repository: DocumentRepository, private send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = sendModelRuntimeText,
-    private scheduler: TranslationScheduler = translationScheduler) {}
+    private scheduler: TranslationScheduler = translationScheduler, private knowledgeGate?: KnowledgeTaskGate) {}
+
+  /** Physical provider ownership outlives cancellation and retained task deletion. */
+  activeKnowledgeReferences(): KnowledgeTaskReference[] {
+    return [...this.handles].flatMap(run => run.knowledgeReference ? [structuredClone(run.knowledgeReference)] : []);
+  }
 
   initialize(): Promise<void> {
     if (!this.initialized) this.initialized = (async () => {
@@ -131,6 +138,13 @@ export class TranslationService {
     return this.admit(planTranslation(doc, config), apiKey, guard);
   }
 
+  /** Main-only prepared admission. Its coordinator owns the shared knowledge gate. */
+  async startPreparedKnowledge(input: PreparedKnowledgeExecution, apiKey: string, guard: () => void = () => {}) {
+    const prepared = structuredClone(input);
+    this.assertOpen(); await this.initialize(); this.assertOpen(); guard();
+    return this.admit(prepared.plan, apiKey, guard, prepared);
+  }
+
   private automaticPlan(snapshot: DocumentSnapshot): { plan?: TranslationPlan; error?: ReturnType<typeof failureCode> } {
     try { return { plan: planTranslation(snapshot.document, snapshot.automaticTranslation!.config) }; }
     catch (error) { return { error: failureCode(error) }; }
@@ -155,7 +169,7 @@ export class TranslationService {
     const status = !plan || conflict ? 'failed' : launch ? 'queued' : 'needs_configuration';
     const error = preparationError ?? (conflict ? 'revision_conflict' : launch ? undefined : 'needs_configuration');
     if (execution) (snapshot.executionRecords ??= {})[execution.record.id] = execution.record;
-    snapshot.document.translationTracks.push({ id: trackId, revision: 1, language: intent.config.language, entries: {}, ...(execution ? { executionRef: execution.ref } : {}) });
+    snapshot.document.translationTracks.push({ id: trackId, revision: 1, language: intent.config.language, origin: 'ai', entries: {}, ...(execution ? { executionRef: execution.ref } : {}) });
     snapshot.tasks.push({ id: taskId, trackId, generation: 1, status, completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
       translation: { config: plan?.config ?? intent.config, totalBatches: plan?.batches.length ?? 1,
         estimatedInputTokens: plan?.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0) ?? 0,
@@ -203,18 +217,22 @@ export class TranslationService {
     return operation;
   }
 
-  private async admit(plan: TranslationPlan, apiKey: string, guard: () => void) {
+  private async admit(plan: TranslationPlan, apiKey: string, guard: () => void, prepared?: PreparedKnowledgeExecution) {
     const { documentId, revision } = plan;
     if (!apiKey.trim() || apiKey.length > 8000) throw new StudioError('needs_configuration');
     const taskId = randomUUID(); const trackId = randomUUID();
     const snapshot = await publishTransaction(this.repository, documentId, revision, value => {
       if (value.tasks.some(activeStatus)) throw new StudioError('revision_conflict');
-      const execution = createExecutionRecord(plan, documentSourceDigest(value.document), taskId, trackId);
+      const execution = createExecutionRecord(plan, documentSourceDigest(value.document), taskId, trackId, prepared);
       (value.executionRecords ??= {})[execution.record.id] = execution.record;
-      value.document.translationTracks.push({ id: trackId, language: plan.config.language, revision: 1, entries: {}, executionRef: execution.ref });
+      value.document.translationTracks.push({ id: trackId, language: plan.config.language, revision: 1, origin: 'ai', entries: {}, executionRef: execution.ref });
       value.tasks.push({ id: taskId, trackId, generation: 1, status: 'queued', completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
         translation: { config: plan.config, totalBatches: plan.batches.length, estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * plan.config.maxOutputTokens,
           usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checkpoint: checkpointForPlan(plan, value.document, 1, execution.ref), uncertainAttempts: 0 } });
+      if (prepared) {
+        restoreTranslationPlan(value, taskId);
+        assertKnowledgeExecutionCapacity(value, execution.record);
+      }
     }, () => { this.assertOpen(); guard(); });
     this.launch(plan, snapshot, taskId, apiKey);
     return { taskId };
@@ -232,13 +250,19 @@ export class TranslationService {
     return { taskId };
   }
 
-  async resume(documentId: string, revision: number, taskId: string, model: TranslationModel | null, apiKey: string, guard: () => void = () => {}): Promise<{ taskId: string }> {
+  resume(documentId: string, revision: number, taskId: string, model: TranslationModel | null, apiKey: string, guard: () => void = () => {}): Promise<{ taskId: string }> {
+    const resume = () => this.resumeWithinGate(documentId, revision, taskId, model, apiKey, guard);
+    return this.knowledgeGate ? this.knowledgeGate.run(resume) : resume();
+  }
+
+  private async resumeWithinGate(documentId: string, revision: number, taskId: string, model: TranslationModel | null, apiKey: string, guard: () => void): Promise<{ taskId: string }> {
     this.assertOpen(); await this.initialize(); this.assertOpen();
     const current = await this.repository.readSnapshot(documentId);
     if (current.document.revision !== revision) throw new StudioError('revision_conflict');
     const task = current.tasks.find(item => item.id === taskId);
     if (!task || !canResume(task) || !task.translation?.checkpoint) throw new StudioError('invalid_input');
     const plan = restoreTranslationPlan(current, taskId);
+    if (task.translation.checkpoint.version === 2) assertKnowledgeExecutionCapacity(current, resolveExecutionRecord(current, taskId));
     const configured = !!apiKey.trim() && apiKey.length <= 8000 && sameTranslationModel(model, plan.config.model);
     const snapshot = await publishTransaction(this.repository, documentId, revision, value => {
       const currentTask = value.tasks.find(item => item.id === taskId)!;
@@ -258,6 +282,12 @@ export class TranslationService {
     const generation = snapshot.tasks.find(task => task.id === taskId)!.generation;
     const unregister = this.repository.registerActivity(plan.documentId, controller);
     const run: Run = { taskId, documentId: plan.documentId, generation, controller, done: Promise.resolve() };
+    const task = snapshot.tasks.find(item => item.id === taskId)!;
+    if (task.translation?.checkpoint?.version === 2) {
+      const record = resolveExecutionRecord(snapshot, taskId);
+      if (record.knowledge) run.knowledgeReference = { documentId: plan.documentId, taskId, trackId: task.trackId, recordId: record.id,
+        displayName: snapshot.document.origin.displayName, status: 'active', resources: knowledgeResourceReferences(record.knowledge) };
+    }
     this.running.set(taskId, run); this.handles.add(run);
     if (this.closed) controller.abort();
     run.done = this.execute(plan, snapshot, run, apiKey).finally(() => {

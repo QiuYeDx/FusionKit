@@ -3,6 +3,7 @@ import { executionRefSchema, idSchema, LIMITS, StudioError, type ExecutionRef } 
 import { translationConfigSchema, translationModelSchema } from './translation-contract';
 import { validateTranslationResponse } from './translation-protocol';
 import { sha256Canonical } from '../translation-knowledge/canonicalize';
+import { frozenKnowledgeSnapshotSchema, validateFrozenKnowledgeSnapshot } from '../translation-knowledge/snapshot-contract';
 
 export { executionRefSchema, type ExecutionRef };
 export const EXECUTION_RECORD_LIMITS = { aggregateBytes: 32 * 1024 * 1024, records: 1000 } as const;
@@ -59,6 +60,7 @@ export const executionRecordSchema = z.object({
   version: z.literal(1), id: idSchema, documentId: idSchema, taskId: idSchema, trackId: idSchema,
   createdAt: z.string().datetime(), sourceDigest: digest, configDigest: digest, policyVersion: z.string().min(1).max(300),
   plan: frozenTranslationPlanSchema, baseRequests: z.record(batchId, frozenExecutionRequestSchema), requests: z.record(batchId, frozenExecutionRequestSchema),
+  knowledge: frozenKnowledgeSnapshotSchema.optional(),
 }).strict();
 export type ExecutionRecord = z.infer<typeof executionRecordSchema>;
 /** Readable document generations retain incompatible/corrupt records for explicit recovery errors.
@@ -109,6 +111,18 @@ export function validateExecutionRecord(value: unknown, expected?: { ref?: Execu
     catch { throw new StudioError('invalid_input'); }
   }
   if (cues.size > LIMITS.cues) throw new StudioError('invalid_input');
+  if (record.knowledge) {
+    try { validateFrozenKnowledgeSnapshot(record.knowledge); } catch { throw new StudioError('invalid_input'); }
+    if (record.policyVersion !== 'studio-knowledge-translation/1;request-body/1'
+      || Object.keys(record.knowledge.batches).length !== batches.size
+      || [...record.knowledge.selection.bindings, ...record.knowledge.selection.confirmations].some(binding => binding.cueIds.some(id => !cues.has(id)))) throw new StudioError('invalid_input');
+    for (const batch of record.plan.batches) {
+      const compiled = record.knowledge.batches[batch.id], batchCues = new Set(batch.units.map(unit => unit.cueId));
+      if (!compiled || compiled.items.some(item => item.applicableCueIds.some(id => !batchCues.has(id))
+        || item.matches.some(match => !batchCues.has(match.cueId)))
+        || compiled.issues.some(issue => issue.cueIds.some(id => !batchCues.has(id)))) throw new StudioError('invalid_input');
+    }
+  } else if (record.policyVersion === 'studio-knowledge-translation/1;request-body/1') throw new StudioError('invalid_input');
   if (Object.keys(record.baseRequests).length !== batches.size) throw new StudioError('invalid_input');
   for (const [id, request] of [...Object.entries(record.baseRequests), ...Object.entries(record.requests)]) {
     if (!batches.has(id) || id !== request.batchId || request.digest !== executionRequestDigest(request)

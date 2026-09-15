@@ -8,6 +8,7 @@ import { diagnostic, KnowledgeServiceError } from './errors';
 import { emptyPackage, KnowledgeRepository, type RepositoryOptions, type StoredLibrary } from './repository';
 import type { MaintenanceCommit, MaintenancePreview, MaintenanceReceipt, MaintenanceRequest } from '../../../src/translation-knowledge/maintenance-contract';
 import { buildMaintenance, captureImportChanges, maintenanceCommitRequestSchema, maintenanceRequestSchema } from './maintenance';
+import type { KnowledgeReferenceInventory, KnowledgeTaskTracking } from '../../../src/translation-knowledge/task-reference-contract';
 export { KnowledgeServiceError } from './errors';
 
 const generation = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -17,8 +18,13 @@ const reviewSchema = z.strictObject({ generation, ids: z.array(z.uuid()).min(1).
 const exportSchema = z.strictObject({ generation, purpose: z.enum(['backup', 'share']), collectionIds: z.array(z.uuid()).max(20_000), includeMemories: z.boolean() });
 const entitySchemas = { subjects: subjectSchema, collections: collectionSchema, sources: sourceSchema, entries: entrySchema, styles: styleSchema, recipes: recipeSchema, preferenceTemplates: preferenceTemplateSchema };
 const PLAN_TTL_MS = 15 * 60 * 1000;
+const taskInventorySchema = z.strictObject({
+  references: z.array(z.strictObject({ documentId: z.uuid(), taskId: z.uuid(), trackId: z.uuid(), recordId: z.uuid(), displayName: z.string().max(255), status: z.enum(['active', 'retained']),
+    resources: z.array(z.strictObject({ group: z.enum(ENTITY_ARRAYS), id: z.uuid(), revision: generation.positive(), digest: z.string().regex(/^[a-f0-9]{64}$/) })).max(100000),
+  })).max(10000), unknownDocuments: generation, digest: z.string().regex(/^[a-f0-9]{64}$/),
+}).refine(value => value.references.reduce((sum, ref) => sum + ref.resources.length, 0) <= 200000);
 interface Plan { owner: string; expiresAt: number; data: KnowledgePackage; preview: ImportPreview; requestDigest?: string }
-interface MaintenancePlan { owner: string; expiresAt: number; request: MaintenanceRequest; preview: MaintenancePreview; historyDigest?: string; requestDigest?: string }
+interface MaintenancePlan { owner: string; expiresAt: number; request: MaintenanceRequest; preview: MaintenancePreview; historyDigest?: string; taskDigest?: string; requestDigest?: string }
 const ownerDigest = (owner: string) => createHash('sha256').update(owner).digest('hex');
 const clone = <T>(value: T): T => structuredClone(value);
 const snapshot = (state: StoredLibrary): LibrarySnapshot => clone({ generation: state.generation, data: state.data, approvals: state.approvals, imports: state.imports, maintenance: { undoableImportIds: Object.keys(state.importChanges).filter(id => !state.undoneImportIds.includes(id)), undoneImportIds: state.undoneImportIds, cleanupPending: state.cleanupPending } });
@@ -110,7 +116,7 @@ export class KnowledgeService {
   private readonly maintenancePlans = new Map<string, MaintenancePlan>();
   private readonly released = new Set<string>();
   private disposed = false;
-  constructor(rootPath: string, options: RepositoryOptions = {}) { this.repository = new KnowledgeRepository(rootPath, options); }
+  constructor(rootPath: string, options: RepositoryOptions = {}, private readonly taskTracking?: KnowledgeTaskTracking) { this.repository = new KnowledgeRepository(rootPath, options); }
 
   async read(): Promise<LibrarySnapshot> { return snapshot(await this.repository.read()); }
 
@@ -313,24 +319,63 @@ export class KnowledgeService {
     const state = await this.repository.read();
     const history = input.action === 'purge' && !state.cleanupPending ? await this.repository.historyInventory() : undefined;
     this.checkOwner(owner);
+    const { preview } = buildMaintenance(state, input, randomUUID(), history?.length);
+    const tasks = await this.inspectTasks();
+    this.checkOwner(owner);
+    this.decorateTaskImpact(preview, input, tasks);
     for (const [id, plan] of this.maintenancePlans) if (plan.owner === owner || plan.expiresAt <= Date.now()) this.maintenancePlans.delete(id);
     if (this.maintenancePlans.size >= 64) throw new KnowledgeServiceError('limit_exceeded');
-    const { preview } = buildMaintenance(state, input, randomUUID(), history?.length);
-    this.maintenancePlans.set(preview.planId, { owner, expiresAt: Date.now() + PLAN_TTL_MS, request: clone(input), preview: clone(preview), ...(history ? { historyDigest: sha256Canonical([...history].sort((a, b) => a.name.localeCompare(b.name))) } : {}) });
+    this.maintenancePlans.set(preview.planId, { owner, expiresAt: Date.now() + PLAN_TTL_MS, request: clone(input), preview: clone(preview), ...(history ? { historyDigest: sha256Canonical([...history].sort((a, b) => a.name.localeCompare(b.name))) } : {}), ...(tasks ? { taskDigest: tasks.digest } : {}) });
     return preview;
   }
 
   async commitMaintenance(owner: string, request: MaintenanceCommit, guard?: () => void): Promise<MaintenanceReceipt> {
+    // Replays also enter the same gate, but resolve persisted receipts before inspecting tasks.
+    return this.taskTracking ? this.taskTracking.gate.run(() => this.commitMaintenanceWithGate(owner, request, guard)) : this.commitMaintenanceWithGate(owner, request, guard);
+  }
+
+  private async inspectTasks(): Promise<KnowledgeReferenceInventory | undefined> {
+    if (!this.taskTracking) return undefined;
+    try { return taskInventorySchema.parse(await this.taskTracking.inspect()); }
+    catch { return { references: [], unknownDocuments: 1, digest: sha256Canonical({ taskTracking: 'unavailable' }) }; }
+  }
+
+  private decorateTaskImpact(preview: MaintenancePreview, request: MaintenanceRequest, inventory?: KnowledgeReferenceInventory): void {
+    if (!inventory) return;
+    const targets = request.action === 'purge' ? request.targets : preview.items;
+    const selected = new Set(targets.map(target => `${target.group}:${target.id}`));
+    const matching = new Map<string, KnowledgeReferenceInventory['references'][number]>();
+    for (const ref of inventory.references) if (ref.resources.some(resource => selected.has(`${resource.group}:${resource.id}`))) {
+      const key = `${ref.documentId}:${ref.recordId}`;
+      const previous = matching.get(key);
+      if (!previous) matching.set(key, { ...clone(ref), resources: ref.resources.filter(resource => selected.has(`${resource.group}:${resource.id}`)) });
+      else {
+        if (ref.status === 'active') previous.status = 'active';
+        previous.resources = [...new Map([...previous.resources, ...ref.resources.filter(resource => selected.has(`${resource.group}:${resource.id}`))].map(resource => [`${resource.group}:${resource.id}:${resource.revision}:${resource.digest}`, resource])).values()];
+      }
+    }
+    const items = [...matching.values()].sort((a, b) => `${a.documentId}:${a.recordId}` < `${b.documentId}:${b.recordId}` ? -1 : `${a.documentId}:${a.recordId}` > `${b.documentId}:${b.recordId}` ? 1 : 0);
+    preview.taskTracking = 'connected';
+    preview.tasks = { items: items.slice(0, 50), total: items.length, unknownDocuments: inventory.unknownDocuments };
+    if (request.action !== 'purge') return;
+    if (items.length) preview.blockers.push(diagnostic('PURGE_TASK_REFERENCED', 'Retained translation execution records still contain selected knowledge. Remove the related translation history before permanently clearing it.'));
+    if (inventory.unknownDocuments > 0) preview.blockers.push(diagnostic('PURGE_TASK_SCAN_INCOMPLETE', 'Some translation records or deleted-document remnants could not be verified. Resolve them before permanently clearing knowledge.'));
+    preview.canCommit = preview.blockers.length === 0;
+  }
+
+  private async commitMaintenanceWithGate(owner: string, request: MaintenanceCommit, guard?: () => void): Promise<MaintenanceReceipt> {
     this.checkOwner(owner);
     const input = parse(maintenanceCommitRequestSchema, request);
     const requestDigest = sha256Canonical(input);
     const fence = () => { this.checkOwner(owner); guard?.(); };
     const pendingPlan = this.maintenancePlans.get(input.planId);
+    const current = await this.repository.read();
+    // Task-store failure must not turn an already-published commit into a fresh operation.
+    const tasks = current.maintenanceCommits[input.planId] ? undefined : await this.inspectTasks();
     let historyDigest: string | undefined;
     if (pendingPlan?.request.action === 'purge') {
       // Already-published retries must reach their receipt even while cleanup is
       // pending; the repository performs recovery before this transaction.
-      const current = await this.repository.read();
       if (!current.maintenanceCommits[input.planId]) {
         const history = await this.repository.historyInventory();
         historyDigest = sha256Canonical([...history].sort((a, b) => a.name.localeCompare(b.name)));
@@ -351,7 +396,9 @@ export class KnowledgeService {
       if (plan.request.action === 'purge' && input.confirmHistoryRemoval !== true) fail('HISTORY_REMOVAL_CONFIRMATION', 'Confirm that permanently clearing these records also removes all library history snapshots.');
       if (plan.request.action !== 'purge' && input.confirmHistoryRemoval !== undefined) fail('UNEXPECTED_HISTORY_CONFIRMATION', 'History removal confirmation applies only to permanent clearing.');
       if (plan.historyDigest !== historyDigest) throw new KnowledgeServiceError('plan_expired');
+      if (plan.taskDigest !== tasks?.digest) throw new KnowledgeServiceError('plan_expired');
       const outcome = buildMaintenance(state, plan.request, input.planId, plan.preview.history.snapshots);
+      this.decorateTaskImpact(outcome.preview, plan.request, tasks);
       if (!outcome.preview.canCommit) throw new KnowledgeServiceError('import_conflict', outcome.preview.blockers);
       const receipt: MaintenanceReceipt = { id: input.planId, action: plan.request.action, generation: state.generation + 1, changed: outcome.changed, cleanupPending: plan.request.action === 'purge' };
       outcome.state.maintenanceCommits[input.planId] = { ownerDigest: ownerDigest(owner), requestDigest, receipt };

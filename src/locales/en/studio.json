@@ -649,6 +649,17 @@
     "http_body": "Exact HTTP request body",
     "policy_version": "Execution policy version",
     "request_saved_at": "Request saved at",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "knowledge_title": "Materials for this batch",
+    "knowledge_help": "Versions of {{count}} resources and dependencies are retained. These are the checks saved at admission and are unaffected by later library edits. Inclusion does not mean the request was sent.",
+    "knowledge_topics": "Document topics",
+    "knowledge_guidance": "Applied requirements and background",
+    "knowledge_digest": "Snapshot digest",
+    "knowledge_included": "Included entries ({{count}})",
+    "knowledge_required": "Required constraint",
+    "knowledge_reference": "Reference",
+    "knowledge_scope": "Revision {{revision}} · Applies to {{count}} cues in this batch",
+    "knowledge_issues": "Exclusions and notes ({{count}})",
+    "knowledge_cue_count": "Affects {{count}} cues in this batch"
   }
 }
