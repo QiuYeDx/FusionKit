@@ -23,6 +23,7 @@ import type { SpeechResourceService } from '../speech-resources/service';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
 import type { KnowledgeTaskGate, KnowledgeReferenceInventory } from '../../../src/translation-knowledge/task-reference-contract';
 import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
+import { KnowledgeBatchTranslationService } from './knowledge-batch-translation';
 import { KnowledgeTranslationService } from './knowledge-translation';
 import { KnowledgeTaskSerialGate } from '../translation-knowledge/task-gate';
 import { KnowledgeTrialService } from './knowledge-trial';
@@ -32,6 +33,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
   const translation = new TranslationService(repository, undefined, undefined, knowledgeGate);
   const knowledgeTranslation = new KnowledgeTranslationService(repository, translation, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
+  const knowledgeBatchTranslation = new KnowledgeBatchTranslationService(repository, translation, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
   const knowledgeTrial = new KnowledgeTrialService(repository, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))));
   const automaticTranslation = createAutomaticTranslationCoordinator({ repository, translation });
   const bilingual = new BilingualService(repository);
@@ -57,7 +59,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   function forgetOwner(id: number) {
     const owner = owners.get(id);
     owners.delete(id);
-    for (const service of [translation, exports, batches, knowledgeTrial, knowledgeTranslation]) {
+    for (const service of [translation, exports, batches, knowledgeTrial, knowledgeTranslation, knowledgeBatchTranslation]) {
       try { service.forgetOwner(id); } catch (error) { retirementFailures.push(error); }
     }
     if (!owner || !runtime) return;
@@ -146,6 +148,17 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
         const parsed = requestSchemas[method].safeParse(payload);
         if (!parsed.success) throw new StudioError('invalid_input');
         const alive = () => { if (closed || owners.get(event.sender.id) !== owner || event.sender.isDestroyed() || !trusted(event.sender.mainFrame.url)) throw new StudioError('access_denied'); };
+        if (method === 'cancelKnowledgeTranslationBatchPlan') { await knowledgeBatchTranslation.cancel(event.sender.id); alive(); return { ok: true, value: null }; }
+        if (method === 'planKnowledgeTranslationBatch') {
+          const request = requestSchemas.planKnowledgeTranslationBatch.parse(payload);
+          if (request.documents.some(document => !owner.documents.has(document.documentId))) throw new StudioError('access_denied');
+          await translation.initialize(); alive();
+          return { ok: true, value: await knowledgeBatchTranslation.plan(event.sender.id, request, alive) };
+        }
+        if (method === 'createKnowledgeTranslationBatch') {
+          const value = await knowledgeBatchTranslation.start(event.sender.id, requestSchemas.createKnowledgeTranslationBatch.parse(payload), alive);
+          alive(); return { ok: true, value };
+        }
         if (method === 'cancelKnowledgeTranslationPlan') { await knowledgeTranslation.cancel(event.sender.id); alive(); return { ok: true, value: null }; }
         if (method === 'planKnowledgeTranslation') {
           const request = requestSchemas.planKnowledgeTranslation.parse(payload);
@@ -401,10 +414,14 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
         const failures = retirementFailures; retirementFailures = [];
         const results = await Promise.allSettled([
           knowledgeTrial.dispose(),
-          knowledgeTranslation.dispose(),
           Promise.resolve().then(async () => {
-            // Stop and join admissions before interrupting the translation runs they created.
-            try { await automaticCleanup; } catch (error) { failures.push(error); }
+            // Join admission coordinators before interrupting their translation
+            // runs; unrelated runtime shutdown can proceed concurrently.
+            const admissions = await Promise.allSettled([
+              knowledgeTranslation.dispose(), knowledgeBatchTranslation.dispose(),
+              automaticCleanup ?? Promise.resolve(),
+            ]);
+            for (const result of admissions) if (result.status === 'rejected') failures.push(result.reason);
             await translation.dispose();
           }),
           Promise.resolve().then(() => runtime?.shutdown(reason)),

@@ -9,6 +9,9 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
   };
   return Object.freeze({
     readExecutionRecord: request => invoke(STUDIO_CHANNELS.readExecutionRecord, request),
+    planKnowledgeTranslationBatch: request => invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, request),
+    createKnowledgeTranslationBatch: request => invoke(STUDIO_CHANNELS.createKnowledgeTranslationBatch, request),
+    cancelKnowledgeTranslationBatchPlan: request => invoke(STUDIO_CHANNELS.cancelKnowledgeTranslationBatchPlan, request),
     planKnowledgeTranslation: request => invoke(STUDIO_CHANNELS.planKnowledgeTranslation, request),
     createKnowledgeTranslation: request => invoke(STUDIO_CHANNELS.createKnowledgeTranslation, request),
     cancelKnowledgeTranslationPlan: request => invoke(STUDIO_CHANNELS.cancelKnowledgeTranslationPlan, request),

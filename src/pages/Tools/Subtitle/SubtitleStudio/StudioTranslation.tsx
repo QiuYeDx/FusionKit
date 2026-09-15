@@ -26,6 +26,7 @@ import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchRes
 import './StudioTranslation.css';
 import './StudioBatch.css';
 import { StudioKnowledgeTrial } from './StudioKnowledgeTrial';
+import { StudioKnowledgeBatch } from './StudioKnowledgeBatch';
 import { StudioExecutionRecord, hasExecutionRecordEntry } from './StudioExecutionRecord';
 
 const errorKeys = {
@@ -150,7 +151,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   }, []);
   useEffect(() => {
     // A submitted batch owns its result even if an external model setting changes.
-    if (batch && (activity === 'start' || batchResult)) return;
+    if (batch && (activity === 'start' || knowledgeStarting || batchResult)) return;
     setPlan(null); setBatchPlan(null); setBatchResult(null); setError(null);
   }, [identity]);
   useEffect(() => {
@@ -234,7 +235,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
       }
       if (openRequest) openRequest.restoreFocus(); else trigger.current?.focus({ preventScroll: true });
     }}>
-      {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={() => setOpen(false)} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; setOpen(false); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
+      {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={() => setOpen(false)} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : 'reason' in item && item.reason === 'knowledge_check_failed' ? t('knowledge:batch.not_started') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; setOpen(false); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
       <ScrollableDialogHeader className="relative p-3 pr-12">
         <DialogTitle className="flex items-center gap-2 text-base"><Languages className="size-4" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle>
         <DialogDescription className={batch ? 'text-xs' : 'sr-only'}>{batch ? t('studio:batch.document_count', { count: batchDocuments.length }) : page?.summary.origin.displayName}</DialogDescription>
@@ -269,6 +270,10 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           {!batch && page && config.success && <StudioKnowledgeTrial key={page.summary.id} page={page} config={config.data} apiKey={selected?.apiKey ?? ''} disabled={pending || busy || activeTask || unavailable} onAdmissionChange={value => { if (mounted.current) setKnowledgeStarting(value); }} onStarted={taskId => {
             getStudioTranslationOverviewController().trackStarted([taskId]);
             if (mounted.current) { setOpen(false); setPlan(null); onStarted(); }
+          }} />}
+          {batch && config.success && <StudioKnowledgeBatch documents={batchDocuments.map(item => documents?.find(document => document.id === item.id) ?? item)} config={config.data} apiKey={selected?.apiKey ?? ''} disabled={pending || busy || unavailable} onAdmissionChange={value => { if (mounted.current) setKnowledgeStarting(value); }} onStarted={value => {
+            getStudioTranslationOverviewController().trackStarted(value.items.flatMap(item => item.ok ? [item.taskId] : []));
+            if (mounted.current) { setBatchResult(value); setBatchPlan(null); setPlan(null); onStarted(); }
           }} />}
           <ToolConfigDisclosure testId="studio-translation-advanced" className="studio-translation-advanced border-b-0" icon={SlidersHorizontal} title={t('studio:translation.advanced')}>
             <div className="studio-translation-budget-fields">

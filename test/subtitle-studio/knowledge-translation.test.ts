@@ -14,7 +14,7 @@ import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 import { validateFrozenKnowledgeSnapshot } from '../../src/translation-knowledge/snapshot-contract';
 import type { ModelRuntimeTextRequest, ModelRuntimeTextResult } from '../../electron/main/ai/model-runtime-client';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
-import { KnowledgeTranslationService, KNOWLEDGE_TRANSLATION_LIMITS } from '../../electron/main/subtitle-studio/knowledge-translation';
+import { KnowledgeTranslationService, KNOWLEDGE_TRANSLATION_LIMITS, prepareKnowledgeTranslation } from '../../electron/main/subtitle-studio/knowledge-translation';
 import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
 import { TranslationScheduler } from '../../electron/main/subtitle-studio/translation-recovery';
 import { KNOWLEDGE_PRIOR_REQUEST_BYTES, resolveExecutionRecord } from '../../electron/main/subtitle-studio/execution-records';
@@ -58,6 +58,47 @@ async function fixture(count = 43, send: (request: ModelRuntimeTextRequest) => P
 }
 
 describe('formal document knowledge translation', () => {
+  it.each(['', 'Keep the dialogue concise.'])('normalizes undefined selection options before preview and admission with parent instructions %j', async instructions => {
+    const f = await fixture(1);
+    const input = f.request({ config: config({ instructions }) });
+    const absent = await prepareKnowledgeTranslation(f.repository, input, f.library);
+    input.knowledge = { ...input.knowledge, recipeId: undefined, instructions: undefined, context: undefined };
+    const preview = await f.service.plan(1, input);
+    expect(preview).toEqual({ ...absent.preview, planId: preview.planId, expiresAt: preview.expiresAt });
+    expect(preview.canRun).toBe(true);
+    const started = await f.service.start(1, { planId: preview.planId, apiKey: 'key' });
+    await f.translation.settled(started.taskId);
+    const snapshot = await f.repository.readSnapshot(f.document.id), record = resolveExecutionRecord(snapshot, started.taskId);
+    expect(snapshot.tasks[0].status).toBe('completed');
+    expect(record.knowledge).toEqual(absent.prepared!.knowledge);
+    expect(record.knowledge!.selection).not.toHaveProperty('recipeId');
+    expect(record.knowledge!.selection).not.toHaveProperty('context');
+    if (instructions) expect(record.knowledge!.selection.instructions).toBe(instructions);
+    else expect(record.knowledge!.selection).not.toHaveProperty('instructions');
+    expect(record.baseRequests.b1.request).toEqual(absent.prepared!.baseRequests.b1.request);
+    expect(record.baseRequests.b1.httpBody).toBe(absent.prepared!.baseRequests.b1.httpBody);
+    expect(f.sent).toHaveBeenCalledTimes(1);
+    expect(planner.serializeTranslationRequest(f.sent.mock.calls[0][0])).toBe(absent.prepared!.baseRequests.b1.httpBody);
+  });
+
+  it('preserves explicitly empty instructions and context through frozen admission without falling back to recipe or form guidance', async () => {
+    const f = await fixture(1), recipeId = randomUUID();
+    const input = f.request({ config: config({ instructions: 'Parent form instructions.' }) });
+    f.library.data.recipes.push({ id: recipeId, revision: 1, archived: false, name: 'Formal recipe', description: '',
+      languagePair: input.knowledge.languagePair, readCollectionIds: [], subjectSuggestions: [], modifierStyleIds: [],
+      instructions: 'Recipe instructions.', context: 'Recipe context.', inheritGlobalPreferences: false, learningSuggestion: 'off' });
+    input.knowledge = { ...input.knowledge, recipeId, instructions: '', context: '' };
+    const preview = await f.service.plan(1, input);
+    expect(preview.canRun).toBe(true);
+    const started = await f.service.start(1, { planId: preview.planId, apiKey: 'key' });
+    await f.translation.settled(started.taskId);
+    const snapshot = await f.repository.readSnapshot(f.document.id), record = resolveExecutionRecord(snapshot, started.taskId);
+    expect(snapshot.tasks[0].status).toBe('completed');
+    expect(record.knowledge!.selection).toMatchObject({ recipeId, instructions: '', context: '' });
+    expect(record.knowledge!.batches.b1).toMatchObject({ instructions: '', context: '' });
+    expect(JSON.parse(f.sent.mock.calls[0][0].messages[1].content)).toMatchObject({ translationRequirements: '', translationKnowledge: { background: '' } });
+  });
+
   it.each(['chat_completions', 'responses'] as const)('translates all windows with global IDs and frozen %s knowledge, retaining cross-window source and AI context', async apiFormat => {
     const f = await fixture();
     const preview = await f.service.plan(1, f.request({ config: config({ model: { ...config().model, apiFormat } }) }));

@@ -11,10 +11,14 @@ import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, Loca
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
 import type { SpeechResourcesStatus } from '../speech-resources/events';
 import { knowledgeTrialRequestSchemas, type KnowledgeTrialPreview, type KnowledgeTrialResult } from './knowledge-trial-contract';
+import { knowledgeBatchRequestSchemas, type KnowledgeBatchTranslationPreview, type KnowledgeBatchTranslationResult } from './knowledge-batch-contract';
 import { knowledgeTranslationRequestSchemas, type KnowledgeTranslationPreview } from './knowledge-translation-contract';
 import { readExecutionRecordSchema, type ExecutionRecordPage } from './execution-view-contract';
 
 export const STUDIO_CHANNELS = {
+  planKnowledgeTranslationBatch: 'subtitle-studio:plan-knowledge-translation-batch',
+  createKnowledgeTranslationBatch: 'subtitle-studio:create-knowledge-translation-batch',
+  cancelKnowledgeTranslationBatchPlan: 'subtitle-studio:cancel-knowledge-translation-batch-plan',
   planKnowledgeTranslation: 'subtitle-studio:plan-knowledge-translation',
   createKnowledgeTranslation: 'subtitle-studio:create-knowledge-translation',
   cancelKnowledgeTranslationPlan: 'subtitle-studio:cancel-knowledge-translation-plan',
@@ -95,6 +99,7 @@ export const requestSchemas = {
   readExecutionRecord: readExecutionRecordSchema,
   ...knowledgeTrialRequestSchemas,
   ...knowledgeTranslationRequestSchemas,
+  ...knowledgeBatchRequestSchemas,
   ...transcriptionRequestSchemas,
   listTranslationTasks: z.object({ offset: z.number().int().min(0).max(100000000), pageSize: z.number().int().min(1).max(100), taskIds: z.array(idSchema).max(100).refine(ids => new Set(ids).size === ids.length).optional() }).strict(),
   revealSource: z.object({ kind: z.enum(['document', 'transcription']), id: idSchema }).strict(),
@@ -157,6 +162,9 @@ export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneratio
   | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
   readExecutionRecord(request: z.infer<typeof requestSchemas.readExecutionRecord>): Promise<StudioResult<ExecutionRecordPage>>;
+  planKnowledgeTranslationBatch(request: z.infer<typeof requestSchemas.planKnowledgeTranslationBatch>): Promise<StudioResult<KnowledgeBatchTranslationPreview>>;
+  createKnowledgeTranslationBatch(request: z.infer<typeof requestSchemas.createKnowledgeTranslationBatch>): Promise<StudioResult<KnowledgeBatchTranslationResult>>;
+  cancelKnowledgeTranslationBatchPlan(request: z.infer<typeof requestSchemas.cancelKnowledgeTranslationBatchPlan>): Promise<StudioResult<null>>;
   planKnowledgeTranslation(request: z.infer<typeof requestSchemas.planKnowledgeTranslation>): Promise<StudioResult<KnowledgeTranslationPreview>>;
   createKnowledgeTranslation(request: z.infer<typeof requestSchemas.createKnowledgeTranslation>): Promise<StudioResult<{ taskId: string }>>;
   cancelKnowledgeTranslationPlan(request: z.infer<typeof requestSchemas.cancelKnowledgeTranslationPlan>): Promise<StudioResult<null>>;

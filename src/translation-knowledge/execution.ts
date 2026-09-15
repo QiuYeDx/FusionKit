@@ -2,7 +2,7 @@ import type { LibrarySnapshot } from './ipc-contract';
 import type { Entry } from './schemas';
 import { sha256Canonical } from './canonicalize';
 import { MATCH_POLICY_VERSION, matchLiteral, normalizeForMatching } from './matching';
-import { knowledgeSelectionSchema, type KnowledgeSelection, type KnowledgeCue, type KnowledgeEnvironment, type KnowledgeIssue, type CompiledKnowledgeItem, type BatchKnowledge, type CompiledKnowledge } from './execution-contract';
+import { knowledgeSelectionSchema, normalizeKnowledgeSelection, type KnowledgeSelection, type KnowledgeCue, type KnowledgeEnvironment, type KnowledgeIssue, type CompiledKnowledgeItem, type BatchKnowledge, type CompiledKnowledge } from './execution-contract';
 
 export const KNOWLEDGE_EXECUTION_POLICY = `fktk-execution/1;${MATCH_POLICY_VERSION};context-term-rule`;
 /** P1.1 preview is deliberately bounded before serialization. Exceeding any work
@@ -21,7 +21,7 @@ export function resolveEnvironment(library: LibrarySnapshot, input: KnowledgeSel
   const parsed = knowledgeSelectionSchema.safeParse(input);
   if (!parsed.success) throw new TypeError('Invalid knowledge selection');
   if (!inputCues.length || inputCues.length > 20 || new Set(inputCues.map(cue => cue.id)).size !== inputCues.length || inputCues.some(cue => !cue.id || !cue.text || new TextEncoder().encode(cue.text).byteLength > 65536)) throw new TypeError('Invalid knowledge cues');
-  const selection = parsed.data, cues = copy(inputCues), cueIds = new Set(cues.map(cue => cue.id));
+  const selection = normalizeKnowledgeSelection(parsed.data), cues = copy(inputCues), cueIds = new Set(cues.map(cue => cue.id));
   const issues: KnowledgeIssue[] = [], items: CompiledKnowledgeItem[] = [];
   const encoder = new TextEncoder();
   let resourceExceeded = false, scanBytes = 0, matchCount = 0, conflictComparisons = 0;

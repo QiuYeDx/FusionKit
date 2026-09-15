@@ -64,6 +64,30 @@ describe('knowledge environment resolution', () => {
     expect(environment.context).toBe('');
   });
 
+  it.each(['instructions', 'context', 'recipeId'] as const)('normalizes explicit undefined %s before computing selection and environment digests', field => {
+    const snapshot = library(), absent = selection(), explicit = { ...absent, [field]: undefined };
+    const expected = resolveEnvironment(snapshot, absent, cues);
+    const actual = resolveEnvironment(snapshot, explicit, cues);
+    expect(actual).toEqual(expected);
+    expect(Object.hasOwn(actual.selection, field)).toBe(false);
+    expect(Object.hasOwn(explicit, field)).toBe(true);
+    // This applies only to private selection inputs, never arbitrary JSON data.
+    expect(() => sha256Canonical(explicit)).toThrow('JCS accepts only JSON values');
+  });
+
+  it('keeps explicit empty instructions and context while absent choices inherit recipe defaults', () => {
+    const snapshot = library();
+    const recipe = { ...structuredClone(example.recipes[0]), baseStyleId: undefined, modifierStyleIds: [], instructions: 'Recipe instructions', context: 'Recipe context' };
+    delete recipe.baseStyleId;
+    snapshot.data.recipes.push(recipe);
+    const inherited = resolveEnvironment(snapshot, selection({ recipeId: recipe.id, instructions: undefined, context: undefined }), cues);
+    expect(inherited.instructions).toBe('Recipe instructions'); expect(inherited.context).toBe('Recipe context');
+    const cleared = resolveEnvironment(snapshot, selection({ recipeId: recipe.id, instructions: '', context: '' }), cues);
+    expect(cleared.instructions).toBe(''); expect(cleared.context).toBe('');
+    expect(cleared.selection).toMatchObject({ instructions: '', context: '' });
+    expect(cleared.configDigest).not.toBe(inherited.configDigest);
+  });
+
   it.each(['absent', 'stale_revision', 'stale_digest', 'candidate', 'needs_review', 'rejected', 'archived'] as const)(
     'excludes %s local approval/state from trusted execution', mode => {
       const snapshot = library();

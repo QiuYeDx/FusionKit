@@ -22,6 +22,14 @@ export const knowledgeSelectionSchema = z.strictObject({
   disabledEntryIds: ids, instructions: z.string().max(4000).optional(), context: z.string().max(4000).optional(),
 });
 export type KnowledgeSelection = z.infer<typeof knowledgeSelectionSchema>;
+/** IPC structured clone preserves explicit undefined optional properties. Omit
+ * only these absent choices before hashing; an empty string still clears a
+ * recipe/form default. The portable JSON canonicalizer remains strict. */
+export function normalizeKnowledgeSelection(input: KnowledgeSelection): KnowledgeSelection {
+  const selection = structuredClone(input);
+  for (const key of ['recipeId', 'instructions', 'context'] as const) if (selection[key] === undefined) delete selection[key];
+  return selection;
+}
 export type KnowledgeCue = { id: string; text: string; sourceLanguage: string };
 export const KNOWLEDGE_ISSUE_CODES = ['selection_invalid', 'resource_limit', 'resource_missing', 'resource_archived', 'style_unavailable', 'language_mismatch', 'untrusted', 'unsupported_kind', 'subject_unbound', 'speaker_conflict', 'condition_unconfirmed', 'disabled', 'no_match', 'term_conflict', 'rule_conflict', 'budget_excluded', 'budget_required', 'preferences_not_applied', 'required_term_suspect'] as const;
 export type KnowledgeIssueCode = typeof KNOWLEDGE_ISSUE_CODES[number];

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { sha256Canonical } from './canonicalize';
-import { KNOWLEDGE_ISSUE_CODES, knowledgeSelectionSchema, type CompiledKnowledge, type KnowledgeSelection } from './execution-contract';
+import { KNOWLEDGE_ISSUE_CODES, knowledgeSelectionSchema, normalizeKnowledgeSelection, type CompiledKnowledge, type KnowledgeSelection } from './execution-contract';
 import { ENTITY_ARRAYS, entrySchema, knowledgePackageSchema, sourceSchema, type KnowledgePackage } from './schemas';
 import { validatePackage } from './validation';
 import type { EntityGroup, KnowledgeEntity, LibrarySnapshot } from './ipc-contract';
@@ -36,8 +36,9 @@ const invalid = (): never => { throw new TypeError('Invalid frozen knowledge sna
 
 /** Capture every selected candidate and dependency, including excluded/untrusted
  * entries. A historical parent is provenance, not an instruction to read it. */
-export function buildFrozenKnowledgeSnapshot(library: LibrarySnapshot, selection: KnowledgeSelection,
+export function buildFrozenKnowledgeSnapshot(library: LibrarySnapshot, input: KnowledgeSelection,
   documentTopicIds: string[], batches: Record<string, CompiledKnowledge>): FrozenKnowledgeSnapshot {
+  const selection = normalizeKnowledgeSelection(input);
   const included = new Set<string>(), records = new Map<string, { group: EntityGroup; entity: KnowledgeEntity }>();
   for (const group of ENTITY_ARRAYS) for (const entity of library.data[group]) records.set(entity.id, { group, entity });
   const add = (group: EntityGroup, entityId: string): void => {

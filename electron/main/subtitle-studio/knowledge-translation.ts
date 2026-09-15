@@ -4,7 +4,7 @@ import { normalizeTranslationModel, translationConfigSchema } from '../../../src
 import { projectTranslationUnits } from '../../../src/subtitle-studio/translation-protocol';
 import { knowledgeTranslationRequestSchemas, type KnowledgeTranslationPreview, type KnowledgeTranslationRequest } from '../../../src/subtitle-studio/knowledge-translation-contract';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
-import type { CompiledKnowledge, KnowledgeIssue, KnowledgeSelection } from '../../../src/translation-knowledge/execution-contract';
+import { normalizeKnowledgeSelection, type CompiledKnowledge, type KnowledgeIssue, type KnowledgeSelection } from '../../../src/translation-knowledge/execution-contract';
 import { resolveEnvironment } from '../../../src/translation-knowledge/execution';
 import { buildFrozenKnowledgeSnapshot, knowledgeResourceReferences } from '../../../src/translation-knowledge/snapshot-contract';
 import type { KnowledgeTaskGate } from '../../../src/translation-knowledge/task-reference-contract';
@@ -57,6 +57,90 @@ function scanCost(library: LibrarySnapshot, selection: KnowledgeSelection) {
   return { variants, textBytes };
 }
 
+export type KnowledgePreparationBudget = { charge(kind: 'cues' | 'scanBytes' | 'planningBytes' | 'diagnosticBytes', amount: number): void };
+export type PreparedKnowledgeTranslation = { preview: Omit<KnowledgeTranslationPreview, 'planId' | 'expiresAt'>; prepared?: PreparedKnowledgeExecution; displayName: string; bytes: number };
+
+/** Main-only preparation retains no owner cache. A batch passes one frozen library and
+ * a shared work budget while preserving every single-document validation and bound. */
+export async function prepareKnowledgeTranslation(repository: DocumentRepository, request: KnowledgeTranslationRequest,
+  library: LibrarySnapshot, alive: () => void = () => {}, budget?: KnowledgePreparationBudget): Promise<PreparedKnowledgeTranslation> {
+  alive();
+  const initial = await repository.readSnapshot(request.documentId); alive();
+  const document = initial.document;
+  if (document.revision !== request.revision) throw new StudioError('revision_conflict');
+  const sourceCount = document.cues.filter(cue => /\S/u.test(cue.source.plain)).length;
+  if (!sourceCount) throw new StudioError('invalid_input');
+  budget?.charge('cues', sourceCount);
+  if (sourceCount > KNOWLEDGE_TRANSLATION_LIMITS.cues) throw new StudioError('limit_exceeded');
+  const originals = new Map(document.cues.map(cue => [cue.id, cue]));
+  if ([...request.knowledge.bindings, ...request.knowledge.confirmations].some(binding => binding.cueIds.some(id => !originals.has(id)))) throw new StudioError('invalid_input');
+  const units = projectTranslationUnits(document).map(unit => ({ ...unit, sourceHash: sourceDigest(originals.get(unit.cueId)!) }));
+  const translatable = new Set(units.map(unit => unit.cueId));
+  if ([...request.knowledge.bindings, ...request.knowledge.confirmations].some(binding => binding.cueIds.some(id => !translatable.has(id)))) throw new StudioError('invalid_input');
+  if (library.generation !== request.knowledgeGeneration) throw new StudioError('revision_conflict');
+  const selection = normalizeKnowledgeSelection(request.knowledge);
+  if (selection.instructions === undefined && request.config.instructions) selection.instructions = request.config.instructions;
+  const config = translationConfigSchema.parse({ ...request.config, language: selection.languagePair.target, instructions: '' });
+  config.model = normalizeTranslationModel(config.model);
+  const issues = new Map<string, KnowledgeIssue>();
+  const mergeIssues = (values: KnowledgeIssue[]) => {
+    for (const issue of values) {
+      const key = JSON.stringify([issue.code, issue.severity, issue.entryIds]);
+      const existing = issues.get(key);
+      if (existing) existing.cueIds = !existing.cueIds.length || !issue.cueIds.length ? [] : [...new Set([...existing.cueIds, ...issue.cueIds])];
+      else issues.set(key, structuredClone(issue));
+    }
+  };
+  if (request.documentTopicIds.some(id => !library.data.subjects.some(subject => subject.id === id && !subject.archived))) mergeIssues([{ code: 'selection_invalid', severity: 'error', entryIds: [], cueIds: [] }]);
+  const indices = new Map(document.cues.map((cue, index) => [cue.id, index]));
+  const batches: PreparedKnowledgeBatch[] = [], digests: string[] = [];
+  let scanned = 0, material = 0, planning = 0, diagnostics = 0;
+  const cost = scanCost(library, selection);
+  for (let offset = 0; offset < units.length; offset += KNOWLEDGE_TRANSLATION_LIMITS.windowCues) {
+    await yieldWindow(); alive();
+    if ([...issues.values()].some(issue => issue.severity === 'error')) break;
+    const window = units.slice(offset, offset + KNOWLEDGE_TRANSLATION_LIMITS.windowCues);
+    const scanBytes = window.reduce((sum, unit) => sum + Buffer.byteLength(originals.get(unit.cueId)!.source.plain), 0) * cost.variants + window.length * cost.textBytes;
+    scanned += scanBytes; budget?.charge('scanBytes', scanBytes);
+    if (scanned > KNOWLEDGE_TRANSLATION_LIMITS.scanBytes) throw new StudioError('limit_exceeded');
+    const environment = resolveEnvironment(library, scopedSelection(selection, request.documentTopicIds, window.map(unit => unit.cueId)), window.map(unit => ({ id: unit.cueId, text: originals.get(unit.cueId)!.source.plain, sourceLanguage: selection.languagePair.source })));
+    digests.push(environment.digest);
+    const planned = planKnowledgeBatches(document, window, config, environment, { batchOffset: batches.length, priorContextTokens: 512, cueIndices: indices,
+      checkCandidate: candidate => {
+        const size = bytes(candidate); planning += size; budget?.charge('planningBytes', size);
+        if (planning > KNOWLEDGE_TRANSLATION_LIMITS.planningBytes || material + size > KNOWLEDGE_TRANSLATION_LIMITS.preparedBytes) throw new StudioError('limit_exceeded');
+      }, acceptBatch: batch => {
+        material += bytes(batch);
+        if (material > KNOWLEDGE_TRANSLATION_LIMITS.preparedBytes) throw new StudioError('limit_exceeded');
+      } });
+    const diagnosticBytes = bytes(planned.issues);
+    diagnostics += diagnosticBytes; budget?.charge('diagnosticBytes', diagnosticBytes);
+    if (diagnostics > KNOWLEDGE_TRANSLATION_LIMITS.diagnosticBytes) throw new StudioError('limit_exceeded');
+    mergeIssues(planned.issues);
+    batches.push(...planned.batches);
+  }
+  await yieldWindow(); alive();
+  const current = await repository.readSnapshot(document.id); alive();
+  if (current.document.revision !== document.revision || documentSourceDigest(current.document) !== documentSourceDigest(document)) throw new StudioError('revision_conflict');
+  const canRun = batches.reduce((sum, item) => sum + item.batch.units.length, 0) === units.length && ![...issues.values()].some(issue => issue.severity === 'error');
+  let prepared: PreparedKnowledgeExecution | undefined;
+  let knowledgeDigest = sha256Canonical({ generation: library.generation, selection, documentTopicIds: request.documentTopicIds, digests }), resourceCount = 0;
+  if (canRun) {
+    const compiled: Record<string, CompiledKnowledge> = Object.fromEntries(batches.map(item => [item.batch.id, item.knowledge]));
+    const knowledge = buildFrozenKnowledgeSnapshot(library, selection, request.documentTopicIds, compiled);
+    const plan: TranslationPlan = { documentId: document.id, revision: document.revision, config, batches: batches.map(item => item.batch) };
+    prepared = { plan, sourceDigest: documentSourceDigest(document), knowledge, baseRequests: Object.fromEntries(batches.map(item => [item.batch.id, freezeExecutionRequest(item.batch.id, item.request)])) };
+    if (bytes(prepared) > KNOWLEDGE_TRANSLATION_LIMITS.preparedBytes) throw new StudioError('limit_exceeded');
+    const { record } = createExecutionRecord(plan, prepared.sourceDigest, randomUUID(), randomUUID(), prepared);
+    assertKnowledgeExecutionCapacity(current, record, 64 * 1024);
+    knowledgeDigest = knowledge.digest; resourceCount = knowledgeResourceReferences(knowledge).length;
+  }
+  const preview: PreparedKnowledgeTranslation['preview'] = { documentId: document.id, revision: document.revision, canRun,
+    cueCount: units.length, batchCount: batches.length, estimatedInputTokens: batches.reduce((sum, item) => sum + item.batch.estimatedInputTokens, 0), outputTokenReserve: batches.length * config.maxOutputTokens,
+    knowledgeDigest, resourceCount, includedEntryCount: new Set(batches.flatMap(item => item.knowledge.items.map(entry => entry.entryId))).size, issues: [...issues.values()] };
+  return { preview, prepared, displayName: document.origin.displayName, bytes: bytes({ preview, prepared }) };
+}
+
 /** Planning owns no task. Only a verified, generation-bound plan can enter formal execution. */
 export class KnowledgeTranslationService {
   private readonly plans = new Map<string, CachedPlan>();
@@ -93,77 +177,10 @@ export class KnowledgeTranslationService {
     const alive = () => this.alive(owner, epoch, guard);
     return this.track(owner, (async () => {
       alive();
-      const initial = await this.repository.readSnapshot(request.documentId); alive();
-      const document = initial.document;
-      if (document.revision !== request.revision) throw new StudioError('revision_conflict');
-      const sourceCount = document.cues.filter(cue => /\S/u.test(cue.source.plain)).length;
-      if (!sourceCount) throw new StudioError('invalid_input');
-      if (sourceCount > KNOWLEDGE_TRANSLATION_LIMITS.cues) throw new StudioError('limit_exceeded');
-      const originals = new Map(document.cues.map(cue => [cue.id, cue]));
-      if ([...request.knowledge.bindings, ...request.knowledge.confirmations].some(binding => binding.cueIds.some(id => !originals.has(id)))) throw new StudioError('invalid_input');
-      const units = projectTranslationUnits(document).map(unit => ({ ...unit, sourceHash: sourceDigest(originals.get(unit.cueId)!) }));
-      const translatable = new Set(units.map(unit => unit.cueId));
-      if ([...request.knowledge.bindings, ...request.knowledge.confirmations].some(binding => binding.cueIds.some(id => !translatable.has(id)))) throw new StudioError('invalid_input');
       const library = structuredClone(await this.readKnowledge()); alive();
-      if (library.generation !== request.knowledgeGeneration) throw new StudioError('revision_conflict');
-      const selection = structuredClone(request.knowledge);
-      if (selection.instructions === undefined && request.config.instructions) selection.instructions = request.config.instructions;
-      const config = translationConfigSchema.parse({ ...request.config, language: selection.languagePair.target, instructions: '' });
-      config.model = normalizeTranslationModel(config.model);
-      const issues = new Map<string, KnowledgeIssue>();
-      const mergeIssues = (values: KnowledgeIssue[]) => {
-        for (const issue of values) {
-          const key = JSON.stringify([issue.code, issue.severity, issue.entryIds]);
-          const existing = issues.get(key);
-          if (existing) existing.cueIds = !existing.cueIds.length || !issue.cueIds.length ? [] : [...new Set([...existing.cueIds, ...issue.cueIds])];
-          else issues.set(key, structuredClone(issue));
-        }
-      };
-      if (request.documentTopicIds.some(id => !library.data.subjects.some(subject => subject.id === id && !subject.archived))) mergeIssues([{ code: 'selection_invalid', severity: 'error', entryIds: [], cueIds: [] }]);
-      const indices = new Map(document.cues.map((cue, index) => [cue.id, index]));
-      const batches: PreparedKnowledgeBatch[] = [], digests: string[] = [];
-      let scanned = 0, material = 0, planning = 0, diagnostics = 0;
-      const cost = scanCost(library, selection);
-      for (let offset = 0; offset < units.length; offset += KNOWLEDGE_TRANSLATION_LIMITS.windowCues) {
-        await yieldWindow(); alive();
-        if ([...issues.values()].some(issue => issue.severity === 'error')) break;
-        const window = units.slice(offset, offset + KNOWLEDGE_TRANSLATION_LIMITS.windowCues);
-        scanned += window.reduce((sum, unit) => sum + Buffer.byteLength(originals.get(unit.cueId)!.source.plain), 0) * cost.variants + window.length * cost.textBytes;
-        if (scanned > KNOWLEDGE_TRANSLATION_LIMITS.scanBytes) throw new StudioError('limit_exceeded');
-        const environment = resolveEnvironment(library, scopedSelection(selection, request.documentTopicIds, window.map(unit => unit.cueId)), window.map(unit => ({ id: unit.cueId, text: originals.get(unit.cueId)!.source.plain, sourceLanguage: selection.languagePair.source })));
-        digests.push(environment.digest);
-        const planned = planKnowledgeBatches(document, window, config, environment, { batchOffset: batches.length, priorContextTokens: 512, cueIndices: indices,
-          checkCandidate: candidate => {
-            const size = bytes(candidate); planning += size;
-            if (planning > KNOWLEDGE_TRANSLATION_LIMITS.planningBytes || material + size > KNOWLEDGE_TRANSLATION_LIMITS.preparedBytes) throw new StudioError('limit_exceeded');
-          }, acceptBatch: batch => {
-            material += bytes(batch);
-            if (material > KNOWLEDGE_TRANSLATION_LIMITS.preparedBytes) throw new StudioError('limit_exceeded');
-          } });
-        diagnostics += bytes(planned.issues);
-        if (diagnostics > KNOWLEDGE_TRANSLATION_LIMITS.diagnosticBytes) throw new StudioError('limit_exceeded');
-        mergeIssues(planned.issues);
-        batches.push(...planned.batches);
-      }
-      await yieldWindow(); alive();
-      const current = await this.repository.readSnapshot(document.id); alive();
-      if (current.document.revision !== document.revision || documentSourceDigest(current.document) !== documentSourceDigest(document)) throw new StudioError('revision_conflict');
-      const canRun = batches.reduce((sum, item) => sum + item.batch.units.length, 0) === units.length && ![...issues.values()].some(issue => issue.severity === 'error');
-      let prepared: PreparedKnowledgeExecution | undefined;
-      let knowledgeDigest = sha256Canonical({ generation: library.generation, selection, documentTopicIds: request.documentTopicIds, digests }), resourceCount = 0;
-      if (canRun) {
-        const compiled: Record<string, CompiledKnowledge> = Object.fromEntries(batches.map(item => [item.batch.id, item.knowledge]));
-        const knowledge = buildFrozenKnowledgeSnapshot(library, selection, request.documentTopicIds, compiled);
-        const plan: TranslationPlan = { documentId: document.id, revision: document.revision, config, batches: batches.map(item => item.batch) };
-        prepared = { plan, sourceDigest: documentSourceDigest(document), knowledge, baseRequests: Object.fromEntries(batches.map(item => [item.batch.id, freezeExecutionRequest(item.batch.id, item.request)])) };
-        if (bytes(prepared) > KNOWLEDGE_TRANSLATION_LIMITS.preparedBytes) throw new StudioError('limit_exceeded');
-        const { record } = createExecutionRecord(plan, prepared.sourceDigest, randomUUID(), randomUUID(), prepared);
-        assertKnowledgeExecutionCapacity(current, record, 64 * 1024);
-        knowledgeDigest = knowledge.digest; resourceCount = knowledgeResourceReferences(knowledge).length;
-      }
-      const preview: KnowledgeTranslationPreview = { planId: randomUUID(), documentId: document.id, revision: document.revision, expiresAt: Date.now() + PLAN_LIFETIME, canRun,
-        cueCount: units.length, batchCount: batches.length, estimatedInputTokens: batches.reduce((sum, item) => sum + item.batch.estimatedInputTokens, 0), outputTokenReserve: batches.length * config.maxOutputTokens,
-        knowledgeDigest, resourceCount, includedEntryCount: new Set(batches.flatMap(item => item.knowledge.items.map(entry => entry.entryId))).size, issues: [...issues.values()] };
+      const result = await prepareKnowledgeTranslation(this.repository, request, library, alive);
+      const { prepared } = result;
+      const preview: KnowledgeTranslationPreview = { ...result.preview, planId: randomUUID(), expiresAt: Date.now() + PLAN_LIFETIME };
       const size = bytes({ preview, prepared });
       for (const [id, saved] of this.plans) if (!saved.started && saved.preview.expiresAt <= Date.now()) this.plans.delete(id);
       if (this.plans.size >= KNOWLEDGE_TRANSLATION_LIMITS.plans || [...this.plans.values()].reduce((sum, value) => sum + value.bytes, size) > KNOWLEDGE_TRANSLATION_LIMITS.cachedBytes) throw new StudioError('limit_exceeded');

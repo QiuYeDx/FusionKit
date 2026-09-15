@@ -9,6 +9,7 @@ import { requestTokenEstimate, sourceDigest } from './translation-planner';
 import { documentSourceDigest, translationScheduler, type TranslationScheduler } from './translation-recovery';
 import { knowledgeTrialRequestSchemas, type KnowledgeTrialRequest, type KnowledgeTrialPreview, type KnowledgeTrialResult } from '../../../src/subtitle-studio/knowledge-trial-contract';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
+import { normalizeKnowledgeSelection } from '../../../src/translation-knowledge/execution-contract';
 import { resolveEnvironment, checkRequiredTerms } from '../../../src/translation-knowledge/execution';
 import { planKnowledgeBatches, type PreparedKnowledgeBatch } from './knowledge-planner';
 
@@ -109,7 +110,7 @@ export class KnowledgeTrialService {
       const originals = new Map(document.cues.map(cue => [cue.id, cue]));
       const snapshot = structuredClone(await this.readKnowledge()); alive();
       if (snapshot.generation !== request.knowledgeGeneration) throw new StudioError('revision_conflict');
-      const selection = structuredClone(request.knowledge);
+      const selection = normalizeKnowledgeSelection(request.knowledge);
       // An explicit trial value (including empty) overrides the parent form.
       if (selection.instructions === undefined && request.config.instructions) selection.instructions = request.config.instructions;
       const environment = resolveEnvironment(snapshot, selection, units.map(unit => ({ id: unit.cueId, text: originals.get(unit.cueId)!.source.plain, sourceLanguage: selection.languagePair.source })));

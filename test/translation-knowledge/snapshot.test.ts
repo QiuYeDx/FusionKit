@@ -27,6 +27,15 @@ function rehash(snapshot: FrozenKnowledgeSnapshot) {
   return snapshot;
 }
 describe('frozen execution knowledge', () => {
+  it('normalizes absent optional choices for direct snapshot builders without loosening snapshot validation', () => {
+    const input = fixture(), expected = capture(input);
+    const explicit = { ...input.selection, recipeId: undefined, instructions: undefined, context: undefined };
+    const actual = buildFrozenKnowledgeSnapshot(input.library, explicit, [], expected.batches);
+    expect(actual).toEqual(expected);
+    expect(Object.hasOwn(explicit, 'instructions')).toBe(true);
+    expect(() => validateFrozenKnowledgeSnapshot({ ...expected, selection: explicit })).toThrow();
+  });
+
   it('captures excluded candidates and full provenance, preserves entity metadata and isolates later library edits', () => {
     const input = fixture();
     input.library.data.collections.push({ ...input.library.data.collections[0], id: unrelated, name: 'Unrelated' });

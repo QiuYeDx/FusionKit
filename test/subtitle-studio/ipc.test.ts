@@ -15,6 +15,7 @@ import { checkpointForPlan } from '../../electron/main/subtitle-studio/translati
 import type { ExportOptions } from '../../src/subtitle-studio/export-contract';
 import type { KnowledgeTrialRequest } from '../../src/subtitle-studio/knowledge-trial-contract';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
+import type { KnowledgeBatchTranslationRequest } from '../../src/subtitle-studio/knowledge-batch-contract';
 
 const adapter = vi.hoisted(() => ({ handlers: new Map<string, Function>(), listeners: new Map<string, Function>(), directory: '', open: vi.fn(), save: vi.fn(), reveal: vi.fn(), openFolder: vi.fn() }));
 vi.mock('electron', () => ({
@@ -77,6 +78,88 @@ function mockTrialProvider() {
 }
 
 describe('production Subtitle Studio IPC handler composition', () => {
+  it('routes the fixed batch knowledge bridge and creates independent records for owner-scoped files', async () => {
+    const send = mockTrialProvider();
+    const library = trialLibrary();
+    const { owner, request: first } = await setup('[00:01]First file.\n', async () => library);
+    const secondPath = path.join(adapter.directory, 'second.lrc');
+    await writeFile(secondPath, '[00:01]Second file.\n');
+    adapter.open.mockResolvedValueOnce({ canceled: false, filePaths: [secondPath] });
+    const imported = await owner.invoke(STUDIO_CHANNELS.importSubtitles, { encoding: 'utf-8' });
+    expect(imported.ok).toBe(true);
+    const second = imported.value.items[0].ok ? imported.value.items[0].document : undefined;
+    expect(second).toBeDefined();
+    if (!second) return;
+    const ipc = { sendSync: () => owner.capability,
+      invoke: vi.fn((channel: string, envelope: unknown) => adapter.handlers.get(channel)!({ sender: owner.client, senderFrame: owner.client.mainFrame }, envelope)),
+      on: vi.fn(), removeListener: vi.fn() };
+    const api = createSubtitleStudioApi(ipc);
+    const input: KnowledgeBatchTranslationRequest = {
+      documents: [first, { documentId: second.id, revision: second.revision }], knowledgeGeneration: 1,
+      config: trialInput(first).config, documentTopicIds: [],
+      knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [] },
+    };
+    const planned = await api.planKnowledgeTranslationBatch(input);
+    expect(planned).toMatchObject({ ok: true, value: { readyCount: 2, items: [{ ok: true }, { ok: true }] } });
+    if (!planned.ok) throw new Error('Batch plan unavailable');
+    expect(send).not.toHaveBeenCalled();
+    const other = attach();
+    expect(await other.invoke(STUDIO_CHANNELS.createKnowledgeTranslationBatch, { planId: planned.value.planId, apiKey: 'fixture' })).toEqual({ ok: false, error: 'access_denied' });
+    expect(await other.invoke(STUDIO_CHANNELS.cancelKnowledgeTranslationBatchPlan, {})).toEqual({ ok: true, value: null });
+    const started = await api.createKnowledgeTranslationBatch({ planId: planned.value.planId, apiKey: 'fixture' });
+    expect(started.ok).toBe(true);
+    if (!started.ok) return;
+    expect(started.value.items.filter(item => item.ok)).toHaveLength(2);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+    const firstSnapshot = await new DocumentRepository(path.join(adapter.directory, 'subtitle-studio/documents')).readSnapshot(first.documentId);
+    const secondSnapshot = await new DocumentRepository(path.join(adapter.directory, 'subtitle-studio/documents')).readSnapshot(second.id);
+    expect(firstSnapshot.document.translationTracks[0].executionRef).toBeDefined();
+    expect(secondSnapshot.document.translationTracks[0].executionRef).toBeDefined();
+    expect(Object.keys(firstSnapshot.executionRecords ?? {})).toHaveLength(1);
+    expect(Object.keys(secondSnapshot.executionRecords ?? {})).toHaveLength(1);
+    await api.cancelKnowledgeTranslationBatchPlan({});
+    expect(ipc.invoke.mock.calls.map(([channel]) => channel)).toEqual([
+      STUDIO_CHANNELS.planKnowledgeTranslationBatch,
+      STUDIO_CHANNELS.createKnowledgeTranslationBatch,
+      STUDIO_CHANNELS.cancelKnowledgeTranslationBatchPlan,
+    ]);
+    for (const method of ['planKnowledgeTranslationBatch', 'createKnowledgeTranslationBatch', 'cancelKnowledgeTranslationBatchPlan'] as const) {
+      expect(isPublicStudioChannel(STUDIO_CHANNELS[method])).toBe(true);
+      expect(isPublicStudioChannel(`${STUDIO_CHANNELS[method]}:internal`)).toBe(false);
+      expect(() => assertLegacyStudioChannelAllowed(STUDIO_CHANNELS[method])).toThrow();
+    }
+    expect(Object.keys(api)).not.toContain('capability');
+  });
+
+  it('rejects shared batch bindings, forged document access, and stale knowledge generation before reads or model calls', async () => {
+    const send = mockTrialProvider();
+    const read = vi.fn(async () => trialLibrary());
+    const { owner, request } = await setup('[00:01]One sentence.', read);
+    const invalid = {
+      documents: [request], knowledgeGeneration: 1, config: trialInput(request).config, documentTopicIds: [],
+      knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [], bindings: [], confirmations: [] },
+    };
+    expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, invalid)).toEqual({ ok: false, error: 'invalid_input' });
+    expect(read).not.toHaveBeenCalled(); expect(send).not.toHaveBeenCalled();
+    const other = attach();
+    const validShared = { ...invalid, knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [] } };
+    expect(await other.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, validShared)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, validShared, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    for (const payload of [
+      { ...validShared, prepared: {} }, { ...validShared, path: '/tmp/forged' },
+      { ...validShared, documents: Array.from({ length: 21 }, () => ({ documentId: randomUUID(), revision: 1 })) },
+    ]) expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, payload)).toEqual({ ok: false, error: 'invalid_input' });
+    expect(read).not.toHaveBeenCalled();
+    expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, { ...validShared, knowledgeGeneration: 2 })).toEqual({ ok: false, error: 'revision_conflict' });
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(await owner.invoke(STUDIO_CHANNELS.cancelKnowledgeTranslationBatchPlan, { forged: true })).toEqual({ ok: false, error: 'invalid_input' });
+    const plan = await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, validShared);
+    expect(plan.ok).toBe(true);
+    owner.client.emit('did-start-navigation', {}, 'https://example.invalid', false, true);
+    expect(await owner.invoke(STUDIO_CHANNELS.createKnowledgeTranslationBatch, { planId: plan.value.planId, apiKey: 'fixture' })).toEqual({ ok: false, error: 'access_denied' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('admits whole-file knowledge plans only through the owner-bound fixed bridge and exposes retained references', async () => {
     const send = mockTrialProvider(), library = trialLibrary();
     const { owner, request } = await setup(Array.from({ length: 21 }, (_, i) => `[00:${String(i + 1).padStart(2, '0')}]Sentence ${i + 1}.`).join('\n'), async () => library);

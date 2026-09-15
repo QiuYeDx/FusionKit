@@ -110,13 +110,36 @@ describe('isolated subtitle knowledge trials', () => {
     await expect(service.run(1, { planId: plan.planId, apiKey: 'key' })).rejects.toMatchObject({ code: 'revision_conflict' });
   });
 
-  it('inherits the current form instructions unless the trial explicitly clears them', async () => {
+  it('treats explicit undefined selection options as absent in the preview and frozen request', async () => {
     const current = await fixture();
-    const service = serviceFor(current);
-    const inherited = await service.plan(1, request(current, selection(), { config: config({ instructions: 'Keep the dialogue concise.' }) }));
+    const term = trustedTerm();
+    const sent: ModelRuntimeTextRequest[] = [];
+    const service = serviceFor(current, async () => term.snapshot, async input => { sent.push(input); return success(input); });
+    const absent = await service.plan(1, request(current, term.selection));
+    expect(await service.run(1, { planId: absent.planId, apiKey: 'key' })).toMatchObject({ status: 'completed' });
+    const explicit = await service.plan(1, request(current, { ...term.selection, recipeId: undefined, instructions: undefined, context: undefined }));
+    expect(explicit).toEqual({ ...absent, planId: explicit.planId, expiresAt: explicit.expiresAt });
+    expect(await service.run(1, { planId: explicit.planId, apiKey: 'key' })).toMatchObject({ status: 'completed' });
+    expect(sent).toHaveLength(2);
+    expect(sent[1].messages).toEqual(sent[0].messages);
+  });
+
+  it('inherits current form and recipe guidance unless the trial explicitly clears it', async () => {
+    const current = await fixture();
+    const snapshot = library(), recipeId = randomUUID();
+    snapshot.data.recipes.push({ id: recipeId, revision: 1, archived: false, name: 'Trial recipe', description: '',
+      languagePair: selection().languagePair, readCollectionIds: [], subjectSuggestions: [], modifierStyleIds: [],
+      instructions: 'Recipe instructions.', context: 'Recipe context.', inheritGlobalPreferences: false, learningSuggestion: 'off' });
+    const sent = vi.fn(async (input: ModelRuntimeTextRequest) => success(input));
+    const service = serviceFor(current, async () => snapshot, sent);
+    const inherited = await service.plan(1, request(current, { ...selection(), recipeId, instructions: undefined, context: undefined }, { config: config({ instructions: 'Keep the dialogue concise.' }) }));
     expect(inherited.batches[0].knowledge.instructions).toBe('Keep the dialogue concise.');
-    const cleared = await service.plan(1, request(current, { ...selection(), instructions: '' }, { config: config({ instructions: 'Keep the dialogue concise.' }) }));
+    expect(inherited.batches[0].knowledge.context).toBe('Recipe context.');
+    const cleared = await service.plan(1, request(current, { ...selection(), recipeId, instructions: '', context: '' }, { config: config({ instructions: 'Keep the dialogue concise.' }) }));
     expect(cleared.batches[0].knowledge.instructions).toBe('');
+    expect(cleared.batches[0].knowledge.context).toBe('');
+    expect(await service.run(1, { planId: cleared.planId, apiKey: 'key' })).toMatchObject({ status: 'completed' });
+    expect(JSON.parse(sent.mock.calls[0][0].messages[1].content)).toMatchObject({ translationRequirements: '', translationKnowledge: { background: '' } });
   });
 
   it('defaults to twenty source cues and orders an explicit sample by document order', async () => {
