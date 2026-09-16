@@ -512,7 +512,13 @@
     "records_limited": "显示 {{count}} / {{total}} 条关联记录。",
     "automatic_queue": "转写队列",
     "automatic_preparation": "自动翻译准备资料",
-    "automatic_preparation_help": "这些资料已在开始转写时固定，可能保留在文档的历史版本中；归档不会影响已固定的内容。"
+    "automatic_preparation_help": "这些资料已在开始转写时固定，可能保留在文档的历史版本中；归档不会影响已固定的内容。",
+    "no_imports_help": "导入资料后，可以在这里查看导入记录，或撤销可恢复的导入。",
+    "import_now": "现在去导入资料",
+    "import_file_hint": "选择翻译资料文件（.fktk.json）",
+    "cleanup_title": "高级清理",
+    "cleanup_summary": "{{count}} 个来源未被当前资料引用，可查看并预览清理影响。",
+    "no_unused_sources": "当前没有需要清理的未引用来源。"
   },
   "trial": {
     "open": "资料检查与试译",

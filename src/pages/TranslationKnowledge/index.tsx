@@ -165,7 +165,7 @@ export default function TranslationKnowledge() {
     try {
       const result = await api.selectImport();
       if (result.ok) {
-        if (result.value) setPreview(result.value);
+        if (result.value) { setHistoryOpen(false); setPreview(result.value); }
       } else {
         setError(result.error);
         setDiagnostics(result.diagnostics ?? []);
@@ -1047,6 +1047,7 @@ export default function TranslationKnowledge() {
             error={error}
             diagnostics={diagnostics}
             onClose={() => setHistoryOpen(false)}
+            onImport={() => void beginImport()}
             onPlan={(request) => void planMaintenance(request)}
           />
         )}

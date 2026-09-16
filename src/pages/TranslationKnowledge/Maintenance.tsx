@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, FileText, History, LoaderCircle, RotateCcw, Upload, X } from "lucide-react";
+import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from "@/components/qiuye-ui/scrollable-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import type {
@@ -197,138 +199,103 @@ export function MaintenanceDialog({
   );
 }
 export function HistoryDialog({
-  snapshot,
-  pending,
-  onClose,
-  onPlan,
-  error,
-  diagnostics,
+  snapshot, pending, onClose, onImport, onPlan, error, diagnostics,
 }: {
   snapshot: LibrarySnapshot;
   pending: boolean;
   error: KnowledgeErrorCode | "unexpected" | null;
   diagnostics: Diagnostic[];
   onClose: () => void;
+  onImport: () => void;
   onPlan: (request: MaintenanceRequest) => void;
 }) {
-  const { t } = useTranslation("knowledge");
+  const { t, i18n } = useTranslation("knowledge");
+  const closeButton = useRef<HTMLButtonElement>(null);
   const [page, setPage] = useState(0);
   const [sourcePage, setSourcePage] = useState(0);
   const imports = [...snapshot.imports].reverse();
-  const sources = snapshot.data.sources.filter((source) =>
-    isSourceUnreferenced(source.id, snapshot.data),
-  );
+  const sources = snapshot.data.sources.filter(source => isSourceUnreferenced(source.id, snapshot.data));
+  const pages = Math.max(1, Math.ceil(imports.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pages - 1);
+  const currentSourcePage = Math.min(sourcePage, Math.max(0, Math.ceil(sources.length / PAGE_SIZE) - 1));
   const cleaning = snapshot.maintenance?.cleanupPending === true;
   return (
-    <KnowledgeDialog
-      title={t("maintenance.history_title")}
-      description={t("maintenance.history_help")}
-      wide
-      onClose={onClose}
-      pending={pending}
-      footer={null}
+    <ScrollableDialog
+      open
+      onOpenChange={open => { if (!open && !pending) onClose(); }}
+      maxWidth="sm:max-w-3xl"
+      contentClassName="max-h-[88vh] grid-rows-[auto_minmax(0,1fr)_auto] [&>button]:hidden"
+      onOpenAutoFocus={event => { event.preventDefault(); closeButton.current?.focus({ preventScroll: true }); }}
     >
-      <ErrorNotice error={error} diagnostics={diagnostics} />
-      <div className="space-y-2">
-        {imports
-          .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-          .map((receipt) => {
-            const undone = snapshot.maintenance?.undoneImportIds.includes(
-              receipt.id,
-            );
-            const undoable = snapshot.maintenance?.undoableImportIds.includes(
-              receipt.id,
-            );
-            return (
-              <div
-                key={receipt.id}
-                className="flex flex-wrap items-start justify-between gap-3 rounded-md border p-3"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-sm font-medium">
-                    {receipt.packageName}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {new Date(receipt.createdAt).toLocaleString()} ·{" "}
-                    {t(
-                      undone
-                        ? "maintenance.undone"
-                        : undoable
-                          ? "maintenance.undoable"
-                          : "maintenance.legacy",
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {t("import.success", { ...receipt })}
-                  </p>
-                </div>
-                <Button
-                  data-testid="knowledge-undo-import"
-                  variant="outline"
-                  size="sm"
-                  disabled={pending || cleaning || undone || !undoable}
-                  onClick={() =>
-                    onPlan({
-                      generation: snapshot.generation,
-                      action: "undo_import",
-                      importId: receipt.id,
-                    })
-                  }
-                >
-                  {t("maintenance.preview_undo")}
-                </Button>
-              </div>
-            );
-          })}
-        {!imports.length && (
-          <p className="py-4 text-sm text-muted-foreground">
-            {t("maintenance.no_imports")}
-          </p>
-        )}
-      </div>
-      <Pagination page={page} total={imports.length} onChange={setPage} />
-      <details className="rounded-md border p-3">
-        <summary className="cursor-pointer text-sm font-medium">
-          {t("maintenance.unused_sources", { count: sources.length })}
-        </summary>
-        <p className="my-3 text-xs text-muted-foreground">
-          {t("maintenance.unused_sources_help")}
-        </p>
-        <div className="space-y-2">
-          {sources
-            .slice(sourcePage * PAGE_SIZE, (sourcePage + 1) * PAGE_SIZE)
-            .map((source) => (
-              <div key={source.id} className="rounded-md border p-3">
-                <p className="text-sm font-medium break-words">
-                  {source.title}
-                </p>
-                <p className="my-2 whitespace-pre-wrap break-words text-xs text-muted-foreground">
-                  {source.excerpt}
-                </p>
-                <Button
-                  data-testid="knowledge-purge-source"
-                  variant="outline"
-                  size="sm"
-                  disabled={pending || cleaning}
-                  onClick={() =>
-                    onPlan({
-                      generation: snapshot.generation,
-                      action: "purge",
-                      targets: [{ group: "sources", id: source.id }],
-                    })
-                  }
-                >
-                  {t("maintenance.preview_purge")}
-                </Button>
-              </div>
-            ))}
+      <ScrollableDialogHeader className="relative border-b-0 p-4 pr-16">
+        <div className="flex items-start gap-3 text-left">
+          <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-foreground"><History className="size-5" /></span>
+          <div className="min-w-0 space-y-1 pt-0.5">
+            <DialogTitle className="text-lg leading-6">{t("maintenance.history_title")}</DialogTitle>
+            <DialogDescription className="text-xs leading-5">{t("maintenance.history_help")}</DialogDescription>
+          </div>
         </div>
-        <Pagination
-          page={sourcePage}
-          total={sources.length}
-          onChange={setSourcePage}
-        />
-      </details>
-    </KnowledgeDialog>
+        <Button ref={closeButton} data-testid="knowledge-history-dismiss" variant="ghost" size="icon-sm" className="absolute right-4 top-4 text-muted-foreground" aria-label={t("actions.close")} disabled={pending} onClick={onClose}><X /></Button>
+      </ScrollableDialogHeader>
+      <ScrollableDialogContent fadeMaskHeight={16} className="min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]>div>div]:px-4 [&>[data-slot=scroll-area-viewport]>div>div]:pt-1 [&>[data-slot=scroll-area-viewport]>div>div]:pb-4">
+        <div data-testid="knowledge-history-content" aria-busy={pending} className="min-w-0 space-y-3 [overflow-wrap:anywhere]">
+          <ErrorNotice error={error} diagnostics={diagnostics} />
+          {imports.length ? <ul data-testid="knowledge-history-list" className="min-w-0 divide-y rounded-xl border">
+            {imports.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE).map(receipt => {
+              const undone = snapshot.maintenance?.undoneImportIds.includes(receipt.id);
+              const undoable = snapshot.maintenance?.undoableImportIds.includes(receipt.id);
+              return <li key={receipt.id} className="flex flex-wrap items-start gap-3 p-3">
+                <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><FileText className="size-4" /></span>
+                <div className="min-w-0 flex-1 basis-48 space-y-1.5">
+                  <p className="text-sm font-medium leading-5">{receipt.packageName}</p>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <time dateTime={receipt.createdAt}>{new Date(receipt.createdAt).toLocaleString(i18n.language)}</time>
+                    <span className="rounded-md bg-muted px-1.5 py-0.5">{t(undone ? "maintenance.undone" : undoable ? "maintenance.undoable" : "maintenance.legacy")}</span>
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">{t("import.success", { ...receipt })}</p>
+                </div>
+                <Button data-testid="knowledge-undo-import" variant="outline" size="sm" disabled={pending || cleaning || undone || !undoable} onClick={() => onPlan({ generation: snapshot.generation, action: "undo_import", importId: receipt.id })}><RotateCcw />{t("maintenance.preview_undo")}</Button>
+              </li>;
+            })}
+          </ul> : <section data-testid="knowledge-history-empty" className="flex min-h-64 flex-col items-center justify-center rounded-xl border bg-muted/20 px-5 py-8 text-center sm:min-h-72">
+            <span aria-hidden="true" className="mb-4 flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground"><FileText className="size-6" /></span>
+            <h3 className="text-base font-semibold">{t("maintenance.no_imports")}</h3>
+            <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{t("maintenance.no_imports_help")}</p>
+            <Button data-testid="knowledge-history-import" className="mt-5 max-w-full whitespace-normal" disabled={pending || cleaning} onClick={onImport}>{pending ? <LoaderCircle className="animate-spin" /> : <Upload />}{t("maintenance.import_now")}</Button>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{t("maintenance.import_file_hint")}</p>
+          </section>}
+          <details data-testid="knowledge-history-cleanup" className="group min-w-0 rounded-xl border">
+            <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl p-3 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
+              <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium">{t("maintenance.cleanup_title")}<span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{sources.length.toLocaleString(i18n.language)}</span></div>
+                <p className="text-xs font-normal leading-5 text-muted-foreground">{t("maintenance.cleanup_summary", { count: sources.length })}</p>
+              </div>
+            </summary>
+            <div className="space-y-3 border-t p-3">
+              <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.unused_sources_help")}</p>
+              {sources.length ? <>
+                <div className="space-y-2">{sources.slice(currentSourcePage * PAGE_SIZE, (currentSourcePage + 1) * PAGE_SIZE).map(source => <div key={source.id} className="space-y-2 rounded-lg border p-3">
+                  <p className="text-sm font-medium">{source.title}</p>
+                  <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{source.excerpt}</p>
+                  <Button data-testid="knowledge-purge-source" variant="outline" size="sm" disabled={pending || cleaning} onClick={() => onPlan({ generation: snapshot.generation, action: "purge", targets: [{ group: "sources", id: source.id }] })}>{t("maintenance.preview_purge")}</Button>
+                </div>)}</div>
+                {sources.length > PAGE_SIZE && <Pagination page={currentSourcePage} total={sources.length} onChange={setSourcePage} />}
+              </> : <p data-testid="knowledge-history-no-sources" className="rounded-lg bg-muted/30 px-3 py-4 text-center text-xs text-muted-foreground">{t("maintenance.no_unused_sources")}</p>}
+            </div>
+          </details>
+        </div>
+      </ScrollableDialogContent>
+      <ScrollableDialogFooter className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <span data-testid="knowledge-history-page-summary" aria-live="polite" className="text-xs tabular-nums text-muted-foreground">{t("pagination", { count: imports.length, page: currentPage + 1, pages })}</span>
+        <div className="ml-auto flex items-center gap-4">
+          <div className="flex gap-1.5">
+            <Button variant="outline" size="icon-sm" data-testid="knowledge-history-previous" disabled={pending || currentPage === 0} aria-label={t("actions.previous")} onClick={() => setPage(currentPage - 1)}><ChevronLeft /></Button>
+            <Button variant="outline" size="icon-sm" data-testid="knowledge-history-next" disabled={pending || currentPage + 1 >= pages} aria-label={t("actions.next")} onClick={() => setPage(currentPage + 1)}><ChevronRight /></Button>
+          </div>
+          <Button data-testid="knowledge-history-close" size="sm" variant="outline" className="min-w-20" disabled={pending} onClick={onClose}>{t("actions.close")}</Button>
+        </div>
+      </ScrollableDialogFooter>
+    </ScrollableDialog>
   );
 }

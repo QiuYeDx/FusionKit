@@ -512,7 +512,13 @@
     "records_limited": "顯示 {{count}} / {{total}} 條關聯記錄。",
     "automatic_queue": "轉寫佇列",
     "automatic_preparation": "自動翻譯準備資料",
-    "automatic_preparation_help": "這些資料已在開始轉寫時固定，可能保留在文件的歷史版本中；封存不會影響已固定的內容。"
+    "automatic_preparation_help": "這些資料已在開始轉寫時固定，可能保留在文件的歷史版本中；封存不會影響已固定的內容。",
+    "no_imports_help": "匯入資料後，可以在這裡查看匯入記錄，或撤銷可復原的匯入。",
+    "import_now": "現在去匯入資料",
+    "import_file_hint": "選擇翻譯資料檔案（.fktk.json）",
+    "cleanup_title": "進階清理",
+    "cleanup_summary": "{{count}} 個來源未被目前的資料引用，可查看並預覽清理影響。",
+    "no_unused_sources": "目前沒有需要清理的未引用來源。"
   },
   "trial": {
     "open": "資料檢查與試譯",

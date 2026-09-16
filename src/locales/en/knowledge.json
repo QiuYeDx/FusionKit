@@ -512,7 +512,13 @@
     "records_limited": "Showing {{count}} of {{total}} related records.",
     "automatic_queue": "Transcription queue",
     "automatic_preparation": "Prepared for automatic translation",
-    "automatic_preparation_help": "This knowledge was frozen when transcription started and may remain in document history. Archiving does not change the frozen content."
+    "automatic_preparation_help": "This knowledge was frozen when transcription started and may remain in document history. Archiving does not change the frozen content.",
+    "no_imports_help": "After importing materials, you can view their history here and undo imports that can be recovered.",
+    "import_now": "Import materials",
+    "import_file_hint": "Choose a translation knowledge file (.fktk.json)",
+    "cleanup_title": "Advanced cleanup",
+    "cleanup_summary": "Sources not referenced by current materials: {{count}}. Review them and preview the cleanup impact.",
+    "no_unused_sources": "There are no unreferenced sources to clean up."
   },
   "trial": {
     "open": "Check materials & try translation",

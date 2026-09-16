@@ -465,3 +465,9 @@ UI设计：参考 StudioTranslationTask、StudioExecutionRecord 和现有全文�
 结束前确认本轮Electron、Vitest和本地HTTP fixture全部退出；未启动常驻前端服务。保留用户另一项目原有Vite进程7528。最终 `git diff --check` 通过。
 
 后续仍单独推进独立翻译器适配、表达/参考译文检索与校对积累、真实模型质量对照、长片性能和Windows原生验收；失败意图/历史资料的专门清理管理也尚未加入。本轮完整交付自动失败的解释与重检闭环，不扩展云端知识库。
+
+## 维护与导入历史弹窗布局优化（2026-09-16）
+
+按用户提供的示意图调整 HistoryDialog：图标与标题说明组成顶部、空状态居中展示导入入口、历史记录采用带状态和日期的列表、高级清理独立折叠并显示数量、底部固定总数/分页/关闭。主按钮使用应用黑白主题色，不采用示意图绿色；关闭入口与底栏外缘均保留16px留白。空状态导入复用原生选择器，取消或读取失败保留历史弹窗，成功后进入原有差异预览。撤销与永久清除仍先预览影响并遵循既有确认规则。
+
+修改局限于 Maintenance.tsx 的历史弹窗、index.tsx 导入衔接和四语言文案，未更改公共弹窗组件或后端维护规则。TypeScript、Vite三段构建、preload与国际化检查、git diff --check通过。扩展既有真实Electron场景验证空历史/清理空态、取消导入、从历史入口成功导入、撤销与清理流程及深浅主题；完整场景通过，33.34秒，日志 /tmp/fusionkit-history-ui-native.log。主任务审阅 test-results/translation-knowledge/ 下 history-empty-light.png、history-empty-dark-english.png、maintenance-history.png、history-english-narrow.png；1280×860浅色及820×700英文深色下内容清晰、按钮可达，未发现横向溢出。测试使用隔离profile，结束后Electron进程已退出；未启动常驻前端服务，未调用pnpm或修改锁文件。

@@ -512,7 +512,13 @@
     "records_limited": "関連記録 {{total}} 件のうち {{count}} 件を表示しています。",
     "automatic_queue": "文字起こしキュー",
     "automatic_preparation": "自動翻訳用に準備した資料",
-    "automatic_preparation_help": "文字起こし開始時に固定した資料です。文書の履歴にも保持される場合があります。アーカイブしても固定済みの内容は変わりません。"
+    "automatic_preparation_help": "文字起こし開始時に固定した資料です。文書の履歴にも保持される場合があります。アーカイブしても固定済みの内容は変わりません。",
+    "no_imports_help": "資料をインポートすると、ここで履歴を確認し、復元可能なインポートを取り消せます。",
+    "import_now": "資料をインポート",
+    "import_file_hint": "翻訳資料ファイル（.fktk.json）を選択",
+    "cleanup_title": "詳細クリーンアップ",
+    "cleanup_summary": "現在の資料から参照されていない出典は {{count}} 件です。内容と削除の影響を確認できます。",
+    "no_unused_sources": "削除対象となる未参照の出典はありません。"
   },
   "trial": {
     "open": "資料の確認と試訳",
