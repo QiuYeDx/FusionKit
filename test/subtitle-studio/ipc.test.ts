@@ -9,6 +9,7 @@ import { STUDIO_CHANNELS } from '../../src/subtitle-studio/ipc-contract';
 import { createSubtitleStudioApi } from '../../electron/preload/subtitle-studio-api';
 import { assertLegacyStudioChannelAllowed, isPublicStudioChannel } from '../../electron/preload/subtitle-studio-channel-policy';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
+import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
 import * as modelRuntime from '../../electron/main/ai/model-runtime-client';
 import { planTranslation } from '../../electron/main/subtitle-studio/translation-planner';
 import { checkpointForPlan } from '../../electron/main/subtitle-studio/translation-recovery';
@@ -78,6 +79,41 @@ function mockTrialProvider() {
 }
 
 describe('production Subtitle Studio IPC handler composition', () => {
+  it('keeps automatic report inspection read-only, owner-bound and fenced after a document read', async () => {
+    const send = mockTrialProvider(), readKnowledge = vi.fn(async () => trialLibrary());
+    const { owner, request } = await setup('[00:01]Retained source.\n', readKnowledge);
+    const repository = new DocumentRepository(path.join(adapter.directory, 'subtitle-studio/documents'));
+    const trackId = randomUUID();
+    const before = await repository.transact(request.documentId, request.revision, snapshot => {
+      snapshot.document.translationTracks.push({ id: trackId, language: 'zh-Hans', revision: 1, origin: 'ai', entries: {} });
+    });
+    const initialize = vi.spyOn(TranslationService.prototype, 'initialize');
+    const ipc = { sendSync: () => owner.capability,
+      invoke: vi.fn((channel: string, envelope: unknown) => adapter.handlers.get(channel)!({ sender: owner.client, senderFrame: owner.client.mainFrame }, envelope)),
+      on: vi.fn(), removeListener: vi.fn() };
+    const api = createSubtitleStudioApi(ipc), query = { documentId: request.documentId, trackId };
+    expect(await api.readAutomaticKnowledgeReport(query)).toEqual({ ok: true, value: { state: 'none' } });
+    expect(await repository.readSnapshot(request.documentId)).toEqual(before);
+    expect(initialize).not.toHaveBeenCalled();
+    expect(readKnowledge).not.toHaveBeenCalled(); expect(send).not.toHaveBeenCalled();
+    expect(isPublicStudioChannel(STUDIO_CHANNELS.readAutomaticKnowledgeReport)).toBe(true);
+    expect(() => assertLegacyStudioChannelAllowed(STUDIO_CHANNELS.readAutomaticKnowledgeReport)).toThrow();
+    const other = attach();
+    expect(await other.invoke(STUDIO_CHANNELS.readAutomaticKnowledgeReport, query)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.readAutomaticKnowledgeReport, query, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
+    for (const invalid of [{ ...query, path: '/forged' }, { ...query, trackId: '../../forged' }, { ...query, apiKey: 'forged' }])
+      expect(await owner.invoke(STUDIO_CHANNELS.readAutomaticKnowledgeReport, invalid)).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await api.readAutomaticKnowledgeReport({ ...query, trackId: randomUUID() })).toEqual({ ok: false, error: 'revision_conflict' });
+    const originalRead = DocumentRepository.prototype.readSnapshot;
+    vi.spyOn(DocumentRepository.prototype, 'readSnapshot').mockImplementationOnce(async function (id) {
+      const value = await originalRead.call(this, id);
+      owner.client.emit('did-start-navigation', {}, 'https://example.invalid', false, true);
+      return value;
+    });
+    expect(await api.readAutomaticKnowledgeReport(query)).toEqual({ ok: false, error: 'access_denied' });
+    expect(initialize).not.toHaveBeenCalled();
+  });
+
   it('routes the fixed batch knowledge bridge and creates independent records for owner-scoped files', async () => {
     const send = mockTrialProvider();
     const library = trialLibrary();

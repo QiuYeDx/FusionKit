@@ -14,6 +14,8 @@ import type { KnowledgeTaskGate, KnowledgeTaskReference } from '../../../src/tra
 import { knowledgeResourceReferences } from '../../../src/translation-knowledge/snapshot-contract';
 import { validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
 import { prepareKnowledgeTranslation } from './knowledge-translation';
+import type { KnowledgeIssue } from '../../../src/translation-knowledge/execution-contract';
+import { createAutomaticKnowledgeReport } from './automatic-knowledge-report';
 
 type Task = DocumentSnapshot['tasks'][number];
 type AttemptReceipt = { batchId: string; attempt: number; usage: TranslationUsage; uncertain: boolean };
@@ -147,7 +149,7 @@ export class TranslationService {
     return this.admit(prepared.plan, apiKey, guard, prepared);
   }
 
-  private async automaticPlan(snapshot: DocumentSnapshot): Promise<{ plan?: TranslationPlan; knowledge?: PreparedKnowledgeExecution; error?: ReturnType<typeof failureCode> }> {
+  private async automaticPlan(snapshot: DocumentSnapshot): Promise<{ plan?: TranslationPlan; knowledge?: PreparedKnowledgeExecution; error?: ReturnType<typeof failureCode>; issues?: KnowledgeIssue[] }> {
     const intent = snapshot.automaticTranslation!;
     try {
       if (!intent.knowledge) return { plan: planTranslation(snapshot.document, intent.config) };
@@ -159,8 +161,8 @@ export class TranslationService {
         config: intent.config, knowledgeGeneration: frozen.generation,
         knowledge: { ...frozen.selection, bindings: [], confirmations: [] }, documentTopicIds: frozen.documentTopicIds },
       { generation: frozen.generation, data: frozen.data, approvals: frozen.approvals, imports: [] }, () => this.assertOpen());
-      if (!result.prepared || !result.preview.canRun) return { error: 'knowledge_check_failed' };
-      return { plan: result.prepared.plan, knowledge: result.prepared };
+      if (!result.prepared || !result.preview.canRun) return { error: 'knowledge_check_failed', issues: result.preview.issues };
+      return { plan: result.prepared.plan, knowledge: result.prepared, issues: result.preview.issues };
     } catch (error) {
       return { error: intent.knowledge && !(error instanceof StudioError) ? 'knowledge_check_failed' : failureCode(error) };
     }
@@ -208,6 +210,13 @@ export class TranslationService {
     if (execution) (snapshot.executionRecords ??= {})[execution.record.id] = execution.record;
     snapshot.document.translationTracks.push(track); snapshot.tasks.push(task);
     intent.state = 'admitted'; intent.translationTaskId = taskId;
+    if (intent.knowledge && task.status === 'failed') {
+      try { intent.preparationReport = createAutomaticKnowledgeReport(snapshot, taskId, task.translation!.error!, prepared.issues); }
+      catch {
+        try { intent.preparationReport = createAutomaticKnowledgeReport(snapshot, taskId, task.translation!.error!); }
+        catch { /* Even unhashable legacy material must still publish a visible failed task. */ }
+      }
+    }
     return taskId;
   }
 

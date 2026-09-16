@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, LoaderCircle } from 'lucide-react';
+import { BookOpen, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -15,6 +15,7 @@ import type { KnowledgeTrialPreview, KnowledgeTrialResult } from '@/subtitle-stu
 import type { KnowledgeTranslationPreview } from '@/subtitle-studio/knowledge-translation-contract';
 import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 import type { KnowledgeSelection, KnowledgeIssue, KnowledgeIssueCode } from '@/translation-knowledge/execution-contract';
+import type { AutomaticKnowledgeRecheckRequest } from './automatic-knowledge-recheck';
 
 const issueKeys = {
   selection_invalid: 'knowledge:trial.issue.selection_invalid', resource_limit: 'knowledge:trial.issue.resource_limit', resource_missing: 'knowledge:trial.issue.resource_missing', resource_archived: 'knowledge:trial.issue.resource_archived',
@@ -24,13 +25,31 @@ const issueKeys = {
   budget_required: 'knowledge:trial.issue.budget_required', preferences_not_applied: 'knowledge:trial.issue.preferences_not_applied', required_term_suspect: 'knowledge:trial.issue.required_term_suspect',
 } as const satisfies Record<KnowledgeIssueCode, string>;
 const languages = ['ja', 'en', 'zh-Hans', 'zh-Hant', 'ko', 'fr', 'de', 'es', 'ru', 'pt'] as const;
-function Toggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
-  const id = useId();
-  return <label htmlFor={id} className="flex min-w-0 items-start gap-2 text-xs leading-5"><Checkbox id={id} className="mt-0.5 shrink-0" checked={checked} disabled={disabled} onCheckedChange={value => { if (!disabled) onChange(value === true); }} /><span className="min-w-0 [overflow-wrap:anywhere]">{label}</span></label>;
+// A remounted form must finish the previous owner's late-plan cleanup first.
+let ownerClosing: Promise<void> | null = null;
+let ownerPlanning: Promise<unknown> | null = null;
+function cancelOwnerKnowledgeSession() {
+  if (!ownerClosing) {
+    const pendingPlan = ownerPlanning;
+    const operation = Promise.resolve().then(async () => {
+      await Promise.allSettled([window.subtitleStudio.cancelKnowledgeTrial({}), window.subtitleStudio.cancelKnowledgeTranslationPlan({})]);
+      if (pendingPlan) {
+        await pendingPlan.catch(() => undefined);
+        await Promise.allSettled([window.subtitleStudio.cancelKnowledgeTrial({}), window.subtitleStudio.cancelKnowledgeTranslationPlan({})]);
+      }
+    });
+    ownerClosing = operation;
+    void operation.then(() => { if (ownerClosing === operation) ownerClosing = null; });
+  }
+  return ownerClosing;
 }
-function Choice({ label, value, options, onChange, disabled }: { label: string; value: string; options: { id: string; name: string }[]; onChange: (id: string) => void; disabled?: boolean }) {
+function Toggle({ label, checked, onChange, disabled, testId }: { label: string; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean; testId?: string }) {
   const id = useId();
-  return <ToolField label={label} htmlFor={id}><Select value={value} disabled={disabled} onValueChange={next => { if (!disabled) onChange(next); }}><SelectTrigger id={id} className="h-auto min-h-8 w-full min-w-0 text-left text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:whitespace-normal [&_[data-slot=select-value]]:[overflow-wrap:anywhere]"><SelectValue /></SelectTrigger><SelectContent className="max-w-[calc(100vw-2rem)]">{options.map(option => <SelectItem key={option.id} value={option.id} className="max-w-[min(36rem,80vw)] whitespace-normal [overflow-wrap:anywhere]">{option.name}</SelectItem>)}</SelectContent></Select></ToolField>;
+  return <label htmlFor={id} className="flex min-w-0 items-start gap-2 text-xs leading-5"><Checkbox id={id} data-testid={testId} className="mt-0.5 shrink-0" checked={checked} disabled={disabled} onCheckedChange={value => { if (!disabled) onChange(value === true); }} /><span className="min-w-0 [overflow-wrap:anywhere]">{label}</span></label>;
+}
+function Choice({ label, value, options, onChange, disabled, testId }: { label: string; value: string; options: { id: string; name: string }[]; onChange: (id: string) => void; disabled?: boolean; testId?: string }) {
+  const id = useId();
+  return <ToolField label={label} htmlFor={id}><Select value={value} disabled={disabled} onValueChange={next => { if (!disabled) onChange(next); }}><SelectTrigger id={id} data-testid={testId} className="h-auto min-h-8 w-full min-w-0 text-left text-xs [&_[data-slot=select-value]]:min-w-0 [&_[data-slot=select-value]]:whitespace-normal [&_[data-slot=select-value]]:[overflow-wrap:anywhere]"><SelectValue /></SelectTrigger><SelectContent className="max-w-[calc(100vw-2rem)]">{options.map(option => <SelectItem key={option.id} value={option.id} className="max-w-[min(36rem,80vw)] whitespace-normal [overflow-wrap:anywhere]">{option.name}</SelectItem>)}</SelectContent></Select></ToolField>;
 }
 function PagedItems<T>({ items, children, size = 10, disabled = false }: { items: readonly T[]; children: (item: T, index: number) => ReactNode; size?: number; disabled?: boolean }) {
   const { t } = useTranslation();
@@ -59,14 +78,14 @@ function setCueConfirmation(confirmations: KnowledgeSelection['confirmations'], 
 }
 
 /** A file-scoped draft. Only explicit full-document admission creates a track. */
-export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted, onAdmissionChange }: { page: DocumentPage; config: TranslationConfig; apiKey: string; disabled: boolean; onStarted: (taskId: string) => void; onAdmissionChange: (pending: boolean) => void }) {
+export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted, onAdmissionChange, recheckRequest, modelNeedsAttention }: { page: DocumentPage; config: TranslationConfig; apiKey: string; disabled: boolean; onStarted: (taskId: string) => void; onAdmissionChange: (pending: boolean) => void; recheckRequest?: AutomaticKnowledgeRecheckRequest; modelNeedsAttention?: boolean }) {
   const { t, i18n } = useTranslation();
   const formId = useId();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'trial' | 'document'>('trial');
   const [documentTopicIds, setDocumentTopicIds] = useState<string[]>([]);
   const [library, setLibrary] = useState<LibrarySnapshot | null>(null);
-  const [selection, setSelection] = useState<KnowledgeSelection>({ version: 1, languagePair: { source: 'ja', target: config.language === 'zh' ? 'zh-Hans' : languages.includes(config.language as typeof languages[number]) ? config.language : 'zh-Hans' }, collectionIds: [], bindings: [], confirmations: [], disabledEntryIds: [], instructions: config.instructions || undefined });
+  const [selection, setSelection] = useState<KnowledgeSelection>({ version: 1, languagePair: { source: 'ja', target: config.language === 'zh' ? 'zh-Hans' : languages.includes(config.language as typeof languages[number]) ? config.language : 'zh-Hans' }, collectionIds: [], bindings: [], confirmations: [], disabledEntryIds: [] });
   const [explicitCues, setExplicitCues] = useState<string[]>([]);
   const [scopeCues, setScopeCues] = useState<Array<{ id: string; text: string }>>([]);
   const [preview, setPreview] = useState<KnowledgeTrialPreview | null>(null);
@@ -76,16 +95,16 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
   const [error, setError] = useState(false);
   const [planExpired, setPlanExpired] = useState(false);
   const [materialsChanged, setMaterialsChanged] = useState(false);
+  const [inputsChanged, setInputsChanged] = useState(false);
   const epoch = useRef(0), mounted = useRef(true), active = useRef(false);
   const pendingRef = useRef<typeof pending>(null);
-  const closing = useRef<Promise<void> | null>(null);
-  const planning = useRef<Promise<unknown> | null>(null);
+  const consumedRecheck = useRef<string | null>(null);
   const libraryGeneration = useRef<number | null>(null);
   const identity = JSON.stringify([page.summary.id, page.summary.revision, config]);
   const currentIdentity = useRef(identity); currentIdentity.current = identity;
-  const isBusy = pending !== null;
+  const isBusy = pending !== null || disabled;
   const activity = (value: typeof pending) => { pendingRef.current = value; if (mounted.current) setPending(value); };
-  const invalidate = () => { epoch.current++; setPreview(null); setDocumentPreview(null); setResult(null); setError(false); setPlanExpired(false); setMaterialsChanged(false); void cancelClosedSession(); };
+  const invalidate = () => { epoch.current++; setPreview(null); setDocumentPreview(null); setResult(null); setError(false); setPlanExpired(false); setMaterialsChanged(false); setInputsChanged(false); void cancelClosedSession(); };
   const acceptLibrary = (snapshot: LibrarySnapshot): boolean => {
     const changed = libraryGeneration.current !== null && libraryGeneration.current !== snapshot.generation;
     libraryGeneration.current = snapshot.generation;
@@ -94,7 +113,7 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
     if (changed) { setPreview(null); setDocumentPreview(null); setResult(null); setMaterialsChanged(true); void cancelClosedSession(); }
     setSelection(value => ({
       ...value,
-      disabledEntryIds: changed ? [] : value.disabledEntryIds.filter(id => existingIds.has(id)),
+      // Shared exclusions survive library changes; missing choices stay visible for repair.
       confirmations: changed ? [] : value.confirmations.filter(item => existingIds.has(item.entryId)),
       // Undefined requirements/context continue to display the newly read
       // recipe. Only explicit task overrides are carried across reopening.
@@ -105,22 +124,7 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
     if (pendingRef.current || !active.current) return;
     invalidate(); setSelection(value => ({ ...value, ...(typeof patch === 'function' ? patch(value) : patch) }));
   };
-  const cancelClosedSession = () => {
-    if (!closing.current) {
-      const pendingPlan = planning.current;
-      const operation = Promise.resolve().then(async () => {
-        await Promise.allSettled([window.subtitleStudio.cancelKnowledgeTrial({}), window.subtitleStudio.cancelKnowledgeTranslationPlan({})]);
-        // A late planning response must be disposed before this owner reopens.
-        if (pendingPlan) {
-          await pendingPlan.catch(() => undefined);
-          await Promise.allSettled([window.subtitleStudio.cancelKnowledgeTrial({}), window.subtitleStudio.cancelKnowledgeTranslationPlan({})]);
-        }
-      });
-      closing.current = operation;
-      void operation.then(() => { if (closing.current === operation) closing.current = null; });
-    }
-    return closing.current;
-  };
+  const cancelClosedSession = cancelOwnerKnowledgeSession;
   const close = () => {
     // Admission may already have persisted a real task. Its response owns the handoff.
     if (pendingRef.current === 'start') return;
@@ -128,12 +132,26 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
     epoch.current++; active.current = false; setOpen(false); activity(null);
     if (wasActive) void cancelClosedSession();
   };
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current++; if (active.current && pendingRef.current !== 'start') void cancelClosedSession(); active.current = false; }; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; epoch.current++; if (active.current) void cancelClosedSession(); active.current = false; }; }, []);
+  const previousInputs = useRef({ documentId: page.summary.id, revision: page.summary.revision, config: JSON.stringify(config) });
   useEffect(() => {
+    const previous = previousInputs.current;
+    previousInputs.current = { documentId: page.summary.id, revision: page.summary.revision, config: JSON.stringify(config) };
     if (pendingRef.current === 'start') return;
-    if (active.current) close();
-    setPreview(null); setDocumentPreview(null); setResult(null); setScopeCues([]); setExplicitCues([]); setDocumentTopicIds([]);
-    setSelection(value => ({ ...value, bindings: [], confirmations: [], disabledEntryIds: [], instructions: config.instructions || undefined }));
+    if (previous.documentId === page.summary.id && previous.revision === page.summary.revision && previous.config === JSON.stringify(config)) return;
+    if (previous.documentId !== page.summary.id) {
+      if (active.current) close();
+      setScopeCues([]); setExplicitCues([]); setDocumentTopicIds([]);
+      setSelection(value => ({ ...value, bindings: [], confirmations: [], disabledEntryIds: [] }));
+    } else {
+      if (active.current) { invalidate(); activity(null); setInputsChanged(true); }
+      // Source edits invalidate cue-specific authority, never shared choices or user text.
+      if (previous.revision !== page.summary.revision) {
+        setScopeCues([]); setExplicitCues([]);
+        setSelection(value => ({ ...value, bindings: [], confirmations: [] }));
+      }
+    }
+    setPreview(null); setDocumentPreview(null); setResult(null);
   }, [identity]);
   const currentPreview = mode === 'document' ? documentPreview : preview;
   useEffect(() => {
@@ -144,12 +162,16 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
     }, Math.max(0, currentPreview.expiresAt - Date.now()));
     return () => window.clearTimeout(timer);
   }, [open, currentPreview, pending]);
-  const begin = async () => {
+  const begin = async (request?: AutomaticKnowledgeRecheckRequest) => {
     if (disabled || pendingRef.current || active.current) return;
-    active.current = true; setOpen(true); setMode('trial'); activity('load'); setLibrary(null); setError(false); setPlanExpired(false); setMaterialsChanged(false); setPreview(null); setDocumentPreview(null); setResult(null);
+    active.current = true; setOpen(true); setMode(recheckRequest ? 'document' : 'trial'); activity('load'); setLibrary(null); setError(false); setPlanExpired(false); setMaterialsChanged(false); setInputsChanged(false); setPreview(null); setDocumentPreview(null); setResult(null);
+    if (request) {
+      setSelection({ ...structuredClone(request.seed.selection), bindings: [], confirmations: [] });
+      setDocumentTopicIds([...request.seed.documentTopicIds]); setExplicitCues([]); setScopeCues([]);
+    }
     const revision = ++epoch.current;
     try {
-      if (closing.current) await closing.current;
+      if (ownerClosing) await ownerClosing;
       if (!mounted.current || revision !== epoch.current) return;
       const response = await window.translationKnowledge.read();
       if (!mounted.current || revision !== epoch.current) return;
@@ -160,8 +182,26 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
     catch { if (mounted.current && revision === epoch.current) setError(true); }
     finally { if (mounted.current && revision === epoch.current) activity(null); }
   };
+  useEffect(() => {
+    if (!recheckRequest || consumedRecheck.current === recheckRequest.requestId || recheckRequest.documentId !== page.summary.id || disabled || pendingRef.current || active.current) return;
+    consumedRecheck.current = recheckRequest.requestId;
+    void begin(recheckRequest);
+  }, [recheckRequest, disabled]);
+  const refreshLibrary = async () => {
+    if (pendingRef.current || !active.current) return;
+    invalidate(); activity('load');
+    const revision = epoch.current, requestIdentity = identity;
+    try {
+      await cancelClosedSession();
+      if (!mounted.current || epoch.current !== revision || currentIdentity.current !== requestIdentity) return;
+      const response = await window.translationKnowledge.read();
+      if (!mounted.current || epoch.current !== revision || currentIdentity.current !== requestIdentity) return;
+      if (response.ok) acceptLibrary(response.value); else setError(true);
+    } catch { if (mounted.current && epoch.current === revision) setError(true); }
+    finally { if (mounted.current && epoch.current === revision) activity(null); }
+  };
   const check = async () => {
-    if (pendingRef.current || !active.current || !library) return;
+    if (disabled || pendingRef.current || !active.current || !library || unavailableSelections) return;
     activity('check'); setError(false); setPlanExpired(false); setMaterialsChanged(false); setResult(null); setPreview(null); setDocumentPreview(null);
     const revision = ++epoch.current, requestIdentity = identity;
     try {
@@ -171,8 +211,8 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
       const requestPromise = mode === 'document'
         ? window.subtitleStudio.planKnowledgeTranslation({ ...request, documentTopicIds })
         : window.subtitleStudio.planKnowledgeTrial({ ...request, ...(explicitCues.length ? { cueIds: explicitCues } : {}) });
-      planning.current = requestPromise;
-      const response = await requestPromise.finally(() => { if (planning.current === requestPromise) planning.current = null; });
+      ownerPlanning = requestPromise;
+      const response = await requestPromise.finally(() => { if (ownerPlanning === requestPromise) ownerPlanning = null; });
       if (!mounted.current || epoch.current !== revision || currentIdentity.current !== requestIdentity) return;
       if (response.ok) {
         if ('cues' in response.value) { setPreview(response.value); setScopeCues(response.value.cues); }
@@ -187,7 +227,7 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
     finally { if (mounted.current && epoch.current === revision) activity(null); }
   };
   const startDocument = async () => {
-    if (pendingRef.current || !active.current || !documentPreview?.canRun || !apiKey.trim()) return;
+    if (disabled || pendingRef.current || !active.current || !documentPreview?.canRun || !apiKey.trim() || unavailableSelections) return;
     if (documentPreview.expiresAt <= Date.now()) { invalidate(); setPlanExpired(true); return; }
     activity('start'); onAdmissionChange(true); setError(false);
     const requestIdentity = identity;
@@ -219,7 +259,7 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
     }
   };
   const run = async () => {
-    if (pendingRef.current || !active.current || !preview?.canRun || !apiKey.trim()) return;
+    if (disabled || pendingRef.current || !active.current || !preview?.canRun || !apiKey.trim() || unavailableSelections) return;
     activity('run'); setError(false); setResult(null);
     const revision = ++epoch.current;
     try { const response = await window.subtitleStudio.runKnowledgeTrial({ planId: preview.planId, apiKey }); if (!mounted.current || epoch.current !== revision) return; if (response.ok) setResult(response.value); else setError(true); }
@@ -248,6 +288,20 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
   const conditions = scopedEntries.filter(entry => entry.scope.condition.mode === 'requires_confirmation');
   const availableCollections = library?.data.collections.filter(item => !item.archived) ?? [];
   const availableSubjects = library?.data.subjects.filter(item => !item.archived) ?? [];
+  const unavailableName = (name?: string) => t('knowledge:automatic.unavailable_item', { name: name ?? t('knowledge:automatic.removed_item') });
+  const collectionChoices = availableCollections.map(item => ({ id: item.id, name: item.name }));
+  for (const id of selectedCollections) if (!collectionChoices.some(item => item.id === id)) collectionChoices.push({ id, name: unavailableName(library?.data.collections.find(item => item.id === id)?.name) });
+  const topicChoices = availableSubjects.map(item => ({ id: item.id, name: item.name }));
+  for (const id of documentTopicIds) if (!topicChoices.some(item => item.id === id)) topicChoices.push({ id, name: unavailableName(library?.data.subjects.find(item => item.id === id)?.name) });
+  const recipeChoices = (library?.data.recipes.filter(item => !item.archived) ?? []).map(item => ({ id: item.id, name: item.name }));
+  if (selection.recipeId && !recipeChoices.some(item => item.id === selection.recipeId)) recipeChoices.push({ id: selection.recipeId, name: unavailableName(selectedRecipe?.name) });
+  const entryChoices = scopedEntries.map(entry => ({ id: entry.id, name: entry.title }));
+  for (const id of selection.disabledEntryIds) if (!entryChoices.some(item => item.id === id)) entryChoices.push({ id, name: unavailableName(names.get(id)) });
+  const unavailableSelections = !!library && (
+    !!selection.recipeId && (!selectedRecipe || selectedRecipe.archived)
+    || [...selectedCollections].some(id => !availableCollections.some(item => item.id === id))
+    || documentTopicIds.some(id => !availableSubjects.some(item => item.id === id))
+    || selection.disabledEntryIds.some(id => !scopedEntries.some(item => item.id === id)));
   const previewItems = preview?.batches.flatMap(batch => batch.knowledge.items.map(item => ({ key: `${batch.id}:${item.entryId}`, item }))) ?? [];
   const issueCueDetails = new Map((preview?.cues ?? scopeCues).map((cue, index) => [cue.id, { text: cue.text, number: index + 1 }]));
   if (mode === 'document') for (const [index, cue] of page.cues.entries()) issueCueDetails.set(cue.id, { text: cue.source.plain, number: page.offset + index + 1 });
@@ -264,42 +318,44 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
     </details> : <p key={index} className={className}>{summary}</p>;
   }}</PagedItems>;
   return <>
-    <Button data-testid="studio-knowledge-trial" size="sm" variant="outline" disabled={disabled || isBusy} onClick={() => void begin()}><BookOpen />{t('knowledge:trial.open')}</Button>
+    <Button data-testid="studio-knowledge-trial" size="sm" variant="outline" disabled={disabled || isBusy} onClick={() => void begin()}><BookOpen />{t(recheckRequest ? 'knowledge:recovery.recheck' : 'knowledge:trial.open')}</Button>
     <ScrollableDialog open={open} onOpenChange={next => { if (!next) close(); }} maxWidth="sm:max-w-3xl" contentClassName="grid-rows-[auto_minmax(0,1fr)_auto] [&>button]:hidden">
       <ScrollableDialogHeader className="p-3"><DialogTitle className="text-base">{t(mode === 'document' ? 'knowledge:full.title' : 'knowledge:trial.title')}</DialogTitle><DialogDescription className="text-xs">{t(mode === 'document' ? 'knowledge:full.description' : 'knowledge:trial.description')}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogContent className="min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]>div>div]:p-3" fadeMaskHeight={16}>
         <div className="min-w-0 space-y-4 [overflow-wrap:anywhere]" data-testid="knowledge-trial-content" aria-busy={isBusy}>
           <p className="text-xs text-muted-foreground">{page.summary.origin.displayName} · {config.model.modelKey}</p>
+          {recheckRequest && <p data-testid="knowledge-recheck-help" className="text-xs leading-5 text-muted-foreground">{t('knowledge:recovery.form_help')}</p>}
+          {recheckRequest && modelNeedsAttention && <div className="space-y-2 rounded-md border p-3"><p className="text-xs leading-5 text-muted-foreground">{t('knowledge:recovery.model_changed')}</p><Button data-testid="knowledge-recheck-edit-model" size="sm" variant="outline" disabled={isBusy} onClick={close}>{t('knowledge:recovery.edit_model')}</Button></div>}
           {pending === 'load' && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 shrink-0 animate-spin" />{t('knowledge:loading')}</p>}
           <fieldset disabled={isBusy} className="min-w-0 space-y-4">
-            <RadioGroup data-testid="knowledge-translation-mode" value={mode} disabled={isBusy} aria-label={t('knowledge:full.mode')} className="flex flex-wrap gap-x-6 gap-y-2" onValueChange={next => {
+            {!recheckRequest && <RadioGroup data-testid="knowledge-translation-mode" value={mode} disabled={isBusy} aria-label={t('knowledge:full.mode')} className="flex flex-wrap gap-x-6 gap-y-2" onValueChange={next => {
               if (pendingRef.current || !active.current || next !== 'trial' && next !== 'document') return;
               invalidate(); setMode(next);
             }}>
               <label className="flex items-center gap-2 text-xs" htmlFor={`${formId}-trial`}><RadioGroupItem id={`${formId}-trial`} value="trial" />{t('knowledge:full.mode_trial')}</label>
               <label className="flex items-center gap-2 text-xs" htmlFor={`${formId}-document`}><RadioGroupItem data-testid="knowledge-full-mode" id={`${formId}-document`} value="document" />{t('knowledge:full.mode_document')}</label>
-            </RadioGroup>
-            <div className="grid gap-4 sm:grid-cols-2">{(['source', 'target'] as const).map(side => <Choice key={side} disabled={isBusy} label={t(side === 'source' ? 'knowledge:fields.source_language' : 'knowledge:fields.target_language')} value={selection.languagePair[side]} options={languages.map(id => ({ id, name: t(`knowledge:languages.${id}`) }))} onChange={value => update(current => ({ languagePair: { ...current.languagePair, [side]: value } }))} />)}</div>
+            </RadioGroup>}
+            <div className="grid gap-4 sm:grid-cols-2">{(['source', 'target'] as const).map(side => <Choice key={side} testId={`knowledge-trial-${side}-language`} disabled={isBusy} label={t(side === 'source' ? 'knowledge:fields.source_language' : 'knowledge:fields.target_language')} value={selection.languagePair[side]} options={[...languages.map(id => ({ id, name: t(`knowledge:languages.${id}`) })), ...(!languages.includes(selection.languagePair[side] as typeof languages[number]) ? [{ id: selection.languagePair[side], name: selection.languagePair[side] }] : [])]} onChange={value => update(current => ({ languagePair: { ...current.languagePair, [side]: value } }))} />)}</div>
             <p className="text-xs text-muted-foreground">{t('knowledge:trial.language_help')}</p>
-            <Choice disabled={isBusy} label={t('knowledge:trial.recipe')} value={selection.recipeId ?? 'none'} options={[{ id: 'none', name: t('knowledge:trial.no_recipe') }, ...(library?.data.recipes.filter(item => !item.archived) ?? [])]} onChange={id => {
+            <Choice testId="knowledge-trial-recipe" disabled={isBusy} label={t('knowledge:trial.recipe')} value={selection.recipeId ?? 'none'} options={[{ id: 'none', name: t('knowledge:trial.no_recipe') }, ...recipeChoices]} onChange={id => {
               const recipe = library?.data.recipes.find(item => item.id === id);
               update({ recipeId: recipe?.id, ...(recipe ? { languagePair: recipe.languagePair } : {}), bindings: [], confirmations: [] });
             }} />
             <details className="min-w-0 rounded-md border p-3" open={!selection.recipeId}>
               <summary className="cursor-pointer text-sm">{t('knowledge:trial.collections')}</summary>
-              <div className="mt-3"><PagedItems items={availableCollections} disabled={isBusy}>{item => <Toggle key={item.id} label={item.name} checked={selectedCollections.has(item.id)} disabled={isBusy || selectedRecipe?.readCollectionIds.includes(item.id)} onChange={checked => update(current => ({ collectionIds: checked ? [...new Set([...current.collectionIds, item.id])] : current.collectionIds.filter(id => id !== item.id) }))} />}</PagedItems></div>
-              {!availableCollections.length && <p className="mt-2 text-xs text-muted-foreground">{t('knowledge:trial.empty')}</p>}
+              <div className="mt-3"><PagedItems items={collectionChoices} disabled={isBusy}>{item => <Toggle key={item.id} testId={`knowledge-trial-collection-${item.id}`} label={item.name} checked={selectedCollections.has(item.id)} disabled={isBusy || selectedRecipe?.readCollectionIds.includes(item.id)} onChange={checked => update(current => ({ collectionIds: checked ? [...new Set([...current.collectionIds, item.id])] : current.collectionIds.filter(id => id !== item.id) }))} />}</PagedItems></div>
+              {!collectionChoices.length && <p className="mt-2 text-xs text-muted-foreground">{t('knowledge:trial.empty')}</p>}
             </details>
             {mode === 'document' && <details data-testid="knowledge-document-topics" className="min-w-0 rounded-md border p-3" open>
               <summary className="cursor-pointer text-sm">{t('knowledge:full.topics', { count: documentTopicIds.length })}</summary>
               <p className="my-3 text-xs leading-5 text-muted-foreground">{t('knowledge:full.topics_help')}</p>
-              <PagedItems items={availableSubjects} disabled={isBusy}>{subject => <Toggle key={subject.id} label={subject.name} checked={documentTopicIds.includes(subject.id)} disabled={isBusy || documentTopicIds.length >= 20 && !documentTopicIds.includes(subject.id)} onChange={checked => {
+              <PagedItems items={topicChoices} disabled={isBusy}>{subject => <Toggle key={subject.id} testId={`knowledge-document-topic-${subject.id}`} label={subject.name} checked={documentTopicIds.includes(subject.id)} disabled={isBusy || documentTopicIds.length >= 20 && !documentTopicIds.includes(subject.id)} onChange={checked => {
                 if (pendingRef.current || !active.current) return;
                 invalidate(); setDocumentTopicIds(values => checked ? [...new Set([...values, subject.id])] : values.filter(id => id !== subject.id));
               }} />}</PagedItems>
-              {!availableSubjects.length && <p className="text-xs text-muted-foreground">{t('knowledge:full.no_topics')}</p>}
+              {!topicChoices.length && <p className="text-xs text-muted-foreground">{t('knowledge:full.no_topics')}</p>}
             </details>}
-            {mode === 'document' && <p data-testid="knowledge-full-scope-help" className="text-xs leading-5 text-muted-foreground">{t('knowledge:full.scope_help')}</p>}
+            {mode === 'document' && <p data-testid="knowledge-full-scope-help" className="text-xs leading-5 text-muted-foreground">{t(recheckRequest ? 'knowledge:recovery.scope_help' : 'knowledge:full.scope_help')}</p>}
             {mode === 'trial' && <details className="min-w-0 rounded-md border p-3">
               <summary className="cursor-pointer text-sm">{t('knowledge:trial.choose_cues', { count: 20 })}</summary>
               <p className="my-2 text-xs text-muted-foreground">{t('knowledge:trial.cues_help')}</p>
@@ -308,8 +364,8 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
                 invalidate(); setExplicitCues(values => checked ? [...new Set([...values, cue.id])] : values.filter(id => id !== cue.id)); setScopeCues([]); setSelection(value => ({ ...value, bindings: [], confirmations: [] }));
               }} />}</PagedItems>
             </details>}
-            <ToolField label={t('knowledge:trial.requirements')} htmlFor={`${formId}-requirements`}><Textarea id={`${formId}-requirements`} disabled={isBusy} className="min-h-16 text-xs" value={selection.instructions ?? (config.instructions || selectedRecipe?.instructions || '')} maxLength={4000} onChange={event => update({ instructions: event.target.value })} /></ToolField>
-            <ToolField label={t('knowledge:trial.context')} htmlFor={`${formId}-context`}><Textarea id={`${formId}-context`} disabled={isBusy} className="min-h-16 text-xs" value={selection.context ?? selectedRecipe?.context ?? ''} maxLength={4000} onChange={event => update({ context: event.target.value })} /></ToolField>
+            <ToolField label={t('knowledge:trial.requirements')} htmlFor={`${formId}-requirements`}><Textarea id={`${formId}-requirements`} data-testid="knowledge-trial-instructions" disabled={isBusy} className="min-h-16 text-xs" value={selection.instructions ?? (config.instructions || selectedRecipe?.instructions || '')} maxLength={4000} onChange={event => update({ instructions: event.target.value })} /></ToolField>
+            <ToolField label={t('knowledge:trial.context')} htmlFor={`${formId}-context`}><Textarea id={`${formId}-context`} data-testid="knowledge-trial-context" disabled={isBusy} className="min-h-16 text-xs" value={selection.context ?? selectedRecipe?.context ?? ''} maxLength={4000} onChange={event => update({ context: event.target.value })} /></ToolField>
             {scopeCues.length > 0 && <details data-testid="knowledge-trial-scopes" className="min-w-0 rounded-md border p-3">
               <summary className="cursor-pointer text-sm">{t('knowledge:trial.scope')}</summary><p className="my-3 text-xs text-muted-foreground">{t('knowledge:trial.scope_help')}</p>
               <PagedItems items={scopeCues} size={5} disabled={isBusy}>{(cue, index) => <div key={cue.id} className="min-w-0 space-y-3 rounded-md border p-3">
@@ -323,12 +379,14 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
                 <PagedItems items={scopeCues} disabled={isBusy}>{(cue, index) => <Toggle key={cue.id} disabled={isBusy} label={`${index + 1}. ${cue.text}`} checked={selection.confirmations.some(value => value.entryId === entry.id && value.cueIds.includes(cue.id))} onChange={checked => update(current => ({ confirmations: setCueConfirmation(current.confirmations, entry.id, cue.id, checked) }))} />}</PagedItems>
               </div>}</PagedItems></div>
             </details>}
-            {scopedEntries.length > 0 && <details data-testid="knowledge-trial-exclusions" className="min-w-0 rounded-md border p-3">
-              <summary className="cursor-pointer text-sm">{t('knowledge:trial.disable')}</summary><div className="mt-3"><PagedItems key={[...selectedCollections].join(',')} items={scopedEntries} disabled={isBusy}>{entry => <Toggle key={entry.id} label={entry.title} disabled={isBusy} checked={selection.disabledEntryIds.includes(entry.id)} onChange={checked => update(current => ({ disabledEntryIds: checked ? [...new Set([...current.disabledEntryIds, entry.id])] : current.disabledEntryIds.filter(id => id !== entry.id) }))} />}</PagedItems></div>
+            {entryChoices.length > 0 && <details data-testid="knowledge-trial-exclusions" className="min-w-0 rounded-md border p-3">
+              <summary className="cursor-pointer text-sm">{t('knowledge:trial.disable')}</summary><div className="mt-3"><PagedItems key={[...selectedCollections].join(',')} items={entryChoices} disabled={isBusy}>{entry => <Toggle key={entry.id} testId={`knowledge-trial-exclude-${entry.id}`} label={entry.name} disabled={isBusy} checked={selection.disabledEntryIds.includes(entry.id)} onChange={checked => update(current => ({ disabledEntryIds: checked ? [...new Set([...current.disabledEntryIds, entry.id])] : current.disabledEntryIds.filter(id => id !== entry.id) }))} />}</PagedItems></div>
             </details>}
           </fieldset>
           {materialsChanged && <p role="status" data-testid="knowledge-trial-materials-changed" className="text-xs text-muted-foreground">{t('knowledge:trial.materials_changed')}</p>}
           {planExpired && <p role="status" className="text-xs text-muted-foreground">{t('knowledge:full.plan_expired')}</p>}
+          {inputsChanged && <p data-testid="knowledge-recheck-inputs-changed" role="status" className="text-xs text-muted-foreground">{t('knowledge:recovery.inputs_changed')}</p>}
+          {unavailableSelections && <p data-testid="knowledge-recheck-unavailable" role="status" className="text-xs text-destructive">{t('knowledge:recovery.selection_unavailable')}</p>}
           {error && <p role="alert" className="text-xs text-destructive">{t('knowledge:trial.error')}</p>}
           {documentPreview && <section data-testid="knowledge-full-preview" className="min-w-0 space-y-3 border-t pt-3">
             <ToolStatBar columns={3} title={t(documentPreview.canRun ? 'knowledge:full.ready' : 'knowledge:full.needs_attention')} className="studio-translation-estimate shadow-none" gridClassName="[&>div>div:first-child>span]:whitespace-normal [&>div>div:first-child>span]:[overflow-wrap:anywhere] [&>div>div:first-child]:normal-case [&>div>div:first-child]:tracking-normal" items={[
@@ -359,10 +417,11 @@ export function StudioKnowledgeTrial({ page, config, apiKey, disabled, onStarted
         </div>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3">
-        <Button size="sm" variant="ghost" disabled={pending === 'start'} onClick={close}>{t('knowledge:actions.close')}</Button>
+        <Button data-testid="knowledge-trial-close" size="sm" variant="ghost" disabled={pending === 'start'} onClick={close}>{t('knowledge:actions.close')}</Button>
         {pending === 'run' || pending === 'cancel' ? <Button size="sm" variant="outline" disabled={pending === 'cancel'} onClick={() => void cancel()}><LoaderCircle className="animate-spin" />{t('knowledge:trial.cancel')}</Button> : <>
-          <Button data-testid={mode === 'document' ? 'knowledge-full-check' : 'knowledge-trial-check'} size="sm" variant="outline" disabled={isBusy || !library} onClick={() => void check()}>{pending === 'check' && <LoaderCircle className="animate-spin" />}{t(mode === 'document' ? 'knowledge:full.check' : 'knowledge:trial.check')}</Button>
-          <Button data-testid={mode === 'document' ? 'knowledge-full-run' : 'knowledge-trial-run'} size="sm" disabled={isBusy || !currentPreview?.canRun || !apiKey.trim()} onClick={() => void (mode === 'document' ? startDocument() : run())}>{pending === 'start' && <LoaderCircle className="animate-spin" />}{t(mode === 'document' ? pending === 'start' ? 'knowledge:full.starting' : 'knowledge:full.run' : 'knowledge:trial.run')}</Button>
+          <Button data-testid="knowledge-trial-refresh" size="sm" variant="ghost" disabled={isBusy} onClick={() => void refreshLibrary()}><RefreshCw />{t('studio:refresh')}</Button>
+          <Button data-testid={mode === 'document' ? 'knowledge-full-check' : 'knowledge-trial-check'} size="sm" variant="outline" disabled={isBusy || !library || unavailableSelections} onClick={() => void check()}>{pending === 'check' && <LoaderCircle className="animate-spin" />}{t(mode === 'document' ? 'knowledge:full.check' : 'knowledge:trial.check')}</Button>
+          <Button data-testid={mode === 'document' ? 'knowledge-full-run' : 'knowledge-trial-run'} size="sm" disabled={isBusy || !currentPreview?.canRun || !apiKey.trim() || unavailableSelections} onClick={() => void (mode === 'document' ? startDocument() : run())}>{pending === 'start' && <LoaderCircle className="animate-spin" />}{t(mode === 'document' ? pending === 'start' ? 'knowledge:full.starting' : 'knowledge:full.run' : 'knowledge:trial.run')}</Button>
         </>}
       </ScrollableDialogFooter>
     </ScrollableDialog>

@@ -28,6 +28,7 @@ import { translationModelSchema, normalizeTranslationModel } from '@/subtitle-st
 import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioTranslation, StudioTranslationStatus, StudioBatchTranslation } from './StudioTranslation';
 import { StudioTranslationTask } from './StudioTranslationTask';
+import type { AutomaticKnowledgeRecheckRequest } from './automatic-knowledge-recheck';
 import { StudioTranslationOverview } from './StudioTranslationOverview';
 import { StudioExport, StudioBatchExport } from './StudioExport';
 import { restoreLibraryFocus, type LibraryContextAction, type LibraryContextScope, type LibraryDialogRequest } from './StudioLibraryContextMenu';
@@ -158,6 +159,7 @@ export default function SubtitleStudio() {
   const [deleting, setDeleting] = useState<DocumentSummary | null>(null);
   const [cleanupPending, setCleanupPending] = useState(false);
   const [trackId, setTrackId] = useState('');
+  const [knowledgeRecheck, setKnowledgeRecheck] = useState<AutomaticKnowledgeRecheckRequest | undefined>();
   const [importedId, setImportedId] = useState('');
   const track = page?.translationTracks.find(item => item.id === trackId) ?? page?.translationTracks.at(-1);
   const observations = useRef(new StudioObservations());
@@ -174,6 +176,14 @@ export default function SubtitleStudio() {
   const retry = useRef<(() => void) | null>(null);
   const reader = useRef<HTMLDivElement>(null);
   const busy = activity !== null || query !== loadedQuery;
+  const requestKnowledgeRecheck = (request: AutomaticKnowledgeRecheckRequest): boolean => {
+    if (!mounted.current || busy || operation.current || currentPage.current?.summary.id !== request.documentId || track?.id !== request.trackId
+      || !currentPage.current.translationTracks.some(item => item.id === request.trackId)) return false;
+    setKnowledgeRecheck(request); return true;
+  };
+  useEffect(() => {
+    setKnowledgeRecheck(current => current && (current.documentId !== page?.summary.id || current.trackId !== track?.id) ? undefined : current);
+  }, [page?.summary.id, track?.id]);
   const readerIsCurrent = (value: StudioRefreshCoordinator | null): value is StudioRefreshCoordinator => !!value && !value.disposed && mounted.current && coordinator.current === value;
   const diagnostics = useMemo(() => {
     const counts = new Map<Diagnostic['code'], number>();
@@ -593,7 +603,7 @@ export default function SubtitleStudio() {
           title={t('studio:preview')}
           icon={Subtitles}
           badge={page ? <Badge variant="secondary" className="font-mono text-[11px]">{page.summary.cueCount}</Badge> : undefined}
-          actions={page ? <><StudioBilingual page={page} busy={busy} autoOpen={importedId === page.summary.id} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setImportedId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioRevealSource key={page.summary.id} kind="document" id={page.summary.id} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton></> : undefined}
+          actions={page ? <><StudioBilingual page={page} busy={busy} autoOpen={importedId === page.summary.id} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setImportedId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} recheckRequest={knowledgeRecheck} onRecheckClosed={requestId => setKnowledgeRecheck(current => current?.requestId === requestId ? undefined : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioRevealSource key={page.summary.id} kind="document" id={page.summary.id} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton></> : undefined}
           className="studio-preview-panel"
           footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t(page.summary.capabilities.preserveSource ? 'studio:source_preserved' : 'studio:transcription_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
@@ -604,7 +614,7 @@ export default function SubtitleStudio() {
               <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
               </div>
               <div className="studio-translation-progress-controls">
-                <StudioTranslationStatus page={page} trackId={track.id} />
+                <StudioTranslationStatus page={page} trackId={track.id} busy={busy} onRecheck={requestKnowledgeRecheck} />
                 <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
               </div>
             </div>}

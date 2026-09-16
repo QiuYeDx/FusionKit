@@ -647,5 +647,32 @@
     "stale": "Materials have changed. Open Choose materials, review your choices, and apply them before starting transcription.",
     "configuration": "Check the model, languages, and materials for automatic translation.",
     "save": "Use materials"
+  },
+  "recovery": {
+    "open": "View knowledge issues",
+    "title": "Automatic translation knowledge check",
+    "description": "These are the issues found at the time. Your source subtitles are saved. Viewing this report does not restart translation.",
+    "unavailable": "This report could not be read. It may be damaged or no longer available. Refresh to try again.",
+    "none": "This translation track has no automatic knowledge check report.",
+    "legacy": "This earlier automatic translation task did not save detailed issues. If its original choices can still be read, you can check the current knowledge again.",
+    "materials": "{{collections}} collections · {{topics}} shared topics",
+    "issues": "{{count}} issues were found before the check stopped. This is not a complete assessment of all subtitles.",
+    "source_changed": "The source subtitles have changed. The excerpts and subtitle numbers below are from the original check. A new check will use the current subtitles.",
+    "stale": "Subtitle timing or translation settings have changed. These are the saved results; check again before translating.",
+    "limited": "Showing {{shown}} of {{count}} recorded issues.",
+    "no_details": "No individual issues were saved. Check again with the original choices to see current results.",
+    "cue": "Subtitle {{number}}",
+    "issue_limited": "This issue involves {{entries}} knowledge entries and {{cues}} subtitles. Only some excerpts are shown.",
+    "recheck_help": "Adjusting and checking again reuses your original shared choices with the current knowledge. You will still need to click Start translation after the check passes.",
+    "seed_unavailable": "The original choices could not be read in full. Close this report and open Translation to select and check knowledge again.",
+    "recheck": "Adjust knowledge and check again",
+    "form_help": "Your original knowledge choices and shared topics have been filled in. Check them against the current subtitles and knowledge. The old report is retained; start translation after the check passes.",
+    "model_changed": "The original model configuration has changed or is unavailable. Select a current model before adjusting and checking knowledge.",
+    "use_current_model": "Use current model configuration",
+    "selection_unavailable": "Some choices were deleted, archived, or are outside the current scope. Remove unavailable choices or change the recipe, then check again.",
+    "inputs_changed": "The current subtitles or translation settings have changed. Your edited knowledge choices are retained. Check again.",
+    "edit_model": "Adjust translation model",
+    "scope_help": "This check reuses only shared knowledge choices and document topics. Speaker assignments, mentioned subjects, and condition confirmations are not carried over.",
+    "checked_at": "Checked: {{time}}"
   }
 }

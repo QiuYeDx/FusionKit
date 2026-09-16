@@ -21,13 +21,15 @@ import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import { StudioBatchItems } from './StudioBatchItems';
 import { StudioDocumentRow } from './StudioDocumentList';
 import { STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, StudioOperationResult } from './StudioOperationResult';
-import { translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from '@/subtitle-studio/translation-contract';
+import { normalizeTranslationModel, translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from '@/subtitle-studio/translation-contract';
 import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
 import './StudioTranslation.css';
 import './StudioBatch.css';
 import { StudioKnowledgeTrial } from './StudioKnowledgeTrial';
 import { StudioKnowledgeBatch } from './StudioKnowledgeBatch';
 import { StudioExecutionRecord, hasExecutionRecordEntry } from './StudioExecutionRecord';
+import { StudioAutomaticKnowledgeFailure } from './StudioAutomaticKnowledgeFailure';
+import type { AutomaticKnowledgeRecheckRequest } from './automatic-knowledge-recheck';
 
 const errorKeys = {
   invalid_input: 'studio:errors.invalid_input',
@@ -72,13 +74,15 @@ type StudioTranslationProps = {
   busy: boolean;
   onStarted: () => void;
   onError: (error: ErrorCode) => void;
+  recheckRequest?: AutomaticKnowledgeRecheckRequest;
+  onRecheckClosed?: (requestId: string) => void;
 };
 
 export function StudioBatchTranslation(props: Omit<StudioTranslationProps, 'page' | 'documents'> & { documents: DocumentSummary[] }) {
   return <StudioTranslation {...props} />;
 }
 
-export function StudioTranslation({ page, documents, triggerContainer, openRequest, onRequestClosed, busy, onStarted, onError }: StudioTranslationProps) {
+export function StudioTranslation({ page, documents, triggerContainer, openRequest, onRequestClosed, busy, onStarted, onError, recheckRequest, onRecheckClosed }: StudioTranslationProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const controlId = useId();
@@ -103,6 +107,9 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   const [activity, setActivity] = useState<'plan' | 'start' | null>(null);
   const [knowledgeStarting, setKnowledgeStarting] = useState(false);
   const [error, setError] = useState<ErrorCode | null>(null);
+  const [recheckSession, setRecheckSession] = useState<AutomaticKnowledgeRecheckRequest | undefined>();
+  const [recheckModelApproved, setRecheckModelApproved] = useState(false);
+  const consumedRecheck = useRef<string | null>(null);
   const operation = useRef(false);
   const mounted = useRef(true);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -116,13 +123,13 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
     outputTokenParameter: selected.outputTokenParameter,
   } : null), [selected]);
   const config = useMemo(() => translationConfigSchema.safeParse({
-    model: model.success ? model.data : null,
+    model: model.success ? model.data : recheckSession?.seed.config.model ?? null,
     language: language === 'custom' ? customLanguage : language,
     instructions,
     contextWindow: Number(contextWindow),
     maxOutputTokens: Number(maxOutputTokens),
     maxBatchCues: Number(maxBatchCues),
-  }), [model, language, customLanguage, instructions, contextWindow, maxOutputTokens, maxBatchCues]);
+  }), [model, language, customLanguage, instructions, contextWindow, maxOutputTokens, maxBatchCues, recheckSession]);
   const identity = JSON.stringify([batch ? batchDocuments.map(item => item.id) : [page?.summary.id, page?.summary.revision], config.success ? config.data : null]);
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
@@ -137,7 +144,12 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   const activeTask = page?.tasks.some(task => task.status === 'queued' || task.status === 'running') ?? false;
   const unavailable = batch ? !documents?.length || documents.length > STUDIO_BATCH_LIMIT : !page?.summary.capabilities.translate || page.summary.cueCount === 0;
   const pending = activity !== null || knowledgeStarting;
-  const needsConfiguration = !model.success || !selected?.apiKey.trim();
+  const recheckModelMatches = !recheckSession || recheckModelApproved || model.success && (() => {
+    const current = normalizeTranslationModel(model.data), previous = normalizeTranslationModel(recheckSession.seed.config.model);
+    return current.profileId === previous.profileId && current.modelKey === previous.modelKey && current.endpoint === previous.endpoint
+      && current.apiFormat === previous.apiFormat && current.outputTokenParameter === previous.outputTokenParameter && current.thinkingEnabled === previous.thinkingEnabled;
+  })();
+  const needsConfiguration = !model.success || !selected?.apiKey.trim() || !recheckModelMatches;
   const canPlan = !busy && !pending && !activeTask && !unavailable && !needsConfiguration && config.success;
   const reportError = (failure: unknown) => {
     const code = failure instanceof StudioError ? failure.code : 'translation_failed';
@@ -157,9 +169,27 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   useEffect(() => {
     if (!profileId && profiles.length) setProfileId(assignment ?? profiles[0].id);
   }, [assignment, profileId, profiles]);
+  useEffect(() => {
+    if (!recheckRequest || consumedRecheck.current === recheckRequest.requestId || batch || recheckRequest.documentId !== page?.summary.id) return;
+    // A one-shot click initializes the draft. Polling and new object identities
+    // cannot replace edits made inside an already open form.
+    consumedRecheck.current = recheckRequest.requestId;
+    if (open || pending) return;
+    const saved = recheckRequest.seed.config;
+    setProfileId(saved.model.profileId); setRecheckModelApproved(false);
+    setLanguage(saved.language in languageKeys ? saved.language as LanguageChoice : 'custom');
+    setCustomLanguage(saved.language); setInstructions(saved.instructions);
+    setContextWindow(String(saved.contextWindow)); setMaxOutputTokens(String(saved.maxOutputTokens)); setMaxBatchCues(String(saved.maxBatchCues));
+    setPlan(null); setError(null); setRecheckSession(recheckRequest); setOpen(true);
+  }, [recheckRequest]);
+  useEffect(() => {
+    if (recheckSession && (recheckSession.documentId !== page?.summary.id || recheckRequest?.requestId !== recheckSession.requestId)) {
+      setOpen(false); setRecheckSession(undefined); setPlan(null);
+    }
+  }, [page?.summary.id, recheckRequest?.requestId]);
 
   const prepare = async () => {
-    if (operation.current || !canPlan || !config.success) return;
+    if (recheckSession || operation.current || !canPlan || !config.success) return;
     operation.current = true;
     setActivity('plan'); setError(null); setPlan(null); setBatchPlan(null); setBatchResult(null);
     const requestIdentity = identity;
@@ -184,7 +214,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
     }
   };
   const start = async () => {
-    if (operation.current || !canPlan || !(batch ? batchPlan?.items.some(item => item.ok) : currentPlan) || !selected) return;
+    if (recheckSession || operation.current || !canPlan || !(batch ? batchPlan?.items.some(item => item.ok) : currentPlan) || !selected) return;
     operation.current = true;
     setActivity('start'); setError(null);
     const requestIdentity = identity;
@@ -223,6 +253,11 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
     }} onCloseAutoFocus={event => {
       event.preventDefault();
       if (!mounted.current) return;
+      if (recheckSession) {
+        onRecheckClosed?.(recheckSession.requestId);
+        recheckSession.restoreFocus(); setRecheckSession(undefined);
+        return;
+      }
       onRequestClosed?.();
       if (handingOffToOverview.current) {
         handingOffToOverview.current = false;
@@ -245,8 +280,8 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           {batch && !batchPlan && <StudioSelectedDocuments documents={batchDocuments} />}
           <div className="studio-translation-fields">
             <ToolField label={t('studio:translation.model')} htmlFor={`${controlId}-model`}>
-              <Select value={selected?.id ?? ''} onValueChange={setProfileId} disabled={pending || !profiles.length}>
-                <SelectTrigger id={`${controlId}-model`} className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:translation.select_model')} /></SelectTrigger>
+              <Select value={selected?.id ?? ''} onValueChange={value => { setProfileId(value); setRecheckModelApproved(true); }} disabled={pending || !profiles.length}>
+                <SelectTrigger id={`${controlId}-model`} data-testid="studio-translation-model" className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:translation.select_model')} /></SelectTrigger>
                 <SelectContent className="max-w-[calc(100vw-2rem)]">{profiles.map(profile => <SelectItem key={profile.id} value={profile.id} className="whitespace-normal break-all">{profile.name || profile.modelKey}</SelectItem>)}</SelectContent>
               </Select>
             </ToolField>
@@ -260,16 +295,18 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           {language === 'custom' && <ToolField label={t('studio:translation.custom_language_name')} htmlFor={`${controlId}-custom-language`}>
             <Input id={`${controlId}-custom-language`} className="h-8 text-xs" value={customLanguage} onChange={event => setCustomLanguage(event.target.value)} maxLength={100} disabled={pending} />
           </ToolField>}
-          {needsConfiguration && <div className="studio-translation-configuration">
+          {recheckSession && <p data-testid="knowledge-recheck-configuration-help" className="text-xs leading-5 text-muted-foreground">{t('knowledge:recovery.form_help')}</p>}
+          {!recheckModelMatches && <div className="studio-translation-configuration"><p>{t('knowledge:recovery.model_changed')}</p>{model.success && <Button data-testid="knowledge-recheck-use-current-model" size="sm" variant="outline" disabled={pending} onClick={() => setRecheckModelApproved(true)}>{t('knowledge:recovery.use_current_model')}</Button>}</div>}
+          {(!model.success || !selected?.apiKey.trim()) && <div className="studio-translation-configuration">
             <p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.model_required')}</p>
             <Button variant="outline" size="sm" onClick={() => { setOpen(false); navigate('/setting?tab=model'); }} disabled={pending}><Settings />{t('studio:translation.model_settings')}</Button>
           </div>}
           <ToolField label={t('studio:translation.instructions')} htmlFor={`${controlId}-instructions`}>
             <Textarea id={`${controlId}-instructions`} className="studio-translation-instructions text-xs" value={instructions} onChange={event => setInstructions(event.target.value)} maxLength={4000} disabled={pending} />
           </ToolField>
-          {!batch && page && config.success && <StudioKnowledgeTrial key={page.summary.id} page={page} config={config.data} apiKey={selected?.apiKey ?? ''} disabled={pending || busy || activeTask || unavailable} onAdmissionChange={value => { if (mounted.current) setKnowledgeStarting(value); }} onStarted={taskId => {
+          {!batch && page && config.success && <StudioKnowledgeTrial key={page.summary.id} page={page} config={config.data} recheckRequest={recheckSession} modelNeedsAttention={needsConfiguration} apiKey={recheckModelMatches ? selected?.apiKey ?? '' : ''} disabled={pending || busy || activeTask || unavailable} onAdmissionChange={value => { if (mounted.current) setKnowledgeStarting(value); }} onStarted={taskId => {
             getStudioTranslationOverviewController().trackStarted([taskId]);
-            if (mounted.current) { setOpen(false); setPlan(null); onStarted(); }
+            if (mounted.current && currentDocumentId.current === page.summary.id) { setOpen(false); setPlan(null); onStarted(); }
           }} />}
           {batch && config.success && <StudioKnowledgeBatch documents={batchDocuments.map(item => documents?.find(document => document.id === item.id) ?? item)} config={config.data} apiKey={selected?.apiKey ?? ''} disabled={pending || busy || unavailable} onAdmissionChange={value => { if (mounted.current) setKnowledgeStarting(value); }} onStarted={value => {
             getStudioTranslationOverviewController().trackStarted(value.items.flatMap(item => item.ok ? [item.taskId] : []));
@@ -309,20 +346,23 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
       <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3">
         <Button id={`${controlId}-close`} variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>{t('studio:cancel')}</Button>
         {batchPlan && <Button variant="outline" size="sm" disabled={!canPlan} onClick={() => void prepare()}>{t('studio:translation.prepare')}</Button>}
-        {currentPlan || batchPlan ? <Button size="sm" disabled={!canPlan || !!batchPlan && !batchPlan.items.some(item => item.ok)} onClick={() => void start()}>{activity === 'start' ? <LoaderCircle className="studio-spin" /> : <Play />}{batchPlan ? t('studio:batch.start_ready', { count: batchPlan.items.filter(item => item.ok).length }) : t('studio:translation.start')}</Button> : <Button size="sm" disabled={!canPlan} onClick={() => void prepare()}>{activity === 'plan' ? <LoaderCircle className="studio-spin" /> : <Calculator />}{t('studio:translation.prepare')}</Button>}
+        {!recheckSession && (currentPlan || batchPlan ? <Button size="sm" disabled={!canPlan || !!batchPlan && !batchPlan.items.some(item => item.ok)} onClick={() => void start()}>{activity === 'start' ? <LoaderCircle className="studio-spin" /> : <Play />}{batchPlan ? t('studio:batch.start_ready', { count: batchPlan.items.filter(item => item.ok).length }) : t('studio:translation.start')}</Button> : <Button size="sm" disabled={!canPlan} onClick={() => void prepare()}>{activity === 'plan' ? <LoaderCircle className="studio-spin" /> : <Calculator />}{t('studio:translation.prepare')}</Button>)}
       </ScrollableDialogFooter>
       </>}
     </ScrollableDialog>
   </>;
 }
 
-export function StudioTranslationStatus({ page, trackId }: { page: DocumentPage; trackId?: string }) {
+export function StudioTranslationStatus({ page, trackId, busy = false, onRecheck }: { page: DocumentPage; trackId?: string; busy?: boolean; onRecheck?: (request: AutomaticKnowledgeRecheckRequest) => boolean }) {
   const { t, i18n } = useTranslation();
   const tasks = trackId ? page.tasks.filter(item => item.trackId === trackId) : page.tasks;
   const task = tasks.find(item => item.translation && (item.status === 'queued' || item.status === 'running'))
     ?? [...tasks].reverse().find(item => item.translation);
   const track = page.translationTracks.find(item => item.id === (trackId ?? task?.trackId));
-  const execution = track && hasExecutionRecordEntry(track) ? <StudioExecutionRecord key={`${page.summary.id}:${track.id}`} page={page} track={track} /> : null;
+  const hasAutomaticReport = !!track && !!page.automaticKnowledgeReportTrackIds?.includes(track.id);
+  const execution = hasAutomaticReport && onRecheck && track
+    ? <StudioAutomaticKnowledgeFailure key={`${page.summary.id}:${track.id}`} page={page} taskId={task?.id} trackId={track.id} disabled={busy} onRecheck={onRecheck} />
+    : track && hasExecutionRecordEntry(track) ? <StudioExecutionRecord key={`${page.summary.id}:${track.id}`} page={page} track={track} /> : null;
   if (!task?.translation) return execution ? <div className="studio-translation-status">{execution}</div> : null;
   const running = task.status === 'queued' || task.status === 'running';
   const failed = task.status === 'failed' || task.status === 'interrupted' || task.status === 'needs_configuration';

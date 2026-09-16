@@ -14,6 +14,9 @@ export const automaticTranslationIntentSchema = z.object({
   intentId: uuid, sourceTaskId: uuid, generation: z.literal(1), config: translationConfigSchema,
   state: z.enum(['pending', 'admitted', 'cancelled']), translationTaskId: uuid.optional(),
   knowledge: frozenAutomaticKnowledgeSchema.optional(),
+  // Private diagnostics are validated on admission/inspection. An unreadable
+  // historical report must not roll the document back to an older generation.
+  preparationReport: z.unknown().optional(),
 }).strict().refine(value => value.state === 'pending' ? !value.translationTaskId : !!value.translationTaskId);
 export type AutomaticTranslationIntent = z.infer<typeof automaticTranslationIntentSchema>;
 export type AutomaticTranslationRequest = z.infer<typeof automaticTranslationRequestSchema>;

@@ -14,8 +14,10 @@ import { knowledgeTrialRequestSchemas, type KnowledgeTrialPreview, type Knowledg
 import { knowledgeBatchRequestSchemas, type KnowledgeBatchTranslationPreview, type KnowledgeBatchTranslationResult } from './knowledge-batch-contract';
 import { knowledgeTranslationRequestSchemas, type KnowledgeTranslationPreview } from './knowledge-translation-contract';
 import { readExecutionRecordSchema, type ExecutionRecordPage } from './execution-view-contract';
+import { readAutomaticKnowledgeReportSchema, type AutomaticKnowledgeReportPage } from './automatic-knowledge-report-contract';
 
 export const STUDIO_CHANNELS = {
+  readAutomaticKnowledgeReport: 'subtitle-studio:read-automatic-knowledge-report',
   planKnowledgeTranslationBatch: 'subtitle-studio:plan-knowledge-translation-batch',
   createKnowledgeTranslationBatch: 'subtitle-studio:create-knowledge-translation-batch',
   cancelKnowledgeTranslationBatchPlan: 'subtitle-studio:cancel-knowledge-translation-batch-plan',
@@ -96,6 +98,7 @@ export const droppedTranscriptionMediaRequestSchema = z.object({
   paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(20),
 }).strict();
 export const requestSchemas = {
+  readAutomaticKnowledgeReport: readAutomaticKnowledgeReportSchema,
   readExecutionRecord: readExecutionRecordSchema,
   ...knowledgeTrialRequestSchemas,
   ...knowledgeTranslationRequestSchemas,
@@ -150,7 +153,7 @@ export type TranslationTasksSnapshot = {
   items: TranslationTaskSummary[];
 };
 export type DocumentTask = Omit<StoredTask, 'translation'> & { translation?: Omit<NonNullable<StoredTask['translation']>, 'checkpoint'> & { checkpoint?: { version: 1 | 2 } } };
-export type DocumentPage = { summary: DocumentSummary; offset: number; cues: SubtitleDocument['cues']; nodeOffset: number; nodeCount: number; rawNodes: { id: string; text: string }[]; translationTracks: SubtitleDocument['translationTracks']; tasks: DocumentTask[] };
+export type DocumentPage = { automaticKnowledgeReportTrackIds?: string[]; summary: DocumentSummary; offset: number; cues: SubtitleDocument['cues']; nodeOffset: number; nodeCount: number; rawNodes: { id: string; text: string }[]; translationTracks: SubtitleDocument['translationTracks']; tasks: DocumentTask[] };
 export type StudioResult<T> = { ok: true; value: T } | { ok: false; error: ErrorCode };
 export type TranscriptionMediaSelection = { items: Array<
   { displayName: string; ok: true; media: LocalSubtitleAuthorizedMedia; probe: LocalSubtitleMediaProbeSummary }
@@ -161,6 +164,7 @@ export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSu
 export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneration: string; target: { platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64' } }
   | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
+  readAutomaticKnowledgeReport(request: z.infer<typeof requestSchemas.readAutomaticKnowledgeReport>): Promise<StudioResult<AutomaticKnowledgeReportPage>>;
   readExecutionRecord(request: z.infer<typeof requestSchemas.readExecutionRecord>): Promise<StudioResult<ExecutionRecordPage>>;
   planKnowledgeTranslationBatch(request: z.infer<typeof requestSchemas.planKnowledgeTranslationBatch>): Promise<StudioResult<KnowledgeBatchTranslationPreview>>;
   createKnowledgeTranslationBatch(request: z.infer<typeof requestSchemas.createKnowledgeTranslationBatch>): Promise<StudioResult<KnowledgeBatchTranslationResult>>;

@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
@@ -11,6 +12,18 @@ import { knowledgeFixture } from './fixtures';
 type RuntimeState = { tasks: Array<{ taskId: string; documentId?: string; status: string; automaticTranslation?: { status: string; taskId?: string } }> };
 type ProviderPayload = { items: Array<{ id: string; text: string }>; translationKnowledge?: { items: Array<{ kind: string; applicableItemIds: string[] }> } };
 const control = (app: ElectronApplication, command: Record<string, unknown>): Promise<RuntimeState> => app.evaluate(async (_, value) => (globalThis as any).__studioT06Control(value), command);
+async function persistedBytes(directory: string): Promise<Record<string, string>> {
+  const entries: Array<readonly [string, string]> = [];
+  const visit = async (current: string): Promise<void> => {
+    await Promise.all((await readdir(current, { withFileTypes: true })).map(async file => {
+      const absolute = path.join(current, file.name);
+      if (file.isDirectory()) await visit(absolute);
+      else if (file.isFile()) entries.push([path.relative(directory, absolute), createHash('sha256').update(await readFile(absolute)).digest('hex')]);
+    }));
+  };
+  await visit(directory);
+  return Object.fromEntries(entries.sort(([left], [right]) => left.localeCompare(right)));
+}
 async function drop(page: Page, file: string) {
   await page.evaluate(() => { const input = document.createElement('input'); input.type = 'file'; input.hidden = true; input.dataset.automaticMediaDrop = ''; document.body.append(input); });
   await page.locator('[data-automatic-media-drop]').setInputFiles(file);
@@ -24,13 +37,14 @@ async function drop(page: Page, file: string) {
 }
 
 describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge translation through native Electron', () => {
-  it('freezes selected materials before transcription, keeps old terminology after an edit, and blocks conflicting subtitles without a request', async () => {
+  it('freezes materials before transcription and explains then repairs automatic conflicts with an explicit new translation', async () => {
     const fixture = await buildTranscriptionUiApp('controlled');
     const locale = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
     const repository = new DocumentRepository(path.join(fixture.profile, 'subtitle-studio/documents'));
     const requests: Array<{ raw: string; payload: ProviderPayload }> = [], errors: string[] = [], logs: string[] = [];
     const evidence: Record<string, unknown> = {
       boundary: 'Production main composition, owner/frame IPC checks, unchanged preload and native File capture, automatic knowledge capture, document sink/repository, automatic coordinator, TranslationService and HTTP executor remain real. The entire native transcription runtime/queue is replaced; production task-service capture/lease lifecycle is verified separately in transcription-task-service.test.ts. No actual ASR or paid model is used.',
+      reportReadBoundary: 'The report is read through the production preload and IPC. Identical persisted document bytes and unchanged HTTP request counts prove no write/provider side effect. The backend unit tests separately assert that report reads never call initialization; this native scenario has already initialized translation before the report exists.',
     };
     let app: ElectronApplication | undefined, page: Page | undefined, server: Server | undefined, passed = false;
     try {
@@ -48,7 +62,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
           let raw = ''; for await (const chunk of request) raw += String(chunk);
           const body = JSON.parse(raw), payload = JSON.parse(body.messages[1].content) as ProviderPayload;
           requests.push({ raw, payload }); response.setHeader('Content-Type', 'application/json');
-          response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ items: payload.items.map(item => ({ id: item.id, text: `自动译文：${item.text.replace(/checkpoint/gi, '存档点')}` })) }) } }], usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 } }));
+          response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ items: payload.items.map(item => ({ id: item.id, text: `自动译文：${item.text.replace(/checkpoint/gi, '存档点').replace(/savepoint/gi, '保存站')}` })) }) } }], usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 } }));
         } catch (error) { errors.push(`Provider fixture: ${String(error)}`); response.writeHead(500); response.end(); }
       });
       await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
@@ -89,6 +103,10 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       await page.getByTestId('automatic-knowledge-source-language').click(); await page.getByRole('option', { name: '英语', exact: true }).click();
       await page.getByTestId('automatic-knowledge-recipe').click(); await page.getByRole('option', { name: data.recipes[0].name, exact: true }).click();
       await page.getByTestId(`automatic-knowledge-topic-${data.subjects[0].id}`).check();
+      const savedInstructions = 'Keep every subtitle concise and preserve all information.';
+      const savedContext = 'These subtitles discuss Game X save locations.';
+      await page.getByTestId('automatic-knowledge-instructions').fill(savedInstructions);
+      await page.getByTestId('automatic-knowledge-context').fill(savedContext);
       await uiExpect(page.getByTestId('automatic-knowledge-save')).toBeEnabled();
       const dialog = page.getByRole('dialog').filter({ has: page.getByTestId('automatic-knowledge-content') });
       expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
@@ -163,6 +181,34 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       expect(blocked.tasks).toHaveLength(1); expect(blocked.tasks[0]).toMatchObject({ status: 'failed', attempts: 0, translation: { error: 'knowledge_check_failed' } });
       expect(secondState.automaticTranslation).toEqual({ status: 'needs_configuration', taskId: blocked.tasks[0].id });
       expect(requests).toHaveLength(1); expect(blocked.document.translationTracks[0].entries).toEqual({});
+      const failedTrackId = blocked.document.translationTracks[0].id;
+      const reportRequest = { documentId: secondState.documentId!, trackId: failedTrackId };
+      const documentsRoot = path.join(fixture.profile, 'subtitle-studio/documents');
+      const reportReadBefore = await persistedBytes(documentsRoot);
+      const historicalReport = await page.evaluate(async request => {
+        const report = await window.subtitleStudio.readAutomaticKnowledgeReport(request);
+        if (!report.ok) throw new Error(JSON.stringify(report)); return report.value;
+      }, reportRequest);
+      const repeatedReport = await page.evaluate(async request => {
+        const report = await window.subtitleStudio.readAutomaticKnowledgeReport(request);
+        if (!report.ok) throw new Error(JSON.stringify(report)); return report.value;
+      }, reportRequest);
+      expect(repeatedReport).toEqual(historicalReport);
+      expect(historicalReport.state).toBe('available');
+      if (historicalReport.state !== 'available') throw new Error('Expected an available automatic failure report');
+      const termConflict = historicalReport.issues.find(issue => issue.code === 'term_conflict');
+      expect(termConflict).toMatchObject({ severity: 'error', entryCount: 2, cueCount: 1 });
+      expect(termConflict?.entries.map(entry => entry.title)).toEqual(expect.arrayContaining(['savepoint 冲突译名 1', 'savepoint 冲突译名 2']));
+      expect(termConflict?.cues).toEqual([{ cueId: blocked.document.cues[0].id, number: 1, text: 'We reached the savepoint.' }]);
+      expect(historicalReport.seed).toMatchObject({
+        documentId: secondState.documentId, trackId: failedTrackId, config: blocked.automaticTranslation!.config,
+        selection: { ...blocked.automaticTranslation!.knowledge!.selection, bindings: [], confirmations: [] },
+        documentTopicIds: [data.subjects[0].id],
+      });
+      expect(await persistedBytes(documentsRoot)).toEqual(reportReadBefore);
+      expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
+      expect(requests).toHaveLength(1);
+      evidence.reportRead = { unchangedDocumentBytes: true, providerRequests: 0, historicalReport };
       evidence.blocked = { documentId: secondState.documentId, error: blocked.tasks[0].translation?.error, providerRequests: 0, transcriptionStatus: secondState.status };
       const blockedRow = page.getByTestId('studio-transcription-task-row').filter({ hasText: path.basename(mediaFiles[1]) });
       await uiExpect(blockedRow.locator('.studio-transcription-auto-label')).toHaveAttribute('data-state', 'needs_configuration');
@@ -177,13 +223,112 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       await uiExpect(page.locator('.studio-document-meta')).toContainText(locale.source_only);
       await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-conflict-document.png'), animations: 'disabled' });
 
+      await page.getByTestId('studio-automatic-knowledge-report').click();
+      const reportDialog = page.getByRole('dialog').filter({ has: page.getByTestId('automatic-knowledge-report-content') });
+      await uiExpect(reportDialog).toContainText('savepoint 冲突译名 1');
+      await uiExpect(reportDialog).toContainText('savepoint 冲突译名 2');
+      await uiExpect(reportDialog).toContainText('We reached the savepoint.');
+      await uiExpect(page.locator('[data-testid="automatic-knowledge-report-issue"][data-issue-code="term_conflict"] .border-l')).toContainText(/1.*We reached the savepoint\./);
+      expect(await reportDialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+      await reportDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
+      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-report-light.png'), animations: 'disabled' });
+      expect(requests).toHaveLength(1);
+
+      await page.getByTestId('automatic-knowledge-report-recheck').click();
+      const repairDialog = page.getByRole('dialog').filter({ has: page.getByTestId('knowledge-trial-content') });
+      await uiExpect(repairDialog.getByRole('heading', { name: '使用资料翻译全文', exact: true })).toBeVisible();
+      await uiExpect(page.getByTestId('knowledge-full-check')).toBeEnabled();
+      await uiExpect(page.getByTestId('knowledge-trial-source-language')).toHaveText('英语');
+      await uiExpect(page.getByTestId('knowledge-trial-recipe')).toHaveText(data.recipes[0].name);
+      await uiExpect(page.getByTestId(`knowledge-document-topic-${data.subjects[0].id}`)).toBeChecked();
+      await uiExpect(page.getByTestId('knowledge-trial-instructions')).toHaveValue(savedInstructions);
+      await uiExpect(page.getByTestId('knowledge-trial-context')).toHaveValue(savedContext);
+      await uiExpect(page.getByTestId('knowledge-full-run')).toBeDisabled();
+      await repairDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
+      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-form-light.png'), animations: 'disabled' });
+      await page.getByTestId('knowledge-full-check').click();
+      await uiExpect(page.getByTestId('knowledge-full-preview')).toBeVisible();
+      await uiExpect(page.getByTestId('knowledge-full-run')).toBeDisabled();
+      expect(requests).toHaveLength(1); expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
+      const exclusions = page.getByTestId('knowledge-trial-exclusions');
+      await exclusions.locator('summary').click();
+      await page.getByTestId('knowledge-trial-exclude-50000000-0000-4000-8000-000000000012').check();
+      await page.getByTestId('knowledge-full-check').click();
+      await uiExpect(page.getByTestId('knowledge-full-run')).toBeEnabled();
+      expect(requests).toHaveLength(1); expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
+      await page.getByTestId('knowledge-full-preview').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-checked-light.png'), animations: 'disabled' });
+      await page.getByTestId('knowledge-full-run').click();
+      await uiExpect(page.getByTestId('knowledge-trial-content')).toHaveCount(0);
+      await uiExpect.poll(async () => (await repository.readSnapshot(secondState.documentId!)).tasks.at(-1)?.status).toBe('completed');
+      expect(requests).toHaveLength(2);
+      const repaired = await repository.readSnapshot(secondState.documentId!), repairedTrack = repaired.document.translationTracks.at(-1)!;
+      expect(repaired.document.translationTracks).toHaveLength(2); expect(repaired.tasks[0]).toEqual(blocked.tasks[0]);
+      expect(repaired.automaticTranslation).toEqual(blocked.automaticTranslation);
+      expect(repairedTrack.id).not.toBe(failedTrackId);
+      const repairedExecution = validateExecutionRecord(repaired.executionRecords![repairedTrack.executionRef!.id]);
+      expect(repairedExecution.plan.config).toMatchObject({
+        model: blocked.automaticTranslation!.config.model,
+        contextWindow: blocked.automaticTranslation!.config.contextWindow,
+        maxOutputTokens: blocked.automaticTranslation!.config.maxOutputTokens,
+        maxBatchCues: blocked.automaticTranslation!.config.maxBatchCues,
+      });
+      expect(repairedExecution.knowledge?.selection).toMatchObject({ ...historicalReport.seed!.selection, disabledEntryIds: ['50000000-0000-4000-8000-000000000012'] });
+      expect(repairedExecution.knowledge?.documentTopicIds).toEqual([data.subjects[0].id]);
+      expect(Object.values(repairedTrack.entries)[0].text.plain).toContain('保存站');
+      const reportAfterRepair = await page.evaluate(async request => {
+        const report = await window.subtitleStudio.readAutomaticKnowledgeReport(request);
+        if (!report.ok) throw new Error(JSON.stringify(report)); return report.value;
+      }, reportRequest);
+      expect(reportAfterRepair.state).toBe('available');
+      if (reportAfterRepair.state !== 'available') throw new Error('Historical report disappeared after repair');
+      expect(reportAfterRepair.issues).toEqual(historicalReport.issues);
+      expect(reportAfterRepair.material).toEqual(historicalReport.material);
+      expect(reportAfterRepair.createdAt).toBe(historicalReport.createdAt);
+      expect(reportAfterRepair.documentRevision).toBe(historicalReport.documentRevision);
+      expect(requests).toHaveLength(2);
+      evidence.repair = { newTrackId: repairedTrack.id, oldTrackId: failedTrackId, oldReportPreserved: true, providerRequests: 1, selectedGeneration: repairedExecution.knowledge!.generation };
+
       // The saved picker remains usable in English and a compact dark window.
       await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
       await page.reload(); await page.getByTestId('subtitle-studio').waitFor();
       await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
       const english = JSON.parse(await readFile(path.resolve('src/locales/en/studio.json'), 'utf8'));
-      await page.getByRole('tab', { name: english.workspace_transcription, exact: true }).click();
+      await uiExpect(page.locator('html')).toHaveClass(/dark/);
+      await page.getByRole('tab', { name: english.workspace_documents, exact: true }).click();
+      await page.locator(`[data-testid="studio-library-row"][data-document-id="${secondState.documentId}"] .studio-document`).click();
+      await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed');
+      await page.getByRole('combobox', { name: english.translation_track, exact: true }).click();
+      await page.getByRole('option', { name: `${blocked.document.translationTracks[0].language} · 1`, exact: true }).click();
+      await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'failed');
       await nativeWindow.evaluate(win => win.setSize(820, 700));
+      await page.getByTestId('studio-automatic-knowledge-report').click();
+      const retainedDialog = page.getByRole('dialog').filter({ has: page.getByTestId('automatic-knowledge-report-content') });
+      await uiExpect(page.getByTestId('automatic-knowledge-report-content')).toHaveAttribute('data-state', 'available');
+      await uiExpect(retainedDialog).toContainText('savepoint 冲突译名 1');
+      await uiExpect(retainedDialog).toContainText('savepoint 冲突译名 2');
+      await uiExpect(retainedDialog).toContainText('We reached the savepoint.');
+      expect(await retainedDialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1 && element.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
+      expect(await retainedDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
+      await retainedDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
+      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-report-dark-english-narrow.png'), animations: 'disabled' });
+      await page.getByTestId('automatic-knowledge-report-recheck').click();
+      const retainedRepair = page.getByRole('dialog').filter({ has: page.getByTestId('knowledge-trial-content') });
+      await uiExpect(retainedRepair.getByRole('heading', { name: 'Translate the full document with materials', exact: true })).toBeVisible();
+      await uiExpect(page.getByTestId('knowledge-full-check')).toBeEnabled();
+      await uiExpect(page.getByTestId('knowledge-trial-recipe')).toHaveText(data.recipes[0].name);
+      await uiExpect(page.getByTestId('knowledge-trial-instructions')).toHaveValue(savedInstructions);
+      await uiExpect(page.getByTestId('knowledge-full-run')).toBeDisabled();
+      expect(await retainedRepair.evaluate(element => element.scrollWidth <= element.clientWidth + 1 && element.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
+      await retainedRepair.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
+      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-form-dark-english-narrow.png'), animations: 'disabled' });
+      await page.getByTestId('knowledge-trial-close').click();
+      // Let the nested dialog finish exiting before interacting with its parent.
+      await uiExpect(page.getByTestId('knowledge-trial-content')).toHaveCount(0);
+      await page.getByRole('dialog').getByRole('button', { name: english.cancel, exact: true }).click();
+      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
+      expect(requests).toHaveLength(2);
+      await page.getByRole('tab', { name: english.workspace_transcription, exact: true }).click();
       await page.getByTestId('studio-automatic-knowledge-choose').click();
       await uiExpect(page.getByTestId('automatic-knowledge-save')).toBeEnabled();
       await uiExpect(page.getByTestId('automatic-knowledge-save')).toHaveText('Use materials');
@@ -192,7 +337,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       expect(await compactDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
       await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-selection-dark-english-narrow.png'), animations: 'disabled' });
       await page.getByTestId('automatic-knowledge-cancel').click();
-      expect(requests).toHaveLength(1); expect(errors).toEqual([]); passed = true;
+      expect(requests).toHaveLength(2); expect(errors).toEqual([]); passed = true;
     } finally {
       if (!passed && page) await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-failure.png'), animations: 'disabled' }).catch(() => undefined);
       await writeFile(path.join(fixture.artifacts, 'automatic-knowledge-evidence.json'), JSON.stringify({ passed, ...evidence, requests, errors, logs }, null, 2));

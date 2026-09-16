@@ -14,6 +14,7 @@ import { automaticKnowledgeResourceReferences, validateFrozenAutomaticKnowledge 
 import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
 import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
 import type { KnowledgeReferenceInventory, KnowledgeTaskReference } from '../../../src/translation-knowledge/task-reference-contract';
+import { validateAutomaticKnowledgeReport } from './automatic-knowledge-report';
 
 export type CommitStage = 'generation-write' | 'generation-sync' | 'generation-ready' | 'previous-ready' | 'current-write' | 'current-sync' | 'current-publish' | 'current-directory-sync' | 'create-cleanup' | 'delete-publish' | 'delete-cleanup';
 export type RepositoryEvent = { documentId: string; revision: number; sequence: number; deleted: boolean };
@@ -214,6 +215,7 @@ export class DocumentRepository {
     let snapshot: DocumentSnapshot;
     try { snapshot = validateRepositorySnapshot({ schemaVersion: 1, document: value, tasks: [], ...(initial?.automaticTranslation ? { automaticTranslation: initial.automaticTranslation } : {}) }); }
     catch (error) { return Promise.reject(error); }
+    if (snapshot.automaticTranslation?.preparationReport !== undefined) return Promise.reject(new StudioError('invalid_input'));
     const identity = { digest: digest(JSON.stringify(snapshot)), revision: snapshot.document.revision };
     return this.serial(async () => {
       guard();
@@ -512,12 +514,21 @@ export class DocumentRepository {
       const { snapshot, pointer } = await this.committed(id);
       if (snapshot.document.revision !== expectedRevision) throw new StudioError('revision_conflict');
       const priorRecords = new Map(Object.entries(snapshot.executionRecords ?? {}).map(([key, record]) => [key, JSON.stringify(record)]));
+      const priorReport = JSON.stringify(snapshot.automaticTranslation?.preparationReport);
+      const priorAutomaticState = snapshot.automaticTranslation?.state;
       const result: unknown = mutate(snapshot);
       if (result && typeof (result as Promise<unknown>).then === 'function') {
         void Promise.resolve(result).catch(() => undefined);
         throw new StudioError('invalid_input');
       }
       if (snapshot.document.id !== id || snapshot.document.revision !== expectedRevision) throw new StudioError('invalid_input');
+      const nextReport = snapshot.automaticTranslation?.preparationReport;
+      if (JSON.stringify(nextReport) !== priorReport) {
+        // Published reports are immutable, including unreadable historical data.
+        // Ordinary document mutations may retain them without revalidation.
+        if (priorReport !== undefined || nextReport === undefined || priorAutomaticState !== 'pending') throw new StudioError('invalid_input');
+        validateAutomaticKnowledgeReport(nextReport, snapshot, true);
+      }
       if (snapshot.executionRecords !== undefined) assertExecutionRecordsSize(snapshot.executionRecords);
       for (const [key, raw] of Object.entries(snapshot.executionRecords ?? {})) {
         const before = priorRecords.get(key);

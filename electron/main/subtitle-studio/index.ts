@@ -30,6 +30,7 @@ import { KnowledgeTranslationService } from './knowledge-translation';
 import { KnowledgeTaskSerialGate } from '../translation-knowledge/task-gate';
 import { KnowledgeTrialService } from './knowledge-trial';
 import { readExecutionRecordPage } from './execution-view';
+import { automaticKnowledgeReportTrackIds, readAutomaticKnowledgeReportPage } from './automatic-knowledge-report';
 
 export function registerSubtitleStudio(sharedResources?: SpeechResourceService, readKnowledge?: () => Promise<LibrarySnapshot>, knowledgeGate: KnowledgeTaskGate = new KnowledgeTaskSerialGate()) {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
@@ -210,6 +211,13 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           alive();
           return { ok: true, value };
         }
+        // Historical inspection must not materialize pending tasks or compile knowledge.
+        if (method === 'readAutomaticKnowledgeReport') {
+          const request = requestSchemas.readAutomaticKnowledgeReport.parse(payload);
+          if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
+          const snapshot = await repository.readSnapshot(request.documentId); alive();
+          return { ok: true, value: readAutomaticKnowledgeReportPage(snapshot, request.trackId) };
+        }
         await translation.initialize(); alive();
         if (method === 'readExecutionRecord') {
           const request = requestSchemas.readExecutionRecord.parse(payload);
@@ -369,7 +377,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const nodes = raw?.nodes.slice(nodeOffset, nodeOffset + LIMITS.pageSize) ?? [];
           const cueIds = new Set(cues.map(cue => cue.id));
           const translationTracks = doc.translationTracks.map(track => ({ ...track, entries: Object.fromEntries(Object.entries(track.entries).filter(([id]) => cueIds.has(id))) }));
-          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks), cues, offset, nodeOffset, nodeCount: raw?.nodes.length ?? 0, rawNodes: nodes.map(node => ({ id: node.id, text: raw!.rawText.slice(node.start, node.end) })), translationTracks, tasks: snapshot.tasks.map(summarizeTask) } };
+          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks), cues, offset, nodeOffset, nodeCount: raw?.nodes.length ?? 0, rawNodes: nodes.map(node => ({ id: node.id, text: raw!.rawText.slice(node.start, node.end) })), translationTracks, automaticKnowledgeReportTrackIds: automaticKnowledgeReportTrackIds(snapshot), tasks: snapshot.tasks.map(summarizeTask) } };
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
         if (!doc.capabilities.preserveSource) throw new StudioError('unsupported_feature');

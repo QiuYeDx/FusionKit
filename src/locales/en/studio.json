@@ -265,7 +265,7 @@
     "interrupted": "Translation was interrupted. Completed translations have been kept.",
     "resource_busy": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
     "translation_record_unavailable": "The execution record is missing, damaged, or incompatible with this version. The task cannot continue safely. Saved translations are retained; repair the record or create a new translation.",
-    "knowledge_check_failed": "Automatic translation knowledge could not pass its checks. The source subtitles are saved; open Translation to select and check the knowledge again."
+    "knowledge_check_failed": "Automatic translation knowledge did not pass its checks. Your source subtitles are saved. View the knowledge issues, adjust your choices, and check again."
   },
   "diagnostics": {
     "empty_document": "No timed subtitle text",

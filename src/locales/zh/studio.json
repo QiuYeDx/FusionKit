@@ -265,7 +265,7 @@
     "interrupted": "翻译已中断，已完成的译文已保留。",
     "resource_busy": "共享资源正被使用，请等待两个字幕工具中的任务或资源操作结束后重试。",
     "translation_record_unavailable": "执行记录缺失、损坏或与当前版本不兼容，无法安全继续。已有译文已保留；请修复记录或重新创建翻译。",
-    "knowledge_check_failed": "自动翻译资料检查未通过。原字幕已保留；请打开翻译页，重新选择资料并检查。"
+    "knowledge_check_failed": "自动翻译资料检查未通过。原字幕已保留，可查看资料问题并调整后重新检查。"
   },
   "diagnostics": {
     "empty_document": "没有带时间的字幕正文",
