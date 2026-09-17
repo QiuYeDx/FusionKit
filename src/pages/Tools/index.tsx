@@ -192,7 +192,7 @@ const Tools: React.FC = () => {
         </div>
       </section>
 
-      <section className="mt-10 border-t pt-6" aria-labelledby="experimental-tools-title" aria-describedby="experimental-tools-description">
+      <section className="mt-10 pt-6" aria-labelledby="experimental-tools-title" aria-describedby="experimental-tools-description">
         <div className="mb-4 space-y-2">
           <div className="flex items-center gap-2.5">
             <h2 id="experimental-tools-title" className="text-lg font-semibold">{t("tools:catalog.experimental")}</h2>
