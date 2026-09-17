@@ -63,5 +63,28 @@
     "title": "Coming Soon",
     "music_desc": "More music tools are on the way",
     "rename_desc": "Batch rename tools are coming soon"
+  },
+  "catalog": {
+    "intro": "Good tools. More freedom to create.",
+    "featured": "Featured",
+    "more": "More tools",
+    "more_description": "Everyday tools for subtitles, text and audio.",
+    "knowledge_description": "Keep context, terminology and reference translations together in a reusable library.",
+    "terms": "Terminology",
+    "references": "References",
+    "background": "Context",
+    "file_sharing": "File sharing",
+    "workflow_label": "Workflow",
+    "workflow_value": "Transcribe & translate",
+    "formats_label": "Subtitle formats",
+    "formats_value": "4 formats",
+    "output_label": "Export",
+    "output_value": "Batch ready",
+    "organize_label": "Terms & references",
+    "organize_value": "One library",
+    "reuse_label": "Keep & reuse",
+    "reuse_value": "Saved locally",
+    "share_label": "Back up & share",
+    "share_value": "Import / export"
   }
 }

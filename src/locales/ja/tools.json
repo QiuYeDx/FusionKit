@@ -63,5 +63,28 @@
     "title": "近日公開",
     "music_desc": "音楽ツールを順次追加予定",
     "rename_desc": "一括リネームツールを近日追加予定"
+  },
+  "catalog": {
+    "intro": "便利なツールで、ひらめきをもっと自由に。",
+    "featured": "おすすめ",
+    "more": "その他のツール",
+    "more_description": "字幕・テキスト・音声に、使いやすいツールを。",
+    "knowledge_description": "作品の背景、用語、参考訳をまとめて、繰り返し使える翻訳資料ライブラリに。",
+    "terms": "用語集",
+    "references": "参考訳",
+    "background": "作品背景",
+    "file_sharing": "ファイル共有",
+    "workflow_label": "文字起こしと翻訳",
+    "workflow_value": "ひとつの作業場",
+    "formats_label": "字幕形式",
+    "formats_value": "4 形式",
+    "output_label": "ファイル出力",
+    "output_value": "一括出力",
+    "organize_label": "用語と参考訳",
+    "organize_value": "まとめて管理",
+    "reuse_label": "蓄積と再利用",
+    "reuse_value": "ローカル保存",
+    "share_label": "バックアップと共有",
+    "share_value": "読込 / 書出"
   }
 }

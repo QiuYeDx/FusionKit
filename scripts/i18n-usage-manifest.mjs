@@ -70,31 +70,12 @@ export const I18N_USAGE_MANIFEST = [
     ],
   },
   {
-    selector: "src/pages/Tools/index.tsx#cat.titleKey",
-    keys: [
-      "tools:subtitle.subtitle_tools",
-      "tools:subtitle.music_tools",
-      "tools:subtitle.rename_tools",
-      "tools:subtitle.text_tools",
-      "tools:subtitle.audio_tools",
-    ],
-  },
-  {
-    selector: "src/pages/Tools/index.tsx#cat.hintKey",
-    keys: [
-      "tools:sub_desc.subtitle_tools",
-      "tools:sub_desc.music_tools",
-      "tools:sub_desc.rename_tools",
-      "tools:sub_desc.text_tools",
-      "tools:sub_desc.audio_tools",
-    ],
-  },
-  {
     selector: "src/pages/Tools/index.tsx#item.titleKey",
     keys: [
       "tools:fields.subtitle_translator",
       "tools:fields.subtitle_formatter",
       "tools:fields.subtitle_language_extractor",
+      "tools:fields.local_subtitle_transcriber",
       "tools:coming_soon.title",
       "tools:fields.name_translator",
       "tools:fields.text_translator",
@@ -110,6 +91,7 @@ export const I18N_USAGE_MANIFEST = [
       "tools:field_desc.subtitle_translator",
       "tools:field_desc.subtitle_formatter",
       "tools:field_desc.subtitle_language_extractor",
+      "tools:field_desc.local_subtitle_transcriber",
       "tools:coming_soon.music_desc",
       "tools:field_desc.name_translator",
       "tools:field_desc.text_translator",
@@ -120,8 +102,10 @@ export const I18N_USAGE_MANIFEST = [
     ],
   },
   {
-    selector: "src/pages/Tools/index.tsx#c",
+    selector: "src/pages/Tools/index.tsx#chip",
     keys: [
+      "tools:chips.local_offline",
+      "tools:chips.local_batch_formats",
       "tools:chips.name_translator_files",
       "tools:chips.name_translator_safe",
       "tools:chips.text_translator_txt",

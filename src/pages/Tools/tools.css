@@ -1,0 +1,144 @@
+.tools-catalog {
+  --catalog-cyan: var(--tool-local-subtitle);
+  --catalog-violet: var(--tool-rename);
+}
+
+.catalog-signature {
+  color: color-mix(in oklab, var(--tool-rename) 30%, var(--muted-foreground));
+  font-family: "Snell Roundhand", "Segoe Script", cursive;
+  font-size: 19px;
+  line-height: 1.3;
+  opacity: .55;
+  transform: rotate(-9deg);
+  padding-right: 8px;
+}
+
+.featured-tool {
+  --feature-tone: var(--catalog-cyan);
+  --art-paper: #fff;
+  --art-edge: #ffffffb3;
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  display: flex;
+  min-width: 0;
+  min-height: 320px;
+  flex-direction: column;
+  padding: 24px;
+  border: 1px solid color-mix(in oklab, var(--feature-tone) 19%, var(--background));
+  background: radial-gradient(ellipse at 86% 38%, color-mix(in oklab, var(--feature-tone) 13%, transparent), transparent 70%),
+    color-mix(in oklab, var(--feature-tone) 4%, var(--background));
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.featured-tool--knowledge { --feature-tone: var(--catalog-violet); }
+.featured-tool:hover {
+  border-color: color-mix(in oklab, var(--feature-tone) 40%, var(--background));
+  box-shadow: 0 8px 28px -18px color-mix(in oklab, var(--feature-tone) 45%, transparent);
+}
+.featured-tool:focus-visible, .catalog-tool-card:focus-visible {
+  outline: 2px solid var(--feature-tone, var(--tool-tone));
+  outline-offset: 4px;
+}
+.featured-tool-copy { position: relative; z-index: 1; width: 58%; }
+.featured-tool-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in oklab, var(--feature-tone) 12%, transparent);
+  border-radius: 8px;
+  color: var(--feature-tone);
+  background: color-mix(in oklab, var(--background) 76%, transparent);
+  font-size: 11px;
+  font-weight: 500;
+}
+.featured-tool-eyebrow svg { width: 13px; height: 13px; }
+.featured-tool-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--background);
+  background: var(--foreground);
+  transition: transform 180ms ease;
+}
+.featured-tool:hover .featured-tool-arrow { transform: translateX(3px); }
+.featured-tool-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in oklab, var(--feature-tone) 12%, transparent);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--background) 72%, transparent);
+  color: color-mix(in oklab, var(--foreground) 78%, var(--feature-tone));
+  font-size: 10px;
+  line-height: 16px;
+}
+.featured-tool-details {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 66%;
+  margin-top: auto;
+  padding-top: 28px;
+}
+.featured-tool-details > div { padding-inline: 14px; border-left: 1px solid color-mix(in oklab, var(--feature-tone) 12%, transparent); }
+.featured-tool-details > div:first-child { padding-left: 0; border-left: 0; }
+.featured-tool-details > div:last-child { padding-right: 12px; }
+.featured-tool-details dt { color: var(--muted-foreground); font-size: 10px; line-height: 16px; }
+.featured-tool-details dd { margin-top: 4px; font-size: 15px; line-height: 22px; font-weight: 600; }
+.featured-tool-art {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  width: 43%;
+  max-width: 270px;
+  height: auto;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--feature-tone);
+}
+.art-sample { fill: color-mix(in oklab, var(--feature-tone) 60%, var(--foreground)); }
+.catalog-tool-card {
+  min-width: 0;
+  min-height: 132px;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.catalog-tool-card:not(.catalog-tool-card--soon):hover {
+  border-color: color-mix(in oklab, var(--tool-tone) 40%, var(--border));
+  box-shadow: 0 5px 18px -12px color-mix(in oklab, var(--tool-tone) 32%, transparent);
+}
+.catalog-tool-card--soon { background: color-mix(in oklab, var(--muted) 35%, var(--card)); }
+.tool-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px 6px;
+  color: color-mix(in oklab, var(--foreground) 78%, transparent);
+  font-size: 10px;
+  line-height: 14px;
+}
+.dark .featured-tool { --art-paper: #262732; --art-edge: #ffffff26; }
+.dark .featured-tool-art { opacity: .85; }
+@container (max-width: 530px) {
+  .featured-tool-copy { width: 60%; }
+  .featured-tool-art { top: 56px; width: 38%; transform: none; }
+  .featured-tool-details { width: 100%; padding-top: 28px; }
+}
+@media (max-width: 639px) {
+  .featured-tool { padding: 20px; }
+  .featured-tool-copy { width: 70%; }
+  .featured-tool-art { width: 30%; top: 72px; opacity: .55; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .featured-tool, .featured-tool-arrow, .catalog-tool-card { transition: none; }
+}

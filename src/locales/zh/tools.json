@@ -63,5 +63,28 @@
     "title": "敬请期待",
     "music_desc": "更多音乐工具即将推出",
     "rename_desc": "批量重命名工具即将推出"
+  },
+  "catalog": {
+    "intro": "让灵感更自由，用好工具，完成更好的作品。",
+    "featured": "核心推荐",
+    "more": "更多工具",
+    "more_description": "从字幕到文字、音频，找到顺手的工具。",
+    "knowledge_description": "整理作品背景、术语与参考译文，构建可复用的翻译资料库。",
+    "terms": "术语库",
+    "references": "参考译文",
+    "background": "作品背景",
+    "file_sharing": "文件共享",
+    "workflow_label": "转写与翻译",
+    "workflow_value": "一站完成",
+    "formats_label": "字幕格式",
+    "formats_value": "4 种格式",
+    "output_label": "文件导出",
+    "output_value": "支持批量",
+    "organize_label": "术语与译文",
+    "organize_value": "统一管理",
+    "reuse_label": "积累与复用",
+    "reuse_value": "本地保存",
+    "share_label": "备份与共享",
+    "share_value": "导入 / 导出"
   }
 }

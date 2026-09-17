@@ -1,12 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import { ArrowRight, Clock } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
+import { ArrowRight, BookOpenText, Sparkles } from "lucide-react";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { cn } from "@/lib/utils";
 import ToolBadge from "./_shared/ToolBadge";
 import { TOOL_META, type ToolKey, toneCss } from "./_shared/toolMeta";
+import { FeaturedToolArtwork } from "./FeaturedToolArtwork";
+import "./tools.css";
 
 type CardItem = {
   id: ToolKey;
@@ -17,324 +18,212 @@ type CardItem = {
   chipKeys?: string[];
 };
 
-type Category = {
-  key: "subtitle" | "music" | "rename" | "text" | "audio";
-  titleKey: string;
-  hintKey: string;
-  items: CardItem[];
-};
-
-const CATEGORIES: Category[] = [
+const MORE_TOOLS: CardItem[] = [
   {
-    key: "subtitle",
-    titleKey: "tools:subtitle.subtitle_tools",
-    hintKey: "tools:sub_desc.subtitle_tools",
-    items: [
-      {
-        id: "subtitleStudio",
-        titleKey: "studio:title",
-        descKey: "tools:field_desc.subtitle_studio",
-        chipKeys: ["tools:chips.studio_transcription", "tools:chips.studio_translation", "tools:chips.studio_formats"],
-      },
-      {
-        id: "translator",
-        titleKey: "tools:fields.subtitle_translator",
-        descKey: "tools:field_desc.subtitle_translator",
-        chips: ["LRC · SRT", "DeepSeek · OpenAI"],
-      },
-      {
-        id: "translationKnowledge",
-        titleKey: "knowledge:title",
-        descKey: "knowledge:description",
-      },
-      {
-        id: "converter",
-        titleKey: "tools:fields.subtitle_formatter",
-        descKey: "tools:field_desc.subtitle_formatter",
-        chips: ["SRT · VTT · LRC"],
-      },
-      {
-        id: "extractor",
-        titleKey: "tools:fields.subtitle_language_extractor",
-        descKey: "tools:field_desc.subtitle_language_extractor",
-        chips: ["LRC · SRT"],
-      },
-      {
-        id: "localSubtitleTranscriber",
-        titleKey: "tools:fields.local_subtitle_transcriber",
-        descKey: "tools:field_desc.local_subtitle_transcriber",
-        chipKeys: [
-          "tools:chips.local_offline",
-          "tools:chips.local_batch_formats",
-        ],
-      },
+    id: "translator",
+    titleKey: "tools:fields.subtitle_translator",
+    descKey: "tools:field_desc.subtitle_translator",
+    chips: ["LRC · SRT", "DeepSeek · OpenAI"],
+  },
+  {
+    id: "converter",
+    titleKey: "tools:fields.subtitle_formatter",
+    descKey: "tools:field_desc.subtitle_formatter",
+    chips: ["SRT · VTT · LRC"],
+  },
+  {
+    id: "extractor",
+    titleKey: "tools:fields.subtitle_language_extractor",
+    descKey: "tools:field_desc.subtitle_language_extractor",
+    chips: ["LRC · SRT"],
+  },
+  {
+    id: "localSubtitleTranscriber",
+    titleKey: "tools:fields.local_subtitle_transcriber",
+    descKey: "tools:field_desc.local_subtitle_transcriber",
+    chipKeys: [
+      "tools:chips.local_offline",
+      "tools:chips.local_batch_formats",
     ],
   },
   {
-    key: "music",
-    titleKey: "tools:subtitle.music_tools",
-    hintKey: "tools:sub_desc.music_tools",
-    items: [
-      {
-        id: "music",
-        titleKey: "tools:coming_soon.title",
-        descKey: "tools:coming_soon.music_desc",
-      },
+    id: "music",
+    titleKey: "tools:coming_soon.title",
+    descKey: "tools:coming_soon.music_desc",
+  },
+  {
+    id: "nameTranslator",
+    titleKey: "tools:fields.name_translator",
+    descKey: "tools:field_desc.name_translator",
+    chipKeys: [
+      "tools:chips.name_translator_files",
+      "tools:chips.name_translator_safe",
     ],
   },
   {
-    key: "rename",
-    titleKey: "tools:subtitle.rename_tools",
-    hintKey: "tools:sub_desc.rename_tools",
-    items: [
-      {
-        id: "nameTranslator",
-        titleKey: "tools:fields.name_translator",
-        descKey: "tools:field_desc.name_translator",
-        chipKeys: [
-          "tools:chips.name_translator_files",
-          "tools:chips.name_translator_safe",
-        ],
-      },
+    id: "textTranslator",
+    titleKey: "tools:fields.text_translator",
+    descKey: "tools:field_desc.text_translator",
+    chipKeys: [
+      "tools:chips.text_translator_txt",
+      "tools:chips.text_translator_markdown",
     ],
   },
   {
-    key: "text",
-    titleKey: "tools:subtitle.text_tools",
-    hintKey: "tools:sub_desc.text_tools",
-    items: [
-      {
-        id: "textTranslator",
-        titleKey: "tools:fields.text_translator",
-        descKey: "tools:field_desc.text_translator",
-        chipKeys: [
-          "tools:chips.text_translator_txt",
-          "tools:chips.text_translator_markdown",
-        ],
-      },
+    id: "audioTranscriber",
+    titleKey: "tools:fields.audio_transcriber",
+    descKey: "tools:field_desc.audio_transcriber",
+    chipKeys: [
+      "tools:chips.audio_file",
+      "tools:chips.openai_mimo",
     ],
   },
   {
-    key: "audio",
-    titleKey: "tools:subtitle.audio_tools",
-    hintKey: "tools:sub_desc.audio_tools",
-    items: [
-      {
-        id: "audioTranscriber",
-        titleKey: "tools:fields.audio_transcriber",
-        descKey: "tools:field_desc.audio_transcriber",
-        chipKeys: [
-          "tools:chips.audio_file",
-          "tools:chips.openai_mimo",
-        ],
-      },
-      {
-        id: "speechSynthesizer",
-        titleKey: "tools:fields.speech_synthesizer",
-        descKey: "tools:field_desc.speech_synthesizer",
-        chipKeys: [
-          "tools:chips.tts_stream",
-          "tools:chips.mimo_voice",
-        ],
-      },
-      {
-        id: "realtimeCaptions",
-        titleKey: "tools:fields.realtime_captions",
-        descKey: "tools:field_desc.realtime_captions",
-        chipKeys: [
-          "tools:chips.microphone",
-          "tools:chips.realtime",
-        ],
-      },
-      {
-        id: "realtimeVoice",
-        titleKey: "tools:fields.realtime_voice",
-        descKey: "tools:field_desc.realtime_voice",
-        chipKeys: [
-          "tools:chips.webrtc",
-          "tools:chips.duplex",
-        ],
-      },
+    id: "speechSynthesizer",
+    titleKey: "tools:fields.speech_synthesizer",
+    descKey: "tools:field_desc.speech_synthesizer",
+    chipKeys: [
+      "tools:chips.tts_stream",
+      "tools:chips.mimo_voice",
+    ],
+  },
+  {
+    id: "realtimeCaptions",
+    titleKey: "tools:fields.realtime_captions",
+    descKey: "tools:field_desc.realtime_captions",
+    chipKeys: [
+      "tools:chips.microphone",
+      "tools:chips.realtime",
+    ],
+  },
+  {
+    id: "realtimeVoice",
+    titleKey: "tools:fields.realtime_voice",
+    descKey: "tools:field_desc.realtime_voice",
+    chipKeys: [
+      "tools:chips.webrtc",
+      "tools:chips.duplex",
     ],
   },
 ];
 
+const FEATURED_TOOLS = [
+  {
+    id: "subtitleStudio",
+    kind: "studio",
+    titleKey: "studio:title",
+    descKey: "tools:field_desc.subtitle_studio",
+    chipKeys: ["tools:chips.studio_transcription", "tools:chips.studio_translation", "tools:chips.studio_formats"],
+    details: [
+      ["tools:catalog.workflow_label", "tools:catalog.workflow_value"],
+      ["tools:catalog.formats_label", "tools:catalog.formats_value"],
+      ["tools:catalog.output_label", "tools:catalog.output_value"],
+    ],
+  },
+  {
+    id: "translationKnowledge",
+    kind: "knowledge",
+    titleKey: "knowledge:title",
+    descKey: "tools:catalog.knowledge_description",
+    chipKeys: ["tools:catalog.terms", "tools:catalog.references", "tools:catalog.background", "tools:catalog.file_sharing"],
+    details: [
+      ["tools:catalog.organize_label", "tools:catalog.organize_value"],
+      ["tools:catalog.reuse_label", "tools:catalog.reuse_value"],
+      ["tools:catalog.share_label", "tools:catalog.share_value"],
+    ],
+  },
+] as const;
+
 const Tools: React.FC = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const appVersion = (import.meta as any).env?.VITE_APP_VERSION || "";
-
-  const stableCount = CATEGORIES.flatMap((c) => c.items).filter(
-    (i) => TOOL_META[i.id]?.status === "stable"
-  ).length;
-  const totalCount = CATEGORIES.flatMap((c) => c.items).length;
 
   return (
-    <div className="px-4 sm:px-8 pt-6 pb-[100px] max-w-5xl mx-auto">
-      {/* Page header */}
-      <div className="flex items-end justify-between gap-4 mb-6">
+    <main className="tools-catalog mx-auto max-w-7xl px-4 pb-[100px] pt-5 sm:px-8" data-testid="tools-catalog">
+      <header className="mb-7 flex items-center justify-between gap-6">
         <div className="min-w-0">
-          <div className="text-2xl font-semibold tracking-tight">
-            {t("tools:title")}
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            {t("tools:description")}
-          </p>
+          <h1 className="text-[30px] font-semibold leading-tight tracking-tight">{t("tools:title")}</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{t("tools:catalog.intro")}</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {appVersion ? (
-            <Badge variant="outline" className="font-mono text-[11px]">
-              v{appVersion}
-            </Badge>
-          ) : null}
-          <Badge
-            variant="secondary"
-            className="font-mono text-[11px]"
-          >
-            {stableCount} / {totalCount}
-          </Badge>
-        </div>
-      </div>
+        <p aria-hidden="true" className="catalog-signature hidden shrink-0 text-right sm:block">Good tools.<br />Better creation.</p>
+      </header>
 
-      <div className="flex flex-col gap-8">
-        {CATEGORIES.map((cat) => (
-          <CategoryBlock
-            key={cat.key}
-            cat={cat}
-            onOpen={(id) => {
-              const route = TOOL_META[id]?.route;
-              if (route) navigate(route);
-            }}
-          />
+      <section aria-label={t("tools:catalog.featured")} className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {FEATURED_TOOLS.map(item => (
+          <SmoothCorners key={item.id} asChild radius={20} smoothing={0.72}>
+            <Link
+              to={TOOL_META[item.id].route!}
+              data-tool-card={item.id}
+              aria-labelledby={`tool-title-${item.id}`}
+              className={`featured-tool featured-tool--${item.kind} group`}
+            >
+              <FeaturedToolArtwork kind={item.kind} />
+              <div className="featured-tool-copy">
+                <span className="featured-tool-eyebrow">{item.kind === "studio" ? <Sparkles /> : <BookOpenText />}{t("tools:catalog.featured")}</span>
+                <div className="mt-4 flex items-center gap-3">
+                  <h2 id={`tool-title-${item.id}`} className="min-w-0 text-[28px] font-semibold leading-tight tracking-tight">{t(item.titleKey)}</h2>
+                  <span className="featured-tool-arrow"><ArrowRight aria-hidden="true" className="size-5" /></span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">{t(item.descKey)}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {item.chipKeys.map(key => <span key={key} className="featured-tool-chip">{t(key)}</span>)}
+                </div>
+              </div>
+              <dl className="featured-tool-details">
+                {item.details.map(([label, value]) => <div key={label}>
+                  <dt>{t(label)}</dt>
+                  <dd>{t(value)}</dd>
+                </div>)}
+              </dl>
+            </Link>
+          </SmoothCorners>
         ))}
-      </div>
-    </div>
+      </section>
+
+      <section className="mt-8" aria-labelledby="more-tools-title">
+        <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h2 id="more-tools-title" className="text-lg font-semibold">{t("tools:catalog.more")}</h2>
+          <p className="text-xs leading-5 text-muted-foreground">{t("tools:catalog.more_description")}</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {MORE_TOOLS.map(item => <ToolCard key={item.id} item={item} />)}
+        </div>
+      </section>
+      <p aria-hidden="true" className="mt-8 font-mono text-[10px] tracking-wide text-muted-foreground/60">FusionKit · More tools, a more creative you.</p>
+    </main>
   );
 };
 
-function CategoryBlock({
-  cat,
-  onOpen,
-}: {
-  cat: Category;
-  onOpen: (id: ToolKey) => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <section>
-      <div className="flex items-baseline gap-3 mb-4 px-0.5">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-foreground m-0">
-          {t(cat.titleKey)}
-        </h2>
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs text-muted-foreground truncate">
-          {t(cat.hintKey)}
-        </span>
-      </div>
-
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {cat.items.map((it) => (
-          <ToolCard key={it.id} item={it} onOpen={onOpen} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ToolCard({
-  item,
-  onOpen,
-}: {
-  item: CardItem;
-  onOpen: (id: ToolKey) => void;
-}) {
+function ToolCard({ item }: { item: CardItem }) {
   const { t } = useTranslation();
   const meta = TOOL_META[item.id];
   const isSoon = meta.status === "soon";
   const tone = toneCss(meta);
-  const Icon = meta.icon;
-
-  return (
-    <SmoothCorners
-      data-tool-card={item.id}
-      onClick={() => !isSoon && onOpen(item.id)}
-      radius={16}
-      smoothing={0.72}
-      className={cn(
-        "group relative overflow-hidden border bg-card p-4 transition-all duration-200",
-        isSoon
-          ? "border-dashed opacity-65 cursor-default"
-          : "cursor-pointer hover:-translate-y-[1px] hover:shadow-[0_6px_20px_-8px_rgba(0,0,0,0.12)]"
-      )}
-      style={
-        !isSoon
-          ? ({
-              ["--tone" as any]: tone,
-            } as React.CSSProperties)
-          : undefined
-      }
-      onMouseEnter={(e) => {
-        if (isSoon) return;
-        e.currentTarget.style.borderColor = `color-mix(in oklch, ${tone} 50%, var(--border))`;
-      }}
-      onMouseLeave={(e) => {
-        if (isSoon) return;
-        e.currentTarget.style.borderColor = "";
-      }}
-    >
-      {!isSoon && (
-        <span
-          aria-hidden
-          className="pointer-events-none absolute top-0 left-4 right-4 h-[2px] rounded-b-full opacity-85"
-          style={{ background: tone }}
-        />
-      )}
-
-      <div className="flex items-start gap-3">
-        <ToolBadge icon={Icon} tone={tone} size={36} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-[15px] font-semibold m-0 truncate">
-              {t(item.titleKey)}
-            </h3>
-            {isSoon && (
-              <Badge
-                variant="outline"
-                className="text-[10px] h-4 px-1.5 font-normal"
-              >
-                <Clock className="h-2.5 w-2.5 mr-0.5" />
-                {t("tools:coming_soon.title")}
-              </Badge>
-            )}
-          </div>
-          <p className="text-[12.5px] leading-relaxed text-muted-foreground mt-1 line-clamp-2">
-            {t(item.descKey)}
-          </p>
-        </div>
-        {!isSoon && (
-          <ArrowRight className="h-4 w-4 text-muted-foreground mt-1 shrink-0 transition-transform group-hover:translate-x-0.5" />
-        )}
+  const title = item.id === "music" ? t("tools:subtitle.music_tools") : t(item.titleKey);
+  const content = <>
+    <ToolBadge icon={meta.icon} tone={tone} size={44} />
+    <div className="min-w-0 flex-1">
+      <div className="flex items-start justify-between gap-2">
+        <h3 id={`tool-title-${item.id}`} className="text-sm font-semibold leading-6">{title}</h3>
+        {!isSoon && <ArrowRight aria-hidden="true" className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" />}
       </div>
-
-      {((item.chipKeys && item.chipKeys.length > 0) ||
-        (item.chips && item.chips.length > 0)) && (
-        <div data-slot="tool-card-chips" className="flex flex-wrap gap-x-1 gap-y-1.5 mt-3.5">
-          {(item.chipKeys ?? item.chips ?? []).map((c, i) => (
-            <span
-              key={i}
-              className="inline-flex max-w-full items-center gap-1 px-1.5 py-[3px] rounded-md border bg-muted/30 text-[11px] font-medium text-foreground/80"
-            >
-              <span
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ background: tone }}
-              />
-              {item.chipKeys ? t(c) : c}
-            </span>
-          ))}
-        </div>
-      )}
-    </SmoothCorners>
-  );
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">{t(item.descKey)}</p>
+      {isSoon ? <span className="tool-coming-soon mt-3 inline-flex rounded-md border px-2 py-1 text-[11px] text-muted-foreground">{t("tools:coming_soon.title")}</span> :
+        <div data-slot="tool-card-chips" className="mt-3 flex flex-wrap gap-1.5">
+          {(item.chipKeys ?? item.chips ?? []).map(chip => <span key={chip} className="tool-chip">
+            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full" style={{ background: tone }} />
+            {item.chipKeys ? t(chip) : chip}
+          </span>)}
+        </div>}
+    </div>
+  </>;
+  const props = {
+    "data-tool-card": item.id,
+    className: cn("catalog-tool-card group flex items-start gap-4 border bg-card p-4", isSoon && "catalog-tool-card--soon"),
+    style: { "--tool-tone": tone } as React.CSSProperties,
+  };
+  return <SmoothCorners asChild radius={16} smoothing={0.72}>
+    {isSoon ? <div {...props}>{content}</div> : <Link {...props} to={meta.route!} aria-labelledby={`tool-title-${item.id}`}>{content}</Link>}
+  </SmoothCorners>;
 }
 
 export default Tools;

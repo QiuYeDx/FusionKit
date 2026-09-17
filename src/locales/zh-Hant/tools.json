@@ -63,5 +63,28 @@
     "title": "敬請期待",
     "music_desc": "更多音樂工具即將推出",
     "rename_desc": "批次重新命名工具即將推出"
+  },
+  "catalog": {
+    "intro": "讓靈感更自由，用好工具，完成更好的作品。",
+    "featured": "核心推薦",
+    "more": "更多工具",
+    "more_description": "從字幕到文字、音訊，找到順手的工具。",
+    "knowledge_description": "整理作品背景、術語與參考譯文，建立可重複使用的翻譯資料庫。",
+    "terms": "術語庫",
+    "references": "參考譯文",
+    "background": "作品背景",
+    "file_sharing": "檔案分享",
+    "workflow_label": "轉寫與翻譯",
+    "workflow_value": "一站完成",
+    "formats_label": "字幕格式",
+    "formats_value": "4 種格式",
+    "output_label": "檔案匯出",
+    "output_value": "支援批次",
+    "organize_label": "術語與譯文",
+    "organize_value": "統一管理",
+    "reuse_label": "累積與重用",
+    "reuse_value": "本機儲存",
+    "share_label": "備份與分享",
+    "share_value": "匯入 / 匯出"
   }
 }
