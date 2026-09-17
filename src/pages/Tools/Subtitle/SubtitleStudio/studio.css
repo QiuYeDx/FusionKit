@@ -6,7 +6,7 @@
 .studio-workspace-header > :first-child { margin-bottom: 12px; }
 .studio-workspace-header h1 { padding-right: 220px; }
 .studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; align-self: start; justify-self: end; margin: 30px 16px 12px; z-index: 1; }
-/* Match App's 40px title-bar spacer so the document pane cannot shrink that flex item. */
+/* Fill the viewport below App's 40px in-content title-bar spacer. */
 .studio[data-workspace-view=documents] .studio-workspace-tabs { height: calc(100dvh - 40px); }
 .studio-workspace-content { grid-area: 2 / 1; min-width: 0; min-height: 0; }
 .studio-workspace-content[hidden] { display: none; }
