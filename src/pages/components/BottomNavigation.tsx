@@ -107,7 +107,7 @@ const BottomNavigation: React.FC = () => {
       </AnimatePresence>
 
       {/* Dark Mode 快捷切换 */}
-      <div className="absolute right-6 pointer-events-auto">
+      <div className="absolute right-[11px] pointer-events-auto">
         <ThemeTransitionToggle
           variant="outline"
           size="icon"
