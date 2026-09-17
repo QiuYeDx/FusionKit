@@ -105,6 +105,7 @@
   color: var(--feature-tone);
 }
 .art-sample { fill: color-mix(in oklab, var(--feature-tone) 60%, var(--foreground)); }
+.featured-tool-art > svg { display: block; width: 100%; height: auto; overflow: visible; }
 .catalog-tool-card {
   min-width: 0;
   min-height: 132px;
