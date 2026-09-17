@@ -67,8 +67,6 @@
   "catalog": {
     "intro": "让灵感更自由，用好工具，完成更好的作品。",
     "featured": "核心推荐",
-    "more": "更多工具",
-    "more_description": "从字幕到文字、音频，找到顺手的工具。",
     "knowledge_description": "整理作品背景、术语与参考译文，构建可复用的翻译资料库。",
     "terms": "术语库",
     "references": "参考译文",
@@ -85,6 +83,10 @@
     "reuse_label": "积累与复用",
     "reuse_value": "本地保存",
     "share_label": "备份与共享",
-    "share_value": "导入 / 导出"
+    "share_value": "导入 / 导出",
+    "classic": "经典工具",
+    "classic_description": "成熟可用的独立工具，按需处理字幕。",
+    "experimental": "实验性工具",
+    "experimental_description": "以下工具仍处于 Beta 阶段，功能与体验尚在打磨，暂不推荐用于正式任务。建议优先使用上方工具。"
   }
 }

@@ -67,8 +67,6 @@
   "catalog": {
     "intro": "便利なツールで、ひらめきをもっと自由に。",
     "featured": "おすすめ",
-    "more": "その他のツール",
-    "more_description": "字幕・テキスト・音声に、使いやすいツールを。",
     "knowledge_description": "作品の背景、用語、参考訳をまとめて、繰り返し使える翻訳資料ライブラリに。",
     "terms": "用語集",
     "references": "参考訳",
@@ -85,6 +83,10 @@
     "reuse_label": "蓄積と再利用",
     "reuse_value": "ローカル保存",
     "share_label": "バックアップと共有",
-    "share_value": "読込 / 書出"
+    "share_value": "読込 / 書出",
+    "classic": "定番ツール",
+    "classic_description": "字幕の用途に合わせて使える、実績のある単機能ツール。",
+    "experimental": "実験的なツール",
+    "experimental_description": "以下のツールはベータ版で、機能や使い勝手を調整中です。本番作業にはまだ推奨しません。上のツールを優先してご利用ください。"
   }
 }

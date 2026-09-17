@@ -67,8 +67,6 @@
   "catalog": {
     "intro": "Good tools. More freedom to create.",
     "featured": "Featured",
-    "more": "More tools",
-    "more_description": "Everyday tools for subtitles, text and audio.",
     "knowledge_description": "Keep context, terminology and reference translations together in a reusable library.",
     "terms": "Terminology",
     "references": "References",
@@ -85,6 +83,10 @@
     "reuse_label": "Keep & reuse",
     "reuse_value": "Saved locally",
     "share_label": "Back up & share",
-    "share_value": "Import / export"
+    "share_value": "Import / export",
+    "classic": "Classic tools",
+    "classic_description": "Established standalone tools for everyday subtitle tasks.",
+    "experimental": "Experimental tools",
+    "experimental_description": "These tools are in beta, with features and usability still being refined. They are not yet recommended for production work. Prefer the tools above."
   }
 }
