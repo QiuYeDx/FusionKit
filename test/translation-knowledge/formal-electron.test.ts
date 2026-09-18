@@ -122,76 +122,62 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       const original = await readDocument();
       expect(original.translationTracks).toHaveLength(0);
       await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await ui.getByRole('textbox', { name: '翻译要求（可选）' }).fill('Keep every line concise and preserve all information.');
-      await uiExpect(ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch')).not.toBeChecked();
-      await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').check();
-      await ui.getByTestId('studio-translation-knowledge-open').click();
-      const dialog = dialogFor('knowledge-trial-content');
-      await uiExpect(ui.getByTestId('knowledge-full-mode')).toBeChecked();
-      await uiExpect(ui.getByTestId('knowledge-full-check')).toBeDisabled();
-      await ui.getByTestId('knowledge-trial-mode').check();
-      await dialog.getByRole('combobox', { name: '翻译方案', exact: true }).click();
+      const dialog = dialogFor('studio-translation-form');
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText('未使用资料');
+      await ui.getByTestId('studio-materials-choose').click();
+      await ui.getByTestId('studio-materials-recipe').click();
       await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
       const explicitRequirements = 'Keep every line concise and preserve all information. Use natural dialogue.';
-      await ui.getByTestId('knowledge-trial-instructions').fill(explicitRequirements);
-      await ui.getByTestId('knowledge-trial-close').click();
-      await uiExpect(dialog).toHaveCount(0);
-      // Editing a number passes through an invalid draft; that must not erase selected materials or authored requirements.
-      const parent = dialogFor('studio-translation-knowledge-enabled');
+      await ui.getByTestId('studio-translation-instructions').fill(explicitRequirements);
+      await ui.getByTestId('studio-materials-choose').click();
+      // An invalid budget draft keeps materials and authored requirements in this same panel.
       await ui.getByTestId('studio-translation-advanced').click();
-      const budget = parent.getByRole('spinbutton', { name: '上下文窗口（tokens）', exact: true });
+      const budget = dialog.getByRole('spinbutton', { name: '上下文窗口（tokens）', exact: true });
       const originalBudget = await budget.inputValue();
       await budget.fill('');
-      await uiExpect(ui.getByTestId('studio-translation-knowledge-open')).toBeDisabled();
-      await uiExpect(ui.getByTestId('studio-knowledge-trial')).toBeDisabled();
-      await uiExpect(ui.getByTestId('studio-knowledge-selection-summary')).toContainText(fixture.recipes[0].name);
-      await uiExpect(parent.getByRole('button', { name: '计算用量', exact: true })).toHaveCount(0);
-      await uiExpect(parent.getByRole('button', { name: '开始翻译', exact: true })).toHaveCount(0);
+      await uiExpect(ui.getByTestId('studio-translation-start')).toBeDisabled();
+      await uiExpect(ui.getByTestId('studio-translation-trial')).toBeDisabled();
+      await uiExpect(ui.getByTestId('studio-translation-check')).toBeDisabled();
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(fixture.recipes[0].name);
+      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(explicitRequirements);
       await budget.fill(originalBudget);
       await ui.getByTestId('studio-translation-advanced').click();
-      await uiExpect(ui.getByTestId('studio-translation-knowledge-open')).toBeEnabled();
-      await ui.getByTestId('studio-translation-knowledge-open').click();
-      await uiExpect(ui.getByTestId('knowledge-trial-recipe')).toContainText(fixture.recipes[0].name);
+      await ui.getByTestId('studio-materials-choose').click();
+      await uiExpect(ui.getByTestId('studio-materials-recipe')).toContainText(fixture.recipes[0].name);
       for (const collectionId of fixture.recipes[0].readCollectionIds) {
-        await uiExpect(ui.getByTestId(`knowledge-trial-collection-${collectionId}`)).toBeChecked();
+        await uiExpect(ui.getByTestId(`studio-materials-collection-${collectionId}`)).toBeChecked();
       }
-      await uiExpect(ui.getByTestId('knowledge-trial-instructions')).toHaveValue(explicitRequirements);
+      await ui.getByTestId('studio-materials-choose').click();
+      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(explicitRequirements);
       expect(requests).toHaveLength(0);
-      await ui.getByTestId('knowledge-trial-mode').check();
-      await ui.getByTestId('knowledge-trial-check').click();
-      await uiExpect(ui.getByTestId('knowledge-trial-preview')).toBeVisible();
       const scopes = ui.getByTestId('knowledge-trial-scopes');
       await scopes.locator('summary').click();
-      await scopes.getByRole('combobox', { name: '当前主题', exact: true }).first().click();
+      await ui.getByTestId(`studio-materials-role-${original.cues[0].id}-topic`).click();
       await ui.getByRole('option', { name: fixture.subjects[0].name, exact: true }).click();
-      await scopes.getByRole('combobox', { name: '确定说话者', exact: true }).first().click();
+      await ui.getByTestId(`studio-materials-role-${original.cues[0].id}-speaker`).click();
       await ui.getByRole('option', { name: fixture.subjects[1].name, exact: true }).click();
+      await ui.getByTestId(`studio-materials-confirm-${original.cues[0].id}-${context.id}`).check();
       await scopes.locator('summary').click();
-      const conditions = ui.getByTestId('knowledge-trial-conditions');
-      await conditions.locator('summary').click();
-      await conditions.getByRole('checkbox').first().check();
-      await conditions.locator('summary').click();
-
-      await ui.getByTestId('knowledge-full-mode').check();
-      const topics = ui.getByTestId('knowledge-document-topics');
-      await topics.getByRole('checkbox', { name: fixture.subjects[0].name, exact: true }).check();
+      const topics = ui.getByTestId('studio-materials-topics');
+      await topics.locator('summary').click();
+      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).check();
       // A person selected as a document topic must not become everyone's speaker.
-      await topics.getByRole('checkbox', { name: fixture.subjects[1].name, exact: true }).check();
-      await uiExpect(ui.getByTestId('knowledge-full-scope-help')).toContainText('不会扩展到全文');
+      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[1].id}`).check();
       await uiExpect(ui.getByTestId('knowledge-trial-result')).toHaveCount(0);
       await topics.scrollIntoViewIfNeeded();
       await capture('form-full-light');
-      await ui.getByTestId('knowledge-full-check').click();
+      await ui.getByTestId('studio-translation-check').click();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toContainText('24');
-      await uiExpect(ui.getByTestId('knowledge-full-run')).toBeEnabled();
+      await uiExpect(ui.getByTestId('studio-translation-start')).toBeEnabled();
       expect(requests).toHaveLength(0);
-      // Changing explicit topics invalidates the checked plan immediately.
-      await topics.getByRole('checkbox', { name: fixture.subjects[0].name, exact: true }).uncheck();
+      // Changing scope invalidates the prior preview; starting will perform a fresh check.
+      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).uncheck();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('knowledge-full-run')).toBeDisabled();
-      await topics.getByRole('checkbox', { name: fixture.subjects[0].name, exact: true }).check();
-      await ui.getByTestId('knowledge-full-check').click();
-      await uiExpect(ui.getByTestId('knowledge-full-run')).toBeEnabled();
+      expect(requests).toHaveLength(0);
+      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).check();
+      await ui.getByTestId('studio-translation-check').click();
+      await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
       await ui.getByTestId('knowledge-full-preview').scrollIntoViewIfNeeded();
       await capture('preview-full-light');
       await nativeWindow.evaluate(win => win.setSize(820, 700));
@@ -199,7 +185,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await ui.getByTestId('knowledge-full-preview').scrollIntoViewIfNeeded();
       await capture('preview-full-dark-narrow');
       await geometry(dialog);
-      await ui.getByTestId('knowledge-full-run').click();
+      await ui.getByTestId('studio-translation-start').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 20000 });
       await uiExpect(ui.locator('.studio-target-text').filter({ hasText: '正式译文：' })).toHaveCount(24);
@@ -270,7 +256,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await execution.getByRole('button', { name: '关闭', exact: true }).click();
 
       await ui.evaluate(() => { location.hash = '/tools/translation-knowledge'; });
-      await ui.locator(`[data-entry-id="${term.id}"]`).click();
+      await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
       await ui.getByTestId('knowledge-entry-maintenance').click();
       const maintenance = dialogFor('knowledge-maintenance-tasks');
       await uiExpect(maintenance).toContainText('历史保留引用');
@@ -281,7 +267,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await capture('maintenance-archive-references');
       await ui.getByTestId('knowledge-maintenance-confirm').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await ui.locator(`[data-entry-id="${term.id}"]`).click();
+      await ui.getByTestId('knowledge-archive').click();
+      await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
       await ui.getByRole('dialog').locator('summary').filter({ hasText: '高级操作' }).click();
       await ui.getByTestId('knowledge-entry-purge').click();
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();

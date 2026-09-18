@@ -7,7 +7,8 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { knowledgeFixture } from './fixtures';
 import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
-import { buildFrozenAutomaticKnowledge, type FrozenAutomaticKnowledge } from '../../src/translation-knowledge/automatic-snapshot-contract';
+import { LEGACY_AUTOMATIC_KNOWLEDGE_POLICY, buildFrozenAutomaticKnowledge, type FrozenAutomaticKnowledge } from '../../src/translation-knowledge/automatic-snapshot-contract';
+import { KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY } from '../../src/translation-knowledge/execution';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
 import type { AutomaticTranslationIntent } from '../../src/subtitle-studio/automatic-translation-contract';
 import type { TranslationConfig } from '../../src/subtitle-studio/translation-contract';
@@ -83,6 +84,59 @@ async function rewriteCurrent(root: string, id: string, mutate: (snapshot: Docum
 }
 
 describe('automatic translation from frozen knowledge', () => {
+  it.each(['current', 'legacy'] as const)('recovers a %s pending preparation with its original rule policy and no live-library reinterpretation', async version => {
+    const f = await fixture({
+      mutate: library => {
+        const base = library.data.entries[0];
+        library.data.entries.push(...['Use natural speech.', 'Keep subtitles concise.'].map(text => ({
+          ...structuredClone(base), id: randomUUID(), kind: 'rule' as const,
+          payload: { dimension: 'register' as const, text, strength: 'preferred' as const },
+        })));
+      },
+      damage: version === 'legacy' ? frozen => {
+        frozen.policyVersion = LEGACY_AUTOMATIC_KNOWLEDGE_POLICY;
+        const { digest: _digest, ...base } = frozen; frozen.digest = sha256Canonical(base);
+      } : undefined,
+    });
+    await f.publish(2); f.library.data.entries = []; f.library.approvals = {}; f.library.generation++;
+    await f.translation.initialize();
+    const prepared = await f.repository.readSnapshot(f.sink.documentId), task = prepared.tasks[0];
+    expect(task.status).toBe('needs_configuration'); expect(f.send).not.toHaveBeenCalled();
+    const before = resolveExecutionRecord(prepared, task.id);
+    expect(before.knowledge!.policyVersion).toBe(version === 'legacy' ? LEGACY_KNOWLEDGE_EXECUTION_POLICY : KNOWLEDGE_EXECUTION_POLICY);
+    expect(before.knowledge!.batches.b1.items.filter(item => item.kind === 'rule')).toHaveLength(version === 'legacy' ? 0 : 2);
+    expect(before.knowledge!.batches.b1.issues.some(issue => issue.code === 'rule_conflict')).toBe(version === 'legacy');
+    vi.spyOn(preparation, 'prepareKnowledgeTranslation').mockRejectedValue(new Error('must not recompile'));
+    await f.translation.resume(prepared.document.id, prepared.document.revision, task.id, task.translation!.config.model, 'key');
+    await f.translation.settled(task.id);
+    expect(f.send).toHaveBeenCalledTimes(1);
+    expect(planner.serializeTranslationRequest(f.send.mock.calls[0][0])).toBe(before.baseRequests.b1.httpBody);
+    const completed = await f.repository.readSnapshot(prepared.document.id);
+    expect(completed.tasks[0].status).toBe('completed');
+    expect(resolveExecutionRecord(completed, task.id).knowledge).toEqual(before.knowledge);
+  });
+
+  it('retains required rule conflicts for an old pending preparation instead of silently adopting v2 semantics', async () => {
+    const f = await fixture({
+      mutate: library => {
+        const base = library.data.entries[0];
+        library.data.entries.push(...['Use natural speech.', 'Keep subtitles concise.'].map(text => ({
+          ...structuredClone(base), id: randomUUID(), kind: 'rule' as const,
+          payload: { dimension: 'register' as const, text, strength: 'required' as const },
+        })));
+      },
+      damage: frozen => {
+        frozen.policyVersion = LEGACY_AUTOMATIC_KNOWLEDGE_POLICY;
+        const { digest: _digest, ...base } = frozen; frozen.digest = sha256Canonical(base);
+      },
+    });
+    await f.publish(1); await f.translation.initialize();
+    const snapshot = await f.repository.readSnapshot(f.sink.documentId);
+    expect(snapshot.tasks[0]).toMatchObject({ status: 'failed', translation: { error: 'knowledge_check_failed' } });
+    expect(readAutomaticKnowledgeReportPage(snapshot, snapshot.tasks[0].trackId)).toMatchObject({ state: 'available', issues: expect.arrayContaining([expect.objectContaining({ code: 'rule_conflict', severity: 'error' })]) });
+    expect(f.send).not.toHaveBeenCalled();
+  });
+
   it.each(['chat_completions', 'responses'] as const)('checks the generated transcript and persists independent %s requests from pre-transcription material', async apiFormat => {
     const f = await fixture({ apiFormat }); await f.coordinator.initialize();
     const original = structuredClone(f.term);

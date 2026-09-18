@@ -32,12 +32,6 @@ export function useKnowledgeTour(ready: boolean) {
   return { tourOpen, setTourOpen };
 }
 
-// Find the interactive tab, avoiding ClipPathTabs' duplicate decorative label.
-const tabTarget = (view: "materials" | "review" | "plans") => () =>
-  document.querySelector<HTMLElement>(
-    `[data-testid="knowledge-views"] [role="tab"] [data-knowledge-tour="${view}"]`,
-  )?.closest<HTMLElement>('[role="tab"]') ?? null;
-
 export function KnowledgeTour({ open, onOpenChange }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -56,7 +50,7 @@ export function KnowledgeTour({ open, onOpenChange }: {
     },
     {
       id: "materials",
-      target: tabTarget("materials"),
+      target: '#knowledge-collection-list [data-slot="tool-panel-header"]',
       title: t("tour.materials_title"),
       content: <div className="space-y-3">
         <p>{t("tour.materials_content")}</p>
@@ -65,12 +59,11 @@ export function KnowledgeTour({ open, onOpenChange }: {
         </div>
         <p className="text-xs leading-5">{t("tour.materials_hint")}</p>
       </div>,
-      placement: "bottom",
-      align: "start",
+      placement: "right",
     },
     {
       id: "review",
-      target: tabTarget("review"),
+      target: "#knowledge-content [data-slot=tool-panel-header]",
       title: t("tour.review_title"),
       content: <div className="space-y-3">
         <p>{t("tour.review_content")}</p>
@@ -80,7 +73,7 @@ export function KnowledgeTour({ open, onOpenChange }: {
     },
     {
       id: "plans",
-      target: tabTarget("plans"),
+      target: "#knowledge-more-management > summary",
       title: t("tour.plans_title"),
       content: <div className="space-y-3">
         <p>{t("tour.plans_content")}</p>

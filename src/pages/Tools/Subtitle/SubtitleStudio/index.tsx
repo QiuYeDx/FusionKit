@@ -40,6 +40,7 @@ import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
 import { StudioTranscription } from './StudioTranscription';
 import { StudioCueCopy } from './StudioCueCopy';
+import { QuickTermDialog } from '@/pages/TranslationKnowledge/QuickTermDialog';
 import { STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, StudioOperationResult } from './StudioOperationResult';
 import './studio.css';
 
@@ -158,6 +159,7 @@ export default function SubtitleStudio() {
   const [deleting, setDeleting] = useState<DocumentSummary | null>(null);
   const [cleanupPending, setCleanupPending] = useState(false);
   const [trackId, setTrackId] = useState('');
+  const [rememberTerm, setRememberTerm] = useState<{ source: string; target: string; targetLanguage: string } | null>(null);
   const [knowledgeRecheck, setKnowledgeRecheck] = useState<AutomaticKnowledgeRecheckRequest | undefined>();
   const [importedId, setImportedId] = useState('');
   const track = page?.translationTracks.find(item => item.id === trackId) ?? page?.translationTracks.at(-1);
@@ -634,7 +636,7 @@ export default function SubtitleStudio() {
                     <td className="studio-cue-number">{page.offset + index + 1}</td>
                     <td className="studio-cue-time"><div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div></td>
                     <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}><div>{cue.source.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</div>{track && <div className="studio-target-text">{track.entries[cue.id] ? <>{track.entries[cue.id].sourceRevision !== cue.sourceRevision && <span className="block text-xs text-amber-600">{t('studio:translation_stale')}</span>}{track.entries[cue.id].text.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</> : <span className="text-xs text-muted-foreground">{cue.source.plain.trim() ? t('studio:translation_missing') : ''}</span>}</div>}</div></td>
-                    <td className="studio-cue-action"><StudioCueCopy cue={cue} translation={track?.entries[cue.id]} copied={copied === cue.id} onCopy={text => copyCue(cue.id, text)} /></td>
+                    <td className="studio-cue-action"><StudioCueCopy cue={cue} translation={track?.entries[cue.id]} copied={copied === cue.id} onCopy={text => copyCue(cue.id, text)} onRemember={() => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /></td>
                   </tr>)}</tbody></table> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
                 </ClipPathTabsContent>
                 <ClipPathTabsContent value="raw" className="studio-raw"><ol start={page.nodeOffset + 1}>{page.rawNodes.map((node, index) => <li key={node.id}><span aria-hidden="true">{page.nodeOffset + index + 1}</span><pre>{node.text}</pre></li>)}</ol>{!page.rawNodes.length && <div className="studio-content-empty"><Code2 /><p>{t('studio:no_source_content')}</p></div>}</ClipPathTabsContent>
@@ -658,6 +660,7 @@ export default function SubtitleStudio() {
       {workspaceView === 'transcription' && <StudioTranscription header={null} onOpenDocument={openTranscriptionDocument} />}
     </ClipPathTabsContent>
     </ClipPathTabs>
+    <QuickTermDialog open={!!rememberTerm} onOpenChange={open => { if (!open) setRememberTerm(null); }} initialSource={rememberTerm?.source} initialTarget={rememberTerm?.target} initialLanguagePair={rememberTerm?.targetLanguage ? { source: '', target: rememberTerm.targetLanguage } : undefined} />
     <StudioBatchTranslation triggerContainer={translationSlot} documents={contextDialog?.kind === 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog?.kind === 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind === 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />
     <StudioBatchExport triggerContainer={exportSlot} documents={contextDialog && contextDialog.kind !== 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog && contextDialog.kind !== 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind !== 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} />
     {!wide && <ScrollableDialog open={libraryOpen} onOpenChange={setLibraryOpen} maxWidth="sm:max-w-[540px]" contentClassName="studio-library-dialog" onOpenAutoFocus={event => { event.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid=studio-library-search]')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('studio-library-trigger')?.focus(); }}><ScrollableDialogHeader><DialogTitle>{t('studio:documents')} · {allTotal}</DialogTitle><DialogDescription className="sr-only">{t('studio:library.selection_rule')}</DialogDescription></ScrollableDialogHeader><ScrollableDialogContent>{library}</ScrollableDialogContent></ScrollableDialog>}

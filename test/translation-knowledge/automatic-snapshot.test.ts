@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { knowledgeFixture } from './fixtures';
 import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
-import { AUTOMATIC_KNOWLEDGE_MAX_BYTES, automaticKnowledgeResourceReferences, buildFrozenAutomaticKnowledge, validateFrozenAutomaticKnowledge, type AutomaticKnowledgeRequest, type FrozenAutomaticKnowledge } from '../../src/translation-knowledge/automatic-snapshot-contract';
+import { AUTOMATIC_KNOWLEDGE_MAX_BYTES, AUTOMATIC_KNOWLEDGE_POLICY, LEGACY_AUTOMATIC_KNOWLEDGE_POLICY, automaticKnowledgeExecutionPolicy, automaticKnowledgeResourceReferences, buildFrozenAutomaticKnowledge, validateFrozenAutomaticKnowledge, type AutomaticKnowledgeRequest, type FrozenAutomaticKnowledge } from '../../src/translation-knowledge/automatic-snapshot-contract';
+import { KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY } from '../../src/translation-knowledge/execution';
 import { automaticTranslationRequestSchema, automaticTranslationIntentSchema } from '../../src/subtitle-studio/automatic-translation-contract';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
 
@@ -17,6 +18,16 @@ function fixture() {
 function rehash(snapshot: FrozenAutomaticKnowledge) { const { digest: _digest, ...base } = snapshot; snapshot.digest = sha256Canonical(base); return snapshot; }
 
 describe('pre-transcription frozen knowledge', () => {
+  it('binds new preparations to v2 while dispatching historical preparations to the retained v1 compiler', () => {
+    const { library, request } = fixture(), current = buildFrozenAutomaticKnowledge(library, request);
+    expect(current.policyVersion).toBe(AUTOMATIC_KNOWLEDGE_POLICY);
+    expect(automaticKnowledgeExecutionPolicy(current.policyVersion)).toBe(KNOWLEDGE_EXECUTION_POLICY);
+    const legacy = rehash({ ...structuredClone(current), policyVersion: LEGACY_AUTOMATIC_KNOWLEDGE_POLICY });
+    expect(validateFrozenAutomaticKnowledge(legacy)).toEqual(legacy);
+    expect(automaticKnowledgeExecutionPolicy(legacy.policyVersion)).toBe(LEGACY_KNOWLEDGE_EXECUTION_POLICY);
+    expect(() => automaticKnowledgeExecutionPolicy('automatic-knowledge-preparation/99')).toThrow();
+  });
+
   it('captures every candidate and recipe dependency without cues, batches, or live-library coupling', () => {
     const { library, request } = fixture();
     const snapshot = buildFrozenAutomaticKnowledge(library, request);

@@ -11,7 +11,7 @@ import type { ModelRuntimeTextRequest } from '../ai/model-runtime-client';
 import { buildTranslationRequest, requestTokenEstimate, serializeTranslationRequest, type TranslationPlan } from './translation-planner';
 import { validateFrozenKnowledgeSnapshot, type FrozenKnowledgeSnapshot } from '../../../src/translation-knowledge/snapshot-contract';
 import { compiledKnowledgePayload } from './knowledge-planner';
-import { KNOWLEDGE_EXECUTION_POLICY } from '../../../src/translation-knowledge/execution';
+import { supportedKnowledgeExecutionPolicy } from '../../../src/translation-knowledge/execution';
 
 /** Keep this implementation for old records when introducing a new prompt/context policy. */
 export const EXECUTION_POLICY_VERSION = 'studio-translation/2;request-body/1';
@@ -21,7 +21,7 @@ export type PreparedKnowledgeExecution = { plan: TranslationPlan; sourceDigest: 
 const canonical = (value: unknown) => sha256Canonical(JSON.parse(JSON.stringify(value)));
 const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 const supportedPolicy = (record: ExecutionRecord) => (record.policyVersion === EXECUTION_POLICY_VERSION && !record.knowledge)
-  || (record.policyVersion === KNOWLEDGE_TRANSLATION_POLICY_VERSION && record.knowledge?.policyVersion === KNOWLEDGE_EXECUTION_POLICY);
+  || (record.policyVersion === KNOWLEDGE_TRANSLATION_POLICY_VERSION && supportedKnowledgeExecutionPolicy(record.knowledge?.policyVersion));
 
 function recordOperation<T>(action: () => T): T {
   try { return action(); }

@@ -4,7 +4,12 @@ import { sha256Canonical } from './canonicalize';
 import { MATCH_POLICY_VERSION, matchLiteral, normalizeForMatching } from './matching';
 import { knowledgeSelectionSchema, normalizeKnowledgeSelection, type KnowledgeSelection, type KnowledgeCue, type KnowledgeEnvironment, type KnowledgeIssue, type CompiledKnowledgeItem, type BatchKnowledge, type CompiledKnowledge } from './execution-contract';
 
-export const KNOWLEDGE_EXECUTION_POLICY = `fktk-execution/1;${MATCH_POLICY_VERSION};context-term-rule`;
+/** Frozen v1 preparations must keep their original rule-conflict semantics. */
+export const LEGACY_KNOWLEDGE_EXECUTION_POLICY = 'fktk-execution/1;fk-tk-match/1-unicode-16.0.0;context-term-rule' as const;
+export const KNOWLEDGE_EXECUTION_POLICY = `fktk-execution/2;${MATCH_POLICY_VERSION};context-term-rule` as const;
+export type KnowledgeExecutionPolicy = typeof LEGACY_KNOWLEDGE_EXECUTION_POLICY | typeof KNOWLEDGE_EXECUTION_POLICY;
+export const supportedKnowledgeExecutionPolicy = (value: unknown): value is KnowledgeExecutionPolicy =>
+  value === KNOWLEDGE_EXECUTION_POLICY || value === LEGACY_KNOWLEDGE_EXECUTION_POLICY;
 /** P1.1 preview is deliberately bounded before serialization. Exceeding any work
  * budget blocks the entire environment; required knowledge is never truncated. */
 export const KNOWLEDGE_EXECUTION_LIMITS = Object.freeze({
@@ -17,7 +22,8 @@ const samePair = (left: { source: string; target: string }, right: { source: str
 const unique = <T>(values: T[]) => [...new Set(values)];
 
 /** Pure resolution. Only the main process supplies the locally verified library. */
-export function resolveEnvironment(library: LibrarySnapshot, input: KnowledgeSelection, inputCues: KnowledgeCue[]): KnowledgeEnvironment {
+export function resolveEnvironment(library: LibrarySnapshot, input: KnowledgeSelection, inputCues: KnowledgeCue[], policyVersion: KnowledgeExecutionPolicy = KNOWLEDGE_EXECUTION_POLICY): KnowledgeEnvironment {
+  if (!supportedKnowledgeExecutionPolicy(policyVersion)) throw new TypeError('Unsupported knowledge execution policy');
   const parsed = knowledgeSelectionSchema.safeParse(input);
   if (!parsed.success) throw new TypeError('Invalid knowledge selection');
   if (!inputCues.length || inputCues.length > 20 || new Set(inputCues.map(cue => cue.id)).size !== inputCues.length || inputCues.some(cue => !cue.id || !cue.text || new TextEncoder().encode(cue.text).byteLength > 65536)) throw new TypeError('Invalid knowledge cues');
@@ -145,7 +151,9 @@ export function resolveEnvironment(library: LibrarySnapshot, input: KnowledgeSel
     if (++conflictComparisons > KNOWLEDGE_EXECUTION_LIMITS.conflictComparisons) { limit(entryIds); return false; }
     return true;
   };
-  const conflictItems = resourceExceeded ? [] : items.filter(item => item.kind === 'term' || item.kind === 'rule');
+  // A dimension categorizes free-text rules; different text does not establish
+  // a contradiction. Only frozen v1 preparations retain the former behavior.
+  const conflictItems = resourceExceeded ? [] : items.filter(item => item.kind === 'term' || policyVersion === LEGACY_KNOWLEDGE_EXECUTION_POLICY && item.kind === 'rule');
   // Stable fingerprints bound repeated long-text rule comparisons as well.
   const ruleTextDigests = new Map<string, string>();
   for (const item of conflictItems) if (item.kind === 'rule' && 'text' in item.payload) {
@@ -186,7 +194,7 @@ export function resolveEnvironment(library: LibrarySnapshot, input: KnowledgeSel
     item.applicableCueIds = item.applicableCueIds.filter(id => !remove.get(item.entryId)?.has(id));
     item.matches = item.matches.filter(match => item.applicableCueIds.includes(match.cueId));
   }
-  const base = { policyVersion: KNOWLEDGE_EXECUTION_POLICY, generation: library.generation, sourceDigest: sha256Canonical(cues), configDigest: sha256Canonical(selection),
+  const base = { policyVersion, generation: library.generation, sourceDigest: sha256Canonical(cues), configDigest: sha256Canonical(selection),
     selection: copy(selection), cues, instructions: selection.instructions ?? recipe?.instructions ?? '', context: selection.context ?? recipe?.context ?? '',
     items: items.filter(item => item.applicableCueIds.length), issues: compactIssues(issues),
     collections: collections.map(({ id, name }) => ({ id, name })), ...(recipe ? { recipeName: recipe.name } : {}) };

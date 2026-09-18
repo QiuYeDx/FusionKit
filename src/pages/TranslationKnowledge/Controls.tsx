@@ -1,5 +1,5 @@
 import { diagnosticKey } from "./labels";
-import { useId, useState, useEffect, type ReactNode } from "react";
+import { useId, useState, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -69,19 +69,21 @@ export function Choice({
   onChange,
   options,
   disabled,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string; disabled?: boolean }[];
   disabled?: boolean;
+  placeholder?: string;
 }) {
   const id = useId();
   return (
     <ToolField label={label} htmlFor={id}>
       <Select value={value} onValueChange={onChange} disabled={disabled}>
         <SelectTrigger id={id} size="sm" className="w-full min-w-0">
-          <SelectValue />
+          <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
@@ -343,8 +345,14 @@ export function LanguageField({
 }) {
   const { t } = useTranslation("knowledge");
   const [custom, setCustom] = useState(
-    !COMMON_LANGUAGES.some((language) => language === value),
+    Boolean(value) && !COMMON_LANGUAGES.some((language) => language === value),
   );
+  const ownValue = useRef<string | null>(null);
+  useEffect(() => {
+    if (ownValue.current === value) { ownValue.current = null; return; }
+    setCustom(Boolean(value) && !COMMON_LANGUAGES.some(language => language === value));
+  }, [value]);
+  const changeValue = (next: string) => { ownValue.current = next; onChange(next); };
   let valid = true;
   try {
     const language = new Intl.Locale(value);
@@ -361,9 +369,11 @@ export function LanguageField({
       <Choice
         label={label}
         value={custom ? "custom" : value}
+        placeholder={t("filters.select")}
         onChange={(next) => {
           setCustom(next === "custom");
-          if (next !== "custom") onChange(next);
+          if (next !== "custom") changeValue(next);
+          else changeValue("");
         }}
         options={[
           ...COMMON_LANGUAGES.map((language) => ({
@@ -378,7 +388,7 @@ export function LanguageField({
           <TextField
             label={t("languages.custom_tag")}
             value={value}
-            onChange={onChange}
+            onChange={changeValue}
             hint={t("languages.custom_help")}
             required
           />

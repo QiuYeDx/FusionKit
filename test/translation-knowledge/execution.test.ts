@@ -4,7 +4,7 @@ import type { Entry } from '../../src/translation-knowledge/schemas';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
 import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 import { knowledgeSelectionSchema, type KnowledgeCue, type KnowledgeSelection } from '../../src/translation-knowledge/execution-contract';
-import { KNOWLEDGE_EXECUTION_LIMITS, checkRequiredTerms, compileKnowledge, resolveEnvironment, selectBatchKnowledge } from '../../src/translation-knowledge/execution';
+import { KNOWLEDGE_EXECUTION_LIMITS, KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY, checkRequiredTerms, compileKnowledge, resolveEnvironment, selectBatchKnowledge } from '../../src/translation-knowledge/execution';
 
 type Term = Extract<Entry, { kind: 'term' }>;
 type Rule = Extract<Entry, { kind: 'rule' }>;
@@ -310,7 +310,7 @@ describe('knowledge conflict and compilation semantics', () => {
   });
 
   it('bounds conflict diagnostic accumulation before building a large preview', () => {
-    const entries = Array.from({ length: 110 }, (_, index) => rule(index + 1, `Different required instruction ${index}.`));
+    const entries = Array.from({ length: 110 }, (_, index) => term(index + 1, `Different required target ${index}.`));
     const environment = resolveEnvironment(library(entries), selection(), cues);
     expect(environment.items).toEqual([]);
     expect(environment.issues.length).toBeLessThanOrEqual(KNOWLEDGE_EXECUTION_LIMITS.diagnostics + 1);
@@ -364,10 +364,31 @@ describe('knowledge conflict and compilation semantics', () => {
     expect(environment.issues.some(issue => issue.code === 'term_conflict')).toBe(false);
   });
 
-  it('reports same-dimension incompatible required rules and omits optional rule conflicts', () => {
-    const environment = resolveEnvironment(library([rule(1, 'Speak formally.'), rule(2, 'Use slang.')]), selection(), cues);
+  it.each([
+    ['required', 'required'], ['preferred', 'preferred'], ['required', 'preferred'],
+  ] as const)('includes complementary %s/%s rules in the same dimension without false conflict diagnostics', (left, right) => {
+    const entries = [rule(1, 'Use natural spoken language.', left), rule(2, 'Keep subtitles concise.', right)];
+    const environment = resolveEnvironment(library(entries), selection(), cues);
+    expect(environment.policyVersion).toBe(KNOWLEDGE_EXECUTION_POLICY);
+    expect(environment.issues).toEqual([]);
+    const compiled = compileKnowledge(selectBatchKnowledge(environment, ['cue-a']));
+    expect(compiled.items.map(item => item.entryId).sort()).toEqual(entries.map(entry => entry.id));
+    expect(compiled.items.every(item => item.applicableCueIds.length === 1 && item.applicableCueIds[0] === 'cue-a')).toBe(true);
+  });
+
+  it('does not infer contradictions from free text, while retaining explicit scope and disabled choices', () => {
+    const entries = [rule(1, 'Speak formally.'), rule(2, 'Use slang.'), rule(3, 'Keep the character voice.')];
+    entries[2].scope.requiredSubjects = [{ subjectId: personId, role: 'speaker' }];
+    const environment = resolveEnvironment(library(entries), selection({ disabledEntryIds: [entries[1].id] }), cues);
+    expect(environment.items.map(item => item.entryId)).toEqual([entries[0].id]);
+    expect(environment.issues.map(issue => issue.code)).toEqual(['disabled', 'subject_unbound']);
+  });
+
+  it('retains original same-dimension rule conflicts only for frozen v1 preparations', () => {
+    const environment = resolveEnvironment(library([rule(1, 'Speak formally.'), rule(2, 'Use slang.')]), selection(), cues, LEGACY_KNOWLEDGE_EXECUTION_POLICY);
+    expect(environment.policyVersion).toBe(LEGACY_KNOWLEDGE_EXECUTION_POLICY);
     expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'rule_conflict', severity: 'error' }));
-    const optional = resolveEnvironment(library([rule(1, 'Speak formally.', 'preferred'), rule(2, 'Use slang.', 'preferred')]), selection(), cues);
+    const optional = resolveEnvironment(library([rule(1, 'Speak formally.', 'preferred'), rule(2, 'Use slang.', 'preferred')]), selection(), cues, LEGACY_KNOWLEDGE_EXECUTION_POLICY);
     expect(optional.items).toEqual([]);
     expect(optional.issues).toContainEqual(expect.objectContaining({ code: 'rule_conflict', severity: 'warning' }));
   });

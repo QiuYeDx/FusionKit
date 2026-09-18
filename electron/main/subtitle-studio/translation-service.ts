@@ -12,7 +12,7 @@ import { checkpointForPlan, documentSourceDigest, publishTransaction, restoreTra
 import { assertKnowledgeExecutionCapacity, createExecutionRecord, requestForExecution, resolveExecutionRecord, runtimeExecutionRequest, type PreparedKnowledgeExecution } from './execution-records';
 import type { KnowledgeTaskGate, KnowledgeTaskReference } from '../../../src/translation-knowledge/task-reference-contract';
 import { knowledgeResourceReferences } from '../../../src/translation-knowledge/snapshot-contract';
-import { validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
+import { automaticKnowledgeExecutionPolicy, validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
 import { prepareKnowledgeTranslation } from './knowledge-translation';
 import type { KnowledgeIssue } from '../../../src/translation-knowledge/execution-contract';
 import { createAutomaticKnowledgeReport } from './automatic-knowledge-report';
@@ -160,7 +160,7 @@ export class TranslationService {
       const result = await prepareKnowledgeTranslation(this.repository, { documentId: snapshot.document.id, revision: snapshot.document.revision,
         config: intent.config, knowledgeGeneration: frozen.generation,
         knowledge: { ...frozen.selection, bindings: [], confirmations: [] }, documentTopicIds: frozen.documentTopicIds },
-      { generation: frozen.generation, data: frozen.data, approvals: frozen.approvals, imports: [] }, () => this.assertOpen());
+      { generation: frozen.generation, data: frozen.data, approvals: frozen.approvals, imports: [] }, () => this.assertOpen(), undefined, automaticKnowledgeExecutionPolicy(frozen.policyVersion));
       if (!result.prepared || !result.preview.canRun) return { error: 'knowledge_check_failed', issues: result.preview.issues };
       return { plan: result.prepared.plan, knowledge: result.prepared, issues: result.preview.issues };
     } catch (error) {

@@ -1,0 +1,21 @@
+{
+  "title": "記住固定譯法",
+  "description": "確認原詞、譯法和資料集，之後翻譯時可選用。",
+  "source": "原詞",
+  "target": "固定譯法",
+  "collection": "儲存到資料集",
+  "new_collection": "新增資料集…",
+  "collection_name": "資料集名稱",
+  "source_language": "原文語言",
+  "target_language": "翻譯語言",
+  "save": "儲存並套用",
+  "loading": "正在讀取資料集…",
+  "boundary_hint": "只保留需要固定的詞或片語。請確認預填的整句，縮小到要重複使用的詞語。",
+  "future_hint": "僅用於之後明確選用這份資料的新翻譯，不會修改已產生的譯文。",
+  "duplicate": "該資料集中已有相同譯法，可在翻譯資料頁查看或確認。",
+  "conflict": "該資料集中已有這個原詞的其他譯法。儲存後請在翻譯檢查中確認使用哪條。",
+  "saved": "譯法已儲存，可在翻譯時選用資料集",
+  "source_note": "使用者確認的固定譯法",
+  "remember": "記住譯法",
+  "cue_actions": "字幕操作"
+}

@@ -1,0 +1,21 @@
+{
+  "title": "记住固定译法",
+  "description": "确认原词、译法和资料集，之后翻译时可选用。",
+  "source": "原词",
+  "target": "固定译法",
+  "collection": "保存到资料集",
+  "new_collection": "新建资料集…",
+  "collection_name": "资料集名称",
+  "source_language": "原文语言",
+  "target_language": "翻译语言",
+  "save": "保存并应用",
+  "loading": "正在读取资料集…",
+  "boundary_hint": "只保留需要固定的词或短语。预填的整句不会自动变成通用规则，请先确认词的边界。",
+  "future_hint": "仅用于之后明确选用这份资料的新翻译，不会修改已生成的译文。",
+  "duplicate": "该资料集中已有相同译法，可在翻译资料页查看或确认。",
+  "conflict": "该资料集中已有这个原词的其他译法。保存后请在翻译检查中确认使用哪条。",
+  "saved": "译法已保存，可在翻译时选用资料集",
+  "source_note": "用户确认的固定译法",
+  "remember": "记住译法",
+  "cue_actions": "字幕操作"
+}

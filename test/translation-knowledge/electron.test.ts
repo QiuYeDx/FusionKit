@@ -28,6 +28,11 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     if (!result.ok) throw new Error(result.error);
     return result.value;
   });
+  const openHistory = async () => {
+    const management = page.locator('#knowledge-more-management');
+    if (await management.getAttribute('open') === null) await management.locator(':scope > summary').click();
+    await page.getByTestId('knowledge-history').click();
+  };
   const capture = async (name: string) => {
     await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
     await page.screenshot({ path: path.join(screenshots, `${name}.png`), animations: 'disabled' });
@@ -56,7 +61,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await nativeWindow.evaluate(win => win.setSize(1280, 860));
     await uiExpect(page.getByTestId('knowledge-import')).toBeEnabled();
     await capture('empty-light');
-    await page.getByTestId('knowledge-history').click();
+    await openHistory();
     await uiExpect(page.getByTestId('knowledge-history-empty')).toBeVisible();
     await uiExpect(page.getByTestId('knowledge-history-previous')).toBeDisabled();
     await uiExpect(page.getByTestId('knowledge-history-next')).toBeDisabled();
@@ -73,7 +78,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
     await page.reload(); await nativeWindow.evaluate(win => win.setSize(820, 700));
     await uiExpect(page.getByTestId('knowledge-history')).toBeEnabled();
-    await page.getByTestId('knowledge-history').click();
+    await openHistory();
     await uiExpect(page.locator('html')).toHaveClass(/dark/);
     await capture('history-empty-dark-english');
     const emptyGeometry = await page.getByRole('dialog').evaluate(element => ({ width: element.clientWidth, scrollWidth: element.scrollWidth, bottom: element.getBoundingClientRect().bottom, height: innerHeight }));
@@ -83,7 +88,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); });
     await page.reload(); await nativeWindow.evaluate(win => win.setSize(1280, 860));
     await uiExpect(page.getByTestId('knowledge-history')).toBeEnabled();
-    await page.getByTestId('knowledge-history').click();
+    await openHistory();
     await application.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, input);
     await page.getByTestId('knowledge-history-import').click();
     await uiExpect(page.getByTestId('knowledge-history-content')).toHaveCount(0);
@@ -95,23 +100,25 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     expect(stored.data.entries).toHaveLength(5);
     expect(Object.keys(stored.approvals)).toHaveLength(0);
     const term = stored.data.entries.find(entry => entry.kind === 'term')!;
-    await page.locator(`[data-entry-id="${term.id}"]`).click();
+    await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
     await uiExpect(page.getByRole('button', { name: '采纳此条', exact: true })).toBeVisible();
     await capture('review-detail');
     await page.getByRole('button', { name: '采纳此条', exact: true }).click();
     await uiExpect(page.getByRole('dialog')).toHaveCount(0);
     stored = await read(); expect(stored.approvals[term.id]?.method).toBe('human');
 
+    await page.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
     await page.getByTestId('knowledge-new-entry').click();
     const editor = page.getByRole('dialog');
     await capture('editor-empty');
     await editor.getByRole('textbox', { name: '原文', exact: true }).fill('starport');
     await editor.getByRole('textbox', { name: '译文', exact: true }).fill('星际港口');
+    await editor.getByTestId('knowledge-entry-language').locator('summary').click();
     await uiExpect(editor.getByRole('combobox', { name: '原文语言', exact: true })).toContainText('英语');
     await editor.locator('summary').filter({ hasText: '标题与来源（可选）' }).click();
     await editor.getByLabel('标题（可选）', { exact: true }).fill('星际港口 · 跨语言内容与来源范围示例');
     await capture('editor-light');
-    await editor.getByRole('button', { name: '保存为待审核', exact: true }).click();
+    await editor.getByTestId('knowledge-save-draft').click();
     await uiExpect(page.getByRole('dialog')).toHaveCount(0);
     stored = await read(); expect(stored.data.entries).toHaveLength(6);
     expect(stored.data.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'starport')?.state).toBe('candidate');
@@ -169,7 +176,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await page.getByRole('button', { name: '确认导入', exact: true }).click();
     await uiExpect(page.getByRole('dialog')).toHaveCount(0);
     expect((await read()).data.entries).toHaveLength(7);
-    await page.getByTestId('knowledge-history').click();
+    await openHistory();
     await capture('maintenance-history');
     await page.getByTestId('knowledge-undo-import').first().click();
     await uiExpect(page.getByRole('dialog')).toContainText('撤销导入预览');
@@ -183,7 +190,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     expect(stored.maintenance?.undoneImportIds).toHaveLength(1);
 
     for (const action of ['restore', 'archive'] as const) {
-      await page.locator(`[data-entry-id="${droppedEntry.id}"]`).click();
+      await page.getByTestId(action === 'restore' ? 'knowledge-archive' : 'knowledge-all').click();
+      await page.getByTestId(`knowledge-entry-details-${droppedEntry.id}`).click();
       await page.getByTestId('knowledge-entry-maintenance').click();
       await uiExpect(page.getByRole('dialog')).toContainText(action === 'restore' ? '恢复影响预览' : '归档影响预览');
       await capture(`${action}-preview`);
@@ -194,7 +202,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
       expect(stored.approvals[droppedEntry.id]).toBeUndefined();
     }
 
-    await page.locator(`[data-entry-id="${droppedEntry.id}"]`).click();
+    await page.getByTestId('knowledge-archive').click();
+    await page.getByTestId(`knowledge-entry-details-${droppedEntry.id}`).click();
     await page.getByRole('dialog').locator('summary').filter({ hasText: '高级操作' }).click();
     await page.getByTestId('knowledge-entry-purge').click();
     await uiExpect(page.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
@@ -259,19 +268,20 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     });
     expect(columns.mainLeft).toBeGreaterThan(columns.asideRight);
     expect(Math.abs(columns.mainTop - columns.asideTop)).toBeLessThan(2);
+    await page.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
     await page.getByTestId('knowledge-new-entry').click();
     await capture('editor-dark-narrow');
     const geometry = await page.getByRole('dialog').evaluate(element => ({ width: element.clientWidth, scrollWidth: element.scrollWidth, bottom: element.getBoundingClientRect().bottom, height: innerHeight }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width + 1);
     expect(geometry.bottom).toBeLessThanOrEqual(geometry.height);
     await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
-    await page.locator(`[data-entry-id="${term.id}"]`).click();
+    await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
     await page.getByTestId('knowledge-entry-maintenance').click();
     await uiExpect(page.getByRole('dialog')).toContainText('归档影响预览');
     await capture('maintenance-dark-narrow');
     await uiExpect(page.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
     await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
-    await page.getByTestId('knowledge-history').click();
+    await openHistory();
     await capture('history-dark-narrow');
     await uiExpect(page.getByTestId('knowledge-undo-import').first()).toBeDisabled();
     await page.getByTestId('knowledge-history-close').click();
@@ -290,7 +300,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await page.reload();
     await uiExpect(page.getByTestId('knowledge-import')).toBeEnabled();
     await capture('library-english-narrow');
-    await page.getByTestId('knowledge-history').click();
+    await openHistory();
     await capture('history-english-narrow');
     await page.getByTestId('knowledge-history-close').click();
     await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('subtitle-translator-tour-done', '1'); });

@@ -213,3 +213,42 @@ export type FieldName =
   | "inherit_preferences"
   | "learning"
   | "destination";
+import type { TFunction } from "i18next";
+import type { LanguagePair, Scope, Subject } from "@/translation-knowledge/schemas";
+
+const LANGUAGE_KEYS = {
+  ja: "languages.ja",
+  en: "languages.en",
+  "zh-Hans": "languages.zh-Hans",
+  "zh-Hant": "languages.zh-Hant",
+  ko: "languages.ko",
+  fr: "languages.fr",
+  de: "languages.de",
+  es: "languages.es",
+  ru: "languages.ru",
+  pt: "languages.pt",
+} as const;
+
+export function languageLabel(t: TFunction<"knowledge">, value: string) {
+  const key = LANGUAGE_KEYS[value as keyof typeof LANGUAGE_KEYS];
+  return key ? t(key) : value;
+}
+
+export function languagePairLabel(t: TFunction<"knowledge">, pair: LanguagePair) {
+  return `${languageLabel(t, pair.source)} → ${languageLabel(t, pair.target)}`;
+}
+
+export function scopeSummary(
+  t: TFunction<"knowledge">,
+  scope: Scope,
+  subjects: Pick<Subject, "id" | "name">[],
+) {
+  const parts = scope.requiredSubjects.map((item) => {
+    const name = subjects.find((subject) => subject.id === item.subjectId)?.name ?? item.subjectId;
+    return `${name} · ${t(`role.${item.role}`)}`;
+  });
+  if (scope.condition.mode !== "none") {
+    parts.push(`${t(`condition.${scope.condition.mode}`)}: ${scope.condition.text}`);
+  }
+  return parts.length ? parts.join(" / ") : t("scope.general");
+}

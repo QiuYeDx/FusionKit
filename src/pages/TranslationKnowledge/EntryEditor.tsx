@@ -1,15 +1,14 @@
-import { optionKey, type FieldName } from "./labels";
-import { useState } from "react";
+import { languagePairLabel, optionKey, scopeSummary, type FieldName } from "./labels";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import type { Entry, Source } from "@/translation-knowledge/schemas";
+import type { Entry } from "@/translation-knowledge/schemas";
 import type {
   KnowledgeErrorCode,
   KnowledgeResult,
   LibrarySnapshot,
   SaveRecordRequest,
 } from "@/translation-knowledge/ipc-contract";
-import { entrySummary } from "@/translation-knowledge/ipc-contract";
 import {
   Choice,
   Check,
@@ -21,7 +20,7 @@ import {
   TextField,
 } from "./Controls";
 import type { Diagnostic } from "@/translation-knowledge/validation";
-import { freshId, splitLines } from "./model";
+import { manualEntryRequest, splitLines } from "./model";
 
 function changeKind(entry: Entry, kind: Entry["kind"]): Entry {
   const base = { ...entry, kind };
@@ -93,8 +92,8 @@ export function EntryEditor({
   const { t } = useTranslation("knowledge");
   const [entry, setEntry] = useState(initial);
   const [sourceNote, setSourceNote] = useState("");
-  const [adopt, setAdopt] = useState(false);
   const [pending, setPending] = useState(false);
+  const submitLock = useRef(false);
   const [error, setError] = useState<
     KnowledgeErrorCode | "unexpected" | "required" | null
   >(null);
@@ -128,9 +127,8 @@ export function EntryEditor({
       />
     );
   const pair = entry.scope.languagePair;
-  const submit = async () => {
-    if (pending || blocked) return;
-    const summary = entrySummary(entry).trim();
+  const submit = async (adopt: boolean) => {
+    if (submitLock.current || pending || blocked) return;
     if (
       entry.scope.condition.mode !== "none" &&
       !entry.scope.condition.text.trim()
@@ -152,48 +150,11 @@ export function EntryEditor({
       setError("required");
       return;
     }
-    const source: Source | undefined =
-      !existing || sourceNote.trim()
-        ? {
-            id: freshId(),
-            revision: 1,
-            kind: "user_note",
-            title: t("source.manual"),
-            excerpt: sourceNote.trim() || summary,
-          }
-        : undefined;
-    const record: Entry = {
-      ...entry,
-      title:
-        entry.title.trim() ||
-        (entry.kind === "term" || entry.kind === "memory"
-          ? entry.payload.source
-          : entry.kind === "expression"
-            ? entry.payload.sourcePhrase
-            : entry.payload.text
-        )
-          .trim()
-          .slice(0, 120),
-      state:
-        initial.state === "archived" && existing
-          ? "archived"
-          : adopt
-            ? "ready"
-            : "candidate",
-      evidence: source
-        ? [...entry.evidence, { sourceId: source.id, support: "direct" }]
-        : entry.evidence,
-    };
+    submitLock.current = true;
     setPending(true);
     setError(null);
     try {
-      const problem = await onSave({
-        generation: snapshot.generation,
-        group: "entries",
-        record,
-        source,
-        adopt: initial.state === "archived" && existing ? false : adopt,
-      });
+      const problem = await onSave(manualEntryRequest(entry, snapshot, adopt, t("source.manual"), sourceNote));
       if (!problem.ok) {
         setError(problem.error);
         setDiagnostics(problem.diagnostics ?? []);
@@ -201,6 +162,7 @@ export function EntryEditor({
     } catch {
       setError("unexpected");
     } finally {
+      submitLock.current = false;
       setPending(false);
     }
   };
@@ -211,21 +173,12 @@ export function EntryEditor({
       onClose={onClose}
       pending={pending}
       footer={
-        <Button
-          size="sm"
-          disabled={pending || blocked}
-          onClick={() => void submit()}
-        >
-          {t(
-            pending
-              ? "actions.saving"
-              : existing && initial.state === "archived"
-                ? "actions.save_catalog"
-                : adopt
-                  ? "actions.save_adopt"
-                  : "actions.save",
-          )}
-        </Button>
+        <>
+          {initial.state !== "archived" && <Button data-testid="knowledge-save-draft" variant="outline" size="sm" disabled={pending || blocked} onClick={() => void submit(false)}>{t("workspace.save_draft")}</Button>}
+          <Button data-testid="knowledge-save-apply" size="sm" disabled={pending || blocked} onClick={() => void submit(initial.state !== "archived")}>
+            {t(pending ? "actions.saving" : initial.state === "archived" ? "actions.save_catalog" : "workspace.save_apply")}
+          </Button>
+        </>
       }
     >
       <fieldset disabled={pending || blocked} className="space-y-4">
@@ -236,13 +189,7 @@ export function EntryEditor({
             onChange={(value) =>
               setEntry(changeKind(entry, value as Entry["kind"]))
             }
-            options={options("kind", [
-              "term",
-              "context",
-              "rule",
-              "expression",
-              "memory",
-            ])}
+            options={options("kind", existing ? [initial.kind] : ["term", "context", "rule"])}
             disabled={existing}
           />
           <Choice
@@ -499,6 +446,7 @@ export function EntryEditor({
               true,
               true,
             )}
+            <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">{t("workspace.more_options")}</summary><div className="mt-3">
             <div className="grid grid-cols-2 gap-4">
               <Choice
                 label={t("fields.dimension")}
@@ -535,8 +483,10 @@ export function EntryEditor({
                 options={options("strength", ["preferred", "required"])}
               />
             </div>
+            </div></details>
           </>
         )}
+        <details data-testid="knowledge-entry-language" className="rounded-md border p-3"><summary className="cursor-pointer text-sm">{t("fields.language")} · {languagePairLabel(t, pair)}</summary><div className="mt-3">
         <div className="grid grid-cols-2 gap-4">
           {text(
             "source_language",
@@ -561,16 +511,10 @@ export function EntryEditor({
             true,
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
+        </div></details>
+        <p className="break-words text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">
           {t("editor.scope_summary", {
-            scope: entry.scope.requiredSubjects.length
-              ? entry.scope.requiredSubjects
-                  .map(
-                    (item) =>
-                      `${snapshot.data.subjects.find((subject) => subject.id === item.subjectId)?.name} · ${t(`role.${item.role}`)}`,
-                  )
-                  .join(" / ")
-              : t("scope.general"),
+            scope: scopeSummary(t, entry.scope, snapshot.data.subjects),
           })}
         </p>
         <details className="rounded-md border p-3">
@@ -713,12 +657,7 @@ export function EntryEditor({
             </p>
           </div>
         </details>
-        <Check
-          disabled={initial.state === "archived" && existing}
-          label={t("editor.adopt")}
-          checked={adopt}
-          onChange={setAdopt}
-        />
+        {initial.state !== "archived" && <p className="text-xs leading-5 text-muted-foreground">{t("workspace.apply_help")}</p>}
       </fieldset>
       <ErrorNotice error={error} diagnostics={diagnostics} />
     </KnowledgeDialog>

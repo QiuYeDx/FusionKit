@@ -127,7 +127,11 @@
     "src/translation-knowledge/automatic-snapshot-contract.ts",
     "test/translation-knowledge/fixtures.ts",
     "src/translation-knowledge/task-reference-contract.ts",
-    "electron/main/translation-knowledge/task-gate.ts"
+    "electron/main/translation-knowledge/task-gate.ts",
+    "src/pages/TranslationKnowledge/QuickTermDialog.tsx",
+    "src/pages/TranslationKnowledge/Controls.tsx",
+    "src/pages/TranslationKnowledge/labels.ts",
+    "src/pages/TranslationKnowledge/model.ts"
   ],
   "packages": [
     "yauzl",
@@ -188,6 +192,16 @@
       "source": "test/subtitle-studio/helpers/transcription-ui-build.ts",
       "package": "esbuild",
       "reason": "Test-only isolated Electron application build replaces exactly the new transcription runtime module, retaining real renderer, preload, Studio IPC and document repository. No production import is permitted by this scoped entry."
+    },
+    {
+      "source": "src/pages/TranslationKnowledge/QuickTermDialog.tsx",
+      "package": "sonner",
+      "reason": "The shared explicit term-save dialog uses the existing application toast component for confirmed saves; no legacy tool service is imported."
+    },
+    {
+      "source": "src/pages/TranslationKnowledge/labels.ts",
+      "package": "i18next",
+      "reason": "Type-only TFunction import for localized material language and scope labels; runtime translation is supplied by the consuming view."
     }
   ],
   "dynamicAudits": [

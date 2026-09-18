@@ -12,6 +12,7 @@ import type { KnowledgeTaskGate } from '../../src/translation-knowledge/task-ref
 import type { Entry } from '../../src/translation-knowledge/schemas';
 import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 import { validateFrozenKnowledgeSnapshot } from '../../src/translation-knowledge/snapshot-contract';
+import { KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY } from '../../src/translation-knowledge/execution';
 import type { ModelRuntimeTextRequest, ModelRuntimeTextResult } from '../../electron/main/ai/model-runtime-client';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { KnowledgeTranslationService, KNOWLEDGE_TRANSLATION_LIMITS, prepareKnowledgeTranslation } from '../../electron/main/subtitle-studio/knowledge-translation';
@@ -162,12 +163,21 @@ describe('formal document knowledge translation', () => {
     const blocked = await f.service.plan(1, next); expect(blocked.canRun).toBe(false); expect(blocked.issues.some(issue => issue.code === 'budget_required')).toBe(true);
   });
 
-  it('resumes frozen knowledge and exact failed HTTP bytes after live knowledge and prompt builders change', async () => {
+  it.each([KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY])('resumes %s frozen knowledge and exact failed HTTP bytes after live knowledge and prompt builders change', async policy => {
     let stop = true;
     const f = await fixture(43, async request => { if (stop && payload(request).items[0].id === 'u21') throw new Error('controlled provider stop'); return success(request); });
-    const preview = await f.service.plan(1, f.request()), started = await f.service.start(1, { planId: preview.planId, apiKey: 'key' }); await f.translation.settled(started.taskId);
+    const started = await (async () => {
+      if (policy === KNOWLEDGE_EXECUTION_POLICY) {
+        const preview = await f.service.plan(1, f.request());
+        return f.service.start(1, { planId: preview.planId, apiKey: 'key' });
+      }
+      const prepared = await prepareKnowledgeTranslation(f.repository, f.request(), f.library, undefined, undefined, policy);
+      return f.gate.run(() => f.translation.startPreparedKnowledge(prepared.prepared!, 'key'));
+    })();
+    await f.translation.settled(started.taskId);
     const failed = await f.repository.readSnapshot(f.document.id), frozen = resolveExecutionRecord(failed, started.taskId);
     expect(failed.tasks[0].status).toBe('failed'); expect(frozen.requests.b3).toBeUndefined();
+    expect(frozen.knowledge!.policyVersion).toBe(policy);
     f.library.data.entries = []; f.library.approvals = {}; f.library.generation++; stop = false;
     const rebuilt = vi.spyOn(planner, 'buildTranslationRequest').mockImplementation(() => { throw new Error('do not rebuild'); });
     f.read.mockClear();
@@ -178,6 +188,17 @@ describe('formal document knowledge translation', () => {
     expect(payload(last).translationKnowledge).toEqual(JSON.parse(frozen.baseRequests.b3.request.messages[1].content).translationKnowledge);
     expect(last.model.apiKey).toBe('rotated-key'); expect(f.read).not.toHaveBeenCalled(); expect(rebuilt).not.toHaveBeenCalled(); expect(f.gate.calls).toBe(2);
     expect((await f.repository.readSnapshot(f.document.id)).tasks[0].status).toBe('completed');
+  });
+
+  it('rejects an unknown knowledge execution policy even with a valid frozen snapshot digest', async () => {
+    const f = await fixture(1), result = await prepareKnowledgeTranslation(f.repository, f.request(), f.library);
+    const prepared = result.prepared!, knowledge = prepared.knowledge;
+    knowledge.policyVersion = 'fktk-execution/99';
+    for (const batch of Object.values(knowledge.batches)) batch.policyVersion = knowledge.policyVersion;
+    const { digest: _digest, ...base } = knowledge; knowledge.digest = sha256Canonical(base);
+    expect(validateFrozenKnowledgeSnapshot(knowledge)).toEqual(knowledge);
+    expect(() => records.createExecutionRecord(prepared.plan, prepared.sourceDigest, randomUUID(), randomUUID(), prepared)).toThrow('translation_record_unavailable');
+    expect(f.sent).not.toHaveBeenCalled();
   });
 
   it.each(['task', 'document'] as const)('retains physical knowledge references after %s removal until a cancelled supplier settles without holding the purge gate', async removal => {

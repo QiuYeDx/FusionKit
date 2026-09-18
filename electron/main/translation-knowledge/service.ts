@@ -58,6 +58,10 @@ function highRisk(entry: Entry): boolean {
 function entryDependencies(entry: Entry): string[] {
   return [entry.collectionId, ...entry.scope.requiredSubjects.map(item => item.subjectId), ...entry.evidence.map(item => item.sourceId), ...entry.derivedFrom.flatMap(item => [item.entryId, item.evidenceSourceId])];
 }
+/** Collection labels/defaults do not alter any existing entry's explicit scope. */
+function affectsDependents(group: EntityGroup, before: KnowledgeEntity, after: KnowledgeEntity): boolean {
+  return group !== 'collections' || (before as KnowledgePackage['collections'][number]).archived !== (after as KnowledgePackage['collections'][number]).archived;
+}
 function unavailable(entry: Entry, data: KnowledgePackage): boolean {
   return data.collections.find(item => item.id === entry.collectionId)?.archived === true || data.subjects.some(item => item.archived && entry.scope.requiredSubjects.some(subject => subject.subjectId === item.id));
 }
@@ -194,7 +198,10 @@ export class KnowledgeService {
       for (const item of accepted) {
         const entity = remap(item.group, item.original, mappings);
         if (item.action === 'copy') { entity.revision = 1; added++; }
-        else if (item.local) { entity.revision = nextRevision(Math.max(item.local.revision, entity.revision)); updated++; changed.add(entity.id); }
+        else if (item.local) {
+          entity.revision = nextRevision(Math.max(item.local.revision, entity.revision)); updated++;
+          if (affectsDependents(item.group, item.local, entity)) changed.add(entity.id);
+        }
         else { if (canonicalize(entity) !== canonicalize(item.original)) entity.revision = nextRevision(entity.revision); added++; }
         put(state.data, item.group, entity);
         inserted.add(entity.id);
@@ -264,7 +271,10 @@ export class KnowledgeService {
         if (!local && record.revision !== 1) fail('NEW_RECORD_REVISION', 'A new record must start at revision 1.');
         if (local && canonicalize(local.record) === canonicalize(record)) return local.record;
         const next = clone(record);
-        if (local) { next.revision = nextRevision(local.record.revision); changed.add(next.id); }
+        if (local) {
+          next.revision = nextRevision(local.record.revision);
+          if (affectsDependents(group, local.record, next)) changed.add(next.id);
+        }
         put(state.data, group, next);
         delete state.approvals[next.id];
         hasChanges = true;

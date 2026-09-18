@@ -2,18 +2,16 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Calculator, CheckCheck, BookOpen, ChevronDown, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, Calculator, CheckCheck, ChevronDown, Save, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
-import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
 import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
 import { ToolStatBar } from '../../_shared/ui/ToolStatBar';
 import useModelStore from '@/store/useModelStore';
-import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { getStudioTranslationOverviewController } from '@/services/subtitle-studio/translation-overview-controller';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
@@ -22,16 +20,22 @@ import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import { StudioBatchItems } from './StudioBatchItems';
 import { StudioDocumentRow } from './StudioDocumentList';
 import { STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, StudioOperationResult } from './StudioOperationResult';
-import { normalizeTranslationModel, translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from '@/subtitle-studio/translation-contract';
-import { STUDIO_BATCH_LIMIT, type TranslationBatchPlan, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
+import { normalizeTranslationModel, translationConfigSchema, translationModelSchema, type TranslationConfig } from '@/subtitle-studio/translation-contract';
+import { STUDIO_BATCH_LIMIT, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
 import './StudioTranslation.css';
 import './StudioBatch.css';
-import { StudioKnowledgeTrial } from './StudioKnowledgeTrial';
+import { StudioKnowledgeTrial, StudioKnowledgeScope } from './StudioKnowledgeTrial';
 import { StudioKnowledgeBatch } from './StudioKnowledgeBatch';
 import { StudioExecutionRecord, hasExecutionRecordEntry } from './StudioExecutionRecord';
 import { StudioAutomaticKnowledgeFailure } from './StudioAutomaticKnowledgeFailure';
 import type { AutomaticKnowledgeRecheckRequest } from './automatic-knowledge-recheck';
 
+import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
+import type { KnowledgeTrialResult } from '@/subtitle-studio/knowledge-trial-contract';
+import { QuickTermDialog } from '@/pages/TranslationKnowledge/QuickTermDialog';
+import { StudioMaterialsFields, materialProblem } from './StudioMaterialsFields';
+import { emptySelection, hasMaterials, knowledgeTarget, reusableTranslationDraft, translationDraftMemory, type TranslationDraft } from '@/services/subtitle-studio/translation-draft';
+import { TranslationSession, readyCount, partialCheck, type TranslationCheck, type TranslationSessionInput } from '@/services/subtitle-studio/translation-session';
 const errorKeys = {
   invalid_input: 'studio:errors.invalid_input',
   unsupported_feature: 'studio:errors.unsupported_feature',
@@ -64,7 +68,6 @@ const languageKeys = {
   ja: 'studio:translation.languages.ja',
   'zh-Hant': 'studio:translation.languages.zh-Hant',
 } as const;
-type LanguageChoice = keyof typeof languageKeys | 'custom';
 
 type StudioTranslationProps = {
   page?: DocumentPage;
@@ -89,281 +92,246 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   const controlId = useId();
   const profiles = useModelStore(state => state.profiles);
   const assignment = useModelStore(state => state.assignment.taskExecution);
-  const [open, setOpen] = useState(false);
   const batch = documents !== undefined;
-  const [batchDocuments, setBatchDocuments] = useState<DocumentSummary[]>([]);
-  const [batchPlan, setBatchPlan] = useState<TranslationBatchPlan | null>(null);
+  const defaultDraft = (): TranslationDraft => {
+    const language = i18n.resolvedLanguage && i18n.resolvedLanguage in languageKeys ? i18n.resolvedLanguage : 'zh';
+    return { profileId: assignment ?? profiles[0]?.id ?? '', language, instructions: '', contextWindow: '32768', maxOutputTokens: '4096', maxBatchCues: '32', selection: emptySelection(language), documentTopicIds: [], cueIds: [] };
+  };
+  const [draft, setDraft] = useState<TranslationDraft>(() => page ? translationDraftMemory.read(page.summary.id, page.summary.revision) ?? defaultDraft() : defaultDraft());
+  const [open, setOpen] = useState(false), [batchDocuments, setBatchDocuments] = useState<DocumentSummary[]>([]);
+  const [library, setLibrary] = useState<LibrarySnapshot | null>(null), [libraryLoading, setLibraryLoading] = useState(false);
+  const [check, setCheck] = useState<TranslationCheck | null>(null), [trialResult, setTrialResult] = useState<KnowledgeTrialResult | null>(null);
   const [batchResult, setBatchResult] = useState<TranslationBatchResult | null>(null);
-  const [profileId, setProfileId] = useState(() => assignment ?? profiles[0]?.id ?? '');
-  const [language, setLanguage] = useState<LanguageChoice>(() => {
-    const current = i18n.resolvedLanguage;
-    return current && current in languageKeys ? current as keyof typeof languageKeys : 'zh';
-  });
-  const [customLanguage, setCustomLanguage] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [contextWindow, setContextWindow] = useState('32768');
-  const [maxOutputTokens, setMaxOutputTokens] = useState('4096');
-  const [maxBatchCues, setMaxBatchCues] = useState('32');
-  const [plan, setPlan] = useState<{ identity: string; value: TranslationPlanSummary } | null>(null);
-  const [activity, setActivity] = useState<'plan' | 'start' | null>(null);
-  const [knowledgeStarting, setKnowledgeStarting] = useState(false);
-  const [knowledgeEnabled, setKnowledgeEnabled] = useState(false);
-  const [knowledgeOpenRequest, setKnowledgeOpenRequest] = useState(0);
-  const changeOpen = (value: boolean) => { if (!value) setKnowledgeOpenRequest(0); setOpen(value); };
-  const [error, setError] = useState<ErrorCode | null>(null);
-  const [recheckSession, setRecheckSession] = useState<AutomaticKnowledgeRecheckRequest | undefined>();
-  const [recheckModelApproved, setRecheckModelApproved] = useState(false);
-  const consumedRecheck = useRef<string | null>(null);
-  const operation = useRef(false);
-  const mounted = useRef(true);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const handingOffToOverview = useRef(false);
-  const selected = profiles.find(profile => profile.id === profileId);
-  const model = useMemo(() => translationModelSchema.safeParse(selected ? {
-    profileId: selected.id,
-    modelKey: selected.modelKey,
-    endpoint: selected.baseUrl,
-    apiFormat: selected.apiFormat,
-    outputTokenParameter: selected.outputTokenParameter,
-  } : null), [selected]);
-  const configDraft = useMemo(() => ({
-    model: model.success ? model.data : recheckSession?.seed.config.model ?? null,
-    language: language === 'custom' ? customLanguage : language,
-    instructions,
-    contextWindow: Number(contextWindow),
-    maxOutputTokens: Number(maxOutputTokens),
-    maxBatchCues: Number(maxBatchCues),
-  }), [model, language, customLanguage, instructions, contextWindow, maxOutputTokens, maxBatchCues, recheckSession]);
-  const config = useMemo(() => translationConfigSchema.safeParse(configDraft), [configDraft]);
-  // Keep material choices mounted while a language/budget field is temporarily
-  // empty. The draft invalidates old plans; validation still gates every action.
-  const knowledgeConfig = config.success ? config.data : configDraft.model ? { ...configDraft, model: configDraft.model } : null;
-  const identity = JSON.stringify([batch ? batchDocuments.map(item => item.id) : [page?.summary.id, page?.summary.revision], config.success ? config.data : null]);
-  const currentIdentity = useRef(identity);
-  currentIdentity.current = identity;
-  const currentDocumentId = useRef(page?.summary.id);
-  currentDocumentId.current = page?.summary.id;
-  const currentPlan = plan?.identity === identity ? plan.value : null;
-  const estimate = batchPlan ? {
-    estimatedInputTokens: batchPlan.totalEstimatedInputTokens,
-    batchCount: batchPlan.items.reduce((sum, item) => sum + (item.ok ? item.plan.batchCount : 0), 0),
-    outputTokenReserve: batchPlan.totalOutputTokenReserve,
-  } : currentPlan;
+  const [activity, setActivity] = useState<'check' | 'start' | 'trial' | 'save' | null>(null), [error, setError] = useState<ErrorCode | null>(null);
+  const [notice, setNotice] = useState(''), [recipeName, setRecipeName] = useState(''), [savingRecipe, setSavingRecipe] = useState(false);
+  const [quickTermOpen, setQuickTermOpen] = useState(false), [addedCollection, setAddedCollection] = useState<string | null>(null);
+  const [recheckSession, setRecheckSession] = useState<AutomaticKnowledgeRecheckRequest>();
+  const [modelApproved, setModelApproved] = useState(false);
+  const mounted = useRef(true), operation = useRef(false), opened = useRef(false), revision = useRef(0), libraryReadEpoch = useRef(0);
+  const trigger = useRef<HTMLButtonElement>(null), handingOffToOverview = useRef(false);
+  const session = useMemo(() => new TranslationSession(window.subtitleStudio), []);
+  const documentOwner = useRef([page?.summary.id, page?.summary.revision] as const);
+  const selected = profiles.find(profile => profile.id === draft.profileId);
+  const model = useMemo(() => translationModelSchema.safeParse(selected ? { profileId: selected.id, modelKey: selected.modelKey, endpoint: selected.baseUrl, apiFormat: selected.apiFormat, outputTokenParameter: selected.outputTokenParameter } : null), [selected]);
+  const config = useMemo(() => translationConfigSchema.safeParse({ model: model.success ? model.data : recheckSession?.seed.config.model,
+    language: draft.language, instructions: draft.instructions, contextWindow: Number(draft.contextWindow), maxOutputTokens: Number(draft.maxOutputTokens), maxBatchCues: Number(draft.maxBatchCues) }), [draft, model, recheckSession]);
+  const selection = { ...draft.selection, languagePair: { ...draft.selection.languagePair, target: knowledgeTarget(draft.language) } };
+  const usingMaterials = hasMaterials(selection);
+  const targets = batch ? batchDocuments.map(item => documents?.find(document => document.id === item.id) ?? item) : page ? [page.summary] : [];
+  const identity = JSON.stringify([targets.map(item => [item.id, item.revision]), draft, config.success ? config.data : null, selected?.apiKey, usingMaterials ? library?.generation : null]);
+  const checkedIdentity = useRef('');
+  const currentCheck = checkedIdentity.current === identity ? check : null;
+  const currentIdentity = useRef(identity); currentIdentity.current = identity;
+  const currentDocumentId = useRef(page?.summary.id); currentDocumentId.current = page?.summary.id;
+  const pending = activity !== null;
   const activeTask = page?.tasks.some(task => task.status === 'queued' || task.status === 'running') ?? false;
-  const unavailable = batch ? !documents?.length || documents.length > STUDIO_BATCH_LIMIT : !page?.summary.capabilities.translate || page.summary.cueCount === 0;
-  const pending = activity !== null || knowledgeStarting;
-  const recheckModelMatches = !recheckSession || recheckModelApproved || model.success && (() => {
-    const current = normalizeTranslationModel(model.data), previous = normalizeTranslationModel(recheckSession.seed.config.model);
-    return current.profileId === previous.profileId && current.modelKey === previous.modelKey && current.endpoint === previous.endpoint
-      && current.apiFormat === previous.apiFormat && current.outputTokenParameter === previous.outputTokenParameter && current.thinkingEnabled === previous.thinkingEnabled;
-  })();
-  const needsConfiguration = !model.success || !selected?.apiKey.trim() || !recheckModelMatches;
-  const canPlan = !busy && !pending && !activeTask && !unavailable && !needsConfiguration && config.success;
-  const reportError = (failure: unknown) => {
-    const code = failure instanceof StudioError ? failure.code : 'translation_failed';
-    setError(code);
-    onError(code);
+  const unavailable = batch ? !targets.length || targets.length > (usingMaterials ? 20 : STUDIO_BATCH_LIMIT) : !page?.summary.capabilities.translate || page.summary.cueCount === 0;
+  const modelMatches = !recheckSession || modelApproved || model.success && JSON.stringify(normalizeTranslationModel(model.data)) === JSON.stringify(normalizeTranslationModel(recheckSession.seed.config.model));
+  const needsConfiguration = !model.success || !selected?.apiKey.trim() || !modelMatches;
+  const materialError = materialProblem(selection, library, draft.documentTopicIds);
+  const canAct = !busy && !pending && !activeTask && !unavailable && !needsConfiguration && config.success && (!usingMaterials || !libraryLoading && !materialError);
+  const lastDraft = translationDraftMemory.last();
+  const invalidate = () => { revision.current++; session.invalidate(); setCheck(null); setTrialResult(null); setError(null); };
+  const changeDraft = (next: TranslationDraft) => {
+    if (operation.current) return;
+    invalidate(); setNotice(''); setDraft(next);
+    translationDraftMemory.remember(documentOwner.current[0], documentOwner.current[1], next, false);
   };
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
-  useEffect(() => {
-    // A submitted batch owns its result even if an external model setting changes.
-    if (batch && (activity === 'start' || knowledgeStarting || batchResult)) return;
-    setPlan(null); setBatchPlan(null); setBatchResult(null); setError(null);
-  }, [identity]);
-  useEffect(() => {
-    if (!profileId && profiles.length) setProfileId(assignment ?? profiles[0].id);
-  }, [assignment, profileId, profiles]);
-  useEffect(() => { setKnowledgeEnabled(false); setKnowledgeOpenRequest(0); }, [page?.summary.id]);
-  useEffect(() => {
-    if (!recheckRequest || consumedRecheck.current === recheckRequest.requestId || batch || recheckRequest.documentId !== page?.summary.id) return;
-    // A one-shot click initializes the draft. Polling and new object identities
-    // cannot replace edits made inside an already open form.
-    consumedRecheck.current = recheckRequest.requestId;
-    if (open || pending) return;
-    const saved = recheckRequest.seed.config;
-    setProfileId(saved.model.profileId); setRecheckModelApproved(false);
-    setLanguage(saved.language in languageKeys ? saved.language as LanguageChoice : 'custom');
-    setCustomLanguage(saved.language); setInstructions(saved.instructions);
-    setContextWindow(String(saved.contextWindow)); setMaxOutputTokens(String(saved.maxOutputTokens)); setMaxBatchCues(String(saved.maxBatchCues));
-    setPlan(null); setError(null); setKnowledgeEnabled(true); setRecheckSession(recheckRequest); setOpen(true);
-  }, [recheckRequest]);
-  useEffect(() => {
-    if (recheckSession && (recheckSession.documentId !== page?.summary.id || recheckRequest?.requestId !== recheckSession.requestId)) {
-      changeOpen(false); setRecheckSession(undefined); setPlan(null);
-    }
-  }, [page?.summary.id, recheckRequest?.requestId]);
-
-  const prepare = async () => {
-    if (knowledgeEnabled || recheckSession || operation.current || !canPlan || !config.success) return;
-    operation.current = true;
-    setActivity('plan'); setError(null); setPlan(null); setBatchPlan(null); setBatchResult(null);
-    const requestIdentity = identity;
+  const patch = (value: Partial<TranslationDraft>) => changeDraft({ ...draft, ...value });
+  const changeSelection = (value: TranslationDraft['selection']) => changeDraft({ ...draft, selection: value,
+    documentTopicIds: hasMaterials(value) ? draft.documentTopicIds : [],
+    instructions: value.instructions !== undefined ? value.instructions : draft.instructions });
+  const readLibrary = async () => {
+    const result = await window.translationKnowledge.read();
+    if (!result.ok) throw new StudioError('knowledge_check_failed');
+    return result.value;
+  };
+  const refreshLibrary = async () => {
+    if (operation.current) return;
+    invalidate(); setLibraryLoading(true);
+    const token = ++libraryReadEpoch.current;
     try {
-      if (batch) {
-        const targets = batchDocuments.map(item => documents?.find(document => document.id === item.id) ?? item);
-        const value = await unwrapStudio(window.subtitleStudio.planTranslationBatch({
-          documents: targets.map(item => ({ documentId: item.id, revision: item.revision })), config: config.data,
-        }));
-        if (mounted.current && currentIdentity.current === requestIdentity) { setBatchDocuments(targets); setBatchPlan(value); }
-      } else if (page) {
-        const value = await unwrapStudio(window.subtitleStudio.planTranslation({
-          documentId: page.summary.id, revision: page.summary.revision, config: config.data,
-        }));
-        if (mounted.current && currentIdentity.current === requestIdentity) setPlan({ identity: requestIdentity, value });
+      const snapshot = await readLibrary();
+      if (!mounted.current || token !== libraryReadEpoch.current) return;
+      if (library && library.generation !== snapshot.generation) {
+        setDraft(value => ({ ...value, selection: { ...value.selection, confirmations: [] } }));
+        setNotice(t('knowledge:trial.materials_changed'));
       }
-    } catch (failure) {
-      if (mounted.current && currentIdentity.current === requestIdentity) reportError(failure);
-    } finally {
-      operation.current = false;
-      if (mounted.current) setActivity(null);
-    }
+      setLibrary(snapshot);
+    } catch { if (mounted.current && token === libraryReadEpoch.current) { setLibrary(null); setError('knowledge_check_failed'); } }
+    finally { if (mounted.current && token === libraryReadEpoch.current) setLibraryLoading(false); }
   };
-  const start = async () => {
-    if (knowledgeEnabled || recheckSession || operation.current || !canPlan || !(batch ? batchPlan?.items.some(item => item.ok) : currentPlan) || !selected) return;
-    operation.current = true;
-    setActivity('start'); setError(null);
-    const requestIdentity = identity;
-    try {
-      if (batch && batchPlan) {
-        const value = await unwrapStudio(window.subtitleStudio.createTranslationBatch({ batchId: batchPlan.batchId, apiKey: selected.apiKey }));
-        getStudioTranslationOverviewController().trackStarted(value.items.flatMap(item => item.ok ? [item.taskId] : []));
-        if (mounted.current) { setBatchResult(value); setBatchPlan(null); onStarted(); }
-      } else if (page && currentPlan) {
-        const value = await unwrapStudio(window.subtitleStudio.createTranslation({
-          documentId: page.summary.id, revision: page.summary.revision,
-          planId: currentPlan.planId, apiKey: selected.apiKey,
-        }));
-        getStudioTranslationOverviewController().trackStarted([value.taskId]);
-        if (mounted.current && currentDocumentId.current === page.summary.id) { changeOpen(false); setPlan(null); onStarted(); }
-      }
-    } catch (failure) {
-      if (mounted.current && currentIdentity.current === requestIdentity) { setPlan(null); setBatchPlan(null); reportError(failure); }
-    } finally {
-      operation.current = false;
-      if (mounted.current) setActivity(null);
+  const close = () => {
+    if (operation.current && activity === 'trial') {
+      revision.current++; libraryReadEpoch.current++; opened.current = false; setOpen(false); setCheck(null);
+      void session.cancelTrial();
+      return;
     }
+    if (operation.current) return;
+    invalidate(); libraryReadEpoch.current++; opened.current = false; setOpen(false); setQuickTermOpen(false);
+    translationDraftMemory.remember(documentOwner.current[0], documentOwner.current[1], draft);
   };
-
-  const begin = () => { handingOffToOverview.current = false; setBatchDocuments(documents ? [...documents] : []); setBatchResult(null); setBatchPlan(null); setError(null); setOpen(true); };
+  const begin = () => {
+    if (operation.current) return;
+    handingOffToOverview.current = false; opened.current = true; setOpen(true); setBatchDocuments(documents ? [...documents] : []);
+    setBatchResult(null); setError(null); setNotice(''); setCheck(null); setTrialResult(null);
+    void refreshLibrary();
+  };
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; opened.current = false; revision.current++; session.dispose(); }; }, [session]);
+  useEffect(() => {
+    if (!draft.profileId && profiles.length) setDraft(value => ({ ...value, profileId: assignment ?? profiles[0].id }));
+  }, [assignment, profiles, draft.profileId]);
+  useEffect(() => {
+    const previous = documentOwner.current;
+    if (previous[0] === page?.summary.id && previous[1] === page?.summary.revision) return;
+    if (operation.current) return;
+    documentOwner.current = [page?.summary.id, page?.summary.revision];
+    invalidate();
+    if (previous[0] !== page?.summary.id) {
+      opened.current = false; setOpen(false); setRecheckSession(undefined);
+      setDraft(page ? translationDraftMemory.read(page.summary.id, page.summary.revision) ?? defaultDraft() : defaultDraft());
+    } else {
+      setDraft(value => reusableTranslationDraft(value));
+      setNotice(t('studio:materials.source_changed'));
+    }
+  }, [page?.summary.id, page?.summary.revision, pending]);
   const consumedRequest = useRef(openRequest);
+  useEffect(() => { if (openRequest && consumedRequest.current !== openRequest) { consumedRequest.current = openRequest; begin(); } }, [openRequest]);
+  const consumedRecheck = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (openRequest && consumedRequest.current !== openRequest) { consumedRequest.current = openRequest; begin(); }
-  }, [openRequest]);
-  const triggerControl = <StudioIconButton ref={trigger} label={t(batch ? 'studio:batch.translation' : 'studio:translation.action')} disabled={busy || activeTask || unavailable || pending} onClick={begin}><Languages /></StudioIconButton>;
+    if (!recheckRequest || consumedRecheck.current === recheckRequest.requestId || batch || recheckRequest.documentId !== page?.summary.id || open || operation.current) return;
+    consumedRecheck.current = recheckRequest.requestId;
+    const seed = recheckRequest.seed;
+    setDraft({ profileId: seed.config.model.profileId, language: seed.config.language, instructions: seed.selection.instructions ?? seed.config.instructions,
+      contextWindow: String(seed.config.contextWindow), maxOutputTokens: String(seed.config.maxOutputTokens), maxBatchCues: String(seed.config.maxBatchCues),
+      selection: { ...structuredClone(seed.selection), bindings: [], confirmations: [] }, documentTopicIds: [...seed.documentTopicIds], cueIds: [] });
+    setRecheckSession(recheckRequest); setModelApproved(false); begin();
+  }, [recheckRequest, page?.summary.id, open]);
+
+  const execute = async (intent: 'check' | 'trial-check' | 'start' | 'trial', useCheckedPartial = false) => {
+    if (!canAct || operation.current || !config.success || !selected || (intent === 'trial' || intent === 'trial-check') && (!usingMaterials || batch)) return;
+    const requestIdentity = identity, token = revision.current;
+    const input: TranslationSessionInput = { documents: targets.map(item => ({ documentId: item.id, revision: item.revision })), batch, config: config.data,
+      ...(usingMaterials ? { knowledge: { ...structuredClone(selection), instructions: draft.instructions }, generation: library!.generation } : {}), documentTopicIds: [...draft.documentTopicIds], cueIds: [...(draft.cueIds.length ? draft.cueIds : page?.cues.filter(cue => /\S/u.test(cue.source.plain)).slice(0, 20).map(cue => cue.id) ?? [])] };
+    const isCurrent = () => mounted.current && opened.current && token === revision.current && currentIdentity.current === requestIdentity;
+    operation.current = true; setActivity(intent === 'trial' ? 'trial' : 'check'); setError(null); setNotice(''); setTrialResult(null);
+    try {
+      const checked = useCheckedPartial && currentCheck ? currentCheck : await session.check(input, intent === 'trial' || intent === 'trial-check');
+      if (!checked || !isCurrent()) return;
+      checkedIdentity.current = requestIdentity; setCheck(checked);
+      if (intent === 'check' || intent === 'trial-check' || !readyCount(checked)) return;
+      if (partialCheck(checked) && !useCheckedPartial) { setNotice(t('studio:materials.partial')); return; }
+      setActivity(intent === 'trial' ? 'trial' : 'start');
+      const result = await session.submit(checked, input, selected.apiKey, readLibrary, isCurrent);
+      if (!result) return;
+      if (result.kind === 'trial') { if (isCurrent()) { setTrialResult(result.value); setCheck(null); } return; }
+      // An admitted task belongs to the overview even after a source update/unmount.
+      getStudioTranslationOverviewController().trackStarted(result.kind === 'single' ? [result.taskId] : result.value.items.flatMap(item => item.ok ? [item.taskId] : []));
+      onStarted();
+      translationDraftMemory.remember(input.batch ? undefined : input.documents[0].documentId, input.batch ? undefined : input.documents[0].revision, draft);
+      if (mounted.current) {
+        setCheck(null);
+        if (result.kind === 'batch') setBatchResult(result.value);
+        else if (currentDocumentId.current === input.documents[0].documentId) { opened.current = false; setOpen(false); }
+      }
+    } catch (failure) {
+      if (mounted.current && token === revision.current) {
+        const code = failure instanceof StudioError ? failure.code : 'translation_failed';
+        setCheck(null); setError(code); onError(code);
+        if (code === 'revision_conflict' && usingMaterials) {
+          const updated = await readLibrary().catch(() => null);
+          if (mounted.current && updated) { setNotice(t('knowledge:trial.materials_changed')); setLibrary(updated); setDraft(value => ({ ...value, selection: { ...value.selection, confirmations: [] } })); }
+        }
+      }
+    } finally { operation.current = false; if (!opened.current) session.invalidate(); if (mounted.current) setActivity(null); }
+  };
+  const saveRecipe = async () => {
+    if (!library || !recipeName.trim() || !usingMaterials || materialError || operation.current) return;
+    operation.current = true; setActivity('save'); setError(null);
+    const selectedRecipe = library.data.recipes.find(item => item.id === selection.recipeId);
+    const collectionIds = [...new Set([...selection.collectionIds, ...selectedRecipe?.readCollectionIds ?? []])];
+    try {
+      const result = await window.translationKnowledge.saveRecord({ generation: library.generation, group: 'recipes', record: {
+        id: crypto.randomUUID(), revision: 1, archived: false, name: recipeName.trim(), description: '', languagePair: selection.languagePair,
+        readCollectionIds: collectionIds, subjectSuggestions: [], modifierStyleIds: selectedRecipe?.modifierStyleIds ?? [],
+        ...(selectedRecipe?.baseStyleId ? { baseStyleId: selectedRecipe.baseStyleId } : {}), instructions: draft.instructions, context: selection.context ?? selectedRecipe?.context ?? '', inheritGlobalPreferences: false, learningSuggestion: 'off',
+      } });
+      if (!result.ok) throw new StudioError(result.error === 'revision_conflict' ? 'revision_conflict' : 'knowledge_check_failed');
+      if (mounted.current) { invalidate(); setLibrary(result.value); setSavingRecipe(false); setRecipeName(''); setNotice(t('studio:materials.saved')); }
+    } catch (failure) { if (mounted.current) setError(failure instanceof StudioError ? failure.code : 'knowledge_check_failed'); }
+    finally { operation.current = false; if (mounted.current) setActivity(null); }
+  };
+  const plainCheck = currentCheck?.kind === 'plain' ? currentCheck.value : null;
+  const plainBatch = currentCheck?.kind === 'plain-batch' ? currentCheck.value : null;
+  const estimate = plainCheck ?? (plainBatch ? { estimatedInputTokens: plainBatch.totalEstimatedInputTokens, outputTokenReserve: plainBatch.totalOutputTokenReserve, batchCount: plainBatch.items.reduce((count, item) => count + (item.ok ? item.plan.batchCount : 0), 0) } : null);
+  const partialReady = !!currentCheck && partialCheck(currentCheck) && readyCount(currentCheck) > 0;
+  const triggerControl = <StudioIconButton ref={trigger} label={t(batch ? 'studio:batch.translation' : 'studio:translation.action')} disabled={busy || activeTask || (!batch && !page?.summary.capabilities.translate) || pending} onClick={begin}><Languages /></StudioIconButton>;
+  const fixedLanguages = Object.keys(languageKeys);
+  const languageChoice = fixedLanguages.includes(draft.language) ? draft.language : 'custom';
 
   return <>
     {triggerContainer === null ? null : triggerContainer ? createPortal(triggerControl, triggerContainer) : triggerControl}
-    <ScrollableDialog open={open} onOpenChange={value => { if (!pending) changeOpen(value); }} maxWidth={batchResult ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[560px]'} contentClassName={batchResult ? STUDIO_RESULT_DIALOG_CLASS : 'studio-translation-dialog'} onOpenAutoFocus={event => {
-      event.preventDefault(); if (!batchResult) document.getElementById(`${controlId}-${profiles.length ? 'model' : 'language'}`)?.focus({ preventScroll: true });
-    }} onCloseAutoFocus={event => {
-      event.preventDefault();
-      if (!mounted.current) return;
-      if (recheckSession) {
-        onRecheckClosed?.(recheckSession.requestId);
-        recheckSession.restoreFocus(); setRecheckSession(undefined);
-        return;
-      }
+    <ScrollableDialog open={open} onOpenChange={value => { if (!value) close(); }} maxWidth={batchResult ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[680px]'} contentClassName={batchResult ? STUDIO_RESULT_DIALOG_CLASS : 'studio-translation-dialog'} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById(`${controlId}-model`)?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => {
+      event.preventDefault(); if (!mounted.current) return;
+      if (recheckSession) { onRecheckClosed?.(recheckSession.requestId); recheckSession.restoreFocus(); setRecheckSession(undefined); return; }
       onRequestClosed?.();
-      if (handingOffToOverview.current) {
-        handingOffToOverview.current = false;
-        // The user may already have dismissed the next dialog during this exit.
-        if (getStudioTranslationOverviewController().getState().detailsOpen) {
-          const nextDialog = document.querySelector<HTMLElement>('.studio-translation-overview-dialog');
-          if (nextDialog?.isConnected && nextDialog.getClientRects().length) nextDialog.focus({ preventScroll: true });
-        }
-        return;
-      }
+      if (handingOffToOverview.current) { handingOffToOverview.current = false; document.querySelector<HTMLElement>('.studio-translation-overview-dialog')?.focus({ preventScroll: true }); return; }
       if (openRequest) openRequest.restoreFocus(); else trigger.current?.focus({ preventScroll: true });
     }}>
-      {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={() => changeOpen(false)} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : 'reason' in item && item.reason === 'knowledge_check_failed' ? t('knowledge:batch.not_started') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; changeOpen(false); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
-      <ScrollableDialogHeader className="relative p-3 pr-12">
-        <DialogTitle className="flex items-center gap-2 text-base"><Languages className="size-4" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle>
-        <DialogDescription className={batch ? 'text-xs' : 'sr-only'}>{batch ? t('studio:batch.document_count', { count: batchDocuments.length }) : page?.summary.origin.displayName}</DialogDescription>
-      </ScrollableDialogHeader>
-      <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}>
-        <div className="studio-translation-form">
-          {batch && !batchPlan && <StudioSelectedDocuments documents={batchDocuments} />}
+      {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={close} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; close(); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
+        <ScrollableDialogHeader className="relative p-3 pr-12"><DialogTitle className="flex items-center gap-2 text-base"><Languages className="size-4" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle><DialogDescription className="text-xs [overflow-wrap:anywhere]">{batch ? t('studio:batch.document_count', { count: targets.length }) : page?.summary.origin.displayName}</DialogDescription></ScrollableDialogHeader>
+        <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}><div className="studio-translation-form" data-testid="studio-translation-form">
+          {batch && <StudioSelectedDocuments documents={targets} />}
           <div className="studio-translation-fields">
-            <ToolField label={t('studio:translation.model')} htmlFor={`${controlId}-model`}>
-              <Select value={selected?.id ?? ''} onValueChange={value => { setProfileId(value); setRecheckModelApproved(true); }} disabled={pending || !profiles.length}>
-                <SelectTrigger id={`${controlId}-model`} data-testid="studio-translation-model" className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:translation.select_model')} /></SelectTrigger>
-                <SelectContent className="max-w-[calc(100vw-2rem)]">{profiles.map(profile => <SelectItem key={profile.id} value={profile.id} className="whitespace-normal break-all">{profile.name || profile.modelKey}</SelectItem>)}</SelectContent>
-              </Select>
-            </ToolField>
-            <ToolField label={t('studio:translation.language')} htmlFor={`${controlId}-language`}>
-              <Select value={language} onValueChange={value => setLanguage(value as LanguageChoice)} disabled={pending}>
-                <SelectTrigger id={`${controlId}-language`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>{(Object.keys(languageKeys) as (keyof typeof languageKeys)[]).map(value => <SelectItem key={value} value={value}>{t(languageKeys[value])}</SelectItem>)}<SelectItem value="custom">{t('studio:translation.custom_language')}</SelectItem></SelectContent>
-              </Select>
-            </ToolField>
+            <ToolField label={t('studio:translation.model')} htmlFor={`${controlId}-model`}><Select value={selected?.id ?? ''} disabled={pending || !profiles.length} onValueChange={profileId => { patch({ profileId }); setModelApproved(true); }}><SelectTrigger id={`${controlId}-model`} data-testid="studio-translation-model" className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:translation.select_model')} /></SelectTrigger><SelectContent>{profiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.modelKey}</SelectItem>)}</SelectContent></Select></ToolField>
+            <ToolField label={t('studio:translation.language')} htmlFor={`${controlId}-language`}><Select value={languageChoice} disabled={pending} onValueChange={value => patch({ language: value === 'custom' ? '' : value })}><SelectTrigger id={`${controlId}-language`} data-testid="studio-translation-language" className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(languageKeys) as (keyof typeof languageKeys)[]).map(value => <SelectItem key={value} value={value}>{t(languageKeys[value])}</SelectItem>)}<SelectItem value="custom">{t('studio:translation.custom_language')}</SelectItem></SelectContent></Select></ToolField>
           </div>
-          {language === 'custom' && <ToolField label={t('studio:translation.custom_language_name')} htmlFor={`${controlId}-custom-language`}>
-            <Input id={`${controlId}-custom-language`} className="h-8 text-xs" value={customLanguage} onChange={event => setCustomLanguage(event.target.value)} maxLength={100} disabled={pending} />
-          </ToolField>}
+          {languageChoice === 'custom' && <ToolField label={t('studio:translation.custom_language_name')} htmlFor={`${controlId}-custom-language`}><Input id={`${controlId}-custom-language`} className="h-8 text-xs" value={draft.language} maxLength={100} disabled={pending} onChange={event => patch({ language: event.target.value })} /></ToolField>}
+          {(!model.success || !selected?.apiKey.trim()) && <div className="studio-translation-configuration"><p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.model_required')}</p><Button variant="outline" size="sm" disabled={pending} onClick={() => { close(); navigate('/setting?tab=model'); }}><Settings />{t('studio:translation.model_settings')}</Button></div>}
+          {!modelMatches && <div className="studio-translation-configuration"><p>{t('knowledge:recovery.model_changed')}</p><Button data-testid="knowledge-recheck-use-current-model" size="sm" variant="outline" disabled={pending || !model.success} onClick={() => setModelApproved(true)}>{t('knowledge:recovery.use_current_model')}</Button></div>}
           {recheckSession && <p data-testid="knowledge-recheck-configuration-help" className="text-xs leading-5 text-muted-foreground">{t('knowledge:recovery.form_help')}</p>}
-          {!recheckModelMatches && <div className="studio-translation-configuration"><p>{t('knowledge:recovery.model_changed')}</p>{model.success && <Button data-testid="knowledge-recheck-use-current-model" size="sm" variant="outline" disabled={pending} onClick={() => setRecheckModelApproved(true)}>{t('knowledge:recovery.use_current_model')}</Button>}</div>}
-          {(!model.success || !selected?.apiKey.trim()) && <div className="studio-translation-configuration">
-            <p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.model_required')}</p>
-            <Button variant="outline" size="sm" onClick={() => { changeOpen(false); navigate('/setting?tab=model'); }} disabled={pending}><Settings />{t('studio:translation.model_settings')}</Button>
-          </div>}
-          {!knowledgeEnabled && <ToolField label={t('studio:translation.instructions')} htmlFor={`${controlId}-instructions`}>
-            <Textarea id={`${controlId}-instructions`} className="studio-translation-instructions text-xs" value={instructions} onChange={event => setInstructions(event.target.value)} maxLength={4000} disabled={pending} />
-          </ToolField>}
-          <div className="min-w-0 space-y-2">
-            <ToolSwitchRow id={`${controlId}-knowledge`} testId="studio-translation-knowledge-enabled" label={t('knowledge:automatic.enable')} checked={knowledgeEnabled} disabled={pending || !!recheckSession} onCheckedChange={enabled => { setKnowledgeEnabled(enabled); setKnowledgeOpenRequest(0); setPlan(null); setBatchPlan(null); setError(null); }} />
-            <p data-testid="studio-translation-knowledge-state" className="text-xs leading-5 text-muted-foreground">{t(knowledgeEnabled ? 'knowledge:selection.help' : 'knowledge:selection.off')}</p>
-          </div>
-          {knowledgeEnabled && !batch && page && knowledgeConfig && <StudioKnowledgeTrial key={page.summary.id} page={page} config={knowledgeConfig} openRequest={knowledgeOpenRequest} recheckRequest={recheckSession} modelNeedsAttention={needsConfiguration} apiKey={recheckModelMatches ? selected?.apiKey ?? '' : ''} disabled={pending || busy || activeTask || unavailable || !config.success} onAdmissionChange={value => { if (mounted.current) setKnowledgeStarting(value); }} onStarted={taskId => {
-            getStudioTranslationOverviewController().trackStarted([taskId]);
-            if (mounted.current && currentDocumentId.current === page.summary.id) { changeOpen(false); setPlan(null); onStarted(); }
-          }} />}
-          {knowledgeEnabled && batch && knowledgeConfig && <StudioKnowledgeBatch documents={batchDocuments.map(item => documents?.find(document => document.id === item.id) ?? item)} config={knowledgeConfig} openRequest={knowledgeOpenRequest} apiKey={selected?.apiKey ?? ''} disabled={pending || busy || unavailable || !config.success} onAdmissionChange={value => { if (mounted.current) setKnowledgeStarting(value); }} onStarted={value => {
-            getStudioTranslationOverviewController().trackStarted(value.items.flatMap(item => item.ok ? [item.taskId] : []));
-            if (mounted.current) { setBatchResult(value); setBatchPlan(null); setPlan(null); onStarted(); }
-          }} />}
-          <ToolConfigDisclosure testId="studio-translation-advanced" className="studio-translation-advanced border-b-0" icon={SlidersHorizontal} title={t('studio:translation.advanced')}>
-            <div className="studio-translation-budget-fields">
-              <ToolField label={t('studio:translation.context_window')} htmlFor={`${controlId}-context`}>
-                <Input id={`${controlId}-context`} type="number" min={2048} max={1000000} step={1} className="h-8 font-mono text-xs" value={contextWindow} onChange={event => setContextWindow(event.target.value)} disabled={pending} />
-              </ToolField>
-              <ToolField label={t('studio:translation.max_output')} htmlFor={`${controlId}-output`}>
-                <Input id={`${controlId}-output`} type="number" min={256} max={32768} step={1} className="h-8 font-mono text-xs" value={maxOutputTokens} onChange={event => setMaxOutputTokens(event.target.value)} disabled={pending} />
-              </ToolField>
-              <ToolField label={t('studio:translation.batch_cues')} htmlFor={`${controlId}-batch`}>
-                <Input id={`${controlId}-batch`} type="number" min={1} max={100} step={1} className="h-8 font-mono text-xs" value={maxBatchCues} onChange={event => setMaxBatchCues(event.target.value)} disabled={pending} />
-              </ToolField>
-            </div>
-          </ToolConfigDisclosure>
-          {!needsConfiguration && !config.success && <p className="studio-translation-error" role="alert">{t('studio:translation.invalid_options')}</p>}
-          {error && <p className="studio-translation-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
-          {!knowledgeEnabled && estimate && <section className="studio-translation-plan" aria-live="polite" data-testid={batchPlan ? 'studio-batch-plan' : undefined}>
+          <StudioMaterialsFields value={selection} library={library} disabled={pending} loading={libraryLoading} onChange={changeSelection} topics={draft.documentTopicIds} onTopicsChange={documentTopicIds => patch({ documentTopicIds })} onRefresh={() => void refreshLibrary()} onAddTerm={() => setQuickTermOpen(true)} mode={batch ? 'batch' : 'single'} />
+          {addedCollection && <div data-testid="studio-materials-added" className="flex flex-wrap items-center gap-2 text-xs"><span>{t('studio:materials.added')}</span><Button data-testid="studio-materials-use-added" variant="outline" size="sm" disabled={pending} onClick={() => { changeSelection({ ...selection, collectionIds: [...new Set([...selection.collectionIds, addedCollection])] }); setAddedCollection(null); }}>{t('studio:materials.use_added')}</Button></div>}
+          <ToolField label={t('studio:translation.instructions')} htmlFor={`${controlId}-instructions`}><Textarea id={`${controlId}-instructions`} data-testid="studio-translation-instructions" className="studio-translation-instructions text-xs" value={draft.instructions} maxLength={4000} disabled={pending} onChange={event => patch({ instructions: event.target.value, selection: { ...draft.selection, instructions: event.target.value } })} /></ToolField>
+          {usingMaterials && !batch && page && <StudioKnowledgeScope page={page} selection={selection} library={library} cueIds={draft.cueIds} disabled={pending} onChange={changeSelection} onCueIdsChange={cueIds => patch({ cueIds })} onCheck={() => void execute('trial-check')} canCheck={canAct} />}
+          <ToolConfigDisclosure testId="studio-translation-advanced" className="studio-translation-advanced border-b-0" icon={SlidersHorizontal} title={t('studio:translation.advanced')}><div className="studio-translation-budget-fields">{(['contextWindow', 'maxOutputTokens', 'maxBatchCues'] as const).map((key, index) => <ToolField key={key} label={t(index === 0 ? 'studio:translation.context_window' : index === 1 ? 'studio:translation.max_output' : 'studio:translation.batch_cues')} htmlFor={`${controlId}-${key}`}><Input id={`${controlId}-${key}`} type="number" className="h-8 font-mono text-xs" value={draft[key]} disabled={pending} onChange={event => patch({ [key]: event.target.value })} /></ToolField>)}</div></ToolConfigDisclosure>
+          <div className="flex flex-wrap gap-2">{lastDraft && <Button data-testid="studio-translation-reuse" type="button" variant="ghost" size="sm" disabled={pending} onClick={() => { changeDraft(reusableTranslationDraft(lastDraft)); setNotice(t('studio:materials.reused')); }}>{t('studio:materials.reuse')}</Button>}{usingMaterials && <Button data-testid="studio-translation-save-recipe" type="button" variant="ghost" size="sm" disabled={pending || !!materialError} onClick={() => setSavingRecipe(!savingRecipe)}><Save />{t('studio:materials.save_recipe')}</Button>}</div>
+          {savingRecipe && <div className="flex flex-wrap gap-2"><Input data-testid="studio-translation-recipe-name" aria-label={t('studio:materials.recipe_name')} placeholder={t('studio:materials.recipe_name')} className="h-8 min-w-0 flex-1 text-xs" value={recipeName} maxLength={160} disabled={pending} onChange={event => setRecipeName(event.target.value)} /><Button data-testid="studio-translation-confirm-recipe" size="sm" disabled={pending || !recipeName.trim()} onClick={() => void saveRecipe()}>{t('knowledge:actions.save')}</Button><p className="w-full text-xs text-muted-foreground">{t('studio:materials.recipe_help')}</p></div>}
+          {!needsConfiguration && !config.success && <p role="alert" className="studio-translation-error">{t('studio:translation.invalid_options')}</p>}
+          {unavailable && batch && usingMaterials && targets.length > 20 && <p role="alert" className="studio-translation-error">{t('knowledge:batch.limit', { count: targets.length, max: 20 })}</p>}
+          {notice && <p role="status" data-testid="studio-translation-notice" className="text-xs leading-5 text-muted-foreground">{notice}</p>}
+          {error && <p role="alert" className="studio-translation-error"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
+          {estimate && <section data-testid={plainBatch ? 'studio-batch-plan' : 'studio-translation-plan'} className="studio-translation-plan" aria-live="polite">
             <ToolStatBar columns={3} className="studio-translation-estimate shadow-none" gridClassName="studio-translation-estimate-grid"
-              title={batchPlan ? t('studio:batch.ready_count', { count: batchPlan.items.filter(item => item.ok).length, total: batchPlan.items.length }) : t('studio:translation.estimate')}
-              icon={batchPlan ? batchPlan.items.some(item => !item.ok) ? <AlertCircle className="text-amber-600 dark:text-amber-400" /> : <CheckCheck className="text-emerald-600 dark:text-emerald-400" /> : <Calculator />}
+              title={plainBatch ? t('studio:batch.ready_count', { count: plainBatch.items.filter(item => item.ok).length, total: plainBatch.items.length }) : t('studio:translation.estimate')}
+              icon={plainBatch ? plainBatch.items.some(item => !item.ok) ? <AlertCircle className="text-amber-600 dark:text-amber-400" /> : <CheckCheck className="text-emerald-600 dark:text-emerald-400" /> : <Calculator />}
               items={[
                 { label: t('studio:translation.estimated_input'), value: estimate.estimatedInputTokens.toLocaleString(i18n.language) },
                 { label: t('studio:translation.batch_count'), value: estimate.batchCount.toLocaleString(i18n.language) },
                 { label: t('studio:translation.output_reserve'), value: estimate.outputTokenReserve.toLocaleString(i18n.language) },
               ]} />
-            {batchPlan && <>
-            <p className="studio-batch-note">{t('studio:batch.translation_queue_note')}</p>
-            <details key={batchPlan.batchId} className="studio-translation-plan-details"><summary>{t('studio:operation_result.details')}<ChevronDown aria-hidden="true" /></summary><StudioBatchItems>{batchPlan.items.map(item => <StudioDocumentRow key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'} name={item.displayName} status={item.ok ? t('studio:batch.ready') : t(errorKeys[item.error])} />)}</StudioBatchItems></details>
+            {plainBatch && <>
+              <p className="studio-batch-note">{t('studio:batch.translation_queue_note')}</p>
+              <details key={plainBatch.batchId} className="studio-translation-plan-details">
+                <summary>{t('studio:operation_result.details')}<ChevronDown aria-hidden="true" /></summary>
+                <StudioBatchItems>{plainBatch.items.map(item => <StudioDocumentRow key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'} name={item.displayName} status={item.ok ? t('studio:batch.ready') : t(errorKeys[item.error])} />)}</StudioBatchItems>
+              </details>
             </>}
           </section>}
-        </div>
-      </ScrollableDialogContent>
-      <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3">
-        <Button id={`${controlId}-close`} variant="ghost" size="sm" onClick={() => changeOpen(false)} disabled={pending}>{t('studio:cancel')}</Button>
-        {!knowledgeEnabled && batchPlan && <Button variant="outline" size="sm" disabled={!canPlan} onClick={() => void prepare()}>{t('studio:translation.prepare')}</Button>}
-        {knowledgeEnabled && !recheckSession && <Button data-testid="studio-translation-knowledge-open" size="sm" disabled={pending || busy || activeTask || unavailable || !config.success} onClick={() => setKnowledgeOpenRequest(value => value + 1)}><BookOpen />{t('knowledge:selection.open')}</Button>}
-        {!knowledgeEnabled && !recheckSession && (currentPlan || batchPlan ? <Button size="sm" disabled={!canPlan || !!batchPlan && !batchPlan.items.some(item => item.ok)} onClick={() => void start()}>{activity === 'start' ? <LoaderCircle className="studio-spin" /> : <Play />}{batchPlan ? t('studio:batch.start_ready', { count: batchPlan.items.filter(item => item.ok).length }) : t('studio:translation.start')}</Button> : <Button size="sm" disabled={!canPlan} onClick={() => void prepare()}>{activity === 'plan' ? <LoaderCircle className="studio-spin" /> : <Calculator />}{t('studio:translation.prepare')}</Button>)}
-      </ScrollableDialogFooter>
+          <StudioKnowledgeTrial library={library} page={page} preview={currentCheck?.kind === 'trial' ? currentCheck.value : null} documentPreview={currentCheck?.kind === 'knowledge' ? currentCheck.value : null} result={trialResult} />
+          {currentCheck?.kind === 'knowledge-batch' && <StudioKnowledgeBatch preview={currentCheck.value} library={library} />}
+        </div></ScrollableDialogContent>
+        <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3">
+          <Button data-testid="studio-translation-close" variant="ghost" size="sm" disabled={pending && activity !== 'trial'} onClick={close}>{t('studio:cancel')}</Button>
+          {activity === 'trial' ? <Button data-testid="studio-translation-cancel-trial" variant="outline" size="sm" onClick={() => void session.cancelTrial()}><LoaderCircle className="animate-spin" />{t('knowledge:trial.cancel')}</Button> : <>
+            <Button data-testid="studio-translation-check" variant="outline" size="sm" disabled={!canAct} onClick={() => void execute('check')}><Calculator />{t('studio:materials.check')}</Button>
+            {usingMaterials && !batch && <Button data-testid="studio-translation-trial" variant="outline" size="sm" disabled={!canAct} onClick={() => void execute('trial')}>{t('studio:materials.trial')}</Button>}
+            <Button data-testid="studio-translation-start" size="sm" disabled={!canAct} onClick={() => void execute('start', partialReady)}>{pending ? <LoaderCircle className="animate-spin" /> : <Play />}{partialReady ? t('studio:batch.start_ready', { count: readyCount(currentCheck!) }) : t('studio:translation.start')}</Button>
+          </>}
+        </ScrollableDialogFooter>
       </>}
     </ScrollableDialog>
+    <QuickTermDialog open={quickTermOpen} onOpenChange={setQuickTermOpen} initialLanguagePair={selection.languagePair.source ? selection.languagePair : undefined} preferredCollectionId={selection.collectionIds.length === 1 ? selection.collectionIds[0] : undefined} onSaved={(snapshot, collectionId) => { invalidate(); setLibrary(snapshot); setAddedCollection(collectionId); }} />
   </>;
 }
 

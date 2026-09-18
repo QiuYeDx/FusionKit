@@ -2,8 +2,32 @@ import { createServer, type Server } from 'node:http';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator } from 'playwright/test';
 import type { DocumentPage } from '../../src/subtitle-studio/ipc-contract';
+
+async function waitForMenuStable(menu: Locator) {
+  await uiExpect(menu).toBeVisible();
+  await uiExpect(menu).toHaveAttribute('data-state', 'open');
+  await menu.evaluate(async element => {
+    const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    // A visible Radix menu may still be scaling or moving into position. Keep
+    // the pointer still until its actual CSS entry animations have finished.
+    await frame();
+    await Promise.all(element.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => undefined)));
+    let previous: number[] | undefined;
+    let stableFrames = 0;
+    for (let attempt = 0; attempt < 120; attempt++) {
+      await frame();
+      if (!element.isConnected || element.getAttribute('data-state') !== 'open') throw new Error('Copy menu closed before settling');
+      const rect = element.getBoundingClientRect();
+      const current = [rect.x, rect.y, rect.width, rect.height];
+      stableFrames = previous && current.every((value, index) => Math.abs(value - previous![index]) < 0.1) ? stableFrames + 1 : 0;
+      if (stableFrames >= 3) return;
+      previous = current;
+    }
+    throw new Error('Copy menu layout did not settle');
+  });
+}
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit copy and concise results', () => {
   it('copies the selected content and reveals operation details only on request', async () => {
@@ -45,7 +69,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       const bilingual = page.getByRole('dialog', { name: '整理双语字幕', exact: true }); await uiExpect(bilingual).toBeVisible();
       await bilingual.getByRole('button', { name: '确认整理', exact: true }).click();
       await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(4);
-      const trigger = page.locator('.studio-cue-table tbody tr').first().getByRole('button', { name: '选择复制内容', exact: true });
+      const trigger = page.locator('.studio-cue-table tbody tr').first().getByRole('button', { name: '字幕操作', exact: true });
       // Windows clipboard text uses CRLF; compare content without changing spaces or source lines.
       const readClipboard = async () => (await app!.evaluate(({ clipboard }) => clipboard.readText())).replace(/\r\n/g, '\n');
       await app.evaluate(({ clipboard }) => clipboard.writeText('i6-copy-sentinel'));
@@ -58,11 +82,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       await trigger.focus(); await page.keyboard.press('Enter');
       await page.getByRole('menuitem', { name: '复制原文', exact: true }).focus(); await page.keyboard.press('Enter');
       await uiExpect.poll(readClipboard).toBe('Hello world.');
-      await trigger.click(); await page.getByRole('menuitem', { name: '带时间信息复制', exact: true }).hover();
-      const timed = page.getByTestId('studio-copy-timed-menu'); await uiExpect(timed).toBeVisible(); await uiExpect(timed).toContainText('结束时间未知');
+      await trigger.click(); await waitForMenuStable(page.getByTestId('studio-copy-menu'));
+      await page.getByRole('menuitem', { name: '带时间信息复制', exact: true }).hover();
+      const timed = page.getByTestId('studio-copy-timed-menu'); await waitForMenuStable(timed); await uiExpect(timed).toContainText('结束时间未知');
       await timed.getByRole('menuitem', { name: '复制双语', exact: true }).click();
       await uiExpect.poll(readClipboard).toBe('[00:00:01.000]\nHello world.\n你好世界。');
-      await page.locator('.studio-cue-table tbody tr').last().getByRole('button', { name: '选择复制内容', exact: true }).click();
+      await page.locator('.studio-cue-table tbody tr').last().getByRole('button', { name: '字幕操作', exact: true }).click();
       await uiExpect(page.getByRole('menuitem', { name: '复制译文', exact: true })).toHaveAttribute('aria-disabled', 'true');
       await uiExpect(page.getByRole('menuitem', { name: '复制双语', exact: true })).toHaveAttribute('aria-disabled', 'true');
       await page.keyboard.press('Escape');
@@ -80,23 +105,26 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       await page.getByRole('button', { name: '完成', exact: true }).click();
       await page.locator('.studio-document').filter({ hasText: path.basename(srts[0]) }).click();
       await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(1);
-      const sourceTrigger = page.locator('.studio-cue-table').getByRole('button', { name: '选择复制内容', exact: true });
-      await sourceTrigger.click(); await page.getByRole('menuitem', { name: '带时间信息复制', exact: true }).hover();
-      await page.getByTestId('studio-copy-timed-menu').getByRole('menuitem', { name: '复制原文', exact: true }).click();
+      const sourceTrigger = page.locator('.studio-cue-table').getByRole('button', { name: '字幕操作', exact: true });
+      await sourceTrigger.click(); await waitForMenuStable(page.getByTestId('studio-copy-menu'));
+      await page.getByRole('menuitem', { name: '带时间信息复制', exact: true }).hover();
+      await waitForMenuStable(timed);
+      await timed.getByRole('menuitem', { name: '复制原文', exact: true }).click();
       await uiExpect.poll(readClipboard).toBe('[00:00:01.250 → 00:00:03.900]\nOriginal second document.'); evidence.knownTime = true;
 
       await page.getByTestId('studio-library-select-all').check(); await page.getByRole('button', { name: '批量翻译', exact: true }).click();
-      const translation = page.getByRole('dialog').filter({ has: page.getByRole('button', { name: '计算用量', exact: true }) }); await uiExpect(translation).toBeVisible();
-      await translation.getByRole('button', { name: '计算用量', exact: true }).click();
+      const translation = page.getByRole('dialog').filter({ has: page.getByTestId('studio-translation-form') }); await uiExpect(translation).toBeVisible();
+      await translation.getByTestId('studio-translation-check').click();
       await uiExpect(translation.getByTestId('studio-batch-plan')).toBeVisible();
       expect(await translation.locator('.studio-translation-plan-details').evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
-      await translation.getByRole('button', { name: /开始翻译.*就绪/ }).click();
+      expect(requests).toBe(0);
+      await translation.getByTestId('studio-translation-start').click();
       const submitted = page.getByTestId('studio-batch-result'); await uiExpect(submitted).toBeVisible();
       await uiExpect(submitted.locator('[data-result-id]')).toHaveCount(0); await uiExpect(submitted).toHaveAttribute('data-operation', 'translation'); await uiExpect(submitted).toContainText('已提交');
       await page.screenshot({ path: path.join(root, '03-translation-submitted-summary.png'), animations: 'disabled' });
       await submitted.locator('[data-result-details] > summary').click(); await uiExpect(submitted.locator('[data-result-id]')).toHaveCount(3);
       await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
-      evidence.results = { importSummaryBeforeDetails: true, failureOnDemand: true, translationSubmittedNotCompleted: true, translationDetailsOnDemand: true };
+      evidence.results = { importSummaryBeforeDetails: true, failureOnDemand: true, translationCheckIsLocal: true, translationPlanDetailsCollapsed: true, translationSubmittedNotCompleted: true, translationDetailsOnDemand: true };
 
       await uiExpect.poll(() => requests).toBe(3);
       await uiExpect.poll(() => page.evaluate(async () => {
@@ -123,14 +151,27 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       await page.reload(); await page.getByTestId('subtitle-studio').waitFor();
       await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
       await win.evaluate(window => window.setSize(787, 540)); await uiExpect(page.locator('html')).toHaveClass(/dark/);
-      const narrowTrigger = page.locator('.studio-cue-table tbody tr').first().getByRole('button', { name: '选择复制内容', exact: true });
+      const narrowTrigger = page.locator('.studio-cue-table tbody tr').first().getByRole('button', { name: '字幕操作', exact: true });
       await narrowTrigger.click(); const menuBox = await page.getByTestId('studio-copy-menu').boundingBox();
       await uiExpect(page.getByTestId('studio-copy-menu')).toContainText('已过期');
       expect(menuBox).not.toBeNull(); expect(menuBox!.x).toBeGreaterThanOrEqual(0); expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(786);
       await page.screenshot({ path: path.join(root, '04-copy-narrow-dark.png'), animations: 'disabled' });
+      const currentSource = await page.locator('.studio-cue-table tbody tr').first().locator('.studio-cue-text > .studio-parallel-text > div').first().innerText();
+      expect(currentSource.trim()).not.toBe('');
+      const beforeRemember = await readClipboard();
+      await page.getByTestId('studio-remember-term').click();
+      const remember = page.getByRole('dialog').filter({ has: page.getByTestId('quick-term-form') });
+      await uiExpect(remember).toBeVisible();
+      await uiExpect(remember.getByRole('textbox', { name: '原词', exact: true })).toHaveValue(currentSource);
+      await uiExpect(remember.getByRole('textbox', { name: '固定译法', exact: true })).toHaveValue('');
+      await uiExpect(remember.getByTestId('quick-term-save')).toBeDisabled();
+      await remember.getByRole('button', { name: '关闭', exact: true }).click();
+      await uiExpect(remember).not.toBeVisible();
+      expect(await readClipboard()).toBe(beforeRemember);
+      await narrowTrigger.click();
       await page.getByRole('menuitem', { name: '复制译文', exact: true }).click();
       await uiExpect.poll(readClipboard).toBe('Controlled translation.');
-      evidence.staleTranslation = { responseRevisionDecorationOnly: true, warningVisible: true, copiesVisibleTarget: true };
+      evidence.staleTranslation = { responseRevisionDecorationOnly: true, warningVisible: true, rememberSourceRetained: true, rememberTargetBlank: true, rememberDoesNotCopy: true, copiesVisibleTarget: true };
       await page.evaluate(() => { Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async () => { throw new Error('Controlled clipboard denial'); } }); });
       await narrowTrigger.click(); await page.getByRole('menuitem', { name: '复制原文', exact: true }).click();
       await uiExpect(page.locator('[role=alert]').filter({ hasText: '复制失败' })).toBeVisible();

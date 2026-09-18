@@ -3,7 +3,7 @@ import type {
   MaintenanceRequest,
 } from "@/translation-knowledge/maintenance-contract";
 import { HistoryDialog, MaintenanceDialog } from "./Maintenance";
-import { optionKey } from "./labels";
+import { languagePairLabel, optionKey } from "./labels";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -15,7 +15,6 @@ import {
   CircleHelp,
   Copy,
   Download,
-  FileText,
   FolderPlus,
   History,
   Import,
@@ -24,6 +23,8 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ClipboardPaste,
+  Ellipsis,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,8 @@ import {
   type CatalogRecord,
 } from "./CatalogEditor";
 import { EntryEditor } from "./EntryEditor";
+import { InlineTermEditor } from "./InlineTermEditor";
+import { BulkTermPaste } from "./BulkTermPaste";
 import { KnowledgeTour, useKnowledgeTour } from "./KnowledgeTour";
 import { ExportDialog, ImportDialog, RecordDetails } from "./Exchange";
 import {
@@ -62,13 +65,14 @@ import {
   filterEntries,
   freshId,
   initialQuery,
-  languageKey,
   needsReview,
   PAGE_SIZE,
   acceptsKnowledgeDrop,
+  withEntryKind,
 } from "./model";
 
-type View = "materials" | "plans" | "review";
+type View = "materials" | "plans" | "review" | "archived" | "stored";
+type ContentKind = "term" | "context" | "rule";
 export default function TranslationKnowledge() {
   const { t } = useTranslation("knowledge");
   const [snapshot, setSnapshot] = useState<LibrarySnapshot | null>(null);
@@ -80,6 +84,10 @@ export default function TranslationKnowledge() {
   const [notice, setNotice] = useState("");
   const [view, setView] = useState<View>("materials");
   const [query, setQuery] = useState(initialQuery);
+  const [contentKind, setContentKind] = useState<ContentKind>("term");
+  const [destination, setDestination] = useState<ContentKind | "bulk" | null>(null);
+  const [bulkCollectionId, setBulkCollectionId] = useState<string | null>(null);
+  const continuationKind = useRef<ContentKind | "bulk">("term");
   const [page, setPage] = useState(0);
   const [planPage, setPlanPage] = useState(0);
   const [planGroup, setPlanGroup] = useState<
@@ -127,11 +135,19 @@ export default function TranslationKnowledge() {
   }, []);
   useEffect(() => {
     setPage(0);
-  }, [query, view]);
-  const filtered = useMemo(
-    () => (snapshot ? filterEntries(snapshot, query, view === "review") : []),
-    [snapshot, query, view],
-  );
+  }, [query, view, contentKind]);
+  const filtered = useMemo(() => {
+    if (!snapshot) return [];
+    const archivedCollections = new Set(snapshot.data.collections.filter(item => item.archived).map(item => item.id));
+    const base = filterEntries(snapshot, { ...query, kind: view === "materials" ? contentKind : "all" }, view === "review");
+    return base.filter(entry => {
+      const archived = entry.state === "archived" || archivedCollections.has(entry.collectionId);
+      if (view === "archived") return archived;
+      if (archived) return false;
+      if (view === "stored") return entry.kind === "expression" || entry.kind === "memory";
+      return true;
+    });
+  }, [snapshot, query, view, contentKind]);
   const safePage = Math.min(
     page,
     Math.max(0, Math.ceil(filtered.length / PAGE_SIZE) - 1),
@@ -140,11 +156,8 @@ export default function TranslationKnowledge() {
     (item) => item.id === selected,
   );
   const reviewCount =
-    snapshot?.data.entries.filter((entry) => needsReview(entry, snapshot))
+    snapshot?.data.entries.filter((entry) => needsReview(entry, snapshot) && !snapshot.data.collections.find(collection => collection.id === entry.collectionId)?.archived)
       .length ?? 0;
-  const currentSubject = snapshot?.data.subjects.find(
-    (item) => item.id === query.subject,
-  );
   const currentCollection = snapshot?.data.collections.find(
     (item) => item.id === query.collection,
   );
@@ -155,13 +168,17 @@ export default function TranslationKnowledge() {
     const result = await api.saveRecord(request);
     if (result.ok) {
       setSnapshot(result.value);
-      setNotice(t(request.group === "entries" ? request.adopt ? "guide.saved_adopted" : "guide.saved_candidate" : "saved"));
-      if (request.group === "collections" && continueWithEntry.current) {
-        continueWithEntry.current = false;
+      setNotice(t(request.group === "entries" && !("state" in request.record && request.record.state === "archived") ? request.adopt ? "guide.saved_adopted" : "guide.saved_candidate" : "saved"));
+      if (request.group === "collections") {
         const collection = result.value.data.collections.find(item => item.id === request.record.id);
         if (collection) {
-          setQuery(value => ({ ...value, collection: collection.id }));
-          setEntryEditor(newEntry(collection, undefined, result.value.data.subjects));
+          setQuery({ ...initialQuery, collection: collection.id });
+          setView(collection.archived ? "archived" : "materials");
+          if (continueWithEntry.current) {
+            continueWithEntry.current = false;
+            if (continuationKind.current === "bulk") { setContentKind("term"); setBulkCollectionId(collection.id); }
+            else { setContentKind(continuationKind.current); setEntryEditor(withEntryKind(newEntry(collection), continuationKind.current)); }
+          }
         }
       }
       return result;
@@ -275,187 +292,73 @@ export default function TranslationKnowledge() {
   });
   const tourReady = Boolean(snapshot) && !loading && !busy && !blocked &&
     !catalog && !entryEditor && !selected && !preview && !exportOpen &&
-    !historyOpen && !maintenancePreview && !dragging;
+    !historyOpen && !maintenancePreview && !dragging && !destination && !bulkCollectionId;
   const { tourOpen, setTourOpen } = useKnowledgeTour(tourReady);
-  const startEntry = () => {
+  const beginForCollection = (collectionId: string, kind: ContentKind | "bulk") => {
+    const collection = snapshot?.data.collections.find(item => item.id === collectionId && !item.archived);
+    if (!collection) return;
+    setDestination(null);
+    setQuery({ ...initialQuery, collection: collection.id });
+    setView("materials");
+    if (kind === "bulk") { setContentKind("term"); setBulkCollectionId(collection.id); }
+    else { setContentKind(kind); setEntryEditor(withEntryKind(newEntry(collection), kind)); }
+  };
+  const startEntry = (kind: ContentKind | "bulk" = contentKind) => {
     if (!snapshot || blocked) return;
-    const collection =
-      currentCollection ??
-      snapshot.data.collections.find((item) => !item.archived);
-    if (!collection) {
+    if (currentCollection && !currentCollection.archived) { beginForCollection(currentCollection.id, kind); return; }
+    if (!snapshot.data.collections.some(item => !item.archived)) {
       continueWithEntry.current = true;
+      continuationKind.current = kind;
       setCatalog({ group: "collections", record: newCatalog("collections") });
-      setNotice(t("editor.create_collection_first"));
       return;
     }
-    setEntryEditor(
-      newEntry(collection, currentSubject?.id, snapshot.data.subjects),
-    );
+    setDestination(kind);
   };
-  const addCatalog = (group: CatalogGroup) =>
-    setCatalog({ group, record: newCatalog(group) });
-  const change = (key: keyof typeof query, value: string) =>
-    setQuery({ ...query, [key]: value });
-  const options = (key: string, values: string[]) =>
-    values.map((value) => ({ value, label: t(optionKey(`${key}.${value}`)) }));
-  const subjectOptions = [
-    { value: "all", label: t("filters.all_subjects") },
-    { value: "none", label: t("filters.no_subject") },
-    ...(snapshot?.data.subjects ?? []).map((item) => ({
-      value: item.id,
-      label: `${item.name}${item.archived ? ` · ${t("status.archived")}` : ""}`,
-    })),
-  ];
-  const header = (
-    <ToolPageHeader
-      meta={TOOL_META.translationKnowledge}
-      title={t("title")}
-      description={t("description")}
-      right={
-        <Button
-          data-testid="knowledge-tour-trigger"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground hover:text-foreground"
-          aria-label={t("tour.trigger")}
-          title={t("tour.trigger")}
-          disabled={!tourReady}
-          onClick={() => setTourOpen(true)}
-        >
-          <CircleHelp />
-        </Button>
-      }
-    />
-  );
-  const aside = (
-    <div className="space-y-3">
-      <ToolPanel
-        title={t("subjects.title")}
-        icon={BookOpen}
-        actions={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("actions.new_subject")}
-            onClick={() => addCatalog("subjects")}
-            disabled={!snapshot || blocked}
-          >
-            <Plus />
-          </Button>
-        }
-        bodyClassName="p-3 space-y-4"
-      >
-        <Choice
-          label={t("fields.subject")}
-          value={query.subject}
-          onChange={(value) => change("subject", value)}
-          options={subjectOptions}
-        />
-        {currentSubject && (
-          <div className="space-y-2">
-            <p className="break-words text-xs text-muted-foreground">
-              {currentSubject.description ||
-                t(`subject_kind.${currentSubject.kind}`)}
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                setCatalog({ group: "subjects", record: currentSubject })
-              }
-            >
-              <Pencil />
-              {t("actions.edit_subject")}
-            </Button>
-          </div>
-        )}
-        <Choice
-          label={t("fields.collection")}
-          value={query.collection}
-          onChange={(value) => change("collection", value)}
-          options={[
-            { value: "all", label: t("filters.all_collections") },
-            ...(snapshot?.data.collections ?? []).map((item) => ({
-              value: item.id,
-              label: `${item.name}${item.archived ? ` · ${t("status.archived")}` : ""}`,
-            })),
-          ]}
-        />
-        <div className="flex flex-wrap gap-2">
-          <Button
-            id="knowledge-tour-collection"
-            variant="outline"
-            size="sm"
-            disabled={!snapshot || blocked}
-            onClick={() => addCatalog("collections")}
-          >
-            <FolderPlus />
-            {t("actions.new_collection")}
-          </Button>
-          {currentCollection && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                setCatalog({ group: "collections", record: currentCollection })
-              }
-            >
-              <Pencil />
-              {t("actions.edit")}
-            </Button>
-          )}
-        </div>
-      </ToolPanel>
-      <ToolPanel
-        title={t("exchange.title")}
-        icon={FileText}
-        bodyClassName="space-y-3 p-3"
-      >
-        <p className="text-xs leading-5 text-muted-foreground">
-          {t("exchange.help")}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            data-testid="knowledge-import"
-            size="sm"
-            variant="outline"
-            className="h-auto min-h-8 max-w-full whitespace-normal py-1.5 text-left leading-5"
-            disabled={busy || !snapshot || blocked}
-            onClick={() => void beginImport()}
-          >
-            <Import />
-            {t("actions.import")}
-          </Button>
-          <Button
-            data-testid="knowledge-export"
-            size="sm"
-            variant="outline"
-            className="h-auto min-h-8 max-w-full whitespace-normal py-1.5 text-left leading-5"
-            disabled={!snapshot || busy || blocked}
-            onClick={() => setExportOpen(true)}
-          >
-            <Download />
-            {t("actions.export")}
-          </Button>
-        </div>
-      </ToolPanel>
-      <Button
-        asChild
-        variant="outline"
-        size="sm"
-        className="h-auto min-h-8 w-full justify-between gap-2 whitespace-normal py-2 text-left leading-5"
-      >
-        <Link
-          id="knowledge-tour-studio"
-          data-testid="knowledge-open-studio"
-          to="/tools/subtitle/studio"
-        >
-          {t("guide.translate")}
-          <ArrowRight className="shrink-0" />
-        </Link>
-      </Button>
+  const addCatalog = (group: CatalogGroup) => setCatalog({ group, record: newCatalog(group) });
+  const selectCollection = (id: string, archived = false) => {
+    setView(archived ? "archived" : "materials");
+    setQuery({ ...initialQuery, collection: id });
+    setPage(0);
+  };
+  const setLibraryView = (next: View) => { setView(next); setQuery(initialQuery); setPage(0); };
+  const change = (key: keyof typeof query, value: string) => setQuery({ ...query, [key]: value });
+  const header = <ToolPageHeader meta={TOOL_META.translationKnowledge} title={t("title")} description={t("description")} right={
+    <>
+      <Button data-testid="knowledge-tour-trigger" variant="ghost" size="icon-sm" aria-label={t("tour.trigger")} title={t("tour.trigger")} disabled={!tourReady} onClick={() => setTourOpen(true)}><CircleHelp /></Button>
+      <Button data-testid="knowledge-new-collection" id="knowledge-tour-collection" size="sm" disabled={!snapshot || blocked} onClick={() => addCatalog("collections")}><FolderPlus /><span className="hidden sm:inline">{t("actions.new_collection")}</span></Button>
+    </>
+  } />;
+  const activeCollections = snapshot?.data.collections.filter(item => !item.archived) ?? [];
+  const collectionCount = (id: string) => snapshot?.data.entries.filter(entry => entry.collectionId === id && entry.state !== "archived").length ?? 0;
+  const navClass = (active: boolean) => cn("flex w-full min-w-0 items-start justify-between gap-2 rounded-md px-2 py-2 text-left text-sm outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring", active && "bg-muted font-medium");
+  const aside = <div className="space-y-3">
+    <ToolPanel id="knowledge-collection-list" title={t("workspace.collections")} icon={BookOpen} bodyClassName="space-y-1 p-2">
+      <Button data-testid="knowledge-all" variant="ghost" className={navClass(view === "materials" && query.collection === "all")} onClick={() => selectCollection("all")}>{t("workspace.all")}</Button>
+      {activeCollections.map(collection => <button key={collection.id} data-collection-id={collection.id} aria-current={view === "materials" && query.collection === collection.id ? "true" : undefined} className={navClass(view === "materials" && query.collection === collection.id)} onClick={() => selectCollection(collection.id)}><span className="min-w-0 break-words">{collection.name}</span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{collectionCount(collection.id)}</span></button>)}
+      {!activeCollections.length && <p className="px-2 py-3 text-xs leading-5 text-muted-foreground">{t("workspace.empty_collections")}</p>}
+      <div className="my-2 border-t" />
+      {reviewCount > 0 && <button data-testid="knowledge-review" className={navClass(view === "review")} onClick={() => setLibraryView("review")}><span>{t("workspace.review")}</span><span className="text-xs tabular-nums">{reviewCount}</span></button>}
+      <button data-testid="knowledge-archive" className={navClass(view === "archived")} onClick={() => setLibraryView("archived")}><span className="flex items-center gap-2"><Archive className="size-3.5" />{t("workspace.archived")}</span></button>
+      {view === "archived" && snapshot?.data.collections.filter(item => item.archived).map(collection => <button key={collection.id} className={navClass(query.collection === collection.id)} onClick={() => selectCollection(collection.id, true)}><span className="min-w-0 break-words">{collection.name}</span></button>)}
+    </ToolPanel>
+    <details id="knowledge-more-management" className="rounded-lg border bg-card p-3">
+      <summary className="cursor-pointer text-sm font-medium">{t("workspace.management")}</summary>
+      <div className="mt-3 space-y-2">
+        <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setLibraryView("plans")}>{t("views.plans")}</Button>
+        <Button variant="ghost" size="sm" className="h-auto w-full justify-start whitespace-normal text-left" onClick={() => setLibraryView("stored")}>{t("workspace.stored")}</Button>
+        <details className="rounded-md border p-2"><summary className="cursor-pointer text-xs">{t("subjects.title")}</summary><div className="mt-2 space-y-1">
+          {snapshot?.data.subjects.map(subject => <Button key={subject.id} variant="ghost" size="sm" className="h-auto w-full justify-start whitespace-normal text-left" onClick={() => setCatalog({ group: "subjects", record: subject })}>{subject.name}{subject.archived ? ` · ${t("status.archived")}` : ""}</Button>)}
+          <Button variant="outline" size="sm" disabled={!snapshot || blocked} onClick={() => addCatalog("subjects")}><Plus />{t("actions.new_subject")}</Button>
+        </div></details>
+        <Button data-testid="knowledge-history" variant="ghost" size="sm" className="w-full justify-start" disabled={!snapshot || busy} onClick={() => setHistoryOpen(true)}><History />{t("maintenance.history_title")}</Button>
+      </div>
+    </details>
+    <div className="flex flex-wrap gap-2">
+      <Button data-testid="knowledge-import" size="sm" variant="outline" className="h-auto max-w-full whitespace-normal py-1.5 text-left" disabled={busy || !snapshot || blocked} onClick={() => void beginImport()}><Import />{t("actions.import")}</Button>
+      <Button data-testid="knowledge-export" size="sm" variant="outline" className="h-auto max-w-full whitespace-normal py-1.5 text-left" disabled={!snapshot || busy || blocked} onClick={() => setExportOpen(true)}><Download />{t("actions.export")}</Button>
     </div>
-  );
+    <Button asChild variant="outline" size="sm" className="h-auto min-h-8 w-full justify-between gap-2 whitespace-normal py-2 text-left leading-5"><Link id="knowledge-tour-studio" data-testid="knowledge-open-studio" to="/tools/subtitle/studio">{t("guide.translate")}<ArrowRight className="shrink-0" /></Link></Button>
+  </div>;
   const plans =
     snapshot?.data[planGroup].filter(
       (item) =>
@@ -468,373 +371,60 @@ export default function TranslationKnowledge() {
     planPage,
     Math.max(0, Math.ceil(plans.length / PAGE_SIZE) - 1),
   );
+  const workspaceTitle = view === "materials" ? currentCollection?.name ?? t("workspace.all") : t(view === "plans" ? "views.plans" : view === "review" ? "workspace.review" : view === "archived" ? "workspace.archived" : "workspace.stored");
+  const editableCollection = view === "materials" && currentCollection && !currentCollection.archived ? currentCollection : null;
+  const bulkCollection = snapshot?.data.collections.find(item => item.id === bulkCollectionId);
   return (
-    <div
-      {...dropProps}
-      data-testid="translation-knowledge"
-    >
-      <ToolDetailLayout
-        header={header}
-        aside={aside}
-        className="translation-knowledge md:[&>div.grid]:grid-cols-[220px_minmax(0,1fr)] lg:[&>div.grid]:grid-cols-[320px_minmax(0,1fr)]"
-        asideClassName="lg:w-full"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <ClipPathTabs
-            data-testid="knowledge-views"
-            size="sm"
-            shape="rounded"
-            smoothCorners
-            value={view}
-            onValueChange={(value) => setView(value as View)}
-            ariaLabel={t("views.label")}
-            items={[
-              {
-                value: "materials",
-                label: <span data-knowledge-tour="materials">{t("views.materials")}</span>,
-                ariaLabel: t("views.materials"),
-              },
-              {
-                value: "plans",
-                label: <span data-knowledge-tour="plans">{t("views.plans")}</span>,
-                ariaLabel: t("views.plans"),
-              },
-              {
-                value: "review",
-                label: <span data-knowledge-tour="review">{t("views.review")}{reviewCount ? ` (${reviewCount})` : ""}</span>,
-                ariaLabel: `${t("views.review")}${reviewCount ? ` (${reviewCount})` : ""}`,
-              },
-            ]}
-          />
-          <div className="flex items-center gap-1">
-            <Button
-              data-testid="knowledge-history"
-              size="icon-sm"
-              variant="ghost"
-              aria-label={t("maintenance.history_title")}
-              disabled={!snapshot || busy}
-              onClick={() => setHistoryOpen(true)}
-            >
-              <History />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("actions.refresh")}
-              disabled={loading || busy}
-              onClick={() => void refresh()}
-            >
-              <RefreshCw className={loading ? "animate-spin" : ""} />
-            </Button>
-          </div>
-        </div>
-        {dropError && (
-          <div
-            role="alert"
-            className="rounded-md border border-destructive/25 p-3 text-sm text-destructive"
-          >
-            {t("drop.invalid")}
-          </div>
-        )}
-        {blocked && (
-          <div role="status" className="space-y-2 rounded-md border p-3">
-            <p className="text-sm">{t("maintenance.cleanup_pending")}</p>
-            <Button
-              data-testid="knowledge-cleanup-retry"
-              size="sm"
-              variant="outline"
-              disabled={loading}
-              onClick={() => void refresh()}
-            >
-              {t("maintenance.retry_cleanup")}
-            </Button>
-          </div>
-        )}
+    <div {...dropProps} data-testid="translation-knowledge">
+      <ToolDetailLayout header={header} aside={aside} className="translation-knowledge md:[&>div.grid]:grid-cols-[220px_minmax(0,1fr)] lg:[&>div.grid]:grid-cols-[260px_minmax(0,1fr)]" asideClassName="lg:w-full">
+        {dropError && <p role="alert" className="rounded-md border border-destructive/25 p-3 text-sm text-destructive">{t("drop.invalid")}</p>}
+        {blocked && <div role="status" className="space-y-2 rounded-md border p-3"><p className="text-sm">{t("maintenance.cleanup_pending")}</p><Button data-testid="knowledge-cleanup-retry" size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>{t("maintenance.retry_cleanup")}</Button></div>}
         <ErrorNotice error={error} diagnostics={diagnostics} />
-        {notice && (
-          <div
-            role="status"
-            className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3 text-sm"
-          >
-            <p className="break-words">{notice}</p>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              aria-label={t("actions.dismiss")}
-              onClick={() => setNotice("")}
-            >
-              <X />
-            </Button>
+        {notice && <div role="status" className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3 text-xs"><p className="break-words leading-5">{notice}</p><Button size="icon-xs" variant="ghost" aria-label={t("actions.dismiss")} onClick={() => setNotice("")}><X /></Button></div>}
+        {loading && !snapshot ? <div role="status" className="flex items-center gap-2 p-6 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" />{t("loading")}</div> : snapshot && <>
+          <div id="knowledge-content-heading" className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1"><h2 className="break-words text-lg font-semibold">{workspaceTitle}</h2>{currentCollection && <p className="break-words text-xs leading-5 text-muted-foreground">{currentCollection.defaultLanguagePair ? languagePairLabel(t, currentCollection.defaultLanguagePair) : t("workspace.mixed_languages")}{currentCollection.description ? ` · ${currentCollection.description}` : ""}</p>}</div>
+            <div className="flex shrink-0 items-center gap-1">{currentCollection && <Button variant="ghost" size="icon-sm" data-testid="knowledge-edit-collection" aria-label={t("workspace.edit_collection")} onClick={() => setCatalog({ group: "collections", record: currentCollection })}><Pencil /></Button>}<Button variant="ghost" size="icon-sm" aria-label={t("actions.refresh")} disabled={loading || busy} onClick={() => void refresh()}><RefreshCw className={loading ? "animate-spin" : ""} /></Button></div>
           </div>
-        )}
-        {loading && !snapshot ? (
-          <div
-            role="status"
-            className="flex items-center gap-2 p-6 text-sm text-muted-foreground"
-          >
-            <LoaderCircle className="size-4 animate-spin" />
-            {t("loading")}
-          </div>
-        ) : (
-          snapshot && (
-            <>
-              <ToolPanel
-                title={t(`views.${view}`)}
-                badge={
-                  <Badge variant="secondary">
-                    {view === "plans" ? plans.length : filtered.length}
-                  </Badge>
-                }
-                actions={
-                  <Button
-                    data-testid="knowledge-new-entry"
-                    size="sm"
-                    onClick={() =>
-                      view === "plans" ? addCatalog(planGroup) : startEntry()
-                    }
-                    disabled={busy || blocked}
-                  >
-                    <Plus />
-                    {t(
-                      view === "plans"
-                        ? "actions.new_plan_item"
-                        : "actions.new_entry",
-                    )}
-                  </Button>
-                }
-                bodyClassName="min-w-0"
-              >
-                <div className="space-y-3 border-b p-3">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-                    <Input
-                      aria-label={t("filters.search")}
-                      placeholder={t("filters.search")}
-                      value={query.search}
-                      onChange={(event) => {
-                        change("search", event.target.value);
-                        setPlanPage(0);
-                      }}
-                      className="h-8 pl-8 text-sm"
-                    />
+          {view === "materials" && <ClipPathTabs data-testid="knowledge-views" size="sm" shape="rounded" smoothCorners value={contentKind} onValueChange={value => setContentKind(value as ContentKind)} ariaLabel={t("workspace.content_types")} items={[
+            { value: "term", label: t("workspace.terms") }, { value: "context", label: t("workspace.contexts") }, { value: "rule", label: t("workspace.rules") },
+          ]} />}
+          {view === "stored" && <p className="text-xs leading-5 text-muted-foreground">{t("guide.storage_only_help")}</p>}
+          <ToolPanel id="knowledge-content" title={t(view === "materials" ? `workspace.${contentKind === "term" ? "terms" : contentKind === "context" ? "contexts" : "rules"}` : view === "plans" ? "views.plans" : "views.materials")} badge={<Badge variant="secondary">{view === "plans" ? plans.length : filtered.length}</Badge>} actions={<>
+            {view === "materials" && contentKind === "term" && <Button data-testid="knowledge-paste-open" variant="outline" size="sm" disabled={busy || blocked} onClick={() => startEntry("bulk")}><ClipboardPaste />{t("paste.title")}</Button>}
+            {(view === "materials" || view === "plans") && <Button data-testid="knowledge-new-entry" size="sm" disabled={busy || blocked} onClick={() => view === "plans" ? addCatalog(planGroup) : startEntry()}><Plus />{t(view === "plans" ? "actions.new_plan_item" : contentKind === "term" ? "workspace.add_term" : contentKind === "context" ? "workspace.add_context" : "workspace.add_rule")}</Button>}
+          </>} bodyClassName="min-w-0">
+            <div className="space-y-3 border-b p-3"><div className="relative"><Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" /><Input aria-label={t("filters.search")} placeholder={t("filters.search")} value={query.search} onChange={event => { change("search", event.target.value); setPlanPage(0); }} className="h-8 pl-8 text-sm" /></div>
+              {view === "plans" && <Choice label={t("plans.category")} value={planGroup} onChange={value => { setPlanGroup(value as typeof planGroup); setPlanPage(0); }} options={["recipes", "styles", "preferenceTemplates"].map(value => ({ value, label: t(optionKey(`group.${value}`)) }))} />}
+            </div>
+            {view === "plans" ? <>
+              <div className="space-y-1 p-2">{plans.slice(safePlanPage * PAGE_SIZE, (safePlanPage + 1) * PAGE_SIZE).map(item => <div key={item.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted/50"><button className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCatalog({ group: planGroup, record: item })}><p className="break-words text-sm font-medium">{item.name}{item.archived ? ` · ${t("status.archived")}` : ""}</p><p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">{"description" in item ? item.description : item.instructions}</p></button><Button size="icon-sm" variant="ghost" aria-label={t("actions.copy")} onClick={() => setCatalog({ group: planGroup, record: { ...item, id: freshId(), revision: 1, name: t("copy_name", { name: item.name }), archived: false } })}><Copy /></Button></div>)}{!plans.length && <Empty title={t("empty.plans")} description={t("empty.plans_help")} />}</div>
+              <Pagination page={safePlanPage} total={plans.length} onChange={setPlanPage} />
+            </> : <>
+              {view === "materials" && contentKind === "term" && filtered.length > 0 && <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] gap-3 border-b px-4 py-2 text-xs text-muted-foreground"><span>{t("fields.source_text")}</span><span>{t("fields.target_text")}</span><span /></div>}
+              <div className="space-y-1 p-2">{filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE).map(entry => <div key={entry.id} className="group flex min-w-0 items-start gap-2 rounded-md p-2 hover:bg-muted/60">
+                <button data-entry-id={entry.id} onClick={() => setEntryEditor(entry)} className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {entry.kind === "term" ? <div className="grid grid-cols-2 gap-3 text-sm"><span className="break-words font-medium">{entry.payload.source}</span><span className="break-words">{entry.payload.target}</span></div> : <p className="whitespace-pre-wrap break-words text-sm leading-6">{entrySummary(entry)}</p>}
+                  <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] leading-5 text-muted-foreground">
+                    {query.collection === "all" && <span>{snapshot.data.collections.find(item => item.id === entry.collectionId)?.name}</span>}
+                    {entryStatus(entry, snapshot) !== "ready" && <span>{t(`status.${entryStatus(entry, snapshot)}`)}</span>}
+                    {(entry.scope.requiredSubjects.length > 0 || entry.scope.condition.mode !== "none") && <span>{t("workspace.limited")}</span>}
+                    {entry.kind === "term" && entry.payload.sense && <span className="break-words">{entry.payload.sense}</span>}
+                    {(entry.kind === "expression" || entry.kind === "memory") && <span>{t("guide.storage_only")}</span>}
                   </div>
-                  {view === "plans" ? (
-                    <>
-                      <Choice
-                        label={t("plans.category")}
-                        value={planGroup}
-                        onChange={(value) => {
-                          setPlanGroup(value as typeof planGroup);
-                          setPlanPage(0);
-                        }}
-                        options={[
-                          "recipes",
-                          "styles",
-                          "preferenceTemplates",
-                        ].map((value) => ({
-                          value,
-                          label: t(optionKey(`group.${value}`)),
-                        }))}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        {t("plans.notice")}
-                      </p>
-                    </>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-                      <Choice
-                        label={t("fields.kind")}
-                        value={query.kind}
-                        onChange={(value) => change("kind", value)}
-                        options={[
-                          { value: "all", label: t("filters.all_kinds") },
-                          ...options("kind", [
-                            "term",
-                            "context",
-                            "expression",
-                            "memory",
-                            "rule",
-                          ]),
-                        ]}
-                      />
-                      <Choice
-                        label={t("fields.language")}
-                        value={query.language}
-                        onChange={(value) => change("language", value)}
-                        options={[
-                          { value: "all", label: t("filters.all_languages") },
-                          ...[
-                            ...new Set(
-                              snapshot.data.entries.map((entry) =>
-                                languageKey(entry.scope.languagePair),
-                              ),
-                            ),
-                          ]
-                            .sort()
-                            .map((value) => ({ value, label: value })),
-                        ]}
-                      />
-                      <Choice
-                        label={t("fields.status")}
-                        value={query.status}
-                        onChange={(value) => change("status", value)}
-                        options={[
-                          { value: "all", label: t("filters.all_statuses") },
-                          ...options(
-                            "status",
-                            view === "review"
-                              ? ["candidate", "unconfirmed", "needs_review"]
-                              : [
-                                  "ready",
-                                  "candidate",
-                                  "unconfirmed",
-                                  "needs_review",
-                                  "rejected",
-                                  "archived",
-                                ],
-                          ),
-                        ]}
-                      />
-                    </div>
-                  )}
-                </div>
-                {view === "plans" ? (
-                  <>
-                    <div className="space-y-1 p-2">
-                      {plans
-                        .slice(
-                          safePlanPage * PAGE_SIZE,
-                          (safePlanPage + 1) * PAGE_SIZE,
-                        )
-                        .map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-start gap-2 rounded-lg p-2 hover:bg-muted/50"
-                          >
-                            <button
-                              className="min-w-0 flex-1 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              onClick={() =>
-                                setCatalog({ group: planGroup, record: item })
-                              }
-                            >
-                              <p className="break-words text-sm font-medium">
-                                {item.name}
-                                {item.archived && (
-                                  <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                    {t("status.archived")}
-                                  </span>
-                                )}
-                              </p>
-                              <p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">
-                                {"description" in item
-                                  ? item.description
-                                  : item.instructions}
-                              </p>
-                            </button>
-                            <Button
-                              size="icon-sm"
-                              variant="ghost"
-                              aria-label={t("actions.copy")}
-                              onClick={() =>
-                                setCatalog({
-                                  group: planGroup,
-                                  record: {
-                                    ...item,
-                                    id: freshId(),
-                                    revision: 1,
-                                    name: t("copy_name", { name: item.name }),
-                                    archived: false,
-                                  },
-                                })
-                              }
-                            >
-                              <Copy />
-                            </Button>
-                          </div>
-                        ))}
-                      {!plans.length && (
-                        <Empty
-                          title={t("empty.plans")}
-                          description={t("empty.plans_help")}
-                        />
-                      )}
-                    </div>
-                    <Pagination
-                      page={safePlanPage}
-                      total={plans.length}
-                      onChange={setPlanPage}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <div className="space-y-1 p-2">
-                      {filtered
-                        .slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE)
-                        .map((entry) => (
-                          <button
-                            key={entry.id}
-                            data-entry-id={entry.id}
-                            onClick={() => {
-                              setSelected(entry.id);
-                              setDetailError(null);
-                            }}
-                            className={cn(
-                              "block w-full min-w-0 rounded-lg p-2 text-left outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring",
-                              selected === entry.id && "bg-muted",
-                            )}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <p className="min-w-0 break-words text-sm font-medium">
-                                {entry.title}
-                              </p>
-                              <Badge
-                                variant="outline"
-                                className="shrink-0 text-[10px]"
-                              >
-                                {t(`status.${entryStatus(entry, snapshot)}`)}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 line-clamp-2 break-words text-sm text-muted-foreground">
-                              {entrySummary(entry)}
-                            </p>
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              {t(`kind.${entry.kind}`)} ·{" "}
-                              {(entry.kind === "expression" || entry.kind === "memory") && <>{t("guide.storage_only")} · </>}
-                              {languageKey(entry.scope.languagePair)} ·{" "}
-                              {entry.scope.requiredSubjects.length
-                                ? t("scope.limited", {
-                                    count: entry.scope.requiredSubjects.length,
-                                  })
-                                : t("scope.general")}
-                            </p>
-                          </button>
-                        ))}
-                      {!filtered.length && (
-                        <Empty
-                          title={t(
-                            view === "review"
-                              ? "empty.review"
-                              : "empty.materials",
-                          )}
-                          description={t(
-                            snapshot.data.entries.length
-                              ? "empty.filtered"
-                              : "empty.materials_help",
-                          )}
-                        />
-                      )}
-                    </div>
-                    <Pagination
-                      page={safePage}
-                      total={filtered.length}
-                      onChange={setPage}
-                    />
-                  </>
-                )}
-              </ToolPanel>
-            </>
-          )
-        )}
+                </button>
+                <Button size="icon-sm" variant="ghost" data-testid={`knowledge-entry-details-${entry.id}`} aria-label={t("workspace.entry_details")} onClick={() => { setSelected(entry.id); setDetailError(null); }}><Ellipsis /></Button>
+              </div>)}{!filtered.length && <Empty title={t(view === "review" ? "empty.review" : "workspace.empty_content")} description={t(query.search ? "empty.filtered" : "workspace.empty_content_help")} />}</div>
+              {editableCollection && contentKind === "term" && <InlineTermEditor key={editableCollection.id} collection={editableCollection} snapshot={snapshot} disabled={busy || blocked} onSave={save} onAdvanced={setEntryEditor} />}
+              <Pagination page={safePage} total={filtered.length} onChange={setPage} />
+            </>}
+          </ToolPanel>
+        </>}
+        {snapshot && destination && <KnowledgeDialog title={t("workspace.choose_collection")} description={t("workspace.choose_collection_help")} footer={null} onClose={() => setDestination(null)}>
+          <div className="space-y-2">{activeCollections.map(collection => <Button key={collection.id} variant="outline" className="h-auto w-full justify-between gap-2 whitespace-normal py-3 text-left" onClick={() => beginForCollection(collection.id, destination)}><span className="break-words">{collection.name}</span><ArrowRight className="shrink-0" /></Button>)}</div>
+          <Button variant="ghost" size="sm" onClick={() => { continuationKind.current = destination; continueWithEntry.current = true; setDestination(null); addCatalog("collections"); }}><Plus />{t("actions.new_collection")}</Button>
+        </KnowledgeDialog>}
+        {bulkCollection && <BulkTermPaste collection={bulkCollection} api={api} onSnapshot={setSnapshot} onClose={() => setBulkCollectionId(null)} />}
         {snapshot && entryEditor && (
           <EntryEditor
             key={entryEditor.id}
@@ -887,7 +477,7 @@ export default function TranslationKnowledge() {
         {snapshot && currentEntry && !entryEditor && (
           <KnowledgeDialog
             title={currentEntry.title}
-            description={`${t(`kind.${currentEntry.kind}`)} · ${languageKey(currentEntry.scope.languagePair)} · ${t(`status.${entryStatus(currentEntry, snapshot)}`)}`}
+            description={`${t(`kind.${currentEntry.kind}`)} · ${languagePairLabel(t, currentEntry.scope.languagePair)} · ${t(`status.${entryStatus(currentEntry, snapshot)}`)}`}
             onClose={() => setSelected(null)}
             pending={busy}
             footer={

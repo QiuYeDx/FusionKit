@@ -254,7 +254,7 @@ export function CatalogEditor({
           false,
           true,
         )}
-        {"description" in record &&
+        {"description" in record && group !== "collections" &&
           text(
             "description",
             record.description,
@@ -292,14 +292,6 @@ export function CatalogEditor({
         )}
         {"aboutSubjectIds" in record && (
           <>
-            <MultiChoice
-              label={t("fields.about_subjects")}
-              options={snapshot.data.subjects}
-              value={record.aboutSubjectIds}
-              onChange={(aboutSubjectIds) =>
-                setRecord({ ...record, aboutSubjectIds })
-              }
-            />
             <div className="grid grid-cols-2 gap-4">
               {text(
                 "source_language",
@@ -329,6 +321,17 @@ export function CatalogEditor({
             <p className="text-xs text-muted-foreground">
               {t("editor.language_defaults")}
             </p>
+            <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">{t("workspace.collection_optional")}</summary><div className="mt-3 space-y-4">
+              {text("description", record.description, description => setRecord({ ...record, description }), true)}
+            <MultiChoice
+              label={t("fields.about_subjects")}
+              options={snapshot.data.subjects}
+              value={record.aboutSubjectIds}
+              onChange={(aboutSubjectIds) =>
+                setRecord({ ...record, aboutSubjectIds })
+              }
+            />
+            </div></details>
           </>
         )}
         {"languagePair" in record && (

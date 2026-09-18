@@ -6,6 +6,7 @@ export const FALLBACK_LANGUAGE = LangEnum.ZH;
 export const SUPPORTED_LANGUAGES = Object.values(LangEnum) as LangEnum[];
 
 export const NAMESPACES = [
+  "materials",
   "knowledge",
   "common",
   "home",

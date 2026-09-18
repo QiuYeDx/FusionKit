@@ -1,0 +1,21 @@
+{
+  "title": "Remember a translation",
+  "description": "Confirm the term, translation and collection for future use.",
+  "source": "Source term",
+  "target": "Translation",
+  "collection": "Save to collection",
+  "new_collection": "New collection…",
+  "collection_name": "Collection name",
+  "source_language": "Source language",
+  "target_language": "Target language",
+  "save": "Save and apply",
+  "loading": "Loading collections…",
+  "boundary_hint": "Keep only the word or phrase you want to reuse. Review the prefilled sentence and narrow it to the intended term.",
+  "future_hint": "Available for future translations that select this collection. Existing translations will not change.",
+  "duplicate": "This translation already exists in the collection. View or approve it on the materials page.",
+  "conflict": "This collection has another translation for the same term. Review which entry to use when checking your translation.",
+  "saved": "Translation saved. Select its collection when translating.",
+  "source_note": "User-confirmed terminology",
+  "remember": "Remember translation",
+  "cue_actions": "Subtitle actions"
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Clock3, Copy } from 'lucide-react';
+import { BookmarkPlus, Check, Clock3, Copy, Ellipsis } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -14,11 +14,12 @@ const copyLabels = {
   bilingual: 'studio:copy_options.bilingual',
 } as const;
 
-export function StudioCueCopy({ cue, translation, copied, onCopy }: {
+export function StudioCueCopy({ cue, translation, copied, onCopy, onRemember }: {
   cue: Pick<SubtitleCue, 'source' | 'timing' | 'sourceRevision'>;
   translation?: { text: SubtitleText; sourceRevision: number };
   copied: boolean;
   onCopy: (text: string) => void | Promise<void>;
+  onRemember?: () => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -35,11 +36,11 @@ export function StudioCueCopy({ cue, translation, copied, onCopy }: {
   return <DropdownMenu open={open} onOpenChange={setOpen}>
     <Tooltip delayDuration={350} open={open ? false : undefined}>
       <TooltipTrigger asChild><DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-xs" className={copied ? 'studio-copy is-copied text-emerald-600 dark:text-emerald-400' : 'studio-copy text-muted-foreground'} aria-label={t('studio:copy_options.choose')}>
-          {copied ? <Check /> : <Copy />}
+        <Button variant="ghost" size="icon-xs" className={copied ? 'studio-copy is-copied text-emerald-600 dark:text-emerald-400' : 'studio-copy text-muted-foreground'} aria-label={t(onRemember ? 'materials:cue_actions' : 'studio:copy_options.choose')}>
+          {copied ? <Check /> : onRemember ? <Ellipsis /> : <Copy />}
         </Button>
       </DropdownMenuTrigger></TooltipTrigger>
-      <TooltipContent sideOffset={6}>{t(copied ? 'studio:copied' : 'studio:copy_options.choose')}</TooltipContent>
+      <TooltipContent sideOffset={6}>{t(copied ? 'studio:copied' : onRemember ? 'materials:cue_actions' : 'studio:copy_options.choose')}</TooltipContent>
     </Tooltip>
     <DropdownMenuContent align="end" data-testid="studio-copy-menu" className="studio-copy-menu">
       {choices(false)}
@@ -51,6 +52,7 @@ export function StudioCueCopy({ cue, translation, copied, onCopy }: {
           {cue.timing.endMs === null && <p className="studio-copy-hint">{t('studio:copy_options.start_only')}</p>}
         </DropdownMenuSubContent></DropdownMenuPortal>
       </DropdownMenuSub>
+      {onRemember && <><DropdownMenuSeparator /><DropdownMenuItem data-testid="studio-remember-term" onSelect={onRemember}><BookmarkPlus />{t('materials:remember')}</DropdownMenuItem></>}
       {(!hasTarget || stale) && <><DropdownMenuSeparator /><p className="studio-copy-hint" role="note">{t(stale ? 'studio:copy_options.stale' : 'studio:copy_options.no_translation')}</p></>}
     </DropdownMenuContent>
   </DropdownMenu>;

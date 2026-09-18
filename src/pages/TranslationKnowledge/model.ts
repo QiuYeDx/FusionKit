@@ -3,11 +3,13 @@ import type {
   Entry,
   KnowledgePackage,
   Subject,
+  Source,
 } from "@/translation-knowledge/schemas";
 import type {
   ImportDecision,
   ImportItem,
   LibrarySnapshot,
+  SaveRecordRequest,
 } from "@/translation-knowledge/ipc-contract";
 import type { MaintenanceCommit, MaintenancePreview } from "@/translation-knowledge/maintenance-contract";
 
@@ -156,7 +158,7 @@ export function recordFields(
 export function newEntry(
   collection: Collection,
   subjectId?: string,
-  availableSubjects: Subject[] = [],
+  _availableSubjects: Subject[] = [],
 ): Entry {
   const subjects = subjectId ? [subjectId] : collection.aboutSubjectIds;
   return {
@@ -171,14 +173,7 @@ export function newEntry(
         source: "ja",
         target: "zh-Hans",
       },
-      requiredSubjects: subjects.map((subjectId) => ({
-        subjectId,
-        role:
-          availableSubjects.find((item) => item.id === subjectId)?.kind ===
-          "person"
-            ? ("present" as const)
-            : ("topic" as const),
-      })),
+      requiredSubjects: [],
       condition: { mode: "none" },
     },
     state: "candidate",
@@ -213,4 +208,34 @@ export function exportPreviewCurrent(
   generation: number,
 ) {
   return !!preview && preview.generation === generation;
+}
+
+/** A human action approves exactly this revision; it never changes task selection. */
+export function manualEntryRequest(entry: Entry, snapshot: LibrarySnapshot, apply: boolean, sourceTitle: string, sourceNote = ""): SaveRecordRequest {
+  const existing = snapshot.data.entries.some(item => item.id === entry.id);
+  const summary = entry.kind === "term" || entry.kind === "memory"
+    ? `${entry.payload.source} → ${entry.payload.target}`
+    : entry.kind === "expression" ? entry.payload.interpretation : entry.payload.text;
+  const source: Source | undefined = !existing || sourceNote.trim()
+    ? { id: freshId(), revision: 1, kind: "user_note", title: sourceTitle, excerpt: sourceNote.trim() || summary }
+    : undefined;
+  const archived = existing && entry.state === "archived";
+  return {
+    generation: snapshot.generation,
+    group: "entries",
+    record: {
+      ...entry,
+      title: entry.title.trim() || (entry.kind === "term" || entry.kind === "memory" ? entry.payload.source : summary).trim().slice(0, 120),
+      state: archived ? "archived" : apply ? "ready" : "candidate",
+      evidence: source ? [...entry.evidence, { sourceId: source.id, support: "direct" }] : entry.evidence,
+    },
+    ...(source ? { source } : {}),
+    adopt: !archived && apply,
+  };
+}
+
+export function withEntryKind(entry: Entry, kind: "term" | "context" | "rule"): Entry {
+  if (kind === "term") return entry;
+  if (kind === "context") return { ...entry, kind, payload: { text: "", assertion: "fact", core: false } };
+  return { ...entry, kind, payload: { dimension: "other", text: "", strength: "preferred" } };
 }

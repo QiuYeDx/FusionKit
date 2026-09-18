@@ -167,6 +167,55 @@ describe('translation knowledge service', () => {
     expect(await service.read()).toEqual(before);
   });
 
+  it('keeps confirmed entries and their explicit scopes intact when collection display metadata changes', async () => {
+    const { service } = await fixture(); await importData(service, example(), true);
+    const before = await service.read(), original = before.data.collections[0];
+    const record = { ...original, name: 'Renamed collection', description: 'New description', aboutSubjectIds: [], defaultLanguagePair: { source: 'ja', target: 'en' } };
+    const after = await service.saveRecord({ generation: before.generation, group: 'collections', record });
+    expect(after.generation).toBe(before.generation + 1);
+    expect(after.data.collections[0]).toEqual({ ...record, revision: original.revision + 1 });
+    expect(after.data.entries).toEqual(before.data.entries);
+    expect(after.approvals).toEqual(before.approvals);
+    expect(await service.read()).toEqual(after);
+  });
+
+  it('preserves entry approvals when explicitly importing only collection metadata changes', async () => {
+    const { service } = await fixture(); await importData(service, example(), true);
+    const before = await service.read(), incoming = structuredClone(before.data), collection = incoming.collections[0];
+    collection.revision++; collection.name = 'Imported display name'; collection.defaultLanguagePair = { source: 'ja', target: 'en' };
+    const preview = await service.planImport('owner-a', JSON.stringify(incoming));
+    await service.commitImport('owner-a', { planId: preview.planId, decisions: [{ id: collection.id, action: 'replace' }], adoptReady: false });
+    const after = await service.read();
+    expect(after.data.collections[0].name).toBe(collection.name);
+    expect(after.data.entries).toEqual(before.data.entries);
+    expect(after.approvals).toEqual(before.approvals);
+  });
+
+  it('still revokes dependent approval when a collection is archived and does not restore it on unarchive', async () => {
+    const { service } = await fixture(); await importData(service, example(), true);
+    const before = await service.read();
+    const archived = await service.saveRecord({ generation: before.generation, group: 'collections', record: { ...before.data.collections[0], archived: true } });
+    expect(archived.approvals).toEqual({});
+    expect(archived.data.entries.every(entry => entry.state === 'needs_review')).toBe(true);
+    const restored = await service.saveRecord({ generation: archived.generation, group: 'collections', record: { ...archived.data.collections[0], archived: false } });
+    expect(restored.approvals).toEqual({});
+    expect(restored.data.entries).toEqual(archived.data.entries);
+  });
+
+  it('atomically approves an edited ready revision and only removes its approval for an explicit draft save', async () => {
+    const { service } = await fixture(); await importData(service, example(), true);
+    const before = await service.read(), original = before.data.entries[0];
+    expect(before.approvals[original.id]).toBeDefined();
+    const applied = await service.saveRecord({ generation: before.generation, group: 'entries', record: { ...original, title: 'My corrected term' }, adopt: true });
+    const current = applied.data.entries.find(entry => entry.id === original.id)!;
+    expect(current).toMatchObject({ state: 'ready', revision: original.revision + 1 });
+    expect(applied.approvals[current.id]).toMatchObject({ revision: current.revision, digest: sha256Canonical(current), method: 'human' });
+    expect(applied.approvals[current.id].digest).not.toBe(before.approvals[current.id].digest);
+    const draft = await service.saveRecord({ generation: applied.generation, group: 'entries', record: { ...current, state: 'candidate' }, adopt: false });
+    expect(draft.approvals[current.id]).toBeUndefined();
+    expect(draft.data.entries.find(entry => entry.id === current.id)).toMatchObject({ state: 'candidate', revision: current.revision + 1 });
+  });
+
   it('allows identical terms with different meanings in separate collections and subject scopes', async () => {
     const { service } = await fixture(); const data = example();
     const alternativeSubject = { ...data.subjects[0], id: randomUUID(), name: 'A different work' };

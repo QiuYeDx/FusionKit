@@ -77,291 +77,206 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
       const result = await window.subtitleStudio.readDocumentPage({ documentId: document.id, revision: document.revision, offset: 0 });
       if (!result.ok) throw new Error(result.error); return result.value;
     });
-    const parentDialog = () => ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-knowledge-enabled') });
-    const knowledgeDialog = () => ui.getByRole('dialog').filter({ has: ui.getByTestId('knowledge-trial-content') });
-    const assertNoOrdinaryAction = async () => {
-      await uiExpect(parentDialog().getByRole('button', { name: '计算用量', exact: true })).toHaveCount(0);
-      await uiExpect(parentDialog().getByRole('button', { name: '开始翻译', exact: true })).toHaveCount(0);
-      await uiExpect(ui.getByTestId('studio-translation-knowledge-open')).toBeEnabled();
+    const translate = () => ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-model') });
+    const openTranslation = async () => {
+      await ui.getByRole('button', { name: '翻译', exact: true }).click();
+      await uiExpect(translate()).toBeVisible();
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
     };
-    const tourTargets = [
-      '#knowledge-tour-collection',
-      '[data-testid="knowledge-views"] [role="tab"]:has([data-knowledge-tour="materials"])',
-      '[data-testid="knowledge-views"] [role="tab"]:has([data-knowledge-tour="review"])',
-      '[data-testid="knowledge-views"] [role="tab"]:has([data-knowledge-tour="plans"])',
-      '#knowledge-tour-studio',
-    ];
-    const tourTitles = {
-      zh: ['先建一个资料集', '从一条术语开始', '采纳后，才能用于翻译', '重复使用时，再建方案', '到工作台，按次选择资料'],
-      en: ['Start with a collection', 'Add your first term', 'Review before using', 'Reuse a setup with recipes', 'Choose materials in Studio'],
-    };
-    const assertTourStep = async (locale: 'zh' | 'en', step: number) => {
-      const tour = ui.getByRole('dialog', { name: tourTitles[locale][step], exact: true });
-      await uiExpect(tour).toBeVisible();
-      await uiExpect(tour).toContainText(`${step + 1} / ${tourTargets.length}`);
-      await uiExpect(tour).not.toContainText('当前目标暂不可见');
-      // Measure the actual highlighted control after the shared Tour has scrolled
-      // and settled. A matching heading alone would not prove correct anchoring.
-      await uiExpect.poll(async () => ui.evaluate(selector => {
-        const target = document.querySelector(selector)?.getBoundingClientRect();
-        const spotlight = document.querySelector('.knowledge-tour-spotlight')?.getBoundingClientRect();
-        if (!target || !spotlight) return false;
-        return target.width > 0 && target.height > 0
-          && target.top >= 0 && target.bottom <= innerHeight
-          && target.left >= 0 && target.right <= innerWidth
-          && spotlight.left <= target.left + 1 && spotlight.right >= target.right - 1
-          && spotlight.top <= target.top + 1 && spotlight.bottom >= target.bottom - 1
-          && Math.abs(spotlight.left - target.left) <= 16 && Math.abs(spotlight.right - target.right) <= 16
-          && Math.abs(spotlight.top - target.top) <= 16 && Math.abs(spotlight.bottom - target.bottom) <= 16;
-      }, tourTargets[step])).toBe(true);
-      await geometry(tour);
-      expect(await tour.evaluate(element => {
-        const rect = element.getBoundingClientRect();
-        return rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0;
-      })).toBe(true);
-      return tour;
-    };
-    const finishTour = async (locale: 'zh' | 'en', name: string) => {
+    const tour = async (name: string) => {
       await ui.getByTestId('knowledge-tour-trigger').click();
-      for (let step = 0; step < tourTargets.length; step++) {
-        await assertTourStep(locale, step);
-        await capture(`${name}-step-${step + 1}`);
+      for (let i = 0; i < 5; i++) {
+        const dialog = ui.locator('.knowledge-tour-popover');
+        await uiExpect(dialog).toBeVisible();
+        await uiExpect(dialog).toContainText(`${i + 1} / 5`);
+        await uiExpect(dialog).not.toContainText('当前目标暂不可见');
+        // Motion's spring/layout transitions are not CSS animations, so the
+        // screenshot option alone cannot settle a newly selected Tour step.
+        await dialog.evaluate(element => new Promise<void>((resolve, reject) => {
+          const started = performance.now(); let previous: number[] = [], stable = 0;
+          const sample = () => {
+            const nodes = [element, ...element.querySelectorAll('div'), ...document.querySelectorAll('.knowledge-tour-spotlight')];
+            const values = nodes.flatMap(node => { const r = node.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; });
+            stable = values.length === previous.length && values.every((value, i) => Math.abs(value - previous[i]) < 0.1) ? stable + 1 : 0;
+            previous = values;
+            if (stable >= 10 && performance.now() - started > 500) { resolve(); return; }
+            if (performance.now() - started > 5000) { reject(new Error('Tour layout did not settle')); return; }
+            requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        }));
+        // The decorative arrow intentionally extends beyond the panel. Check
+        // its content box for overflow and the panel itself against the viewport.
+        await geometry(dialog.locator(':scope > div'));
+        expect(await dialog.evaluate(element => { const r = element.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; })).toBe(true);
+        await capture(`${name}-step-${i + 1}`);
         await ui.getByTestId('knowledge-tour-next').click();
       }
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      expect(await ui.evaluate(() => localStorage.getItem('translation-knowledge-tour-done'))).toBe('1');
     };
-    const checkCatalogSpacing = async (name: string) => {
+    const catalogSpacing = async () => {
       await ui.evaluate(() => { location.hash = '/tools'; });
       await uiExpect(ui.getByTestId('tools-catalog')).toBeVisible();
-      await ui.getByTestId('tools-classic-grid').evaluate(element => element.scrollIntoView({ block: 'center' }));
-      const measure = () => ui.evaluate(() => {
-        const rect = (testId: string) => document.querySelector(`[data-testid="${testId}"]`)!.getBoundingClientRect();
-        return {
-          classicGap: rect('tools-classic-heading').top - rect('tools-featured-grid').bottom,
-          experimentalGap: rect('tools-experimental-heading').top - rect('tools-classic-grid').bottom,
-          viewport: { width: innerWidth, height: innerHeight },
-        };
+      const gaps = await ui.evaluate(() => {
+        const rect = (id: string) => document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
+        return [rect('tools-classic-heading').top - rect('tools-featured-grid').bottom, rect('tools-experimental-heading').top - rect('tools-classic-grid').bottom];
       });
-      await uiExpect.poll(async () => {
-        const { classicGap, experimentalGap } = await measure();
-        return Math.abs(classicGap - experimentalGap);
-      }).toBeLessThanOrEqual(1);
-      const measured = await measure();
-      expect(measured.classicGap).toBeGreaterThan(0);
-      await writeFile(path.join(artifacts, `${name}-geometry.json`), JSON.stringify(measured, null, 2));
-      await capture(name);
+      expect(gaps[0]).toBe(32); expect(gaps[1]).toBe(32);
     };
-
     try {
       await ui.evaluate(port => {
         localStorage.setItem('lang', 'zh');
+        localStorage.setItem('subtitle-converter-tour-done', '1');
+        localStorage.setItem('subtitle-translator-tour-done', '1');
         localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
-        localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'consumer-ux-fixture', name: 'Local consumer UX fixture', provider: 'DeepSeek', apiKey: 'synthetic-consumer-ux-key', baseUrl: `http://127.0.0.1:${port}`, modelKey: 'deepseek-v4-flash', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'consumer-ux-fixture', agent: null }, audioProfiles: [], audioAssignment: {} } }));
+        localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'consumer-fixture', name: 'Local consumer UX fixture', provider: 'DeepSeek', apiKey: 'synthetic-consumer-key', baseUrl: `http://127.0.0.1:${port}`, modelKey: 'deepseek-v4-flash', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'consumer-fixture', agent: null }, audioProfiles: [], audioAssignment: {} } }));
         location.hash = '/tools/translation-knowledge';
       }, port);
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await assertTourStep('zh', 0);
-      await capture('tour-first-visit-zh-light-wide');
-      expect((await readLibrary()).data.entries).toHaveLength(0);
+      await ui.reload(); await nativeWindow.evaluate(win => win.setSize(1280, 860));
+      await uiExpect(ui.locator('.knowledge-tour-popover')).toBeVisible();
       await ui.getByTestId('knowledge-tour-skip').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       expect(await ui.evaluate(() => localStorage.getItem('translation-knowledge-tour-done'))).toBe('1');
       await ui.reload();
-      await capture('workspace-empty-zh-light-wide', ui.getByTestId('knowledge-new-entry'));
+      await capture('redesign-empty-zh-light', ui.getByTestId('knowledge-new-collection'));
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('knowledge-guide')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('knowledge-open-studio')).toBeVisible();
-      await finishTour('zh', 'tour-zh-light-wide');
-      expect((await readLibrary()).data.entries).toHaveLength(0);
-
-      await ui.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
-      await capture('workspace-empty-en-dark-narrow', ui.getByTestId('knowledge-new-entry'));
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('knowledge-guide')).toHaveCount(0);
-      await finishTour('en', 'tour-en-dark-narrow');
-      expect((await readLibrary()).data.collections).toHaveLength(0);
-
-      await ui.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); });
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await ui.getByTestId('knowledge-new-entry').click();
-      const collectionName = '旅行视频术语 · 首次使用时明确选择的资料集';
-      const catalog = ui.getByRole('dialog').filter({ has: ui.getByRole('textbox', { name: '名称', exact: true }) });
-      await catalog.getByRole('textbox', { name: '名称', exact: true }).fill(collectionName);
-      await catalog.getByRole('combobox', { name: '原文语言', exact: true }).click();
+      await tour('redesign-tour-zh-light');
+      await ui.getByTestId('knowledge-new-collection').click();
+      const collectionName = '旅行视频术语 · 日常维护与明确选用的资料集';
+      await ui.getByRole('dialog').getByRole('textbox', { name: '名称', exact: true }).fill(collectionName);
+      await ui.getByRole('dialog').getByRole('combobox', { name: '原文语言', exact: true }).click();
       await ui.getByRole('option', { name: '英语', exact: true }).click();
-      await catalog.getByRole('combobox', { name: '目标语言', exact: true }).click();
-      await ui.getByRole('option', { name: '简体中文', exact: true }).click();
-      await catalog.getByRole('button', { name: '保存', exact: true }).click();
-      // Saving the first collection continues into its entry editor without another action.
-      const editor = ui.getByRole('dialog').filter({ has: ui.getByRole('textbox', { name: '原文', exact: true }) });
-      await uiExpect(editor).toBeVisible();
-      await uiExpect(catalog).toHaveCount(0);
-      await uiExpect(editor.getByRole('combobox', { name: '资料集', exact: true })).toContainText(collectionName);
-      await uiExpect(editor.getByRole('combobox', { name: '原文语言', exact: true })).toContainText('英语');
-      await editor.getByRole('textbox', { name: '原文', exact: true }).fill('checkpoint');
-      await editor.getByRole('textbox', { name: '译文', exact: true }).fill('存档点');
-      await editor.getByRole('checkbox', { name: '我已核对内容与范围，保存后采纳此条资料', exact: true }).check();
-      await capture('first-term-adoption-zh-light', editor.getByRole('button', { name: '保存并采纳', exact: true }));
-      await editor.getByRole('button', { name: '保存并采纳', exact: true }).click();
+      await ui.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await uiExpect(ui.getByText('已保存并采纳。翻译时选择所在资料集，符合语言和范围的内容才会参与。', { exact: true })).toBeVisible();
-      const library = await readLibrary();
-      expect(library.data.collections).toHaveLength(1);
-      expect(library.data.entries).toHaveLength(1);
-      const entry = library.data.entries[0], collection = library.data.collections[0];
-      expect(entry.kind).toBe('term');
-      expect(entry.scope.languagePair).toEqual({ source: 'en', target: 'zh-Hans' });
-      expect(library.approvals[entry.id]?.method).toBe('human');
+      const collection = (await readLibrary()).data.collections[0];
+      expect(collection.name).toBe(collectionName);
+      expect((await readLibrary()).data.subjects).toHaveLength(0);
+      const inline = ui.getByTestId('knowledge-inline-term');
+      await inline.getByRole('textbox', { name: '原文', exact: true }).fill('checkpiont');
+      await inline.getByRole('textbox', { name: '译文', exact: true }).fill('存档点');
+      await inline.getByRole('textbox', { name: '译文', exact: true }).press('Enter');
+      await uiExpect.poll(async () => (await readLibrary()).data.entries.length).toBe(1);
+      let term = (await readLibrary()).data.entries[0];
+      expect(term.state).toBe('ready'); expect(term.scope.requiredSubjects).toEqual([]);
+      expect((await readLibrary()).approvals[term.id].revision).toBe(term.revision);
+      await ui.locator(`[data-entry-id="${term.id}"]`).click();
+      await ui.getByRole('dialog').getByRole('textbox', { name: '原文', exact: true }).fill('checkpoint');
+      await ui.getByTestId('knowledge-save-apply').click();
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      term = (await readLibrary()).data.entries[0];
+      expect(term.revision).toBeGreaterThan(1); expect(term.state).toBe('ready');
+      expect((await readLibrary()).approvals[term.id].revision).toBe(term.revision);
+      await ui.getByTestId('knowledge-paste-open').click();
+      await ui.getByTestId('knowledge-paste-input').fill('save slot\t存档槽\ncheckpoint\t载入游系');
+      await ui.getByTestId('knowledge-paste-preview').click();
+      await ui.getByTestId('knowledge-paste-rows').getByRole('textbox', { name: '译文 2', exact: true }).fill('载入游戏');
+      await capture('redesign-paste-zh-light');
+      await ui.getByTestId('knowledge-paste-save').click();
+      await uiExpect(ui.locator('[data-paste-row][data-saved="true"]')).toHaveCount(1);
+      await uiExpect(ui.getByRole('dialog').getByRole('alert')).toBeVisible();
+      await capture('redesign-paste-partial-recovery');
+      await ui.getByTestId('knowledge-paste-rows').getByRole('textbox', { name: '原文 2', exact: true }).fill('load game');
+      await ui.getByTestId('knowledge-paste-save').click();
+      await uiExpect(ui.locator('[data-paste-row][data-saved="true"]')).toHaveCount(2);
+      await ui.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
+      expect((await readLibrary()).data.entries).toHaveLength(3);
+      expect(Object.keys((await readLibrary()).approvals)).toHaveLength(3);
+      await capture('redesign-collection-zh-light', ui.getByTestId('knowledge-inline-term'));
 
-      // Another approved collection also matches the subtitles; only the selected collection may enter the request.
-      const excludedCollection = await ui.evaluate(async () => {
-        const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(read.error);
-        const otherCollection = { ...structuredClone(read.value.data.collections[0]), id: crypto.randomUUID(), name: '其他项目的独立术语' };
-        const savedCollection = await window.translationKnowledge.saveRecord({ generation: read.value.generation, group: 'collections', record: otherCollection });
-        if (!savedCollection.ok) throw new Error(savedCollection.error);
-        const originalTerm = read.value.data.entries.find(item => item.kind === 'term');
-        if (!originalTerm || originalTerm.kind !== 'term') throw new Error('Expected the term created through the editor');
-        const otherTerm = { ...structuredClone(originalTerm), id: crypto.randomUUID(), collectionId: otherCollection.id, title: '未选资料不得发送', payload: { ...originalTerm.payload, source: 'morning', target: '未选资料的专用译法' } };
-        const savedTerm = await window.translationKnowledge.saveRecord({ generation: savedCollection.value.generation, group: 'entries', record: otherTerm, adopt: true });
-        if (!savedTerm.ok) throw new Error(savedTerm.error);
-        return otherCollection;
-      });
-      await capture('workspace-first-term-zh-light-wide', ui.getByTestId('knowledge-new-entry'));
+      // A different matching collection must never be implicitly selected.
+      const excludedCollection = await ui.evaluate(async selectedId => {
+        let result = await window.translationKnowledge.read(); if (!result.ok) throw new Error(result.error);
+        const original = result.value.data.collections.find(item => item.id === selectedId)!;
+        const other = { ...original, id: crypto.randomUUID(), revision: 1, name: '不选用的其他资料集' };
+        let saved = await window.translationKnowledge.saveRecord({ generation: result.value.generation, group: 'collections', record: other });
+        if (!saved.ok) throw new Error(saved.error);
+        const entry = structuredClone(saved.value.data.entries[0]);
+        if (entry.kind !== 'term') throw new Error('Fixture term missing');
+        entry.id = crypto.randomUUID(); entry.revision = 1; entry.collectionId = other.id; entry.payload.target = '未选资料的专用译法';
+        saved = await window.translationKnowledge.saveRecord({ generation: saved.value.generation, group: 'entries', record: entry, adopt: true });
+        if (!saved.ok) throw new Error(saved.error); return other;
+      }, collection.id);
+      await ui.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
+      await ui.reload(); await nativeWindow.evaluate(win => win.setSize(820, 700));
+      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
+      await capture('redesign-collection-en-dark', ui.getByTestId('knowledge-new-entry'));
+      await tour('redesign-tour-en-dark');
+      await ui.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); });
+      await ui.reload(); await nativeWindow.evaluate(win => win.setSize(1280, 860));
       await ui.getByTestId('knowledge-open-studio').click();
-      await ui.waitForURL(/#\/tools\/subtitle\/studio$/);
-      await app.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] }); });
-      await ui.getByRole('button', { name: '打开字幕文件', exact: true }).click();
-      expect(await ui.evaluate(async () => {
-        const result = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!result.ok) throw new Error(result.error); return result.value.documents.length;
-      })).toBe(0);
       await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, subtitle);
       await ui.getByRole('button', { name: '打开字幕文件', exact: true }).click();
       await uiExpect(ui.locator('.studio-cue-table tbody tr')).toHaveCount(2);
-      await uiExpect(ui.locator('.studio-cue-table')).toBeVisible();
-      await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await uiExpect(ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch')).not.toBeChecked();
-      await uiExpect(ui.getByTestId('studio-translation-model')).toContainText('Local consumer UX fixture');
-      await uiExpect(parentDialog().getByRole('button', { name: '计算用量', exact: true })).toBeEnabled();
-      await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').check();
-      await assertNoOrdinaryAction();
-      await ui.getByTestId('studio-translation-knowledge-open').click();
-      await uiExpect(ui.getByTestId('knowledge-full-mode')).toBeChecked();
-      await uiExpect(ui.getByTestId('knowledge-trial-source-language')).toContainText('选择字幕原文语言');
-      await ui.getByTestId('knowledge-trial-source-language').click();
-      await ui.getByRole('option', { name: '英语', exact: true }).click();
-      await uiExpect(ui.getByTestId('knowledge-trial-target-language')).toContainText('简体中文');
-      const selectedCollection = ui.getByTestId(`knowledge-trial-collection-${collection.id}`);
-      await uiExpect(selectedCollection).not.toBeChecked();
-      await uiExpect(ui.getByTestId(`knowledge-trial-collection-${excludedCollection.id}`)).not.toBeChecked();
-      await uiExpect(ui.getByTestId('knowledge-full-check')).toBeDisabled();
-      expect(requests).toHaveLength(0);
-      await capture('studio-materials-unselected-zh-light-wide', ui.getByTestId('knowledge-trial-source-language'));
-      await selectedCollection.check();
-      await ui.getByTestId('knowledge-trial-close').click();
-      await uiExpect(knowledgeDialog()).toHaveCount(0);
-      await uiExpect(ui.getByTestId('studio-knowledge-selection-summary')).toContainText(collectionName);
-      await assertNoOrdinaryAction();
-      await ui.getByTestId('studio-translation-knowledge-open').click();
-      await uiExpect(selectedCollection).toBeChecked();
-      await selectedCollection.uncheck();
-      await ui.getByTestId('knowledge-trial-close').click();
-      await uiExpect(knowledgeDialog()).toHaveCount(0);
-      await uiExpect(ui.getByTestId('studio-knowledge-selection-summary')).not.toContainText(collectionName);
-      await assertNoOrdinaryAction();
-
-      // Disabling materials explicitly permits ordinary translation, with no library context.
-      await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').uncheck();
-      await uiExpect(ui.getByTestId('studio-translation-knowledge-open')).toHaveCount(0);
-      await parentDialog().getByRole('button', { name: '计算用量', exact: true }).click();
-      await uiExpect(parentDialog().getByRole('button', { name: '开始翻译', exact: true })).toBeEnabled();
-      expect(requests).toHaveLength(0);
-      await parentDialog().getByRole('button', { name: '开始翻译', exact: true }).click();
+      await openTranslation();
+      await uiExpect(ui.getByTestId('studio-translation-knowledge-enabled')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('studio-materials')).toContainText('未使用资料');
+      await capture('redesign-translation-no-materials');
+      // Direct Start includes local preparation and never adds saved materials.
+      await ui.getByTestId('studio-translation-start').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 20000 });
-      expect(requests).toHaveLength(1);
-      expect(requests[0].payload.translationKnowledge).toBeUndefined();
-      expect(requests[0].raw).not.toContain('存档点');
+      expect(requests).toHaveLength(1); expect(requests[0].payload.translationKnowledge).toBeUndefined();
       expect((await readDocument()).translationTracks).toHaveLength(1);
-
-      await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').check();
-      await ui.getByTestId('studio-translation-knowledge-open').click();
-      await ui.getByTestId('knowledge-trial-source-language').click();
-      await ui.getByRole('option', { name: '英语', exact: true }).click();
+      await openTranslation();
+      await ui.getByTestId('studio-materials-choose').click();
+      const selectedCollection = ui.getByTestId(`studio-materials-collection-${collection.id}`);
+      await uiExpect(selectedCollection).not.toBeChecked();
+      await uiExpect(ui.getByTestId(`studio-materials-collection-${excludedCollection.id}`)).not.toBeChecked();
       await selectedCollection.check();
-      await ui.getByTestId('knowledge-full-check').click();
+      await ui.getByTestId('studio-materials-source').click();
+      await ui.getByRole('option', { name: '英语', exact: true }).click();
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
+      await capture('redesign-materials-selection', ui.getByTestId('studio-materials'));
+      await ui.getByTestId('studio-translation-check').click();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
-      await uiExpect(ui.getByTestId('knowledge-full-run')).toBeEnabled();
       expect(requests).toHaveLength(1);
       await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await capture('selected-materials-preview-zh-light-narrow', ui.getByTestId('knowledge-full-preview'));
-      await geometry(knowledgeDialog());
-      await ui.getByTestId('knowledge-full-run').click();
+      await capture('redesign-translation-selected-narrow', ui.getByTestId('knowledge-full-preview'));
+      await geometry(translate());
+      await ui.getByTestId('studio-translation-start').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 20000 });
       expect(requests).toHaveLength(2);
       expect(requests[1].payload.translationKnowledge?.items).toEqual([expect.objectContaining({ kind: 'term', applicableItemIds: ['u1'] })]);
-      expect(requests[1].raw).toContain('存档点');
-      expect(requests[1].raw).not.toContain('未选资料的专用译法');
+      expect(requests[1].raw).toContain('存档点'); expect(requests[1].raw).not.toContain('未选资料的专用译法');
       expect((await readDocument()).translationTracks).toHaveLength(2);
+      await openTranslation();
+      await uiExpect(ui.getByTestId('studio-materials')).toContainText(collectionName);
+      await ui.getByTestId('studio-translation-close').click();
 
-      // The classic translator keeps its own configuration, upload flow and task queue.
-      await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await ui.evaluate(() => { location.hash = '/tools/subtitle/translator'; });
-      await ui.getByRole('button', { name: 'Skip', exact: true }).click();
+      // Save from a subtitle row without leaving the active document. The user
+      // explicitly narrows the prefilled sentence instead of auto-learning it.
+      await ui.locator('.studio-cue-table tbody tr').first().getByRole('button', { name: '字幕操作', exact: true }).click();
+      await ui.getByTestId('studio-remember-term').click();
+      const quick = ui.getByRole('dialog').filter({ has: ui.getByTestId('quick-term-form') });
+      await uiExpect(quick.getByRole('textbox', { name: '原词', exact: true })).toHaveValue('We reached checkpoint.');
+      await quick.getByRole('textbox', { name: '原词', exact: true }).fill('Good morning');
+      await quick.getByRole('textbox', { name: '固定译法', exact: true }).fill('早安');
+      await quick.getByRole('combobox', { name: '保存到资料集', exact: true }).click();
+      await ui.getByRole('option', { name: collectionName, exact: true }).click();
+      await capture('redesign-remember-term-narrow');
+      await ui.getByTestId('quick-term-save').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await uiExpect(ui.getByRole('link', { name: '翻译资料', exact: true })).toHaveCount(0);
-      await uiExpect(ui.getByRole('radiogroup', { name: '翻译资料', exact: true })).toHaveCount(0);
+      const remembered = (await readLibrary()).data.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'Good morning')!;
+      expect(remembered.state).toBe('ready'); expect(remembered.scope.requiredSubjects).toEqual([]);
+      expect((await readLibrary()).approvals[remembered.id].method).toBe('human');
+      expect((await readDocument()).translationTracks).toHaveLength(2);
+      await uiExpect(ui).toHaveURL(/#\/tools\/subtitle\/studio$/);
+
+      await ui.evaluate(() => { location.hash = '/tools/subtitle/translator'; });
       await uiExpect(ui.locator('[data-testid^="subtitle-knowledge-"]')).toHaveCount(0);
-      for (const selector of ['#tour-lang-pair', '#tour-output-mode', '#tour-slice-mode', '#tour-output-path', '#tour-upload-zone']) {
-        await uiExpect(ui.locator(selector)).toBeVisible();
-      }
+      await uiExpect(ui.getByRole('link', { name: '翻译资料', exact: true })).toHaveCount(0);
       await ui.locator('#tour-output-path').getByRole('radio', { name: '与源文件同目录', exact: true }).check();
       const chooser = ui.waitForEvent('filechooser');
       await ui.getByRole('button', { name: '选择文件', exact: true }).click();
       await (await chooser).setFiles(classicSubtitle);
       await uiExpect(ui.locator('#tour-task-queue').getByText(path.basename(classicSubtitle), { exact: true })).toBeVisible();
-      await uiExpect(ui.locator('#tour-start-all-btn')).toBeEnabled();
-      await uiExpect(ui).toHaveURL(/#\/tools\/subtitle\/translator$/);
-      const studioDocuments = await ui.evaluate(async () => {
-        const result = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!result.ok) throw new Error(result.error); return result.value.documents;
-      });
-      expect(studioDocuments).toHaveLength(1);
-      expect(studioDocuments[0].origin.displayName).toBe(path.basename(subtitle));
+      expect((await readDocument()).summary.origin.displayName).toBe(path.basename(subtitle));
       expect(requests).toHaveLength(2);
-      await capture('classic-translator-zh-light-wide', ui.locator('#tour-upload-zone'));
-      await ui.evaluate(() => {
-        localStorage.setItem('lang', 'en');
-        localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 }));
-      });
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
-      await uiExpect(ui.getByRole('link', { name: 'Translation materials', exact: true })).toHaveCount(0);
-      await uiExpect(ui.getByRole('radiogroup', { name: 'Translation materials', exact: true })).toHaveCount(0);
-      await uiExpect(ui.locator('[data-testid^="subtitle-knowledge-"]')).toHaveCount(0);
-      // The classic pending queue is in memory; add a fresh native file after
-      // reloading the locale/theme, without assuming implicit task recovery.
-      const englishChooser = ui.waitForEvent('filechooser');
-      await ui.locator('#tour-upload-zone').getByRole('button').click();
-      await (await englishChooser).setFiles(classicSubtitle);
-      await uiExpect(ui.locator('#tour-task-queue').getByText(path.basename(classicSubtitle), { exact: true })).toBeVisible();
-      await capture('classic-translator-en-dark-narrow', ui.locator('#tour-upload-zone'));
-      await checkCatalogSpacing('catalog-spacing-en-dark-narrow');
-      await ui.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); });
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await checkCatalogSpacing('catalog-spacing-zh-light-wide');
+      await catalogSpacing();
       expect(errors).toEqual([]);
     } catch (error) {
-      await ui.screenshot({ path: path.join(artifacts, 'failure.png'), animations: 'disabled' }).catch(() => undefined);
+      await ui.screenshot({ path: path.join(artifacts, 'redesign-failure.png'), animations: 'disabled' }).catch(() => undefined);
       throw error;
     }
-  }, 150000);
+  }, 180000);
 });

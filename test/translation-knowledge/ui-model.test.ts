@@ -11,6 +11,7 @@ import {
   initialQuery,
   needsReview,
   recordFields,
+  manualEntryRequest,
 } from "../../src/pages/TranslationKnowledge/model";
 import { knowledgeFixture } from "./fixtures";
 const snapshot = (): LibrarySnapshot => ({
@@ -117,7 +118,23 @@ describe("translation material interaction model", () => {
 });
 
 describe("new entry defaults", () => {
-  it("materializes collection language and subjects while keeping person scope unconfirmed", async () => {
+  it("makes approval an explicit save action while preserving existing scope and archived state", () => {
+    const state = snapshot();
+    const entry = state.data.entries.find(item => item.kind === "term")!;
+    entry.state = "ready";
+    const original = structuredClone(entry);
+    const applied = manualEntryRequest(entry, state, true, "Manual entry");
+    expect(applied.adopt).toBe(true);
+    expect(applied.record).toMatchObject({ state: "ready", scope: original.scope, revision: original.revision, evidence: original.evidence });
+    expect(applied.generation).toBe(state.generation);
+    const draft = manualEntryRequest(entry, state, false, "Manual entry");
+    expect(draft.adopt).toBe(false);
+    expect(draft.record).toMatchObject({ state: "candidate" });
+    expect(entry).toEqual(original);
+    entry.state = "archived";
+    expect(manualEntryRequest(entry, state, true, "Manual entry")).toMatchObject({ adopt: false, record: { state: "archived" } });
+  });
+  it("keeps collection classification separate from explicit execution scope", async () => {
     const { newEntry } = await import(
       "../../src/pages/TranslationKnowledge/model"
     );
@@ -134,10 +151,7 @@ describe("new entry defaults", () => {
       source: "en",
       target: "zh-Hans",
     });
-    expect(entry.scope.requiredSubjects).toEqual([
-      { subjectId: work.id, role: "topic" },
-      { subjectId: person.id, role: "present" },
-    ]);
+    expect(entry.scope.requiredSubjects).toEqual([]);
     expect(entry.aboutSubjectIds).toEqual([work.id, person.id]);
     expect(entry.state).toBe("candidate");
     collection.defaultLanguagePair = { source: "ja", target: "zh-Hant" };
