@@ -84,6 +84,74 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
       await uiExpect(parentDialog().getByRole('button', { name: '开始翻译', exact: true })).toHaveCount(0);
       await uiExpect(ui.getByTestId('studio-translation-knowledge-open')).toBeEnabled();
     };
+    const tourTargets = [
+      '#knowledge-tour-collection',
+      '[data-testid="knowledge-views"] [role="tab"]:has([data-knowledge-tour="materials"])',
+      '[data-testid="knowledge-views"] [role="tab"]:has([data-knowledge-tour="review"])',
+      '[data-testid="knowledge-views"] [role="tab"]:has([data-knowledge-tour="plans"])',
+      '#knowledge-tour-studio',
+    ];
+    const tourTitles = {
+      zh: ['先建一个资料集', '从一条术语开始', '采纳后，才能用于翻译', '重复使用时，再建方案', '到工作台，按次选择资料'],
+      en: ['Start with a collection', 'Add your first term', 'Review before using', 'Reuse a setup with recipes', 'Choose materials in Studio'],
+    };
+    const assertTourStep = async (locale: 'zh' | 'en', step: number) => {
+      const tour = ui.getByRole('dialog', { name: tourTitles[locale][step], exact: true });
+      await uiExpect(tour).toBeVisible();
+      await uiExpect(tour).toContainText(`${step + 1} / ${tourTargets.length}`);
+      await uiExpect(tour).not.toContainText('当前目标暂不可见');
+      // Measure the actual highlighted control after the shared Tour has scrolled
+      // and settled. A matching heading alone would not prove correct anchoring.
+      await uiExpect.poll(async () => ui.evaluate(selector => {
+        const target = document.querySelector(selector)?.getBoundingClientRect();
+        const spotlight = document.querySelector('.knowledge-tour-spotlight')?.getBoundingClientRect();
+        if (!target || !spotlight) return false;
+        return target.width > 0 && target.height > 0
+          && target.top >= 0 && target.bottom <= innerHeight
+          && target.left >= 0 && target.right <= innerWidth
+          && spotlight.left <= target.left + 1 && spotlight.right >= target.right - 1
+          && spotlight.top <= target.top + 1 && spotlight.bottom >= target.bottom - 1
+          && Math.abs(spotlight.left - target.left) <= 16 && Math.abs(spotlight.right - target.right) <= 16
+          && Math.abs(spotlight.top - target.top) <= 16 && Math.abs(spotlight.bottom - target.bottom) <= 16;
+      }, tourTargets[step])).toBe(true);
+      await geometry(tour);
+      expect(await tour.evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        return rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0;
+      })).toBe(true);
+      return tour;
+    };
+    const finishTour = async (locale: 'zh' | 'en', name: string) => {
+      await ui.getByTestId('knowledge-tour-trigger').click();
+      for (let step = 0; step < tourTargets.length; step++) {
+        await assertTourStep(locale, step);
+        await capture(`${name}-step-${step + 1}`);
+        await ui.getByTestId('knowledge-tour-next').click();
+      }
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      expect(await ui.evaluate(() => localStorage.getItem('translation-knowledge-tour-done'))).toBe('1');
+    };
+    const checkCatalogSpacing = async (name: string) => {
+      await ui.evaluate(() => { location.hash = '/tools'; });
+      await uiExpect(ui.getByTestId('tools-catalog')).toBeVisible();
+      await ui.getByTestId('tools-classic-grid').evaluate(element => element.scrollIntoView({ block: 'center' }));
+      const measure = () => ui.evaluate(() => {
+        const rect = (testId: string) => document.querySelector(`[data-testid="${testId}"]`)!.getBoundingClientRect();
+        return {
+          classicGap: rect('tools-classic-heading').top - rect('tools-featured-grid').bottom,
+          experimentalGap: rect('tools-experimental-heading').top - rect('tools-classic-grid').bottom,
+          viewport: { width: innerWidth, height: innerHeight },
+        };
+      });
+      await uiExpect.poll(async () => {
+        const { classicGap, experimentalGap } = await measure();
+        return Math.abs(classicGap - experimentalGap);
+      }).toBeLessThanOrEqual(1);
+      const measured = await measure();
+      expect(measured.classicGap).toBeGreaterThan(0);
+      await writeFile(path.join(artifacts, `${name}-geometry.json`), JSON.stringify(measured, null, 2));
+      await capture(name);
+    };
 
     try {
       await ui.evaluate(port => {
@@ -94,24 +162,34 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
       }, port);
       await ui.reload();
       await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await uiExpect(ui.getByTestId('knowledge-guide')).toContainText('不会自动');
-      await uiExpect(ui.getByTestId('knowledge-get-started')).toBeVisible();
+      await assertTourStep('zh', 0);
+      await capture('tour-first-visit-zh-light-wide');
       expect((await readLibrary()).data.entries).toHaveLength(0);
-      await capture('guide-empty-zh-light-wide', ui.getByTestId('knowledge-guide'));
+      await ui.getByTestId('knowledge-tour-skip').click();
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      expect(await ui.evaluate(() => localStorage.getItem('translation-knowledge-tour-done'))).toBe('1');
+      await ui.reload();
+      await capture('workspace-empty-zh-light-wide', ui.getByTestId('knowledge-new-entry'));
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-guide')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-open-studio')).toBeVisible();
+      await finishTour('zh', 'tour-zh-light-wide');
+      expect((await readLibrary()).data.entries).toHaveLength(0);
 
       await ui.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
       await ui.reload();
       await nativeWindow.evaluate(win => win.setSize(820, 700));
       await uiExpect(ui.locator('html')).toHaveClass(/dark/);
-      await uiExpect(ui.getByTestId('knowledge-guide')).toContainText('does not enable them for translation');
-      await uiExpect(ui.getByTestId('knowledge-get-started')).toBeVisible();
-      await capture('guide-empty-en-dark-narrow', ui.getByTestId('knowledge-guide'));
-      expect(await ui.getByTestId('knowledge-guide').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+      await capture('workspace-empty-en-dark-narrow', ui.getByTestId('knowledge-new-entry'));
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-guide')).toHaveCount(0);
+      await finishTour('en', 'tour-en-dark-narrow');
+      expect((await readLibrary()).data.collections).toHaveLength(0);
 
       await ui.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); });
       await ui.reload();
       await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await ui.getByTestId('knowledge-get-started').click();
+      await ui.getByTestId('knowledge-new-entry').click();
       const collectionName = '旅行视频术语 · 首次使用时明确选择的资料集';
       const catalog = ui.getByRole('dialog').filter({ has: ui.getByRole('textbox', { name: '名称', exact: true }) });
       await catalog.getByRole('textbox', { name: '名称', exact: true }).fill(collectionName);
@@ -154,7 +232,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
         if (!savedTerm.ok) throw new Error(savedTerm.error);
         return otherCollection;
       });
-      await ui.getByTestId('knowledge-guide').getByRole('link', { name: '前往字幕工作台', exact: true }).click();
+      await capture('workspace-first-term-zh-light-wide', ui.getByTestId('knowledge-new-entry'));
+      await ui.getByTestId('knowledge-open-studio').click();
       await ui.waitForURL(/#\/tools\/subtitle\/studio$/);
       await app.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] }); });
       await ui.getByRole('button', { name: '打开字幕文件', exact: true }).click();
@@ -274,10 +353,15 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
       await (await englishChooser).setFiles(classicSubtitle);
       await uiExpect(ui.locator('#tour-task-queue').getByText(path.basename(classicSubtitle), { exact: true })).toBeVisible();
       await capture('classic-translator-en-dark-narrow', ui.locator('#tour-upload-zone'));
+      await checkCatalogSpacing('catalog-spacing-en-dark-narrow');
+      await ui.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); });
+      await ui.reload();
+      await nativeWindow.evaluate(win => win.setSize(1280, 860));
+      await checkCatalogSpacing('catalog-spacing-zh-light-wide');
       expect(errors).toEqual([]);
     } catch (error) {
       await ui.screenshot({ path: path.join(artifacts, 'failure.png'), animations: 'disabled' }).catch(() => undefined);
       throw error;
     }
-  }, 120000);
+  }, 150000);
 });

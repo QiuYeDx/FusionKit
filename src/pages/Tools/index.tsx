@@ -150,7 +150,7 @@ const Tools: React.FC = () => {
         <p aria-hidden="true" className="catalog-signature hidden shrink-0 text-right sm:block">Good tools.<br />Better creation.</p>
       </header>
 
-      <section aria-label={t("tools:catalog.featured")} className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section data-testid="tools-featured-grid" aria-label={t("tools:catalog.featured")} className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {FEATURED_TOOLS.map(item => (
           <SmoothCorners key={item.id} asChild radius={20} smoothing={0.72}>
             <Link
@@ -184,18 +184,18 @@ const Tools: React.FC = () => {
 
       <section className="mt-8" aria-labelledby="classic-tools-title">
         <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h2 id="classic-tools-title" className="text-lg font-semibold">{t("tools:catalog.classic")}</h2>
+          <h2 id="classic-tools-title" data-testid="tools-classic-heading" className="text-lg font-semibold">{t("tools:catalog.classic")}</h2>
           <p className="text-xs leading-5 text-muted-foreground">{t("tools:catalog.classic_description")}</p>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div data-testid="tools-classic-grid" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {CLASSIC_TOOLS.map(item => <ToolCard key={item.id} item={item} />)}
         </div>
       </section>
 
-      <section className="mt-10 pt-6" aria-labelledby="experimental-tools-title" aria-describedby="experimental-tools-description">
+      <section className="mt-8" aria-labelledby="experimental-tools-title" aria-describedby="experimental-tools-description">
         <div className="mb-4 space-y-2">
           <div className="flex items-center gap-2.5">
-            <h2 id="experimental-tools-title" className="text-lg font-semibold">{t("tools:catalog.experimental")}</h2>
+            <h2 id="experimental-tools-title" data-testid="tools-experimental-heading" className="text-lg font-semibold">{t("tools:catalog.experimental")}</h2>
             <span className="rounded-md border bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Beta</span>
           </div>
           <p id="experimental-tools-description" className="max-w-3xl text-xs leading-5 text-muted-foreground">{t("tools:catalog.experimental_description")}</p>

@@ -682,18 +682,6 @@
     "checked_at": "Checked: {{time}}"
   },
   "guide": {
-    "title": "Saving materials does not enable them for translation",
-    "control": "In Subtitle Studio, turn on “Use translation materials”, then choose collections or a preset. Only applicable materials enter each request, never the entire library.",
-    "how": "How to get started",
-    "organize": "1 · Create a collection",
-    "organize_help": "Group materials for a series and set its language pair. Subjects and presets are optional.",
-    "approve": "2 · Add and approve materials",
-    "approve_help": "Add a term, such as checkpoint → 存档点. Check it, approve it and save. Review imports too.",
-    "use": "3 · Select materials for a translation",
-    "use_help": "Enable materials in Studio, choose a collection, check it, then translate. An excerpt trial is optional.",
-    "supported": "Terms, context and rules are supported. Expressions and reference translations are storage only.",
-    "add_term": "Add a term",
-    "review": "Review {{count}} entries",
     "translate": "Open Subtitle Studio",
     "saved_adopted": "Saved and approved. Select its collection when translating; language and scope still determine whether it applies.",
     "saved_candidate": "Saved for review. Approve this entry before using it in a translation.",
@@ -719,5 +707,28 @@
     "source_required": "Confirm the subtitle source language before checking materials.",
     "selected_help": "Checking only reads local materials. Subtitles and applicable materials are sent when you start translating.",
     "target_required": "Go back to translation settings and choose a target language. For a custom language, use a language code such as it, en or zh-Hant."
+  },
+  "tour": {
+    "trigger": "Usage guide",
+    "skip": "Skip",
+    "previous": "Back",
+    "next": "Next",
+    "finish": "Done",
+    "collection_title": "Start with a collection",
+    "collection_content": "Save reusable translations and context here. Saving does not apply them to translations automatically. Create a collection for a work or video series and set its language pair.",
+    "collection_hint": "Content subjects organize people, works or domains. You can set them up later.",
+    "materials_title": "Add your first term",
+    "materials_content": "In Materials, choose New entry and enter the source term and its translation. If you have no collection yet, you will create one first.",
+    "term_example": "チェックポイント",
+    "materials_hint": "Terms, context and rules can be used in translation. Expressions and reference translations are currently for storage only.",
+    "review_title": "Review before using",
+    "review_content": "Confirm the content, select approval and save. Saving without approval leaves it for review. This tab also collects imported or edited materials that need confirmation.",
+    "review_hint": "Approval makes a material available for use. It does not add it to every translation.",
+    "plans_title": "Reuse a setup with recipes",
+    "plans_content": "When you use the same materials often, combine collections, rules and styles into a recipe. Select it in Studio for your next translation.",
+    "plans_hint": "Recipes are optional. A collection is enough to get started.",
+    "studio_title": "Choose materials in Studio",
+    "studio_content": "Open Subtitle Studio, turn on Use translation materials in translation settings, and choose collections or a recipe for this task. Check the selection before starting.",
+    "studio_hint": "Only approved materials matching the language and scope are included; terms must also match the source. The whole library is never sent."
   }
 }

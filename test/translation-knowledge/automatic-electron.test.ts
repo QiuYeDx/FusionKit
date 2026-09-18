@@ -73,6 +73,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       for (const stream of [app.process().stdout, app.process().stderr]) stream?.on('data', data => { logs.push(String(data)); if (logs.length > 200) logs.shift(); });
       page = await app.firstWindow(); page.setDefaultTimeout(15000); page.on('pageerror', error => errors.push(error.message));
       await page.evaluate(port => {
+        // First-use Tour is covered by consumer-ux; keep execution fixtures focused.
+        localStorage.setItem('translation-knowledge-tour-done', '1');
         localStorage.setItem('lang', 'zh'); localStorage.setItem('subtitle-converter-tour-done', '1');
         localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
         localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'automatic-knowledge-fixture', name: 'Local automatic translation fixture', provider: 'DeepSeek', apiKey: 'synthetic-automatic-knowledge-key', baseUrl: `http://127.0.0.1:${port}`, modelKey: 'deepseek-v4-flash', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'automatic-knowledge-fixture', agent: null }, audioProfiles: [], audioAssignment: {} } }));

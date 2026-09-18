@@ -6,10 +6,13 @@ import { HistoryDialog, MaintenanceDialog } from "./Maintenance";
 import { optionKey } from "./labels";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import {
   Archive,
+  ArrowRight,
   BookOpen,
   Check,
+  CircleHelp,
   Copy,
   Download,
   FileText,
@@ -50,7 +53,7 @@ import {
   type CatalogRecord,
 } from "./CatalogEditor";
 import { EntryEditor } from "./EntryEditor";
-import { UsageGuide } from "./UsageGuide";
+import { KnowledgeTour, useKnowledgeTour } from "./KnowledgeTour";
 import { ExportDialog, ImportDialog, RecordDetails } from "./Exchange";
 import {
   entryStatus,
@@ -102,6 +105,10 @@ export default function TranslationKnowledge() {
   const dragDepth = useRef(0);
   const continueWithEntry = useRef(false);
   const blocked = snapshot?.maintenance?.cleanupPending === true;
+  const tourReady = Boolean(snapshot) && !loading && !busy && !blocked &&
+    !catalog && !entryEditor && !selected && !preview && !exportOpen &&
+    !historyOpen && !maintenancePreview && !dragging;
+  const { tourOpen, setTourOpen } = useKnowledgeTour(tourReady);
   const api = window.translationKnowledge;
   const refresh = async () => {
     setLoading(true);
@@ -304,6 +311,20 @@ export default function TranslationKnowledge() {
       meta={TOOL_META.translationKnowledge}
       title={t("title")}
       description={t("description")}
+      right={
+        <Button
+          data-testid="knowledge-tour-trigger"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={t("tour.trigger")}
+          title={t("tour.trigger")}
+          disabled={!tourReady}
+          onClick={() => setTourOpen(true)}
+        >
+          <CircleHelp />
+        </Button>
+      }
     />
   );
   const aside = (
@@ -362,6 +383,7 @@ export default function TranslationKnowledge() {
         />
         <div className="flex flex-wrap gap-2">
           <Button
+            id="knowledge-tour-collection"
             variant="outline"
             size="sm"
             disabled={!snapshot || blocked}
@@ -417,6 +439,21 @@ export default function TranslationKnowledge() {
           </Button>
         </div>
       </ToolPanel>
+      <Button
+        asChild
+        variant="outline"
+        size="sm"
+        className="h-auto min-h-8 w-full justify-between gap-2 whitespace-normal py-2 text-left leading-5"
+      >
+        <Link
+          id="knowledge-tour-studio"
+          data-testid="knowledge-open-studio"
+          to="/tools/subtitle/studio"
+        >
+          {t("guide.translate")}
+          <ArrowRight className="shrink-0" />
+        </Link>
+      </Button>
     </div>
   );
   const plans =
@@ -459,9 +496,9 @@ export default function TranslationKnowledge() {
         className="translation-knowledge md:[&>div.grid]:grid-cols-[220px_minmax(0,1fr)] lg:[&>div.grid]:grid-cols-[320px_minmax(0,1fr)]"
         asideClassName="lg:w-full"
       >
-        {snapshot && <UsageGuide empty={snapshot.data.entries.length === 0} reviewCount={reviewCount} disabled={busy || blocked} onStart={startEntry} onReview={() => setView("review")} />}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ClipPathTabs
+            data-testid="knowledge-views"
             size="sm"
             shape="rounded"
             smoothCorners
@@ -469,11 +506,20 @@ export default function TranslationKnowledge() {
             onValueChange={(value) => setView(value as View)}
             ariaLabel={t("views.label")}
             items={[
-              { value: "materials", label: t("views.materials") },
-              { value: "plans", label: t("views.plans") },
+              {
+                value: "materials",
+                label: <span data-knowledge-tour="materials">{t("views.materials")}</span>,
+                ariaLabel: t("views.materials"),
+              },
+              {
+                value: "plans",
+                label: <span data-knowledge-tour="plans">{t("views.plans")}</span>,
+                ariaLabel: t("views.plans"),
+              },
               {
                 value: "review",
-                label: `${t("views.review")}${reviewCount ? ` (${reviewCount})` : ""}`,
+                label: <span data-knowledge-tour="review">{t("views.review")}{reviewCount ? ` (${reviewCount})` : ""}</span>,
+                ariaLabel: `${t("views.review")}${reviewCount ? ` (${reviewCount})` : ""}`,
               },
             ]}
           />
@@ -1077,6 +1123,7 @@ export default function TranslationKnowledge() {
           />
         )}
       </ToolDetailLayout>
+      <KnowledgeTour open={tourOpen && tourReady} onOpenChange={setTourOpen} />
     </div>
   );
 }

@@ -89,6 +89,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
 
     try {
       await ui.evaluate(port => {
+        // First-use Tour is covered by consumer-ux; keep execution fixtures focused.
+        localStorage.setItem('translation-knowledge-tour-done', '1');
         localStorage.setItem('lang', 'zh');
         localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
         localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'formal-fixture', name: 'Local formal translation fixture', provider: 'DeepSeek', apiKey: 'synthetic-formal-key', baseUrl: `http://127.0.0.1:${port}`, modelKey: 'deepseek-v4-flash', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'formal-fixture', agent: null }, audioProfiles: [], audioAssignment: {} } }));

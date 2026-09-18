@@ -26,6 +26,7 @@ Storage, approval and execution are separate contracts, but the UI exposes only 
 - Keep the materials draft mounted while parent language/budget inputs are temporarily invalid. Pass current draft values to invalidate old plans and gate actions in buttons and handlers; do not conditionally unmount on `config.success` or retain a stale executable configuration.
 - Consume selector open requests once and clear them when the parent flow closes. Reopening the parent must not replay an old open request.
 - Explain storage-only types and dormant preferences where they are configured. Hide empty advanced choices, and update rollout copy when capabilities become available.
+- Use the shared Tour for first-use explanations, anchored to real controls, with a header help button to reopen it. Wait for the library, preload loading screen and business dialogs before automatically opening. Keep normal actions available after the guide is dismissed; do not place a permanent tutorial card above the working list.
 
 ## Avoid
 
@@ -40,7 +41,7 @@ Use an isolated Electron profile and local HTTP fixture: create a collection and
 
 ## Related files
 
-- `src/pages/TranslationKnowledge/UsageGuide.tsx`
+- `src/pages/TranslationKnowledge/KnowledgeTour.tsx`
 - `src/pages/Tools/Subtitle/SubtitleStudio/StudioTranslation.tsx`
 - `src/pages/Tools/Subtitle/SubtitleStudio/StudioKnowledgeTrial.tsx`
 - `src/pages/Tools/Subtitle/SubtitleStudio/StudioKnowledgeBatch.tsx`

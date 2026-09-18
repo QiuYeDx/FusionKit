@@ -43,7 +43,14 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     application = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
     page = await application.firstWindow();
     page.on('pageerror', error => errors.push(error.message));
-    await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); location.hash = '/tools/translation-knowledge'; });
+    await page.evaluate(() => {
+      localStorage.setItem('lang', 'zh');
+      // The consumer journey covers the actual first-visit Tour. This scenario
+      // starts after onboarding so it can exercise native library maintenance.
+      localStorage.setItem('translation-knowledge-tour-done', '1');
+      localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
+      location.hash = '/tools/translation-knowledge';
+    });
     await page.reload();
     const nativeWindow = await application.browserWindow(page);
     await nativeWindow.evaluate(win => win.setSize(1280, 860));
