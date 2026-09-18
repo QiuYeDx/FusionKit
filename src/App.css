@@ -1,3 +1,11 @@
+.app {
+  --tool-page-header-inset: 24px;
+}
+
+@media (max-height: 650px) {
+  .app { --tool-page-header-inset: 20px; }
+}
+
 /* 用于设置 electron 可拖拽区域 */
 .app-region-drag {
   app-region: drag;

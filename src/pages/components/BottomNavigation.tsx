@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -16,12 +16,15 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { ThemeTransitionToggle } from "@/components/qiuye-ui/theme-transition-toggle";
 import { cn } from "@/lib/utils";
+import { useToolPageEscape } from "@/pages/Tools/_shared/useToolPageEscape";
 
 const BottomNavigation: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark, setTheme } = useThemeStore();
+  const backToTools = useCallback(() => navigate("/tools"), [navigate]);
+  useToolPageEscape(location.pathname, backToTools);
 
   const currentToolName = useMemo(() => {
     return ToolNameMap[location.pathname] || "menu.tools";
@@ -92,7 +95,7 @@ const BottomNavigation: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate("/tools")}
+              onClick={backToTools}
               className="gap-2 rounded-full"
             >
               <RotateCcw className="size-5" />

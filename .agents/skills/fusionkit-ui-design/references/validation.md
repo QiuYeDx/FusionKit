@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | 字幕工作台 | `test/subtitle-studio/workspace-ui.test.ts` | 隔离原生文件流程、分页、复制替代、视图、长短文件名 Tooltip、密度、窗口与主题 |
 | 共用间距 | `test/tool-spacing.electron.test.ts` | 11 个工具页、相关面板/上传区、深浅主题、1280/786 窗口及折叠状态；不等于全部业务验证 |
+| 工具页顶部与返回 | `test/tool-navigation.electron.test.ts` | 12 个工具页与字幕工作台标题对齐，深浅主题、宽/窄/低窗口、退出几何稳定；Esc 返回及编辑/浮层/引导/拖拽优先级 |
 | 共用控件 | `src/pages/Tools/_shared/ui/` 下相关测试 | 交互/消费契约检查；源码字符串断言不能证明视觉正确 |
 | 本地字幕页 | `src/pages/Tools/Subtitle/LocalSubtitleTranscriber/localSubtitleTranscriberPage.test.ts` | 局部页面契约，可搭配实际展开状态截图 |
 
@@ -18,6 +19,7 @@ node_modules/.bin/vite build --mode=test
 node scripts/check-preload-bundle.mjs
 FUSIONKIT_STUDIO_E2E=1 node_modules/.bin/vitest run test/subtitle-studio/workspace-ui.test.ts
 FUSIONKIT_TOOL_UI_E2E=1 node_modules/.bin/vitest run test/tool-spacing.electron.test.ts
+FUSIONKIT_TOOL_UI_E2E=1 node_modules/.bin/vitest run test/tool-navigation.electron.test.ts
 ```
 
 根 Vite 配置同时构建 renderer、main、preload。不要发明单独配置文件，也不需要为 CSS 小改动打包安装程序。按项目配置做类型检查；如果遇到既有解析模式问题，可用补充检查定位，但不能把改变 moduleResolution 的结果称为默认检查已通过。

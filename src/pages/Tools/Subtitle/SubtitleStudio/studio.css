@@ -2,7 +2,7 @@
 .studio-drop-overlay { position: absolute; inset: 12px; z-index: 15; pointer-events: none; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; border: 2px dashed var(--primary); border-radius: 18px; background: color-mix(in srgb, var(--background) 94%, transparent); color: var(--primary); font-size: 14px; }
 .studio-drop-overlay > span { color: var(--muted-foreground); font-size: 12px; }
 .studio-workspace-tabs { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: max-content minmax(0, 1fr); align-content: start; gap: 0; max-width: 1280px; margin-inline: auto; }
-.studio-workspace-header { grid-area: 1 / 1; padding: 24px 16px 0; }
+.studio-workspace-header { grid-area: 1 / 1; padding: var(--tool-page-header-inset) 16px 0; }
 .studio-workspace-header > :first-child { margin-bottom: 12px; }
 .studio-workspace-header h1 { padding-right: 220px; }
 .studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; align-self: start; justify-self: end; margin: 30px 16px 12px; z-index: 1; }
@@ -216,7 +216,6 @@
 
 /* Leave the reader its actual remaining space when task summaries occupy two rows. */
 @media (max-height: 650px) {
-  .studio-workspace-header { padding-top: 20px; }
   .studio-workspace-tabs > [data-slot=clip-path-tabs-stage] { margin-top: 26px; margin-bottom: 8px; }
   .studio-main, .studio-library { gap: 8px; }
 }

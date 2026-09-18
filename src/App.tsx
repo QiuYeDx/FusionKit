@@ -106,7 +106,7 @@ function App() {
             >
               <ToolFileDropScope
                 enabled={location.pathname.startsWith('/tools/')}
-                className={location.pathname === '/tools' || location.pathname === '/tools/subtitle/studio' ? undefined : 'pt-10'}
+                className={location.pathname === '/tools' || location.pathname.startsWith('/tools/') ? undefined : 'pt-10'}
               >
               <Routes location={location}>
                 {/* 一级页面 */}

@@ -72,7 +72,11 @@ export function ToolFileDropScope({
   React.useEffect(() => {
     if (!enabled) return;
     const reset = () => clear();
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") reset(); };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (activeId || depth.current > 0) event.preventDefault();
+      reset();
+    };
     window.addEventListener("drop", reset, true);
     window.addEventListener("dragend", reset);
     window.addEventListener("blur", reset);
@@ -83,7 +87,7 @@ export function ToolFileDropScope({
       window.removeEventListener("blur", reset);
       window.removeEventListener("keydown", escape);
     };
-  }, [enabled, clear]);
+  }, [enabled, clear, activeId]);
 
   const context = React.useMemo(() => ({ activeId, register, clear }), [activeId, register, clear]);
   const handles = (event: DropEvent) => enabled && targets.current.size > 0
@@ -182,7 +186,11 @@ export function useToolFileDropTarget(options: DropTarget) {
   React.useEffect(() => {
     if (!localDragging) return;
     const reset = () => { localDepth.current = 0; setLocalDragging(false); };
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") reset(); };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      reset();
+    };
     window.addEventListener("dragend", reset);
     window.addEventListener("drop", reset, true);
     window.addEventListener("blur", reset);

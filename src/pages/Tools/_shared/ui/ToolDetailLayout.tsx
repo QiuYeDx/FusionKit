@@ -32,7 +32,7 @@ export function ToolDetailLayout({
     <div
       data-slot="tool-detail-layout"
       className={cn(
-        "mx-auto max-w-7xl px-4 pb-[100px] pt-6 sm:px-8",
+        "mx-auto max-w-7xl px-4 pb-[100px] pt-[var(--tool-page-header-inset)] sm:px-8",
         className,
       )}
     >
