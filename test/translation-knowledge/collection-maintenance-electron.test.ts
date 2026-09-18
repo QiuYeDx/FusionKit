@@ -203,7 +203,28 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await uiExpect(ui.getByTestId('knowledge-collection-delete-history')).toContainText('清理全部资料集的本地历史');
       await uiExpect(ui.getByTestId('knowledge-collection-delete-tasks')).toContainText('不受影响');
       await capture('collection-delete-light-wide', ui.getByRole('dialog'));
+      const history = ui.getByTestId('knowledge-collection-delete-history');
+      const separatorOpacity = () => history.evaluate(element => getComputedStyle(element, '::before').opacity);
+      await uiExpect.poll(separatorOpacity).toBe('1');
+      for (const [name, summary] of [
+        ['entries', details.locator('summary')], ['history', history.locator('summary')],
+      ] as const) {
+        await summary.hover();
+        await uiExpect.poll(separatorOpacity).toBe('0');
+        const inset = await summary.evaluate(element => {
+          const row = element.getBoundingClientRect();
+          const icon = element.firstElementChild!.getBoundingClientRect();
+          const end = element.lastElementChild!.getBoundingClientRect();
+          return { left: icon.left - row.left, right: row.right - end.right };
+        });
+        expect(inset).toEqual({ left: 8, right: 8 });
+        await capture(`collection-delete-hover-${name}-light`, ui.getByRole('dialog'));
+        await ui.getByRole('button', { name: '取消', exact: true }).hover();
+        await uiExpect.poll(separatorOpacity).toBe('1');
+      }
       await details.locator('summary').click();
+      // The lower divider now borders expanded content, not the hovered heading.
+      await uiExpect.poll(separatorOpacity).toBe('1');
       await capture('collection-delete-details-light-wide', ui.getByRole('dialog'));
       await cancel();
       expect(await read()).toEqual(beforeFilled);
@@ -217,6 +238,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await capture('collection-menu-dark-narrow', ui.getByRole('menu'));
       await ui.getByTestId('knowledge-collection-delete').click();
       await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('2 项');
+      await ui.getByTestId('knowledge-collection-delete-history').locator('summary').hover();
+      await uiExpect.poll(separatorOpacity).toBe('0');
       await capture('collection-delete-dark-narrow', ui.getByRole('dialog'));
       await expectDirectDeletion();
       await confirm();

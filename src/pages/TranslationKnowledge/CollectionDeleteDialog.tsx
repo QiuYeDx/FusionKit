@@ -10,6 +10,7 @@ import type { LibrarySnapshot } from "@/translation-knowledge/ipc-contract";
 import type { MaintenancePreview } from "@/translation-knowledge/maintenance-contract";
 import { Pagination } from "./Controls";
 import { PAGE_SIZE } from "./model";
+import "./collection-delete-dialog.css";
 
 function ImpactRow({ icon: Icon, tone, title, description, badge, children, testId, defaultOpen = false }: {
   icon: LucideIcon;
@@ -31,10 +32,10 @@ function ImpactRow({ icon: Icon, tone, title, description, badge, children, test
     <span className="max-w-[35%] shrink-0 rounded-full bg-muted/70 px-2.5 py-1 text-center text-xs font-medium tabular-nums text-muted-foreground">{badge}</span>
     {children && <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" />}
   </>;
-  return children ? <details data-testid={testId} open={open} onToggle={event => setOpen(event.currentTarget.open)} className="group min-w-0">
-    <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl py-2 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">{content}</summary>
-    <div className="pb-2">{children}</div>
-  </details> : <div data-testid={testId} className="flex min-w-0 items-center gap-3 py-2">{content}</div>;
+  return children ? <details data-testid={testId} open={open} onToggle={event => setOpen(event.currentTarget.open)} className="collection-delete-impact-row group min-w-0">
+    <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl p-2 outline-none transition-colors duration-150 ease-out hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none [&::-webkit-details-marker]:hidden">{content}</summary>
+    <div className="px-2 pb-2">{children}</div>
+  </details> : <div data-testid={testId} className="collection-delete-impact-row flex min-w-0 items-center gap-3 p-2">{content}</div>;
 }
 
 export function CollectionDeleteDialog({ preview, snapshot, names, entries, pending, disabled, onClose, onSubmit, tasks, notice }: {
@@ -86,7 +87,7 @@ export function CollectionDeleteDialog({ preview, snapshot, names, entries, pend
         </div>
         <section className="pb-1" aria-labelledby="collection-delete-removal-heading">
           <h3 id="collection-delete-removal-heading" className="mb-1 text-sm font-semibold">{t("collection_actions.will_delete")}</h3>
-          <div className="divide-y divide-border/60">
+          <div className="collection-delete-impact-list -mx-2">
             <ImpactRow icon={FileText} tone="bg-violet-500/10 text-violet-600 dark:text-violet-400" title={t("collection_actions.entries_label")}
               description={sample ? t("collection_actions.entry_example", { title: sample.title }) : t("collection_actions.empty_entries")}
               badge={t("collection_actions.entry_count", { count: entries })} testId="knowledge-collection-delete-details" defaultOpen={!preview.canCommit}>
@@ -111,7 +112,7 @@ export function CollectionDeleteDialog({ preview, snapshot, names, entries, pend
         </section>
         <section className="pt-1 pb-1" aria-labelledby="collection-delete-retained-heading">
           <h3 id="collection-delete-retained-heading" className="mb-1 text-sm font-semibold">{t("collection_actions.will_keep")}</h3>
-          <div className="divide-y divide-border/60">
+          <div className="collection-delete-impact-list -mx-2">
             <ImpactRow icon={Database} tone="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" title={t("collection_actions.sources_label")}
               description={sources.length ? sources.map(item => item.title).join(" · ") : t("collection_actions.no_sources")}
               badge={<span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><CheckCircle2 aria-hidden="true" className="size-3.5" />{t("collection_actions.retained")}</span>} />
