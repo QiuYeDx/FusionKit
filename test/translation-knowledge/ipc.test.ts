@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { KNOWLEDGE_CHANNELS } from '../../src/translation-knowledge/ipc-contract';
 import { createTranslationKnowledgeApi, assertLegacyKnowledgeChannelAllowed, isPublicKnowledgeChannel } from '../../electron/preload/translation-knowledge-api';
 import { knowledgeRequestSchemas, trustedKnowledgeUrl } from '../../electron/main/translation-knowledge/ipc';
+import type { MaintenanceRequest } from '../../src/translation-knowledge/maintenance-contract';
 
 const state = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => any>(), listeners: new Map<string, (...args: any[]) => any>(),
@@ -101,6 +102,38 @@ describe('knowledge IPC and native publication', () => {
     expect(knowledgeRequestSchemas.exportFile.safeParse({ generation: 0, purpose: 'backup', collectionIds: [], includeMemories: false, path: '/etc/passwd' }).success).toBe(false);
     expect(knowledgeRequestSchemas.importDroppedFile.safeParse({ path: '../secret.json' }).success).toBe(false);
     expect(knowledgeRequestSchemas.commitMaintenance.safeParse({ planId: id, action: 'purge', targets: [] }).success).toBe(false);
+  });
+
+  it('passes explicit collection deletion through preload and the registered handler while rejecting forged expansion requests', async () => {
+    const bridge = registerTranslationKnowledge();
+    const contents = Object.assign(new EventEmitter(), { id: 73, mainFrame: { url: pathToFileURL(path.join(process.cwd(), 'dist/index.html')).href }, isDestroyed: () => false });
+    bridge.attach(contents as any);
+    const event = { sender: contents, senderFrame: contents.mainFrame, returnValue: undefined as unknown };
+    const api = createTranslationKnowledgeApi({
+      sendSync: (channel, payload) => { state.listeners.get(channel)!(event, payload); return event.returnValue; },
+      invoke: async (channel, envelope) => state.handlers.get(channel)!(event, envelope),
+    });
+    const collectionId = '10000000-0000-4000-8000-000000000001';
+    const entryId = '10000000-0000-4000-8000-000000000002';
+    const payload: MaintenanceRequest = { generation: 3, action: 'purge', targets: [{ group: 'collections', id: collectionId }], includeCollectionContents: true };
+    const preview = { planId: '10000000-0000-4000-8000-000000000003', action: 'purge', canCommit: true };
+    state.planMaintenance.mockResolvedValue(preview);
+    try {
+      expect(await api.planMaintenance(payload)).toEqual({ ok: true, value: preview });
+      expect(state.planMaintenance).toHaveBeenCalledWith(event.returnValue, payload);
+      for (const invalid of [
+        { ...payload, includeCollectionContents: false },
+        { ...payload, includeCollectionContents: 'true' },
+        { ...payload, targets: [{ group: 'entries', id: entryId }] },
+        { ...payload, targets: [...payload.targets, { group: 'entries', id: entryId }] },
+        { ...payload, action: 'archive' },
+        { ...payload, targets: [payload.targets[0], payload.targets[0]] },
+      ]) expect(await api.planMaintenance(invalid as MaintenanceRequest)).toEqual({ ok: false, error: 'invalid_input' });
+      expect(state.planMaintenance).toHaveBeenCalledTimes(1);
+      const ordinary: MaintenanceRequest = { generation: 3, action: 'purge', targets: [{ group: 'entries', id: entryId }] };
+      expect(await api.planMaintenance(ordinary)).toEqual({ ok: true, value: preview });
+      expect(state.planMaintenance).toHaveBeenLastCalledWith(event.returnValue, ordinary);
+    } finally { await bridge.dispose(); }
   });
 
   it('converts only OS-backed File objects in the private preload drop method', async () => {

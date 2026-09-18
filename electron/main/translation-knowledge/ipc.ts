@@ -18,7 +18,8 @@ export const knowledgeRequestSchemas = {
   planMaintenance: z.discriminatedUnion('action', [
     z.object({ generation, action: z.literal('archive'), targets: maintenanceTargets }).strict(),
     z.object({ generation, action: z.literal('restore'), targets: maintenanceTargets }).strict(),
-    z.object({ generation, action: z.literal('purge'), targets: maintenanceTargets }).strict(),
+    z.object({ generation, action: z.literal('purge'), targets: maintenanceTargets, includeCollectionContents: z.literal(true).optional() }).strict()
+      .refine(request => !request.includeCollectionContents || request.targets.every(item => item.group === 'collections'), { message: 'Deleting collection contents requires collection targets only.', path: ['targets'] }),
     z.object({ generation, action: z.literal('undo_import'), importId: id }).strict(),
   ]),
   commitMaintenance: z.object({ planId: id, confirmHistoryRemoval: z.boolean().optional() }).strict(),

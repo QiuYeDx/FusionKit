@@ -40,10 +40,16 @@ export function MaintenanceDialog({
     null,
   );
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const operation = useRef(false);
   const stale = snapshot.generation !== preview.generation;
   const cleaning = snapshot.maintenance?.cleanupPending === true;
+  const collectionIds = new Set(preview.items.filter(item => item.group === "collections" && item.effect !== "retain").map(item => item.id));
+  const collectionDelete = preview.action === "purge" && collectionIds.size > 0;
+  const collectionNames = snapshot.data.collections.filter(item => collectionIds.has(item.id)).map(item => item.name).join(" · ");
+  const collectionEntries = snapshot.data.entries.filter(item => collectionIds.has(item.collectionId)).length;
   const submit = async () => {
-    if (pending || stale || cleaning) return;
+    if (operation.current || pending || stale || cleaning || !preview.canCommit || preview.history.scope === "all" && !confirmed) return;
+    operation.current = true;
     setPending(true);
     setError(null);
     setDiagnostics([]);
@@ -66,12 +72,33 @@ export function MaintenanceDialog({
     } catch {
       setError("unexpected");
     } finally {
+      operation.current = false;
       setPending(false);
     }
   };
+  const impacts = <>
+      <div className="space-y-1">
+        {preview.items
+          .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+          .map((item, index) => (
+            <div
+              key={`${item.group}-${item.id}-${index}`}
+              className="rounded-md border p-3"
+            >
+              <p className="break-words text-sm font-medium">{item.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t(`group.${item.group}`)} ·{" "}
+                {t(`maintenance.effect.${item.effect}`)} ·{" "}
+                {t(`maintenance.reason.${item.reason}`)}
+              </p>
+            </div>
+          ))}
+      </div>
+      {(!collectionDelete || preview.items.length > PAGE_SIZE) && <Pagination page={page} total={preview.items.length} onChange={setPage} />}
+  </>;
   return (
     <KnowledgeDialog
-      title={t(`maintenance.action.${preview.action}`)}
+      title={t(collectionDelete ? "collection_actions.delete_title" : `maintenance.action.${preview.action}`)}
       description={t("maintenance.preview_help")}
       wide
       pending={pending}
@@ -93,41 +120,32 @@ export function MaintenanceDialog({
           {t(
             pending
               ? "maintenance.working"
-              : `maintenance.confirm.${preview.action}`,
+              : collectionDelete ? "collection_actions.confirm_delete" : `maintenance.confirm.${preview.action}`,
           )}
         </Button>
       }
     >
+      {collectionDelete && <section data-testid="collection-maintenance-summary" className="space-y-2">
+        <p className="break-words text-sm font-medium">{t("collection_actions.delete_summary", { names: collectionNames, entries: collectionEntries })}</p>
+        <p className="text-xs leading-5 text-muted-foreground">{t("collection_actions.delete_help")}</p>
+        {preview.blockers.some(item => item.code === "PURGE_REFERENCED") && <p role="alert" className="text-xs leading-5 text-destructive">{t("collection_actions.references_help")}</p>}
+      </section>}
       {preview.action !== "purge" && <p className="text-xs text-muted-foreground">
         {t(
           preview.action === "restore"
-            ? "maintenance.restore_help"
+            ? collectionIds.size ? "collection_actions.archived_help" : "maintenance.restore_help"
             : preview.action === "undo_import"
               ? "maintenance.undo_help"
-              : "maintenance.archive_help",
+              : collectionIds.size ? "collection_actions.archive_help" : "maintenance.archive_help",
         )}
       </p>}
       {preview.action === 'purge' && preview.blockers.some(item => item.code.startsWith('PURGE_TASK_')) && <div role="alert" data-testid="knowledge-maintenance-reference-blocker" className="space-y-2 rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
         {preview.blockers.filter(item => item.code.startsWith('PURGE_TASK_')).map(item => <p key={item.code}>{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
       </div>}
-      <div className="space-y-1">
-        {preview.items
-          .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-          .map((item, index) => (
-            <div
-              key={`${item.group}-${item.id}-${index}`}
-              className="rounded-md border p-3"
-            >
-              <p className="break-words text-sm font-medium">{item.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t(`group.${item.group}`)} ·{" "}
-                {t(`maintenance.effect.${item.effect}`)} ·{" "}
-                {t(`maintenance.reason.${item.reason}`)}
-              </p>
-            </div>
-          ))}
-      </div>
-      <Pagination page={page} total={preview.items.length} onChange={setPage} />
+      {collectionDelete ? <details data-testid="knowledge-collection-delete-details" open={!preview.canCommit} className="rounded-md border p-3">
+        <summary className="cursor-pointer text-sm">{t("collection_actions.details", { count: preview.items.length })}</summary>
+        <div className="mt-3">{impacts}</div>
+      </details> : impacts}
       {preview.history.scope === "all" && (
         <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
           <p className="text-sm font-medium">

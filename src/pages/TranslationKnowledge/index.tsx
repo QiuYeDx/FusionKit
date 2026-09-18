@@ -22,6 +22,8 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  RotateCcw,
+  Trash2,
   Search,
   ClipboardPaste,
   Ellipsis,
@@ -30,6 +32,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
@@ -339,7 +342,7 @@ export default function TranslationKnowledge() {
       <div className="my-2 border-t" />
       {reviewCount > 0 && <button data-testid="knowledge-review" className={navClass(view === "review")} onClick={() => setLibraryView("review")}><span>{t("workspace.review")}</span><span className="text-xs tabular-nums">{reviewCount}</span></button>}
       <button data-testid="knowledge-archive" className={navClass(view === "archived")} onClick={() => setLibraryView("archived")}><span className="flex items-center gap-2"><Archive className="size-3.5" />{t("workspace.archived")}</span></button>
-      {view === "archived" && snapshot?.data.collections.filter(item => item.archived).map(collection => <button key={collection.id} className={navClass(query.collection === collection.id)} onClick={() => selectCollection(collection.id, true)}><span className="min-w-0 break-words">{collection.name}</span></button>)}
+      {view === "archived" && snapshot?.data.collections.filter(item => item.archived).map(collection => <button key={collection.id} data-collection-id={collection.id} className={navClass(query.collection === collection.id)} onClick={() => selectCollection(collection.id, true)}><span className="min-w-0 break-words">{collection.name}</span></button>)}
     </ToolPanel>
     <details id="knowledge-more-management" className="rounded-lg border bg-card p-3">
       <summary className="cursor-pointer text-sm font-medium">{t("workspace.management")}</summary>
@@ -371,7 +374,7 @@ export default function TranslationKnowledge() {
     planPage,
     Math.max(0, Math.ceil(plans.length / PAGE_SIZE) - 1),
   );
-  const workspaceTitle = view === "materials" ? currentCollection?.name ?? t("workspace.all") : t(view === "plans" ? "views.plans" : view === "review" ? "workspace.review" : view === "archived" ? "workspace.archived" : "workspace.stored");
+  const workspaceTitle = currentCollection?.name ?? (view === "materials" ? t("workspace.all") : t(view === "plans" ? "views.plans" : view === "review" ? "workspace.review" : view === "archived" ? "workspace.archived" : "workspace.stored"));
   const editableCollection = view === "materials" && currentCollection && !currentCollection.archived ? currentCollection : null;
   const bulkCollection = snapshot?.data.collections.find(item => item.id === bulkCollectionId);
   return (
@@ -384,8 +387,21 @@ export default function TranslationKnowledge() {
         {loading && !snapshot ? <div role="status" className="flex items-center gap-2 p-6 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" />{t("loading")}</div> : snapshot && <>
           <div id="knowledge-content-heading" className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0 space-y-1"><h2 className="break-words text-lg font-semibold">{workspaceTitle}</h2>{currentCollection && <p className="break-words text-xs leading-5 text-muted-foreground">{currentCollection.defaultLanguagePair ? languagePairLabel(t, currentCollection.defaultLanguagePair) : t("workspace.mixed_languages")}{currentCollection.description ? ` · ${currentCollection.description}` : ""}</p>}</div>
-            <div className="flex shrink-0 items-center gap-1">{currentCollection && <Button variant="ghost" size="icon-sm" data-testid="knowledge-edit-collection" aria-label={t("workspace.edit_collection")} onClick={() => setCatalog({ group: "collections", record: currentCollection })}><Pencil /></Button>}<Button variant="ghost" size="icon-sm" aria-label={t("actions.refresh")} disabled={loading || busy} onClick={() => void refresh()}><RefreshCw className={loading ? "animate-spin" : ""} /></Button></div>
+            <div className="flex shrink-0 items-center gap-1">{currentCollection && <>
+              <Button variant="ghost" size="icon-sm" data-testid="knowledge-edit-collection" aria-label={t("workspace.edit_collection")} disabled={busy || blocked} onClick={() => setCatalog({ group: "collections", record: currentCollection })}><Pencil /></Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" data-testid="knowledge-collection-actions" aria-label={t("collection_actions.more")} disabled={busy || blocked}><Ellipsis /></Button></DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem data-testid={currentCollection.archived ? "knowledge-collection-restore" : "knowledge-collection-archive"} onSelect={() => void planMaintenance({ generation: snapshot.generation, action: currentCollection.archived ? "restore" : "archive", targets: [{ group: "collections", id: currentCollection.id }] })}>
+                    {currentCollection.archived ? <RotateCcw /> : <Archive />}{t(currentCollection.archived ? "collection_actions.restore" : "collection_actions.archive")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem data-testid="knowledge-collection-delete" variant="destructive" onSelect={() => void planMaintenance({ generation: snapshot.generation, action: "purge", targets: [{ group: "collections", id: currentCollection.id }], includeCollectionContents: true })}><Trash2 />{t("collection_actions.delete")}</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>}<Button variant="ghost" size="icon-sm" aria-label={t("actions.refresh")} disabled={loading || busy} onClick={() => void refresh()}><RefreshCw className={loading ? "animate-spin" : ""} /></Button></div>
           </div>
+          {view === "archived" && <p data-testid="knowledge-archive-help" className="text-xs leading-5 text-muted-foreground">{t("collection_actions.archived_help")}</p>}
           {view === "materials" && <ClipPathTabs data-testid="knowledge-views" size="sm" shape="rounded" smoothCorners value={contentKind} onValueChange={value => setContentKind(value as ContentKind)} ariaLabel={t("workspace.content_types")} items={[
             { value: "term", label: t("workspace.terms") }, { value: "context", label: t("workspace.contexts") }, { value: "rule", label: t("workspace.rules") },
           ]} />}
@@ -448,6 +464,7 @@ export default function TranslationKnowledge() {
                 generation: snapshot.generation,
                 action,
                 targets: [{ group: catalog.group, id: catalog.record.id }],
+                ...(action === "purge" && catalog.group === "collections" ? { includeCollectionContents: true } : {}),
               })
             }
             onClose={() => { continueWithEntry.current = false; setCatalog(null); }}
@@ -683,6 +700,10 @@ export default function TranslationKnowledge() {
             onClose={() => setMaintenancePreview(null)}
             onCompleted={async (message) => {
               setNotice(message);
+              if (currentCollection && maintenancePreview.items.some(item => item.group === "collections" && item.id === currentCollection.id && item.effect === maintenancePreview.action)) {
+                if (maintenancePreview.action === "purge") setLibraryView("materials");
+                else if (maintenancePreview.action === "archive" || maintenancePreview.action === "restore") selectCollection(currentCollection.id, maintenancePreview.action === "archive");
+              }
               await refresh();
             }}
           />

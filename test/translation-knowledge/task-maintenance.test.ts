@@ -34,7 +34,8 @@ async function fixture(options: RepositoryOptions = {}) {
     documentId: randomUUID(), taskId: randomUUID(), trackId: randomUUID(), recordId: randomUUID(), displayName: 'Sample.srt', status,
     resources: [{ group: 'entries', id: data.entries[0].id, revision: 1, digest: sha256Canonical(data.entries[0]) }],
   });
-  return { root, gate, service, inventory, inspect, plan, reference, targets };
+  const planCollectionDeletion = async () => service.planMaintenance('owner', { action: 'purge', targets: [{ group: 'collections', id: collectionId }], includeCollectionContents: true, generation: (await service.read()).generation });
+  return { root, gate, service, inventory, inspect, plan, planCollectionDeletion, reference, targets };
 }
 
 describe('knowledge maintenance with durable task references', () => {
@@ -55,6 +56,33 @@ describe('knowledge maintenance with durable task references', () => {
     expect(preview.blockers.some(item => item.code === 'PURGE_TASK_REFERENCED')).toBe(true);
     await expect(f.service.commitMaintenance('owner', { planId: preview.planId, confirmHistoryRemoval: true })).rejects.toMatchObject({ code: 'import_conflict' });
     expect(await f.service.read()).toEqual(before);
+  });
+
+  it.each(['active', 'retained'] as const)('blocks deleting a collection when a %s task references only an expanded child entry', async status => {
+    const f = await fixture(); f.inventory.references.push(f.reference(status));
+    const before = await f.service.read(), preview = await f.planCollectionDeletion();
+    expect(preview).toMatchObject({ canCommit: false, tasks: { total: 1, unknownDocuments: 0 } });
+    expect(preview.items.filter(item => item.effect === 'purge')).toHaveLength(2);
+    expect(preview.tasks!.items[0].resources).toEqual(f.inventory.references[0].resources);
+    expect(preview.blockers.some(item => item.code === 'PURGE_TASK_REFERENCED')).toBe(true);
+    await expect(f.service.commitMaintenance('owner', { planId: preview.planId, confirmHistoryRemoval: true })).rejects.toMatchObject({ code: 'import_conflict' });
+    expect(await f.service.read()).toEqual(before);
+  });
+
+  it('expires collection deletion when a child-only task is admitted after preview', async () => {
+    const f = await fixture(), preview = await f.planCollectionDeletion();
+    expect(preview.canCommit).toBe(true);
+    await f.gate.run(async () => { f.inventory.references.push(f.reference()); });
+    await expect(f.service.commitMaintenance('owner', { planId: preview.planId, confirmHistoryRemoval: true })).rejects.toMatchObject({ code: 'plan_expired' });
+    expect((await f.service.read()).data.collections).toHaveLength(1);
+    expect((await f.service.read()).data.entries).toHaveLength(1);
+  });
+
+  it('blocks collection deletion when retained task inventory is incomplete', async () => {
+    const f = await fixture(); f.inventory.unknownDocuments = 1;
+    const preview = await f.planCollectionDeletion();
+    expect(preview.canCommit).toBe(false);
+    expect(preview.blockers.some(item => item.code === 'PURGE_TASK_SCAN_INCOMPLETE')).toBe(true);
   });
 
   it('shows at most 50 unique records with an exact total and preserves active status when inventories overlap', async () => {

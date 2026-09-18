@@ -24,6 +24,8 @@ A visible task list does not describe every retained copy of knowledge. A previo
 - Serialize formal admission/resume with the final fresh inventory and permanent-clear commit using one shared gate. Hold no gate while waiting for a provider response; keep lock ordering explicit.
 - Resolve an already-published maintenance receipt before a new scan can reject its idempotent replay.
 - Keep preview work bounded and recheck owner/cache limits after asynchronous scans.
+- Collection deletion must expand the selected collections to their actual members in the main process at the preview generation. Include expanded entries in task-reference inspection: a task can retain only a child entry. Never implement direct deletion as a hidden archive commit followed by purge, because cancellation or a blocked purge would already have changed user data.
+- Additive request fields must pass both the public IPC schema and the service schema. Exercise preload → registered handler → service in contract tests; direct service tests alone cannot detect a stale strict IPC schema rejecting the real UI request.
 
 ## Avoid
 

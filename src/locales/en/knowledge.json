@@ -784,5 +784,19 @@
     "error_format": "Quotes are incomplete or ambiguous. Check the CSV / TSV content.",
     "error_columns": "Each row needs two columns, with an optional third note column. Keep table tabs or CSV commas.",
     "existing": "This source term already exists in the collection. Edit the existing entry, or remove this row to continue."
+  },
+  "collection_actions": {
+    "more": "Collection actions",
+    "archive": "Archive collection",
+    "restore": "Restore collection",
+    "delete": "Delete collection…",
+    "delete_title": "Delete collection",
+    "confirm_delete": "Delete and clear history",
+    "archive_help": "Archiving keeps the contents, moves the collection to Archived, and stops its use in new translations. Submitted tasks and existing translations stay unchanged. After restoring, confirm its entries again in Needs confirmation.",
+    "archived_help": "These materials remain on this device but cannot be used in new translations. After restoring, previously usable entries need confirmation again in Needs confirmation. You can also delete collections you no longer need.",
+    "delete_summary": "Delete “{{names}}” and all {{entries}} entries inside.",
+    "delete_help": "Deletion cannot be undone. Other collections stay unchanged. Source records are kept and can be cleared separately in Maintenance and import history.",
+    "references_help": "Other materials or saved settings still reference this collection or its contents. Remove the references listed below, then try again. Nothing will be deleted now.",
+    "details": "View affected records ({{count}})"
   }
 }

@@ -5,7 +5,8 @@ import type { KnowledgeTaskReference } from './task-reference-contract';
 export interface RecordTarget { group: EntityGroup; id: string }
 export type MaintenanceAction = 'archive' | 'restore' | 'undo_import' | 'purge';
 export type MaintenanceRequest =
-  | { generation: number; action: 'archive' | 'restore' | 'purge'; targets: RecordTarget[] }
+  | { generation: number; action: 'archive' | 'restore'; targets: RecordTarget[] }
+  | { generation: number; action: 'purge'; targets: RecordTarget[]; includeCollectionContents?: true }
   | { generation: number; action: 'undo_import'; importId: string };
 export interface MaintenanceImpact extends RecordTarget {
   title: string;

@@ -13,7 +13,8 @@ const target = z.strictObject({ group: z.enum(ENTITY_ARRAYS), id: z.uuid() });
 export const maintenanceRequestSchema = z.discriminatedUnion('action', [
   z.strictObject({ generation, action: z.literal('archive'), targets: z.array(target).min(1).max(20_000) }),
   z.strictObject({ generation, action: z.literal('restore'), targets: z.array(target).min(1).max(20_000) }),
-  z.strictObject({ generation, action: z.literal('purge'), targets: z.array(target).min(1).max(20_000) }),
+  z.strictObject({ generation, action: z.literal('purge'), targets: z.array(target).min(1).max(20_000), includeCollectionContents: z.literal(true).optional() })
+    .refine(request => !request.includeCollectionContents || request.targets.every(item => item.group === 'collections'), { message: 'Deleting collection contents requires collection targets only.', path: ['targets'] }),
   z.strictObject({ generation, action: z.literal('undo_import'), importId: z.uuid() }),
 ]);
 export const maintenanceCommitRequestSchema = z.strictObject({ planId: z.uuid(), confirmHistoryRemoval: z.boolean().optional() });
@@ -113,12 +114,19 @@ export function buildMaintenance(state: StoredLibrary, request: MaintenanceReque
     }
   } else {
     if (new Set(request.targets.map(item => item.id)).size !== request.targets.length) throw new KnowledgeServiceError('invalid_input', [diagnostic('DUPLICATE_TARGET', 'Select each maintenance record once.')]);
-    const selected = new Set(request.targets.map(item => item.id));
-    for (const target of request.targets) {
+    const deletingCollections = request.action === 'purge' && request.includeCollectionContents === true;
+    const collectionIds = new Set(deletingCollections ? request.targets.map(item => item.id) : []);
+    // Expand from the exact repository generation used by this preview/commit. Do
+    // not rely on a renderer-provided member list or mutate archive state first.
+    const targets: RecordTarget[] = deletingCollections
+      ? [...request.targets, ...state.data.entries.filter(entry => collectionIds.has(entry.collectionId)).map(entry => ({ group: 'entries' as const, id: entry.id }))]
+      : request.targets;
+    const selected = new Set(targets.map(item => item.id));
+    for (const target of targets) {
       const item = current.get(target.id);
       if (!item || item.group !== target.group) throw new KnowledgeServiceError('not_found');
       if (request.action === 'purge') {
-        if (item.group === 'entries' ? (item.record as Entry).state !== 'archived' : 'archived' in item.record && !item.record.archived) { block(item, 'active_record', 'PURGE_ARCHIVE_FIRST', 'Archive this record before permanently clearing it.'); continue; }
+        if (!deletingCollections && (item.group === 'entries' ? (item.record as Entry).state !== 'archived' : 'archived' in item.record && !item.record.archived)) { block(item, 'active_record', 'PURGE_ARCHIVE_FIRST', 'Archive this record before permanently clearing it.'); continue; }
         const inbound = (incomingReferences.get(item.record.id) ?? []).filter(value => !selected.has(value.id)).map(value => initial.get(value.id)!);
         if (inbound.length) {
           block(item, 'referenced', 'PURGE_REFERENCED', 'Records outside this selection still reference it. Include or edit those references first.');

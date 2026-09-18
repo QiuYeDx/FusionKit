@@ -58,3 +58,12 @@
 本轮没有启动 Vite 开发服务。已逐项确认原生测试进程退出、fixture HTTP 服务关闭、独立 profile 删除，并核对进程表没有本轮临时目录的 Electron/Vitest 遗留；保留用户自己的开发实例。截图与验证日志不进提交；`package.json` 与 `pnpm-lock.yaml` 未修改。用户提供的未跟踪 `refference/` 原文保持原样且不代为提交。
 
 AC1–8 完成；270 项领域/组件行为检查及 7 项原生流程通过，最终 TypeScript、i18n、依赖边界与构建通过。提交包含设计、实现、必要回归和避坑记录。
+
+## 资料集生命周期补全
+
+针对后续「归档含义不清、资料集无法删除」反馈，补齐标题操作菜单与编辑器删除入口、归档/恢复效果说明，以及非空资料集直接删除。删除仍走主进程展开成员、影响预览、历史清理确认、任务引用检查与原子提交，取消不发生任何数据更改。设计取舍见主文档同名补充章节。
+
+- `maintenance.test.ts`、`task-maintenance.test.ts`、`ipc.test.ts` 共 50 项通过。新增 IPC 字段同时覆盖 preload → 注册 handler → service 的真实边界，修复仅直调服务测试无法发现的严格 IPC schema 遗漏。
+- 原有 `electron.test.ts` 和新增 `collection-maintenance-electron.test.ts` 两条原生流程通过；覆盖空/非空/已归档删除、取消后快照相等、其他集及来源保留、恢复重新确认和外部方案引用阻断。
+- 最终 TypeScript、四语言检查、500 文件依赖边界及 renderer/main/preload 构建通过。实际审阅宽窄窗口、深浅主题截图；将删除明细默认折叠，让内容数量、历史清理范围与确认项优先可见，阻塞时展开引用。
+- 截图保存在本地忽略目录 `test-results/translation-knowledge-collection-maintenance/`。测试均使用临时 profile，已退出全部本轮 Electron/Vitest；未启动前端服务、未更改依赖或锁文件、未操作用户真实资料。

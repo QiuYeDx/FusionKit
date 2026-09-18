@@ -356,7 +356,10 @@ export class KnowledgeService {
 
   private decorateTaskImpact(preview: MaintenancePreview, request: MaintenanceRequest, inventory?: KnowledgeReferenceInventory): void {
     if (!inventory) return;
-    const targets = request.action === 'purge' ? request.targets : preview.items;
+    // Collection deletion expands its contents in the maintenance builder. Child
+    // entries can be the only resource retained by a task, so roots alone are
+    // insufficient. Keep explicit roots for already-blocked legacy previews.
+    const targets = request.action === 'purge' ? [...request.targets, ...preview.items.filter(item => item.effect === 'purge')] : preview.items;
     const selected = new Set(targets.map(target => `${target.group}:${target.id}`));
     const matching = new Map<string, KnowledgeReferenceInventory['references'][number]>();
     for (const ref of inventory.references) if (ref.resources.some(resource => selected.has(`${resource.group}:${resource.id}`))) {

@@ -564,6 +564,8 @@ export function CatalogEditor({
             <p className="text-xs text-muted-foreground">
               {t("maintenance.saved_version")}
             </p>
+            {group === "collections" && <p className="text-xs leading-5 text-muted-foreground">{t(initial.archived ? "collection_actions.archived_help" : "collection_actions.archive_help")}</p>}
+            <div className="flex flex-wrap gap-2">
             <Button
               data-testid="knowledge-catalog-maintenance"
               type="button"
@@ -573,13 +575,14 @@ export function CatalogEditor({
                 void maintain(initial.archived ? "restore" : "archive")
               }
             >
-              {t(
-                initial.archived
+              {t(group === "collections" ? initial.archived ? "collection_actions.restore" : "collection_actions.archive" : initial.archived
                   ? "maintenance.preview_restore"
                   : "maintenance.preview_archive",
               )}
             </Button>
-            {initial.archived && (
+            {group === "collections" && <Button data-testid="knowledge-catalog-purge" type="button" size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => void maintain("purge")}>{t("collection_actions.delete")}</Button>}
+            </div>
+            {group !== "collections" && initial.archived && (
               <details>
                 <summary className="cursor-pointer text-xs text-muted-foreground">
                   {t("maintenance.advanced")}

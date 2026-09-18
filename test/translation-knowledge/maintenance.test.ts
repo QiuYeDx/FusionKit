@@ -7,6 +7,7 @@ import { KnowledgeService } from '../../electron/main/translation-knowledge/serv
 import { emptyPackage, type RepositoryOptions, type PublicationStage } from '../../electron/main/translation-knowledge/repository';
 import type { KnowledgePackage } from '../../src/translation-knowledge/schemas';
 import type { MaintenanceRequest, RecordTarget } from '../../src/translation-knowledge/maintenance-contract';
+import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 
 const fixtureRoots: string[] = [], services: KnowledgeService[] = [];
 afterEach(async () => { for (const service of services.splice(0)) await service.dispose(); for (const root of fixtureRoots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -170,6 +171,82 @@ describe('knowledge maintenance', () => {
     await archiveEntries(service, content); current = await service.read();
     preview = await service.planMaintenance('owner', { generation: current.generation, action: 'purge', targets: [{ group: 'entries', id: content.entries[0].id }] });
     expect(preview.items).toContainEqual(expect.objectContaining({ id: content.sources[0].id, effect: 'retain', reason: 'retained_source' }));
+  });
+
+  it('directly deletes an empty active collection only after explicit history confirmation', async () => {
+    const { service } = await fixture(); const content = data(); content.entries = [];
+    await imported(service, content);
+    const before = await service.read();
+    const preview = await service.planMaintenance('owner', { generation: before.generation, action: 'purge', targets: [{ group: 'collections', id: content.collections[0].id }], includeCollectionContents: true });
+    expect(preview.canCommit).toBe(true);
+    expect(preview.items.filter(item => item.effect === 'purge')).toEqual([expect.objectContaining({ group: 'collections', id: content.collections[0].id })]);
+    expect(await service.read()).toEqual(before);
+    await expect(service.commitMaintenance('owner', { planId: preview.planId })).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(await service.read()).toEqual(before);
+    await service.commitMaintenance('owner', { planId: preview.planId, confirmHistoryRemoval: true });
+    const after = await service.read();
+    expect(after.data.collections).toEqual([]); expect(after.data.sources).toEqual(content.sources);
+  });
+
+  it('expands all collection entry states atomically and retains sources and unrelated current knowledge', async () => {
+    const { service, root } = await fixture(); const content = data();
+    content.entries = (['ready', 'candidate', 'needs_review', 'rejected', 'archived'] as const).map(state => ({ ...structuredClone(content.entries[0]), id: randomUUID(), title: state, state }));
+    const keptCollection = { ...structuredClone(content.collections[0]), id: randomUUID(), name: 'Keep collection' };
+    const keptEntry = { ...structuredClone(content.entries[0]), id: randomUUID(), collectionId: keptCollection.id, title: 'Keep entry' };
+    content.collections.push(keptCollection); content.entries.push(keptEntry);
+    await imported(service, content);
+    const before = await service.read();
+    const preview = await service.planMaintenance('owner', { generation: before.generation, action: 'purge', targets: [{ group: 'collections', id: content.collections[0].id }], includeCollectionContents: true });
+    expect(preview.canCommit).toBe(true);
+    expect(preview.items.filter(item => item.effect === 'purge')).toHaveLength(6);
+    expect(preview.items).toContainEqual(expect.objectContaining({ group: 'sources', id: content.sources[0].id, effect: 'retain', reason: 'retained_source' }));
+    expect(await service.read()).toEqual(before);
+    const request = { planId: preview.planId, confirmHistoryRemoval: true };
+    const receipt = await service.commitMaintenance('owner', request);
+    expect(receipt).toMatchObject({ changed: 6, cleanupPending: false });
+    expect(await service.commitMaintenance('owner', request)).toEqual(receipt);
+    const after = await service.read();
+    expect(after.data.collections).toEqual([keptCollection]); expect(after.data.entries).toEqual([keptEntry]);
+    expect(after.data.sources).toEqual(content.sources); expect(after.data.subjects).toEqual(content.subjects);
+    expect(Object.keys(after.approvals)).toEqual([keptEntry.id]);
+    expect(after.maintenance?.undoableImportIds).toEqual([]);
+    await service.dispose(); const restarted = new KnowledgeService(root); services.push(restarted);
+    expect(await restarted.commitMaintenance('owner', request)).toEqual(receipt);
+  });
+
+  it.each(['recipe', 'derived_entry'] as const)('blocks collection deletion with an external %s reference without changing any archive or approval state', async reference => {
+    const { service } = await fixture(); const content = data();
+    if (reference === 'recipe') content.recipes.push({ id: randomUUID(), revision: 1, name: 'Saved settings', description: '', archived: false, languagePair: { source: 'en', target: 'zh-Hans' }, readCollectionIds: [content.collections[0].id], subjectSuggestions: [], modifierStyleIds: [], instructions: '', context: '', inheritGlobalPreferences: true, learningSuggestion: 'off' });
+    else {
+      const otherCollection = { ...structuredClone(content.collections[0]), id: randomUUID(), name: 'Other collection' };
+      content.collections.push(otherCollection);
+      content.entries.push({ ...structuredClone(content.entries[0]), id: randomUUID(), collectionId: otherCollection.id, derivedFrom: [{ entryId: content.entries[0].id, revision: 1, digest: sha256Canonical(content.entries[0]), evidenceSourceId: content.sources[0].id }] });
+    }
+    await imported(service, content);
+    const before = await service.read();
+    const preview = await service.planMaintenance('owner', { generation: before.generation, action: 'purge', targets: [{ group: 'collections', id: content.collections[0].id }], includeCollectionContents: true });
+    expect(preview.canCommit).toBe(false); expect(preview.blockers.some(item => item.code === 'PURGE_REFERENCED')).toBe(true);
+    await expect(service.commitMaintenance('owner', { planId: preview.planId, confirmHistoryRemoval: true })).rejects.toMatchObject({ code: 'import_conflict' });
+    expect(await service.read()).toEqual(before);
+  });
+
+  it('expires collection deletion after its member content changes', async () => {
+    const { service } = await fixture(); const { content } = await imported(service);
+    const before = await service.read();
+    const preview = await service.planMaintenance('owner', { generation: before.generation, action: 'purge', targets: [{ group: 'collections', id: content.collections[0].id }], includeCollectionContents: true });
+    const added = { ...structuredClone(content.entries[0]), id: randomUUID(), title: 'Added after preview' };
+    await service.saveRecord({ generation: before.generation, group: 'entries', record: added, adopt: true });
+    const afterAdd = await service.read();
+    await expect(service.commitMaintenance('owner', { planId: preview.planId, confirmHistoryRemoval: true })).rejects.toMatchObject({ code: 'plan_expired' });
+    expect(await service.read()).toEqual(afterAdd);
+  });
+
+  it('restricts collection-content deletion to explicit collection roots and preserves ordinary purge rules', async () => {
+    const { service } = await fixture(); const { content } = await imported(service);
+    const generation = (await service.read()).generation;
+    await expect(service.planMaintenance('owner', { generation, action: 'purge', targets: [{ group: 'entries', id: content.entries[0].id }], includeCollectionContents: true })).rejects.toMatchObject({ code: 'invalid_input' });
+    const preview = await service.planMaintenance('owner', { generation, action: 'purge', targets: [{ group: 'collections', id: content.collections[0].id }, { group: 'entries', id: content.entries[0].id }] });
+    expect(preview.canCommit).toBe(false); expect(preview.blockers.filter(item => item.code === 'PURGE_ARCHIVE_FIRST')).toHaveLength(2);
   });
 
   it.each<PublicationStage>(['generation_synced', 'purge_journal_synced', 'before_pointer_rename'])('leaves all prior history untouched when purge fails at %s', async stageToFail => {
