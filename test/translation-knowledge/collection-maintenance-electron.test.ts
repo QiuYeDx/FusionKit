@@ -170,6 +170,15 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       // cancelling the preview must not first archive or revise anything.
       await selectCollection(fixture.empty.id, fixture.empty.name);
       const beforeEmpty = await read();
+      await openMaintenance('archive');
+      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.empty.name);
+      await uiExpect(ui.getByTestId('knowledge-collection-archive-details').locator('summary')).toContainText('0 项');
+      await uiExpect(ui.getByRole('button', { name: '取消', exact: true })).toBeFocused();
+      await capture('collection-archive-empty-light-wide', ui.getByRole('dialog'));
+      await ui.keyboard.press('Escape');
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      expect(new URL(ui.url()).hash).toBe('#/tools/translation-knowledge');
+      expect(await read()).toEqual(beforeEmpty);
       await openMaintenance('delete');
       await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.empty.name);
       await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('0 项');
@@ -264,8 +273,30 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       const beforeArchive = await read();
       expect(beforeArchive.approvals[fixture.archivalTerm.id]).toBeDefined();
       await openMaintenance('archive');
+      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.archival.name);
       await uiExpect(ui.getByRole('dialog')).toContainText(/保留/);
       await uiExpect(ui.getByRole('dialog')).toContainText(/待审核|重新确认|重新审核/);
+      await uiExpect(ui.getByRole('button', { name: '取消', exact: true })).toBeFocused();
+      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toHaveText('归档资料集');
+      const archiveDetails = ui.getByTestId('knowledge-collection-archive-details');
+      expect(await archiveDetails.evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+      await uiExpect(archiveDetails.locator('summary')).toContainText('1 项');
+      await capture('collection-archive-light-wide', ui.getByRole('dialog'));
+      await archiveDetails.locator('summary').click();
+      await uiExpect(archiveDetails.locator('li').filter({ hasText: fixture.archivalTerm.title })).toBeVisible();
+      await capture('collection-archive-details-light-wide', ui.getByRole('dialog'));
+      await cancel();
+      expect(await read()).toEqual(beforeArchive);
+
+      await ui.evaluate(() => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })));
+      await ui.reload();
+      await nativeWindow.evaluate(win => win.setSize(820, 700));
+      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
+      await selectCollection(fixture.archival.id, fixture.archival.name);
+      await openMaintenance('archive');
+      await archiveDetails.locator('summary').hover();
+      await capture('collection-archive-dark-narrow', ui.getByRole('dialog'));
       await confirm();
       stored = await read();
       expect(stored.data.collections.find(item => item.id === fixture.archival.id)?.archived).toBe(true);
@@ -275,7 +306,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await ui.getByTestId('knowledge-archive').click();
       await selectCollection(fixture.archival.id, fixture.archival.name);
       await uiExpect(ui.locator(`[data-entry-id="${fixture.archivalTerm.id}"]`)).toBeVisible();
-      await capture('collection-archived-light-wide', ui.locator('#knowledge-content-heading'));
+      await capture('collection-archived-dark-narrow', ui.locator('#knowledge-content-heading'));
       await openMaintenance('restore');
       await uiExpect(ui.getByRole('dialog')).toContainText(/不会自动|重新确认|待审核/);
       await confirm();
@@ -312,7 +343,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await uiExpect(ui.getByRole('dialog')).toContainText('仍被其他资料引用');
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
       await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
-      await capture('collection-delete-referenced-light-wide', ui.getByRole('dialog'));
+      await capture('collection-delete-referenced-dark-narrow', ui.getByRole('dialog'));
       await cancel();
       expect(await read()).toEqual(beforeBlocked);
       // Long names and translated text must fit a short native window, with
@@ -329,6 +360,18 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await ui.reload();
       await nativeWindow.evaluate(win => win.setSize(786, 660));
       await selectCollection(fixture.other.id, longName);
+      await openMaintenance('archive');
+      await uiExpect(ui.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toHaveText('Archive collection');
+      await capture('collection-archive-english-long-name', ui.getByRole('dialog'));
+      await archiveDetails.locator('summary').click();
+      await capture('collection-archive-english-long-name-expanded', ui.getByRole('dialog'));
+      await ui.getByRole('dialog').locator('[data-slot=scroll-area-viewport]').first().evaluate(element => { element.scrollTop = element.scrollHeight; });
+      await uiExpect(ui.getByTestId('knowledge-collection-archive-restore-hint')).toBeVisible();
+      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeInViewport();
+      await capture('collection-archive-english-long-name-scrolled', ui.getByRole('dialog'));
+      await cancel();
+      expect((await read()).data.collections.find(item => item.id === fixture.other.id)?.archived).toBe(false);
       await openMaintenance('delete');
       await uiExpect(ui.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
       await capture('collection-delete-english-long-name', ui.getByRole('dialog'));

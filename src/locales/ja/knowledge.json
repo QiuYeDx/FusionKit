@@ -821,6 +821,16 @@
     "needs_check": "要確認",
     "cancel": "キャンセル",
     "entry_count_one": "{{count}} 件",
-    "snapshot_count_one": "{{count}} 件"
+    "snapshot_count_one": "{{count}} 件",
+    "archive_named": "資料集「{{names}}」をアーカイブ",
+    "archive_intro": "この資料集の使用を一時停止します。後で復元できます。",
+    "will_archive": "アーカイブに移動",
+    "archive_contents": "資料集とその内容",
+    "archive_contents_help": "通常の一覧から「アーカイブ」に移動し、新しい翻訳には使用されなくなります。",
+    "archive_retained": "ローカルの内容と履歴",
+    "archive_retained_help": "資料の内容、出典レコード、履歴スナップショットは保持されます。",
+    "archive_tasks": "送信済みタスクと訳文",
+    "archive_tasks_help": "送信済みタスクは元の資料を引き続き使用します。既存の訳文には影響しません。",
+    "archive_restore_help": "「アーカイブ」から資料集を復元できます。復元後、以前使用可能だった項目は「要確認」で再確認する必要があります。"
   }
 }

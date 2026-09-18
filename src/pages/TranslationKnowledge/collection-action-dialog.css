@@ -1,0 +1,26 @@
+.collection-action-impact-list > .collection-action-impact-row {
+  position: relative;
+}
+
+.collection-action-impact-list > .collection-action-impact-row + .collection-action-impact-row::before {
+  content: "";
+  position: absolute;
+  inset: 0 8px auto;
+  height: 1px;
+  background: color-mix(in oklab, var(--border) 60%, transparent);
+  pointer-events: none;
+  transition: opacity 150ms ease-out;
+}
+
+/* Only fade dividers touching the highlighted summary. An expanded row's
+   lower divider borders its details instead, so it stays visible. */
+.collection-action-impact-list > .collection-action-impact-row:has(> summary:is(:hover, :focus-visible))::before,
+.collection-action-impact-list > .collection-action-impact-row:not([open]):has(> summary:is(:hover, :focus-visible)) + .collection-action-impact-row::before {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collection-action-impact-list > .collection-action-impact-row::before {
+    transition: none;
+  }
+}

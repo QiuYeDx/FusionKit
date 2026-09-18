@@ -821,6 +821,16 @@
     "needs_check": "待确认",
     "cancel": "取消",
     "entry_count_one": "{{count}} 项",
-    "snapshot_count_one": "{{count}} 份"
+    "snapshot_count_one": "{{count}} 份",
+    "archive_named": "归档资料集「{{names}}」",
+    "archive_intro": "暂时停用此资料集，之后可以恢复。",
+    "will_archive": "将移入归档",
+    "archive_contents": "资料集及其内容",
+    "archive_contents_help": "从日常列表移入“归档”，不再用于新的翻译。",
+    "archive_retained": "本地内容与历史",
+    "archive_retained_help": "资料内容、来源记录和历史快照都会保留。",
+    "archive_tasks": "已提交任务与译文",
+    "archive_tasks_help": "已提交任务继续使用原有资料，已有译文不受影响。",
+    "archive_restore_help": "可在“归档”中恢复资料集。恢复后，原来可用的条目需要在“待确认”中重新确认。"
   }
 }

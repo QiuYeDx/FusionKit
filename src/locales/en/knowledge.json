@@ -821,6 +821,16 @@
     "needs_check": "Unverified",
     "cancel": "Cancel",
     "entry_count_one": "{{count}} item",
-    "snapshot_count_one": "{{count}} snapshot"
+    "snapshot_count_one": "{{count}} snapshot",
+    "archive_named": "Archive collection “{{names}}”",
+    "archive_intro": "Pause this collection. You can restore it later.",
+    "will_archive": "Moved to Archived",
+    "archive_contents": "Collection and its contents",
+    "archive_contents_help": "Moves out of the main list and stops being used in new translations.",
+    "archive_retained": "Local content and history",
+    "archive_retained_help": "Content, source records and history snapshots are kept.",
+    "archive_tasks": "Submitted tasks and translations",
+    "archive_tasks_help": "Submitted tasks keep using their original materials. Existing translations stay unchanged.",
+    "archive_restore_help": "Restore the collection from Archived. Previously usable entries will need confirmation again in Needs confirmation."
   }
 }

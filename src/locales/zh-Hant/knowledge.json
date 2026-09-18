@@ -821,6 +821,16 @@
     "needs_check": "待確認",
     "cancel": "取消",
     "entry_count_one": "{{count}} 項",
-    "snapshot_count_one": "{{count}} 份"
+    "snapshot_count_one": "{{count}} 份",
+    "archive_named": "封存資料集「{{names}}」",
+    "archive_intro": "暫時停用此資料集，之後可以還原。",
+    "will_archive": "將移入封存",
+    "archive_contents": "資料集及其內容",
+    "archive_contents_help": "從日常清單移入「封存」，不再用於新的翻譯。",
+    "archive_retained": "本機內容與歷史",
+    "archive_retained_help": "資料內容、來源紀錄和歷史快照都會保留。",
+    "archive_tasks": "已提交任務與譯文",
+    "archive_tasks_help": "已提交任務繼續使用原有資料，已有譯文不受影響。",
+    "archive_restore_help": "可在「封存」中還原資料集。還原後，原來可用的項目需要在「待確認」中重新確認。"
   }
 }

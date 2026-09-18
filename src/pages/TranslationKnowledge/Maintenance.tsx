@@ -16,6 +16,7 @@ import type { Diagnostic } from "@/translation-knowledge/validation";
 import { Check, ErrorNotice, KnowledgeDialog, Pagination } from "./Controls";
 import { PAGE_SIZE, isSourceUnreferenced, maintenanceCommitFor } from "./model";
 import { CollectionDeleteDialog } from "./CollectionDeleteDialog";
+import { CollectionArchiveDialog } from "./CollectionArchiveDialog";
 import { diagnosticKey } from './labels';
 import { knowledgeReferenceKey } from '@/translation-knowledge/task-reference-contract';
 
@@ -142,6 +143,17 @@ export function MaintenanceDialog({
       {preview.blockers.filter(item => item.code.startsWith("PURGE_TASK_")).map(item => <p key={item.code} role="alert" data-testid="knowledge-maintenance-reference-blocker" className="text-xs leading-5 text-destructive">{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
       {notice}
     </>}
+  />;
+  if (preview.action === "archive" && collectionIds.size > 0) return <CollectionArchiveDialog
+    preview={preview}
+    names={collectionNames}
+    entries={collectionEntries}
+    pending={pending}
+    disabled={pending || stale || cleaning || !preview.canCommit}
+    onClose={onClose}
+    onSubmit={() => void submit()}
+    tasks={taskReferences}
+    notice={notice}
   />;
   return (
     <KnowledgeDialog
