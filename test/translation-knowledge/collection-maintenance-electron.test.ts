@@ -88,7 +88,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeVisible();
     };
     const cancel = async () => {
-      await ui.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+      await ui.getByRole('dialog').getByRole('button', { name: /^(取消|Cancel)$/ }).click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
     };
     const confirm = async () => {
@@ -96,9 +96,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await ui.getByTestId('knowledge-maintenance-confirm').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
     };
-    const acknowledgeDeletion = async () => {
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
-      await ui.getByRole('dialog').getByRole('checkbox', { name: '我理解本地全部资料历史与相关撤销能力将一并清除，并确认永久清除', exact: true }).check();
+    const expectDirectDeletion = async () => {
+      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
     };
 
@@ -167,18 +166,19 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       const originalOther = (await read()).data.entries.find(entry => entry.id === fixture.otherTerm.id)!;
       const originalOtherApproval = (await read()).approvals[fixture.otherTerm.id];
 
-      // An empty active collection can be deleted directly. Opening, checking
-      // and cancelling the preview must not first archive or revise anything.
+      // An empty active collection can be deleted directly. Opening and
+      // cancelling the preview must not first archive or revise anything.
       await selectCollection(fixture.empty.id, fixture.empty.name);
       const beforeEmpty = await read();
       await openMaintenance('delete');
       await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.empty.name);
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText('共 0 条');
-      await acknowledgeDeletion();
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('0 项');
+      await uiExpect(ui.getByRole('button', { name: '取消', exact: true })).toBeFocused();
+      await expectDirectDeletion();
       await cancel();
       expect(await read()).toEqual(beforeEmpty);
       await openMaintenance('delete');
-      await acknowledgeDeletion();
+      await expectDirectDeletion();
       await confirm();
       expect((await read()).data.collections.some(item => item.id === fixture.empty.id)).toBe(false);
       await uiExpect(ui.locator(`[data-collection-id="${fixture.empty.id}"]`)).toHaveCount(0);
@@ -194,12 +194,14 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await capture('collection-menu-light-wide', ui.getByRole('menu'));
       await ui.getByTestId('knowledge-collection-delete').click();
       await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.filled.name);
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText('共 2 条');
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('2 项');
       for (const term of fixture.filledTerms) await uiExpect(ui.getByRole('dialog')).toContainText(term.title);
       await uiExpect(ui.getByRole('dialog')).toContainText(fixture.sharedSource.title);
-      await uiExpect(ui.getByRole('dialog')).toContainText('保留来源依据');
+      await uiExpect(ui.getByRole('dialog')).toContainText('来源依据');
       const details = ui.getByTestId('knowledge-collection-delete-details');
       expect(await details.evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-history')).toContainText('清理全部资料集的本地历史');
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-tasks')).toContainText('不受影响');
       await capture('collection-delete-light-wide', ui.getByRole('dialog'));
       await details.locator('summary').click();
       await capture('collection-delete-details-light-wide', ui.getByRole('dialog'));
@@ -214,9 +216,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await openActions();
       await capture('collection-menu-dark-narrow', ui.getByRole('menu'));
       await ui.getByTestId('knowledge-collection-delete').click();
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText('共 2 条');
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('2 项');
       await capture('collection-delete-dark-narrow', ui.getByRole('dialog'));
-      await acknowledgeDeletion();
+      await expectDirectDeletion();
       await confirm();
       let stored = await read();
       expect(stored.data.collections.some(item => item.id === fixture.filled.id)).toBe(false);
@@ -268,8 +270,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await selectCollection(fixture.archival.id, fixture.archival.name);
       await openMaintenance('delete');
       await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.archival.name);
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText('共 1 条');
-      await acknowledgeDeletion();
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('1 项');
+      await expectDirectDeletion();
       await confirm();
       stored = await read();
       expect(stored.data.collections.some(item => item.id === fixture.archival.id)).toBe(false);
@@ -286,10 +288,34 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await uiExpect(ui.getByRole('dialog')).toContainText(fixture.recipe.name);
       await uiExpect(ui.getByRole('dialog')).toContainText('仍被其他资料引用');
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
-      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toBeDisabled();
+      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
       await capture('collection-delete-referenced-light-wide', ui.getByRole('dialog'));
       await cancel();
       expect(await read()).toEqual(beforeBlocked);
+      // Long names and translated text must fit a short native window, with
+      // deletion and cancellation still reachable while details scroll.
+      const longName = 'TravelTerminologyWithoutWordBreaks'.repeat(4);
+      await ui.evaluate(async ({ id, name }) => {
+        const result = await window.translationKnowledge.read();
+        if (!result.ok) throw new Error(result.error);
+        const collection = result.value.data.collections.find(item => item.id === id)!;
+        const saved = await window.translationKnowledge.saveRecord({ generation: result.value.generation, group: 'collections', record: { ...collection, name } });
+        if (!saved.ok) throw new Error(saved.error);
+        localStorage.setItem('lang', 'en');
+      }, { id: fixture.other.id, name: longName });
+      await ui.reload();
+      await nativeWindow.evaluate(win => win.setSize(786, 660));
+      await selectCollection(fixture.other.id, longName);
+      await openMaintenance('delete');
+      await uiExpect(ui.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+      await capture('collection-delete-english-long-name', ui.getByRole('dialog'));
+      await ui.getByTestId('knowledge-collection-delete-history').locator('summary').click();
+      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
+      await capture('collection-delete-english-long-name-expanded', ui.getByRole('dialog'));
+      await ui.keyboard.press('Escape');
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      expect((await read()).data.collections.some(item => item.id === fixture.other.id)).toBe(true);
       expect(errors).toEqual([]);
     } catch (error) {
       await ui.screenshot({ path: path.join(screenshots, 'collection-maintenance-failure.png'), animations: 'disabled' }).catch(() => undefined);

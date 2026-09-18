@@ -15,6 +15,7 @@ import type {
 import type { Diagnostic } from "@/translation-knowledge/validation";
 import { Check, ErrorNotice, KnowledgeDialog, Pagination } from "./Controls";
 import { PAGE_SIZE, isSourceUnreferenced, maintenanceCommitFor } from "./model";
+import { CollectionDeleteDialog } from "./CollectionDeleteDialog";
 import { diagnosticKey } from './labels';
 import { knowledgeReferenceKey } from '@/translation-knowledge/task-reference-contract';
 
@@ -48,13 +49,15 @@ export function MaintenanceDialog({
   const collectionNames = snapshot.data.collections.filter(item => collectionIds.has(item.id)).map(item => item.name).join(" · ");
   const collectionEntries = snapshot.data.entries.filter(item => collectionIds.has(item.collectionId)).length;
   const submit = async () => {
-    if (operation.current || pending || stale || cleaning || !preview.canCommit || preview.history.scope === "all" && !confirmed) return;
+    // The collection dialog's delete button confirms its displayed history scope.
+    const historyConfirmed = collectionDelete || confirmed;
+    if (operation.current || pending || stale || cleaning || !preview.canCommit || preview.history.scope === "all" && !historyConfirmed) return;
     operation.current = true;
     setPending(true);
     setError(null);
     setDiagnostics([]);
     try {
-      const result = await api.commitMaintenance(maintenanceCommitFor(preview, confirmed));
+      const result = await api.commitMaintenance(maintenanceCommitFor(preview, historyConfirmed));
       if (!result.ok) {
         setError(result.error);
         setDiagnostics(result.diagnostics ?? []);
@@ -94,11 +97,55 @@ export function MaintenanceDialog({
             </div>
           ))}
       </div>
-      {(!collectionDelete || preview.items.length > PAGE_SIZE) && <Pagination page={page} total={preview.items.length} onChange={setPage} />}
+      <Pagination page={page} total={preview.items.length} onChange={setPage} />
   </>;
+  const taskReferences = preview.taskTracking === "connected" && preview.tasks ? <section data-testid="knowledge-maintenance-tasks" className="min-w-0 space-y-3 border-t pt-3">
+        <h3 className="text-sm font-medium">{t("maintenance.related_records", { count: preview.tasks.total })}</h3>
+        <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.task_references_help")}</p>
+        {preview.tasks.unknownDocuments > 0 && <p role="status" className="text-xs leading-5 text-destructive">{t("maintenance.task_references_unknown", { count: preview.tasks.unknownDocuments })}</p>}
+        {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <details key={knowledgeReferenceKey(task)} className="min-w-0 rounded-md border p-3">
+          <summary className="cursor-pointer text-xs [overflow-wrap:anywhere]">{task.displayName || t('maintenance.automatic_queue')} · {t(task.kind === 'automatic_preparation' ? 'maintenance.automatic_preparation' : task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</summary>
+          <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">{task.kind === 'automatic_preparation' ? t('maintenance.automatic_preparation_help') : t("maintenance.record_id", { id: task.recordId })}</p>
+          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {task.resources.map(resource => {
+              const record = snapshot.data[resource.group].find(item => item.id === resource.id);
+              const title = record ? "title" in record ? record.title : record.name : resource.id;
+              return <li key={`${resource.group}:${resource.id}:${resource.revision}`} className="[overflow-wrap:anywhere]">{t("maintenance.record_resource", { group: t(`group.${resource.group}`), title, revision: resource.revision })}</li>;
+            })}
+          </ul>
+        </details>)}
+        {!preview.tasks.total && !preview.tasks.unknownDocuments && <p className="text-xs text-muted-foreground">{t("maintenance.no_related_records")}</p>}
+        <Pagination page={taskPage} total={preview.tasks.items.length} onChange={setTaskPage} />
+        {preview.tasks.total > preview.tasks.items.length && <p className="text-xs text-muted-foreground">{t("maintenance.records_limited", { count: preview.tasks.items.length, total: preview.tasks.total })}</p>}
+      </section> : <p className="text-xs text-muted-foreground">{t("maintenance.tasks_not_connected")}</p>;
+  const notice = <ErrorNotice
+        error={
+          stale
+            ? "plan_expired"
+            : preview.blockers.length
+              ? "invalid_input"
+              : error
+        }
+        diagnostics={preview.blockers.length ? preview.blockers : diagnostics}
+      />;
+  if (collectionDelete) return <CollectionDeleteDialog
+    preview={preview}
+    snapshot={snapshot}
+    names={collectionNames}
+    entries={collectionEntries}
+    pending={pending}
+    disabled={pending || stale || cleaning || !preview.canCommit}
+    onClose={onClose}
+    onSubmit={() => void submit()}
+    tasks={taskReferences}
+    notice={<>
+      {preview.blockers.filter(item => item.code.startsWith("PURGE_TASK_")).map(item => <p key={item.code} role="alert" data-testid="knowledge-maintenance-reference-blocker" className="text-xs leading-5 text-destructive">{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
+      {notice}
+    </>}
+  />;
   return (
     <KnowledgeDialog
-      title={t(collectionDelete ? "collection_actions.delete_title" : `maintenance.action.${preview.action}`)}
+      title={t(`maintenance.action.${preview.action}`)}
       description={t("maintenance.preview_help")}
       wide
       pending={pending}
@@ -120,16 +167,11 @@ export function MaintenanceDialog({
           {t(
             pending
               ? "maintenance.working"
-              : collectionDelete ? "collection_actions.confirm_delete" : `maintenance.confirm.${preview.action}`,
+              : `maintenance.confirm.${preview.action}`,
           )}
         </Button>
       }
     >
-      {collectionDelete && <section data-testid="collection-maintenance-summary" className="space-y-2">
-        <p className="break-words text-sm font-medium">{t("collection_actions.delete_summary", { names: collectionNames, entries: collectionEntries })}</p>
-        <p className="text-xs leading-5 text-muted-foreground">{t("collection_actions.delete_help")}</p>
-        {preview.blockers.some(item => item.code === "PURGE_REFERENCED") && <p role="alert" className="text-xs leading-5 text-destructive">{t("collection_actions.references_help")}</p>}
-      </section>}
       {preview.action !== "purge" && <p className="text-xs text-muted-foreground">
         {t(
           preview.action === "restore"
@@ -142,10 +184,7 @@ export function MaintenanceDialog({
       {preview.action === 'purge' && preview.blockers.some(item => item.code.startsWith('PURGE_TASK_')) && <div role="alert" data-testid="knowledge-maintenance-reference-blocker" className="space-y-2 rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
         {preview.blockers.filter(item => item.code.startsWith('PURGE_TASK_')).map(item => <p key={item.code}>{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
       </div>}
-      {collectionDelete ? <details data-testid="knowledge-collection-delete-details" open={!preview.canCommit} className="rounded-md border p-3">
-        <summary className="cursor-pointer text-sm">{t("collection_actions.details", { count: preview.items.length })}</summary>
-        <div className="mt-3">{impacts}</div>
-      </details> : impacts}
+      {impacts}
       {preview.history.scope === "all" && (
         <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
           <p className="text-sm font-medium">
@@ -184,35 +223,8 @@ export function MaintenanceDialog({
           />
         </div>
       )}
-      {preview.taskTracking === "connected" && preview.tasks ? <section data-testid="knowledge-maintenance-tasks" className="min-w-0 space-y-3 border-t pt-3">
-        <h3 className="text-sm font-medium">{t("maintenance.related_records", { count: preview.tasks.total })}</h3>
-        <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.task_references_help")}</p>
-        {preview.tasks.unknownDocuments > 0 && <p role="status" className="text-xs leading-5 text-destructive">{t("maintenance.task_references_unknown", { count: preview.tasks.unknownDocuments })}</p>}
-        {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <details key={knowledgeReferenceKey(task)} className="min-w-0 rounded-md border p-3">
-          <summary className="cursor-pointer text-xs [overflow-wrap:anywhere]">{task.displayName || t('maintenance.automatic_queue')} · {t(task.kind === 'automatic_preparation' ? 'maintenance.automatic_preparation' : task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</summary>
-          <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">{task.kind === 'automatic_preparation' ? t('maintenance.automatic_preparation_help') : t("maintenance.record_id", { id: task.recordId })}</p>
-          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-            {task.resources.map(resource => {
-              const record = snapshot.data[resource.group].find(item => item.id === resource.id);
-              const title = record ? "title" in record ? record.title : record.name : resource.id;
-              return <li key={`${resource.group}:${resource.id}:${resource.revision}`} className="[overflow-wrap:anywhere]">{t("maintenance.record_resource", { group: t(`group.${resource.group}`), title, revision: resource.revision })}</li>;
-            })}
-          </ul>
-        </details>)}
-        {!preview.tasks.total && !preview.tasks.unknownDocuments && <p className="text-xs text-muted-foreground">{t("maintenance.no_related_records")}</p>}
-        <Pagination page={taskPage} total={preview.tasks.items.length} onChange={setTaskPage} />
-        {preview.tasks.total > preview.tasks.items.length && <p className="text-xs text-muted-foreground">{t("maintenance.records_limited", { count: preview.tasks.items.length, total: preview.tasks.total })}</p>}
-      </section> : <p className="text-xs text-muted-foreground">{t("maintenance.tasks_not_connected")}</p>}
-      <ErrorNotice
-        error={
-          stale
-            ? "plan_expired"
-            : preview.blockers.length
-              ? "invalid_input"
-              : error
-        }
-        diagnostics={preview.blockers.length ? preview.blockers : diagnostics}
-      />
+      {taskReferences}
+      {notice}
     </KnowledgeDialog>
   );
 }
