@@ -1,5 +1,6 @@
 import * as React from "react";
 import { ToolFilePickerSurface } from './ToolFilePickerSurface';
+import { useToolFileDropTarget } from './ToolFileDropScope';
 
 type ToolFileDropZoneProps = {
   id?: string;
@@ -92,6 +93,14 @@ export function ToolFileDropZone({
     },
     [disabled, onFiles],
   );
+  const { dragging: fileDragging, dropProps } = useToolFileDropTarget({
+    label: actionLabel,
+    disabled,
+    onDrop: event => handleFiles(event.dataTransfer.files, "drop"),
+  });
+  React.useEffect(() => {
+    onDraggingChange?.(fileDragging);
+  }, [fileDragging, onDraggingChange]);
 
   return (
     <ToolFilePickerSurface
@@ -103,26 +112,10 @@ export function ToolFileDropZone({
       secondaryAction={secondaryAction}
       layout={layout}
       disabled={disabled}
-      dragging={dragging}
+      dragging={!disabled && (fileDragging || dragging)}
       className={className}
       onSelect={() => internalInputRef.current?.click()}
-      onDragEnter={(event) => {
-        event.preventDefault();
-        if (!disabled) onDraggingChange?.(true);
-      }}
-      onDragLeave={(event) => {
-        event.preventDefault();
-        if (!disabled) onDraggingChange?.(false);
-      }}
-      onDragOver={(event) => {
-        event.preventDefault();
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        if (disabled) return;
-        onDraggingChange?.(false);
-        void handleFiles(event.dataTransfer.files, "drop");
-      }}
+      {...dropProps}
     >
       <input
         ref={setInputRef}

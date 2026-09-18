@@ -61,7 +61,7 @@ describe.runIf(enabled)('I3 native files, format preservation and export UI', ()
         const transfer = new DataTransfer(); Array.from(files).forEach(file => transfer.items.add(file));
         document.querySelector('[data-testid=subtitle-studio]')!.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: transfer }));
       });
-      await uiExpect(page.getByTestId('studio-drop-overlay')).toContainText('松开以导入字幕');
+      await uiExpect(page.getByTestId('tool-page-drop-overlay')).toContainText('导入字幕');
       await page.screenshot({ path: path.join(root, '01-native-drop-light.png'), animations: 'disabled' });
       await page.evaluate(() => {
         const files = (document.querySelector('[data-studio-drop-fixture]') as HTMLInputElement).files!;

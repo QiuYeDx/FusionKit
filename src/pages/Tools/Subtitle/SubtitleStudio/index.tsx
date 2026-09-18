@@ -14,6 +14,7 @@ import { TOOL_META } from '../../_shared/toolMeta';
 import { ToolDetailLayout } from '../../_shared/ui/ToolDetailLayout';
 import { ToolPanel } from '../../_shared/ui/ToolPanel';
 import { ToolFilePickerSurface } from '../../_shared/ui/ToolFilePickerSurface';
+import { useToolFileDropTarget } from '../../_shared/ui/ToolFileDropScope';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioObservations } from '@/services/subtitle-studio/observations';
@@ -60,8 +61,6 @@ let lastWorkspaceView: WorkspaceView = 'documents';
 
 export default function SubtitleStudio() {
   const { t } = useTranslation();
-  const [dragging, setDragging] = useState(false);
-  const dragDepth = useRef(0);
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>(lastWorkspaceView);
   const workspaceRoot = useRef<HTMLDivElement>(null);
   const resetWorkspaceScroll = () => {
@@ -73,7 +72,7 @@ export default function SubtitleStudio() {
     if (value === workspaceView) return;
     invalidateSelectionRequest();
     resetWorkspaceScroll();
-    lastWorkspaceView = value; setWorkspaceView(value); dragDepth.current = 0; setDragging(false);
+    lastWorkspaceView = value; setWorkspaceView(value);
   };
   useLayoutEffect(resetWorkspaceScroll, [workspaceView]);
   const { encoding, setEncoding, dismissedRecoveryKey, dismissRecovery } = useStudioPreferences();
@@ -296,11 +295,8 @@ export default function SubtitleStudio() {
     if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ kind: 'import', items: result.items.map(item => ({ name: item.fileName, ...(item.ok ? { documentId: item.document.id } : { error: item.error }) })) });
   };
   const importDocument = () => { captureResultFocus('import'); void run('import', async () => acceptImportResult(await unwrapStudio(window.subtitleStudio.importSubtitles({ encoding })))); };
-  const fileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes('Files');
   const canDrop = (event: DragEvent) => workspaceView === 'documents' && !((event.target as HTMLElement).closest?.('[role=dialog]'));
-  const dropFiles = (event: DragEvent) => {
-    if (!fileDrag(event)) return;
-    event.preventDefault(); dragDepth.current = 0; setDragging(false);
+  const dropFiles = (event: DragEvent<HTMLElement>) => {
     if (!canDrop(event) || busy || operation.current) return;
     const files = Array.from(event.dataTransfer.files);
     if (!files.length) { retry.current = null; setError('invalid_input'); return; }
@@ -317,6 +313,12 @@ export default function SubtitleStudio() {
       await acceptImportResult(await unwrapStudio(Promise.resolve(result.value)));
     }, false);
   };
+  const { dragging, dropProps } = useToolFileDropTarget({
+    onDrop: dropFiles,
+    enabled: workspaceView === 'documents',
+    disabled: busy,
+    label: t('studio:import'),
+  });
   const chooseDocument = (doc: DocumentSummary) => {
     const owner = coordinator.current;
     if (busy || operation.current || !readerIsCurrent(owner)) return;
@@ -563,18 +565,13 @@ export default function SubtitleStudio() {
   };
   const library = <StudioLibrary documents={documents} selected={selected} previewId={activeDocument?.id} query={query} onQuery={changeQuery} total={total} allTotal={allTotal} offset={listOffset} busy={busy} onPage={offset => void run('load', () => load(offset))} onPreview={chooseDocument} onToggle={toggleDocument} onSelectPage={selectPage} onSelectAll={selectAll} onClearScope={() => { invalidateSelectionRequest(); updateSelection(items => items.filter(doc => !matchesLibraryQuery(doc, queryRef.current))); }} onClear={clearSelection} selectionPending={selectionPending} selectionLimit={selectionLimit} onDismissLimit={() => setSelectionLimit(false)} encoding={encodingField} actions={batchActions} onContextAction={contextAction} />;
 
-  return <div ref={workspaceRoot} data-testid="subtitle-studio" data-workspace-view={workspaceView} className={page && workspaceView === 'documents' ? 'studio studio-has-document' : 'studio'}
-    onDragEnter={event => { if (!fileDrag(event) || !canDrop(event)) return; event.preventDefault(); dragDepth.current++; setDragging(true); }}
-    onDragOver={event => { if (!fileDrag(event)) return; event.preventDefault(); event.dataTransfer.dropEffect = canDrop(event) && !busy ? 'copy' : 'none'; }}
-    onDragLeave={event => { if (!fileDrag(event)) return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false); }}
-    onDrop={dropFiles}>
-    {dragging && <div className="studio-drop-overlay" role="status" data-testid="studio-drop-overlay"><Subtitles className="size-7" /><strong>{t(busy ? 'studio:library.drop_busy' : 'studio:library.drop_hint')}</strong><span>SRT · LRC · VTT · ASS</span></div>}
+  return <div ref={workspaceRoot} data-testid="subtitle-studio" data-workspace-view={workspaceView} className={page && workspaceView === 'documents' ? 'studio studio-has-document' : 'studio'}>
     <ClipPathTabs value={workspaceView} onValueChange={changeWorkspaceView} ariaLabel={t('studio:workspace_view')} shape="rounded" smoothCorners size="sm" transitionDuration={200} transitionEasing="ease-out" className="studio-workspace-tabs w-full" items={[
       { value: 'documents', label: t('studio:workspace_documents'), icon: <Library /> },
       { value: 'transcription', label: t('studio:workspace_transcription'), icon: <AudioLines /> },
     ]}>
     <div className="studio-workspace-header"><ToolPageHeader meta={TOOL_META.subtitleStudio} title={t('studio:title')} description={<span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1"><span>{t('tools:field_desc.subtitle_studio')}</span><Link to="/tools/translation-knowledge" className="font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground">{t('knowledge:title')}</Link></span>} /></div>
-    <ClipPathTabsContent value="documents" forceMount hidden={workspaceView !== 'documents'} className="studio-workspace-content">
+    <ClipPathTabsContent {...dropProps} value="documents" forceMount hidden={workspaceView !== 'documents'} className="studio-workspace-content">
     <ToolDetailLayout
       className="studio-layout"
       header={null}

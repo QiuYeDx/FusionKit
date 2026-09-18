@@ -1,5 +1,5 @@
 import { StudioRevealSource } from './StudioRevealSource';
-import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import useModelStore from '@/store/useModelStore';
 import { speechResourceIsBusy } from '@/speech-resources/events';
 import type { LocalSubtitleManagedResourceSummary } from '@/subtitle-studio/transcription/ipc-contract';
@@ -20,6 +20,7 @@ import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
 import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
 import { ToolFilePickerSurface } from '../../_shared/ui/ToolFilePickerSurface';
+import { useToolFileDropTarget } from '../../_shared/ui/ToolFileDropScope';
 import { getStudioTranscriptionController, getTranscriptionReadiness } from '@/services/subtitle-studio/transcription-controller';
 import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '@/subtitle-studio/transcription/task-contract';
 import { LOCAL_SUBTITLE_LIMITS, LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '@/subtitle-studio/transcription/domain';
@@ -92,18 +93,14 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
   const automaticProfile = profiles.find(profile => profile.id === (state.autoTranslation.profileId || assignedProfile))
     ?? (!state.autoTranslation.profileId ? profiles[0] : undefined);
   useEffect(() => { controller.refreshTranslationConfiguration(); }, [controller, profiles, assignedProfile]);
-  const [dragging, setDragging] = useState(false);
-  const dragDepth = useRef(0);
   const mediaBusy = state.selecting || state.submitting;
-  const fileDrag = (event: DragEvent) => Array.from(event.dataTransfer.types).includes('Files');
-  const dragEnter = (event: DragEvent) => { if (!fileDrag(event)) return; event.preventDefault(); event.stopPropagation(); dragDepth.current++; setDragging(true); };
-  const dragLeave = (event: DragEvent) => { if (!fileDrag(event)) return; event.preventDefault(); event.stopPropagation(); if (--dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); } };
-  const dragOver = (event: DragEvent) => { if (!fileDrag(event)) return; event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = mediaBusy ? 'none' : 'copy'; };
-  const dropMedia = (event: DragEvent) => {
-    if (!fileDrag(event)) return;
-    event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragging(false);
-    if (!mediaBusy) void controller.dropMedia(Array.from(event.dataTransfer.files));
-  };
+  const { dragging, dropProps } = useToolFileDropTarget({
+    disabled: mediaBusy,
+    label: t('studio:transcription.media_title'),
+    onDrop: event => {
+      if (!mediaBusy) return controller.dropMedia(Array.from(event.dataTransfer.files));
+    },
+  });
   const readiness = getTranscriptionReadiness(state);
   const [resourcesOpen, setResourcesOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<LocalSubtitleManagedResourceSummary | null>(null);
@@ -188,7 +185,7 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
           <div className="studio-transcription-runtime-row" data-testid="studio-transcription-runtime-row">{runtimeNotice}<Button variant="ghost" size="sm" disabled={state.refreshing} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} />{t('studio:transcription.check_again')}</Button></div>
         </ToolConfigPanel>
       </div>}>
-      <div data-testid="studio-transcription" className="studio-transcription-workspace" onDragEnter={dragEnter} onDragLeave={dragLeave} onDragOver={dragOver} onDrop={dropMedia}>
+      <div {...dropProps} data-testid="studio-transcription" className="studio-transcription-workspace">
         <ToolFilePickerSurface data-testid="studio-transcription-picker" dragging={dragging} title={t('studio:transcription.media_title')} description={t(dragging ? mediaBusy ? 'studio:transcription.media_drop_busy' : 'studio:transcription.media_drop_hint' : 'studio:transcription.media_hint')} actionLabel={t('studio:transcription.choose_media')} icon={state.selecting ? <LoaderCircle className="size-5 studio-spin" /> : <AudioLines className="size-5" />} disabled={mediaBusy} onSelect={() => void controller.selectMedia()} />
         {(state.error || openError) && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(openError ? 'studio:errors.document_unavailable' : errorMessage)}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => { controller.clearError(); setOpenError(false); }}><X /></StudioIconButton></div>}
         {state.cleanupPendingCount > 0 && <div role="status" className="studio-notice"><AlertCircle /><span>{t('studio:transcription.cleanup_pending')}</span><Button variant="ghost" size="sm" onClick={() => void controller.retryCleanup()}>{t('studio:transcription.retry_cleanup')}</Button></div>}

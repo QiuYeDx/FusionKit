@@ -26,6 +26,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import Update from "@/components/update";
 import LocalSubtitleOverwriteRecoveryPrompt from "@/components/local-subtitle/LocalSubtitleOverwriteRecoveryPrompt";
 import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
+import { ToolFileDropScope } from "@/pages/Tools/_shared/ui/ToolFileDropScope";
 
 
 const ROUTE_ORDER: Record<string, number> = {
@@ -96,13 +97,17 @@ function App() {
             <motion.div
               key={location.pathname}
               custom={directionRef.current}
-              className={location.pathname === '/tools' || location.pathname === '/tools/subtitle/studio' ? 'relative' : 'relative pt-10'}
+              className="relative"
               variants={pageVariants}
               initial="enter"
               animate="center"
               exit="exit"
               transition={pageTransition}
             >
+              <ToolFileDropScope
+                enabled={location.pathname.startsWith('/tools/')}
+                className={location.pathname === '/tools' || location.pathname === '/tools/subtitle/studio' ? undefined : 'pt-10'}
+              >
               <Routes location={location}>
                 {/* 一级页面 */}
                 <Route path="/" element={<HomeAgent />} />
@@ -155,6 +160,7 @@ function App() {
                   element={<RealtimeVoice />}
                 />
               </Routes>
+              </ToolFileDropScope>
             </motion.div>
           </AnimatePresence>
         </div>

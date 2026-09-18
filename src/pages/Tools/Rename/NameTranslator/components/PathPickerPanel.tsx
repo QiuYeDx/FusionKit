@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { ToolConfigPanel } from "@/pages/Tools/_shared/ui";
+import { useToolFileDropTarget } from "@/pages/Tools/_shared/ui/ToolFileDropScope";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -36,7 +37,6 @@ export default function PathPickerPanel({
   onReset,
 }: PathPickerPanelProps) {
   const { t } = useTranslation("rename");
-  const [isDragging, setIsDragging] = useState(false);
   const selectedListRef = useRef<HTMLDivElement>(null);
   const [showTopFade, setShowTopFade] = useState(false);
   const [showBottomFade, setShowBottomFade] = useState(false);
@@ -88,15 +88,17 @@ export default function PathPickerPanel({
     }
   };
 
-  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setIsDragging(false);
+  const handleDrop = async (event: DragEvent<HTMLElement>) => {
     const paths = Array.from(event.dataTransfer.files)
       .map(getFilePathFromFile)
       .filter((path): path is string => Boolean(path));
 
     if (paths.length > 0) await onAddPaths(paths);
   };
+  const { dragging: isDragging, dropProps } = useToolFileDropTarget({
+    onDrop: handleDrop,
+    label: t("path.dialog_title"),
+  });
 
   return (
     <ToolConfigPanel
@@ -110,6 +112,7 @@ export default function PathPickerPanel({
       contentClassName="space-y-4"
     >
         <div
+          {...dropProps}
           data-testid="rename-path-dropzone"
           className={cn(
             "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-3 text-center transition-colors",
@@ -117,16 +120,6 @@ export default function PathPickerPanel({
               ? "border-primary bg-primary/5"
               : "border-border hover:bg-muted/40"
           )}
-          onDragEnter={(event) => {
-            event.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={(event) => {
-            event.preventDefault();
-            setIsDragging(false);
-          }}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={handleDrop}
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70">
             {isDragging ? (

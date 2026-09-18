@@ -1,5 +1,6 @@
 {
   "title": "Tools",
+  "file_drop": { "release": "Drop files to import" },
   "description": "Explore a variety of practical tools we offer, including subtitle processing, music editing, and file renaming, to help you complete tasks efficiently.",
   "subtitle": {
     "subtitle_tools": "Subtitle Tools",

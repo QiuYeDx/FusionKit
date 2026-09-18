@@ -1,5 +1,6 @@
 {
   "title": "工具",
+  "file_drop": { "release": "放開即可匯入檔案" },
   "description": "探索我們提供的多種實用工具，涵蓋字幕處理、音樂編輯和檔案重新命名等功能，助您高效完成任務。",
   "subtitle": {
     "subtitle_tools": "字幕工具箱",

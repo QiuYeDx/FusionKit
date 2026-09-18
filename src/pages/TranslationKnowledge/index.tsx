@@ -33,6 +33,7 @@ import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
 import { ToolDetailLayout } from "@/pages/Tools/_shared/ui/ToolDetailLayout";
+import { useToolFileDropTarget } from "@/pages/Tools/_shared/ui/ToolFileDropScope";
 import { ToolPanel } from "@/pages/Tools/_shared/ui/ToolPanel";
 import type { Entry } from "@/translation-knowledge/schemas";
 import type {
@@ -100,15 +101,9 @@ export default function TranslationKnowledge() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [maintenancePreview, setMaintenancePreview] =
     useState<MaintenancePreview | null>(null);
-  const [dragging, setDragging] = useState(false);
   const [dropError, setDropError] = useState(false);
-  const dragDepth = useRef(0);
   const continueWithEntry = useRef(false);
   const blocked = snapshot?.maintenance?.cleanupPending === true;
-  const tourReady = Boolean(snapshot) && !loading && !busy && !blocked &&
-    !catalog && !entryEditor && !selected && !preview && !exportOpen &&
-    !historyOpen && !maintenancePreview && !dragging;
-  const { tourOpen, setTourOpen } = useKnowledgeTour(tourReady);
   const api = window.translationKnowledge;
   const refresh = async () => {
     setLoading(true);
@@ -249,11 +244,7 @@ export default function TranslationKnowledge() {
       setBusy(false);
     }
   };
-  const drop = async (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragDepth.current = 0;
-    setDragging(false);
+  const drop = async (event: DragEvent<HTMLElement>) => {
     if (blocked || busy) return;
     const files = Array.from(event.dataTransfer.files);
     setDropError(false);
@@ -277,6 +268,15 @@ export default function TranslationKnowledge() {
       setBusy(false);
     }
   };
+  const { dragging, dropProps } = useToolFileDropTarget({
+    onDrop: drop,
+    disabled: blocked || busy,
+    label: t("actions.import"),
+  });
+  const tourReady = Boolean(snapshot) && !loading && !busy && !blocked &&
+    !catalog && !entryEditor && !selected && !preview && !exportOpen &&
+    !historyOpen && !maintenancePreview && !dragging;
+  const { tourOpen, setTourOpen } = useKnowledgeTour(tourReady);
   const startEntry = () => {
     if (!snapshot || blocked) return;
     const collection =
@@ -470,25 +470,8 @@ export default function TranslationKnowledge() {
   );
   return (
     <div
+      {...dropProps}
       data-testid="translation-knowledge"
-      onDragEnter={(event) => {
-        if (event.dataTransfer.types.includes("Files")) {
-          event.preventDefault();
-          dragDepth.current++;
-          setDragging(true);
-        }
-      }}
-      onDragOver={(event) => {
-        if (event.dataTransfer.types.includes("Files")) {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = blocked ? "none" : "copy";
-        }
-      }}
-      onDragLeave={() => {
-        dragDepth.current = Math.max(0, dragDepth.current - 1);
-        if (!dragDepth.current) setDragging(false);
-      }}
-      onDrop={(event) => void drop(event)}
     >
       <ToolDetailLayout
         header={header}
@@ -545,14 +528,6 @@ export default function TranslationKnowledge() {
             </Button>
           </div>
         </div>
-        {dragging && (
-          <div
-            className="rounded-md border border-dashed p-3 text-sm"
-            role="status"
-          >
-            {t(blocked ? "maintenance.cleanup_pending" : "drop.hint")}
-          </div>
-        )}
         {dropError && (
           <div
             role="alert"
