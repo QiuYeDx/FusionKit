@@ -156,6 +156,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       // Configure the parent before opening its nested materials dialog.
       await ui.getByTestId('studio-translation-advanced').click();
       await ui.getByRole('spinbutton', { name: '每批字幕上限', exact: true }).fill('20');
+      if (!(await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').isChecked())) await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').check();
       await ui.getByTestId('studio-knowledge-batch').click();
       const dialog = dialogFor('knowledge-batch-content');
       const preview = ui.getByTestId('knowledge-batch-preview'), start = ui.getByTestId('knowledge-batch-run');
@@ -192,6 +193,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await uiExpect(start).toBeEnabled();
       await ui.getByTestId('knowledge-batch-close').click();
       await uiExpect(ui.getByTestId('knowledge-batch-content')).toHaveCount(0);
+      if (!(await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').isChecked())) await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').check();
       await ui.getByTestId('studio-knowledge-batch').click();
       await uiExpect(preview).toHaveCount(0); await uiExpect(start).toBeDisabled();
       await selectKnowledge();
@@ -339,8 +341,45 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await ui.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
       for (const document of documents) await ui.locator(`[data-testid="studio-library-row"][data-document-id="${document.summary.id}"]`).getByRole('checkbox').check();
       await ui.getByTestId('studio-batch-toolbar').getByRole('button', { name: 'Translate selected documents', exact: true }).click();
+      if (!(await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').isChecked())) await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').check();
       await ui.getByTestId('studio-knowledge-batch').click();
       await selectKnowledge(true);
+      // A preset cannot silently replace the parent's English target. Preserve
+      // explicit draft requirements when correcting that parent target.
+      await uiExpect(ui.getByTestId('knowledge-batch-target-language')).toHaveText('English');
+      await uiExpect(ui.getByTestId('knowledge-batch-check')).toBeDisabled();
+      await uiExpect(dialog).toContainText('This preset has a different target language.');
+      const explicitRequirements = 'Keep this explicit draft when changing the target language.';
+      await ui.getByTestId('knowledge-batch-instructions').fill(explicitRequirements);
+      await ui.getByTestId('knowledge-batch-close').click();
+      await uiExpect(ui.getByTestId('knowledge-batch-content')).toHaveCount(0);
+      // Custom targets must never fall back to Chinese. Invalid tags explain
+      // how to repair the parent form; valid tags remain the requested target.
+      await ui.getByRole('combobox', { name: 'Target language', exact: true }).click();
+      await ui.getByRole('option', { name: 'Other language', exact: true }).click();
+      await uiExpect(ui.getByTestId('studio-knowledge-batch')).toBeDisabled();
+      await uiExpect(ui.getByTestId('studio-translation-knowledge-open')).toBeDisabled();
+      await uiExpect(ui.getByTestId('studio-knowledge-selection-summary')).toContainText(fixture.recipes[0].name);
+      await ui.getByRole('textbox', { name: 'Language name', exact: true }).fill('中文');
+      await ui.getByTestId('studio-knowledge-batch').click();
+      await uiExpect(ui.getByTestId('knowledge-batch-target-language')).toHaveText('中文');
+      await uiExpect(ui.getByTestId('knowledge-batch-instructions')).toHaveValue(explicitRequirements);
+      await uiExpect(dialog).toContainText('For a custom language, use a language code');
+      await uiExpect(ui.getByTestId('knowledge-batch-check')).toBeDisabled();
+      await ui.getByTestId('knowledge-batch-close').click();
+      await uiExpect(ui.getByTestId('knowledge-batch-content')).toHaveCount(0);
+      await ui.getByRole('textbox', { name: 'Language name', exact: true }).fill('it');
+      await ui.getByTestId('studio-knowledge-batch').click();
+      await uiExpect(ui.getByTestId('knowledge-batch-target-language')).toHaveText('it');
+      await uiExpect(dialog).not.toContainText('For a custom language, use a language code');
+      await uiExpect(ui.getByTestId('knowledge-batch-check')).toBeDisabled();
+      await ui.getByTestId('knowledge-batch-close').click();
+      await uiExpect(ui.getByTestId('knowledge-batch-content')).toHaveCount(0);
+      await ui.getByRole('combobox', { name: 'Target language', exact: true }).click();
+      await ui.getByRole('option', { name: 'Simplified Chinese', exact: true }).click();
+      await ui.getByTestId('studio-knowledge-batch').click();
+      await uiExpect(ui.getByTestId('knowledge-batch-target-language')).toHaveText('Simplified Chinese');
+      await uiExpect(ui.getByTestId('knowledge-batch-instructions')).toHaveValue(explicitRequirements);
       await ui.getByTestId('knowledge-batch-check').click();
       await uiExpect(start).toBeEnabled();
       await uiExpect(file(2)).toHaveAttribute('data-state', 'blocked');
@@ -426,8 +465,16 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       });
       try {
         await ui.getByTestId('studio-batch-toolbar').getByRole('button', { name: 'Translate selected documents', exact: true }).click();
+        await ui.getByRole('combobox', { name: 'Target language', exact: true }).click();
+        await ui.getByRole('option', { name: 'Simplified Chinese', exact: true }).click();
+        if (!(await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').isChecked())) await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').check();
         await ui.getByTestId('studio-knowledge-batch').click();
-        // No collection or topic is needed for this scheduling-only fixture.
+        // Choose an explicit source and existing materials; these fixture lines
+        // contain no matching terms and need no shared topic confirmation.
+        await ui.getByTestId('knowledge-batch-source-language').click();
+        await ui.getByRole('option', { name: 'English', exact: true }).click();
+        await ui.getByTestId('knowledge-batch-recipe').click();
+        await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
         await ui.getByTestId('knowledge-batch-check').click();
         await uiExpect(start).toBeEnabled();
         await uiExpect(start).toContainText('2');

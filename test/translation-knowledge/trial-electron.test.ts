@@ -86,7 +86,17 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       });
       await ui.getByRole('button', { name: '翻译', exact: true }).click();
       await ui.getByRole('textbox', { name: '翻译要求（可选）' }).fill('Keep the dialogue concise.');
-      await ui.getByTestId('studio-knowledge-trial').click();
+      const openMaterialsTrial = async () => {
+        const enabled = ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch');
+        if (!(await enabled.isChecked())) await enabled.check();
+        await ui.getByTestId('studio-knowledge-trial').click();
+        await ui.getByTestId('knowledge-trial-mode').check();
+        const recipe = ui.getByTestId('knowledge-trial-recipe');
+        if (!(await recipe.textContent())?.includes(fixture.recipes[0].name)) {
+          await recipe.click(); await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
+        }
+      };
+      await openMaterialsTrial();
       const dialog = ui.getByRole('dialog').filter({ has: ui.getByTestId('knowledge-trial-content') });
       await uiExpect(ui.getByTestId('knowledge-trial-check')).toBeEnabled();
       await uiExpect(dialog.locator('textarea').first()).toHaveValue('Keep the dialogue concise.');
@@ -147,7 +157,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       await uiExpect(ui.getByTestId('knowledge-trial-result')).toContainText('试译未全部完成');
       release?.(); mode = 'success';
       await dialog.getByRole('button', { name: '关闭', exact: true }).click();
-      await ui.getByTestId('studio-knowledge-trial').click();
+      await openMaterialsTrial();
       await uiExpect(ui.getByTestId('knowledge-trial-check')).toBeEnabled();
       await uiExpect(ui.getByTestId('knowledge-trial-result')).toHaveCount(0);
       await dialog.getByRole('button', { name: '关闭', exact: true }).click();
@@ -161,7 +171,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       expect(after.knowledge).toEqual({ ok: true, value: knowledgeBefore });
       // A second check must not apply confirmations to an unseen library revision.
       await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await ui.getByTestId('studio-knowledge-trial').click();
+      await openMaterialsTrial();
       await uiExpect(ui.getByTestId('knowledge-trial-check')).toBeEnabled();
       await ui.evaluate(async () => {
         const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(read.error);
@@ -179,7 +189,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       await uiExpect.poll(() => requests.length).toBe(4);
       await dialog.getByRole('button', { name: '关闭', exact: true }).click();
       release?.(); mode = 'success';
-      await ui.getByTestId('studio-knowledge-trial').click();
+      await openMaterialsTrial();
       await uiExpect(ui.getByTestId('knowledge-trial-check')).toBeEnabled();
       await uiExpect(ui.getByTestId('knowledge-trial-result')).toHaveCount(0);
       await dialog.getByRole('button', { name: '关闭', exact: true }).click();
@@ -188,7 +198,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       await ui.reload();
       await ui.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
       await ui.getByRole('button', { name: 'Translate', exact: true }).click();
-      await ui.getByTestId('studio-knowledge-trial').click();
+      await ui.getByRole('combobox', { name: 'Target language', exact: true }).click();
+      await ui.getByRole('option', { name: 'Simplified Chinese', exact: true }).click();
+      await openMaterialsTrial();
       await uiExpect(ui.getByTestId('knowledge-trial-check')).toBeEnabled();
       await ui.screenshot({ path: path.join(artifacts, 'form-english-narrow.png'), animations: 'disabled' });
       expect(errors).toEqual([]);

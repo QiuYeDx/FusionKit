@@ -1,6 +1,6 @@
 {
   "title": "Translation materials",
-  "description": "Organize context, terminology and reviewed translations for backup and sharing.",
+  "description": "Save reusable terms, context and rules to use when translating in Subtitle Studio.",
   "loading": "Loading materials…",
   "saved": "Materials saved.",
   "copy_name": "{{name}} (copy)",
@@ -199,7 +199,7 @@
   },
   "plans": {
     "category": "Category",
-    "notice": "Approved background, terms and rules are available for checks and independent trials in Subtitle Studio. Formal translation and global preference inheritance are not enabled yet."
+    "notice": "Presets combine collections, styles and translation requirements for use in Subtitle Studio. Only applicable approved context, terms and rules participate. Global preferences and automatic learning are not enabled yet."
   },
   "empty": {
     "options": "No items available",
@@ -418,7 +418,7 @@
     "STYLE_NOT_READY": "A style's rule or related material is not ready.",
     "RECIPE_STYLE_ARCHIVED": "The plan contains an archived style.",
     "TERM_TRANSLATION_CONFLICT": "A term has competing translations; check scope and sources.",
-    "TRIAL_ONLY_EXECUTION": "Approved background, terms and rules are available for checks and independent trials in Subtitle Studio. Formal translation and global preference inheritance are not enabled yet.",
+    "TRIAL_ONLY_EXECUTION": "Presets combine collections, styles and translation requirements for use in Subtitle Studio. Only applicable approved context, terms and rules participate. Global preferences and automatic learning are not enabled yet.",
     "PURGE_TASK_REFERENCED": "Tasks or retained history still contain these materials. You can archive them now; permanent clearing is available after the transcription queue, related documents and history no longer retain them.",
     "PURGE_TASK_SCAN_INCOMPLETE": "Some document records could not be fully checked. Resolve unavailable documents or retained remnants before permanently removing materials."
   },
@@ -524,7 +524,7 @@
     "open": "Check materials & try translation",
     "title": "Materials check & trial translation",
     "description": "Choose materials, check their scope, then try up to 20 cues. Results stay in this window.",
-    "language_help": "Specify the source and target languages of the subtitles. Mixed languages are not detected; simplified and traditional Chinese match separately.",
+    "language_help": "The source language determines which materials match. Simplified and Traditional Chinese are matched separately. Mixed languages are not detected automatically.",
     "recipe": "Translation recipe",
     "no_recipe": "Choose materials manually",
     "collections": "Collections for this translation",
@@ -550,7 +550,7 @@
     "partial_result": "Trial incomplete; returned results are shown below",
     "usage": "Actual requests: {{requests}} · input: {{input}} · output: {{output}} tokens",
     "unknown_usage": "unknown",
-    "cost_help": "A trial sends the sample and applicable materials to the selected model and may incur charges. It does not save official translations, confirm content or learn from it. Knowledge enhancement for regular translation is not enabled yet.",
+    "cost_help": "The trial sends selected subtitles and applicable materials to your model and may incur charges. Results are for comparison only; they do not create a translation track or automatically approve or collect materials.",
     "cancel": "Stop trial",
     "check": "Check materials",
     "run": "Run trial translation",
@@ -680,5 +680,44 @@
     "edit_model": "Adjust translation model",
     "scope_help": "This check reuses only shared knowledge choices and document topics. Speaker assignments, mentioned subjects, and condition confirmations are not carried over.",
     "checked_at": "Checked: {{time}}"
+  },
+  "guide": {
+    "title": "Saving materials does not enable them for translation",
+    "control": "In Subtitle Studio, turn on “Use translation materials”, then choose collections or a preset. Only applicable materials enter each request, never the entire library.",
+    "how": "How to get started",
+    "organize": "1 · Create a collection",
+    "organize_help": "Group materials for a series and set its language pair. Subjects and presets are optional.",
+    "approve": "2 · Add and approve materials",
+    "approve_help": "Add a term, such as checkpoint → 存档点. Check it, approve it and save. Review imports too.",
+    "use": "3 · Select materials for a translation",
+    "use_help": "Enable materials in Studio, choose a collection, check it, then translate. An excerpt trial is optional.",
+    "supported": "Terms, context and rules are supported. Expressions and reference translations are storage only.",
+    "add_term": "Add a term",
+    "review": "Review {{count}} entries",
+    "translate": "Open Subtitle Studio",
+    "saved_adopted": "Saved and approved. Select its collection when translating; language and scope still determine whether it applies.",
+    "saved_candidate": "Saved for review. Approve this entry before using it in a translation.",
+    "storage_only": "Storage only",
+    "storage_only_help": "This type can currently be stored, organized and shared, but is not used in AI translation. Use a term for specific wording or context for background information.",
+    "entry_example": "Terms keep names and specialized wording consistent; context explains the setting; rules guide tone or formatting. A preset is optional.",
+    "future_preferences": "Other preset settings (not applied yet)",
+    "future_preferences_help": "These settings are saved and shared with the preset. Global preferences are not inherited, and translations are not collected automatically.",
+    "term_options": "Wording and matching options",
+    "entry_metadata": "Title and source (optional)"
+  },
+  "selection": {
+    "off": "Translation materials are off for this task. The library will not be added to requests automatically.",
+    "help": "Only approved materials from selected collections or presets with matching language and scope are considered. Terms must also match the source text.",
+    "open": "Select materials and translate",
+    "choose": "Select or adjust materials",
+    "none": "No collection or preset selected",
+    "summary": "Materials for this task: {{names}}",
+    "manage": "Manage translation materials",
+    "empty": "No collections are available. Create one and add and approve terms or context, then return here.",
+    "target_help": "The target language follows the translation settings on the previous screen.",
+    "recipe_language": "This preset has a different target language. Choose another preset or go back to change the target language.",
+    "source_required": "Confirm the subtitle source language before checking materials.",
+    "selected_help": "Checking only reads local materials. Subtitles and applicable materials are sent when you start translating.",
+    "target_required": "Go back to translation settings and choose a target language. For a custom language, use a language code such as it, en or zh-Hant."
   }
 }

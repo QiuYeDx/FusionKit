@@ -50,6 +50,7 @@ import {
   type CatalogRecord,
 } from "./CatalogEditor";
 import { EntryEditor } from "./EntryEditor";
+import { UsageGuide } from "./UsageGuide";
 import { ExportDialog, ImportDialog, RecordDetails } from "./Exchange";
 import {
   entryStatus,
@@ -99,6 +100,7 @@ export default function TranslationKnowledge() {
   const [dragging, setDragging] = useState(false);
   const [dropError, setDropError] = useState(false);
   const dragDepth = useRef(0);
+  const continueWithEntry = useRef(false);
   const blocked = snapshot?.maintenance?.cleanupPending === true;
   const api = window.translationKnowledge;
   const refresh = async () => {
@@ -151,7 +153,15 @@ export default function TranslationKnowledge() {
     const result = await api.saveRecord(request);
     if (result.ok) {
       setSnapshot(result.value);
-      setNotice(t("saved"));
+      setNotice(t(request.group === "entries" ? request.adopt ? "guide.saved_adopted" : "guide.saved_candidate" : "saved"));
+      if (request.group === "collections" && continueWithEntry.current) {
+        continueWithEntry.current = false;
+        const collection = result.value.data.collections.find(item => item.id === request.record.id);
+        if (collection) {
+          setQuery(value => ({ ...value, collection: collection.id }));
+          setEntryEditor(newEntry(collection, undefined, result.value.data.subjects));
+        }
+      }
       return result;
     }
     if (result.error === "revision_conflict") void refresh();
@@ -266,6 +276,7 @@ export default function TranslationKnowledge() {
       currentCollection ??
       snapshot.data.collections.find((item) => !item.archived);
     if (!collection) {
+      continueWithEntry.current = true;
       setCatalog({ group: "collections", record: newCatalog("collections") });
       setNotice(t("editor.create_collection_first"));
       return;
@@ -448,6 +459,7 @@ export default function TranslationKnowledge() {
         className="translation-knowledge md:[&>div.grid]:grid-cols-[220px_minmax(0,1fr)] lg:[&>div.grid]:grid-cols-[320px_minmax(0,1fr)]"
         asideClassName="lg:w-full"
       >
+        {snapshot && <UsageGuide empty={snapshot.data.entries.length === 0} reviewCount={reviewCount} disabled={busy || blocked} onStart={startEntry} onReview={() => setView("review")} />}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ClipPathTabs
             size="sm"
@@ -766,6 +778,7 @@ export default function TranslationKnowledge() {
                             </p>
                             <p className="mt-1 text-[11px] text-muted-foreground">
                               {t(`kind.${entry.kind}`)} ·{" "}
+                              {(entry.kind === "expression" || entry.kind === "memory") && <>{t("guide.storage_only")} · </>}
                               {languageKey(entry.scope.languagePair)} ·{" "}
                               {entry.scope.requiredSubjects.length
                                 ? t("scope.limited", {
@@ -826,7 +839,7 @@ export default function TranslationKnowledge() {
                 targets: [{ group: catalog.group, id: catalog.record.id }],
               })
             }
-            onClose={() => setCatalog(null)}
+            onClose={() => { continueWithEntry.current = false; setCatalog(null); }}
           />
         )}
         {preview && (

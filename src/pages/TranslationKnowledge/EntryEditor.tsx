@@ -239,9 +239,9 @@ export function EntryEditor({
             options={options("kind", [
               "term",
               "context",
+              "rule",
               "expression",
               "memory",
-              "rule",
             ])}
             disabled={existing}
           />
@@ -255,6 +255,7 @@ export function EntryEditor({
             }))}
           />
         </div>
+        <p className="text-xs leading-5 text-muted-foreground">{t(entry.kind === "expression" || entry.kind === "memory" ? "guide.storage_only_help" : "guide.entry_example")}</p>
         {(entry.kind === "term" || entry.kind === "memory") && (
           <div className="grid gap-4 sm:grid-cols-2">
             {text(
@@ -294,75 +295,78 @@ export function EntryEditor({
           </div>
         )}
         {entry.kind === "term" && (
-          <>
-            {text("sense", entry.payload.sense, (sense) =>
-              setEntry({ ...entry, payload: { ...entry.payload, sense } }),
-            )}
-            <div className="grid grid-cols-2 gap-4">
-              <Choice
-                label={t("fields.strength")}
-                value={entry.payload.strength}
-                onChange={(strength) =>
-                  setEntry({
-                    ...entry,
-                    payload: {
-                      ...entry.payload,
-                      strength: strength as typeof entry.payload.strength,
-                      target:
-                        strength === "keep_source"
-                          ? entry.payload.source
-                          : entry.payload.target,
-                    },
-                  })
-                }
-                options={options("strength", [
-                  "preferred",
-                  "required",
-                  "keep_source",
-                ])}
-              />
-              <Choice
-                label={t("fields.match")}
-                value={entry.payload.match.mode}
-                onChange={(mode) =>
-                  setEntry({
-                    ...entry,
-                    payload: {
-                      ...entry.payload,
-                      match: {
-                        ...entry.payload.match,
-                        mode: mode as "whole_term" | "literal_phrase",
+          <details className="rounded-md border p-3">
+            <summary className="cursor-pointer text-sm">{t("guide.term_options")} · {t(`strength.${entry.payload.strength}`)}</summary>
+            <div className="mt-3 space-y-4">
+              {text("sense", entry.payload.sense, (sense) =>
+                setEntry({ ...entry, payload: { ...entry.payload, sense } }),
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <Choice
+                  label={t("fields.strength")}
+                  value={entry.payload.strength}
+                  onChange={(strength) =>
+                    setEntry({
+                      ...entry,
+                      payload: {
+                        ...entry.payload,
+                        strength: strength as typeof entry.payload.strength,
+                        target:
+                          strength === "keep_source"
+                            ? entry.payload.source
+                            : entry.payload.target,
                       },
+                    })
+                  }
+                  options={options("strength", [
+                    "preferred",
+                    "required",
+                    "keep_source",
+                  ])}
+                />
+                <Choice
+                  label={t("fields.match")}
+                  value={entry.payload.match.mode}
+                  onChange={(mode) =>
+                    setEntry({
+                      ...entry,
+                      payload: {
+                        ...entry.payload,
+                        match: {
+                          ...entry.payload.match,
+                          mode: mode as "whole_term" | "literal_phrase",
+                        },
+                      },
+                    })
+                  }
+                  options={options("match", ["literal_phrase", "whole_term"])}
+                />
+              </div>
+              <Check
+                label={t("fields.case_sensitive")}
+                checked={entry.payload.match.caseSensitive}
+                onChange={(caseSensitive) =>
+                  setEntry({
+                    ...entry,
+                    payload: {
+                      ...entry.payload,
+                      match: { ...entry.payload.match, caseSensitive },
                     },
                   })
                 }
-                options={options("match", ["literal_phrase", "whole_term"])}
+              />
+              <LinesField
+                label={t("fields.aliases_lines")}
+                value={entry.payload.aliases.join("\n")}
+                onChange={(value) =>
+                  setEntry({
+                    ...entry,
+                    payload: { ...entry.payload, aliases: splitLines(value) },
+                  })
+                }
               />
             </div>
-            <Check
-              label={t("fields.case_sensitive")}
-              checked={entry.payload.match.caseSensitive}
-              onChange={(caseSensitive) =>
-                setEntry({
-                  ...entry,
-                  payload: {
-                    ...entry.payload,
-                    match: { ...entry.payload.match, caseSensitive },
-                  },
-                })
-              }
-            />
-            <LinesField
-              label={t("fields.aliases_lines")}
-              value={entry.payload.aliases.join("\n")}
-              onChange={(value) =>
-                setEntry({
-                  ...entry,
-                  payload: { ...entry.payload, aliases: splitLines(value) },
-                })
-              }
-            />
-          </>
+          </details>
         )}
         {entry.kind === "context" && (
           <>
@@ -697,13 +701,18 @@ export function EntryEditor({
               )}
           </div>
         </details>
-        {text("title_optional", entry.title, (title) =>
-          setEntry({ ...entry, title }),
-        )}
-        {text("source_note", sourceNote, setSourceNote, true)}
-        <p className="text-xs text-muted-foreground">
-          {t(existing ? "editor.source_existing" : "editor.source_default")}
-        </p>
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm">{t("guide.entry_metadata")}</summary>
+          <div className="mt-3 space-y-4">
+            {text("title_optional", entry.title, (title) =>
+              setEntry({ ...entry, title }),
+            )}
+            {text("source_note", sourceNote, setSourceNote, true)}
+            <p className="text-xs text-muted-foreground">
+              {t(existing ? "editor.source_existing" : "editor.source_default")}
+            </p>
+          </div>
+        </details>
         <Check
           disabled={initial.state === "archived" && existing}
           label={t("editor.adopt")}

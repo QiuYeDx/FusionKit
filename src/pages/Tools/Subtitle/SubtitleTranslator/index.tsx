@@ -20,7 +20,6 @@ import {
 } from "@/services/subtitle/generatedSubtitleImportCoordinator";
 import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   RotateCw,
@@ -952,7 +951,6 @@ function SubtitleTranslator() {
           description={t("subtitle:translator.description")}
           right={
             <>
-              <Button asChild variant="outline" size="sm"><Link to="/tools/translation-knowledge">{t("knowledge:title")}</Link></Button>
               <Badge variant="secondary" className="gap-1.5 font-normal">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.18)]" />
                 <span className="font-mono text-[11px]">{modelDisplay}</span>
@@ -1326,6 +1324,7 @@ function SubtitleTranslator() {
     >
       <ToolFileDropZone
         id="tour-upload-zone"
+        inputTestId="subtitle-translator-input"
         accept=".lrc,.srt"
         multiple
         dragging={isDragging}

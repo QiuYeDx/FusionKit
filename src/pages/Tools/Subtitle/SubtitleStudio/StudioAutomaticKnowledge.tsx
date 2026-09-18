@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { BookOpen, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -70,8 +71,10 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
     <ToolSwitchRow id="studio-automatic-knowledge-enabled" testId="studio-automatic-knowledge-row" label={t('knowledge:automatic.enable')} hint={t('knowledge:automatic.enable_hint')} checked={saved.enabled} disabled={state.submitting} onCheckedChange={enabled => {
       if (enabled) begin(); else controller.setAutoTranslation({ ...state.autoTranslation, knowledge: { ...saved, enabled: false } });
     }} />
+    {!saved.enabled && <p className="text-xs leading-5 text-muted-foreground">{t('knowledge:selection.off')}</p>}
     {saved.enabled && <div className="min-w-0 space-y-2">
       <p data-testid="studio-automatic-knowledge-summary" className="text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{savedRecipe?.name ? `${savedRecipe.name} · ` : ''}{t('knowledge:automatic.summary', { collections: savedCollections.size, topics: saved.documentTopicIds.length })}</p>
+      <p className="text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{!library ? t('knowledge:loading') : savedCollections.size ? t('knowledge:selection.summary', { names: [...savedCollections].map(id => library.data.collections.find(item => item.id === id)?.name ?? t('knowledge:automatic.removed_item')).join(' · ') }) : savedRecipe?.name ?? t('knowledge:selection.none')}</p>
       <Button ref={trigger} data-testid="studio-automatic-knowledge-choose" type="button" size="sm" variant="outline" disabled={state.submitting} onClick={begin}><BookOpen />{t('knowledge:automatic.choose')}</Button>
       {state.autoKnowledgeLoading ? <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />{t('knowledge:loading')}</p> : savedNotice && <p data-testid="studio-automatic-knowledge-notice" role="status" className="text-xs leading-5 text-destructive">{savedNotice}</p>}
     </div>}
@@ -80,28 +83,29 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
       <ScrollableDialogContent className="min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]>div>div]:p-3" fadeMaskHeight={16}>
         <div data-testid="automatic-knowledge-content" aria-busy={busy} className="min-w-0 space-y-4 [overflow-wrap:anywhere]">
           {state.autoKnowledgeLoading && <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />{t('knowledge:loading')}</p>}
+          <p className="text-xs leading-5 text-muted-foreground">{t('knowledge:selection.help')}</p>
           <fieldset disabled={busy || !library} className="min-w-0 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Choice testId="automatic-knowledge-source-language" disabled={busy || !library || englishOutput} label={t('knowledge:fields.source_language')} value={englishOutput ? 'en' : draft.sourceLanguage || 'unselected'} options={[{ id: 'unselected', name: t('knowledge:automatic.choose_source') }, ...languages.map(id => ({ id, name: languageName(id) })), ...(draft.sourceLanguage && !languages.includes(draft.sourceLanguage as typeof languages[number]) ? [{ id: draft.sourceLanguage, name: languageName(draft.sourceLanguage) }] : [])]} onChange={sourceLanguage => update({ sourceLanguage: sourceLanguage === 'unselected' ? '' : sourceLanguage })} />
               <ToolField label={t('knowledge:fields.target_language')}><p data-testid="automatic-knowledge-target-language" className="flex min-h-8 items-center text-xs">{languageName(target)}</p></ToolField>
             </div>
             <p className="text-xs leading-5 text-muted-foreground">{t(englishOutput ? 'knowledge:automatic.english_source' : 'knowledge:automatic.source_help')}</p>
-            <Choice testId="automatic-knowledge-recipe" disabled={busy || !library} label={t('knowledge:trial.recipe')} value={draft.recipeId ?? 'none'} options={[{ id: 'none', name: t('knowledge:trial.no_recipe') }, ...availableRecipes, ...(draft.recipeId && !availableRecipes.some(item => item.id === draft.recipeId) ? [{ id: draft.recipeId, name: t('knowledge:batch.unavailable_recipe') }] : [])]} onChange={id => {
+            {(availableRecipes.length > 0 || !!draft.recipeId) && <Choice testId="automatic-knowledge-recipe" disabled={busy || !library} label={t('knowledge:trial.recipe')} value={draft.recipeId ?? 'none'} options={[{ id: 'none', name: t('knowledge:trial.no_recipe') }, ...availableRecipes, ...(draft.recipeId && !availableRecipes.some(item => item.id === draft.recipeId) ? [{ id: draft.recipeId, name: t('knowledge:batch.unavailable_recipe') }] : [])]} onChange={id => {
               const chosen = library?.data.recipes.find(item => item.id === id);
               const { recipeId: _previous, ...rest } = draft;
               if (!busy) setDraft({ ...rest, ...(chosen ? { recipeId: chosen.id, sourceLanguage: englishOutput ? 'en' : chosen.languagePair.source } : {}) });
-            }} />
+            }} />}
             <details data-testid="automatic-knowledge-collections" className="min-w-0 rounded-md border p-3" open={!draft.recipeId}>
               <summary className="cursor-pointer text-sm">{t('knowledge:trial.collections')}</summary>
               <div className="mt-3"><PagedItems items={collectionChoices} disabled={busy}>{item => <Toggle key={item.id} testId={`automatic-knowledge-collection-${item.id}`} label={item.name} checked={collections.has(item.id)} disabled={busy || recipe?.readCollectionIds.includes(item.id)} onChange={checked => update({ collectionIds: checked ? [...new Set([...draft.collectionIds, item.id])] : draft.collectionIds.filter(id => id !== item.id) })} />}</PagedItems></div>
-              {!collectionChoices.length && <p className="mt-2 text-xs text-muted-foreground">{t('knowledge:trial.empty')}</p>}
+              {library && !collectionChoices.length && <div className="mt-2 space-y-2"><p className="text-xs leading-5 text-muted-foreground">{t('knowledge:selection.empty')}</p><Button asChild variant="outline" size="sm"><Link to="/tools/translation-knowledge">{t('knowledge:selection.manage')}</Link></Button></div>}
             </details>
-            <details data-testid="automatic-knowledge-topics" className="min-w-0 rounded-md border p-3" open>
+            {(topicChoices.length > 0 || draft.documentTopicIds.length > 0) && <details data-testid="automatic-knowledge-topics" className="min-w-0 rounded-md border p-3" open>
               <summary className="cursor-pointer text-sm">{t('knowledge:batch.topics', { count: draft.documentTopicIds.length })}</summary>
               <p className="my-3 text-xs leading-5 text-muted-foreground">{t('knowledge:automatic.topics_help')}</p>
               <PagedItems items={topicChoices} disabled={busy}>{item => <Toggle key={item.id} testId={`automatic-knowledge-topic-${item.id}`} label={item.name} checked={draft.documentTopicIds.includes(item.id)} disabled={busy || draft.documentTopicIds.length >= 20 && !draft.documentTopicIds.includes(item.id)} onChange={checked => update({ documentTopicIds: checked ? [...new Set([...draft.documentTopicIds, item.id])] : draft.documentTopicIds.filter(id => id !== item.id) })} />}</PagedItems>
               {!topicChoices.length && <p className="text-xs text-muted-foreground">{t('knowledge:full.no_topics')}</p>}
-            </details>
+            </details>}
             <ToolField label={t('knowledge:trial.requirements')} htmlFor={`${formId}-requirements`}><Textarea id={`${formId}-requirements`} data-testid="automatic-knowledge-instructions" disabled={busy || !library} className="min-h-16 text-xs" value={draft.instructions ?? (state.autoTranslation.instructions || recipe?.instructions || '')} maxLength={4000} onChange={event => update({ instructions: event.target.value })} /></ToolField>
             <ToolField label={t('knowledge:trial.context')} htmlFor={`${formId}-context`}><Textarea id={`${formId}-context`} data-testid="automatic-knowledge-context" disabled={busy || !library} className="min-h-16 text-xs" value={draft.context ?? recipe?.context ?? ''} maxLength={4000} onChange={event => update({ context: event.target.value })} /></ToolField>
             {entryChoices.length > 0 && <details data-testid="automatic-knowledge-exclusions" className="min-w-0 rounded-md border p-3"><summary className="cursor-pointer text-sm">{t('knowledge:trial.disable')}</summary><div className="mt-3"><PagedItems key={[...collections].join(',')} items={entryChoices} disabled={busy}>{item => <Toggle key={item.id} testId={`automatic-knowledge-exclude-${item.id}`} label={item.name} checked={draft.disabledEntryIds.includes(item.id)} disabled={busy} onChange={checked => update({ disabledEntryIds: checked ? [...new Set([...draft.disabledEntryIds, item.id])] : draft.disabledEntryIds.filter(id => id !== item.id) })} />}</PagedItems></div></details>}
@@ -113,7 +117,7 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
       <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3">
         <Button data-testid="automatic-knowledge-cancel" size="sm" variant="ghost" onClick={() => setOpen(false)}>{t('studio:cancel')}</Button>
         <Button data-testid="automatic-knowledge-refresh" size="sm" variant="outline" disabled={busy} onClick={() => void controller.refreshAutomaticKnowledge()}><RefreshCw />{t('studio:refresh')}</Button>
-        <Button data-testid="automatic-knowledge-save" size="sm" disabled={busy || !!problem || !library} onClick={() => {
+        <Button data-testid="automatic-knowledge-save" size="sm" disabled={busy || !!problem || !library || (!collections.size && !recipe)} onClick={() => {
           if (!library) return;
           if (controller.setAutomaticKnowledge({ ...draft, ...(englishOutput ? { sourceLanguage: 'en' } : {}) }, library.generation)) setOpen(false); else setSaveError(true);
         }}>{t('knowledge:automatic.save')}</Button>

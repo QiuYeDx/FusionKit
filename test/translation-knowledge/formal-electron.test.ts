@@ -121,12 +121,41 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       expect(original.translationTracks).toHaveLength(0);
       await ui.getByRole('button', { name: '翻译', exact: true }).click();
       await ui.getByRole('textbox', { name: '翻译要求（可选）' }).fill('Keep every line concise and preserve all information.');
-      await ui.getByTestId('studio-knowledge-trial').click();
+      await uiExpect(ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch')).not.toBeChecked();
+      await ui.getByTestId('studio-translation-knowledge-enabled').getByRole('switch').check();
+      await ui.getByTestId('studio-translation-knowledge-open').click();
       const dialog = dialogFor('knowledge-trial-content');
-      await uiExpect(ui.getByTestId('knowledge-trial-check')).toBeEnabled();
-      await uiExpect(dialog.getByRole('radio', { name: '片段试译', exact: true })).toBeChecked();
+      await uiExpect(ui.getByTestId('knowledge-full-mode')).toBeChecked();
+      await uiExpect(ui.getByTestId('knowledge-full-check')).toBeDisabled();
+      await ui.getByTestId('knowledge-trial-mode').check();
       await dialog.getByRole('combobox', { name: '翻译方案', exact: true }).click();
       await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
+      const explicitRequirements = 'Keep every line concise and preserve all information. Use natural dialogue.';
+      await ui.getByTestId('knowledge-trial-instructions').fill(explicitRequirements);
+      await ui.getByTestId('knowledge-trial-close').click();
+      await uiExpect(dialog).toHaveCount(0);
+      // Editing a number passes through an invalid draft; that must not erase selected materials or authored requirements.
+      const parent = dialogFor('studio-translation-knowledge-enabled');
+      await ui.getByTestId('studio-translation-advanced').click();
+      const budget = parent.getByRole('spinbutton', { name: '上下文窗口（tokens）', exact: true });
+      const originalBudget = await budget.inputValue();
+      await budget.fill('');
+      await uiExpect(ui.getByTestId('studio-translation-knowledge-open')).toBeDisabled();
+      await uiExpect(ui.getByTestId('studio-knowledge-trial')).toBeDisabled();
+      await uiExpect(ui.getByTestId('studio-knowledge-selection-summary')).toContainText(fixture.recipes[0].name);
+      await uiExpect(parent.getByRole('button', { name: '计算用量', exact: true })).toHaveCount(0);
+      await uiExpect(parent.getByRole('button', { name: '开始翻译', exact: true })).toHaveCount(0);
+      await budget.fill(originalBudget);
+      await ui.getByTestId('studio-translation-advanced').click();
+      await uiExpect(ui.getByTestId('studio-translation-knowledge-open')).toBeEnabled();
+      await ui.getByTestId('studio-translation-knowledge-open').click();
+      await uiExpect(ui.getByTestId('knowledge-trial-recipe')).toContainText(fixture.recipes[0].name);
+      for (const collectionId of fixture.recipes[0].readCollectionIds) {
+        await uiExpect(ui.getByTestId(`knowledge-trial-collection-${collectionId}`)).toBeChecked();
+      }
+      await uiExpect(ui.getByTestId('knowledge-trial-instructions')).toHaveValue(explicitRequirements);
+      expect(requests).toHaveLength(0);
+      await ui.getByTestId('knowledge-trial-mode').check();
       await ui.getByTestId('knowledge-trial-check').click();
       await uiExpect(ui.getByTestId('knowledge-trial-preview')).toBeVisible();
       const scopes = ui.getByTestId('knowledge-trial-scopes');
@@ -183,7 +212,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       expect(applicable('term')).toEqual(['u1', 'u21']);
       expect(applicable('rule')).toEqual(['u1']);
       expect(applicable('context')).toEqual(['u1']);
-      expect(requests.every(request => request.payload.translationRequirements === 'Keep every line concise and preserve all information.')).toBe(true);
+      expect(requests.every(request => request.payload.translationRequirements === explicitRequirements)).toBe(true);
       expect(requests.every(request => request.payload.translationKnowledge.items.every(item => !['memory', 'expression'].includes(item.kind)))).toBe(true);
       for (const privateValue of [term.id, fixture.subjects[0].id, fixture.sources[0].excerpt, path.basename(subtitle)]) expect(requests.map(request => request.raw).join('\n')).not.toContain(privateValue);
 

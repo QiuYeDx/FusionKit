@@ -101,6 +101,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await editor.getByRole('textbox', { name: '原文', exact: true }).fill('starport');
     await editor.getByRole('textbox', { name: '译文', exact: true }).fill('星际港口');
     await uiExpect(editor.getByRole('combobox', { name: '原文语言', exact: true })).toContainText('英语');
+    await editor.locator('summary').filter({ hasText: '标题与来源（可选）' }).click();
     await editor.getByLabel('标题（可选）', { exact: true }).fill('星际港口 · 跨语言内容与来源范围示例');
     await capture('editor-light');
     await editor.getByRole('button', { name: '保存为待审核', exact: true }).click();
@@ -287,14 +288,12 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await page.getByTestId('knowledge-history-close').click();
     await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('subtitle-translator-tour-done', '1'); });
     await page.reload();
-    for (const tool of ['studio', 'translator']) {
-      await page.evaluate(route => { location.hash = route; }, `/tools/subtitle/${tool}`);
-      const link = page.getByRole('link', { name: '翻译资料', exact: true });
-      await uiExpect(link).toBeVisible();
-      await capture(`${tool}-knowledge-entry-narrow`);
-      await link.click();
-      await uiExpect(page.getByTestId('knowledge-import')).toBeEnabled();
-    }
+    await page.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
+    const link = page.getByRole('link', { name: '翻译资料', exact: true });
+    await uiExpect(link).toBeVisible();
+    await capture('studio-knowledge-entry-narrow');
+    await link.click();
+    await uiExpect(page.getByTestId('knowledge-import')).toBeEnabled();
     expect(errors).toEqual([]);
   }, 180000);
 });

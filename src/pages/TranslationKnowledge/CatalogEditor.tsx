@@ -496,49 +496,55 @@ export function CatalogEditor({
                 </p>
               </div>
             </details>
-            <Check
-              label={t("fields.inherit_preferences")}
-              checked={record.inheritGlobalPreferences}
-              onChange={(inheritGlobalPreferences) =>
-                setRecord({ ...record, inheritGlobalPreferences })
-              }
-            />
-            <Choice
-              label={t("fields.learning")}
-              value={record.learningSuggestion}
-              onChange={(value) => {
-                const next = {
-                  ...record,
-                  learningSuggestion: value as Recipe["learningSuggestion"],
-                };
-                if (value === "off")
-                  delete next.suggestedDestinationCollectionId;
-                setRecord(next);
-              }}
-              options={["off", "save_reviewed"].map((value) => ({
-                value,
-                label: t(optionKey(`learning.${value}`)),
-              }))}
-            />
-            {record.learningSuggestion === "save_reviewed" && (
-              <Choice
-                label={t("fields.destination")}
-                value={record.suggestedDestinationCollectionId ?? "none"}
-                onChange={(value) =>
-                  setRecord({
-                    ...record,
-                    suggestedDestinationCollectionId: value,
-                  })
-                }
-                options={[
-                  { value: "none", label: t("filters.select"), disabled: true },
-                  ...snapshot.data.collections.map((item) => ({
-                    value: item.id,
-                    label: item.name,
-                  })),
-                ]}
-              />
-            )}
+            <details className="rounded-md border p-3">
+              <summary className="cursor-pointer text-sm">{t("guide.future_preferences")}</summary>
+              <div className="mt-3 space-y-4">
+                <p className="text-xs leading-5 text-muted-foreground">{t("guide.future_preferences_help")}</p>
+                <Check
+                  label={t("fields.inherit_preferences")}
+                  checked={record.inheritGlobalPreferences}
+                  onChange={(inheritGlobalPreferences) =>
+                    setRecord({ ...record, inheritGlobalPreferences })
+                  }
+                />
+                <Choice
+                  label={t("fields.learning")}
+                  value={record.learningSuggestion}
+                  onChange={(value) => {
+                    const next = {
+                      ...record,
+                      learningSuggestion: value as Recipe["learningSuggestion"],
+                    };
+                    if (value === "off")
+                      delete next.suggestedDestinationCollectionId;
+                    setRecord(next);
+                  }}
+                  options={["off", "save_reviewed"].map((value) => ({
+                    value,
+                    label: t(optionKey(`learning.${value}`)),
+                  }))}
+                />
+                {record.learningSuggestion === "save_reviewed" && (
+                  <Choice
+                    label={t("fields.destination")}
+                    value={record.suggestedDestinationCollectionId ?? "none"}
+                    onChange={(value) =>
+                      setRecord({
+                        ...record,
+                        suggestedDestinationCollectionId: value,
+                      })
+                    }
+                    options={[
+                      { value: "none", label: t("filters.select"), disabled: true },
+                      ...snapshot.data.collections.map((item) => ({
+                        value: item.id,
+                        label: item.name,
+                      })),
+                    ]}
+                  />
+                )}
+              </div>
+            </details>
           </>
         )}
         {"instructions" in record &&
