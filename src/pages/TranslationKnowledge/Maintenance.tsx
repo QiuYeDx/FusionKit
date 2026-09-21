@@ -1,6 +1,6 @@
 import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import { useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, FileText, History, LoaderCircle, RotateCcw, Upload, X } from "lucide-react";
+import { Archive, ChevronLeft, ChevronRight, FileText, History, LoaderCircle, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from "@/components/qiuye-ui/scrollable-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -14,12 +14,13 @@ import type {
   MaintenanceRequest,
 } from "@/translation-knowledge/maintenance-contract";
 import type { Diagnostic } from "@/translation-knowledge/validation";
-import { Check, ErrorNotice, KnowledgeDialog, Pagination } from "./Controls";
+import { Check, ErrorNotice, Pagination } from "./Controls";
 import { PAGE_SIZE, isSourceUnreferenced, maintenanceCommitFor } from "./model";
 import { CollectionDeleteDialog } from "./CollectionDeleteDialog";
 import { CollectionArchiveDialog } from "./CollectionArchiveDialog";
 import { diagnosticKey } from './labels';
 import { knowledgeReferenceKey } from '@/translation-knowledge/task-reference-contract';
+import { KnowledgeFormSection, KnowledgeRecordDialog } from './KnowledgeRecordDialog';
 
 export function MaintenanceDialog({
   preview,
@@ -27,12 +28,14 @@ export function MaintenanceDialog({
   api,
   onClose,
   onCompleted,
+  restoreFocusTo,
 }: {
   preview: MaintenancePreview;
   snapshot: LibrarySnapshot;
   api: TranslationKnowledgeApi;
   onClose: () => void;
   onCompleted: (message: string) => Promise<void>;
+  restoreFocusTo?: () => HTMLElement | null;
 }) {
   const { t } = useTranslation("knowledge");
   const [pending, setPending] = useState(false);
@@ -82,13 +85,13 @@ export function MaintenanceDialog({
     }
   };
   const impacts = <>
-      <div className="space-y-1">
+      <div className="knowledge-impact-list">
         {preview.items
           .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
           .map((item, index) => (
             <div
               key={`${item.group}-${item.id}-${index}`}
-              className="rounded-md border p-3"
+              className="min-w-0"
             >
               <p className="break-words text-sm font-medium">{item.title}</p>
               <p className="mt-1 text-xs text-muted-foreground">
@@ -99,10 +102,10 @@ export function MaintenanceDialog({
             </div>
           ))}
       </div>
-      <Pagination page={page} total={preview.items.length} onChange={setPage} />
+      {preview.items.length > PAGE_SIZE && <Pagination page={page} total={preview.items.length} onChange={setPage} />}
   </>;
-  const taskReferences = preview.taskTracking === "connected" && preview.tasks ? <section data-testid="knowledge-maintenance-tasks" className="min-w-0 space-y-3 border-t pt-3">
-        <h3 className="text-sm font-medium">{t("maintenance.related_records", { count: preview.tasks.total })}</h3>
+  const taskReferences = (nested = false) => preview.taskTracking === "connected" && preview.tasks ? <section data-testid="knowledge-maintenance-tasks" className={nested ? "min-w-0 space-y-3" : "min-w-0 space-y-3 border-t pt-3"}>
+        {!nested && <h3 className="text-sm font-medium">{t("maintenance.related_records", { count: preview.tasks.total })}</h3>}
         <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.task_references_help")}</p>
         {preview.tasks.unknownDocuments > 0 && <p role="status" className="text-xs leading-5 text-destructive">{t("maintenance.task_references_unknown", { count: preview.tasks.unknownDocuments })}</p>}
         {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <KnowledgeDisclosure key={knowledgeReferenceKey(task)} title={<>{task.displayName || t('maintenance.automatic_queue')} · {t(task.kind === 'automatic_preparation' ? 'maintenance.automatic_preparation' : task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</>}>
@@ -116,7 +119,7 @@ export function MaintenanceDialog({
           </ul>
         </KnowledgeDisclosure>)}
         {!preview.tasks.total && !preview.tasks.unknownDocuments && <p className="text-xs text-muted-foreground">{t("maintenance.no_related_records")}</p>}
-        <Pagination page={taskPage} total={preview.tasks.items.length} onChange={setTaskPage} />
+        {(!nested || preview.tasks.items.length > PAGE_SIZE) && <Pagination page={taskPage} total={preview.tasks.items.length} onChange={setTaskPage} />}
         {preview.tasks.total > preview.tasks.items.length && <p className="text-xs text-muted-foreground">{t("maintenance.records_limited", { count: preview.tasks.items.length, total: preview.tasks.total })}</p>}
       </section> : <p className="text-xs text-muted-foreground">{t("maintenance.tasks_not_connected")}</p>;
   const notice = <ErrorNotice
@@ -138,7 +141,7 @@ export function MaintenanceDialog({
     disabled={pending || stale || cleaning || !preview.canCommit}
     onClose={onClose}
     onSubmit={() => void submit()}
-    tasks={taskReferences}
+    tasks={taskReferences()}
     notice={<>
       {preview.blockers.filter(item => item.code.startsWith("PURGE_TASK_")).map(item => <p key={item.code} role="alert" data-testid="knowledge-maintenance-reference-blocker" className="text-xs leading-5 text-destructive">{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
       {notice}
@@ -152,14 +155,18 @@ export function MaintenanceDialog({
     disabled={pending || stale || cleaning || !preview.canCommit}
     onClose={onClose}
     onSubmit={() => void submit()}
-    tasks={taskReferences}
+    tasks={taskReferences()}
     notice={notice}
   />;
   return (
-    <KnowledgeDialog
+    <KnowledgeRecordDialog
       title={t(`maintenance.action.${preview.action}`)}
       description={t("maintenance.preview_help")}
-      wide
+      icon={preview.action === 'purge' ? <Trash2 /> : preview.action === 'archive' ? <Archive /> : <RotateCcw />}
+      testId="knowledge-entry-maintenance-preview"
+      error={stale ? 'plan_expired' : preview.blockers.length ? 'invalid_input' : error}
+      restoreFocusTo={restoreFocusTo}
+      closeLabel={t('record.cancel')}
       pending={pending}
       onClose={onClose}
       footer={
@@ -196,9 +203,17 @@ export function MaintenanceDialog({
       {preview.action === 'purge' && preview.blockers.some(item => item.code.startsWith('PURGE_TASK_')) && <div role="alert" data-testid="knowledge-maintenance-reference-blocker" className="space-y-2 rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs leading-5 text-destructive">
         {preview.blockers.filter(item => item.code.startsWith('PURGE_TASK_')).map(item => <p key={item.code}>{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
       </div>}
-      {impacts}
+      <KnowledgeFormSection title={t('record.impact')}>
+        <div className="knowledge-maintenance-summary">
+          <span>{t('record.impact_count', { count: preview.items.length })}</span>
+          {preview.items.some(item => item.effect === 'retain') && <span>{t('record.preserved_count', { count: preview.items.filter(item => item.effect === 'retain').length })}</span>}
+          {preview.items.some(item => item.effect === 'blocked') && <span className="text-destructive">{t('record.blocked_count', { count: preview.items.filter(item => item.effect === 'blocked').length })}</span>}
+        </div>
+        {impacts}
+      </KnowledgeFormSection>
       {preview.history.scope === "all" && (
         <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+          <h3 className="text-sm font-semibold">{t('record.history')}</h3>
           <p className="text-sm font-medium">
             {t("maintenance.history_warning", {
               snapshots: preview.history.snapshots,
@@ -232,9 +247,16 @@ export function MaintenanceDialog({
           />
         </div>
       )}
-      {taskReferences}
+      {preview.taskTracking !== 'connected' || !preview.tasks
+        ? <p role="status" className="knowledge-editor-help">{t('maintenance.tasks_not_connected')}</p>
+        : !preview.tasks.total && !preview.tasks.unknownDocuments
+        ? <p data-testid="knowledge-maintenance-tasks" className="knowledge-editor-help">{t('maintenance.no_related_records')}</p>
+        : <KnowledgeDisclosure variant="inline" title={t('maintenance.related_records', { count: preview.tasks?.total ?? 0 })}
+          defaultOpen={!!preview.tasks?.unknownDocuments || preview.blockers.some(item => item.code.startsWith('PURGE_TASK_'))}>
+          {taskReferences(true)}
+        </KnowledgeDisclosure>}
       {notice}
-    </KnowledgeDialog>
+    </KnowledgeRecordDialog>
   );
 }
 export function HistoryDialog({

@@ -1,4 +1,3 @@
-import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import type {
   MaintenancePreview,
   MaintenanceRequest,
@@ -11,7 +10,6 @@ import {
   Archive,
   ArrowRight,
   BookOpen,
-  Check,
   CircleHelp,
   Copy,
   LoaderCircle,
@@ -57,7 +55,8 @@ import { InlineTermEditor } from "./InlineTermEditor";
 import { BulkTermPaste } from "./BulkTermPaste";
 import { KnowledgeTour, useKnowledgeTour } from "./KnowledgeTour";
 import { KnowledgeSidebar, type KnowledgeLibraryView } from "./KnowledgeSidebar";
-import { ExportDialog, ImportDialog, RecordDetails } from "./Exchange";
+import { ExportDialog, ImportDialog } from "./Exchange";
+import { EntryDetails } from "./EntryDetails";
 import {
   entryStatus,
   newEntry,
@@ -109,6 +108,7 @@ export default function TranslationKnowledge() {
   const [maintenancePreview, setMaintenancePreview] =
     useState<MaintenancePreview | null>(null);
   const [dropError, setDropError] = useState(false);
+  const maintenanceFocusTarget = useRef<HTMLElement | null>(null);
   const continueWithEntry = useRef(false);
   const blocked = snapshot?.maintenance?.cleanupPending === true;
   const api = window.translationKnowledge;
@@ -233,6 +233,12 @@ export default function TranslationKnowledge() {
     request: MaintenanceRequest,
   ): Promise<KnowledgeResult<MaintenancePreview>> => {
     if (blocked || busy) return { ok: false, error: "storage_unavailable" };
+    const target = 'targets' in request ? request.targets[0] : undefined;
+    maintenanceFocusTarget.current = target?.group === 'entries'
+      ? document.querySelector(`[data-testid="knowledge-entry-details-${target.id}"]`)
+      : target?.group === 'collections' ? document.querySelector('[data-testid="knowledge-collection-actions"]')
+        : target ? document.querySelector(`[data-catalog-id="${target.id}"]`)
+          : document.querySelector('[data-testid="knowledge-history"]');
     setBusy(true);
     setError(null);
     setDiagnostics([]);
@@ -393,7 +399,7 @@ export default function TranslationKnowledge() {
               {view === "plans" && <Choice label={t("plans.category")} value={planGroup} onChange={value => { setPlanGroup(value as typeof planGroup); setPlanPage(0); }} options={["recipes", "styles", "preferenceTemplates"].map(value => ({ value, label: t(optionKey(`group.${value}`)) }))} />}
             </div>
             {view === "plans" ? <>
-              <div className="space-y-1 p-2">{plans.slice(safePlanPage * PAGE_SIZE, (safePlanPage + 1) * PAGE_SIZE).map(item => <div key={item.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted/50"><button className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCatalog({ group: planGroup, record: item })}><p className="break-words text-sm font-medium">{item.name}{item.archived ? ` · ${t("status.archived")}` : ""}</p><p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">{"description" in item ? item.description : item.instructions}</p></button><Button size="icon-sm" variant="ghost" aria-label={t("actions.copy")} onClick={() => setCatalog({ group: planGroup, record: { ...item, id: freshId(), revision: 1, name: t("copy_name", { name: item.name }), archived: false } })}><Copy /></Button></div>)}{!plans.length && <Empty title={t("empty.plans")} description={t("empty.plans_help")} />}</div>
+              <div className="space-y-1 p-2">{plans.slice(safePlanPage * PAGE_SIZE, (safePlanPage + 1) * PAGE_SIZE).map(item => <div key={item.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted/50"><button data-catalog-id={item.id} className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCatalog({ group: planGroup, record: item })}><p className="break-words text-sm font-medium">{item.name}{item.archived ? ` · ${t("status.archived")}` : ""}</p><p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">{"description" in item ? item.description : item.instructions}</p></button><Button size="icon-sm" variant="ghost" aria-label={t("actions.copy")} onClick={() => setCatalog({ group: planGroup, record: { ...item, id: freshId(), revision: 1, name: t("copy_name", { name: item.name }), archived: false } })}><Copy /></Button></div>)}{!plans.length && <Empty title={t("empty.plans")} description={t("empty.plans_help")} />}</div>
               <Pagination page={safePlanPage} total={plans.length} onChange={setPlanPage} />
             </> : <>
               {view === "materials" && contentKind === "term" && filtered.length > 0 && <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] gap-3 border-b px-4 py-2 text-xs text-muted-foreground"><span>{t("fields.source_text")}</span><span>{t("fields.target_text")}</span><span /></div>}
@@ -471,188 +477,16 @@ export default function TranslationKnowledge() {
           />
         )}
         {snapshot && currentEntry && !entryEditor && (
-          <KnowledgeDialog
-            title={currentEntry.title}
-            description={`${t(`kind.${currentEntry.kind}`)} · ${languagePairLabel(t, currentEntry.scope.languagePair)} · ${t(`status.${entryStatus(currentEntry, snapshot)}`)}`}
-            onClose={() => setSelected(null)}
-            pending={busy}
-            footer={
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy || blocked}
-                  onClick={() => setEntryEditor(currentEntry)}
-                >
-                  <Pencil />
-                  {t("actions.edit")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy || blocked}
-                  onClick={() => {
-                    setSelected(null);
-                    setEntryEditor({
-                      ...currentEntry,
-                      id: freshId(),
-                      revision: 1,
-                      state: "candidate",
-                      title: t("copy_name", { name: currentEntry.title }),
-                    });
-                  }}
-                >
-                  <Copy />
-                  {t("actions.copy")}
-                </Button>
-                {needsReview(currentEntry, snapshot) && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy || blocked}
-                      onClick={() => void review("reject")}
-                    >
-                      {t("actions.reject")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={busy || blocked}
-                      onClick={() => void review("adopt")}
-                    >
-                      <Check />
-                      {t("actions.adopt")}
-                    </Button>
-                  </>
-                )}
-                <Button
-                  data-testid="knowledge-entry-maintenance"
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy || blocked}
-                  onClick={() =>
-                    void planMaintenance({
-                      generation: snapshot.generation,
-                      action:
-                        currentEntry.state === "archived"
-                          ? "restore"
-                          : "archive",
-                      targets: [{ group: "entries", id: currentEntry.id }],
-                    })
-                  }
-                >
-                  <Archive />
-                  {t(
-                    currentEntry.state === "archived"
-                      ? "maintenance.preview_restore"
-                      : "maintenance.preview_archive",
-                  )}
-                </Button>
-              </>
-            }
-          >
-            <p className="whitespace-pre-wrap break-words text-sm leading-6">
-              {entrySummary(currentEntry)}
-            </p>
-            <div className="space-y-2 text-sm">
-              <p>
-                <span className="text-muted-foreground">
-                  {t("fields.collection")}:{" "}
-                </span>
-                {
-                  snapshot.data.collections.find(
-                    (item) => item.id === currentEntry.collectionId,
-                  )?.name
-                }
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {t("detail.revision", { revision: currentEntry.revision })}
-              </p>
-            </div>
-            <section className="space-y-2">
-              <h3 className="text-sm font-medium">{t("editor.scope")}</h3>
-              {currentEntry.scope.requiredSubjects.length ? (
-                <ul className="space-y-1 text-sm">
-                  {currentEntry.scope.requiredSubjects.map((item) => (
-                    <li key={`${item.subjectId}-${item.role}`}>
-                      {
-                        snapshot.data.subjects.find(
-                          (subject) => subject.id === item.subjectId,
-                        )?.name
-                      }{" "}
-                      · {t(`role.${item.role}`)}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {t("scope.general_help")}
-                </p>
-              )}
-              {currentEntry.scope.condition.mode !== "none" && (
-                <p className="break-words text-sm">
-                  {t(`condition.${currentEntry.scope.condition.mode}`)}:{" "}
-                  {currentEntry.scope.condition.text}
-                </p>
-              )}
-            </section>
-            <section className="space-y-2">
-              <h3 className="text-sm font-medium">{t("detail.sources")}</h3>
-              {currentEntry.evidence.map((evidence, index) => {
-                const source = snapshot.data.sources.find(
-                  (item) => item.id === evidence.sourceId,
-                );
-                return source ? (
-                  <div key={index} className="space-y-1 rounded-md border p-3">
-                    <p className="text-sm font-medium break-words">
-                      {source.title}
-                    </p>
-                    <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
-                      {source.excerpt}
-                    </p>
-                    {source.url && (
-                      <p className="break-all text-xs text-muted-foreground">
-                        {source.url}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {t(`source.${source.kind}`)} ·{" "}
-                      {t(`support.${evidence.support}`)}
-                    </p>
-                    {evidence.note && (
-                      <p className="break-words text-xs">{evidence.note}</p>
-                    )}
-                  </div>
-                ) : null;
-              })}
-            </section>
-            <KnowledgeDisclosure variant="inline" title={t("detail.all_fields")}>
-              <div>
-                <RecordDetails record={currentEntry} />
-              </div>
-            </KnowledgeDisclosure>
-            {currentEntry.state === "archived" && (
-              <KnowledgeDisclosure variant="inline" title={t("maintenance.advanced")}>
-                <Button
-                  data-testid="knowledge-entry-purge"
-                  size="sm"
-                  variant="outline"
-
-                  disabled={busy || blocked}
-                  onClick={() =>
-                    void planMaintenance({
-                      generation: snapshot.generation,
-                      action: "purge",
-                      targets: [{ group: "entries", id: currentEntry.id }],
-                    })
-                  }
-                >
-                  {t("maintenance.preview_purge")}
-                </Button>
-              </KnowledgeDisclosure>
-            )}
-            <ErrorNotice error={detailError} diagnostics={detailDiagnostics} />
-          </KnowledgeDialog>
+          <EntryDetails entry={currentEntry} snapshot={snapshot} busy={busy} blocked={blocked}
+            error={detailError} diagnostics={detailDiagnostics} onClose={() => setSelected(null)}
+            onEdit={() => setEntryEditor(currentEntry)}
+            onCopy={() => {
+              setSelected(null);
+              setEntryEditor({ ...currentEntry, id: freshId(), revision: 1, state: "candidate", title: t("copy_name", { name: currentEntry.title }) });
+            }}
+            onReview={action => void review(action)}
+            onMaintain={action => void planMaintenance({ generation: snapshot.generation, action, targets: [{ group: "entries", id: currentEntry.id }] })}
+          />
         )}
         {snapshot && historyOpen && (
           <HistoryDialog
@@ -667,6 +501,7 @@ export default function TranslationKnowledge() {
         )}
         {snapshot && maintenancePreview && (
           <MaintenanceDialog
+            restoreFocusTo={() => maintenanceFocusTarget.current}
             preview={maintenancePreview}
             snapshot={snapshot}
             api={api}

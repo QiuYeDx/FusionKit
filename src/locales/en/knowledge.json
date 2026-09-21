@@ -838,5 +838,31 @@
     "archive_tasks": "Submitted tasks and translations",
     "archive_tasks_help": "Submitted tasks keep using their original materials. Existing translations stay unchanged.",
     "archive_restore_help": "Restore the collection from Archived. Previously usable entries will need confirmation again in Needs confirmation."
+  },
+  "record": {
+    "basics": "Basics",
+    "content": "Entry content",
+    "settings": "Usage settings",
+    "translation": "Translation guidance",
+    "references": "Materials and rules",
+    "optional": "More settings",
+    "saved_actions": "Manage saved version",
+    "more": "More actions",
+    "cancel": "Cancel",
+    "sense": "Meaning",
+    "aliases": "Aliases",
+    "examples": "Translation examples",
+    "case_sensitive": "Case sensitive",
+    "case_insensitive": "Case insensitive",
+    "core": "Core context",
+    "revision": "Revision {{revision}}",
+    "review_help": "Review the content, scope, and sources before adopting this entry for use in translation.",
+    "source_count": "Sources: {{count}}",
+    "source_missing": "This source is unavailable. Check the complete record fields.",
+    "impact": "Affected records",
+    "history": "History removal",
+    "impact_count": "Records: {{count}}",
+    "preserved_count": "{{count}} retained",
+    "blocked_count": "{{count}} blocked"
   }
 }

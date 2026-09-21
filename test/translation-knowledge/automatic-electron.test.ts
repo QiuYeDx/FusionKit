@@ -140,14 +140,16 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       evidence.pendingReference = beforeDocument.tasks;
       await page.evaluate(() => { location.hash = '/tools/translation-knowledge'; });
       await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
+      await page.getByTestId('knowledge-entry-actions').click();
       await page.getByTestId('knowledge-entry-maintenance').click();
       const preparationDialog = page.getByRole('dialog').filter({ has: page.getByTestId('knowledge-maintenance-tasks') });
+      await preparationDialog.locator('[data-slot="knowledge-disclosure"]').filter({ has: page.getByTestId('knowledge-maintenance-tasks') }).locator('[data-slot="accordion-trigger"]').first().click();
       await uiExpect(preparationDialog).toContainText('自动翻译准备资料');
       await uiExpect(preparationDialog).toContainText('转写队列');
       await page.getByTestId('knowledge-maintenance-tasks').locator('[data-slot=accordion-trigger]').first().click();
       await page.getByTestId('knowledge-maintenance-tasks').scrollIntoViewIfNeeded();
       await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-pending-maintenance.png'), animations: 'disabled' });
-      await preparationDialog.getByRole('button', { name: '关闭', exact: true }).click();
+      await preparationDialog.getByTestId('knowledge-record-close').click();
       await page.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
       await page.getByRole('tab', { name: locale.workspace_transcription, exact: true }).click();
       expect(requests).toHaveLength(0);

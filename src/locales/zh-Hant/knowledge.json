@@ -838,5 +838,31 @@
     "archive_tasks": "已提交任務與譯文",
     "archive_tasks_help": "已提交任務繼續使用原有資料，已有譯文不受影響。",
     "archive_restore_help": "可在「封存」中還原資料集。還原後，原來可用的項目需要在「待確認」中重新確認。"
+  },
+  "record": {
+    "basics": "基本資訊",
+    "content": "條目內容",
+    "settings": "使用設定",
+    "translation": "翻譯要求",
+    "references": "資料與規則",
+    "optional": "更多設定",
+    "saved_actions": "維護已儲存版本",
+    "more": "更多操作",
+    "cancel": "取消",
+    "sense": "詞義說明",
+    "aliases": "別名",
+    "examples": "參考譯法",
+    "case_sensitive": "區分大小寫",
+    "case_insensitive": "不區分大小寫",
+    "core": "核心背景",
+    "revision": "修訂 {{revision}}",
+    "review_help": "採納前請核對內容、適用範圍與來源；採納後可在翻譯中選用。",
+    "source_count": "{{count}} 項依據",
+    "source_missing": "此來源暫時無法使用，請查看完整資料欄位。",
+    "impact": "變更範圍",
+    "history": "歷史記錄清理",
+    "impact_count": "{{count}} 項資料",
+    "preserved_count": "{{count}} 項保留",
+    "blocked_count": "{{count}} 項受阻"
   }
 }

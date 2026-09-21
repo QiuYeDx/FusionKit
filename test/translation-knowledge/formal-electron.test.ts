@@ -259,8 +259,10 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
 
       await ui.evaluate(() => { location.hash = '/tools/translation-knowledge'; });
       await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
+      await ui.getByTestId('knowledge-entry-actions').click();
       await ui.getByTestId('knowledge-entry-maintenance').click();
       const maintenance = dialogFor('knowledge-maintenance-tasks');
+      await maintenance.locator('[data-slot="knowledge-disclosure"]').filter({ has: ui.getByTestId('knowledge-maintenance-tasks') }).locator('[data-slot="accordion-trigger"]').first().click();
       await uiExpect(maintenance).toContainText('历史保留引用');
       await uiExpect(maintenance).toContainText(path.basename(subtitle));
       await uiExpect(maintenance).toContainText('不表示所有内容都已发送给模型');
@@ -271,7 +273,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await ui.getByTestId('knowledge-archive').click();
       await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
-      await ui.getByRole('dialog').locator('[data-slot=accordion-trigger]').filter({ hasText: '高级操作' }).click();
+      await ui.getByTestId('knowledge-entry-actions').click();
       await ui.getByTestId('knowledge-entry-purge').click();
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
       await uiExpect(maintenance.getByRole('checkbox')).toBeDisabled();
@@ -280,7 +282,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await ui.getByTestId('knowledge-maintenance-tasks').scrollIntoViewIfNeeded();
       await capture('maintenance-purge-blocked');
       await geometry(maintenance);
-      await maintenance.getByRole('button', { name: '关闭', exact: true }).click();
+      await maintenance.getByTestId('knowledge-record-close').click();
       // Archiving the live entry must not rewrite or remove the frozen task evidence.
       expect(await readRecord(lastOffset)).toEqual(lastRecord);
       await ui.evaluate(() => { location.hash = '/tools/subtitle/studio'; });

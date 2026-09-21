@@ -2,6 +2,8 @@ import { languagePairLabel, optionKey, scopeSummary, type FieldName } from "./la
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { FilePenLine } from "lucide-react";
+import { KnowledgeFormSection, KnowledgeRecordDialog } from "./KnowledgeRecordDialog";
 import type { Entry } from "@/translation-knowledge/schemas";
 import type {
   KnowledgeErrorCode,
@@ -15,7 +17,6 @@ import {
   LinesField,
   LanguageField,
   ErrorNotice,
-  KnowledgeDialog,
   MultiChoice,
   TextField,
 } from "./Controls";
@@ -168,51 +169,60 @@ export function EntryEditor({
     }
   };
   return (
-    <KnowledgeDialog
+    <KnowledgeRecordDialog
       title={t(existing ? "editor.edit_entry" : "editor.new_entry")}
       description={t("editor.entry_help")}
+      icon={<FilePenLine />}
+      testId="knowledge-entry-editor"
+      closeLabel={t("record.cancel")}
       onClose={onClose}
       pending={pending}
+      error={error}
+      footerStart={initial.state !== "archived" && (
+        <Button data-testid="knowledge-save-draft" variant="outline" size="sm" disabled={pending || blocked} onClick={() => void submit(false)}>{t("workspace.save_draft")}</Button>
+      )}
       footer={
         <>
-          {initial.state !== "archived" && <Button data-testid="knowledge-save-draft" variant="outline" size="sm" disabled={pending || blocked} onClick={() => void submit(false)}>{t("workspace.save_draft")}</Button>}
           <Button data-testid="knowledge-save-apply" size="sm" disabled={pending || blocked} onClick={() => void submit(initial.state !== "archived")}>
             {t(pending ? "actions.saving" : initial.state === "archived" ? "actions.save_catalog" : "workspace.save_apply")}
           </Button>
         </>
       }
     >
-      <fieldset disabled={pending || blocked} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <Choice
-            label={t("fields.kind")}
-            value={entry.kind}
-            onChange={(value) =>
-              setEntry(changeKind(entry, value as Entry["kind"]))
-            }
-            options={options("kind", existing ? [initial.kind] : ["term", "context", "rule"])}
-            disabled={existing}
-          />
-          <Choice
-            label={t("fields.collection")}
-            value={entry.collectionId}
-            onChange={(value) => setEntry({ ...entry, collectionId: value })}
-            options={snapshot.data.collections.map((item) => ({
-              value: item.id,
-              label: item.name,
-            }))}
-          />
-        </div>
-        <p className="text-xs leading-5 text-muted-foreground">{t(entry.kind === "expression" || entry.kind === "memory" ? "guide.storage_only_help" : "guide.entry_example")}</p>
-        {(entry.kind === "term" || entry.kind === "memory") && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {text(
-              "source_text",
-              entry.payload.source,
-              (source) =>
-                setEntry(
-                  entry.kind === "term"
-                    ? {
+      <fieldset disabled={pending || blocked} className="knowledge-record-form">
+        <KnowledgeFormSection title={t("record.basics")}>
+          <div className="knowledge-form-grid">
+            <Choice
+              label={t("fields.kind")}
+              value={entry.kind}
+              onChange={(value) =>
+                setEntry(changeKind(entry, value as Entry["kind"]))
+              }
+              options={options("kind", existing ? [initial.kind] : ["term", "context", "rule"])}
+              disabled={existing}
+            />
+            <Choice
+              label={t("fields.collection")}
+              value={entry.collectionId}
+              onChange={(value) => setEntry({ ...entry, collectionId: value })}
+              options={snapshot.data.collections.map((item) => ({
+                value: item.id,
+                label: item.name,
+              }))}
+            />
+          </div>
+        </KnowledgeFormSection>
+        <KnowledgeFormSection title={t("record.content")}>
+          {(entry.kind === "expression" || entry.kind === "memory") && <p className="knowledge-editor-help">{t("guide.storage_only_help")}</p>}
+          {(entry.kind === "term" || entry.kind === "memory") && (
+            <div className="knowledge-form-grid">
+              {text(
+                "source_text",
+                entry.payload.source,
+                (source) =>
+                  setEntry(
+                    entry.kind === "term"
+                      ? {
                         ...entry,
                         payload: {
                           ...entry.payload,
@@ -223,444 +233,455 @@ export function EntryEditor({
                               : entry.payload.target,
                         },
                       }
-                    : { ...entry, payload: { ...entry.payload, source } },
-                ),
-              entry.kind === "memory",
-              true,
-            )}
-            {text(
-              "target_text",
-              entry.payload.target,
-              (target) =>
-                setEntry(
-                  entry.kind === "term"
-                    ? { ...entry, payload: { ...entry.payload, target } }
-                    : { ...entry, payload: { ...entry.payload, target } },
-                ),
-              entry.kind === "memory",
-              true,
-            )}
-          </div>
-        )}
-        {entry.kind === "term" && (
-          <KnowledgeDisclosure
-            title={t("guide.term_options")}
-            description={t(`strength.${entry.payload.strength}`)}
-          >
-            <div className="space-y-4">
-              {text("sense", entry.payload.sense, (sense) =>
-                setEntry({ ...entry, payload: { ...entry.payload, sense } }),
+                      : { ...entry, payload: { ...entry.payload, source } },
+                  ),
+                entry.kind === "memory",
+                true,
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <Choice
-                  label={t("fields.strength")}
-                  value={entry.payload.strength}
-                  onChange={(strength) =>
-                    setEntry({
-                      ...entry,
-                      payload: {
-                        ...entry.payload,
-                        strength: strength as typeof entry.payload.strength,
-                        target:
-                          strength === "keep_source"
-                            ? entry.payload.source
-                            : entry.payload.target,
-                      },
-                    })
-                  }
-                  options={options("strength", [
-                    "preferred",
-                    "required",
-                    "keep_source",
-                  ])}
-                />
-                <Choice
-                  label={t("fields.match")}
-                  value={entry.payload.match.mode}
-                  onChange={(mode) =>
-                    setEntry({
-                      ...entry,
-                      payload: {
-                        ...entry.payload,
-                        match: {
-                          ...entry.payload.match,
-                          mode: mode as "whole_term" | "literal_phrase",
-                        },
-                      },
-                    })
-                  }
-                  options={options("match", ["literal_phrase", "whole_term"])}
-                />
-              </div>
-              <Check
-                label={t("fields.case_sensitive")}
-                checked={entry.payload.match.caseSensitive}
-                onChange={(caseSensitive) =>
+              {text(
+                "target_text",
+                entry.payload.target,
+                (target) =>
+                  setEntry(
+                    entry.kind === "term"
+                      ? { ...entry, payload: { ...entry.payload, target } }
+                      : { ...entry, payload: { ...entry.payload, target } },
+                  ),
+                entry.kind === "memory",
+                true,
+              )}
+            </div>
+          )}
+          {entry.kind === "context" && (
+            <>
+              {text(
+                "context_text",
+                entry.payload.text,
+                (text) =>
+                  setEntry({ ...entry, payload: { ...entry.payload, text } }),
+                true,
+                true,
+              )}
+              <Choice
+                label={t("fields.assertion")}
+                value={entry.payload.assertion}
+                onChange={(assertion) =>
                   setEntry({
                     ...entry,
                     payload: {
                       ...entry.payload,
-                      match: { ...entry.payload.match, caseSensitive },
+                      assertion: assertion as typeof entry.payload.assertion,
+                      core:
+                        assertion === "uncertain" ? false : entry.payload.core,
                     },
                   })
                 }
+                options={options("assertion", ["fact", "reported", "uncertain"])}
               />
+              <Check
+                label={t("fields.core")}
+                checked={entry.payload.core}
+                disabled={entry.payload.assertion === "uncertain"}
+                onChange={(core) =>
+                  setEntry({ ...entry, payload: { ...entry.payload, core } })
+                }
+              />
+            </>
+          )}
+          {entry.kind === "expression" && (
+            <>
+              {text(
+                "source_phrase",
+                entry.payload.sourcePhrase,
+                (sourcePhrase) =>
+                  setEntry({
+                    ...entry,
+                    payload: { ...entry.payload, sourcePhrase },
+                  }),
+                false,
+                true,
+              )}
+              {text(
+                "interpretation",
+                entry.payload.interpretation,
+                (interpretation) =>
+                  setEntry({
+                    ...entry,
+                    payload: { ...entry.payload, interpretation },
+                  }),
+                true,
+                true,
+              )}
               <LinesField
-                label={t("fields.aliases_lines")}
-                value={entry.payload.aliases.join("\n")}
+                label={t("fields.examples_lines")}
+                value={entry.payload.targetExamples.join("\n")}
                 onChange={(value) =>
                   setEntry({
                     ...entry,
-                    payload: { ...entry.payload, aliases: splitLines(value) },
+                    payload: {
+                      ...entry.payload,
+                      targetExamples: splitLines(value),
+                    },
                   })
                 }
               />
-            </div>
-          </KnowledgeDisclosure>
-        )}
-        {entry.kind === "context" && (
-          <>
-            {text(
-              "context_text",
-              entry.payload.text,
-              (text) =>
-                setEntry({ ...entry, payload: { ...entry.payload, text } }),
-              true,
-              true,
-            )}
-            <Choice
-              label={t("fields.assertion")}
-              value={entry.payload.assertion}
-              onChange={(assertion) =>
-                setEntry({
-                  ...entry,
-                  payload: {
-                    ...entry.payload,
-                    assertion: assertion as typeof entry.payload.assertion,
-                    core:
-                      assertion === "uncertain" ? false : entry.payload.core,
-                  },
-                })
-              }
-              options={options("assertion", ["fact", "reported", "uncertain"])}
-            />
-            <Check
-              label={t("fields.core")}
-              checked={entry.payload.core}
-              disabled={entry.payload.assertion === "uncertain"}
-              onChange={(core) =>
-                setEntry({ ...entry, payload: { ...entry.payload, core } })
-              }
-            />
-          </>
-        )}
-        {entry.kind === "expression" && (
-          <>
-            {text(
-              "source_phrase",
-              entry.payload.sourcePhrase,
-              (sourcePhrase) =>
-                setEntry({
-                  ...entry,
-                  payload: { ...entry.payload, sourcePhrase },
-                }),
-              false,
-              true,
-            )}
-            {text(
-              "interpretation",
-              entry.payload.interpretation,
-              (interpretation) =>
-                setEntry({
-                  ...entry,
-                  payload: { ...entry.payload, interpretation },
-                }),
-              true,
-              true,
-            )}
-            <LinesField
-              label={t("fields.examples_lines")}
-              value={entry.payload.targetExamples.join("\n")}
-              onChange={(value) =>
-                setEntry({
-                  ...entry,
-                  payload: {
-                    ...entry.payload,
-                    targetExamples: splitLines(value),
-                  },
-                })
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              {t("editor.expression_help")} {t("editor.expression_scope")}
-            </p>
-          </>
-        )}
-        {entry.kind === "memory" && (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {text(
-                "before_source",
-                entry.payload.beforeSource ?? "",
-                (beforeSource) =>
-                  setEntry({
-                    ...entry,
-                    payload: { ...entry.payload, beforeSource },
-                  }),
-                true,
-              )}
-              {text(
-                "after_source",
-                entry.payload.afterSource ?? "",
-                (afterSource) =>
-                  setEntry({
-                    ...entry,
-                    payload: { ...entry.payload, afterSource },
-                  }),
-                true,
-              )}
-            </div>
-            <Choice
-              label={t("fields.alignment")}
-              value={entry.payload.alignment}
-              onChange={(alignment) =>
-                setEntry({
-                  ...entry,
-                  payload: {
-                    ...entry.payload,
-                    alignment: alignment as typeof entry.payload.alignment,
-                  },
-                })
-              }
-              options={options("alignment", ["one_to_one", "reviewed_segment"])}
-            />
-            <p className="text-xs text-muted-foreground">
-              {t("editor.memory_help")}
-            </p>
-          </>
-        )}
-        {entry.kind === "rule" && (
-          <>
-            {text(
-              "rule_text",
-              entry.payload.text,
-              (text) =>
-                setEntry({ ...entry, payload: { ...entry.payload, text } }),
-              true,
-              true,
-            )}
-            <KnowledgeDisclosure title={t("workspace.more_options")}>
-              <div className="grid grid-cols-2 gap-4">
-                <Choice
-                  label={t("fields.dimension")}
-                  value={entry.payload.dimension}
-                  onChange={(dimension) =>
+              <p className="knowledge-editor-help">
+                {t("editor.expression_help")} {t("editor.expression_scope")}
+              </p>
+            </>
+          )}
+          {entry.kind === "memory" && (
+            <>
+              <div className="knowledge-form-grid">
+                {text(
+                  "before_source",
+                  entry.payload.beforeSource ?? "",
+                  (beforeSource) =>
                     setEntry({
                       ...entry,
-                      payload: {
-                        ...entry.payload,
-                        dimension: dimension as typeof entry.payload.dimension,
-                      },
-                    })
-                  }
-                  options={options("dimension", [
-                    "register",
-                    "honorifics",
-                    "person_reference",
-                    "fidelity",
-                    "other",
-                  ])}
-                />
-                <Choice
-                  label={t("fields.strength")}
-                  value={entry.payload.strength}
-                  onChange={(strength) =>
+                      payload: { ...entry.payload, beforeSource },
+                    }),
+                  true,
+                )}
+                {text(
+                  "after_source",
+                  entry.payload.afterSource ?? "",
+                  (afterSource) =>
                     setEntry({
                       ...entry,
-                      payload: {
-                        ...entry.payload,
-                        strength: strength as typeof entry.payload.strength,
-                      },
-                    })
-                  }
-                  options={options("strength", ["preferred", "required"])}
-                />
+                      payload: { ...entry.payload, afterSource },
+                    }),
+                  true,
+                )}
               </div>
-            </KnowledgeDisclosure>
-          </>
-        )}
-        <KnowledgeDisclosure
-          data-testid="knowledge-entry-language"
-          title={t("fields.language")}
-          description={languagePairLabel(t, pair)}
-        >
-          <div className="grid grid-cols-2 gap-4">
-            {text(
-              "source_language",
-              pair.source,
-              (source) =>
-                setEntry({
-                  ...entry,
-                  scope: { ...entry.scope, languagePair: { ...pair, source } },
-                }),
-              false,
-              true,
-            )}
-            {text(
-              "target_language",
-              pair.target,
-              (target) =>
-                setEntry({
-                  ...entry,
-                  scope: { ...entry.scope, languagePair: { ...pair, target } },
-                }),
-              false,
-              true,
-            )}
-          </div>
-        </KnowledgeDisclosure>
-        <KnowledgeDisclosure
-          title={t("editor.scope")}
-          description={scopeSummary(t, entry.scope, snapshot.data.subjects)}
-        >
-          <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">
-              {t("editor.scope_help")}
-            </p>
-            <MultiChoice
-              label={t("fields.about_subjects")}
-              options={snapshot.data.subjects}
-              value={entry.aboutSubjectIds}
-              onChange={(aboutSubjectIds) =>
-                setEntry({ ...entry, aboutSubjectIds })
-              }
-            />
-            <div className="space-y-4">
-              {snapshot.data.subjects.map((subject) => {
-                const condition = entry.scope.requiredSubjects.find(
-                  (item) => item.subjectId === subject.id,
-                );
-                return (
-                  <div
-                    key={subject.id}
-                    className="grid grid-cols-2 items-end gap-4"
-                  >
-                    <Check
-                      label={subject.name}
-                      checked={!!condition}
-                      onChange={(checked) =>
+              <Choice
+                label={t("fields.alignment")}
+                value={entry.payload.alignment}
+                onChange={(alignment) =>
+                  setEntry({
+                    ...entry,
+                    payload: {
+                      ...entry.payload,
+                      alignment: alignment as typeof entry.payload.alignment,
+                    },
+                  })
+                }
+                options={options("alignment", ["one_to_one", "reviewed_segment"])}
+              />
+              <p className="knowledge-editor-help">
+                {t("editor.memory_help")}
+              </p>
+            </>
+          )}
+          {entry.kind === "rule" && (
+            <>
+              {text(
+                "rule_text",
+                entry.payload.text,
+                (text) =>
+                  setEntry({ ...entry, payload: { ...entry.payload, text } }),
+                true,
+                true,
+              )}
+
+            </>
+          )}
+        </KnowledgeFormSection>
+        <KnowledgeFormSection title={t("record.settings")}>
+          <div className="knowledge-editor-disclosures">
+            {entry.kind === "term" && (
+              <KnowledgeDisclosure
+                variant="inline"
+                title={t("guide.term_options")}
+                description={t(`strength.${entry.payload.strength}`)}
+              >
+                <div className="space-y-4">
+                  {text("sense", entry.payload.sense, (sense) =>
+                    setEntry({ ...entry, payload: { ...entry.payload, sense } }),
+                  )}
+                  <div className="knowledge-form-grid">
+                    <Choice
+                      label={t("fields.strength")}
+                      value={entry.payload.strength}
+                      onChange={(strength) =>
                         setEntry({
                           ...entry,
-                          scope: {
-                            ...entry.scope,
-                            requiredSubjects: checked
-                              ? [
-                                  ...entry.scope.requiredSubjects,
-                                  { subjectId: subject.id, role: "topic" },
-                                ]
-                              : entry.scope.requiredSubjects.filter(
-                                  (item) => item.subjectId !== subject.id,
-                                ),
+                          payload: {
+                            ...entry.payload,
+                            strength: strength as typeof entry.payload.strength,
+                            target:
+                              strength === "keep_source"
+                                ? entry.payload.source
+                                : entry.payload.target,
                           },
                         })
                       }
+                      options={options("strength", [
+                        "preferred",
+                        "required",
+                        "keep_source",
+                      ])}
                     />
-                    {condition && (
-                      <Choice
-                        label={t("fields.subject_role")}
-                        value={condition.role}
-                        options={options(
-                          "role",
-                          subject.kind === "person"
-                            ? ["topic", "speaker", "mentioned", "present"]
-                            : ["topic", "mentioned", "present"],
-                        )}
-                        onChange={(role) =>
-                          setEntry({
-                            ...entry,
-                            scope: {
-                              ...entry.scope,
-                              requiredSubjects:
-                                entry.scope.requiredSubjects.map((item) =>
-                                  item.subjectId === subject.id
-                                    ? {
-                                        ...item,
-                                        role: role as typeof item.role,
-                                      }
-                                    : item,
-                                ),
+                    <Choice
+                      label={t("fields.match")}
+                      value={entry.payload.match.mode}
+                      onChange={(mode) =>
+                        setEntry({
+                          ...entry,
+                          payload: {
+                            ...entry.payload,
+                            match: {
+                              ...entry.payload.match,
+                              mode: mode as "whole_term" | "literal_phrase",
                             },
-                          })
-                        }
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <Choice
-              label={t("fields.condition")}
-              value={entry.scope.condition.mode}
-              options={options(
-                "condition",
-                (entry.kind === "term" || entry.kind === "rule") &&
-                  entry.payload.strength === "required"
-                  ? ["none", "requires_confirmation"]
-                  : ["none", "advisory", "requires_confirmation"],
-              )}
-              onChange={(mode) =>
-                setEntry({
-                  ...entry,
-                  scope: {
-                    ...entry.scope,
-                    condition:
-                      mode === "none"
-                        ? { mode: "none" }
-                        : {
-                            mode: mode as "advisory" | "requires_confirmation",
-                            text: "",
                           },
-                  },
-                })
-              }
-            />
-            {entry.scope.condition.mode !== "none" &&
-              text(
-                "condition_text",
-                entry.scope.condition.text,
-                (text) =>
-                  setEntry({
-                    ...entry,
-                    scope: {
-                      ...entry.scope,
-                      condition: {
-                        ...entry.scope.condition,
-                        mode: entry.scope.condition.mode as
-                          | "advisory"
-                          | "requires_confirmation",
-                        text,
-                      },
-                    },
-                  }),
-                true,
-                true,
-              )}
-          </div>
-        </KnowledgeDisclosure>
-        <KnowledgeDisclosure title={t("guide.entry_metadata")} variant="inline">
-          <div className="space-y-4">
-            {text("title_optional", entry.title, (title) =>
-              setEntry({ ...entry, title }),
+                        })
+                      }
+                      options={options("match", ["literal_phrase", "whole_term"])}
+                    />
+                  </div>
+                  <Check
+                    label={t("fields.case_sensitive")}
+                    checked={entry.payload.match.caseSensitive}
+                    onChange={(caseSensitive) =>
+                      setEntry({
+                        ...entry,
+                        payload: {
+                          ...entry.payload,
+                          match: { ...entry.payload.match, caseSensitive },
+                        },
+                      })
+                    }
+                  />
+                  <LinesField
+                    label={t("fields.aliases_lines")}
+                    value={entry.payload.aliases.join("\n")}
+                    onChange={(value) =>
+                      setEntry({
+                        ...entry,
+                        payload: { ...entry.payload, aliases: splitLines(value) },
+                      })
+                    }
+                  />
+                </div>
+              </KnowledgeDisclosure>
             )}
-            {text("source_note", sourceNote, setSourceNote, true)}
-            <p className="text-xs text-muted-foreground">
-              {t(existing ? "editor.source_existing" : "editor.source_default")}
-            </p>
+            {entry.kind === "rule" && (
+              <KnowledgeDisclosure variant="inline" title={t("workspace.more_options")}>
+                <div className="knowledge-form-grid">
+                  <Choice
+                    label={t("fields.dimension")}
+                    value={entry.payload.dimension}
+                    onChange={(dimension) =>
+                      setEntry({
+                        ...entry,
+                        payload: {
+                          ...entry.payload,
+                          dimension: dimension as typeof entry.payload.dimension,
+                        },
+                      })
+                    }
+                    options={options("dimension", [
+                      "register",
+                      "honorifics",
+                      "person_reference",
+                      "fidelity",
+                      "other",
+                    ])}
+                  />
+                  <Choice
+                    label={t("fields.strength")}
+                    value={entry.payload.strength}
+                    onChange={(strength) =>
+                      setEntry({
+                        ...entry,
+                        payload: {
+                          ...entry.payload,
+                          strength: strength as typeof entry.payload.strength,
+                        },
+                      })
+                    }
+                    options={options("strength", ["preferred", "required"])}
+                  />
+                </div>
+              </KnowledgeDisclosure>
+            )}
+            <KnowledgeDisclosure
+              variant="inline"
+              data-testid="knowledge-entry-language"
+              title={t("fields.language")}
+              description={languagePairLabel(t, pair)}
+            >
+              <div className="knowledge-form-grid">
+                {text(
+                  "source_language",
+                  pair.source,
+                  (source) =>
+                    setEntry({
+                      ...entry,
+                      scope: { ...entry.scope, languagePair: { ...pair, source } },
+                    }),
+                  false,
+                  true,
+                )}
+                {text(
+                  "target_language",
+                  pair.target,
+                  (target) =>
+                    setEntry({
+                      ...entry,
+                      scope: { ...entry.scope, languagePair: { ...pair, target } },
+                    }),
+                  false,
+                  true,
+                )}
+              </div>
+            </KnowledgeDisclosure>
+            <KnowledgeDisclosure
+              variant="inline"
+              title={t("editor.scope")}
+              description={scopeSummary(t, entry.scope, snapshot.data.subjects)}
+            >
+              <div className="space-y-4">
+                <p className="knowledge-editor-help">
+                  {t("editor.scope_help")}
+                </p>
+                <MultiChoice
+                  label={t("fields.about_subjects")}
+                  options={snapshot.data.subjects}
+                  value={entry.aboutSubjectIds}
+                  onChange={(aboutSubjectIds) =>
+                    setEntry({ ...entry, aboutSubjectIds })
+                  }
+                />
+                <div className="space-y-4">
+                  {snapshot.data.subjects.map((subject) => {
+                    const condition = entry.scope.requiredSubjects.find(
+                      (item) => item.subjectId === subject.id,
+                    );
+                    return (
+                      <div
+                        key={subject.id}
+                        className="knowledge-form-grid items-end"
+                      >
+                        <Check
+                          label={subject.name}
+                          checked={!!condition}
+                          onChange={(checked) =>
+                            setEntry({
+                              ...entry,
+                              scope: {
+                                ...entry.scope,
+                                requiredSubjects: checked
+                                  ? [
+                                    ...entry.scope.requiredSubjects,
+                                    { subjectId: subject.id, role: "topic" },
+                                  ]
+                                  : entry.scope.requiredSubjects.filter(
+                                    (item) => item.subjectId !== subject.id,
+                                  ),
+                              },
+                            })
+                          }
+                        />
+                        {condition && (
+                          <Choice
+                            label={t("fields.subject_role")}
+                            value={condition.role}
+                            options={options(
+                              "role",
+                              subject.kind === "person"
+                                ? ["topic", "speaker", "mentioned", "present"]
+                                : ["topic", "mentioned", "present"],
+                            )}
+                            onChange={(role) =>
+                              setEntry({
+                                ...entry,
+                                scope: {
+                                  ...entry.scope,
+                                  requiredSubjects:
+                                    entry.scope.requiredSubjects.map((item) =>
+                                      item.subjectId === subject.id
+                                        ? {
+                                          ...item,
+                                          role: role as typeof item.role,
+                                        }
+                                        : item,
+                                    ),
+                                },
+                              })
+                            }
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <Choice
+                  label={t("fields.condition")}
+                  value={entry.scope.condition.mode}
+                  options={options(
+                    "condition",
+                    (entry.kind === "term" || entry.kind === "rule") &&
+                      entry.payload.strength === "required"
+                      ? ["none", "requires_confirmation"]
+                      : ["none", "advisory", "requires_confirmation"],
+                  )}
+                  onChange={(mode) =>
+                    setEntry({
+                      ...entry,
+                      scope: {
+                        ...entry.scope,
+                        condition:
+                          mode === "none"
+                            ? { mode: "none" }
+                            : {
+                              mode: mode as "advisory" | "requires_confirmation",
+                              text: "",
+                            },
+                      },
+                    })
+                  }
+                />
+                {entry.scope.condition.mode !== "none" &&
+                  text(
+                    "condition_text",
+                    entry.scope.condition.text,
+                    (text) =>
+                      setEntry({
+                        ...entry,
+                        scope: {
+                          ...entry.scope,
+                          condition: {
+                            ...entry.scope.condition,
+                            mode: entry.scope.condition.mode as
+                              | "advisory"
+                              | "requires_confirmation",
+                            text,
+                          },
+                        },
+                      }),
+                    true,
+                    true,
+                  )}
+              </div>
+            </KnowledgeDisclosure>
+            <KnowledgeDisclosure title={t("guide.entry_metadata")} variant="inline">
+              <div className="space-y-4">
+                {text("title_optional", entry.title, (title) =>
+                  setEntry({ ...entry, title }),
+                )}
+                {text("source_note", sourceNote, setSourceNote, true)}
+                <p className="knowledge-editor-help">
+                  {t(existing ? "editor.source_existing" : "editor.source_default")}
+                </p>
+              </div>
+            </KnowledgeDisclosure>
           </div>
-        </KnowledgeDisclosure>
-        {initial.state !== "archived" && <p className="text-xs leading-5 text-muted-foreground">{t("workspace.apply_help")}</p>}
+        </KnowledgeFormSection>
+        {initial.state !== "archived" && <p className="knowledge-editor-help">{t("workspace.apply_help")}</p>}
       </fieldset>
       <ErrorNotice error={error} diagnostics={diagnostics} />
-    </KnowledgeDialog>
+    </KnowledgeRecordDialog>
   );
 }

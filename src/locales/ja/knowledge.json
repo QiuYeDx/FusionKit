@@ -838,5 +838,31 @@
     "archive_tasks": "送信済みタスクと訳文",
     "archive_tasks_help": "送信済みタスクは元の資料を引き続き使用します。既存の訳文には影響しません。",
     "archive_restore_help": "「アーカイブ」から資料集を復元できます。復元後、以前使用可能だった項目は「要確認」で再確認する必要があります。"
+  },
+  "record": {
+    "basics": "基本情報",
+    "content": "項目の内容",
+    "settings": "使用設定",
+    "translation": "翻訳指示",
+    "references": "資料とルール",
+    "optional": "その他の設定",
+    "saved_actions": "保存済みの版を管理",
+    "more": "その他の操作",
+    "cancel": "キャンセル",
+    "sense": "語義",
+    "aliases": "別名",
+    "examples": "訳例",
+    "case_sensitive": "大文字と小文字を区別",
+    "case_insensitive": "大文字と小文字を区別しない",
+    "core": "主要な背景情報",
+    "revision": "リビジョン {{revision}}",
+    "review_help": "翻訳に採用する前に、内容・適用範囲・出典を確認してください。",
+    "source_count": "出典 {{count}} 件",
+    "source_missing": "この出典は現在利用できません。完全な資料フィールドを確認してください。",
+    "impact": "変更の対象",
+    "history": "履歴の削除",
+    "impact_count": "資料 {{count}} 件",
+    "preserved_count": "保持 {{count}} 件",
+    "blocked_count": "実行不可 {{count}} 件"
   }
 }

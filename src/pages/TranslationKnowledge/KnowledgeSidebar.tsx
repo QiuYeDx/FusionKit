@@ -157,7 +157,7 @@ export function KnowledgeSidebar({
           className="[&>div>h3>button]:px-2.5"
           contentClassName="space-y-1 pl-8 pr-2 pb-2"
         >
-          {snapshot?.data.subjects.map(subject => <Button key={subject.id} variant="ghost" size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal px-2 text-left text-xs [overflow-wrap:anywhere]" onClick={() => onEditSubject(subject)}>
+          {snapshot?.data.subjects.map(subject => <Button key={subject.id} data-catalog-id={subject.id} variant="ghost" size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal px-2 text-left text-xs [overflow-wrap:anywhere]" onClick={() => onEditSubject(subject)}>
             {subject.name}{subject.archived ? ` · ${t("status.archived")}` : ""}
           </Button>)}
           <Button variant="outline" size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal text-left text-xs" disabled={!snapshot || blocked} onClick={onCreateSubject}><Plus />{t("actions.new_subject")}</Button>

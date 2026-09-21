@@ -233,6 +233,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     for (const action of ['restore', 'archive'] as const) {
       await page.getByTestId(action === 'restore' ? 'knowledge-archive' : 'knowledge-all').click();
       await page.getByTestId(`knowledge-entry-details-${droppedEntry.id}`).click();
+      if (action === 'archive') await page.getByTestId('knowledge-entry-actions').click();
       await page.getByTestId('knowledge-entry-maintenance').click();
       await uiExpect(page.getByRole('dialog')).toContainText(action === 'restore' ? '恢复影响预览' : '归档影响预览');
       await capture(`${action}-preview`);
@@ -245,7 +246,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
 
     await page.getByTestId('knowledge-archive').click();
     await page.getByTestId(`knowledge-entry-details-${droppedEntry.id}`).click();
-    await page.getByRole('dialog').locator('[data-slot=accordion-trigger]').filter({ hasText: '高级操作' }).click();
+    await page.getByTestId('knowledge-entry-actions').click();
     await page.getByTestId('knowledge-entry-purge').click();
     await uiExpect(page.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
     await capture('purge-history-confirmation');
@@ -315,13 +316,14 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     const geometry = await page.getByRole('dialog').evaluate(element => ({ width: element.clientWidth, scrollWidth: element.scrollWidth, bottom: element.getBoundingClientRect().bottom, height: innerHeight }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width + 1);
     expect(geometry.bottom).toBeLessThanOrEqual(geometry.height);
-    await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+    await page.getByTestId('knowledge-record-close').click();
     await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
+    await page.getByTestId('knowledge-entry-actions').click();
     await page.getByTestId('knowledge-entry-maintenance').click();
     await uiExpect(page.getByRole('dialog')).toContainText('归档影响预览');
     await capture('maintenance-dark-narrow');
     await uiExpect(page.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
-    await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
+    await page.getByTestId('knowledge-record-close').click();
     await openHistory();
     await capture('history-dark-narrow');
     await uiExpect(page.getByTestId('knowledge-undo-import').first()).toBeDisabled();
@@ -358,7 +360,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await englishEditor.getByRole('textbox', { name: en.languages.custom_tag, exact: true }).fill('it');
     await capture('editor-accordion-language-english-dark-narrow', englishLanguage);
     expect(await englishEditor.locator('[data-slot=scroll-area-viewport]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
-    await englishEditor.getByRole('button', { name: en.actions.close, exact: true }).click();
+    await englishEditor.getByTestId('knowledge-record-close').click();
     await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('subtitle-translator-tour-done', '1'); });
     await page.reload();
     await page.evaluate(() => { location.hash = '/tools/subtitle/studio'; });

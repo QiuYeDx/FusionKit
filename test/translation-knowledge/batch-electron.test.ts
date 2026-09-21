@@ -311,9 +311,11 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       const beforeMaintenance = await Promise.all(documents.slice(0, 2).map(document => repository.readSnapshot(document.summary.id)));
       await ui.evaluate(() => { location.hash = '/tools/translation-knowledge'; });
       await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
+      await ui.getByTestId('knowledge-entry-actions').click();
       await ui.getByTestId('knowledge-entry-maintenance').click();
       const maintenance = dialogFor('knowledge-maintenance-tasks');
       const references = ui.getByTestId('knowledge-maintenance-tasks');
+      await maintenance.locator('[data-slot="knowledge-disclosure"]').filter({ has: references }).locator('[data-slot="accordion-trigger"]').first().click();
       await uiExpect(references).toContainText(sources[0].name);
       await uiExpect(references).toContainText(sources[1].name);
       await uiExpect(references).not.toContainText(sources[2].name);
@@ -325,7 +327,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await ui.getByTestId('knowledge-archive').click();
       await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
-      await ui.getByRole('dialog').locator('[data-slot=accordion-trigger]').filter({ hasText: '高级操作' }).click();
+      await ui.getByTestId('knowledge-entry-actions').click();
       await ui.getByTestId('knowledge-entry-purge').click();
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
       await uiExpect(maintenance.getByRole('checkbox')).toBeDisabled();
@@ -336,7 +338,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await ui.evaluate(() => { document.documentElement.classList.add('dark'); });
       await capture('maintenance-purge-blocked-dark-narrow', references);
       await geometry(maintenance);
-      await maintenance.getByRole('button', { name: '关闭', exact: true }).click();
+      await maintenance.getByTestId('knowledge-record-close').click();
       expect(await Promise.all(documents.slice(0, 2).map(document => repository.readSnapshot(document.summary.id)))).toEqual(beforeMaintenance);
 
       // Reload to rehydrate English and dark mode. Select files at desktop width

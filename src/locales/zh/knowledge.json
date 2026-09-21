@@ -838,5 +838,31 @@
     "archive_tasks": "已提交任务与译文",
     "archive_tasks_help": "已提交任务继续使用原有资料，已有译文不受影响。",
     "archive_restore_help": "可在“归档”中恢复资料集。恢复后，原来可用的条目需要在“待确认”中重新确认。"
+  },
+  "record": {
+    "basics": "基本信息",
+    "content": "条目内容",
+    "settings": "使用设置",
+    "translation": "翻译要求",
+    "references": "资料与规则",
+    "optional": "更多设置",
+    "saved_actions": "维护已保存版本",
+    "more": "更多操作",
+    "cancel": "取消",
+    "sense": "词义说明",
+    "aliases": "别名",
+    "examples": "参考译法",
+    "case_sensitive": "区分大小写",
+    "case_insensitive": "不区分大小写",
+    "core": "核心背景",
+    "revision": "修订 {{revision}}",
+    "review_help": "采纳前请核对内容、适用范围与来源；采纳后可在翻译中选用。",
+    "source_count": "{{count}} 项依据",
+    "source_missing": "此条来源暂不可用，请查看完整资料字段。",
+    "impact": "变更范围",
+    "history": "历史记录清理",
+    "impact_count": "{{count}} 项资料",
+    "preserved_count": "{{count}} 项保留",
+    "blocked_count": "{{count}} 项受阻"
   }
 }

@@ -3,6 +3,9 @@ import { optionKey, type FieldName } from "./labels";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Archive, ArchiveRestore, FolderPen, Trash2 } from "lucide-react";
+import { DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { KnowledgeFormSection, KnowledgeRecordDialog, KnowledgeRecordMenu } from "./KnowledgeRecordDialog";
 import type {
   Collection,
   PreferenceTemplate,
@@ -23,7 +26,6 @@ import {
   LinesField,
   LanguageField,
   ErrorNotice,
-  KnowledgeDialog,
   MultiChoice,
   TextField,
 } from "./Controls";
@@ -109,7 +111,7 @@ export function CatalogEditor({
   const [error, setError] = useState<
     KnowledgeErrorCode | "unexpected" | "required" | null
   >(null);
-  const samePair = (pair: { source: string; target: string }) =>
+  const samePair = (pair: { source: string; target: string; }) =>
     "languagePair" in record &&
     pair.source === record.languagePair.source &&
     pair.target === record.languagePair.target;
@@ -224,19 +226,52 @@ export function CatalogEditor({
     }
   };
   return (
-    <KnowledgeDialog
+    <KnowledgeRecordDialog
       title={t(existing ? "editor.edit_catalog" : "editor.new_catalog", {
         type: t(`group.${group}`),
       })}
       description={
         group === "recipes" ||
-        group === "styles" ||
-        group === "preferenceTemplates"
+          group === "styles" ||
+          group === "preferenceTemplates"
           ? t("plans.notice")
           : undefined
       }
       pending={pending}
+      error={error}
       onClose={onClose}
+      icon={<FolderPen />}
+      testId="knowledge-catalog-editor"
+      wide={group === "recipes" || group === "styles"}
+      closeLabel={t("record.cancel")}
+      footerStart={existing && (
+        <KnowledgeRecordMenu disabled={pending || blocked} testId="knowledge-catalog-more">
+          <DropdownMenuLabel className="max-w-72 whitespace-normal">
+            <span className="block">{t("record.saved_actions")}</span>
+            <span className="mt-1 block text-xs font-normal leading-5 text-muted-foreground">{t("maintenance.saved_version")}</span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            data-testid="knowledge-catalog-maintenance"
+            disabled={pending || blocked}
+            onSelect={() => void maintain(initial.archived ? "restore" : "archive")}
+          >
+            {initial.archived ? <ArchiveRestore /> : <Archive />}
+            {t(group === "collections" ? initial.archived ? "collection_actions.restore" : "collection_actions.archive" : initial.archived ? "maintenance.preview_restore" : "maintenance.preview_archive")}
+          </DropdownMenuItem>
+          {(group === "collections" || initial.archived) && <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-testid="knowledge-catalog-purge"
+              variant="destructive"
+              disabled={pending || blocked}
+              onSelect={() => void maintain("purge")}
+            >
+              <Trash2 />{t(group === "collections" ? "collection_actions.delete" : "maintenance.preview_purge")}
+            </DropdownMenuItem>
+          </>}
+        </KnowledgeRecordMenu>
+      )}
       footer={
         <Button
           size="sm"
@@ -247,126 +282,54 @@ export function CatalogEditor({
         </Button>
       }
     >
-      <fieldset disabled={pending || blocked} className="space-y-4">
-        {text(
-          "name",
-          record.name,
-          (name) => setRecord({ ...record, name }),
-          false,
-          true,
-        )}
-        {"description" in record && group !== "collections" &&
-          text(
-            "description",
-            record.description,
-            (description) => setRecord({ ...record, description }),
-            true,
-          )}
-        {"kind" in record && (
-          <>
-            <Choice
+      <fieldset disabled={pending || blocked} className="knowledge-record-form">
+        <KnowledgeFormSection title={t("record.basics")}>
+          <div className={"kind" in record ? "knowledge-form-grid" : undefined}>
+            {text("name", record.name, (name) => setRecord({ ...record, name }), false, true)}
+            {"kind" in record && <Choice
               label={t("fields.subject_kind")}
               value={record.kind}
-              onChange={(kind) =>
-                setRecord({ ...record, kind: kind as Subject["kind"] })
-              }
+              onChange={(kind) => setRecord({ ...record, kind: kind as Subject["kind"] })}
               options={["person", "work", "domain", "other"].map((value) => ({
-                value,
-                label: t(optionKey(`subject_kind.${value}`)),
+                value, label: t(optionKey(`subject_kind.${value}`)),
               }))}
-            />
-            <LinesField
-              label={t("fields.aliases_lines")}
-              value={record.aliases.join("\n")}
-              onChange={(value) =>
-                setRecord({ ...record, aliases: splitLines(value) })
-              }
-            />
-            <LinesField
-              label={t("fields.tags_lines")}
-              value={record.tags.join("\n")}
-              onChange={(value) =>
-                setRecord({ ...record, tags: splitLines(value) })
-              }
-            />
-          </>
-        )}
+            />}
+          </div>
+          {"description" in record && text("description", record.description,
+            (description) => setRecord({ ...record, description }), true)}
+        </KnowledgeFormSection>
         {"aboutSubjectIds" in record && (
-          <>
-            <div className="grid grid-cols-2 gap-4">
+          <KnowledgeFormSection title={t("fields.language")} description={t("editor.language_defaults")}>
+            <div className="knowledge-form-grid">
+              {text("source_language", record.defaultLanguagePair?.source ?? "", (source) =>
+                setRecord({ ...record, defaultLanguagePair: { source, target: record.defaultLanguagePair?.target ?? "zh-Hans" } }))}
+              {text("target_language", record.defaultLanguagePair?.target ?? "", (target) =>
+                setRecord({ ...record, defaultLanguagePair: { source: record.defaultLanguagePair?.source ?? "ja", target } }))}
+            </div>
+          </KnowledgeFormSection>
+        )}
+        {"languagePair" in record && (
+          <KnowledgeFormSection title={t("fields.language")} description={t("editor.language_change")}>
+            <div className="knowledge-form-grid">
               {text(
                 "source_language",
-                record.defaultLanguagePair?.source ?? "",
-                (source) =>
-                  setRecord({
-                    ...record,
-                    defaultLanguagePair: {
-                      source,
-                      target: record.defaultLanguagePair?.target ?? "zh-Hans",
-                    },
-                  }),
+                record.languagePair.source,
+                (source) => setPair(source, record.languagePair.target),
+                false,
+                true,
               )}
               {text(
                 "target_language",
-                record.defaultLanguagePair?.target ?? "",
-                (target) =>
-                  setRecord({
-                    ...record,
-                    defaultLanguagePair: {
-                      source: record.defaultLanguagePair?.source ?? "ja",
-                      target,
-                    },
-                  }),
+                record.languagePair.target,
+                (target) => setPair(record.languagePair.source, target),
+                false,
+                true,
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {t("editor.language_defaults")}
-            </p>
-            <KnowledgeDisclosure title={t("workspace.collection_optional")}>
-              <div className="space-y-4">
-                {text(
-                  "description",
-                  record.description,
-                  (description) => setRecord({ ...record, description }),
-                  true,
-                )}
-                <MultiChoice
-                  label={t("fields.about_subjects")}
-                  options={snapshot.data.subjects}
-                  value={record.aboutSubjectIds}
-                  onChange={(aboutSubjectIds) =>
-                    setRecord({ ...record, aboutSubjectIds })
-                  }
-                />
-              </div>
-            </KnowledgeDisclosure>
-          </>
-        )}
-        {"languagePair" in record && (
-          <p className="text-xs text-muted-foreground">
-            {t("editor.language_change")}
-          </p>
-        )}
-        {"languagePair" in record && (
-          <div className="grid grid-cols-2 gap-4">
-            {text(
-              "source_language",
-              record.languagePair.source,
-              (source) => setPair(source, record.languagePair.target),
-              false,
-              true,
-            )}
-            {text(
-              "target_language",
-              record.languagePair.target,
-              (target) => setPair(record.languagePair.source, target),
-              false,
-              true,
-            )}
-          </div>
+          </KnowledgeFormSection>
         )}
         {"ruleEntryIds" in record && (
-          <>
+          <KnowledgeFormSection title={t("record.references")} description={t("editor.style_help")}>
             <MultiChoice
               label={t("fields.rules")}
               options={snapshot.data.entries
@@ -380,229 +343,229 @@ export function CatalogEditor({
                 setRecord({ ...record, ruleEntryIds })
               }
             />
-            <p className="text-xs text-muted-foreground">
-              {t("editor.style_help")}
-            </p>
-          </>
+          </KnowledgeFormSection>
         )}
         {"readCollectionIds" in record && (
           <>
-            <MultiChoice
-              label={t("fields.collections")}
-              options={snapshot.data.collections}
-              value={record.readCollectionIds}
-              onChange={(readCollectionIds) =>
-                setRecord({ ...record, readCollectionIds })
-              }
-            />
-            <Choice
-              label={t("fields.base_style")}
-              value={record.baseStyleId ?? "none"}
-              onChange={(value) => {
-                const next = { ...record };
-                if (value === "none") delete next.baseStyleId;
-                else next.baseStyleId = value;
-                setRecord(next);
-              }}
-              options={[
-                { value: "none", label: t("filters.none") },
-                ...snapshot.data.styles
-                  .filter(
-                    (item) => samePair(item.languagePair) && !item.archived,
-                  )
-                  .map((item) => ({ value: item.id, label: item.name })),
-              ]}
-            />
-            <MultiChoice
-              label={t("fields.modifier_styles")}
-              options={snapshot.data.styles.filter(
-                (item) =>
-                  samePair(item.languagePair) &&
-                  !item.archived &&
-                  item.id !== record.baseStyleId,
+            <KnowledgeFormSection title={t("record.references")}>
+              <MultiChoice
+                label={t("fields.collections")}
+                options={snapshot.data.collections}
+                value={record.readCollectionIds}
+                onChange={(readCollectionIds) =>
+                  setRecord({ ...record, readCollectionIds })
+                }
+              />
+              <Choice
+                label={t("fields.base_style")}
+                value={record.baseStyleId ?? "none"}
+                onChange={(value) => {
+                  const next = { ...record };
+                  if (value === "none") delete next.baseStyleId;
+                  else next.baseStyleId = value;
+                  setRecord(next);
+                }}
+                options={[
+                  { value: "none", label: t("filters.none") },
+                  ...snapshot.data.styles
+                    .filter(
+                      (item) => samePair(item.languagePair) && !item.archived,
+                    )
+                    .map((item) => ({ value: item.id, label: item.name })),
+                ]}
+              />
+              <MultiChoice
+                label={t("fields.modifier_styles")}
+                options={snapshot.data.styles.filter(
+                  (item) =>
+                    samePair(item.languagePair) &&
+                    !item.archived &&
+                    item.id !== record.baseStyleId,
+                )}
+                value={record.modifierStyleIds}
+                onChange={(modifierStyleIds) =>
+                  setRecord({ ...record, modifierStyleIds })
+                }
+              />
+              <p className="knowledge-editor-help">
+                {t("editor.dependencies")}
+              </p>
+            </KnowledgeFormSection>
+            <KnowledgeFormSection title={t("record.translation")}>
+              {text(
+                "instructions",
+                record.instructions,
+                (instructions) => setRecord({ ...record, instructions }),
+                true,
               )}
-              value={record.modifierStyleIds}
-              onChange={(modifierStyleIds) =>
-                setRecord({ ...record, modifierStyleIds })
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              {t("editor.dependencies")}
-            </p>
+              {text(
+                "content_context",
+                record.context,
+                (context) => setRecord({ ...record, context }),
+                true,
+              )}
+            </KnowledgeFormSection>
+            <KnowledgeFormSection title={t("record.optional")}>
+              <div className="knowledge-editor-disclosures">
+                <KnowledgeDisclosure variant="inline" title={t("fields.subject_suggestions")}>
+                  <div className="space-y-4">
+                    {snapshot.data.subjects.map((subject) => {
+                      const suggestion = record.subjectSuggestions.find(
+                        (item) => item.subjectId === subject.id,
+                      );
+                      return (
+                        <div
+                          key={subject.id}
+                          className="knowledge-form-grid items-end"
+                        >
+                          <Check
+                            label={subject.name}
+                            checked={!!suggestion}
+                            onChange={(checked) =>
+                              setRecord({
+                                ...record,
+                                subjectSuggestions: checked
+                                  ? [
+                                    ...record.subjectSuggestions,
+                                    { subjectId: subject.id, role: "topic" },
+                                  ]
+                                  : record.subjectSuggestions.filter(
+                                    (item) => item.subjectId !== subject.id,
+                                  ),
+                              })
+                            }
+                          />
+                          {suggestion && (
+                            <Choice
+                              label={t("fields.subject_role")}
+                              value={suggestion.role}
+                              options={(subject.kind === "person"
+                                ? ["topic", "speaker", "mentioned"]
+                                : ["topic", "mentioned"]
+                              ).map((value) => ({
+                                value,
+                                label: t(optionKey(`role.${value}`)),
+                              }))}
+                              onChange={(role) =>
+                                setRecord({
+                                  ...record,
+                                  subjectSuggestions: record.subjectSuggestions.map(
+                                    (item) =>
+                                      item.subjectId === subject.id
+                                        ? {
+                                          ...item,
+                                          role: role as typeof item.role,
+                                        }
+                                        : item,
+                                  ),
+                                })
+                              }
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                    <p className="knowledge-editor-help">
+                      {t("editor.suggestion_help")}
+                    </p>
+                  </div>
+                </KnowledgeDisclosure>
+                <KnowledgeDisclosure variant="inline" title={t("guide.future_preferences")}>
+                  <div className="space-y-4">
+                    <p className="knowledge-editor-help">{t("guide.future_preferences_help")}</p>
+                    <Check
+                      label={t("fields.inherit_preferences")}
+                      checked={record.inheritGlobalPreferences}
+                      onChange={(inheritGlobalPreferences) =>
+                        setRecord({ ...record, inheritGlobalPreferences })
+                      }
+                    />
+                    <Choice
+                      label={t("fields.learning")}
+                      value={record.learningSuggestion}
+                      onChange={(value) => {
+                        const next = {
+                          ...record,
+                          learningSuggestion: value as Recipe["learningSuggestion"],
+                        };
+                        if (value === "off")
+                          delete next.suggestedDestinationCollectionId;
+                        setRecord(next);
+                      }}
+                      options={["off", "save_reviewed"].map((value) => ({
+                        value,
+                        label: t(optionKey(`learning.${value}`)),
+                      }))}
+                    />
+                    {record.learningSuggestion === "save_reviewed" && (
+                      <Choice
+                        label={t("fields.destination")}
+                        value={record.suggestedDestinationCollectionId ?? "none"}
+                        onChange={(value) =>
+                          setRecord({
+                            ...record,
+                            suggestedDestinationCollectionId: value,
+                          })
+                        }
+                        options={[
+                          { value: "none", label: t("filters.select"), disabled: true },
+                          ...snapshot.data.collections.map((item) => ({
+                            value: item.id,
+                            label: item.name,
+                          })),
+                        ]}
+                      />
+                    )}
+                  </div>
+                </KnowledgeDisclosure>
+              </div>
+            </KnowledgeFormSection>
+          </>
+        )}
+        {"instructions" in record && !("readCollectionIds" in record) && (
+          <KnowledgeFormSection title={t("record.translation")}>
             {text(
               "instructions",
               record.instructions,
               (instructions) => setRecord({ ...record, instructions }),
               true,
-            )}
-            {text(
-              "content_context",
-              record.context,
-              (context) => setRecord({ ...record, context }),
               true,
             )}
-            <KnowledgeDisclosure title={t("fields.subject_suggestions")}>
-              <div className="space-y-4">
-                {snapshot.data.subjects.map((subject) => {
-                  const suggestion = record.subjectSuggestions.find(
-                    (item) => item.subjectId === subject.id,
-                  );
-                  return (
-                    <div
-                      key={subject.id}
-                      className="grid grid-cols-2 items-end gap-4"
-                    >
-                      <Check
-                        label={subject.name}
-                        checked={!!suggestion}
-                        onChange={(checked) =>
-                          setRecord({
-                            ...record,
-                            subjectSuggestions: checked
-                              ? [
-                                  ...record.subjectSuggestions,
-                                  { subjectId: subject.id, role: "topic" },
-                                ]
-                              : record.subjectSuggestions.filter(
-                                  (item) => item.subjectId !== subject.id,
-                                ),
-                          })
-                        }
-                      />
-                      {suggestion && (
-                        <Choice
-                          label={t("fields.subject_role")}
-                          value={suggestion.role}
-                          options={(subject.kind === "person"
-                            ? ["topic", "speaker", "mentioned"]
-                            : ["topic", "mentioned"]
-                          ).map((value) => ({
-                            value,
-                            label: t(optionKey(`role.${value}`)),
-                          }))}
-                          onChange={(role) =>
-                            setRecord({
-                              ...record,
-                              subjectSuggestions: record.subjectSuggestions.map(
-                                (item) =>
-                                  item.subjectId === subject.id
-                                    ? {
-                                        ...item,
-                                        role: role as typeof item.role,
-                                      }
-                                    : item,
-                              ),
-                            })
-                          }
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-                <p className="text-xs text-muted-foreground">
-                  {t("editor.suggestion_help")}
-                </p>
-              </div>
-            </KnowledgeDisclosure>
-            <KnowledgeDisclosure title={t("guide.future_preferences")}>
-              <div className="space-y-4">
-                <p className="text-xs leading-5 text-muted-foreground">{t("guide.future_preferences_help")}</p>
-                <Check
-                  label={t("fields.inherit_preferences")}
-                  checked={record.inheritGlobalPreferences}
-                  onChange={(inheritGlobalPreferences) =>
-                    setRecord({ ...record, inheritGlobalPreferences })
-                  }
-                />
-                <Choice
-                  label={t("fields.learning")}
-                  value={record.learningSuggestion}
-                  onChange={(value) => {
-                    const next = {
-                      ...record,
-                      learningSuggestion: value as Recipe["learningSuggestion"],
-                    };
-                    if (value === "off")
-                      delete next.suggestedDestinationCollectionId;
-                    setRecord(next);
-                  }}
-                  options={["off", "save_reviewed"].map((value) => ({
-                    value,
-                    label: t(optionKey(`learning.${value}`)),
-                  }))}
-                />
-                {record.learningSuggestion === "save_reviewed" && (
-                  <Choice
-                    label={t("fields.destination")}
-                    value={record.suggestedDestinationCollectionId ?? "none"}
-                    onChange={(value) =>
-                      setRecord({
-                        ...record,
-                        suggestedDestinationCollectionId: value,
-                      })
-                    }
-                    options={[
-                      { value: "none", label: t("filters.select"), disabled: true },
-                      ...snapshot.data.collections.map((item) => ({
-                        value: item.id,
-                        label: item.name,
-                      })),
-                    ]}
-                  />
-                )}
-              </div>
-            </KnowledgeDisclosure>
-          </>
+          </KnowledgeFormSection>
         )}
-        {"instructions" in record &&
-          !("readCollectionIds" in record) &&
-          text(
-            "instructions",
-            record.instructions,
-            (instructions) => setRecord({ ...record, instructions }),
-            true,
-            true,
-          )}
-        {existing && (
-          <section className="space-y-3 border-t pt-4">
-            <p className="text-xs text-muted-foreground">
-              {t("maintenance.saved_version")}
-            </p>
-            {group === "collections" && <p className="text-xs leading-5 text-muted-foreground">{t(initial.archived ? "collection_actions.archived_help" : "collection_actions.archive_help")}</p>}
-            <div className="flex flex-wrap gap-2">
-            <Button
-              data-testid="knowledge-catalog-maintenance"
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                void maintain(initial.archived ? "restore" : "archive")
-              }
-            >
-              {t(group === "collections" ? initial.archived ? "collection_actions.restore" : "collection_actions.archive" : initial.archived
-                  ? "maintenance.preview_restore"
-                  : "maintenance.preview_archive",
-              )}
-            </Button>
-            {group === "collections" && <Button data-testid="knowledge-catalog-purge" type="button" size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => void maintain("purge")}>{t("collection_actions.delete")}</Button>}
-            </div>
-            {group !== "collections" && initial.archived && (
-              <KnowledgeDisclosure title={t("maintenance.advanced")} variant="inline">
-                <Button
-                  data-testid="knowledge-catalog-purge"
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void maintain("purge")}
-                >
-                  {t("maintenance.preview_purge")}
-                </Button>
-              </KnowledgeDisclosure>
-            )}
-          </section>
+        {("kind" in record || "aboutSubjectIds" in record) && (
+          <div className="knowledge-editor-disclosures">
+            <KnowledgeDisclosure variant="inline" title={t("workspace.collection_optional")}>
+              <div className="space-y-4">
+                {"kind" in record && <div className="knowledge-form-grid">
+                  <LinesField
+                    label={t("fields.aliases_lines")}
+                    value={record.aliases.join("\n")}
+                    onChange={(value) =>
+                      setRecord({ ...record, aliases: splitLines(value) })
+                    }
+                  />
+                  <LinesField
+                    label={t("fields.tags_lines")}
+                    value={record.tags.join("\n")}
+                    onChange={(value) =>
+                      setRecord({ ...record, tags: splitLines(value) })
+                    }
+                  />
+
+                </div>}
+                {"aboutSubjectIds" in record && <MultiChoice
+                  label={t("fields.about_subjects")}
+                  options={snapshot.data.subjects}
+                  value={record.aboutSubjectIds}
+                  onChange={(aboutSubjectIds) => setRecord({ ...record, aboutSubjectIds })}
+                />}
+              </div>
+            </KnowledgeDisclosure>
+          </div>
         )}
       </fieldset>
       <ErrorNotice error={error} diagnostics={diagnostics} />
-    </KnowledgeDialog>
+    </KnowledgeRecordDialog>
   );
 }
