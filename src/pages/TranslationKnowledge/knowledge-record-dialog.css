@@ -32,7 +32,7 @@
 .knowledge-entry-editor-form > .knowledge-form-section > .knowledge-section-heading { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .knowledge-entry-settings-tabs { gap: 12px; }
 .knowledge-entry-settings-tabs > [data-slot="clip-path-tabs-stage"] { position: sticky; top: 0; z-index: 10; background: var(--background); border-radius: 8px; }
-.knowledge-entry-settings-panels { --settings-surface: color-mix(in srgb, var(--muted) 70%, var(--border)); display: grid; min-width: 0; border-radius: 10px; background: var(--settings-surface); }
+.knowledge-entry-settings-panels { --settings-surface: color-mix(in srgb, var(--muted) 90%, var(--background)); display: grid; min-width: 0; border-radius: 10px; background: var(--settings-surface); }
 .dark .knowledge-entry-settings-panels { --settings-surface: color-mix(in srgb, var(--muted) 65%, var(--background)); }
 .knowledge-entry-settings-panel { position: relative; isolation: isolate; grid-area: 1 / 1; min-width: 0; height: clamp(216px, 32vh, 280px); overflow: hidden; border-radius: inherit; }
 .knowledge-entry-settings-scroll { height: 100%; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; padding: 12px; scroll-padding-block: 24px; }
