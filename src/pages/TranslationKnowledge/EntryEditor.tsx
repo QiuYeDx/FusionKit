@@ -1,4 +1,4 @@
-import { languagePairLabel, optionKey, scopeSummary, type FieldName } from "./labels";
+import { optionKey, type FieldName } from "./labels";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,8 @@ import {
 } from "./Controls";
 import type { Diagnostic } from "@/translation-knowledge/validation";
 import { manualEntryRequest, splitLines } from "./model";
-import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
+import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
+import { EntrySettingsPanel } from "./EntrySettingsPanel";
 
 function changeKind(entry: Entry, kind: Entry["kind"]): Entry {
   const base = { ...entry, kind };
@@ -93,6 +94,7 @@ export function EntryEditor({
 }) {
   const { t } = useTranslation("knowledge");
   const [entry, setEntry] = useState(initial);
+  const [settingsTab, setSettingsTab] = useState(initial.kind === "term" || initial.kind === "rule" ? "wording" : "language");
   const [sourceNote, setSourceNote] = useState("");
   const [pending, setPending] = useState(false);
   const submitLock = useRef(false);
@@ -135,6 +137,7 @@ export function EntryEditor({
       entry.scope.condition.mode !== "none" &&
       !entry.scope.condition.text.trim()
     ) {
+      setSettingsTab("scope");
       setError("required");
       return;
     }
@@ -149,6 +152,7 @@ export function EntryEditor({
       !pair.source.trim() ||
       !pair.target.trim()
     ) {
+      if (!pair.source.trim() || !pair.target.trim()) setSettingsTab("language");
       setError("required");
       return;
     }
@@ -189,15 +193,16 @@ export function EntryEditor({
         </>
       }
     >
-      <fieldset disabled={pending || blocked} className="knowledge-record-form">
+      <fieldset disabled={pending || blocked} className="knowledge-record-form knowledge-entry-editor-form">
         <KnowledgeFormSection title={t("record.basics")}>
           <div className="knowledge-form-grid">
             <Choice
               label={t("fields.kind")}
               value={entry.kind}
-              onChange={(value) =>
-                setEntry(changeKind(entry, value as Entry["kind"]))
-              }
+              onChange={(value) => {
+                setEntry(changeKind(entry, value as Entry["kind"]));
+                setSettingsTab(value === "term" || value === "rule" ? "wording" : "language");
+              }}
               options={options("kind", existing ? [initial.kind] : ["term", "context", "rule"])}
               disabled={existing}
             />
@@ -387,14 +392,18 @@ export function EntryEditor({
             </>
           )}
         </KnowledgeFormSection>
-        <KnowledgeFormSection title={t("record.settings")}>
-          <div className="knowledge-editor-disclosures">
+        <KnowledgeFormSection title={t("record.settings")} className="knowledge-entry-settings-section">
+          <ClipPathTabs value={settingsTab} onValueChange={setSettingsTab} size="sm" shape="rounded" smoothCorners fullWidth
+            disabled={pending || blocked} ariaLabel={t("record.settings")} className="knowledge-entry-settings-tabs"
+            items={[
+              ...(entry.kind === "term" || entry.kind === "rule" ? [{ value: "wording", label: t("record.tab_wording") }] : []),
+              { value: "language", label: t("record.tab_language") },
+              { value: "scope", label: t("record.tab_scope") },
+              { value: "metadata", label: t("record.tab_metadata") },
+            ]}>
+            <div className="knowledge-entry-settings-panels">
             {entry.kind === "term" && (
-              <KnowledgeDisclosure
-                variant="inline"
-                title={t("guide.term_options")}
-                description={t(`strength.${entry.payload.strength}`)}
-              >
+              <EntrySettingsPanel value="wording" active={settingsTab === "wording"}>
                 <div className="space-y-4">
                   {text("sense", entry.payload.sense, (sense) =>
                     setEntry({ ...entry, payload: { ...entry.payload, sense } }),
@@ -464,10 +473,10 @@ export function EntryEditor({
                     }
                   />
                 </div>
-              </KnowledgeDisclosure>
+              </EntrySettingsPanel>
             )}
             {entry.kind === "rule" && (
-              <KnowledgeDisclosure variant="inline" title={t("workspace.more_options")}>
+              <EntrySettingsPanel value="wording" active={settingsTab === "wording"}>
                 <div className="knowledge-form-grid">
                   <Choice
                     label={t("fields.dimension")}
@@ -504,14 +513,9 @@ export function EntryEditor({
                     options={options("strength", ["preferred", "required"])}
                   />
                 </div>
-              </KnowledgeDisclosure>
+              </EntrySettingsPanel>
             )}
-            <KnowledgeDisclosure
-              variant="inline"
-              data-testid="knowledge-entry-language"
-              title={t("fields.language")}
-              description={languagePairLabel(t, pair)}
-            >
+            <EntrySettingsPanel value="language" active={settingsTab === "language"}>
               <div className="knowledge-form-grid">
                 {text(
                   "source_language",
@@ -536,12 +540,8 @@ export function EntryEditor({
                   true,
                 )}
               </div>
-            </KnowledgeDisclosure>
-            <KnowledgeDisclosure
-              variant="inline"
-              title={t("editor.scope")}
-              description={scopeSummary(t, entry.scope, snapshot.data.subjects)}
-            >
+            </EntrySettingsPanel>
+            <EntrySettingsPanel value="scope" active={settingsTab === "scope"}>
               <div className="space-y-4">
                 <p className="knowledge-editor-help">
                   {t("editor.scope_help")}
@@ -665,8 +665,8 @@ export function EntryEditor({
                     true,
                   )}
               </div>
-            </KnowledgeDisclosure>
-            <KnowledgeDisclosure title={t("guide.entry_metadata")} variant="inline">
+            </EntrySettingsPanel>
+            <EntrySettingsPanel value="metadata" active={settingsTab === "metadata"}>
               <div className="space-y-4">
                 {text("title_optional", entry.title, (title) =>
                   setEntry({ ...entry, title }),
@@ -676,8 +676,9 @@ export function EntryEditor({
                   {t(existing ? "editor.source_existing" : "editor.source_default")}
                 </p>
               </div>
-            </KnowledgeDisclosure>
-          </div>
+            </EntrySettingsPanel>
+            </div>
+          </ClipPathTabs>
         </KnowledgeFormSection>
         {initial.state !== "archived" && <p className="knowledge-editor-help">{t("workspace.apply_help")}</p>}
       </fieldset>

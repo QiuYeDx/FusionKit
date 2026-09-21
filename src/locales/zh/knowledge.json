@@ -863,6 +863,10 @@
     "history": "历史记录清理",
     "impact_count": "{{count}} 项资料",
     "preserved_count": "{{count}} 项保留",
-    "blocked_count": "{{count}} 项受阻"
+    "blocked_count": "{{count}} 项受阻",
+    "tab_wording": "译法与匹配",
+    "tab_language": "翻译方向",
+    "tab_scope": "适用范围",
+    "tab_metadata": "标题与来源"
   }
 }

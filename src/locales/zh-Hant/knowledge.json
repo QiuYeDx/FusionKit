@@ -863,6 +863,10 @@
     "history": "歷史記錄清理",
     "impact_count": "{{count}} 項資料",
     "preserved_count": "{{count}} 項保留",
-    "blocked_count": "{{count}} 項受阻"
+    "blocked_count": "{{count}} 項受阻",
+    "tab_wording": "譯法與比對",
+    "tab_language": "翻譯方向",
+    "tab_scope": "適用範圍",
+    "tab_metadata": "標題與來源"
   }
 }

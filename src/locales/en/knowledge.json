@@ -863,6 +863,10 @@
     "history": "History removal",
     "impact_count": "Records: {{count}}",
     "preserved_count": "{{count}} retained",
-    "blocked_count": "{{count}} blocked"
+    "blocked_count": "{{count}} blocked",
+    "tab_wording": "Wording",
+    "tab_language": "Languages",
+    "tab_scope": "Scope",
+    "tab_metadata": "Title & source"
   }
 }

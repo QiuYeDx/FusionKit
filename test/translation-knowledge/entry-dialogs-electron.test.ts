@@ -201,6 +201,26 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
           await page.getByTestId('knowledge-entry-edit').click();
           await uiExpect(page.getByTestId('knowledge-entry-editor')).toBeVisible();
           await capture(`editor-${entry.kind}-${mode}`);
+          if (entry.kind === 'term') {
+            const tabs = dialog().getByRole('tablist', { name: labels.record.settings });
+            const panel = page.getByTestId('knowledge-entry-wording');
+            await panel.evaluate(element => { element.scrollTop = element.scrollHeight; });
+            const originalScroll = await panel.evaluate(element => element.scrollTop);
+            const before = await tabs.boundingBox();
+            const footerBefore = await page.getByTestId('knowledge-record-primary-actions').boundingBox();
+            for (const value of ['language', 'scope', 'metadata', 'wording'] as const) {
+              await tabs.getByRole('tab', { name: labels.record[`tab_${value}`], exact: true }).click();
+              await uiExpect(dialog().getByRole('tabpanel')).toHaveCount(1);
+              await uiExpect(page.getByTestId(`knowledge-entry-${value}`)).toBeVisible();
+              await settle(dialog());
+              const after = await tabs.boundingBox();
+              const footerAfter = await page.getByTestId('knowledge-record-primary-actions').boundingBox();
+              expect(Math.abs(after!.y - before!.y), `stable tabs: ${value}`).toBeLessThanOrEqual(1);
+              expect(Math.abs(footerAfter!.y - footerBefore!.y), `stable footer: ${value}`).toBeLessThanOrEqual(1);
+              await capture(`editor-tab-${value}-${mode}`);
+            }
+            expect(await panel.evaluate(element => element.scrollTop)).toBe(originalScroll);
+          }
           await closeRecord();
           await uiExpect(page.getByTestId('knowledge-entry-detail')).toBeVisible();
           await closeRecord();

@@ -863,6 +863,10 @@
     "history": "履歴の削除",
     "impact_count": "資料 {{count}} 件",
     "preserved_count": "保持 {{count}} 件",
-    "blocked_count": "実行不可 {{count}} 件"
+    "blocked_count": "実行不可 {{count}} 件",
+    "tab_wording": "訳し方・照合",
+    "tab_language": "翻訳方向",
+    "tab_scope": "適用範囲",
+    "tab_metadata": "タイトル・出典"
   }
 }
