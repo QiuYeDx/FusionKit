@@ -204,7 +204,32 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
           if (entry.kind === 'term') {
             const tabs = dialog().getByRole('tablist', { name: labels.record.settings });
             const panel = page.getByTestId('knowledge-entry-wording');
+            const activeShell = dialog().getByRole('tabpanel').locator('..');
+            const edges = activeShell.locator('[data-edge]');
+            const topEdge = activeShell.locator('[data-edge="top"]');
+            const bottomEdge = activeShell.locator('[data-edge="bottom"]');
+            await uiExpect(edges).toHaveCount(2);
+            await uiExpect(topEdge).toHaveAttribute('data-visible', 'false');
+            await uiExpect(bottomEdge).toHaveAttribute('data-visible', 'true');
+            await panel.focus();
+            await panel.press('End');
+            await uiExpect(topEdge).toHaveAttribute('data-visible', 'true');
+            await panel.press('Home');
+            await uiExpect(topEdge).toHaveAttribute('data-visible', 'false');
+            await panel.evaluate(element => { element.scrollTop = (element.scrollHeight - element.clientHeight) / 2; });
+            await uiExpect(topEdge).toHaveAttribute('data-visible', 'true');
+            const fadeGeometry = await topEdge.evaluate(element => {
+              const bounds = element.getBoundingClientRect(), shell = element.parentElement!.getBoundingClientRect();
+              const scroll = element.parentElement!.querySelector<HTMLElement>('.knowledge-entry-settings-scroll')!;
+              return { top: Math.abs(bounds.top - shell.top), gutter: shell.right - bounds.right,
+                scrollbar: scroll.offsetWidth - scroll.clientWidth, pointer: getComputedStyle(element).pointerEvents };
+            });
+            expect(fadeGeometry.top).toBeLessThanOrEqual(1);
+            expect(fadeGeometry.gutter).toBeGreaterThanOrEqual(fadeGeometry.scrollbar);
+            expect(fadeGeometry.pointer).toBe('none');
+            await capture(`editor-fade-middle-${mode}`);
             await panel.evaluate(element => { element.scrollTop = element.scrollHeight; });
+            await uiExpect(bottomEdge).toHaveAttribute('data-visible', 'false');
             const originalScroll = await panel.evaluate(element => element.scrollTop);
             const before = await tabs.boundingBox();
             const footerBefore = await page.getByTestId('knowledge-record-primary-actions').boundingBox();
@@ -212,6 +237,16 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
               await tabs.getByRole('tab', { name: labels.record[`tab_${value}`], exact: true }).click();
               await uiExpect(dialog().getByRole('tabpanel')).toHaveCount(1);
               await uiExpect(page.getByTestId(`knowledge-entry-${value}`)).toBeVisible();
+              if (value === 'language') {
+                await uiExpect(topEdge).toHaveAttribute('data-visible', 'false');
+                await uiExpect(bottomEdge).toHaveAttribute('data-visible', 'false');
+              }
+              if (value === 'metadata') {
+                const note = page.getByTestId('knowledge-entry-metadata').locator('textarea');
+                await note.evaluate(element => { element.style.height = '500px'; });
+                await uiExpect(bottomEdge).toHaveAttribute('data-visible', 'true');
+                await note.evaluate(element => { element.style.removeProperty('height'); });
+              }
               await settle(dialog());
               const after = await tabs.boundingBox();
               const footerAfter = await page.getByTestId('knowledge-record-primary-actions').boundingBox();
