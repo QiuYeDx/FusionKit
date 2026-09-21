@@ -1,3 +1,4 @@
+import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import type {
   ExportPreview,
   ExportSelectionRequest,
@@ -154,18 +155,15 @@ export function ImportDialog({
       <p className="text-sm">{t("import.counts", preview.counts)}</p>
       <p className="text-xs text-muted-foreground">{t("import.trust_help")}</p>
       {preview.warnings.length > 0 && (
-        <details className="rounded-md border p-3">
-          <summary className="cursor-pointer text-sm">
-            {t("import.warnings", { count: preview.warnings.length })}
-          </summary>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-muted-foreground">
+        <KnowledgeDisclosure title={t("import.warnings", { count: preview.warnings.length })}>
+          <ul className="list-inside list-disc space-y-1 text-xs text-muted-foreground">
             {preview.warnings.map((warning, index) => (
               <li key={index}>
                 {t(diagnosticKey(`diagnostic.${warning.code}`))}
               </li>
             ))}
           </ul>
-        </details>
+        </KnowledgeDisclosure>
       )}
       <div className="space-y-2">
         {ordered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((item) => (
@@ -216,15 +214,12 @@ export function ImportDialog({
                 {t("import.same_revision")}
               </p>
             )}
-            <details>
-              <summary className="cursor-pointer text-xs text-muted-foreground">
-                {t(
+            <KnowledgeDisclosure variant="inline" title={t(
                   item.status === "conflict"
                     ? "import.differences"
                     : "import.contents",
-                )}
-              </summary>
-              <div className="mt-3 max-h-72 overflow-y-auto rounded-md bg-muted/30 p-3">
+                )}>
+              <div className="max-h-72 overflow-y-auto rounded-md bg-muted/30 p-3">
                 <RecordDetails
                   record={item.incoming}
                   changedFrom={
@@ -232,7 +227,7 @@ export function ImportDialog({
                   }
                 />
               </div>
-            </details>
+            </KnowledgeDisclosure>
           </div>
         ))}
       </div>
@@ -453,11 +448,8 @@ export function ExportDialog({
               checked={selection.includeInactive}
               onChange={(includeInactive) => update({ includeInactive })}
             />
-            <details className="rounded-md border p-3">
-              <summary className="cursor-pointer text-sm">
-                {t("export.exclude_sources")}
-              </summary>
-              <div className="mt-3 space-y-3">
+            <KnowledgeDisclosure title={t("export.exclude_sources")}>
+              <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
                   {t("export.exclude_sources_help")}
                 </p>
@@ -473,7 +465,7 @@ export function ExportDialog({
                   }
                 />
               </div>
-            </details>
+            </KnowledgeDisclosure>
           </>
         )}
       </fieldset>
@@ -536,11 +528,8 @@ export function ExportDialog({
               </div>
             ))}
           </section>
-          <details className="rounded-md border p-3">
-            <summary className="cursor-pointer text-sm font-medium">
-              {t("export.dependencies")}
-            </summary>
-            <div className="mt-3 space-y-2">
+          <KnowledgeDisclosure title={t("export.dependencies")}>
+            <div className="space-y-2">
               {preview.included
                 .filter(
                   (item) =>
@@ -553,7 +542,7 @@ export function ExportDialog({
                   </p>
                 ))}
             </div>
-          </details>
+          </KnowledgeDisclosure>
           <section className="space-y-2">
             <h4 className="text-sm font-medium">
               {t("export.sources_preview", {
@@ -629,29 +618,23 @@ export function ExportDialog({
             />
           </section>
           {preview.excluded.length > 0 && (
-            <details className="rounded-md border p-3">
-              <summary className="cursor-pointer text-sm">
-                {t("export.excluded_count", { count: preview.excluded.length })}
-              </summary>
-              <ul className="mt-3 max-h-48 space-y-2 overflow-y-auto text-xs">
+            <KnowledgeDisclosure title={t("export.excluded_count", { count: preview.excluded.length })}>
+              <ul className="max-h-48 space-y-2 overflow-y-auto text-xs">
                 {preview.excluded.map((item) => (
                   <li key={item.id} className="break-words">
                     {item.title} · {t(`export.excluded_reason.${item.reason}`)}
                   </li>
                 ))}
               </ul>
-            </details>
+            </KnowledgeDisclosure>
           )}
           <ErrorNotice
             error={preview.errors.length ? "invalid_input" : null}
             diagnostics={preview.errors}
           />
           {preview.warnings.length > 0 && (
-            <details className="rounded-md border p-3">
-              <summary className="cursor-pointer text-sm">
-                {t("import.warnings", { count: preview.warnings.length })}
-              </summary>
-              <ul className="mt-3 space-y-2 text-xs">
+            <KnowledgeDisclosure title={t("import.warnings", { count: preview.warnings.length })}>
+              <ul className="space-y-2 text-xs">
                 {preview.warnings.map((warning, index) => (
                   <li key={index}>
                     <p>{t(diagnosticKey(`diagnostic.${warning.code}`))}</p>
@@ -661,7 +644,7 @@ export function ExportDialog({
                   </li>
                 ))}
               </ul>
-            </details>
+            </KnowledgeDisclosure>
           )}
         </section>
       )}

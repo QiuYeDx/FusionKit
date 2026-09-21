@@ -17,5 +17,32 @@
   "saved": "訳語を保存しました。翻訳時に資料集を選択してください。",
   "source_note": "ユーザーが確認した訳語",
   "remember": "訳語を覚える",
-  "cue_actions": "字幕の操作"
+  "cue_actions": "字幕の操作",
+  "selection": {
+    "change": "資料を変更",
+    "selected_count": "{{count}} 件の資料集を選択中",
+    "preset": "翻訳プリセット",
+    "preset_includes": "{{pair}} · 資料集 {{count}} 件",
+    "preset_help": "プリセットには資料集と翻訳設定が含まれます。個別に選ぶこともできます。",
+    "collections": "資料集",
+    "language_pair": "{{source}} → {{target}}",
+    "multiple_languages": "複数の言語",
+    "language_unspecified": "言語未指定",
+    "entry_count": "資料 {{count}} 件",
+    "from_preset": "プリセットに含む",
+    "library_unavailable": "資料を読み込めません。更新して再試行してください。",
+    "retry": "再読み込み",
+    "empty_library": "使用できる資料集がありません",
+    "empty_library_help": "翻訳資料で作成・インポートするか、ここで訳語を追加できます。",
+    "no_results": "一致する資料集がありません",
+    "clear_search": "検索をクリア",
+    "manage": "資料の管理",
+    "done": "選択完了",
+    "empty_hint": "用語・背景情報・翻訳設定を追加できます。",
+    "unavailable": "使用不可",
+    "scope_count": "{{count}} 件を選択中",
+    "exclusion_count": "{{count}} 件を除外",
+    "unavailable_scope": "使用できない対象 · チェックを外して削除",
+    "unavailable_exclusion": "使用できない除外項目 · チェックを外して削除"
+  }
 }

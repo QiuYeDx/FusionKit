@@ -167,9 +167,10 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
         if (!(await recipe.textContent())?.includes(fixture.recipes[0].name)) {
           await recipe.click(); await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
         }
-        await choose.click();
+        await ui.getByTestId('studio-materials-done').click();
         const topics = ui.getByTestId('studio-materials-topics');
-        if (!(await topics.evaluate(element => (element as HTMLDetailsElement).open))) await topics.locator('summary').click();
+        const topicTrigger = topics.locator('[data-slot=accordion-trigger]').first();
+        if (await topicTrigger.getAttribute('aria-expanded') !== 'true') await topicTrigger.click();
         for (const subject of fixture.subjects.slice(0, 2)) {
           const topic = ui.getByTestId(`studio-materials-topic-${subject.id}`);
           if (!(await topic.isChecked())) await topic.check();
@@ -208,7 +209,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await ui.getByTestId('studio-translation-check').click();
       await uiExpect(file(2)).toHaveAttribute('data-state', 'blocked');
       await uiExpect(start).toContainText('2');
-      await file(2).locator('[data-issue-code="term_conflict"] > summary').click();
+      await file(2).locator('[data-issue-code="term_conflict"] [data-slot=accordion-trigger]').first().click();
       await uiExpect(file(2)).toContainText('savepoint');
       await capture('per-file-conflict-light', file(2));
       await geometry(dialog);
@@ -322,7 +323,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await ui.getByTestId('knowledge-archive').click();
       await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
-      await ui.getByRole('dialog').locator('summary').filter({ hasText: '高级操作' }).click();
+      await ui.getByRole('dialog').locator('[data-slot=accordion-trigger]').filter({ hasText: '高级操作' }).click();
       await ui.getByTestId('knowledge-entry-purge').click();
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
       await uiExpect(maintenance.getByRole('checkbox')).toBeDisabled();

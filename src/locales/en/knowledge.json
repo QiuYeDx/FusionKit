@@ -731,6 +731,12 @@
     "studio_content": "Open Subtitle Studio and choose collections in translation settings. Starting a translation or trial checks local materials before sending a request.",
     "studio_hint": "No selection means no materials. Only confirmed content matching the language and scope is included; terms must also match the source."
   },
+  "sidebar": {
+    "import": "Import",
+    "export": "Export",
+    "history": "Maintenance & import history",
+    "studio_help": "Choose materials in your translation settings."
+  },
   "workspace": {
     "collections": "My collections",
     "all": "All materials",

@@ -17,5 +17,32 @@
   "saved": "Translation saved. Select its collection when translating.",
   "source_note": "User-confirmed terminology",
   "remember": "Remember translation",
-  "cue_actions": "Subtitle actions"
+  "cue_actions": "Subtitle actions",
+  "selection": {
+    "change": "Change materials",
+    "selected_count": "Collections selected: {{count}}",
+    "preset": "Translation preset",
+    "preset_includes": "{{pair}} · Collections: {{count}}",
+    "preset_help": "A preset includes collections and translation preferences. You can also choose your own.",
+    "collections": "Collections",
+    "language_pair": "{{source}} → {{target}}",
+    "multiple_languages": "Multiple languages",
+    "language_unspecified": "Language unspecified",
+    "entry_count": "Entries: {{count}}",
+    "from_preset": "From preset",
+    "library_unavailable": "Materials could not be loaded. Refresh to try again.",
+    "retry": "Try again",
+    "empty_library": "No collections available yet",
+    "empty_library_help": "Create or import a collection in materials, or add a translation here.",
+    "no_results": "No matching collections",
+    "clear_search": "Clear search",
+    "manage": "Manage",
+    "done": "Done",
+    "empty_hint": "Add terms, background or translation preferences.",
+    "unavailable": "Unavailable",
+    "scope_count": "{{count}} selected",
+    "exclusion_count": "{{count}} excluded",
+    "unavailable_scope": "Unavailable subject · uncheck to remove",
+    "unavailable_exclusion": "Unavailable exclusion · uncheck to remove"
+  }
 }

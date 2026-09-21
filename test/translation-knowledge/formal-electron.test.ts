@@ -128,9 +128,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await ui.getByTestId('studio-materials-choose').click();
       await ui.getByTestId('studio-materials-recipe').click();
       await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
+      await ui.getByTestId('studio-materials-done').click();
       const explicitRequirements = 'Keep every line concise and preserve all information. Use natural dialogue.';
       await ui.getByTestId('studio-translation-instructions').fill(explicitRequirements);
-      await ui.getByTestId('studio-materials-choose').click();
       // An invalid budget draft keeps materials and authored requirements in this same panel.
       await ui.getByTestId('studio-translation-advanced').click();
       const budget = dialog.getByRole('spinbutton', { name: '上下文窗口（tokens）', exact: true });
@@ -148,19 +148,19 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       for (const collectionId of fixture.recipes[0].readCollectionIds) {
         await uiExpect(ui.getByTestId(`studio-materials-collection-${collectionId}`)).toBeChecked();
       }
-      await ui.getByTestId('studio-materials-choose').click();
+      await ui.getByTestId('studio-materials-done').click();
       await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(explicitRequirements);
       expect(requests).toHaveLength(0);
       const scopes = ui.getByTestId('knowledge-trial-scopes');
-      await scopes.locator('summary').click();
+      await scopes.locator('[data-slot=accordion-trigger]').first().click();
       await ui.getByTestId(`studio-materials-role-${original.cues[0].id}-topic`).click();
       await ui.getByRole('option', { name: fixture.subjects[0].name, exact: true }).click();
       await ui.getByTestId(`studio-materials-role-${original.cues[0].id}-speaker`).click();
       await ui.getByRole('option', { name: fixture.subjects[1].name, exact: true }).click();
       await ui.getByTestId(`studio-materials-confirm-${original.cues[0].id}-${context.id}`).check();
-      await scopes.locator('summary').click();
+      await scopes.locator('[data-slot=accordion-trigger]').first().click();
       const topics = ui.getByTestId('studio-materials-topics');
-      await topics.locator('summary').click();
+      await topics.locator('[data-slot=accordion-trigger]').first().click();
       await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).check();
       // A person selected as a document topic must not become everyone's speaker.
       await ui.getByTestId(`studio-materials-topic-${fixture.subjects[1].id}`).check();
@@ -269,7 +269,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await ui.getByTestId('knowledge-archive').click();
       await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
-      await ui.getByRole('dialog').locator('summary').filter({ hasText: '高级操作' }).click();
+      await ui.getByRole('dialog').locator('[data-slot=accordion-trigger]').filter({ hasText: '高级操作' }).click();
       await ui.getByTestId('knowledge-entry-purge').click();
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
       await uiExpect(maintenance.getByRole('checkbox')).toBeDisabled();

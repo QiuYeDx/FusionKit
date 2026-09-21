@@ -1,3 +1,4 @@
+import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, FileText, History, LoaderCircle, RotateCcw, Upload, X } from "lucide-react";
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from "@/components/qiuye-ui/scrollable-dialog";
@@ -104,9 +105,8 @@ export function MaintenanceDialog({
         <h3 className="text-sm font-medium">{t("maintenance.related_records", { count: preview.tasks.total })}</h3>
         <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.task_references_help")}</p>
         {preview.tasks.unknownDocuments > 0 && <p role="status" className="text-xs leading-5 text-destructive">{t("maintenance.task_references_unknown", { count: preview.tasks.unknownDocuments })}</p>}
-        {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <details key={knowledgeReferenceKey(task)} className="min-w-0 rounded-md border p-3">
-          <summary className="cursor-pointer text-xs [overflow-wrap:anywhere]">{task.displayName || t('maintenance.automatic_queue')} · {t(task.kind === 'automatic_preparation' ? 'maintenance.automatic_preparation' : task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</summary>
-          <p className="mt-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">{task.kind === 'automatic_preparation' ? t('maintenance.automatic_preparation_help') : t("maintenance.record_id", { id: task.recordId })}</p>
+        {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <KnowledgeDisclosure key={knowledgeReferenceKey(task)} title={<>{task.displayName || t('maintenance.automatic_queue')} · {t(task.kind === 'automatic_preparation' ? 'maintenance.automatic_preparation' : task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</>}>
+          <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{task.kind === 'automatic_preparation' ? t('maintenance.automatic_preparation_help') : t("maintenance.record_id", { id: task.recordId })}</p>
           <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
             {task.resources.map(resource => {
               const record = snapshot.data[resource.group].find(item => item.id === resource.id);
@@ -114,7 +114,7 @@ export function MaintenanceDialog({
               return <li key={`${resource.group}:${resource.id}:${resource.revision}`} className="[overflow-wrap:anywhere]">{t("maintenance.record_resource", { group: t(`group.${resource.group}`), title, revision: resource.revision })}</li>;
             })}
           </ul>
-        </details>)}
+        </KnowledgeDisclosure>)}
         {!preview.tasks.total && !preview.tasks.unknownDocuments && <p className="text-xs text-muted-foreground">{t("maintenance.no_related_records")}</p>}
         <Pagination page={taskPage} total={preview.tasks.items.length} onChange={setTaskPage} />
         {preview.tasks.total > preview.tasks.items.length && <p className="text-xs text-muted-foreground">{t("maintenance.records_limited", { count: preview.tasks.items.length, total: preview.tasks.total })}</p>}
@@ -209,11 +209,8 @@ export function MaintenanceDialog({
             {t("maintenance.purge_help")}
           </p>
           {preview.history.importsLosingUndo > 0 && (
-            <details>
-              <summary className="cursor-pointer text-xs">
-                {t("maintenance.imports_losing_undo")}
-              </summary>
-              <ul className="mt-2 space-y-1 text-xs">
+            <KnowledgeDisclosure variant="inline" title={t("maintenance.imports_losing_undo")}>
+              <ul className="space-y-1 text-xs">
                 {snapshot.imports
                   .filter((item) =>
                     snapshot.maintenance?.undoableImportIds.includes(item.id),
@@ -225,7 +222,7 @@ export function MaintenanceDialog({
                     </li>
                   ))}
               </ul>
-            </details>
+            </KnowledgeDisclosure>
           )}
           <Check
             label={t("maintenance.confirm_history")}

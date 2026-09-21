@@ -29,6 +29,7 @@ import {
 } from "./Controls";
 import type { Diagnostic } from "@/translation-knowledge/validation";
 import { freshId, splitLines } from "./model";
+import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 export type CatalogRecord =
   | Subject
   | Collection
@@ -321,17 +322,24 @@ export function CatalogEditor({
             <p className="text-xs text-muted-foreground">
               {t("editor.language_defaults")}
             </p>
-            <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">{t("workspace.collection_optional")}</summary><div className="mt-3 space-y-4">
-              {text("description", record.description, description => setRecord({ ...record, description }), true)}
-            <MultiChoice
-              label={t("fields.about_subjects")}
-              options={snapshot.data.subjects}
-              value={record.aboutSubjectIds}
-              onChange={(aboutSubjectIds) =>
-                setRecord({ ...record, aboutSubjectIds })
-              }
-            />
-            </div></details>
+            <KnowledgeDisclosure title={t("workspace.collection_optional")}>
+              <div className="space-y-4">
+                {text(
+                  "description",
+                  record.description,
+                  (description) => setRecord({ ...record, description }),
+                  true,
+                )}
+                <MultiChoice
+                  label={t("fields.about_subjects")}
+                  options={snapshot.data.subjects}
+                  value={record.aboutSubjectIds}
+                  onChange={(aboutSubjectIds) =>
+                    setRecord({ ...record, aboutSubjectIds })
+                  }
+                />
+              </div>
+            </KnowledgeDisclosure>
           </>
         )}
         {"languagePair" in record && (
@@ -433,11 +441,8 @@ export function CatalogEditor({
               (context) => setRecord({ ...record, context }),
               true,
             )}
-            <details className="rounded-md border p-3">
-              <summary className="cursor-pointer text-sm">
-                {t("fields.subject_suggestions")}
-              </summary>
-              <div className="mt-4 space-y-3">
+            <KnowledgeDisclosure title={t("fields.subject_suggestions")}>
+              <div className="space-y-4">
                 {snapshot.data.subjects.map((subject) => {
                   const suggestion = record.subjectSuggestions.find(
                     (item) => item.subjectId === subject.id,
@@ -445,7 +450,7 @@ export function CatalogEditor({
                   return (
                     <div
                       key={subject.id}
-                      className="grid grid-cols-2 items-end gap-3"
+                      className="grid grid-cols-2 items-end gap-4"
                     >
                       <Check
                         label={subject.name}
@@ -498,10 +503,9 @@ export function CatalogEditor({
                   {t("editor.suggestion_help")}
                 </p>
               </div>
-            </details>
-            <details className="rounded-md border p-3">
-              <summary className="cursor-pointer text-sm">{t("guide.future_preferences")}</summary>
-              <div className="mt-3 space-y-4">
+            </KnowledgeDisclosure>
+            <KnowledgeDisclosure title={t("guide.future_preferences")}>
+              <div className="space-y-4">
                 <p className="text-xs leading-5 text-muted-foreground">{t("guide.future_preferences_help")}</p>
                 <Check
                   label={t("fields.inherit_preferences")}
@@ -547,7 +551,7 @@ export function CatalogEditor({
                   />
                 )}
               </div>
-            </details>
+            </KnowledgeDisclosure>
           </>
         )}
         {"instructions" in record &&
@@ -583,21 +587,17 @@ export function CatalogEditor({
             {group === "collections" && <Button data-testid="knowledge-catalog-purge" type="button" size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => void maintain("purge")}>{t("collection_actions.delete")}</Button>}
             </div>
             {group !== "collections" && initial.archived && (
-              <details>
-                <summary className="cursor-pointer text-xs text-muted-foreground">
-                  {t("maintenance.advanced")}
-                </summary>
+              <KnowledgeDisclosure title={t("maintenance.advanced")} variant="inline">
                 <Button
                   data-testid="knowledge-catalog-purge"
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="mt-3"
                   onClick={() => void maintain("purge")}
                 >
                   {t("maintenance.preview_purge")}
                 </Button>
-              </details>
+              </KnowledgeDisclosure>
             )}
           </section>
         )}

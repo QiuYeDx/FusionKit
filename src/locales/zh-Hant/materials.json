@@ -17,5 +17,32 @@
   "saved": "譯法已儲存，可在翻譯時選用資料集",
   "source_note": "使用者確認的固定譯法",
   "remember": "記住譯法",
-  "cue_actions": "字幕操作"
+  "cue_actions": "字幕操作",
+  "selection": {
+    "change": "更改資料",
+    "selected_count": "已選 {{count}} 個資料集",
+    "preset": "翻譯方案",
+    "preset_includes": "{{pair}} · 包含 {{count}} 個資料集",
+    "preset_help": "方案會帶入資料集與翻譯偏好，也可以自行選擇。",
+    "collections": "資料集",
+    "language_pair": "{{source}} → {{target}}",
+    "multiple_languages": "多種語言",
+    "language_unspecified": "未指定語言",
+    "entry_count": "{{count}} 條資料",
+    "from_preset": "來自方案",
+    "library_unavailable": "暫時無法讀取資料，請重新整理後重試。",
+    "retry": "重新讀取",
+    "empty_library": "還沒有可用的資料集",
+    "empty_library_help": "前往翻譯資料建立或匯入，也可以直接新增譯法。",
+    "no_results": "沒有找到相符的資料集",
+    "clear_search": "清除搜尋",
+    "manage": "管理資料",
+    "done": "完成選擇",
+    "empty_hint": "可選用術語、背景和翻譯偏好。",
+    "unavailable": "已失效",
+    "scope_count": "已選 {{count}} 項",
+    "exclusion_count": "已排除 {{count}} 條",
+    "unavailable_scope": "已失效的適用對象 · 取消勾選以移除",
+    "unavailable_exclusion": "已失效的排除項 · 取消勾選以移除"
+  }
 }

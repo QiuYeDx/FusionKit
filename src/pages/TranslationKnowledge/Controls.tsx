@@ -1,3 +1,4 @@
+import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import { diagnosticKey } from "./labels";
 import { useId, useState, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -182,11 +183,8 @@ export function ErrorNotice({
       <div className="min-w-0 space-y-2 break-words">
         <p>{t(`errors.${error}`)}</p>
         {diagnostics.length > 0 && (
-          <details>
-            <summary className="cursor-pointer text-xs">
-              {t("detail.diagnostics")}
-            </summary>
-            <ul className="mt-2 space-y-2 text-xs">
+          <KnowledgeDisclosure variant="inline" title={t("detail.diagnostics")}>
+            <ul className="space-y-2 text-xs">
               {diagnostics.map((item, index) => (
                 <li key={index}>
                   <p>{t(diagnosticKey(`diagnostic.${item.code}`))}</p>
@@ -195,7 +193,7 @@ export function ErrorNotice({
                 </li>
               ))}
             </ul>
-          </details>
+          </KnowledgeDisclosure>
         )}
       </div>
     </div>

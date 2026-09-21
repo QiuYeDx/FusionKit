@@ -73,7 +73,7 @@ export function KnowledgeTour({ open, onOpenChange }: {
     },
     {
       id: "plans",
-      target: "#knowledge-more-management > summary",
+      target: '#knowledge-more-management [data-slot="accordion-trigger"]',
       title: t("tour.plans_title"),
       content: <div className="space-y-3">
         <p>{t("tour.plans_content")}</p>

@@ -96,11 +96,12 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
         if (!(await recipe.textContent())?.includes(fixture.recipes[0].name)) {
           await recipe.click(); await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
         }
-        await choose.click();
+        await ui.getByTestId('studio-materials-done').click();
       };
       const checkTrial = async () => {
         const scopes = ui.getByTestId('knowledge-trial-scopes');
-        if (!(await scopes.evaluate(element => (element as HTMLDetailsElement).open))) await scopes.locator('summary').click();
+        const trigger = scopes.locator('[data-slot=accordion-trigger]').first();
+        if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
         await ui.getByTestId('studio-translation-check-trial').click();
       };
       await openMaterialsTrial();
@@ -123,8 +124,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       await checkTrial();
       await uiExpect(ui.getByTestId('studio-translation-trial')).toBeEnabled();
       const excluded = ui.getByTestId('knowledge-trial-preview').locator('[data-issue-code=condition_unconfirmed]');
-      await ui.getByTestId('knowledge-trial-preview').locator('details').filter({ has: ui.locator('[data-issue-code=condition_unconfirmed]') }).first().locator(':scope > summary').click();
-      await excluded.locator('summary').click();
+      await ui.getByTestId('knowledge-trial-preview').getByTestId('studio-materials-issues-excluded').locator('[data-slot=accordion-trigger]').first().click();
+      await excluded.locator('[data-slot=accordion-trigger]').first().click();
       await uiExpect(excluded).toContainText('2. She mentioned Mira.');
       await ui.getByTestId('knowledge-trial-preview').scrollIntoViewIfNeeded();
       await ui.screenshot({ path: path.join(artifacts, 'preview-light.png'), animations: 'disabled' });

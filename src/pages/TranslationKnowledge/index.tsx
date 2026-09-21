@@ -1,3 +1,4 @@
+import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import type {
   MaintenancePreview,
   MaintenanceRequest,
@@ -6,7 +7,6 @@ import { HistoryDialog, MaintenanceDialog } from "./Maintenance";
 import { languagePairLabel, optionKey } from "./labels";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import {
   Archive,
   ArrowRight,
@@ -14,10 +14,6 @@ import {
   Check,
   CircleHelp,
   Copy,
-  Download,
-  FolderPlus,
-  History,
-  Import,
   LoaderCircle,
   Pencil,
   Plus,
@@ -49,7 +45,6 @@ import type {
 } from "@/translation-knowledge/ipc-contract";
 import { entrySummary } from "@/translation-knowledge/ipc-contract";
 import type { Diagnostic } from "@/translation-knowledge/validation";
-import { cn } from "@/lib/utils";
 import { Choice, ErrorNotice, KnowledgeDialog, Pagination } from "./Controls";
 import {
   CatalogEditor,
@@ -61,6 +56,7 @@ import { EntryEditor } from "./EntryEditor";
 import { InlineTermEditor } from "./InlineTermEditor";
 import { BulkTermPaste } from "./BulkTermPaste";
 import { KnowledgeTour, useKnowledgeTour } from "./KnowledgeTour";
+import { KnowledgeSidebar, type KnowledgeLibraryView } from "./KnowledgeSidebar";
 import { ExportDialog, ImportDialog, RecordDetails } from "./Exchange";
 import {
   entryStatus,
@@ -74,7 +70,7 @@ import {
   withEntryKind,
 } from "./model";
 
-type View = "materials" | "plans" | "review" | "archived" | "stored";
+type View = KnowledgeLibraryView;
 type ContentKind = "term" | "context" | "rule";
 export default function TranslationKnowledge() {
   const { t } = useTranslation("knowledge");
@@ -326,42 +322,25 @@ export default function TranslationKnowledge() {
   const setLibraryView = (next: View) => { setView(next); setQuery(initialQuery); setPage(0); };
   const change = (key: keyof typeof query, value: string) => setQuery({ ...query, [key]: value });
   const header = <ToolPageHeader meta={TOOL_META.translationKnowledge} title={t("title")} description={t("description")} right={
-    <>
-      <Button data-testid="knowledge-tour-trigger" variant="ghost" size="icon-sm" aria-label={t("tour.trigger")} title={t("tour.trigger")} disabled={!tourReady} onClick={() => setTourOpen(true)}><CircleHelp /></Button>
-      <Button data-testid="knowledge-new-collection" id="knowledge-tour-collection" size="sm" disabled={!snapshot || blocked} onClick={() => addCatalog("collections")}><FolderPlus /><span className="hidden sm:inline">{t("actions.new_collection")}</span></Button>
-    </>
+    <Button data-testid="knowledge-tour-trigger" variant="ghost" size="icon-sm" aria-label={t("tour.trigger")} title={t("tour.trigger")} disabled={!tourReady} onClick={() => setTourOpen(true)}><CircleHelp /></Button>
   } />;
   const activeCollections = snapshot?.data.collections.filter(item => !item.archived) ?? [];
-  const collectionCount = (id: string) => snapshot?.data.entries.filter(entry => entry.collectionId === id && entry.state !== "archived").length ?? 0;
-  const navClass = (active: boolean) => cn("flex w-full min-w-0 items-start justify-between gap-2 rounded-md px-2 py-2 text-left text-sm outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring", active && "bg-muted font-medium");
-  const aside = <div className="space-y-3">
-    <ToolPanel id="knowledge-collection-list" title={t("workspace.collections")} icon={BookOpen} bodyClassName="space-y-1 p-2">
-      <Button data-testid="knowledge-all" variant="ghost" className={navClass(view === "materials" && query.collection === "all")} onClick={() => selectCollection("all")}>{t("workspace.all")}</Button>
-      {activeCollections.map(collection => <button key={collection.id} data-collection-id={collection.id} aria-current={view === "materials" && query.collection === collection.id ? "true" : undefined} className={navClass(view === "materials" && query.collection === collection.id)} onClick={() => selectCollection(collection.id)}><span className="min-w-0 break-words">{collection.name}</span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{collectionCount(collection.id)}</span></button>)}
-      {!activeCollections.length && <p className="px-2 py-3 text-xs leading-5 text-muted-foreground">{t("workspace.empty_collections")}</p>}
-      <div className="my-2 border-t" />
-      {reviewCount > 0 && <button data-testid="knowledge-review" className={navClass(view === "review")} onClick={() => setLibraryView("review")}><span>{t("workspace.review")}</span><span className="text-xs tabular-nums">{reviewCount}</span></button>}
-      <button data-testid="knowledge-archive" className={navClass(view === "archived")} onClick={() => setLibraryView("archived")}><span className="flex items-center gap-2"><Archive className="size-3.5" />{t("workspace.archived")}</span></button>
-      {view === "archived" && snapshot?.data.collections.filter(item => item.archived).map(collection => <button key={collection.id} data-collection-id={collection.id} className={navClass(query.collection === collection.id)} onClick={() => selectCollection(collection.id, true)}><span className="min-w-0 break-words">{collection.name}</span></button>)}
-    </ToolPanel>
-    <details id="knowledge-more-management" className="rounded-lg border bg-card p-3">
-      <summary className="cursor-pointer text-sm font-medium">{t("workspace.management")}</summary>
-      <div className="mt-3 space-y-2">
-        <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setLibraryView("plans")}>{t("views.plans")}</Button>
-        <Button variant="ghost" size="sm" className="h-auto w-full justify-start whitespace-normal text-left" onClick={() => setLibraryView("stored")}>{t("workspace.stored")}</Button>
-        <details className="rounded-md border p-2"><summary className="cursor-pointer text-xs">{t("subjects.title")}</summary><div className="mt-2 space-y-1">
-          {snapshot?.data.subjects.map(subject => <Button key={subject.id} variant="ghost" size="sm" className="h-auto w-full justify-start whitespace-normal text-left" onClick={() => setCatalog({ group: "subjects", record: subject })}>{subject.name}{subject.archived ? ` · ${t("status.archived")}` : ""}</Button>)}
-          <Button variant="outline" size="sm" disabled={!snapshot || blocked} onClick={() => addCatalog("subjects")}><Plus />{t("actions.new_subject")}</Button>
-        </div></details>
-        <Button data-testid="knowledge-history" variant="ghost" size="sm" className="w-full justify-start" disabled={!snapshot || busy} onClick={() => setHistoryOpen(true)}><History />{t("maintenance.history_title")}</Button>
-      </div>
-    </details>
-    <div className="flex flex-wrap gap-2">
-      <Button data-testid="knowledge-import" size="sm" variant="outline" className="h-auto max-w-full whitespace-normal py-1.5 text-left" disabled={busy || !snapshot || blocked} onClick={() => void beginImport()}><Import />{t("actions.import")}</Button>
-      <Button data-testid="knowledge-export" size="sm" variant="outline" className="h-auto max-w-full whitespace-normal py-1.5 text-left" disabled={!snapshot || busy || blocked} onClick={() => setExportOpen(true)}><Download />{t("actions.export")}</Button>
-    </div>
-    <Button asChild variant="outline" size="sm" className="h-auto min-h-8 w-full justify-between gap-2 whitespace-normal py-2 text-left leading-5"><Link id="knowledge-tour-studio" data-testid="knowledge-open-studio" to="/tools/subtitle/studio">{t("guide.translate")}<ArrowRight className="shrink-0" /></Link></Button>
-  </div>;
+  const aside = <KnowledgeSidebar
+    snapshot={snapshot}
+    view={view}
+    selectedCollectionId={query.collection}
+    reviewCount={reviewCount}
+    busy={busy}
+    blocked={blocked}
+    onSelectCollection={selectCollection}
+    onSelectView={setLibraryView}
+    onCreateCollection={() => addCatalog("collections")}
+    onCreateSubject={() => addCatalog("subjects")}
+    onEditSubject={subject => setCatalog({ group: "subjects", record: subject })}
+    onImport={() => void beginImport()}
+    onExport={() => setExportOpen(true)}
+    onHistory={() => setHistoryOpen(true)}
+  />;
   const plans =
     snapshot?.data[planGroup].filter(
       (item) =>
@@ -379,7 +358,7 @@ export default function TranslationKnowledge() {
   const bulkCollection = snapshot?.data.collections.find(item => item.id === bulkCollectionId);
   return (
     <div {...dropProps} data-testid="translation-knowledge">
-      <ToolDetailLayout header={header} aside={aside} className="translation-knowledge md:[&>div.grid]:grid-cols-[220px_minmax(0,1fr)] lg:[&>div.grid]:grid-cols-[260px_minmax(0,1fr)]" asideClassName="lg:w-full">
+      <ToolDetailLayout header={header} aside={aside} className="translation-knowledge md:[&>div.grid]:grid-cols-[240px_minmax(0,1fr)] lg:[&>div.grid]:grid-cols-[280px_minmax(0,1fr)]" asideClassName="lg:static lg:w-full">
         {dropError && <p role="alert" className="rounded-md border border-destructive/25 p-3 text-sm text-destructive">{t("drop.invalid")}</p>}
         {blocked && <div role="status" className="space-y-2 rounded-md border p-3"><p className="text-sm">{t("maintenance.cleanup_pending")}</p><Button data-testid="knowledge-cleanup-retry" size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>{t("maintenance.retry_cleanup")}</Button></div>}
         <ErrorNotice error={error} diagnostics={diagnostics} />
@@ -647,24 +626,18 @@ export default function TranslationKnowledge() {
                 ) : null;
               })}
             </section>
-            <details>
-              <summary className="cursor-pointer text-sm">
-                {t("detail.all_fields")}
-              </summary>
-              <div className="mt-3">
+            <KnowledgeDisclosure variant="inline" title={t("detail.all_fields")}>
+              <div>
                 <RecordDetails record={currentEntry} />
               </div>
-            </details>
+            </KnowledgeDisclosure>
             {currentEntry.state === "archived" && (
-              <details>
-                <summary className="cursor-pointer text-xs text-muted-foreground">
-                  {t("maintenance.advanced")}
-                </summary>
+              <KnowledgeDisclosure variant="inline" title={t("maintenance.advanced")}>
                 <Button
                   data-testid="knowledge-entry-purge"
                   size="sm"
                   variant="outline"
-                  className="mt-3"
+
                   disabled={busy || blocked}
                   onClick={() =>
                     void planMaintenance({
@@ -676,7 +649,7 @@ export default function TranslationKnowledge() {
                 >
                   {t("maintenance.preview_purge")}
                 </Button>
-              </details>
+              </KnowledgeDisclosure>
             )}
             <ErrorNotice error={detailError} diagnostics={detailDiagnostics} />
           </KnowledgeDialog>

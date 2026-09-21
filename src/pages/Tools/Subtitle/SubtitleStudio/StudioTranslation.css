@@ -22,7 +22,6 @@
 .studio-translation-plan-details[open] > summary { border-bottom: 1px solid var(--border); }
 .studio-translation-plan-details[open] > summary > svg { transform: rotate(180deg); }
 .studio-translation-plan-details > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: 8px; }
-.studio-translation-advanced + .studio-translation-plan { margin-top: -16px; }
 .studio-translation-estimate { background: color-mix(in srgb, var(--muted) 35%, var(--background)); }
 .studio-translation-estimate > div:first-child { padding-block: 8px; }
 .studio-translation-estimate > div:first-child > span:last-child { white-space: normal; overflow-wrap: anywhere; }

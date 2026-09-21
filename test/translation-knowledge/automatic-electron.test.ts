@@ -25,6 +25,11 @@ async function persistedBytes(directory: string): Promise<Record<string, string>
   return Object.fromEntries(entries.sort(([left], [right]) => left.localeCompare(right)));
 }
 async function drop(page: Page, file: string) {
+  // Native drops are rejected while a dialog/Popover is still exiting. Unlike
+  // a real drag gesture, these synthetic events arrive immediately after Done.
+  await uiExpect(page.getByTestId('studio-materials-picker')).toHaveCount(0);
+  await uiExpect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByTestId('studio-transcription-picker').scrollIntoViewIfNeeded();
   await page.evaluate(() => { const input = document.createElement('input'); input.type = 'file'; input.hidden = true; input.dataset.automaticMediaDrop = ''; document.body.append(input); });
   await page.locator('[data-automatic-media-drop]').setInputFiles(file);
   await page.evaluate(() => {
@@ -103,16 +108,16 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       await page.locator('#studio-transcription-auto-translation').click();
       const materials = page.getByTestId('studio-automatic-materials');
       await materials.getByTestId('studio-materials-choose').click();
-      await materials.getByTestId('studio-materials-recipe').click();
+      await page.getByTestId('studio-materials-recipe').click();
       await page.getByRole('option', { name: data.recipes[0].name, exact: true }).click();
-      await materials.getByTestId('studio-materials-choose').click();
+      await page.getByTestId('studio-materials-done').click();
       await uiExpect(materials.getByTestId('studio-materials-source')).toHaveText('英语');
-      await materials.getByTestId('studio-materials-topics').locator('summary').click();
+      await materials.getByTestId('studio-materials-topics').locator('[data-slot=accordion-trigger]').first().click();
       await materials.getByTestId(`studio-materials-topic-${data.subjects[0].id}`).check();
       const savedInstructions = 'Keep every subtitle concise and preserve all information.';
       const savedContext = 'These subtitles discuss Game X save locations.';
       await page.getByTestId('studio-automatic-instructions').fill(savedInstructions);
-      await materials.getByTestId('studio-materials-more').locator(':scope > summary').click();
+      await materials.getByTestId('studio-materials-more').locator('[data-slot=accordion-trigger]').first().click();
       await materials.getByTestId('studio-materials-context').fill(savedContext);
       await uiExpect(materials.getByTestId('studio-materials-summary')).toContainText(data.recipes[0].name);
       await uiExpect(page.getByRole('dialog')).toHaveCount(0);
@@ -139,7 +144,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       const preparationDialog = page.getByRole('dialog').filter({ has: page.getByTestId('knowledge-maintenance-tasks') });
       await uiExpect(preparationDialog).toContainText('自动翻译准备资料');
       await uiExpect(preparationDialog).toContainText('转写队列');
-      await page.getByTestId('knowledge-maintenance-tasks').locator('details > summary').first().click();
+      await page.getByTestId('knowledge-maintenance-tasks').locator('[data-slot=accordion-trigger]').first().click();
       await page.getByTestId('knowledge-maintenance-tasks').scrollIntoViewIfNeeded();
       await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-pending-maintenance.png'), animations: 'disabled' });
       await preparationDialog.getByRole('button', { name: '关闭', exact: true }).click();
@@ -175,9 +180,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       // Refresh the common selection explicitly for the next submission.
       const chooseMaterials = materials.getByTestId('studio-materials-choose');
       if (await chooseMaterials.getAttribute('aria-expanded') !== 'true') await chooseMaterials.click();
-      await materials.getByTestId('studio-materials-picker').getByRole('button', { name: locale.refresh, exact: true }).click();
+      await page.getByTestId('studio-materials-picker').getByRole('button', { name: locale.refresh, exact: true }).click();
       await uiExpect(page.getByTestId('studio-automatic-knowledge-notice')).toHaveCount(0);
-      await chooseMaterials.click();
+      await page.getByTestId('studio-materials-done').click();
       await drop(page, mediaFiles[1]); await uiExpect(page.getByTestId('studio-transcription-media-row')).toHaveCount(1);
       await page.getByTestId('studio-transcription-start').click();
       await uiExpect.poll(async () => (await control(app!, { operation: 'snapshot' })).tasks.length).toBe(2);
@@ -249,10 +254,10 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       await uiExpect(page.getByTestId('studio-translation-check')).toBeEnabled();
       await uiExpect(repairDialog.getByTestId('studio-materials-source')).toHaveText('英语');
       await uiExpect(repairDialog.getByTestId('studio-materials-summary')).toContainText(data.recipes[0].name);
-      await repairDialog.getByTestId('studio-materials-topics').locator('summary').click();
+      await repairDialog.getByTestId('studio-materials-topics').locator('[data-slot=accordion-trigger]').first().click();
       await uiExpect(repairDialog.getByTestId(`studio-materials-topic-${data.subjects[0].id}`)).toBeChecked();
       await uiExpect(page.getByTestId('studio-translation-instructions')).toHaveValue(savedInstructions);
-      await repairDialog.getByTestId('studio-materials-more').locator(':scope > summary').click();
+      await repairDialog.getByTestId('studio-materials-more').locator('[data-slot=accordion-trigger]').first().click();
       await uiExpect(repairDialog.getByTestId('studio-materials-context')).toHaveValue(savedContext);
       await repairDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
       await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-form-light.png'), animations: 'disabled' });
@@ -262,8 +267,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       await uiExpect(page.getByTestId('knowledge-full-preview')).toBeVisible();
       await uiExpect(page.getByTestId('knowledge-full-preview').locator('[data-issue-code="term_conflict"]')).toBeVisible();
       expect(requests).toHaveLength(1); expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
-      const exclusions = repairDialog.getByTestId('studio-materials-more').locator('details');
-      await exclusions.locator('summary').click();
+      const exclusions = repairDialog.getByTestId('studio-materials-exclusions');
+      await exclusions.locator('[data-slot=accordion-trigger]').first().click();
       await repairDialog.getByTestId('studio-materials-exclude-50000000-0000-4000-8000-000000000012').check();
       await uiExpect(page.getByTestId('knowledge-full-preview')).toHaveCount(0);
       await page.getByTestId('studio-translation-check').click();
@@ -342,13 +347,14 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       await page.getByRole('tab', { name: english.workspace_transcription, exact: true }).click();
       const compactMaterials = page.getByTestId('studio-automatic-materials');
       await compactMaterials.getByTestId('studio-materials-choose').click();
-      await uiExpect(compactMaterials.getByTestId('studio-materials-recipe')).toHaveText(data.recipes[0].name);
+      await uiExpect(page.getByTestId('studio-materials-recipe')).toHaveText(data.recipes[0].name);
       await uiExpect(page.getByTestId('studio-automatic-instructions')).toHaveValue(savedInstructions);
-      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
+      await uiExpect(page.getByRole('dialog')).toHaveCount(1);
       expect(await compactMaterials.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      await compactMaterials.getByTestId('studio-materials-summary').scrollIntoViewIfNeeded();
+      await page.getByTestId('studio-materials-picker').scrollIntoViewIfNeeded();
       await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-selection-dark-english-narrow.png'), animations: 'disabled' });
-      await compactMaterials.getByTestId('studio-materials-choose').click();
+      await page.getByTestId('studio-materials-done').click();
+      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
       expect(requests).toHaveLength(2); expect(errors).toEqual([]); passed = true;
     } finally {
       if (!passed && page) await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-failure.png'), animations: 'disabled' }).catch(() => undefined);

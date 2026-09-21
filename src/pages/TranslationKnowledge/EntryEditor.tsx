@@ -21,6 +21,7 @@ import {
 } from "./Controls";
 import type { Diagnostic } from "@/translation-knowledge/validation";
 import { manualEntryRequest, splitLines } from "./model";
+import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 
 function changeKind(entry: Entry, kind: Entry["kind"]): Entry {
   const base = { ...entry, kind };
@@ -242,9 +243,11 @@ export function EntryEditor({
           </div>
         )}
         {entry.kind === "term" && (
-          <details className="rounded-md border p-3">
-            <summary className="cursor-pointer text-sm">{t("guide.term_options")} · {t(`strength.${entry.payload.strength}`)}</summary>
-            <div className="mt-3 space-y-4">
+          <KnowledgeDisclosure
+            title={t("guide.term_options")}
+            description={t(`strength.${entry.payload.strength}`)}
+          >
+            <div className="space-y-4">
               {text("sense", entry.payload.sense, (sense) =>
                 setEntry({ ...entry, payload: { ...entry.payload, sense } }),
               )}
@@ -313,7 +316,7 @@ export function EntryEditor({
                 }
               />
             </div>
-          </details>
+          </KnowledgeDisclosure>
         )}
         {entry.kind === "context" && (
           <>
@@ -446,82 +449,81 @@ export function EntryEditor({
               true,
               true,
             )}
-            <details className="rounded-md border p-3"><summary className="cursor-pointer text-sm">{t("workspace.more_options")}</summary><div className="mt-3">
-            <div className="grid grid-cols-2 gap-4">
-              <Choice
-                label={t("fields.dimension")}
-                value={entry.payload.dimension}
-                onChange={(dimension) =>
-                  setEntry({
-                    ...entry,
-                    payload: {
-                      ...entry.payload,
-                      dimension: dimension as typeof entry.payload.dimension,
-                    },
-                  })
-                }
-                options={options("dimension", [
-                  "register",
-                  "honorifics",
-                  "person_reference",
-                  "fidelity",
-                  "other",
-                ])}
-              />
-              <Choice
-                label={t("fields.strength")}
-                value={entry.payload.strength}
-                onChange={(strength) =>
-                  setEntry({
-                    ...entry,
-                    payload: {
-                      ...entry.payload,
-                      strength: strength as typeof entry.payload.strength,
-                    },
-                  })
-                }
-                options={options("strength", ["preferred", "required"])}
-              />
-            </div>
-            </div></details>
+            <KnowledgeDisclosure title={t("workspace.more_options")}>
+              <div className="grid grid-cols-2 gap-4">
+                <Choice
+                  label={t("fields.dimension")}
+                  value={entry.payload.dimension}
+                  onChange={(dimension) =>
+                    setEntry({
+                      ...entry,
+                      payload: {
+                        ...entry.payload,
+                        dimension: dimension as typeof entry.payload.dimension,
+                      },
+                    })
+                  }
+                  options={options("dimension", [
+                    "register",
+                    "honorifics",
+                    "person_reference",
+                    "fidelity",
+                    "other",
+                  ])}
+                />
+                <Choice
+                  label={t("fields.strength")}
+                  value={entry.payload.strength}
+                  onChange={(strength) =>
+                    setEntry({
+                      ...entry,
+                      payload: {
+                        ...entry.payload,
+                        strength: strength as typeof entry.payload.strength,
+                      },
+                    })
+                  }
+                  options={options("strength", ["preferred", "required"])}
+                />
+              </div>
+            </KnowledgeDisclosure>
           </>
         )}
-        <details data-testid="knowledge-entry-language" className="rounded-md border p-3"><summary className="cursor-pointer text-sm">{t("fields.language")} · {languagePairLabel(t, pair)}</summary><div className="mt-3">
-        <div className="grid grid-cols-2 gap-4">
-          {text(
-            "source_language",
-            pair.source,
-            (source) =>
-              setEntry({
-                ...entry,
-                scope: { ...entry.scope, languagePair: { ...pair, source } },
-              }),
-            false,
-            true,
-          )}
-          {text(
-            "target_language",
-            pair.target,
-            (target) =>
-              setEntry({
-                ...entry,
-                scope: { ...entry.scope, languagePair: { ...pair, target } },
-              }),
-            false,
-            true,
-          )}
-        </div>
-        </div></details>
-        <p className="break-words text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">
-          {t("editor.scope_summary", {
-            scope: scopeSummary(t, entry.scope, snapshot.data.subjects),
-          })}
-        </p>
-        <details className="rounded-md border p-3">
-          <summary className="cursor-pointer text-sm font-medium">
-            {t("editor.scope")}
-          </summary>
-          <div className="mt-4 space-y-4">
+        <KnowledgeDisclosure
+          data-testid="knowledge-entry-language"
+          title={t("fields.language")}
+          description={languagePairLabel(t, pair)}
+        >
+          <div className="grid grid-cols-2 gap-4">
+            {text(
+              "source_language",
+              pair.source,
+              (source) =>
+                setEntry({
+                  ...entry,
+                  scope: { ...entry.scope, languagePair: { ...pair, source } },
+                }),
+              false,
+              true,
+            )}
+            {text(
+              "target_language",
+              pair.target,
+              (target) =>
+                setEntry({
+                  ...entry,
+                  scope: { ...entry.scope, languagePair: { ...pair, target } },
+                }),
+              false,
+              true,
+            )}
+          </div>
+        </KnowledgeDisclosure>
+        <KnowledgeDisclosure
+          title={t("editor.scope")}
+          description={scopeSummary(t, entry.scope, snapshot.data.subjects)}
+        >
+          <div className="space-y-4">
             <p className="text-xs text-muted-foreground">
               {t("editor.scope_help")}
             </p>
@@ -533,7 +535,7 @@ export function EntryEditor({
                 setEntry({ ...entry, aboutSubjectIds })
               }
             />
-            <div className="space-y-3">
+            <div className="space-y-4">
               {snapshot.data.subjects.map((subject) => {
                 const condition = entry.scope.requiredSubjects.find(
                   (item) => item.subjectId === subject.id,
@@ -541,7 +543,7 @@ export function EntryEditor({
                 return (
                   <div
                     key={subject.id}
-                    className="grid grid-cols-2 items-end gap-3"
+                    className="grid grid-cols-2 items-end gap-4"
                   >
                     <Check
                       label={subject.name}
@@ -644,10 +646,9 @@ export function EntryEditor({
                 true,
               )}
           </div>
-        </details>
-        <details className="rounded-md border p-3">
-          <summary className="cursor-pointer text-sm">{t("guide.entry_metadata")}</summary>
-          <div className="mt-3 space-y-4">
+        </KnowledgeDisclosure>
+        <KnowledgeDisclosure title={t("guide.entry_metadata")} variant="inline">
+          <div className="space-y-4">
             {text("title_optional", entry.title, (title) =>
               setEntry({ ...entry, title }),
             )}
@@ -656,7 +657,7 @@ export function EntryEditor({
               {t(existing ? "editor.source_existing" : "editor.source_default")}
             </p>
           </div>
-        </details>
+        </KnowledgeDisclosure>
         {initial.state !== "archived" && <p className="text-xs leading-5 text-muted-foreground">{t("workspace.apply_help")}</p>}
       </fieldset>
       <ErrorNotice error={error} diagnostics={diagnostics} />

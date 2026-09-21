@@ -693,6 +693,13 @@
     "recipe_help": "Saves collections, languages and general instructions. Current scope, exclusions and model credentials are not saved.",
     "check": "Check and estimate",
     "trial": "Try a sample",
-    "automatic_help": "Material versions are frozen when transcription is submitted. Matching and conflicts are checked once subtitles exist; blocked translations preserve the source and explain what needs attention."
+    "automatic_help": "Material versions are frozen when transcription is submitted. Matching and conflicts are checked once subtitles exist; blocked translations preserve the source and explain what needs attention.",
+    "settings": "Reuse settings",
+    "recent_settings": "Recent settings",
+    "reuse_help": "Replaces the model, language, materials, instructions and budgets. Set speakers, cue ranges and confirmations again for this document.",
+    "reuse_materials": "Materials",
+    "reuse_without_materials": "No materials",
+    "no_recent_settings": "No recent settings in this session. Close or start a translation to make its settings available here.",
+    "save_requires_materials": "Choose materials and a source language to save the materials and instructions as a translation preset."
   }
 }

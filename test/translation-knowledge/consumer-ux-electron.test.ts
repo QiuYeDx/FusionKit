@@ -222,6 +222,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
       await uiExpect(selectedCollection).not.toBeChecked();
       await uiExpect(ui.getByTestId(`studio-materials-collection-${excludedCollection.id}`)).not.toBeChecked();
       await selectedCollection.check();
+      await ui.getByTestId('studio-materials-done').click();
       await ui.getByTestId('studio-materials-source').click();
       await ui.getByRole('option', { name: '英语', exact: true }).click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(1);

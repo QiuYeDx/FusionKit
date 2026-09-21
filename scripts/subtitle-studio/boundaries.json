@@ -130,6 +130,7 @@
     "electron/main/translation-knowledge/task-gate.ts",
     "src/pages/TranslationKnowledge/QuickTermDialog.tsx",
     "src/pages/TranslationKnowledge/Controls.tsx",
+    "src/pages/TranslationKnowledge/KnowledgeDisclosure.tsx",
     "src/pages/TranslationKnowledge/labels.ts",
     "src/pages/TranslationKnowledge/model.ts"
   ],

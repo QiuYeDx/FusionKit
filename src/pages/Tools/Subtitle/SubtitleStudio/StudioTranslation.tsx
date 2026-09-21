@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Calculator, CheckCheck, ChevronDown, Save, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, Calculator, CheckCheck, ChevronDown, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +16,7 @@ import { getStudioTranslationOverviewController } from '@/services/subtitle-stud
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioIconButton } from './StudioControls';
+import { StudioTranslationSettings } from './StudioTranslationSettings';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import { StudioBatchItems } from './StudioBatchItems';
 import { StudioDocumentRow } from './StudioDocumentList';
@@ -271,7 +272,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
 
   return <>
     {triggerContainer === null ? null : triggerContainer ? createPortal(triggerControl, triggerContainer) : triggerControl}
-    <ScrollableDialog open={open} onOpenChange={value => { if (!value) close(); }} maxWidth={batchResult ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[680px]'} contentClassName={batchResult ? STUDIO_RESULT_DIALOG_CLASS : 'studio-translation-dialog'} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById(`${controlId}-model`)?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => {
+    <ScrollableDialog open={open} onOpenChange={value => { if (!value) close(); }} maxWidth={batchResult ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[720px]'} contentClassName={batchResult ? STUDIO_RESULT_DIALOG_CLASS : 'studio-translation-dialog'} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById(`${controlId}-model`)?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => {
       event.preventDefault(); if (!mounted.current) return;
       if (recheckSession) { onRecheckClosed?.(recheckSession.requestId); recheckSession.restoreFocus(); setRecheckSession(undefined); return; }
       onRequestClosed?.();
@@ -279,12 +280,26 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
       if (openRequest) openRequest.restoreFocus(); else trigger.current?.focus({ preventScroll: true });
     }}>
       {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={close} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; close(); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
-        <ScrollableDialogHeader className="relative p-3 pr-12"><DialogTitle className="flex items-center gap-2 text-base"><Languages className="size-4" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle><DialogDescription className="text-xs [overflow-wrap:anywhere]">{batch ? t('studio:batch.document_count', { count: targets.length }) : page?.summary.origin.displayName}</DialogDescription></ScrollableDialogHeader>
+        <ScrollableDialogHeader className="relative p-3 pr-12">
+          <div className="flex items-start justify-between gap-3 text-left">
+            <div className="min-w-0 space-y-1">
+              <DialogTitle className="flex items-center gap-2 text-base"><Languages className="size-4 shrink-0" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle>
+              <DialogDescription className="text-xs leading-5 [overflow-wrap:anywhere]">{batch ? t('studio:batch.document_count', { count: targets.length }) : page?.summary.origin.displayName}</DialogDescription>
+            </div>
+            <StudioTranslationSettings previous={lastDraft}
+              previousModel={profiles.find(profile => profile.id === lastDraft?.profileId)?.name || profiles.find(profile => profile.id === lastDraft?.profileId)?.modelKey || t('studio:translation.select_model')}
+              previousLanguage={lastDraft?.language && lastDraft.language in languageKeys ? t(languageKeys[lastDraft.language as keyof typeof languageKeys]) : lastDraft?.language ?? ''}
+              library={library} disabled={pending} canSave={usingMaterials && !materialError && !libraryLoading}
+              saving={savingRecipe} name={recipeName} error={error ? t(errorKeys[error]) : undefined}
+              onNameChange={setRecipeName} onSavingChange={setSavingRecipe} onSave={() => void saveRecipe()}
+              onReuse={() => { if (lastDraft) { changeDraft(reusableTranslationDraft(lastDraft)); setNotice(t('studio:materials.reused')); } }} />
+          </div>
+        </ScrollableDialogHeader>
         <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}><div className="studio-translation-form" data-testid="studio-translation-form">
           {batch && <StudioSelectedDocuments documents={targets} />}
           <div className="studio-translation-fields">
             <ToolField label={t('studio:translation.model')} htmlFor={`${controlId}-model`}><Select value={selected?.id ?? ''} disabled={pending || !profiles.length} onValueChange={profileId => { patch({ profileId }); setModelApproved(true); }}><SelectTrigger id={`${controlId}-model`} data-testid="studio-translation-model" className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:translation.select_model')} /></SelectTrigger><SelectContent>{profiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.modelKey}</SelectItem>)}</SelectContent></Select></ToolField>
-            <ToolField label={t('studio:translation.language')} htmlFor={`${controlId}-language`}><Select value={languageChoice} disabled={pending} onValueChange={value => patch({ language: value === 'custom' ? '' : value })}><SelectTrigger id={`${controlId}-language`} data-testid="studio-translation-language" className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(languageKeys) as (keyof typeof languageKeys)[]).map(value => <SelectItem key={value} value={value}>{t(languageKeys[value])}</SelectItem>)}<SelectItem value="custom">{t('studio:translation.custom_language')}</SelectItem></SelectContent></Select></ToolField>
+            <ToolField label={t('studio:translation.language')} htmlFor={`${controlId}-language`}><Select value={languageChoice} disabled={pending} onValueChange={value => patch({ language: value === 'custom' ? '' : value })}><SelectTrigger id={`${controlId}-language`} data-testid="studio-translation-language" className="h-8 w-full text-xs"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(languageKeys) as (keyof typeof languageKeys)[]).map(value => <SelectItem key={value} value={value}>{t(languageKeys[value])}</SelectItem>)}<SelectItem value="custom">{t('studio:translation.custom_language')}</SelectItem></SelectContent></Select></ToolField>
           </div>
           {languageChoice === 'custom' && <ToolField label={t('studio:translation.custom_language_name')} htmlFor={`${controlId}-custom-language`}><Input id={`${controlId}-custom-language`} className="h-8 text-xs" value={draft.language} maxLength={100} disabled={pending} onChange={event => patch({ language: event.target.value })} /></ToolField>}
           {(!model.success || !selected?.apiKey.trim()) && <div className="studio-translation-configuration"><p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.model_required')}</p><Button variant="outline" size="sm" disabled={pending} onClick={() => { close(); navigate('/setting?tab=model'); }}><Settings />{t('studio:translation.model_settings')}</Button></div>}
@@ -295,8 +310,6 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           <ToolField label={t('studio:translation.instructions')} htmlFor={`${controlId}-instructions`}><Textarea id={`${controlId}-instructions`} data-testid="studio-translation-instructions" className="studio-translation-instructions text-xs" value={draft.instructions} maxLength={4000} disabled={pending} onChange={event => patch({ instructions: event.target.value, selection: { ...draft.selection, instructions: event.target.value } })} /></ToolField>
           {usingMaterials && !batch && page && <StudioKnowledgeScope page={page} selection={selection} library={library} cueIds={draft.cueIds} disabled={pending} onChange={changeSelection} onCueIdsChange={cueIds => patch({ cueIds })} onCheck={() => void execute('trial-check')} canCheck={canAct} />}
           <ToolConfigDisclosure testId="studio-translation-advanced" className="studio-translation-advanced border-b-0" icon={SlidersHorizontal} title={t('studio:translation.advanced')}><div className="studio-translation-budget-fields">{(['contextWindow', 'maxOutputTokens', 'maxBatchCues'] as const).map((key, index) => <ToolField key={key} label={t(index === 0 ? 'studio:translation.context_window' : index === 1 ? 'studio:translation.max_output' : 'studio:translation.batch_cues')} htmlFor={`${controlId}-${key}`}><Input id={`${controlId}-${key}`} type="number" className="h-8 font-mono text-xs" value={draft[key]} disabled={pending} onChange={event => patch({ [key]: event.target.value })} /></ToolField>)}</div></ToolConfigDisclosure>
-          <div className="flex flex-wrap gap-2">{lastDraft && <Button data-testid="studio-translation-reuse" type="button" variant="ghost" size="sm" disabled={pending} onClick={() => { changeDraft(reusableTranslationDraft(lastDraft)); setNotice(t('studio:materials.reused')); }}>{t('studio:materials.reuse')}</Button>}{usingMaterials && <Button data-testid="studio-translation-save-recipe" type="button" variant="ghost" size="sm" disabled={pending || !!materialError} onClick={() => setSavingRecipe(!savingRecipe)}><Save />{t('studio:materials.save_recipe')}</Button>}</div>
-          {savingRecipe && <div className="flex flex-wrap gap-2"><Input data-testid="studio-translation-recipe-name" aria-label={t('studio:materials.recipe_name')} placeholder={t('studio:materials.recipe_name')} className="h-8 min-w-0 flex-1 text-xs" value={recipeName} maxLength={160} disabled={pending} onChange={event => setRecipeName(event.target.value)} /><Button data-testid="studio-translation-confirm-recipe" size="sm" disabled={pending || !recipeName.trim()} onClick={() => void saveRecipe()}>{t('knowledge:actions.save')}</Button><p className="w-full text-xs text-muted-foreground">{t('studio:materials.recipe_help')}</p></div>}
           {!needsConfiguration && !config.success && <p role="alert" className="studio-translation-error">{t('studio:translation.invalid_options')}</p>}
           {unavailable && batch && usingMaterials && targets.length > 20 && <p role="alert" className="studio-translation-error">{t('knowledge:batch.limit', { count: targets.length, max: 20 })}</p>}
           {notice && <p role="status" data-testid="studio-translation-notice" className="text-xs leading-5 text-muted-foreground">{notice}</p>}

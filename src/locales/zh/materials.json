@@ -17,5 +17,32 @@
   "saved": "译法已保存，可在翻译时选用资料集",
   "source_note": "用户确认的固定译法",
   "remember": "记住译法",
-  "cue_actions": "字幕操作"
+  "cue_actions": "字幕操作",
+  "selection": {
+    "change": "更改资料",
+    "selected_count": "已选 {{count}} 个资料集",
+    "preset": "翻译方案",
+    "preset_includes": "{{pair}} · 包含 {{count}} 个资料集",
+    "preset_help": "方案会带入资料集与翻译偏好，也可以自行选择。",
+    "collections": "资料集",
+    "language_pair": "{{source}} → {{target}}",
+    "multiple_languages": "多种语言",
+    "language_unspecified": "未指定语言",
+    "entry_count": "{{count}} 条资料",
+    "from_preset": "来自方案",
+    "library_unavailable": "暂时无法读取资料，请刷新后重试。",
+    "retry": "重新读取",
+    "empty_library": "还没有可用的资料集",
+    "empty_library_help": "前往翻译资料创建或导入，也可以直接添加译法。",
+    "no_results": "没有找到匹配的资料集",
+    "clear_search": "清除搜索",
+    "manage": "管理资料",
+    "done": "完成选择",
+    "empty_hint": "可选用术语、背景和翻译偏好。",
+    "unavailable": "已失效",
+    "scope_count": "已选 {{count}} 项",
+    "exclusion_count": "已排除 {{count}} 条",
+    "unavailable_scope": "已失效的适用对象 · 取消勾选以移除",
+    "unavailable_exclusion": "已失效的排除项 · 取消勾选以移除"
+  }
 }

@@ -1,11 +1,12 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
+import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { knowledgeFixture } from './fixtures';
 import { parseKnowledgePackage } from '../../src/translation-knowledge/validation';
 import { KnowledgeService } from '../../electron/main/translation-knowledge/service';
+import en from '../../src/locales/en/knowledge.json';
 
 describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowledge in Electron', () => {
   let application: ElectronApplication | undefined;
@@ -30,11 +31,16 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
   });
   const openHistory = async () => {
     const management = page.locator('#knowledge-more-management');
-    if (await management.getAttribute('open') === null) await management.locator(':scope > summary').click();
+    const trigger = management.locator('[data-slot=accordion-trigger]').first();
+    if (await trigger.getAttribute('aria-expanded') === 'false') await trigger.click();
     await page.getByTestId('knowledge-history').click();
   };
-  const capture = async (name: string) => {
+  const capture = async (name: string, target?: Locator) => {
     await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
+    if (target) {
+      await target.evaluate(element => element.scrollIntoView({ block: 'center' }));
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    }
     await page.screenshot({ path: path.join(screenshots, `${name}.png`), animations: 'disabled' });
   };
 
@@ -113,9 +119,44 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await capture('editor-empty');
     await editor.getByRole('textbox', { name: '原文', exact: true }).fill('starport');
     await editor.getByRole('textbox', { name: '译文', exact: true }).fill('星际港口');
-    await editor.getByTestId('knowledge-entry-language').locator('summary').click();
-    await uiExpect(editor.getByRole('combobox', { name: '原文语言', exact: true })).toContainText('英语');
-    await editor.locator('summary').filter({ hasText: '标题与来源（可选）' }).click();
+    const options = editor.locator('[data-slot=accordion-trigger]').filter({ hasText: '译法与匹配设置' });
+    await uiExpect(options).toHaveAttribute('aria-expanded', 'false');
+    await options.focus();
+    await options.press('Enter');
+    await uiExpect(options).toHaveAttribute('aria-expanded', 'true');
+    const aliases = editor.getByLabel('别名（每行一个）', { exact: true });
+    const rawAliases = 'star port\n\n  stellar port  \n';
+    await aliases.fill(rawAliases);
+    await options.press('Space');
+    await uiExpect(options).toHaveAttribute('aria-expanded', 'false');
+    await uiExpect(aliases).toBeHidden();
+    await options.press('Enter');
+    await uiExpect(aliases).toHaveValue(rawAliases);
+    await capture('editor-accordion-options-light', editor.locator('[data-slot=knowledge-disclosure]').filter({ hasText: '译法与匹配设置' }));
+    await options.press('Space');
+    const language = editor.getByTestId('knowledge-entry-language').locator('[data-slot=accordion-trigger]');
+    await language.click();
+    const sourceLanguage = editor.getByRole('combobox', { name: '原文语言', exact: true });
+    await uiExpect(sourceLanguage).toContainText('英语');
+    await sourceLanguage.click();
+    await page.getByRole('option', { name: '其他语言…', exact: true }).click();
+    const customLanguage = editor.getByRole('textbox', { name: '自定义语言标签', exact: true });
+    await uiExpect(customLanguage).toHaveValue('');
+    await language.press('Space');
+    await uiExpect(customLanguage).toBeHidden();
+    await language.press('Enter');
+    await uiExpect(sourceLanguage).toContainText('其他语言…');
+    await uiExpect(customLanguage).toBeVisible();
+    await uiExpect(customLanguage).toHaveValue('');
+    await customLanguage.fill('it');
+    await language.press('Space');
+    await language.press('Enter');
+    await uiExpect(language).toHaveAttribute('aria-expanded', 'true');
+    await uiExpect(customLanguage).toHaveValue('it');
+    await capture('editor-accordion-language-light', editor.getByTestId('knowledge-entry-language'));
+    await sourceLanguage.click();
+    await page.getByRole('option', { name: '英语', exact: true }).click();
+    await editor.locator('[data-slot=accordion-trigger]').filter({ hasText: '标题与来源（可选）' }).click();
     await editor.getByLabel('标题（可选）', { exact: true }).fill('星际港口 · 跨语言内容与来源范围示例');
     await capture('editor-light');
     await editor.getByTestId('knowledge-save-draft').click();
@@ -204,7 +245,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
 
     await page.getByTestId('knowledge-archive').click();
     await page.getByTestId(`knowledge-entry-details-${droppedEntry.id}`).click();
-    await page.getByRole('dialog').locator('summary').filter({ hasText: '高级操作' }).click();
+    await page.getByRole('dialog').locator('[data-slot=accordion-trigger]').filter({ hasText: '高级操作' }).click();
     await page.getByTestId('knowledge-entry-purge').click();
     await uiExpect(page.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
     await capture('purge-history-confirmation');
@@ -234,7 +275,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await page.getByTestId('knowledge-export-preview').click();
     await uiExpect(page.getByRole('alert')).toBeVisible();
     await uiExpect(page.getByTestId('knowledge-export-save')).toBeDisabled();
-    await page.getByRole('dialog').locator('summary').filter({ hasText: '选择不带出的来源' }).click();
+    await page.getByRole('dialog').locator('[data-slot=accordion-trigger]').filter({ hasText: '选择不带出的来源' }).click();
     await page.getByRole('checkbox', { name: fixture.sources[0].title, exact: true }).uncheck();
     await page.getByTestId('knowledge-export-preview').click();
     await page.getByTestId('knowledge-export-save').click();
@@ -303,6 +344,21 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await openHistory();
     await capture('history-english-narrow');
     await page.getByTestId('knowledge-history-close').click();
+    await page.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
+    await page.getByTestId('knowledge-new-entry').click();
+    const englishEditor = page.getByRole('dialog');
+    await uiExpect(page.locator('html')).toHaveClass(/dark/);
+    await englishEditor.getByRole('textbox', { name: en.fields.source_text, exact: true }).fill('A long source phrase with several words to check the editor layout');
+    await englishEditor.getByRole('textbox', { name: en.fields.target_text, exact: true }).fill('用于检查编辑面板布局的较长译文');
+    await capture('editor-accordion-english-dark-narrow', englishEditor.locator('[data-slot=accordion-trigger]').first());
+    const englishLanguage = englishEditor.getByTestId('knowledge-entry-language');
+    await englishLanguage.locator('[data-slot=accordion-trigger]').click();
+    await englishEditor.getByRole('combobox', { name: en.fields.source_language, exact: true }).click();
+    await page.getByRole('option', { name: en.languages.custom, exact: true }).click();
+    await englishEditor.getByRole('textbox', { name: en.languages.custom_tag, exact: true }).fill('it');
+    await capture('editor-accordion-language-english-dark-narrow', englishLanguage);
+    expect(await englishEditor.locator('[data-slot=scroll-area-viewport]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
+    await englishEditor.getByRole('button', { name: en.actions.close, exact: true }).click();
     await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('subtitle-translator-tour-done', '1'); });
     await page.reload();
     await page.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
