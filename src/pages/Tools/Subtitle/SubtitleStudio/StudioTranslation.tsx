@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Calculator, CheckCheck, ChevronDown, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, Calculator, CheckCheck, FileText, Files, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,23 +10,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
-import { ToolStatBar } from '../../_shared/ui/ToolStatBar';
 import useModelStore from '@/store/useModelStore';
 import { getStudioTranslationOverviewController } from '@/services/subtitle-studio/translation-overview-controller';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
-import { StudioIconButton } from './StudioControls';
+import { StudioFileName, StudioIconButton } from './StudioControls';
 import { StudioTranslationSettings } from './StudioTranslationSettings';
+import { StudioTranslationReview } from './StudioTranslationReview';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
-import { StudioBatchItems } from './StudioBatchItems';
-import { StudioDocumentRow } from './StudioDocumentList';
 import { STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, StudioOperationResult } from './StudioOperationResult';
 import { normalizeTranslationModel, translationConfigSchema, translationModelSchema, type TranslationConfig } from '@/subtitle-studio/translation-contract';
 import { STUDIO_BATCH_LIMIT, type TranslationBatchResult } from '@/subtitle-studio/batch-contract';
 import './StudioTranslation.css';
 import './StudioBatch.css';
-import { StudioKnowledgeTrial, StudioKnowledgeScope } from './StudioKnowledgeTrial';
-import { StudioKnowledgeBatch } from './StudioKnowledgeBatch';
+import { StudioKnowledgeScope } from './StudioKnowledgeTrial';
 import { StudioExecutionRecord, hasExecutionRecordEntry } from './StudioExecutionRecord';
 import { StudioAutomaticKnowledgeFailure } from './StudioAutomaticKnowledgeFailure';
 import type { AutomaticKnowledgeRecheckRequest } from './automatic-knowledge-recheck';
@@ -100,6 +97,8 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   };
   const [draft, setDraft] = useState<TranslationDraft>(() => page ? translationDraftMemory.read(page.summary.id, page.summary.revision) ?? defaultDraft() : defaultDraft());
   const [open, setOpen] = useState(false), [batchDocuments, setBatchDocuments] = useState<DocumentSummary[]>([]);
+  const [reviewOpen, setReviewOpen] = useState(false), [reviewPurpose, setReviewPurpose] = useState<'check' | 'trial'>('check');
+  const reviewTrigger = useRef<HTMLElement | null>(null);
   const [library, setLibrary] = useState<LibrarySnapshot | null>(null), [libraryLoading, setLibraryLoading] = useState(false);
   const [check, setCheck] = useState<TranslationCheck | null>(null), [trialResult, setTrialResult] = useState<KnowledgeTrialResult | null>(null);
   const [batchResult, setBatchResult] = useState<TranslationBatchResult | null>(null);
@@ -109,6 +108,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   const [recheckSession, setRecheckSession] = useState<AutomaticKnowledgeRecheckRequest>();
   const [modelApproved, setModelApproved] = useState(false);
   const mounted = useRef(true), operation = useRef(false), opened = useRef(false), revision = useRef(0), libraryReadEpoch = useRef(0);
+  const trialCancelled = useRef(false);
   const trigger = useRef<HTMLButtonElement>(null), handingOffToOverview = useRef(false);
   const session = useMemo(() => new TranslationSession(window.subtitleStudio), []);
   const documentOwner = useRef([page?.summary.id, page?.summary.revision] as const);
@@ -164,18 +164,18 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   };
   const close = () => {
     if (operation.current && activity === 'trial') {
-      revision.current++; libraryReadEpoch.current++; opened.current = false; setOpen(false); setCheck(null);
+      revision.current++; libraryReadEpoch.current++; opened.current = false; setOpen(false); setCheck(null); setReviewOpen(false);
       void session.cancelTrial();
       return;
     }
     if (operation.current) return;
-    invalidate(); libraryReadEpoch.current++; opened.current = false; setOpen(false); setQuickTermOpen(false);
+    invalidate(); libraryReadEpoch.current++; opened.current = false; setOpen(false); setQuickTermOpen(false); setReviewOpen(false);
     translationDraftMemory.remember(documentOwner.current[0], documentOwner.current[1], draft);
   };
   const begin = () => {
     if (operation.current) return;
     handingOffToOverview.current = false; opened.current = true; setOpen(true); setBatchDocuments(documents ? [...documents] : []);
-    setBatchResult(null); setError(null); setNotice(''); setCheck(null); setTrialResult(null);
+    setBatchResult(null); setError(null); setNotice(''); setCheck(null); setTrialResult(null); setReviewOpen(false);
     void refreshLibrary();
   };
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; opened.current = false; revision.current++; session.dispose(); }; }, [session]);
@@ -189,7 +189,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
     documentOwner.current = [page?.summary.id, page?.summary.revision];
     invalidate();
     if (previous[0] !== page?.summary.id) {
-      opened.current = false; setOpen(false); setRecheckSession(undefined);
+      opened.current = false; setOpen(false); setRecheckSession(undefined); setReviewOpen(false);
       setDraft(page ? translationDraftMemory.read(page.summary.id, page.summary.revision) ?? defaultDraft() : defaultDraft());
     } else {
       setDraft(value => reusableTranslationDraft(value));
@@ -209,21 +209,39 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
     setRecheckSession(recheckRequest); setModelApproved(false); begin();
   }, [recheckRequest, page?.summary.id, open]);
 
-  const execute = async (intent: 'check' | 'trial-check' | 'start' | 'trial', useCheckedPartial = false) => {
+  const cancelTrial = () => {
+    trialCancelled.current = true;
+    setCheck(null);
+    if (activity === 'check') { revision.current++; session.invalidate(); }
+    void session.cancelTrial();
+  };
+  const closeReview = () => {
+    setReviewOpen(false);
+    if (reviewPurpose === 'trial' && operation.current) cancelTrial();
+  };
+  const showReview = (purpose: 'check' | 'trial') => {
+    if (!reviewOpen) reviewTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setReviewPurpose(purpose); setReviewOpen(true);
+  };
+  const execute = async (intent: 'check' | 'trial-check' | 'start' | 'trial', useCheckedPlan = false) => {
     if (!canAct || operation.current || !config.success || !selected || (intent === 'trial' || intent === 'trial-check') && (!usingMaterials || batch)) return;
+    trialCancelled.current = false;
+    if (intent !== 'start') showReview(intent === 'check' ? 'check' : 'trial');
     const requestIdentity = identity, token = revision.current;
     const input: TranslationSessionInput = { documents: targets.map(item => ({ documentId: item.id, revision: item.revision })), batch, config: config.data,
       ...(usingMaterials ? { knowledge: { ...structuredClone(selection), instructions: draft.instructions }, generation: library!.generation } : {}), documentTopicIds: [...draft.documentTopicIds], cueIds: [...(draft.cueIds.length ? draft.cueIds : page?.cues.filter(cue => /\S/u.test(cue.source.plain)).slice(0, 20).map(cue => cue.id) ?? [])] };
     const isCurrent = () => mounted.current && opened.current && token === revision.current && currentIdentity.current === requestIdentity;
     operation.current = true; setActivity(intent === 'trial' ? 'trial' : 'check'); setError(null); setNotice(''); setTrialResult(null);
     try {
-      const checked = useCheckedPartial && currentCheck ? currentCheck : await session.check(input, intent === 'trial' || intent === 'trial-check');
+      const checked = useCheckedPlan && currentCheck ? currentCheck : await session.check(input, intent === 'trial' || intent === 'trial-check');
       if (!checked || !isCurrent()) return;
+      if (intent === 'trial' && trialCancelled.current) return;
       checkedIdentity.current = requestIdentity; setCheck(checked);
-      if (intent === 'check' || intent === 'trial-check' || !readyCount(checked)) return;
-      if (partialCheck(checked) && !useCheckedPartial) { setNotice(t('studio:materials.partial')); return; }
+      if (intent === 'check' || intent === 'trial-check') return;
+      if (!readyCount(checked)) { if (intent === 'start') showReview('check'); return; }
+      if (partialCheck(checked) && !useCheckedPlan) { setNotice(t('studio:materials.partial')); showReview('check'); return; }
       setActivity(intent === 'trial' ? 'trial' : 'start');
-      const result = await session.submit(checked, input, selected.apiKey, readLibrary, isCurrent);
+      const result = await session.submit(checked, input, selected.apiKey, readLibrary, () => isCurrent() && !(intent === 'trial' && trialCancelled.current));
       if (!result) return;
       if (result.kind === 'trial') { if (isCurrent()) { setTrialResult(result.value); setCheck(null); } return; }
       // An admitted task belongs to the overview even after a source update/unmount.
@@ -231,14 +249,15 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
       onStarted();
       translationDraftMemory.remember(input.batch ? undefined : input.documents[0].documentId, input.batch ? undefined : input.documents[0].revision, draft);
       if (mounted.current) {
-        setCheck(null);
+        setCheck(null); setReviewOpen(false);
         if (result.kind === 'batch') setBatchResult(result.value);
         else if (currentDocumentId.current === input.documents[0].documentId) { opened.current = false; setOpen(false); }
       }
     } catch (failure) {
-      if (mounted.current && token === revision.current) {
+      if (mounted.current && token === revision.current && !(intent === 'trial' && trialCancelled.current)) {
         const code = failure instanceof StudioError ? failure.code : 'translation_failed';
-        setCheck(null); setError(code); onError(code);
+        setCheck(null); setError(code);
+        if (intent === 'start' && !reviewOpen) onError(code);
         if (code === 'revision_conflict' && usingMaterials) {
           const updated = await readLibrary().catch(() => null);
           if (mounted.current && updated) { setNotice(t('knowledge:trial.materials_changed')); setLibrary(updated); setDraft(value => ({ ...value, selection: { ...value.selection, confirmations: [] } })); }
@@ -262,9 +281,6 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
     } catch (failure) { if (mounted.current) setError(failure instanceof StudioError ? failure.code : 'knowledge_check_failed'); }
     finally { operation.current = false; if (mounted.current) setActivity(null); }
   };
-  const plainCheck = currentCheck?.kind === 'plain' ? currentCheck.value : null;
-  const plainBatch = currentCheck?.kind === 'plain-batch' ? currentCheck.value : null;
-  const estimate = plainCheck ?? (plainBatch ? { estimatedInputTokens: plainBatch.totalEstimatedInputTokens, outputTokenReserve: plainBatch.totalOutputTokenReserve, batchCount: plainBatch.items.reduce((count, item) => count + (item.ok ? item.plan.batchCount : 0), 0) } : null);
   const partialReady = !!currentCheck && partialCheck(currentCheck) && readyCount(currentCheck) > 0;
   const triggerControl = <StudioIconButton ref={trigger} label={t(batch ? 'studio:batch.translation' : 'studio:translation.action')} disabled={busy || activeTask || (!batch && !page?.summary.capabilities.translate) || pending} onClick={begin}><Languages /></StudioIconButton>;
   const fixedLanguages = Object.keys(languageKeys);
@@ -280,12 +296,15 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
       if (openRequest) openRequest.restoreFocus(); else trigger.current?.focus({ preventScroll: true });
     }}>
       {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={close} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; close(); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
-        <ScrollableDialogHeader className="relative p-3 pr-12">
-          <div className="flex items-start justify-between gap-3 text-left">
-            <div className="min-w-0 space-y-1">
-              <DialogTitle className="flex items-center gap-2 text-base"><Languages className="size-4 shrink-0" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle>
-              <DialogDescription className="text-xs leading-5 [overflow-wrap:anywhere]">{batch ? t('studio:batch.document_count', { count: targets.length }) : page?.summary.origin.displayName}</DialogDescription>
-            </div>
+        <ScrollableDialogHeader className="studio-translation-compact-header">
+          <div data-testid="studio-translation-header">
+            <DialogTitle className="flex min-h-7 items-center gap-2 text-sm leading-6"><Languages className="size-4 shrink-0" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle>
+            <DialogDescription className="sr-only">{batch ? t('studio:batch.document_count', { count: targets.length }) : page?.summary.origin.displayName}</DialogDescription>
+          </div>
+        </ScrollableDialogHeader>
+        <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}><div className="studio-translation-form" data-testid="studio-translation-form">
+          <div className="studio-translation-context" data-testid="studio-translation-context">
+            <div className="studio-translation-source">{batch ? <><Files aria-hidden="true" /><span>{t('studio:batch.document_count', { count: targets.length })}</span></> : <><FileText aria-hidden="true" /><StudioFileName name={page?.summary.origin.displayName ?? ''} focusable /></>}</div>
             <StudioTranslationSettings previous={lastDraft}
               previousModel={profiles.find(profile => profile.id === lastDraft?.profileId)?.name || profiles.find(profile => profile.id === lastDraft?.profileId)?.modelKey || t('studio:translation.select_model')}
               previousLanguage={lastDraft?.language && lastDraft.language in languageKeys ? t(languageKeys[lastDraft.language as keyof typeof languageKeys]) : lastDraft?.language ?? ''}
@@ -294,8 +313,6 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
               onNameChange={setRecipeName} onSavingChange={setSavingRecipe} onSave={() => void saveRecipe()}
               onReuse={() => { if (lastDraft) { changeDraft(reusableTranslationDraft(lastDraft)); setNotice(t('studio:materials.reused')); } }} />
           </div>
-        </ScrollableDialogHeader>
-        <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}><div className="studio-translation-form" data-testid="studio-translation-form">
           {batch && <StudioSelectedDocuments documents={targets} />}
           <div className="studio-translation-fields">
             <ToolField label={t('studio:translation.model')} htmlFor={`${controlId}-model`}><Select value={selected?.id ?? ''} disabled={pending || !profiles.length} onValueChange={profileId => { patch({ profileId }); setModelApproved(true); }}><SelectTrigger id={`${controlId}-model`} data-testid="studio-translation-model" className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:translation.select_model')} /></SelectTrigger><SelectContent>{profiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.modelKey}</SelectItem>)}</SelectContent></Select></ToolField>
@@ -313,37 +330,30 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           {!needsConfiguration && !config.success && <p role="alert" className="studio-translation-error">{t('studio:translation.invalid_options')}</p>}
           {unavailable && batch && usingMaterials && targets.length > 20 && <p role="alert" className="studio-translation-error">{t('knowledge:batch.limit', { count: targets.length, max: 20 })}</p>}
           {notice && <p role="status" data-testid="studio-translation-notice" className="text-xs leading-5 text-muted-foreground">{notice}</p>}
-          {error && <p role="alert" className="studio-translation-error"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
-          {estimate && <section data-testid={plainBatch ? 'studio-batch-plan' : 'studio-translation-plan'} className="studio-translation-plan" aria-live="polite">
-            <ToolStatBar columns={3} className="studio-translation-estimate shadow-none" gridClassName="studio-translation-estimate-grid"
-              title={plainBatch ? t('studio:batch.ready_count', { count: plainBatch.items.filter(item => item.ok).length, total: plainBatch.items.length }) : t('studio:translation.estimate')}
-              icon={plainBatch ? plainBatch.items.some(item => !item.ok) ? <AlertCircle className="text-amber-600 dark:text-amber-400" /> : <CheckCheck className="text-emerald-600 dark:text-emerald-400" /> : <Calculator />}
-              items={[
-                { label: t('studio:translation.estimated_input'), value: estimate.estimatedInputTokens.toLocaleString(i18n.language) },
-                { label: t('studio:translation.batch_count'), value: estimate.batchCount.toLocaleString(i18n.language) },
-                { label: t('studio:translation.output_reserve'), value: estimate.outputTokenReserve.toLocaleString(i18n.language) },
-              ]} />
-            {plainBatch && <>
-              <p className="studio-batch-note">{t('studio:batch.translation_queue_note')}</p>
-              <details key={plainBatch.batchId} className="studio-translation-plan-details">
-                <summary>{t('studio:operation_result.details')}<ChevronDown aria-hidden="true" /></summary>
-                <StudioBatchItems>{plainBatch.items.map(item => <StudioDocumentRow key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'} name={item.displayName} status={item.ok ? t('studio:batch.ready') : t(errorKeys[item.error])} />)}</StudioBatchItems>
-              </details>
-            </>}
-          </section>}
-          <StudioKnowledgeTrial library={library} page={page} preview={currentCheck?.kind === 'trial' ? currentCheck.value : null} documentPreview={currentCheck?.kind === 'knowledge' ? currentCheck.value : null} result={trialResult} />
-          {currentCheck?.kind === 'knowledge-batch' && <StudioKnowledgeBatch preview={currentCheck.value} library={library} />}
+          {error && !reviewOpen && <p role="alert" className="studio-translation-error"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
+
         </div></ScrollableDialogContent>
         <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3">
           <Button data-testid="studio-translation-close" variant="ghost" size="sm" disabled={pending && activity !== 'trial'} onClick={close}>{t('studio:cancel')}</Button>
-          {activity === 'trial' ? <Button data-testid="studio-translation-cancel-trial" variant="outline" size="sm" onClick={() => void session.cancelTrial()}><LoaderCircle className="animate-spin" />{t('knowledge:trial.cancel')}</Button> : <>
-            <Button data-testid="studio-translation-check" variant="outline" size="sm" disabled={!canAct} onClick={() => void execute('check')}><Calculator />{t('studio:materials.check')}</Button>
-            {usingMaterials && !batch && <Button data-testid="studio-translation-trial" variant="outline" size="sm" disabled={!canAct} onClick={() => void execute('trial')}>{t('studio:materials.trial')}</Button>}
+          {activity === 'trial' ? <Button data-testid="studio-translation-cancel-trial" variant="outline" size="sm" onClick={cancelTrial}><LoaderCircle className="animate-spin" />{t('knowledge:trial.cancel')}</Button> : <>
+            <Button data-testid="studio-translation-check" variant="outline" size="sm" disabled={!canAct} onClick={() => void execute('check')}>{activity === 'check' ? <LoaderCircle className="animate-spin" /> : <Calculator />}{t('studio:materials.check')}</Button>
+            {usingMaterials && !batch && <Button data-testid="studio-translation-trial" variant="outline" size="sm" disabled={trialResult ? pending : !canAct} onClick={() => { if (trialResult) showReview('trial'); else void execute('trial'); }}>{t(trialResult ? 'studio:materials.review_trial_result' : 'studio:materials.trial')}</Button>}
             <Button data-testid="studio-translation-start" size="sm" disabled={!canAct} onClick={() => void execute('start', partialReady)}>{pending ? <LoaderCircle className="animate-spin" /> : <Play />}{partialReady ? t('studio:batch.start_ready', { count: readyCount(currentCheck!) }) : t('studio:translation.start')}</Button>
           </>}
         </ScrollableDialogFooter>
       </>}
     </ScrollableDialog>
+    <StudioTranslationReview open={open && reviewOpen && !batchResult} purpose={reviewPurpose} activity={activity} check={currentCheck} result={trialResult}
+      library={library} page={page} error={error} errorLabel={code => t(errorKeys[code])} notice={notice} canAct={canAct}
+      onClose={closeReview} onRestoreFocus={() => {
+        if (!opened.current || !mounted.current || batchResult) return;
+        const target = reviewTrigger.current;
+        if (target?.isConnected && !target.matches(':disabled')) target.focus({ preventScroll: true });
+        else document.querySelector<HTMLElement>('.studio-translation-dialog')?.focus({ preventScroll: true });
+      }}
+      onRetry={() => void execute(reviewPurpose === 'trial' ? 'trial-check' : 'check')}
+      onStart={() => void execute(currentCheck?.kind === 'trial' ? 'trial' : 'start', true)}
+      onRerunTrial={() => void execute('trial')} onCancelTrial={cancelTrial} />
     <QuickTermDialog open={quickTermOpen} onOpenChange={setQuickTermOpen} initialLanguagePair={selection.languagePair.source ? selection.languagePair : undefined} preferredCollectionId={selection.collectionIds.length === 1 ? selection.collectionIds[0] : undefined} onSaved={(snapshot, collectionId) => { invalidate(); setLibrary(snapshot); setAddedCollection(collectionId); }} />
   </>;
 }

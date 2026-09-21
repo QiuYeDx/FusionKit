@@ -115,10 +115,11 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       await page.getByTestId('studio-library-select-all').check(); await page.getByRole('button', { name: '批量翻译', exact: true }).click();
       const translation = page.getByRole('dialog').filter({ has: page.getByTestId('studio-translation-form') }); await uiExpect(translation).toBeVisible();
       await translation.getByTestId('studio-translation-check').click();
-      await uiExpect(translation.getByTestId('studio-batch-plan')).toBeVisible();
-      expect(await translation.locator('.studio-translation-plan-details').evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+      const review = page.getByRole('dialog').filter({ has: page.getByTestId('studio-translation-review-dialog') });
+      await uiExpect(review.getByTestId('studio-batch-plan')).toBeVisible();
+      expect(await review.locator('.studio-translation-plan-details').evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
       expect(requests).toBe(0);
-      await translation.getByTestId('studio-translation-start').click();
+      await review.getByTestId('studio-translation-review-start').click();
       const submitted = page.getByTestId('studio-batch-result'); await uiExpect(submitted).toBeVisible();
       await uiExpect(submitted.locator('[data-result-id]')).toHaveCount(0); await uiExpect(submitted).toHaveAttribute('data-operation', 'translation'); await uiExpect(submitted).toContainText('已提交');
       await page.screenshot({ path: path.join(root, '03-translation-submitted-summary.png'), animations: 'disabled' });

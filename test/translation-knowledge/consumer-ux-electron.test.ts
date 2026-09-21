@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -30,6 +30,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
   it('uses explicitly selected materials in Studio and keeps classic subtitle imports in the classic queue', async () => {
     root = await mkdtemp(path.join(tmpdir(), 'fusionkit-knowledge-consumer-ux-'));
     await mkdir(artifacts, { recursive: true });
+    const zh = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
     const requests: Array<{ raw: string; payload: TranslationPayload }> = [], errors: string[] = [];
     server = createServer(async (request, response) => {
       try {
@@ -208,7 +209,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
       await uiExpect(ui.locator('.studio-cue-table tbody tr')).toHaveCount(2);
       await openTranslation();
       await uiExpect(ui.getByTestId('studio-translation-knowledge-enabled')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('studio-materials')).toContainText('未使用资料');
+      await uiExpect(ui.getByTestId('studio-materials')).toContainText(zh.materials.none);
       await capture('redesign-translation-no-materials');
       // Direct Start includes local preparation and never adds saved materials.
       await ui.getByTestId('studio-translation-start').click();
@@ -232,8 +233,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
       expect(requests).toHaveLength(1);
       await nativeWindow.evaluate(win => win.setSize(820, 700));
       await capture('redesign-translation-selected-narrow', ui.getByTestId('knowledge-full-preview'));
-      await geometry(translate());
-      await ui.getByTestId('studio-translation-start').click();
+      await geometry(ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-review-dialog') }));
+      await ui.getByTestId('studio-translation-review-start').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 20000 });
       expect(requests).toHaveLength(2);

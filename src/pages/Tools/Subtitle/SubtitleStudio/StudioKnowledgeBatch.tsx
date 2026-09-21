@@ -9,7 +9,7 @@ import { KnowledgeIssues } from './StudioKnowledgeTrial';
 export function StudioKnowledgeBatch({ preview, library }: { preview: KnowledgeBatchTranslationPreview; library: LibrarySnapshot | null }) {
   const { t } = useTranslation();
   return <section data-testid="knowledge-batch-preview" className="min-w-0 space-y-3 border-t pt-3">
-    <ToolStatBar columns={3} title={t('knowledge:batch.ready_count', { count: preview.readyCount, total: preview.items.length })} className="studio-translation-estimate shadow-none" items={[
+    <ToolStatBar columns={3} title={t('knowledge:batch.ready_count', { count: preview.readyCount, total: preview.items.length })} className="studio-translation-estimate shadow-none" gridClassName="studio-translation-estimate-grid" items={[
       { label: t('studio:translation.estimated_input'), value: preview.totalEstimatedInputTokens },
       { label: t('studio:translation.output_reserve'), value: preview.totalOutputTokenReserve },
       { label: t('knowledge:full.entry_count'), value: preview.items.reduce((count, item) => count + (item.ok ? item.plan.includedEntryCount : 0), 0) },

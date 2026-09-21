@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { knowledgeFixture } from './fixtures';
@@ -31,6 +31,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
   it('translates beyond the trial window, retains exact knowledge after task cleanup, and protects referenced materials', async () => {
     root = await mkdtemp(path.join(tmpdir(), 'fusionkit-knowledge-formal-e2e-'));
     await mkdir(artifacts, { recursive: true });
+    const zh = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
     const requests: Array<{ body: ProviderBody; raw: string; payload: ProviderPayload }> = [], errors: string[] = [];
     server = createServer(async (request, response) => {
       let raw = ''; for await (const chunk of request) raw += chunk.toString();
@@ -124,7 +125,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await ui.getByRole('button', { name: '翻译', exact: true }).click();
       const dialog = dialogFor('studio-translation-form');
       await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText('未使用资料');
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
       await ui.getByTestId('studio-materials-choose').click();
       await ui.getByTestId('studio-materials-recipe').click();
       await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
@@ -169,9 +170,10 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await capture('form-full-light');
       await ui.getByTestId('studio-translation-check').click();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toContainText('24');
-      await uiExpect(ui.getByTestId('studio-translation-start')).toBeEnabled();
+      await uiExpect(ui.getByTestId('studio-translation-review-start')).toBeEnabled();
       expect(requests).toHaveLength(0);
       // Changing scope invalidates the prior preview; starting will perform a fresh check.
+      await ui.getByTestId('studio-translation-review-close').click();
       await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).uncheck();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toHaveCount(0);
       expect(requests).toHaveLength(0);
@@ -184,8 +186,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await ui.evaluate(() => { document.documentElement.classList.add('dark'); });
       await ui.getByTestId('knowledge-full-preview').scrollIntoViewIfNeeded();
       await capture('preview-full-dark-narrow');
-      await geometry(dialog);
-      await ui.getByTestId('studio-translation-start').click();
+      await geometry(dialogFor('studio-translation-review-dialog'));
+      await ui.getByTestId('studio-translation-review-start').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 20000 });
       await uiExpect(ui.locator('.studio-target-text').filter({ hasText: '正式译文：' })).toHaveCount(24);

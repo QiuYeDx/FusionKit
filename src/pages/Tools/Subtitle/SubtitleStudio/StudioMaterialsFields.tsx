@@ -87,8 +87,28 @@ export function StudioMaterialsFields({ value, library, disabled, loading, onCha
   const unavailableLibrary = !loading && (!library || library.maintenance?.cleanupPending);
 
   return <section data-testid="studio-materials" className="studio-materials-card">
-    <div className="studio-materials-heading">
-      <div className="studio-materials-title"><BookOpen aria-hidden="true" /><h3>{t('studio:materials.title')}</h3>{selected.size > 0 && <span className="studio-materials-count">{selected.size}</span>}</div>
+    <div data-testid="studio-materials-heading" className="studio-materials-heading">
+      <div className="studio-materials-heading-content">
+        <div className="studio-materials-title"><BookOpen aria-hidden="true" /><h3 data-testid="studio-materials-heading-title">{t('studio:materials.title')}</h3>{selected.size > 0 && <span className="studio-materials-count">{selected.size}</span>}</div>
+        <div data-testid="studio-materials-summary" className="studio-materials-summary">
+          {!active && <p className="studio-materials-empty-summary">{t('studio:materials.none')}<span>{t('materials:selection.empty_hint')}</span></p>}
+          {value.recipeId && <span className="studio-materials-chip" data-invalid={!recipe || recipe.archived}>
+            <Layers3 className="size-3.5" aria-hidden="true" /><span className="studio-materials-chip-name"><span className="studio-materials-chip-prefix">{t('materials:selection.preset')}</span>{recipe?.name ?? t('knowledge:automatic.removed_item')}{(!recipe || recipe.archived) && <span className="studio-materials-chip-state">{t('materials:selection.unavailable')}</span>}</span>
+            <Button type="button" variant="ghost" size="icon-xs" aria-label={t('studio:materials.remove', { name: recipe?.name ?? t('knowledge:automatic.removed_item') })} disabled={disabled} onClick={() => onChange(detachRecipe())}><X /></Button>
+          </span>}
+          {[...selected].map(id => {
+            const collection = library?.data.collections.find(item => item.id === id);
+            const name = collection?.name ?? t('knowledge:automatic.removed_item');
+            const inherited = !!recipe?.readCollectionIds.includes(id);
+            const unavailable = !collection || collection.archived;
+            return <span key={id} className="studio-materials-chip" data-invalid={unavailable}>
+              {inherited && <LockKeyhole className="size-3" aria-label={t('materials:selection.from_preset')} />}
+              <span className="studio-materials-chip-name">{name}{unavailable && <span className="studio-materials-chip-state">{t('materials:selection.unavailable')}</span>}</span>
+              {(!inherited || unavailable) && <Button type="button" size="icon-xs" variant="ghost" disabled={disabled} aria-label={t('studio:materials.remove', { name })} onClick={() => removeCollection(id)}><X /></Button>}
+            </span>;
+          })}
+        </div>
+      </div>
       <div className="studio-materials-heading-actions">
         {active && <Button data-testid="studio-materials-clear" type="button" variant="ghost" size="xs" disabled={disabled} onClick={() => onChange({ ...emptySelection(value.languagePair.target), languagePair: value.languagePair, ...(value.instructions !== undefined ? { instructions: value.instructions } : {}) })}>{t('studio:materials.clear')}</Button>}
         <Popover open={choosing} onOpenChange={next => { if (!disabled || !next) setChoosing(next); }} modal={false}>
@@ -129,24 +149,6 @@ export function StudioMaterialsFields({ value, library, disabled, loading, onCha
           </PopoverContent>
         </Popover>
       </div>
-    </div>
-    <div data-testid="studio-materials-summary" className="studio-materials-summary">
-      {!active && <p className="studio-materials-empty-summary">{t('studio:materials.none')}<span>{t('materials:selection.empty_hint')}</span></p>}
-      {value.recipeId && <span className="studio-materials-chip" data-invalid={!recipe || recipe.archived}>
-        <Layers3 className="size-3.5" aria-hidden="true" /><span className="studio-materials-chip-name"><span className="studio-materials-chip-prefix">{t('materials:selection.preset')}</span>{recipe?.name ?? t('knowledge:automatic.removed_item')}{(!recipe || recipe.archived) && <span className="studio-materials-chip-state">{t('materials:selection.unavailable')}</span>}</span>
-        <Button type="button" variant="ghost" size="icon-xs" aria-label={t('studio:materials.remove', { name: recipe?.name ?? t('knowledge:automatic.removed_item') })} disabled={disabled} onClick={() => onChange(detachRecipe())}><X /></Button>
-      </span>}
-      {[...selected].map(id => {
-        const collection = library?.data.collections.find(item => item.id === id);
-        const name = collection?.name ?? t('knowledge:automatic.removed_item');
-        const inherited = !!recipe?.readCollectionIds.includes(id);
-        const unavailable = !collection || collection.archived;
-        return <span key={id} className="studio-materials-chip" data-invalid={unavailable}>
-          {inherited && <LockKeyhole className="size-3" aria-label={t('materials:selection.from_preset')} />}
-          <span className="studio-materials-chip-name">{name}{unavailable && <span className="studio-materials-chip-state">{t('materials:selection.unavailable')}</span>}</span>
-          {(!inherited || unavailable) && <Button type="button" size="icon-xs" variant="ghost" disabled={disabled} aria-label={t('studio:materials.remove', { name })} onClick={() => removeCollection(id)}><X /></Button>}
-        </span>;
-      })}
     </div>
     {loading && !choosing && <p role="status" className="studio-materials-loading"><RefreshCw className="size-3 animate-spin" aria-hidden="true" />{t('knowledge:loading')}</p>}
     {active && <div className="studio-materials-configuration">

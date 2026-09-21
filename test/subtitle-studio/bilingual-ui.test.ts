@@ -99,8 +99,15 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     await app.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, download);
     await page.getByRole('button', { name: '下载', exact: true }).click();
     await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
-    await uiExpect(page.getByRole('status').filter({ hasText: '已下载' })).toBeVisible();
+    await dialog.getByRole('combobox', { name: '保存位置', exact: true }).click();
+    await page.getByRole('option', { name: '选择其他位置', exact: true }).click();
+    await dialog.getByRole('button', { name: '保存原始文件…', exact: true }).click();
+    const sourceReceipt = page.getByTestId('studio-export-result');
+    await uiExpect(sourceReceipt).toHaveAttribute('data-operation', 'source');
+    await uiExpect(sourceReceipt).toHaveAttribute('data-outcome', 'success');
+    await uiExpect(sourceReceipt.locator('[data-result-id][data-state="success"]')).toContainText(path.basename(download));
     expect(await readFile(download, 'utf8')).toBe(source);
+    await sourceReceipt.getByRole('button', { name: '完成', exact: true }).click();
     await page.getByRole('button', { name: '清除译文', exact: true }).click();
     await uiExpect(dialog).toBeVisible();
     await page.screenshot({ path: path.join(artifacts, 'clear-track.png'), animations: 'disabled' });
@@ -108,9 +115,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     await uiExpect(page.locator('.studio-target-text')).toHaveCount(0);
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(6);
     await page.getByRole('button', { name: '翻译', exact: true }).click();
-    await dialog.getByRole('button', { name: '计算用量', exact: true }).click();
+    await page.getByTestId('studio-translation-check').click();
     await uiExpect(page.locator('.studio-translation-plan')).toBeVisible();
-    await dialog.getByRole('button', { name: '开始翻译', exact: true }).click();
+    await page.getByTestId('studio-translation-review-start').click();
     await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed');
     expect(requests).toHaveLength(1);
     expect(JSON.stringify(requests)).not.toContain('旧译文');

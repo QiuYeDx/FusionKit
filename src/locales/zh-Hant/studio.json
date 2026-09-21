@@ -668,7 +668,7 @@
     "title": "本次使用的資料",
     "choose": "選擇資料",
     "clear": "清空",
-    "none": "未使用資料。只有你選中的資料才會參與本次翻譯。",
+    "none": "未選擇資料。",
     "remove": "移除 {{name}}",
     "search": "搜尋資料集",
     "recipe": "沿用已儲存設定",
@@ -701,6 +701,16 @@
     "reuse_materials": "翻譯資料",
     "reuse_without_materials": "不使用資料",
     "no_recent_settings": "本次工作階段尚無可沿用的設定。關閉或開始一次翻譯後，即可在此重用。",
-    "save_requires_materials": "選擇資料並確認原文語言後，可將資料與要求儲存為翻譯方案。"
+    "save_requires_materials": "選擇資料並確認原文語言後，可將資料與要求儲存為翻譯方案。",
+    "review_description": "查看目前設定的檢查結果、預估用量及需要處理的問題。",
+    "review_back": "返回設定",
+    "review_checking": "正在檢查字幕與翻譯設定…",
+    "review_checking_help": "檢查不會開始翻譯，也不會產生模型用量。",
+    "review_trial_running": "正在試譯所選片段…",
+    "review_starting": "正在建立翻譯任務…",
+    "review_retry": "重新檢查",
+    "review_stale": "設定或原文已變更，請重新檢查。",
+    "review_trial_result": "檢視試譯結果",
+    "review_rerun_trial": "重新試譯"
   }
 }

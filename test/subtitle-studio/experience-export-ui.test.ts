@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
+import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from 'playwright/test';
 
 async function ready(page: Page) {
   await page.getByTestId('subtitle-studio').waitFor();
@@ -60,9 +60,13 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
         location.hash = '/tools/subtitle/studio';
       }, port);
       await page.reload(); await ready(page); const win = await app.browserWindow(page); await win.evaluate(window => window.setSize(1280, 860));
-      const capture = async (name: string) => {
-        await page!.waitForFunction(() => !document.getAnimations().some(animation => animation.playState === 'running'));
-        const data = await page!.getByRole('dialog').evaluate(dialog => {
+      const capture = async (name: string, target: Locator = page!.getByRole('dialog')) => {
+        await uiExpect(target).toBeVisible();
+        // Background tool activity can contain perpetual indicators; only the
+        // inspected surface's finite layout transitions must settle for capture.
+        await uiExpect.poll(() => target.evaluate(dialog => dialog.getAnimations({ subtree: true })
+          .filter(animation => animation.playState === 'running' && animation.effect?.getTiming().iterations !== Infinity).length)).toBe(0);
+        const data = await target.evaluate(dialog => {
           const box = dialog.getBoundingClientRect(); const footer = dialog.querySelector('[data-slot="scrollable-dialog-footer"]')?.getBoundingClientRect();
           return { dialogLabel: dialog.getAttribute('aria-labelledby'), x: box.x, right: box.right, bottom: box.bottom, width: innerWidth, height: innerHeight, overflow: dialog.scrollWidth - dialog.clientWidth, footerBottom: footer?.bottom };
         });
@@ -157,9 +161,13 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await page.getByRole('dialog').getByTestId('studio-selected-documents').locator('summary').click();
       await uiExpect(page.getByRole('dialog').locator('.studio-document-row')).toHaveCount(8);
       await capture('10-translation-scope-shared-rows-dark');
-      await page.getByRole('dialog').getByRole('button', { name: '计算用量', exact: true }).click();
-      await uiExpect(page.getByRole('dialog').getByTestId('studio-batch-plan').locator('.studio-document-row')).toHaveCount(8);
-      await capture('11-translation-plan-shared-rows-dark');
+      await page.getByTestId('studio-translation-check').click();
+      const translationReview = page.getByRole('dialog').filter({ has: page.getByTestId('studio-translation-review-dialog') });
+      await uiExpect(translationReview.getByTestId('studio-batch-plan')).toBeVisible();
+      await translationReview.locator('.studio-translation-plan-details > summary').click();
+      await uiExpect(translationReview.getByTestId('studio-batch-plan').locator('.studio-document-row')).toHaveCount(8);
+      await capture('11-translation-plan-shared-rows-dark', translationReview);
+      await page.getByTestId('studio-translation-review-close').click();
       await page.getByRole('dialog').getByRole('button', { name: '取消', exact: true }).click();
       expect(requests).toHaveLength(3); expect(errors).toEqual([]);
       for (const file of files) expect(digest(await readFile(file))).toBe(digest(source));

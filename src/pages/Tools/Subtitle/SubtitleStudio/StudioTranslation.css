@@ -1,4 +1,19 @@
 .studio-translation-dialog { min-width: 0; }
+.studio-translation-compact-header { padding: 12px 52px 12px 12px; text-align: left; }
+.studio-translation-dialog > [data-slot="dialog-close"],
+.studio-translation-review-dialog > [data-slot="dialog-close"] { top: 12px; right: 12px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; }
+.studio-translation-context { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; }
+.studio-translation-source { display: flex; min-width: 0; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
+.studio-translation-source > svg { width: 14px; height: 14px; flex-shrink: 0; }
+.studio-translation-source .studio-file-name { min-width: 0; }
+.studio-translation-review-dialog { min-width: 0; }
+.studio-translation-review-body { display: flex; min-width: 0; flex-direction: column; gap: 12px; }
+.studio-translation-review-body > section { margin: 0; border-top: 0; padding: 0; }
+.studio-translation-review-loading { display: flex; min-height: 132px; align-items: center; justify-content: center; flex-direction: column; gap: 8px; padding: 12px; text-align: center; font-size: 13px; line-height: 20px; }
+.studio-translation-review-loading > span { color: var(--muted-foreground); font-size: 12px; }
+.studio-translation-review-error { display: flex; align-items: flex-start; gap: 8px; padding: 12px; border: 1px solid color-mix(in srgb, var(--destructive) 20%, var(--border)); border-radius: 8px; background: color-mix(in srgb, var(--destructive) 4%, var(--background)); color: var(--destructive); font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
+.studio-translation-review-error > svg { margin-top: 2px; }
+.studio-translation-review-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px; }
 .studio-translation-content { min-height: 0; }
 .studio-translation-content [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
 .studio-translation-content [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }

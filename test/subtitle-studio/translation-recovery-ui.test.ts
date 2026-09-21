@@ -101,9 +101,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
       await page.getByRole('button', { name: '翻译', exact: true }).click();
       await page.getByTestId('studio-translation-advanced').click();
       await page.getByRole('spinbutton', { name: '每批字幕上限', exact: true }).fill('2');
-      await page.getByRole('button', { name: '计算用量', exact: true }).click();
+      await page.getByTestId('studio-translation-check').click();
       await uiExpect(page.locator('.studio-translation-plan')).toBeVisible();
-      await page.getByRole('button', { name: '开始翻译', exact: true }).click();
+      await page.getByTestId('studio-translation-review-start').click();
     };
     const reload = async (page: Page) => { await page.reload(); await openStudio(page); };
     const recoveryDialog = (page: Page) => page.getByRole('dialog', { name: '继续翻译', exact: true });

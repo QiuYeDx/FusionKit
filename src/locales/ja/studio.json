@@ -668,7 +668,7 @@
     "title": "今回使用する資料",
     "choose": "資料を選択",
     "clear": "クリア",
-    "none": "資料は未選択です。今回選択した資料だけが翻訳に使用されます。",
+    "none": "資料は未選択です。",
     "remove": "{{name}} を削除",
     "search": "資料集を検索",
     "recipe": "保存済み設定を使用",
@@ -701,6 +701,16 @@
     "reuse_materials": "翻訳資料",
     "reuse_without_materials": "資料を使用しない",
     "no_recent_settings": "このセッションにはまだ再利用できる設定がありません。翻訳を開始するか設定画面を閉じると、ここで再利用できます。",
-    "save_requires_materials": "資料と原文言語を選択すると、資料と要件を翻訳プリセットとして保存できます。"
+    "save_requires_materials": "資料と原文言語を選択すると、資料と要件を翻訳プリセットとして保存できます。",
+    "review_description": "現在の設定のチェック結果、推定使用量、対応が必要な問題を確認します。",
+    "review_back": "設定に戻る",
+    "review_checking": "字幕と翻訳設定を確認中…",
+    "review_checking_help": "この確認では翻訳を開始せず、モデルのトークンも消費しません。",
+    "review_trial_running": "選択した字幕を試訳中…",
+    "review_starting": "翻訳タスクを作成中…",
+    "review_retry": "再確認",
+    "review_stale": "設定または原文が変更されました。もう一度確認してください。",
+    "review_trial_result": "試訳結果を見る",
+    "review_rerun_trial": "再試訳"
   }
 }

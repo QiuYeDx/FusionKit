@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { knowledgeFixture } from './fixtures';
@@ -25,6 +25,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
   it('checks explicit scopes, sends frozen guidance, shows trial results, and leaves official tracks untouched', async () => {
     root = await mkdtemp(path.join(tmpdir(), 'fusionkit-knowledge-trial-e2e-'));
     await mkdir(artifacts, { recursive: true });
+    const zh = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
     const requests: any[] = [], errors: string[] = [];
     let mode: 'success' | 'malformed' | 'hold' = 'success';
     server = createServer(async (request, response) => {
@@ -99,6 +100,10 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
         await ui.getByTestId('studio-materials-done').click();
       };
       const checkTrial = async () => {
+        if (await ui.getByTestId('studio-translation-review-dialog').count()) {
+          await ui.getByTestId('studio-translation-review-close').click();
+          await uiExpect(ui.getByTestId('studio-translation-review-dialog')).toHaveCount(0);
+        }
         const scopes = ui.getByTestId('knowledge-trial-scopes');
         const trigger = scopes.locator('[data-slot=accordion-trigger]').first();
         if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
@@ -111,6 +116,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       await checkTrial();
       await uiExpect(ui.getByTestId('knowledge-trial-preview')).toContainText('必要主题或人物角色尚未确认');
       expect(requests).toHaveLength(0);
+      await ui.getByTestId('studio-translation-review-close').click();
       const scopes = ui.getByTestId('knowledge-trial-scopes');
       for (const cue of sourceCues) {
         await ui.getByTestId(`studio-materials-role-${cue.id}-topic`).click();
@@ -121,15 +127,83 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       await ui.getByTestId(`studio-materials-role-${sourceCues[1].id}-mentioned`).click();
       await ui.getByRole('option', { name: '米拉（虚构人物）', exact: true }).click();
       await ui.getByTestId(`studio-materials-confirm-${sourceCues[0].id}-${term.id}`).check();
-      await checkTrial();
+      // Hold only the reply from the real trial planner. Closing its loading
+      // dialog cancels the trial intent before an eventual plan can submit.
+      await app.evaluate(({ ipcMain }) => {
+        type Handler = (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown | Promise<unknown>;
+        const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, Handler> })._invokeHandlers;
+        const channel = 'subtitle-studio:plan-knowledge-trial', original = handlers.get(channel);
+        if (!original) throw new Error('Missing production trial planner');
+        let release: () => void = () => {};
+        const pending = new Promise<void>(resolve => { release = resolve; });
+        const state = { ready: false, release, restore: () => handlers.set(channel, original) };
+        handlers.set(channel, async (event, input) => {
+          const result = await original(event, input);
+          state.ready = true;
+          await pending;
+          return result;
+        });
+        (globalThis as typeof globalThis & { __trialReviewGate?: typeof state }).__trialReviewGate = state;
+      });
+      await ui.getByTestId('studio-translation-trial').click();
+      await uiExpect(ui.getByTestId('studio-translation-review-loading')).toBeVisible();
+      await uiExpect.poll(() => app!.evaluate(() => (globalThis as typeof globalThis & { __trialReviewGate?: { ready: boolean } }).__trialReviewGate!.ready)).toBe(true);
+      await ui.keyboard.press('Escape');
+      await uiExpect(ui.getByTestId('studio-translation-review-dialog')).toHaveCount(0);
+      await uiExpect(dialog).toBeVisible();
+      await app.evaluate(() => {
+        const state = (globalThis as typeof globalThis & { __trialReviewGate?: { release: () => void; restore: () => void } }).__trialReviewGate!;
+        state.restore(); state.release();
+      });
       await uiExpect(ui.getByTestId('studio-translation-trial')).toBeEnabled();
+      await uiExpect(ui.getByTestId('studio-translation-review-dialog')).toHaveCount(0);
+      expect(requests).toHaveLength(0);
+      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue('Keep the dialogue concise.');
+      // Controlled cancellation failure: some native planner cancellations end
+      // with access_denied. This reply is synthetic; the surrounding preload,
+      // renderer intent handling, and subsequent successful planning are real.
+      await app.evaluate(({ ipcMain }) => {
+        type Handler = (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown | Promise<unknown>;
+        const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, Handler> })._invokeHandlers;
+        const channel = 'subtitle-studio:plan-knowledge-trial', original = handlers.get(channel);
+        if (!original) throw new Error('Missing production trial planner');
+        let release: () => void = () => {};
+        const pending = new Promise<void>(resolve => { release = resolve; });
+        const state = { waiting: false, release, restore: () => handlers.set(channel, original) };
+        handlers.set(channel, async () => {
+          state.waiting = true;
+          await pending;
+          return { ok: false, error: 'access_denied' };
+        });
+        (globalThis as typeof globalThis & { __trialCancelledFailureGate?: typeof state }).__trialCancelledFailureGate = state;
+      });
+      await ui.getByTestId('studio-translation-trial').click();
+      await uiExpect(ui.getByTestId('studio-translation-review-loading')).toBeVisible();
+      await uiExpect.poll(() => app!.evaluate(() => (globalThis as typeof globalThis & { __trialCancelledFailureGate?: { waiting: boolean } }).__trialCancelledFailureGate!.waiting)).toBe(true);
+      await ui.getByTestId('studio-translation-review-close').click();
+      await uiExpect(ui.getByTestId('studio-translation-review-dialog')).toHaveCount(0);
+      await app.evaluate(() => {
+        const state = (globalThis as typeof globalThis & { __trialCancelledFailureGate?: { release: () => void; restore: () => void } }).__trialCancelledFailureGate!;
+        state.restore(); state.release();
+      });
+      await uiExpect(ui.getByTestId('studio-translation-trial')).toBeEnabled();
+      await uiExpect(dialog).toBeVisible();
+      await uiExpect(ui.getByTestId('studio-translation-review-dialog')).toHaveCount(0);
+      await uiExpect(ui.getByText(zh.errors.access_denied, { exact: true })).toHaveCount(0);
+      await uiExpect(dialog.locator('.studio-translation-error')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue('Keep the dialogue concise.');
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(fixture.recipes[0].name);
+      await uiExpect(ui.getByTestId(`studio-materials-confirm-${sourceCues[0].id}-${term.id}`)).toBeChecked();
+      expect(requests).toHaveLength(0);
+      await checkTrial();
+      await uiExpect(ui.getByTestId('studio-translation-review-start')).toBeEnabled();
       const excluded = ui.getByTestId('knowledge-trial-preview').locator('[data-issue-code=condition_unconfirmed]');
       await ui.getByTestId('knowledge-trial-preview').getByTestId('studio-materials-issues-excluded').locator('[data-slot=accordion-trigger]').first().click();
       await excluded.locator('[data-slot=accordion-trigger]').first().click();
       await uiExpect(excluded).toContainText('2. She mentioned Mira.');
       await ui.getByTestId('knowledge-trial-preview').scrollIntoViewIfNeeded();
       await ui.screenshot({ path: path.join(artifacts, 'preview-light.png'), animations: 'disabled' });
-      await ui.getByTestId('studio-translation-trial').click();
+      await ui.getByTestId('studio-translation-review-start').click();
       await uiExpect(ui.getByTestId('knowledge-trial-result')).toContainText('我们到存档点了。');
       await uiExpect(ui.getByTestId('knowledge-trial-result')).toContainText('实际请求 1 次 · 输入 120 · 输出 40');
       expect(requests).toHaveLength(1);
@@ -144,20 +218,29 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       await nativeWindow.evaluate(win => win.setSize(820, 700));
       await ui.evaluate(() => { document.documentElement.classList.add('dark'); });
       await ui.screenshot({ path: path.join(artifacts, 'result-dark-narrow.png'), animations: 'disabled' });
-      expect(await dialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
-      expect(await dialog.evaluate(element => element.getBoundingClientRect().bottom <= window.innerHeight)).toBe(true);
-      mode = 'malformed';
-      await checkTrial();
+      const reviewDialog = ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-review-dialog') });
+      expect(await reviewDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
+      expect(await reviewDialog.evaluate(element => element.getBoundingClientRect().bottom <= window.innerHeight)).toBe(true);
+      // Opening the existing result is read-only. A new provider request needs
+      // the separate, explicit rerun action inside the result dialog.
+      await ui.getByTestId('studio-translation-review-close').click();
+      await uiExpect(ui.getByTestId('studio-translation-review-dialog')).toHaveCount(0);
       await ui.getByTestId('studio-translation-trial').click();
+      await uiExpect(ui.getByTestId('knowledge-trial-result')).toContainText('我们到存档点了。');
+      await uiExpect(ui.getByTestId('studio-translation-review-rerun-trial')).toBeVisible();
+      expect(requests).toHaveLength(1);
+      mode = 'malformed';
+      await ui.getByTestId('studio-translation-review-rerun-trial').click();
       await uiExpect(ui.getByTestId('knowledge-trial-result')).toContainText('试译未全部完成');
       await uiExpect(ui.getByTestId('knowledge-trial-result')).not.toContainText('我们到存档点了。');
       mode = 'hold';
       await checkTrial();
-      await ui.getByTestId('studio-translation-trial').click();
+      await ui.getByTestId('studio-translation-review-start').click();
       await uiExpect.poll(() => requests.length).toBe(3);
-      await ui.getByTestId('studio-translation-cancel-trial').click();
+      await ui.getByTestId('studio-translation-review-cancel-trial').click();
       await uiExpect(ui.getByTestId('knowledge-trial-result')).toContainText('试译未全部完成');
       release?.(); mode = 'success';
+      await ui.getByTestId('studio-translation-review-close').click();
       await ui.getByTestId('studio-translation-close').click();
       await uiExpect(ui.getByTestId('studio-translation-form')).toHaveCount(0);
       await openMaterialsTrial();
@@ -182,6 +265,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
         if (!review.ok) throw new Error(review.error);
       });
       await checkTrial();
+      await uiExpect(ui.getByTestId('studio-translation-review-error')).toBeVisible();
+      await ui.getByTestId('studio-translation-review-close').click();
       await uiExpect(dialog).toContainText('资料已更新，旧的适用条件确认已清除');
       await uiExpect(ui.getByTestId('knowledge-trial-preview')).toHaveCount(0);
       await uiExpect(ui.getByTestId(`studio-materials-confirm-${sourceCues[0].id}-${term.id}`)).not.toBeChecked();
@@ -189,8 +274,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('knowledge trial thr
       await checkTrial();
       await uiExpect(ui.getByTestId('knowledge-trial-preview')).toBeVisible();
       mode = 'hold';
-      await ui.getByTestId('studio-translation-trial').click();
+      await ui.getByTestId('studio-translation-review-start').click();
       await uiExpect.poll(() => requests.length).toBe(4);
+      await ui.getByTestId('studio-translation-review-close').click();
       await ui.getByTestId('studio-translation-close').click();
       await uiExpect(ui.getByTestId('studio-translation-form')).toHaveCount(0);
       release?.(); mode = 'success';

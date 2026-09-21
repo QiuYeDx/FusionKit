@@ -380,11 +380,11 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     expect(requests).toHaveLength(0);
     await page.getByTestId('studio-batch-toolbar').getByRole('button', { name: label('batch.translation'), exact: true }).click();
     const translation = page.getByRole('dialog', { name: label('batch.translation'), exact: true });
-    await translation.getByRole('button', { name: '计算用量', exact: true }).click();
-    await uiExpect(translation.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
+    await translation.getByTestId('studio-translation-check').click();
+    await uiExpect(page.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
     expect(requests).toHaveLength(0);
     await capture(page, 'batch-translation-plan-desktop');
-    await translation.getByRole('button', { name: label('batch.start_ready').replace('{{count}}', '2'), exact: true }).click();
+    await page.getByTestId('studio-translation-review-start').click();
     await expandOperationResult(page, 'studio-batch-result');
     await uiExpect(page.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
     await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
@@ -408,7 +408,9 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
       return { width: style.width, height: style.height, border: style.borderWidth, shadow: style.boxShadow,
         visibleText: button.textContent?.trim(), label: button.getAttribute('aria-label') };
     }));
-    expect(actionStyles).toHaveLength(3);
+    expect(actionStyles.map(style => style.label)).toEqual([
+      label('translation.action'), label('batch.download_single'), label('source_folder'), label('delete_document'),
+    ]);
     expect(new Set(actionStyles.map(({ width, height, border, shadow }) => JSON.stringify({ width, height, border, shadow }))).size).toBe(1);
     expect(actionStyles.every(style => style.visibleText === '' && !!style.label)).toBe(true);
     await previewHeader.screenshot({ path: path.join(artifacts, 'preview-actions-desktop.png'), animations: 'disabled' });
@@ -503,9 +505,9 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
       const dialog = page.getByRole('dialog', { name: label('batch.translation'), exact: true });
       await dialog.getByTestId('studio-translation-advanced').click();
       await dialog.getByRole('spinbutton', { name: '每批字幕上限', exact: true }).fill('1');
-      await dialog.getByRole('button', { name: '计算用量', exact: true }).click();
-      await uiExpect(dialog.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
-      await dialog.getByRole('button', { name: label('batch.start_ready').replace('{{count}}', '2'), exact: true }).click();
+      await dialog.getByTestId('studio-translation-check').click();
+      await uiExpect(page.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
+      await page.getByTestId('studio-translation-review-start').click();
       await expandOperationResult(page, 'studio-batch-result');
       await uiExpect(page.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);
       await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();

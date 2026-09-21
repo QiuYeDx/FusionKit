@@ -66,7 +66,7 @@ export function StudioKnowledgeTrial({ preview, documentPreview, result, library
   const cues = preview?.cues.map((cue, index) => ({ ...cue, number: (page?.cues.findIndex(item => item.id === cue.id) ?? -1) >= 0 ? page!.offset + page!.cues.findIndex(item => item.id === cue.id) + 1 : index + 1 })) ?? page?.cues.map((cue, index) => ({ id: cue.id, number: page.offset + index + 1, text: cue.source.plain })) ?? [];
   return <>
     {checked && <section data-testid={preview ? 'knowledge-trial-preview' : 'knowledge-full-preview'} className="min-w-0 space-y-3 border-t pt-3">
-      <ToolStatBar columns={3} title={t(checked.canRun ? 'knowledge:full.ready' : 'knowledge:full.needs_attention')} className="studio-translation-estimate shadow-none" items={[
+      <ToolStatBar columns={3} title={t(checked.canRun ? 'knowledge:full.ready' : 'knowledge:full.needs_attention')} className="studio-translation-estimate shadow-none" gridClassName="studio-translation-estimate-grid" items={[
         { label: t('knowledge:full.cue_count'), value: checked.cueCount },
         { label: t('studio:translation.estimated_input'), value: checked.estimatedInputTokens },
         { label: t('knowledge:full.entry_count'), value: documentPreview?.includedEntryCount ?? new Set(preview?.batches.flatMap(batch => batch.knowledge.items.map(item => item.entryId))).size },

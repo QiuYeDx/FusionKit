@@ -189,7 +189,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await uiExpect.poll(async () => (await documents()).find(item => item.id === runningDocument.id)?.task?.status).toBe('cancelled'); actions.push({ cancelledTaskId: admittedTask, oneNoTaskDocumentSkipped: true });
       await nativeWindow.evaluate(win => win.setSize(1281, 860));
       await choose([names[1], names[3]]); await page!.getByRole('button', { name: text('batch.translation'), exact: true }).click();
-      await page!.getByRole('button', { name: text('translation.prepare'), exact: true }).click();
+      await page!.getByTestId('studio-translation-check').click();
       const planDetails = page!.locator('.studio-translation-plan-details');
       await planDetails.locator('summary').click();
       const padding = await planDetails.evaluate(element => {
@@ -199,7 +199,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       });
       expect(padding).toEqual([8, 12, 12, 8]);
       await page!.screenshot({ path: path.join(root, 'i8-plan-details-padding-dark.png'), animations: 'disabled' });
-      await page!.getByRole('button', { name: text('batch.start_ready', 'zh', { count: 2 }), exact: true }).click();
+      await page!.getByTestId('studio-translation-review-start').click();
       await assertResult('translation', 'success', 2, 'studio-batch-result');
       await uiExpect(result('studio-batch-result').getByRole('heading')).toContainText('已提交');
       const snapshot = await page!.evaluate(async () => { const list = await window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100 }); if (!list.ok) throw new Error(list.error); return list.value; });

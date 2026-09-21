@@ -261,12 +261,13 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       await uiExpect(repairDialog.getByTestId('studio-materials-context')).toHaveValue(savedContext);
       await repairDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
       await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-form-light.png'), animations: 'disabled' });
-      // Starting performs a local check in this panel and leaves a real conflict
-      // here without issuing a model request or falling back to plain translation.
+      // Starting exposes a real conflict in the review dialog without issuing
+      // a model request or falling back to plain translation.
       await page.getByTestId('studio-translation-start').click();
       await uiExpect(page.getByTestId('knowledge-full-preview')).toBeVisible();
       await uiExpect(page.getByTestId('knowledge-full-preview').locator('[data-issue-code="term_conflict"]')).toBeVisible();
       expect(requests).toHaveLength(1); expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
+      await page.getByTestId('studio-translation-review-close').click();
       const exclusions = repairDialog.getByTestId('studio-materials-exclusions');
       await exclusions.locator('[data-slot=accordion-trigger]').first().click();
       await repairDialog.getByTestId('studio-materials-exclude-50000000-0000-4000-8000-000000000012').check();
@@ -277,7 +278,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge
       expect(requests).toHaveLength(1); expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
       await page.getByTestId('knowledge-full-preview').scrollIntoViewIfNeeded();
       await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-checked-light.png'), animations: 'disabled' });
-      await page.getByTestId('studio-translation-start').click();
+      await page.getByTestId('studio-translation-review-start').click();
       await uiExpect(page.getByTestId('studio-translation-form')).toHaveCount(0);
       await uiExpect.poll(async () => (await repository.readSnapshot(secondState.documentId!)).tasks.at(-1)?.status).toBe('completed');
       expect(requests).toHaveLength(2);

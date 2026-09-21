@@ -668,7 +668,7 @@
     "title": "本次使用的资料",
     "choose": "选择资料",
     "clear": "清空",
-    "none": "未使用资料。只有你选中的资料才会参与本次翻译。",
+    "none": "未选择资料。",
     "remove": "移除 {{name}}",
     "search": "搜索资料集",
     "recipe": "沿用已保存设置",
@@ -701,6 +701,16 @@
     "reuse_materials": "翻译资料",
     "reuse_without_materials": "不使用资料",
     "no_recent_settings": "本次会话还没有可沿用的设置。关闭或开始一次翻译后，可在这里复用。",
-    "save_requires_materials": "选择资料并确认原文语言后，可将资料与要求保存为翻译方案。"
+    "save_requires_materials": "选择资料并确认原文语言后，可将资料与要求保存为翻译方案。",
+    "review_description": "查看当前设置的检查结果、预计用量和需要处理的问题。",
+    "review_back": "返回设置",
+    "review_checking": "正在检查字幕与翻译设置…",
+    "review_checking_help": "检查不会发起翻译，也不会产生模型用量。",
+    "review_trial_running": "正在试译所选片段…",
+    "review_starting": "正在创建翻译任务…",
+    "review_retry": "重新检查",
+    "review_stale": "设置或原文已变化，请重新检查。",
+    "review_trial_result": "查看试译结果",
+    "review_rerun_trial": "重新试译"
   }
 }

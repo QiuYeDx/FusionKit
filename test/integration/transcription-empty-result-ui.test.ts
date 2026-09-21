@@ -3,7 +3,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from 'playwright/test';
-import { buildTranscriptionUiApp } from './helpers/transcription-ui-build';
+import { buildEmptyResultUiApp } from './helpers/empty-result-ui-build';
 
 const enabled = process.env.FUSIONKIT_TRANSCRIPTION_EMPTY_UI === '1';
 type StudioSnapshot = { tasks: { taskId: string; displayName: string; status: string; documentId?: string; error?: unknown; automaticTranslation?: unknown }[]; traces: { operation: string }[] };
@@ -32,7 +32,7 @@ async function capture(page: Page, target: Locator, destination: string) {
 describe.runIf(enabled)('no usable transcription is a distinct result in both actual Electron tools', () => {
   it.each([{ language: 'zh', theme: 'light', size: [1280, 860] }, { language: 'en', theme: 'dark', size: [820, 700] }] as const)(
     '$language / $theme: explains empty results, suppresses output/translation/retry, preserves failures and clears finished rows', async variant => {
-      const fixture = await buildTranscriptionUiApp('controlled', { classicEmptyQueue: true });
+      const fixture = await buildEmptyResultUiApp();
       const locale = JSON.parse(await readFile(`src/locales/${variant.language}/studio.json`, 'utf8'));
       const classic = JSON.parse(await readFile(`src/locales/${variant.language}/subtitle.json`, 'utf8')).local_transcriber;
       const common = JSON.parse(await readFile(`src/locales/${variant.language}/common.json`, 'utf8'));

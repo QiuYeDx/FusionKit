@@ -1,5 +1,5 @@
 /**
- * Visual acceptance boundary: seed the production classic registry with validated
+ * Cross-tool visual acceptance boundary: seed the production classic registry with validated
  * outcomes. IPC, preload, renderer subscriptions and registry transitions stay
  * real. Native execution and JobManager resource ownership are covered separately
  * by their unit tests; fixture-owned rows have no native leases or output files.

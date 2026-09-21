@@ -668,7 +668,7 @@
     "title": "Materials for this translation",
     "choose": "Choose materials",
     "clear": "Clear",
-    "none": "No materials selected. Only your selected materials can be used in this translation.",
+    "none": "No materials selected.",
     "remove": "Remove {{name}}",
     "search": "Search collections",
     "recipe": "Use a saved setup",
@@ -701,6 +701,16 @@
     "reuse_materials": "Materials",
     "reuse_without_materials": "No materials",
     "no_recent_settings": "No recent settings in this session. Close or start a translation to make its settings available here.",
-    "save_requires_materials": "Choose materials and a source language to save the materials and instructions as a translation preset."
+    "save_requires_materials": "Choose materials and a source language to save the materials and instructions as a translation preset.",
+    "review_description": "Review the current settings, estimated usage, and any issues that need attention.",
+    "review_back": "Back to settings",
+    "review_checking": "Checking subtitles and settings…",
+    "review_checking_help": "This check does not start a translation or use model tokens.",
+    "review_trial_running": "Translating the selected sample…",
+    "review_starting": "Creating translation tasks…",
+    "review_retry": "Check again",
+    "review_stale": "The settings or source changed. Run the check again.",
+    "review_trial_result": "View sample result",
+    "review_rerun_trial": "Run sample again"
   }
 }

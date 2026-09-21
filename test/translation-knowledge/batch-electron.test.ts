@@ -159,7 +159,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await ui.getByTestId('studio-translation-advanced').click();
       await ui.getByRole('spinbutton', { name: '每批字幕上限', exact: true }).fill('20');
       await ui.getByTestId('studio-translation-advanced').click();
-      const preview = ui.getByTestId('knowledge-batch-preview'), start = ui.getByTestId('studio-translation-start');
+      const preview = ui.getByTestId('knowledge-batch-preview'), start = ui.getByTestId('studio-translation-review-start');
       const selectKnowledge = async (_english = false) => {
         const choose = ui.getByTestId('studio-materials-choose');
         if (await choose.getAttribute('aria-expanded') !== 'true') await choose.click();
@@ -193,13 +193,15 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       expect(await Promise.all(documents.map(document => repository.readSnapshot(document.summary.id)))).toEqual(baseline);
 
       // Editing scope clears the checked plan before another explicit start.
+      await ui.getByTestId('studio-translation-review-close').click();
       await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).uncheck();
       await uiExpect(preview).toHaveCount(0);
-      await uiExpect(start).not.toContainText('2');
+      await uiExpect(ui.getByTestId('studio-translation-start')).not.toContainText('2');
       expect(requests).toHaveLength(0);
       await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).check();
       await ui.getByTestId('studio-translation-check').click();
       await uiExpect(preview).toBeVisible();
+      await ui.getByTestId('studio-translation-review-close').click();
       await ui.getByTestId('studio-translation-close').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await ui.getByTestId('studio-batch-toolbar').getByRole('button', { name: '批量翻译', exact: true }).click();
@@ -212,11 +214,11 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await file(2).locator('[data-issue-code="term_conflict"] [data-slot=accordion-trigger]').first().click();
       await uiExpect(file(2)).toContainText('savepoint');
       await capture('per-file-conflict-light', file(2));
-      await geometry(dialog);
+      await geometry(dialogFor('studio-translation-review-dialog'));
       await nativeWindow.evaluate(win => win.setSize(820, 700));
       await ui.evaluate(() => { document.documentElement.classList.add('dark'); });
       await capture('preview-dark-narrow', preview);
-      await geometry(dialog);
+      await geometry(dialogFor('studio-translation-review-dialog'));
       expect(requests).toHaveLength(0);
       await start.click();
 
@@ -380,7 +382,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await uiExpect(file(2)).toHaveAttribute('data-state', 'blocked');
       await nativeWindow.evaluate(win => win.setSize(820, 700));
       await capture('batch-english-dark-narrow', preview);
-      await geometry(dialog);
+      await geometry(dialogFor('studio-translation-review-dialog'));
+      await ui.getByTestId('studio-translation-review-close').click();
       await ui.getByTestId('studio-translation-close').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       expect(requests).toHaveLength(sentBeforeEnglish);

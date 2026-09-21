@@ -31,6 +31,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
     await writeFile(input, JSON.stringify(fixture));
     for (const filename of subtitleFiles) await writeFile(filename, '[00:01]We reached the checkpoint.\n[00:03]She mentioned Mira.');
     const en = JSON.parse(await readFile(path.resolve('src/locales/en/studio.json'), 'utf8'));
+    const zh = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
     const enKnowledge = JSON.parse(await readFile(path.resolve('src/locales/en/knowledge.json'), 'utf8'));
     const errors: string[] = [];
     app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
@@ -48,6 +49,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       }));
     });
     const form = () => ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-form') });
+    const review = () => ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-review-dialog') });
     const settled = () => ui.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
     const geometry = async (target: Locator) => {
       expect(await target.evaluate(element => {
@@ -60,6 +62,32 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await settled(); await target.scrollIntoViewIfNeeded(); await ui.waitForTimeout(200);
       await geometry(target);
       await ui.screenshot({ path: path.join(artifacts, `${name}.png`), animations: 'disabled' });
+    };
+    const compactLayout = async () => {
+      const metrics = await ui.getByTestId('studio-translation-header').evaluate(header => {
+        const dialog = header.closest('[role=dialog]')!;
+        const title = header.querySelector('[data-slot=dialog-title]')!.getBoundingClientRect();
+        const close = dialog.querySelector('[data-slot=dialog-close]')!.getBoundingClientRect();
+        const frame = header.parentElement!.parentElement!.getBoundingClientRect();
+        const materials = dialog.querySelector('[data-testid=studio-materials]')!.getBoundingClientRect();
+        const heading = dialog.querySelector('.studio-materials-title')!.getBoundingClientRect();
+        const choose = dialog.querySelector('[data-testid=studio-materials-choose]')!.getBoundingClientRect();
+        return { materialsWidth: materials.width, headerHeight: frame.height, centerDelta: Math.abs(title.top + title.height / 2 - close.top - close.height / 2),
+          reuseInHeader: header.contains(dialog.querySelector('[data-testid=studio-translation-settings]')),
+          titleTopInset: heading.top - materials.top, titleLeftInset: heading.left - materials.left,
+          headingButtonTopDelta: Math.abs(heading.top - choose.top) };
+      });
+      expect(metrics.headerHeight).toBeLessThanOrEqual(60);
+      expect(metrics.centerDelta).toBeLessThanOrEqual(2);
+      expect(metrics.reuseInHeader).toBe(false);
+      expect(Math.abs(metrics.titleTopInset - metrics.titleLeftInset)).toBeLessThanOrEqual(2);
+      if (metrics.materialsWidth > 406) expect(metrics.headingButtonTopDelta).toBeLessThanOrEqual(2);
+      await uiExpect(ui.getByTestId('studio-translation-form').getByTestId('studio-translation-settings')).toBeVisible();
+    };
+    const returnToSettings = async () => {
+      await ui.getByTestId('studio-translation-review-close').click();
+      await uiExpect(review()).toHaveCount(0);
+      await uiExpect(form()).toBeVisible();
     };
     const expand = async (testId: string) => {
       const trigger = ui.getByTestId(testId).locator('[data-slot=accordion-trigger]').first();
@@ -134,8 +162,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       };
       await openDocument(first.summary.id);
       await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText('未使用资料');
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
       await capture('single-empty-zh-light-wide', form());
+      await compactLayout();
 
       // A non-modal picker owns Escape. Closing it never closes its parent or
       // navigates, and selections take effect without an extra commit dialog.
@@ -159,11 +188,45 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await capture('picker-selected-zh-light-wide', picker);
       await ui.getByTestId('studio-materials-done').click();
       await ui.getByTestId('studio-materials-clear').click();
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText('未使用资料');
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
       await uiExpect(ui.getByTestId('studio-materials-source')).toHaveCount(0);
+      // Only this local IPC response is delayed/failed. The actual renderer,
+      // preload, modal stack, and subsequent successful planner stay production.
+      await app.evaluate(({ ipcMain }) => {
+        type Handler = (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown | Promise<unknown>;
+        const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, Handler> })._invokeHandlers;
+        const channel = 'subtitle-studio:plan-translation', original = handlers.get(channel);
+        if (!original) throw new Error('Missing production translation planner');
+        let release: () => void = () => {};
+        const pending = new Promise<void>(resolve => { release = resolve; });
+        handlers.set(channel, async () => { await pending; return { ok: false, error: 'translation_failed' }; });
+        (globalThis as typeof globalThis & { __materialsReviewGate?: { release: () => void; restore: () => void } }).__materialsReviewGate = {
+          release, restore: () => handlers.set(channel, original),
+        };
+      });
       await ui.getByTestId('studio-translation-check').click();
+      await uiExpect(review()).toBeVisible();
+      await uiExpect(ui.getByTestId('studio-translation-review-loading')).toBeVisible();
+      await capture('review-loading-zh-light-wide', review());
+      await ui.keyboard.press('Escape');
+      await uiExpect(review()).toHaveCount(0);
+      await uiExpect(form()).toBeVisible();
+      await app.evaluate(() => { (globalThis as typeof globalThis & { __materialsReviewGate?: { release: () => void } }).__materialsReviewGate!.release(); });
+      await uiExpect(ui.getByTestId('studio-translation-check')).toBeEnabled();
+      await uiExpect(review()).toHaveCount(0);
+      await ui.getByTestId('studio-translation-check').click();
+      await uiExpect(ui.getByTestId('studio-translation-review-error')).toBeVisible();
+      await capture('review-error-zh-light-wide', review());
+      await app.evaluate(() => { (globalThis as typeof globalThis & { __materialsReviewGate?: { restore: () => void } }).__materialsReviewGate!.restore(); });
+      await ui.getByTestId('studio-translation-review-retry').click();
       await uiExpect(ui.getByTestId('studio-translation-plan')).toBeVisible();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('studio-translation-form').getByTestId('studio-translation-plan')).toHaveCount(0);
+      await capture('review-estimate-zh-light-wide', review());
+      await ui.keyboard.press('Escape');
+      await uiExpect(review()).toHaveCount(0);
+      await uiExpect(form()).toBeVisible();
+      await uiExpect(ui.getByTestId('studio-translation-check')).toBeFocused();
 
       await selectRecipe();
       const instructions = 'Keep each subtitle concise and retain all information.';
@@ -197,7 +260,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       // language, model and writing settings, never the first document's proof.
       await openDocument(second.summary.id);
       await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText('未使用资料');
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
       await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue('');
       await ui.getByTestId('studio-translation-settings').click();
       await uiExpect(ui.getByTestId('studio-translation-reuse')).toBeEnabled();
@@ -230,6 +293,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await ui.getByTestId('studio-translation-check').click();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
       await uiExpect.poll(() => ui.getByTestId('knowledge-full-preview').locator('[data-issue-code="subject_unbound"]').count()).toBeGreaterThan(0);
+      await capture('review-materials-zh-light-wide', review());
+      await returnToSettings();
+      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(instructions);
       await closeTranslation();
       await showLibrary();
       for (const document of documents) await ui.locator(`[data-testid="studio-library-row"][data-document-id="${document.summary.id}"]`).getByRole('checkbox').check();
@@ -239,6 +305,11 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       if (await ui.getByTestId('studio-translation-settings').getAttribute('aria-expanded') === 'true') await ui.keyboard.press('Escape');
       await uiExpect(ui.getByTestId('knowledge-trial-scopes')).toHaveCount(0);
       await capture('batch-selected-zh-light-wide', form());
+      await compactLayout();
+      await ui.getByTestId('studio-translation-check').click();
+      await uiExpect(ui.getByTestId('knowledge-batch-preview')).toBeVisible();
+      await capture('review-batch-zh-light-wide', review());
+      await returnToSettings();
       await closeTranslation();
 
       await ui.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); location.hash = '/tools/translation-knowledge'; });
@@ -279,6 +350,11 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await ui.getByRole('option', { name: 'Simplified Chinese', exact: true }).click();
       await selectRecipe();
       await capture('single-selected-en-dark-narrow', form());
+      await compactLayout();
+      await ui.getByTestId('studio-translation-check').click();
+      await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
+      await capture('review-materials-en-dark-narrow', review());
+      await returnToSettings();
       await ui.getByTestId('studio-materials-choose').click();
       await capture('picker-selected-en-dark-narrow', picker);
       await ui.keyboard.press('Escape'); await uiExpect(form()).toBeVisible();
@@ -290,6 +366,14 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await ui.getByTestId('studio-translation-reuse').click();
       if (await ui.getByTestId('studio-translation-settings').getAttribute('aria-expanded') === 'true') await ui.keyboard.press('Escape');
       await capture('batch-selected-en-dark-narrow', form());
+      await compactLayout();
+      await ui.getByTestId('studio-translation-check').click();
+      await uiExpect(ui.getByTestId('knowledge-batch-preview')).toBeVisible();
+      await capture('review-batch-en-dark-narrow', review());
+      await ui.keyboard.press('Escape');
+      await uiExpect(review()).toHaveCount(0);
+      await uiExpect(form()).toBeVisible();
+      await uiExpect(ui.getByTestId('studio-translation-check')).toBeFocused();
       await closeTranslation();
       const unchanged = await readDocuments();
       for (const document of unchanged) { expect(document.tasks).toHaveLength(0); expect(document.translationTracks).toHaveLength(0); }

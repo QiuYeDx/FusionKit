@@ -6,8 +6,10 @@ import * as esbuild from 'esbuild';
 
 const digest = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 
-/** Mirrors the production build. Only the controlled run substitutes one exact native module. */
-export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missing', options: { classicEmptyQueue?: boolean } = {}) {
+/** Mirrors the production build. The default controlled run substitutes one exact native module. */
+export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missing', options: { mainPlugins?: esbuild.Plugin[] } = {}) {
+  const mainPlugins = options.mainPlugins ?? [];
+  if (mode !== 'controlled' && mainPlugins.length) throw new Error('Main fixture plugins require the controlled build.');
   const repositoryRoot = realpathSync.native(process.cwd());
   const artifactsRoot = path.join(repositoryRoot, 'test-results', 'studio-t06-ui');
   await mkdir(artifactsRoot, { recursive: true });
@@ -29,16 +31,6 @@ export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missi
     const result = await esbuild.build({ absWorkingDir: repositoryRoot, entryPoints: [mainSource], outfile: output,
       bundle: true, platform: 'node', format: 'esm', target: 'node20', packages: 'external', metafile: true,
       logLevel: 'silent', plugins: [{ name: 'exact-transcription-runtime-fixture', setup(build) {
-        if (options.classicEmptyQueue) build.onLoad({ filter: /[\\/]electron[\\/]main[\\/]index\.ts$/ }, async args => {
-          if (path.resolve(args.path) !== mainSource) throw new Error('Unexpected main fixture injection.');
-          const source = await readFile(mainSource, 'utf8');
-          const marker = '  const localSubtitleOverwriteRecoveryAdmissions =';
-          if (source.split(marker).length !== 2) throw new Error('Classic queue fixture anchor changed.');
-          const controlSource = path.join(repositoryRoot, 'test/subtitle-studio/helpers/empty-result-classic-control.ts').replaceAll('\\', '/');
-          return { contents: `import { installClassicEmptyQueueControl } from ${JSON.stringify(controlSource)};\n` +
-            source.replace(marker, '  installClassicEmptyQueueControl(localSubtitleSessionRegistry, localSubtitleJobManager);\n' + marker),
-            resolveDir: path.dirname(mainSource), loader: 'ts' };
-        });
         build.onResolve({ filter: /^@\// }, args => {
           const candidate = path.join(repositoryRoot, 'src', args.path.slice(2));
           const resolved = [candidate, `${candidate}.ts`, `${candidate}.tsx`, `${candidate}.json`, path.join(candidate, 'index.ts')]
@@ -51,14 +43,14 @@ export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missi
           substitutions++;
           return { contents: await readFile(substitute, 'utf8'), resolveDir: path.dirname(substitute), loader: 'ts' };
         });
-      } }],
+      } }, ...mainPlugins],
     });
     if (substitutions !== 1) throw new Error(`Expected exactly one native runtime substitution; found ${substitutions}.`);
     await writeFile(path.join(runRoot, 'main-metafile.json'), JSON.stringify(result.metafile, null, 2));
   }
   const originalPreload = await readFile(preloadSource), copiedPreload = await readFile(path.join(appRoot, 'dist-electron/preload/index.mjs'));
   if (!originalPreload.equals(copiedPreload)) throw new Error('Production preload changed in the isolated UI build.');
-  await writeFile(path.join(runRoot, 'build-evidence.json'), JSON.stringify({ mode, substitutions, classicEmptyQueue: Boolean(options.classicEmptyQueue),
+  await writeFile(path.join(runRoot, 'build-evidence.json'), JSON.stringify({ mode, substitutions, mainPlugins: mainPlugins.map(plugin => plugin.name),
     productionMainSourceSha256: digest(await readFile(mainSource)), productionRuntimeSourceSha256: digest(await readFile(runtimeSource)),
     preloadSha256: digest(originalPreload), rendererHtmlSha256: digest(await readFile(path.join(appRoot, 'dist/index.html'))),
     executedMainSha256: digest(await readFile(output)), ...(mode === 'controlled' ? { fixtureSha256: digest(await readFile(substitute)) } : {}),
