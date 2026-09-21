@@ -392,7 +392,7 @@
       "delete_resource": "リソースを削除",
       "start": "文字起こしを開始",
       "start_all": "すべて開始",
-      "clear_completed": "完了をクリア",
+      "clear_completed": "処理済みを削除",
       "clear_all": "すべてクリア",
       "retry_on_cpu": "CPU で再試行",
       "reveal": "フォルダーに表示",
@@ -534,7 +534,8 @@
       "cancelling": "キャンセル中",
       "cancelled": "キャンセル済み",
       "failed": "文字起こしに失敗",
-      "interrupted": "中断"
+      "interrupted": "中断",
+      "no_content": "利用可能な字幕なし"
     },
     "queue": {
       "title": "タスクキュー",

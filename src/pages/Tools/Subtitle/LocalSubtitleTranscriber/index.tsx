@@ -1289,7 +1289,7 @@ export default function LocalSubtitleTranscriber() {
 
   const clearableCompletedTasks = useMemo(
     () => visibleTasks.filter((task) =>
-      task.status === "completed" && isLocalSubtitleTaskReadyToRemove(task),
+      (task.status === "completed" || task.status === "no_content") && isLocalSubtitleTaskReadyToRemove(task),
     ),
     [visibleTasks],
   );

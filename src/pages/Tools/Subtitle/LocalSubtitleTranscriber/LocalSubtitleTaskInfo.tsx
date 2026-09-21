@@ -43,7 +43,7 @@ export function LocalSubtitleTaskInfo({ id, task, config, statusLabel }: {
           {result.status !== "committed" && result.errorCode ? ` (${result.errorCode})` : null}
         </li>)}
       </ul>
-    ) : missing],
+    ) : task.status === "no_content" ? t("common:transcription_empty.no_output") : missing],
     [t("subtitle:local_transcriber.task_details.created"), formatDate(task.createdAt)],
     [t("subtitle:local_transcriber.task_details.updated"), formatDate(task.updatedAt)],
   ];

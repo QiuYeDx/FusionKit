@@ -4,7 +4,7 @@ import useModelStore from '@/store/useModelStore';
 import { speechResourceIsBusy } from '@/speech-resources/events';
 import type { LocalSubtitleManagedResourceSummary } from '@/subtitle-studio/transcription/ipc-contract';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, AudioLines, Check, Download, Ellipsis, FolderOpen, HardDrive, Languages, ListOrdered, LoaderCircle, Play, RefreshCw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
+import { AlertCircle, AudioLines, Check, CircleMinus, Download, Ellipsis, FolderOpen, HardDrive, Languages, ListOrdered, LoaderCircle, Play, RefreshCw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { ToolDetailLayout } from '../../_shared/ui/ToolDetailLayout';
 import { ToolPanel } from '../../_shared/ui/ToolPanel';
+import { TranscriptionEmptyResult } from '../../_shared/ui/TranscriptionEmptyResult';
 import { ToolConfigPanel } from '../../_shared/ui/ToolConfigPanel';
 import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
@@ -35,6 +36,7 @@ const taskStatusKeys = {
   queued: 'studio:transcription.status_queued', preparing_media: 'studio:transcription.status_preparing_media',
   loading_model: 'studio:transcription.status_loading_model', transcribing: 'studio:transcription.status_transcribing',
   post_processing: 'studio:transcription.status_post_processing', completed: 'studio:transcription.status_completed',
+  no_content: 'studio:transcription.status_no_content',
   cancelled: 'studio:transcription.status_cancelled', failed: 'studio:transcription.status_failed',
 } as const;
 const resourceStatusKeys = { ready: 'studio:transcription.resource_ready', not_installed: 'studio:transcription.resource_not_installed', installing: 'studio:transcription.resource_installing', invalid: 'studio:transcription.resource_invalid' } as const;
@@ -51,7 +53,7 @@ const languages = [
   ['de', 'studio:transcription.language_de'], ['es', 'studio:transcription.language_es'],
 ] as const;
 const devices = [['auto', 'studio:transcription.device_auto'], ['cpu', 'studio:transcription.device_cpu'], ['metal', 'studio:transcription.device_metal'], ['cuda', 'studio:transcription.device_cuda']] as const;
-const terminal = (task: TranscriptionTaskSummary) => ['completed', 'cancelled', 'failed'].includes(task.status);
+const terminal = (task: TranscriptionTaskSummary) => ['completed', 'no_content', 'cancelled', 'failed'].includes(task.status);
 const activeResource = (status: string) => !['completed', 'failed', 'cancelled'].includes(status);
 function bytes(value: number) { return value >= 1024 ** 3 ? `${(value / 1024 ** 3).toFixed(1)} GB` : value >= 1024 ** 2 ? `${(value / 1024 ** 2).toFixed(1)} MB` : value >= 1024 ? `${Math.round(value / 1024)} KB` : `${value} B`; }
 function duration(ms: number) { const seconds = Math.floor(ms / 1000); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; }
@@ -126,8 +128,9 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
   const setAdvanced = (key: keyof Config['advanced'], value: number | string) => setConfig({ advanced: { ...state.config.advanced, [key]: value } });
   const activeCount = state.tasks.filter(task => !terminal(task)).length;
   const completedCount = state.tasks.filter(task => task.status === 'completed').length;
+  const emptyCount = state.tasks.filter(task => task.status === 'no_content').length;
   const queueBusy = !!state.queueAction || state.taskActions.length > 0;
-  const clearableCompleted = state.tasks.filter(task => task.status === 'completed' && !task.cleanupPending).length;
+  const clearableCompleted = state.tasks.filter(task => (task.status === 'completed' || task.status === 'no_content') && !task.cleanupPending).length;
   const clearableTerminal = state.tasks.filter(task => terminal(task) && !task.cleanupPending).length;
   const cancellableTasks = state.tasks.filter(task => !terminal(task) && !state.cancellingTaskIds.includes(task.taskId));
   const settings = () => { settingsRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' }); settingsRef.current?.focus({ preventScroll: true }); };
@@ -207,14 +210,15 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
           actions={<div className="studio-transcription-queue-actions"><Button variant="ghost" size="sm" title={t('studio:transcription.clear_completed_hint')} data-testid="studio-queue-clear-completed" disabled={queueBusy || !clearableCompleted} onClick={() => void controller.clearCompleted()}>{state.queueAction === 'clear_completed' ? <LoaderCircle className="studio-spin" /> : <Trash2 />}{t('studio:transcription.clear_completed')}</Button>
             <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-8" aria-label={t('studio:transcription.queue_actions')} disabled={queueBusy || !state.tasks.length}><Ellipsis className="size-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem disabled={!clearableTerminal} onSelect={() => void controller.clearTerminal()}><Trash2 /><span className="studio-queue-menu-label">{t('studio:transcription.clear_terminal')}<small>{t('studio:transcription.clear_terminal_hint')}</small></span></DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem variant="destructive" disabled={!cancellableTasks.length} onSelect={() => setCancelTargets(cancellableTasks.map(task => task.taskId))}><Square />{t('studio:transcription.cancel_all')}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
             <StudioIconButton label={t('studio:refresh')} disabled={state.refreshing || queueBusy} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} /></StudioIconButton></div>}>
-          <span className="sr-only" role="status">{t('studio:transcription.active_count', { active: activeCount, completed: completedCount })}</span>
+          <span className="sr-only" role="status">{t('studio:transcription.active_count', { active: activeCount, completed: completedCount, empty: emptyCount })}</span>
           {state.queueResult && <p className="studio-transcription-queue-result" role="status" data-testid="studio-queue-result">{t(state.queueResult.action === 'cancel_active' ? 'studio:transcription.cancel_result' : 'studio:transcription.clear_result', { count: state.queueResult.succeeded, failed: state.queueResult.failed, skipped: state.queueResult.skipped })}</p>}
           {state.tasks.length ? <><StudioScrollFade maxHeight={460}><StudioTaskQueue className="studio-transcription-task-list">{state.tasks.map(task => <StudioTaskQueueRow key={task.taskId} data-testid="studio-transcription-task-row" data-task-id={task.taskId} data-state={task.status}
             name={task.displayName}
-            icon={task.status === 'completed' ? <Check className="text-emerald-600 dark:text-emerald-400" /> : task.status === 'failed' ? <AlertCircle className="text-destructive" /> : terminal(task) ? <Square className="text-muted-foreground" /> : <LoaderCircle className={task.status === 'queued' ? 'text-muted-foreground' : 'studio-spin text-muted-foreground'} />}
+            icon={task.status === 'completed' ? <Check className="text-emerald-600 dark:text-emerald-400" /> : task.status === 'no_content' ? <CircleMinus className="text-muted-foreground" /> : task.status === 'failed' ? <AlertCircle className="text-destructive" /> : terminal(task) ? <Square className="text-muted-foreground" /> : <LoaderCircle className={task.status === 'queued' ? 'text-muted-foreground' : 'studio-spin text-muted-foreground'} />}
             actions={<><StudioRevealSource kind="transcription" id={task.taskId} />{task.documentId && <StudioIconButton label={t('studio:transcription.open_document')} disabled={opening !== null} onClick={() => void openDocument(task.documentId!)}>{opening === task.documentId ? <LoaderCircle className="studio-spin" /> : <Subtitles />}</StudioIconButton>}{terminal(task) ? <StudioIconButton label={t('studio:transcription.remove_task')} disabled={!!state.queueAction || state.taskActions.includes(task.taskId) || !!task.cleanupPending} onClick={() => void controller.removeTask(task.taskId)}><Trash2 /></StudioIconButton>  : <StudioIconButton className="studio-transcription-stop" label={t('studio:transcription.cancel_task')} disabled={!!state.queueAction || state.taskActions.includes(task.taskId) || state.cancellingTaskIds.includes(task.taskId)} onClick={() => void controller.cancelTask(task.taskId)}>{state.cancellingTaskIds.includes(task.taskId) ? <LoaderCircle className="studio-spin" /> : <Square />}</StudioIconButton>}</>}
             metadata={<><span>{state.cancellingTaskIds.includes(task.taskId) ? t('studio:transcription.cancelling') : t(taskStatusKeys[task.status])}</span><TaskModelLabel name={models.find(resource => resource.resourceId === task.modelId)?.displayName ?? task.modelId} backend={task.resolvedBackend} />{task.durationMs !== undefined && <span>{duration(task.durationMs)}</span>}{task.automaticTranslation && <AutomaticTranslationLabel status={task.automaticTranslation.status} />}{!terminal(task) && <span className="studio-task-percentage">{Math.round(task.progress)}%</span>}</>}
             progress={!terminal(task) ? { max: 100, value: task.progress, label: `${t(taskStatusKeys[task.status])} · ${task.displayName}` } : undefined}>
+            {task.status === 'no_content' && <TranscriptionEmptyResult />}
             {task.error && <p className="studio-transcription-row-warning">{t('studio:transcription.task_failed')}</p>}{task.cleanupPending && <p className="studio-transcription-row-warning">{t('studio:transcription.task_cleanup_pending')}</p>}{task.documentDurability === 'uncertain' && <p className="studio-transcription-row-warning">{t('studio:transcription.durability_uncertain')}</p>}
           </StudioTaskQueueRow>)}</StudioTaskQueue></StudioScrollFade></> : <div className="studio-transcription-empty"><ListOrdered /><p>{t('studio:transcription.queue_empty')}</p><span>{t('studio:transcription.queue_hint')}</span></div>}
         </ToolPanel>

@@ -742,9 +742,43 @@ describe("local subtitle production executor", () => {
         response: serverResponse(request, window.endMs - window.startMs, [])}),
     });
     await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({
-      status: "failed", error: {code: "no_speech_detected"},
+      status: "no_content", artifactResults: [],
     });
     expect(harness.supervisor.beginInference).toHaveBeenCalledOnce();
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+  });
+
+  it.each([10, 65])("settles a fully processed %s-second empty source without exporting", async seconds => {
+    const harness = await createHarness({ totalFrames: seconds * 16000,
+      inference: ({ request, window }) => ({ processEpoch: 1,
+        response: serverResponse(request, window.endMs - window.startMs, []) }),
+    });
+    expect(await harness.executor.execute(harness.context)).toEqual({
+      status: "no_content", artifactResults: [], durationMs: seconds * 1000,
+    });
+    expect(harness.media.disposeNormalized).toHaveBeenCalledOnce();
+    expect(harness.supervisor.release).toHaveBeenCalledOnce();
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+  });
+
+  it.each(["release", "media", "cancel"] as const)("does not hide %s while settling empty content", async failure => {
+    const harness = await createHarness({ releaseFailure: failure === "release", disposeNormalizedFailure: failure === "media",
+      inference: ({ request, window }) => ({ processEpoch: 1,
+        response: serverResponse(request, window.endMs - window.startMs, []) }),
+    });
+    if (failure === "cancel") harness.supervisor.release.mockImplementationOnce(async () => { harness.controller.abort(); });
+    expect(await harness.executor.execute(harness.context)).toMatchObject(failure === "cancel"
+      ? { status: "cancelled", artifactResults: [] }
+      : { status: "failed", error: { code: "cleanup_failed" } });
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+  });
+
+  it("keeps malformed empty responses and fabricated no-speech errors as failures", async () => {
+    const malformed = await createHarness({ inference: ({ request }) => ({ processEpoch: 1,
+      response: serverResponse(request, 0, []) }) });
+    expect(await malformed.executor.execute(malformed.context)).toMatchObject({ status: "failed" });
+    const fabricated = await createHarness({ normalizeFailure: Object.assign(new Error("empty"), { localSubtitleCode: "no_speech_detected" }) });
+    expect(await fabricated.executor.execute(fabricated.context)).toMatchObject({ status: "failed", error: { code: "no_speech_detected" } });
   });
 
   it.each([true, false])("binds quiet-window padding to actual conditioning and VAD (%s)", async (vadEnabled) => {

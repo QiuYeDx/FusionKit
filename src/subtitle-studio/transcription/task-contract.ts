@@ -43,7 +43,7 @@ export const enqueueTranscriptionRequestSchema = z.object({
 export const transcriptionTaskSummarySchema = z.object({
   taskId: opaqueId, batchId: opaqueId, generation: z.literal(1),
   displayName: z.string().min(1).max(LOCAL_SUBTITLE_LIMITS.maxDisplayNameChars),
-  status: z.enum(['queued', 'preparing_media', 'loading_model', 'transcribing', 'post_processing', 'completed', 'cancelled', 'failed']),
+  status: z.enum(['queued', 'preparing_media', 'loading_model', 'transcribing', 'post_processing', 'completed', 'no_content', 'cancelled', 'failed']),
   progress: z.number().finite().min(0).max(100),
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(), modelId: opaqueId,
   resolvedBackend: z.enum(['cpu', 'metal', 'cuda']),
@@ -52,7 +52,13 @@ export const transcriptionTaskSummarySchema = z.object({
   automaticTranslation: z.object({ status: z.enum(['pending', 'admitted', 'needs_configuration']), taskId: z.string().uuid().optional() }).strict().optional(),
   error: z.object({ code: z.union([z.enum(LOCAL_SUBTITLE_ERROR_CODES), errorCodeSchema]) }).strict().optional(),
   cleanupPending: z.literal(true).optional(),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.status !== 'no_content') return;
+  if (value.progress !== 100) context.addIssue({ code: 'custom', path: ['progress'], message: 'An empty result is fully processed.' });
+  for (const key of ['documentId', 'documentDurability', 'automaticTranslation', 'error'] as const) {
+    if (value[key] !== undefined) context.addIssue({ code: 'custom', path: [key], message: 'An empty result has no document, translation or error.' });
+  }
+});
 export type EnqueueTranscriptionRequest = z.infer<typeof enqueueTranscriptionRequestSchema>;
 export type TranscriptionTaskSummary = Readonly<z.infer<typeof transcriptionTaskSummarySchema>>;
 export type TranscriptionBatchAdmission = Readonly<{ batchId: string; tasks: readonly TranscriptionTaskSummary[] }>;

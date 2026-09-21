@@ -89,7 +89,7 @@ function freezeAutomatic(value: AutomaticTranslationPreferences): AutomaticTrans
   }
   return Object.freeze(copy);
 }
-const activeTask = (task: TranscriptionTaskSummary) => !['completed', 'failed', 'cancelled'].includes(task.status);
+const activeTask = (task: TranscriptionTaskSummary) => !['completed', 'no_content', 'failed', 'cancelled'].includes(task.status);
 const activeResource = (job: TranscriptionResourceJob) => !['completed', 'failed', 'cancelled'].includes(job.status);
 const asError = (error: unknown): ErrorCode => error instanceof StudioError ? error.code : 'transcription_failed';
 const freezeConfig = (config: Config): Config => Object.freeze({ ...config, advanced: Object.freeze({ ...config.advanced }) });
@@ -526,7 +526,7 @@ export class StudioTranscriptionController {
     if (this.queueOperation) return this.queueOperation;
     const requested = taskIds && new Set(taskIds);
     const candidates = this.state.tasks.filter(task => action === 'cancel_active' ? requested?.has(task.taskId)
-      : action === 'clear_completed' ? task.status === 'completed' : !activeTask(task));
+      : action === 'clear_completed' ? task.status === 'completed' || task.status === 'no_content' : !activeTask(task));
     const targets = candidates.filter(task => !this.taskActions.has(task.taskId)
       && (action === 'cancel_active' ? activeTask(task) && !this.cancelling.has(task.taskId) : !task.cleanupPending));
     const result: QueueActionResult = { action, succeeded: 0, failed: 0,

@@ -64,11 +64,25 @@ it('joins concurrent runs, commits after batch cleanup, and reopens the complete
   expect(await f.repository.list()).toHaveLength(1);
 });
 
-it.each(['failed', 'cancelled'] as const)('never invokes the sink for a %s pipeline', async status => {
+it.each(['failed', 'cancelled', 'no_content'] as const)('never invokes the sink for a %s pipeline', async status => {
   const f = await fixture();
   f.executor.execute.mockResolvedValue({ status, ...(status === 'failed' ? { error: { code: 'transcript_quality_failed' } } : {}) } as TranscriptExecutionResult);
   expect((await f.create().run()).status).toBe(status);
   expect(f.executor.endBatchSlice).toHaveBeenCalledTimes(1);
+  expect(f.publish).not.toHaveBeenCalled();
+  expect(await f.repository.list()).toEqual([]);
+});
+
+it.each(['cancel', 'owner', 'cleanup_failure'] as const)('does not publish a normal empty result after %s during batch cleanup', async kind => {
+  const f = await fixture();
+  f.executor.execute.mockResolvedValue({ status: 'no_content', durationMs: 5000 });
+  f.executor.endBatchSlice.mockImplementation(() => {
+    if (kind === 'cancel') f.controller.abort();
+    else if (kind === 'owner') f.revoke();
+    else throw new Error('pin release failed');
+  });
+  if (kind === 'cancel') await expect(f.create().run()).resolves.toEqual({ status: 'cancelled', durationMs: 5000 });
+  else await expect(f.create().run()).rejects.toThrow();
   expect(f.publish).not.toHaveBeenCalled();
   expect(await f.repository.list()).toEqual([]);
 });

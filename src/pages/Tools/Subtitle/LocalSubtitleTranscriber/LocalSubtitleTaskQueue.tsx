@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ToolPanel } from "@/pages/Tools/_shared/ui";
+import { TranscriptionEmptyResult } from "@/pages/Tools/_shared/ui/TranscriptionEmptyResult";
 import type {
   GeneratedSubtitleArtifactSummary,
   LocalSubtitleBatchConfigSummary,
@@ -64,6 +65,7 @@ const TASK_STATUS_KEYS = {
   post_processing: "subtitle:local_transcriber.status.post_processing",
   exporting: "subtitle:local_transcriber.status.exporting",
   completed: "subtitle:local_transcriber.status.completed",
+  no_content: "subtitle:local_transcriber.status.no_content",
   cancelling: "subtitle:local_transcriber.status.cancelling",
   cancelled: "subtitle:local_transcriber.status.cancelled",
   failed: "subtitle:local_transcriber.status.failed",
@@ -77,6 +79,7 @@ const TASK_STATUS_DOT_CLASS = {
   post_processing: "bg-yellow-500",
   exporting: "bg-yellow-500",
   completed: "bg-green-500",
+  no_content: "bg-muted-foreground",
   cancelling: "bg-yellow-500",
   cancelled: "bg-gray-500",
   failed: "bg-red-500",
@@ -192,7 +195,7 @@ export function LocalSubtitleTaskQueue({
   const { t } = useTranslation(["subtitle"]);
   const taskCount = draftFiles.length + tasks.length;
   const completedCount = tasks.filter(
-    (task) => task.status === "completed" && isTaskReadyToRemove(task),
+    (task) => (task.status === "completed" || task.status === "no_content") && isTaskReadyToRemove(task),
   ).length;
 
   return (
@@ -584,7 +587,7 @@ function TaskRow({
     ),
   );
   const manualResult = manualHandoffResults.get(task.taskId);
-  const automaticStatus = summarizeAutomaticPostAction(
+  const automaticStatus = task.status === "no_content" ? null : summarizeAutomaticPostAction(
     task,
     translationTaskMissing,
     t,
@@ -642,6 +645,7 @@ function TaskRow({
     <div
       data-testid="local-subtitle-task"
       data-task-id={task.taskId}
+      data-state={task.status}
       className="min-w-0 p-3"
     >
       <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-0 sm:flex-nowrap">
@@ -689,6 +693,7 @@ function TaskRow({
         />
       </div>
 
+      {task.status === "no_content" && <TranscriptionEmptyResult />}
       {detailsOpen ? <LocalSubtitleTaskInfo id={detailsId} task={task} config={config} statusLabel={statusLabel} /> : null}
 
       {progressDisplay ? (

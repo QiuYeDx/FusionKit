@@ -250,6 +250,7 @@ export const LOCAL_SUBTITLE_TASK_STATUSES = [
   "post_processing",
   "exporting",
   "completed",
+  "no_content",
   "cancelling",
   "cancelled",
   "failed",
@@ -625,9 +626,10 @@ export const LOCAL_SUBTITLE_TASK_TRANSITIONS = {
   preparing_media: ["loading_model", "transcribing", "cancelling", "failed"],
   loading_model: ["transcribing", "cancelling", "failed"],
   transcribing: ["post_processing", "cancelling", "failed"],
-  post_processing: ["exporting", "cancelling", "failed"],
+  post_processing: ["exporting", "no_content", "cancelling", "failed"],
   exporting: ["completed", "cancelling", "failed"],
   completed: [],
+  no_content: [],
   cancelling: ["completed", "cancelled", "failed"],
   cancelled: [],
   failed: [],
@@ -850,6 +852,12 @@ export function transitionLocalSubtitleTaskState(
   }
   const cancellationRequested =
     context.cancellationRequested ?? current.status === "cancelling";
+  if (target === "no_content") {
+    if (artifactResults.length > 0 || context.error !== undefined || cancellationRequested) {
+      return { ok: false, reason: "terminal_outcome_invalid" };
+    }
+    return { ok: true, state: deepFreeze({ status: "no_content", artifactResults: [] }) };
+  }
   if (target === "completed") {
     const terminal = resolveLocalSubtitleTerminalOutcome({
       requestedFormats: context.requestedFormats,
@@ -1031,13 +1039,14 @@ export function deriveLocalSubtitleBatchStatus(
   }
   const terminalStatuses = new Set<LocalSubtitleTaskStatus>([
     "completed",
+    "no_content",
     "cancelled",
     "failed",
   ]);
   if (!tasks.every((task) => terminalStatuses.has(task.status))) {
     return "running";
   }
-  if (tasks.some((task) => task.status === "completed")) {
+  if (tasks.some((task) => task.status === "completed" || task.status === "no_content")) {
     return "completed";
   }
   if (tasks.every((task) => task.status === "cancelled")) {

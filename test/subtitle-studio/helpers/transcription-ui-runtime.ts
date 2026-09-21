@@ -21,6 +21,7 @@ type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { 
   | { operation: 'resource-complete'; resourceId: string }
   | { operation: 'task-state'; taskId: string; status: 'preparing_media' | 'loading_model' | 'transcribing' | 'post_processing' | 'failed'; progress?: number; cleanupPending?: true }
   | { operation: 'complete'; taskId: string; cueCount?: number; texts?: string[] }
+  | { operation: 'no-content'; taskId: string }
   | { operation: 'seed-newer-documents' };
 
 export function createTranscriptionRuntime(_options: unknown, dependencies: { automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'>; automaticKnowledge?: AutomaticKnowledgeCapture }, repository?: DocumentRepository) {
@@ -45,7 +46,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
   const check = (owner: Owner) => { if (closed || released.has(key(owner))) throw Object.assign(new Error('Released owner'), { code: 'owner_released' }); return key(owner); };
   const releaseKnowledge = (task: Task) => { const release = task.releaseKnowledge; task.releaseKnowledge = undefined; release?.(); };
   const getTask = (id: string) => { const task = tasks.find(item => item.value.taskId === id); if (!task) throw new Error(`Unknown fixture task ${id}`); return task; };
-  const active = (status: string) => !['completed', 'cancelled', 'failed'].includes(status);
+  const active = (status: string) => !['completed', 'no_content', 'cancelled', 'failed'].includes(status);
   const startResource = (owner: Owner, resourceId: string) => {
     const resource = resources.find(item => item.resourceId === resourceId);
     if (!resource) throw Object.assign(new Error('Unknown resource'), { code: 'resource_not_allowed' });
@@ -71,13 +72,21 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
     if (command.operation === 'task-state') {
       const task = getTask(command.taskId);
       task.value = { ...task.value, status: command.status, progress: command.progress ?? 37, updatedAt: new Date().toISOString(),
-        ...(command.status === 'failed' ? { error: { code: 'runtime_protocol_mismatch' as const } } : {}),
+        ...(command.status === 'failed' ? { error: { code: 'runtime_protocol_mismatch' as const }, automaticTranslation: undefined } : {}),
         ...(command.cleanupPending ? { cleanupPending: true } : {}) };
       if (command.status === 'failed') { releaseKnowledge(task); task.automatic = undefined; }
     }
+    if (command.operation === 'no-content') {
+      const task = getTask(command.taskId);
+      if (!active(task.value.status)) throw new Error('A terminal task cannot become no-content.');
+      task.automatic = undefined; releaseKnowledge(task);
+      task.value = { ...task.value, status: 'no_content', progress: 100, automaticTranslation: undefined,
+        documentId: undefined, error: undefined, updatedAt: new Date().toISOString() };
+      trace('no-content', { taskId: command.taskId });
+    }
     if (command.operation === 'complete') {
       const task = getTask(command.taskId);
-      if (task.value.status === 'cancelled' || task.value.status === 'failed') throw new Error('Terminal native failure cannot publish.');
+      if (['cancelled', 'failed', 'no_content'].includes(task.value.status)) throw new Error('Terminal native failure or empty result cannot publish.');
       const transcript = { schemaVersion: 1, source: { displayName: task.value.displayName, durationMs: 315000 },
         model: { engine: 'whisper_cpp', modelId: task.value.modelId, modelHash: 'a'.repeat(64), backend: 'cpu' }, detectedLanguage: 'en',
         segments: Array.from({ length: command.texts?.length ?? command.cueCount ?? 105 }, (_, index) => ({ id: `segment-${index}`, startMs: index * 3000, endMs: index * 3000 + 2000,
@@ -188,7 +197,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
                 config: structuredClone(request.autoTranslation.config), ...(capture ? { knowledge: capture.snapshot } : {}) }, apiKey: request.autoTranslation.apiKey } : undefined;
               if (automatic) value = { ...value, automaticTranslation: { status: 'pending' } };
               const sink = createTranscriptionDocumentSink({ repository, owner, taskId: value.taskId, generation: 1,
-                assertActive: () => { check(owner); const task = getTask(value.taskId); if (['cancelled', 'failed'].includes(task.value.status)) throw new StudioError('interrupted'); },
+                assertActive: () => { check(owner); const task = getTask(value.taskId); if (['cancelled', 'failed', 'no_content'].includes(task.value.status)) throw new StudioError('interrupted'); },
                 ...(automatic ? { automaticTranslation: automatic.intent } : {}) });
               return { source: media.source, owner: check(owner), value, sink, automatic,
                 ...(capture ? { releaseKnowledge: () => { if (--remaining === 0) returnCapture(); } } : {}) };

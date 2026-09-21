@@ -584,6 +584,20 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
       if (value.cueSummary !== undefined && value.status !== "completed") {
         context.addIssue({code:"custom",path:["cueSummary"],message:"Only completed tasks may include final cue counts."});
       }
+      if (value.status === "no_content") {
+        if (value.artifactResults.length > 0) {
+          context.addIssue({ code: "custom", path: ["artifactResults"], message: "No-content tasks cannot publish artifacts." });
+        }
+        const expectedImportStatus = value.postAction.mode === "export_only" ? "not_requested" : "skipped";
+        if (value.postAction.importStatus !== expectedImportStatus ||
+            value.postAction.startStatus !== "not_requested" ||
+            value.postAction.importReceiptId !== undefined ||
+            value.postAction.translationTaskId !== undefined ||
+            value.postAction.importErrorCode !== undefined ||
+            value.postAction.startFailureReason !== undefined) {
+          context.addIssue({ code: "custom", path: ["postAction"], message: "No-content tasks cannot request translation or retain a translation receipt." });
+        }
+      }
       const terminal = resolveLocalSubtitleTerminalOutcome({
         requestedFormats: value.requestedFormats,
         artifactResults: value.artifactResults,
@@ -702,6 +716,7 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
         post_processing: "post_processing",
         exporting: "exporting",
         completed: "exporting",
+        no_content: "post_processing",
         cancelling: "cancelling",
         cancelled: "cancelling",
       };
@@ -724,7 +739,7 @@ export const localSubtitleTaskSummarySchema: z.ZodType<LocalSubtitleTaskSummary>
         });
       }
       if (
-        value.status === "completed" &&
+        (value.status === "completed" || value.status === "no_content") &&
         (value.progress.stageProgress !== 100 ||
           value.progress.overallProgress !== 100)
       ) {

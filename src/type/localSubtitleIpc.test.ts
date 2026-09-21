@@ -1428,6 +1428,25 @@ function modelSnapshot() {
   };
 }
 
+it("validates no-content task receipts without exports, errors, or pending translation", () => {
+  const task: LocalSubtitleTaskSummary = { ...validTaskSummary(), status: "no_content",
+    progress: { stage: "post_processing", stageProgress: 100, overallProgress: 100 } };
+  expect(localSubtitleTaskSummarySchema.safeParse(task).success).toBe(true);
+  const handoff = { ...task, postAction: { mode: "enqueue_translation", preferredFormat: "SRT",
+    importStatus: "skipped", startStatus: "not_requested" } };
+  expect(localSubtitleTaskSummarySchema.safeParse(handoff).success).toBe(true);
+  for (const invalid of [
+    { ...task, progress: { ...task.progress, overallProgress: 80 } },
+    { ...task, progress: { ...task.progress, stage: "exporting" } },
+    { ...task, error: createLocalSubtitleError("no_speech_detected", "empty") },
+    { ...task, completion: completedTaskSummary().completion },
+    { ...task, artifactResults: completedArtifactResults() },
+    { ...task, cueSummary: { cueCount: 1, exceedsTargetCount: 0 } },
+    { ...handoff, postAction: { ...handoff.postAction, importStatus: "pending" } },
+    { ...handoff, postAction: { ...handoff.postAction, importErrorCode: "no_speech_detected" } },
+  ]) expect(localSubtitleTaskSummarySchema.safeParse(invalid).success).toBe(false);
+});
+
 function validTaskSummary(): LocalSubtitleTaskSummary {
   return {
     taskId: "task-1",

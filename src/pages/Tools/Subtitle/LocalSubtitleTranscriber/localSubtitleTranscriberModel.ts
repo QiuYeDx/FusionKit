@@ -503,7 +503,7 @@ export function isLocalSubtitleTaskActive(
   task: LocalSubtitleTaskSummary | null,
 ): boolean {
   return Boolean(
-    task && !["completed", "cancelled", "failed"].includes(task.status),
+    task && !["completed", "no_content", "cancelled", "failed"].includes(task.status),
   );
 }
 

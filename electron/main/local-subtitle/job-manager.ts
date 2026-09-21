@@ -69,6 +69,7 @@ const WORKING_STATUSES = new Set<LocalSubtitleTaskStatus>([
 ]);
 const TERMINAL_STATUSES = new Set<LocalSubtitleTaskStatus>([
   "completed",
+  "no_content",
   "cancelled",
   "failed",
 ]);
@@ -199,6 +200,11 @@ export interface LocalSubtitleJobTaskExecutionContext {
 }
 
 export type LocalSubtitleJobTaskExecutionResult =
+  | {
+      readonly status: "no_content";
+      readonly artifactResults: readonly [];
+      readonly durationMs?: number;
+    }
   | {
       readonly status: "completed";
       readonly artifactResults: readonly LocalSubtitleArtifactResult[];
@@ -1658,6 +1664,10 @@ export class LocalSubtitleJobManager {
         );
         return;
       }
+      if (result.status === "no_content") {
+        this.#settleNoContent(run, result);
+        return;
+      }
       if (run.record.cancelRequested) {
         this.#settleCancelled(run, result.artifactResults ?? [], result.durationMs);
         return;
@@ -1846,6 +1856,73 @@ export class LocalSubtitleJobManager {
     this.#releaseOutputIfUnmaintained(run.record.batch);
     this.#stopLeaseRenewalIfIdle();
     return true;
+  }
+
+  #settleNoContent(
+    run: TaskRun,
+    result: Extract<LocalSubtitleJobTaskExecutionResult, { status: "no_content" }>,
+  ): void {
+    const current = this.#requireCurrentTask(run);
+    const transition = transitionLocalSubtitleTaskState(taskState(current), "no_content", {
+      requestedFormats: current.requestedFormats,
+      artifactResults: result.artifactResults,
+    });
+    if (!transition.ok && !run.record.cancelRequested &&
+        run.record.leaseFailure === undefined && !run.controller.signal.aborted) {
+      throw managerFailure("invalid_content", "The local subtitle task returned an invalid no-content result.");
+    }
+    // This result has no published artifact to preserve. Finish its owned
+    // cleanup before making it terminal, including the last task's batch pin.
+    // Attempt every independent release even if an earlier one failed.
+    const failures: unknown[] = [];
+    captureFailure(failures, () => this.#releaseMediaSelection(run.record));
+    captureFailure(failures, () => this.#releaseInputLease(run.record));
+    captureFailure(failures, () => this.#releaseOutputIfUnmaintained(run.record.batch));
+    captureFailure(failures, () => this.#finishActiveBatchSlice(run));
+    captureFailure(failures, () => this.#stopLeaseRenewalIfIdle());
+    if (!this.#isPublishableRun(run)) return;
+    if (failures.length > 0) {
+      throw createLocalSubtitleError(
+        run.record.cancelRequested || run.controller.signal.aborted ? "cancel_failed" : "cleanup_failed",
+        "The empty transcription result could not finish required cleanup.",
+        { stage: "cleanup" },
+      );
+    }
+    // Releases may invoke lifecycle callbacks; do not publish a stale result
+    // over a cancellation or capability failure observed during cleanup.
+    if (run.record.cancelRequested) {
+      this.#settleCancelled(run, [], result.durationMs);
+      return;
+    }
+    if (run.record.leaseFailure !== undefined) {
+      this.#settleExecutionFailure(run, executionError(run.record.leaseFailure, this.#currentStage(run.record)), [], result.durationMs);
+      return;
+    }
+    if (run.controller.signal.aborted) {
+      this.#settleCancelled(run, [], result.durationMs);
+      return;
+    }
+    if (!transition.ok) {
+      throw managerFailure("invalid_content", "The local subtitle task returned an invalid no-content result.");
+    }
+    const next: LocalSubtitleTaskSummary = stripUndefined({
+      ...current,
+      ...transition.state,
+      progress: { stage: "post_processing", stageProgress: 100, overallProgress: 100 },
+      ...(result.durationMs === undefined ? {} : { durationMs: result.durationMs }),
+      postAction: {
+        mode: current.postAction.mode,
+        ...(current.postAction.preferredFormat === undefined ? {} : { preferredFormat: current.postAction.preferredFormat }),
+        importStatus: current.postAction.mode === "export_only" ? "not_requested" : "skipped",
+        startStatus: "not_requested",
+      },
+      updatedAt: this.#timestamp(),
+      completion: undefined,
+      cueSummary: undefined,
+      error: undefined,
+      cpuRetryAvailable: undefined,
+    });
+    this.#publishTerminalTask(run, next);
   }
 
   #settleFailed(

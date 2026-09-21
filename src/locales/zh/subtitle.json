@@ -392,7 +392,7 @@
       "delete_resource": "删除资源",
       "start": "开始转写",
       "start_all": "全部开始",
-      "clear_completed": "清空完成",
+      "clear_completed": "清空已完成",
       "clear_all": "清空全部",
       "retry_on_cpu": "改用 CPU 重试",
       "reveal": "在文件夹中显示",
@@ -534,7 +534,8 @@
       "cancelling": "正在取消",
       "cancelled": "已取消",
       "failed": "转写失败",
-      "interrupted": "已中断"
+      "interrupted": "已中断",
+      "no_content": "无可用字幕"
     },
     "queue": {
       "title": "任务队列",

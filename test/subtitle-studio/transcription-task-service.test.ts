@@ -92,6 +92,47 @@ it('admits bounded media capabilities and sequentially publishes complete docume
   expect(f.service.isResourceBusy(config.modelId)).toBe(false);
 });
 
+it('finishes an empty result, releases all references and continues the queue without creating an empty document or translating it', async () => {
+  const f = await fixture(), handoff = vi.fn(async (_documentId: string) => ({ taskId: '00000000-0000-4000-8000-000000000001' }));
+  const release = vi.fn();
+  Object.assign(f.options, { automaticTranslation: { handoff },
+    automaticKnowledge: { capture: vi.fn(async () => ({ snapshot: automaticKnowledgeSnapshot(), release })) } });
+  f.executor.execute.mockResolvedValueOnce({ status: 'no_content', durationMs: 5000 });
+  const request = { ...await f.request(ownerA, 2, true), autoTranslation: automaticKnowledgeRequest() };
+  await f.service.enqueue(ownerA, request); await f.service.waitForIdle();
+  const tasks = f.service.list(ownerA);
+  expect(tasks.map(task => task.status)).toEqual(['no_content', 'completed']);
+  expect(tasks[0]).toMatchObject({ progress: 100, durationMs: 5000 });
+  expect(tasks[0].documentId).toBeUndefined(); expect(tasks[0].error).toBeUndefined();
+  expect(tasks[0].automaticTranslation).toBeUndefined(); expect(tasks[0].documentDurability).toBeUndefined();
+  expect(await f.repository.list()).toHaveLength(1); expect(handoff).toHaveBeenCalledOnce();
+  expect(handoff.mock.calls[0][0]).toBe(tasks[1].documentId); expect(release).toHaveBeenCalledOnce();
+  expect(f.media.releaseTaskMediaSelection).toHaveBeenCalledTimes(2);
+  await expect(f.inputs.resolveTaskLease(ownerA, tasks[0].taskId, 'transcribe')).rejects.toBeDefined();
+  expect(f.service.isResourceBusy(config.modelId)).toBe(false);
+  expect(f.service.cancel(ownerA, tasks[0].taskId).status).toBe('no_content');
+  f.service.remove(ownerA, tasks[0].taskId); expect(f.service.list(ownerA)).toHaveLength(1);
+});
+
+it.each(['batch', 'binding', 'cancel'] as const)('keeps %s cleanup or cancellation authoritative over an empty transcription', async kind => {
+  const f = await fixture(), release = vi.fn(), handoff = vi.fn();
+  Object.assign(f.options, { automaticTranslation: { handoff },
+    automaticKnowledge: { capture: vi.fn(async () => ({ snapshot: automaticKnowledgeSnapshot(), release })) } });
+  f.executor.execute.mockResolvedValueOnce({ status: 'no_content', durationMs: 5000 });
+  if (kind === 'binding') f.media.releaseTaskMediaSelection.mockImplementationOnce(() => { throw new Error('binding cleanup failed'); });
+  if (kind === 'batch') f.executor.endBatchSlice.mockImplementationOnce(() => { throw new Error('batch cleanup failed'); });
+  if (kind === 'cancel') f.executor.endBatchSlice.mockImplementationOnce(() => {
+    f.service.cancel(ownerA, f.service.list(ownerA)[0].taskId);
+  });
+  await f.service.enqueue(ownerA, { ...await f.request(ownerA, 1, true), autoTranslation: automaticKnowledgeRequest() });
+  await f.service.waitForIdle();
+  const task = f.service.list(ownerA)[0];
+  expect(task.status).toBe(kind === 'cancel' ? 'cancelled' : 'failed');
+  if (kind !== 'cancel') expect(task).toMatchObject({ error: { code: 'cleanup_failed' }, cleanupPending: true });
+  expect(task.documentId).toBeUndefined(); expect(task.automaticTranslation).toBeUndefined();
+  expect(await f.repository.list()).toEqual([]); expect(handoff).not.toHaveBeenCalled(); expect(release).toHaveBeenCalledOnce();
+});
+
 it('hands two real published intents to one real translation service with one task each and no credentials in summaries', async () => {
   const f = await fixture();
   const send = vi.fn(async (request: import('../../electron/main/ai/model-runtime-client').ModelRuntimeTextRequest) => ({ apiFormat: request.model.apiFormat, content: JSON.stringify({ items: JSON.parse(request.messages[1].content).items.map((item: { id: string; text: string }) => ({ ...item, text: `Translated ${item.text}` })) }), finishReason: 'stop', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } }));

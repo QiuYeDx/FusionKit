@@ -26,3 +26,14 @@ it('bounds summaries and excludes capabilities and private diagnostics', () => {
     { error: { code: 'transcription_failed', message: '/private/native/path' } }, { generation: 2 }])
     expect(transcriptionTaskSummarySchema.safeParse({ ...task, ...extra }).success).toBe(false);
 });
+
+it('accepts only fully processed empty outcomes without a document, error or automatic translation', () => {
+  const task = { taskId: 'task-empty', batchId: 'batch-1', generation: 1, displayName: 'audio.wav', status: 'no_content',
+    progress: 100, durationMs: 5000, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    modelId: 'large-v3-q5_0', resolvedBackend: 'cpu' };
+  expect(transcriptionTaskSummarySchema.safeParse(task).success).toBe(true);
+  for (const extra of [{ progress: 90 }, { documentId: '11111111-1111-4111-8111-111111111111' },
+    { documentDurability: 'confirmed' }, { automaticTranslation: { status: 'pending' } }, { error: { code: 'no_speech_detected' } }]) {
+    expect(transcriptionTaskSummarySchema.safeParse({ ...task, ...extra }).success).toBe(false);
+  }
+});

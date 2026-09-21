@@ -12,6 +12,29 @@ import {
 } from "./localSubtitlePostActionService";
 
 describe("LocalSubtitlePostActionService", () => {
+  it("releases a no-content batch snapshot without preparing or importing subtitles", async () => {
+    const harness = createHarness();
+    const service = new LocalSubtitlePostActionService(harness.options);
+    const batch = createBatch("enqueue_and_start_translation", "SRT", false);
+    service.registerAutomaticBatch(batch, "snapshot-empty");
+    harness.publish({
+      ...batch,
+      status: "completed",
+      tasks: [{
+        ...batch.tasks[0]!,
+        status: "no_content",
+        progress: { stage: "post_processing", stageProgress: 100, overallProgress: 100 },
+        postAction: { ...batch.tasks[0]!.postAction, importStatus: "skipped", startStatus: "not_requested" },
+      }],
+    });
+    await vi.waitFor(() => expect(harness.imports.releaseBatch).toHaveBeenCalledWith("snapshot-empty"));
+    expect(harness.localApi.handoffArtifact).not.toHaveBeenCalled();
+    expect(harness.localApi.completePostAction).not.toHaveBeenCalled();
+    expect(harness.imports.importArtifact).not.toHaveBeenCalled();
+    expect(harness.imports.prepareBatch).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
   it("maps exact import receipt partitions without starting unrelated tasks", () => {
     expect(createLocalSubtitlePostActionFromReceipt(
       "enqueue_and_start_translation",

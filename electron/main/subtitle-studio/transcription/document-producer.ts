@@ -57,7 +57,15 @@ export function createTranscriptionDocumentProducer(options: {
         throw cleanupFailure;
       }
       if (executionFailed) throw executionFailure;
-      if (result!.status !== 'transcript_ready') return terminal = result as Terminal;
+      if (result!.status !== 'transcript_ready') {
+        if (result!.status === 'no_content') {
+          // Unlike a published document, an empty result has no committed receipt
+          // that can outlive cancellation or owner revocation during batch cleanup.
+          if (signal.aborted) return terminal = Object.freeze({ status: 'cancelled', durationMs: result!.durationMs });
+          assertActive();
+        }
+        return terminal = result as Terminal;
+      }
       ready = result as Ready;
     }
     // The repository guard checks again at publication. Once published, its

@@ -242,7 +242,7 @@ export class LocalSubtitlePostActionService {
         state.settledTaskIds.add(taskId);
         continue;
       }
-      if (task.status === "cancelled") {
+      if (task.status === "cancelled" || task.status === "no_content") {
         state.settledTaskIds.add(taskId);
         continue;
       }

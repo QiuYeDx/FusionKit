@@ -495,7 +495,7 @@
     "status_completed": "完了",
     "status_cancelled": "キャンセル済み",
     "status_failed": "失敗",
-    "active_count": "{{active}} 件進行中 · {{completed}} 件完了",
+    "active_count": "処理中 {{active}} 件 · 字幕作成 {{completed}} 件 · 利用可能な字幕なし {{empty}} 件",
     "task_failed": "文字起こしに失敗しました。メディアとローカルリソースを確認してください。",
     "close": "閉じる",
     "shared_hint": "モデル、音声検出、CUDA リソースはアプリの共有フォルダーに保存され、両方の字幕ツールが同じインストールを使用します。",
@@ -505,7 +505,7 @@
     "shared_busy_error": "共有リソースは使用中です。両方の字幕ツールのタスクやリソース操作が終了してから再試行してください。",
     "delete_resource": "リソースを削除",
     "delete_shared_confirmation": "共有リソース「{{name}}」を削除しますか？ローカル文字起こしと字幕スタジオの両方で、使用前に再インストールが必要になります。既存の字幕文書は保持されます。",
-    "clear_completed": "成功したタスクを整理",
+    "clear_completed": "処理済みを削除",
     "clear_terminal": "終了した全タスクを整理",
     "queue_actions": "キュー操作",
     "cancel_all": "未完了をすべてキャンセル",
@@ -516,8 +516,9 @@
     "auto_translation_pending_short": "自動翻訳",
     "auto_translation_admitted_short": "翻訳へ引き継ぎ済み",
     "auto_translation_recovery_short": "自動翻訳の確認が必要",
-    "clear_completed_hint": "成功の履歴のみ削除し、字幕文書は保持",
-    "clear_terminal_hint": "成功・失敗・キャンセルを含む。字幕文書は保持"
+    "clear_completed_hint": "字幕を作成した記録と、利用可能な内容がなかった記録を削除します。字幕ドキュメントは保持されます。",
+    "clear_terminal_hint": "成功・失敗・キャンセルを含む。字幕文書は保持",
+    "status_no_content": "利用可能な字幕なし"
   },
   "overview": {
     "title": "翻訳タスク",

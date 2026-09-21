@@ -173,6 +173,7 @@ export type TranscriptionTaskExecutionContext = Omit<NativeTaskExecutionContext,
 };
 export type TranscriptExecutionResult =
   | Readonly<{ status: "transcript_ready"; transcript: LocalSubtitleTranscript; durationMs?: number; cueSummary: LocalSubtitleCueSummary }>
+  | Readonly<{ status: "no_content"; durationMs?: number }>
   | Readonly<{ status: "failed"; error: LocalSubtitleError; durationMs?: number }>
   | Readonly<{ status: "cancelled"; durationMs?: number }>;
 
@@ -1183,6 +1184,12 @@ export class TranscriptionExecutor {
       }
       if (context.signal.aborted || pipelineError instanceof ExecutionCancelled) {
         return Object.freeze({ status: "cancelled", durationMs });
+      }
+      // Only the validated post-processor's empty result is a normal outcome.
+      // Native, quality and cleanup failures must retain their failure semantics.
+      if (code === "no_speech_detected" && stage === "post_processing"
+        && pipelineError instanceof LocalSubtitlePostProcessorError) {
+        return Object.freeze({ status: "no_content", durationMs });
       }
       return failedResult(
         code,

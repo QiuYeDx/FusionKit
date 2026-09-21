@@ -1253,6 +1253,12 @@ export class LocalSubtitleProductionExecutor
       if (context.signal.aborted || pipelineError instanceof ExecutionCancelled) {
         return Object.freeze({ status: "cancelled", artifactResults: [], durationMs });
       }
+      // Only the validated, whole-transcript post-processor may establish an
+      // empty result. Cleanup and cancellation above still take precedence.
+      if (stage === "post_processing" && pipelineError instanceof LocalSubtitlePostProcessorError &&
+          pipelineError.localSubtitleCode === "no_speech_detected" && pipelineError.stage === "canonical") {
+        return Object.freeze({ status: "no_content", artifactResults: [] as const, durationMs });
+      }
       return failedResult(
         code,
         code === "transcript_quality_failed"

@@ -250,6 +250,25 @@ it('keeps active task polling without a view and skips manual runtime preflight 
   await f.controller.refresh(); expect(f.api.inspectTranscriptionRuntime).toHaveBeenCalledTimes(1);
 });
 
+it('stops polling no-content results and clears them with completed records without cancelling failures', async () => {
+  const f = fixture(); f.api.listTranscriptionTasks.mockResolvedValue(ok([task()]));
+  await f.controller.start();
+  const empty = { ...task(undefined, 'no_content'), progress: 100 };
+  const completed = task('44444444-4444-4444-8444-444444444444', 'completed');
+  const failed = task('55555555-5555-4555-8555-555555555555', 'failed');
+  f.api.listTranscriptionTasks.mockResolvedValue(ok([empty, completed, failed]));
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(f.controller.getState().tasks[0]).toEqual(empty);
+  const calls = f.api.listTranscriptionTasks.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(3000);
+  expect(f.api.listTranscriptionTasks).toHaveBeenCalledTimes(calls);
+  f.api.listTranscriptionTasks.mockResolvedValue(ok([failed]));
+  expect(await f.controller.clearCompleted()).toMatchObject({ succeeded: 2, failed: 0 });
+  expect(f.api.removeTranscriptionTask.mock.calls.map(([request]) => request.taskId)).toEqual([empty.taskId, completed.taskId]);
+  expect(f.api.cancelTranscriptionTask).not.toHaveBeenCalled();
+  expect(f.controller.getState().tasks).toEqual([failed]);
+});
+
 it('deduplicates appended source selections while preserving existing audio choices and bounds draft count', async () => {
   const f = fixture(); await f.choose(...Array.from({ length: 20 }, (_, index) => media(String(index))));
   f.controller.setAudioStream('ls-input-0', 'stream-2');

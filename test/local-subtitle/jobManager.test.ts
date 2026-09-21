@@ -57,6 +57,123 @@ afterEach(async () => {
 });
 
 describe("LocalSubtitleJobManager", () => {
+  it.each([false, true])("settles empty content without retry leases or translation handoff (automatic=%s)", async automatic => {
+    const harness = await createHarness({ manualLeaseRenewal: true,
+      executor: executor(async context => noContentExecution(context)),
+    });
+    const request = await harness.createRequest(harness.fileToken);
+    if (automatic) request.config.postAction = { mode: "enqueue_and_start_translation", preferredFormat: "SRT", translationSnapshotId: "translation-snapshot-1" };
+    const events: any[] = [];
+    harness.manager.onTaskEvent(OWNER_A, event => events.push(event));
+    await harness.manager.enqueue(OWNER_A, request);
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    const snapshot = harness.manager.getSessionSnapshot(OWNER_A);
+    const task = snapshot.batches[0]!.tasks[0]!;
+    expect(snapshot.batches[0]!.status).toBe("completed");
+    expect(task).toMatchObject({ status: "no_content", artifactResults: [],
+      progress: { stage: "post_processing", stageProgress: 100, overallProgress: 100 },
+      postAction: { importStatus: automatic ? "skipped" : "not_requested", startStatus: "not_requested" },
+    });
+    expect(task.error).toBeUndefined();
+    expect(task.completion).toBeUndefined();
+    expect(task.cueSummary).toBeUndefined();
+    expect(events.some(event => event.event.task?.status === "no_content")).toBe(true);
+    expect(harness.mediaSelections.releaseTaskMediaSelection).toHaveBeenCalledWith(OWNER_A, "task-1");
+    expect(harness.activeLeaseRenewalCount()).toBe(0);
+    await expect(harness.inputs.resolveTaskLease(OWNER_A, "task-1", "transcribe")).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(harness.outputs.resolveBatchLease(OWNER_A, "batch-1")).rejects.toMatchObject({ code: "invalid_ipc_request" });
+    await expect(harness.manager.retryTask(OWNER_A, "task-1")).rejects.toMatchObject({ localSubtitleCode: "invalid_ipc_request" });
+    expect(harness.manager.cancelTask(OWNER_A, "task-1")).toEqual({ cancelled: false });
+    expect(harness.manager.removeTask(OWNER_A, "task-1")).toEqual({ removed: true });
+  });
+
+  it.each([false, true])("joins cleanup for a cancelled late empty-content result (pin failure=%s)", async failPin => {
+    const release = deferred<void>();
+    const harness = await createHarness({ executor: executor(async context => {
+      const result = noContentExecution(context);
+      await release.promise;
+      return result;
+    }) });
+    if (failPin) harness.executor.endBatchSlice.mockImplementation(() => { throw new Error("pin release failed"); });
+    await harness.manager.enqueue(OWNER_A, await harness.createRequest(harness.fileToken));
+    harness.flushScheduled();
+    await waitFor(() => harness.executor.execute.mock.calls.length === 1);
+    harness.manager.cancelTask(OWNER_A, "task-1");
+    release.resolve();
+    await harness.manager.waitForIdle();
+    expect(harness.manager.getSessionSnapshot(OWNER_A).batches[0]!.tasks[0]).toMatchObject(failPin
+      ? { status: "failed", error: { code: "cancel_failed", stage: "cleanup" } }
+      : { status: "cancelled" });
+  });
+
+  it.each(["media", "input", "output", "pin", "timer"] as const)("reports %s cleanup failure before publishing an empty result", async failure => {
+    const cleanupError = () => { throw new Error("required release failed"); };
+    const harness = await createHarness({ manualLeaseRenewal: true,
+      ...(failure === "timer" ? { cancelLeaseRenewal: cleanupError } : {}),
+      executor: executor(async context => noContentExecution(context)),
+    });
+    const releaseInput = vi.spyOn(harness.inputs, "releaseTaskLease");
+    const releaseOutput = vi.spyOn(harness.outputs, "releaseBatchLease");
+    if (failure === "media") harness.mediaSelections.releaseTaskMediaSelection.mockImplementation(cleanupError);
+    if (failure === "input") releaseInput.mockImplementation(cleanupError);
+    if (failure === "output") releaseOutput.mockImplementation(cleanupError);
+    if (failure === "pin") harness.executor.endBatchSlice.mockImplementation(cleanupError);
+    const statuses: string[] = [];
+    harness.manager.onTaskEvent(OWNER_A, event => {
+      if (event.event.type === "task-updated") statuses.push(event.event.task.status);
+    });
+    await harness.manager.enqueue(OWNER_A, await harness.createRequest(harness.fileToken));
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(harness.manager.getSessionSnapshot(OWNER_A).batches[0]!.tasks[0]).toMatchObject({
+      status: "failed", error: { code: "cleanup_failed", stage: "cleanup" }, artifactResults: [],
+    });
+    expect(statuses).not.toContain("no_content");
+    expect(harness.mediaSelections.releaseTaskMediaSelection).toHaveBeenCalled();
+    expect(releaseInput).toHaveBeenCalled();
+    expect(harness.executor.endBatchSlice).toHaveBeenCalledOnce();
+    if (failure !== "input") expect(releaseOutput).toHaveBeenCalled();
+  });
+
+  it("keeps a batch pin for empty siblings and releases it before the last empty receipt", async () => {
+    const harness = await createHarness({ taskIds: ["task-1", "task-2"],
+      executor: executor(async context => noContentExecution(context)),
+    });
+    const sibling = await authorizeInput(harness.inputs, OWNER_A, "sibling.wav");
+    const releasesAtPublication: number[] = [];
+    harness.manager.onTaskEvent(OWNER_A, event => {
+      if (event.event.type === "task-updated" && event.event.task.status === "no_content") {
+        releasesAtPublication.push(harness.executor.endBatchSlice.mock.calls.length);
+      }
+    });
+    await harness.manager.enqueue(OWNER_A, await harness.createRequest([harness.fileToken, sibling.fileToken]));
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    expect(releasesAtPublication).toEqual([0, 1]);
+    expect(harness.executor.beginBatchSlice).toHaveBeenCalledOnce();
+    expect(harness.executor.execute.mock.calls[0]![0].batchRuntime).toBe(harness.executor.execute.mock.calls[1]![0].batchRuntime);
+  });
+
+  it.each([false, true])("respects cancellation during empty-result cleanup (cleanup failure=%s)", async failCleanup => {
+    const harness = await createHarness({ executor: executor(async context => noContentExecution(context)) });
+    harness.mediaSelections.releaseTaskMediaSelection.mockImplementationOnce(() => {
+      harness.manager.cancelTask(OWNER_A, "task-1");
+      if (failCleanup) throw new Error("release failed after cancellation");
+    });
+    const statuses: string[] = [];
+    harness.manager.onTaskEvent(OWNER_A, event => {
+      if (event.event.type === "task-updated") statuses.push(event.event.task.status);
+    });
+    await harness.manager.enqueue(OWNER_A, await harness.createRequest(harness.fileToken));
+    harness.flushScheduled();
+    await harness.manager.waitForIdle();
+    const task = harness.manager.getSessionSnapshot(OWNER_A).batches[0]!.tasks[0]!;
+    expect(task).toMatchObject(failCleanup ? { status: "failed", error: { code: "cancel_failed", stage: "cleanup" } } : { status: "cancelled" });
+    expect(statuses).not.toContain("no_content");
+    expect(harness.executor.endBatchSlice).toHaveBeenCalledOnce();
+  });
+
   it("publishes projected final cue counts through task events and session snapshots", async () => {
     const harness = await createHarness({executor:executor(async context => ({...await successfulExecution(context),
       cueSummary:{cueCount:13,exceedsTargetCount:2,privatePath:"must not cross IPC"},
@@ -3965,6 +4082,13 @@ function fakeVerifiedServerRuntime(
     noPathFallback: true as const,
     ready: true as const,
   }) as LocalSubtitleVerifiedRuntimeBundle;
+}
+
+function noContentExecution(context: LocalSubtitleJobTaskExecutionContext) {
+  context.update({ status: "preparing_media", progress: { stage: "preparing_media", stageProgress: 100, overallProgress: 10 }, durationMs: 1000 });
+  context.update({ status: "transcribing", progress: { stage: "transcribing", stageProgress: 100, overallProgress: 80 } });
+  context.update({ status: "post_processing", progress: { stage: "post_processing", stageProgress: 0, overallProgress: 80 } });
+  return { status: "no_content" as const, artifactResults: [] as const, durationMs: 1000 };
 }
 
 async function successfulExecution(

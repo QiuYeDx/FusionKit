@@ -392,7 +392,7 @@
       "delete_resource": "刪除資源",
       "start": "開始轉寫",
       "start_all": "全部開始",
-      "clear_completed": "清除已完成",
+      "clear_completed": "清空已完成",
       "clear_all": "清空全部",
       "retry_on_cpu": "改用 CPU 重試",
       "reveal": "在資料夾中顯示",
@@ -534,7 +534,8 @@
       "cancelling": "正在取消",
       "cancelled": "已取消",
       "failed": "轉寫失敗",
-      "interrupted": "已中斷"
+      "interrupted": "已中斷",
+      "no_content": "無可用字幕"
     },
     "queue": {
       "title": "任務佇列",

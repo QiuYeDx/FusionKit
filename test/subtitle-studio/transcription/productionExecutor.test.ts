@@ -39,6 +39,7 @@ import type {
   LocalSubtitleResolvedPcmWindow,
 } from "../../../electron/main/subtitle-studio/transcription/native/media-normalizer";
 import { LocalSubtitleProductionExecutor } from "../../../electron/main/subtitle-studio/transcription/native/production-executor";
+import { TranscriptionExecutor } from "../../../electron/main/subtitle-studio/transcription/transcript-executor";
 import type { LocalSubtitleVerifiedRuntimeBundle } from "../../../electron/main/subtitle-studio/transcription/native/resource-path";
 import type {
   LocalSubtitleServerInferenceRequest,
@@ -745,6 +746,53 @@ describe("local subtitle production executor", () => {
       status: "failed", error: {code: "no_speech_detected"},
     });
     expect(harness.supervisor.beginInference).toHaveBeenCalledOnce();
+  });
+
+  it.each([false, true])("Studio returns no_content only after valid complete empty inference and cleanup (VAD %s)", async vadEnabled => {
+    const harness = await createStudioHarness({ vadEnabled, quietAudioGainDb: 12, totalFrames: 65 * 16000,
+      inference: ({ request, window, index }) => ({ processEpoch: 1,
+        response: serverResponse(request, window.endMs - window.startMs, index === 0 ? [rawSegment(0, 100, 500, '   ')] : []) }) });
+    const result = await harness.executor.execute(harness.context);
+    expect(result).toEqual({ status: 'no_content', durationMs: 65000 });
+    expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(3);
+    expect(harness.supervisor.release).toHaveBeenCalledOnce();
+    expect(harness.media.disposeNormalized).toHaveBeenCalledOnce();
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+    expect(harness.supervisor.releaseBatchRuntimePin).toHaveBeenCalledOnce();
+  });
+
+  it.each(['cleanup', 'cancel', 'cancel_cleanup', 'native_failure', 'invalid_coverage', 'malformed', 'spoofed_empty'] as const)(
+    'Studio preserves %s over an apparent empty response', async scenario => {
+      const harness = await createStudioHarness({ disposeNormalizedFailure: scenario === 'cleanup' || scenario === 'cancel_cleanup',
+        inference: ({ request, window }) => {
+          if (scenario === 'native_failure') throw new Error('native inference failed');
+          if (scenario === 'spoofed_empty') throw Object.assign(new Error('invalid native result'), { code: 'no_speech_detected' });
+          const duration = window.endMs - window.startMs;
+          const response = serverResponse(request, scenario === 'invalid_coverage' ? duration - 1000 : duration, []);
+          if (scenario === 'malformed') return { processEpoch: 1, response: { ...response, result: { ...response.result, text: 'Uncovered words' } } };
+          return { processEpoch: 1, response };
+        } });
+      if (scenario === 'cancel' || scenario === 'cancel_cleanup') harness.supervisor.release.mockImplementationOnce(async () => { harness.controller.abort(); });
+      const result = await harness.executor.execute(harness.context);
+      expect(result.status).toBe(scenario === 'cancel' ? 'cancelled' : 'failed');
+      if (result.status === 'failed' && scenario === 'cleanup') expect(result.error.code).toBe('cleanup_failed');
+      if (result.status === 'failed' && scenario === 'cancel_cleanup') expect(result.error.code).toBe('cancel_failed');
+      expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+      expect(harness.media.disposeNormalized).toHaveBeenCalledOnce();
+      harness.executor.endBatchSlice(harness.context.batchRuntime);
+    });
+
+  it('Studio retains recognized cues when other complete windows are empty', async () => {
+    const harness = await createStudioHarness({ totalFrames: 65 * 16000,
+      inference: ({ request, window, index }) => ({ processEpoch: 1,
+        response: serverResponse(request, window.endMs - window.startMs,
+          index === 1 ? [rawSegment(0, 10000, 11000, 'Quiet speech was recognized.')] : []) }) });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe('transcript_ready');
+    if (result.status === 'transcript_ready') expect(result.transcript.segments.map(segment => segment.text)).toEqual(['Quiet speech was recognized.']);
+    expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
   });
 
   it.each([true, false])("binds quiet-window padding to actual conditioning and VAD (%s)", async (vadEnabled) => {
@@ -2315,6 +2363,7 @@ async function createHarness(options: HarnessOptions = {}) {
   );
   return {
     root,
+    serverRuntime: defaultServerRuntime,
     outputRoot,
     controller,
     sliceController,
@@ -2329,6 +2378,19 @@ async function createHarness(options: HarnessOptions = {}) {
     managedVad,
     resolveCudaAccelerator,
   };
+}
+
+/** Exercise the actual Studio transcript-only executor against the same native boundaries. */
+async function createStudioHarness(options: HarnessOptions = {}) {
+  const harness = await createHarness(options);
+  harness.executor.endBatchSlice(harness.context.batchRuntime);
+  const { output: _output, postAction: _postAction, ...config } = harness.context.config;
+  const executor = new TranscriptionExecutor({ media: harness.media, supervisor: harness.supervisor,
+    verifyServerRuntime: async () => harness.serverRuntime, validateWindowBrand: () => true,
+    rootPlanIdFactory: () => 'root-plan-1', cpuThreads: 2 });
+  const batch = { ...harness.context, config, signal: harness.sliceController.signal };
+  const context = { ...harness.context, config, batchRuntime: executor.beginBatchSlice(batch) };
+  return { ...harness, executor, context };
 }
 
 function fakeVerifiedServerRuntime(

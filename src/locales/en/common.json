@@ -88,5 +88,10 @@
     "zh-Hant": "Traditional Chinese",
     "ja": "Japanese",
     "en": "English"
+  },
+  "transcription_empty": {
+    "message": "Processing finished, but no usable speech was recognized. No subtitles were created.",
+    "help": "If you expected speech, listen to the source and check the audio track, recognition language, or model. Adjust the settings and add the file again. Repeating the same settings is unlikely to help.",
+    "no_output": "No subtitles created"
   }
 }

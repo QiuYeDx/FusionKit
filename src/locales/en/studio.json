@@ -495,7 +495,7 @@
     "status_completed": "Completed",
     "status_cancelled": "Cancelled",
     "status_failed": "Failed",
-    "active_count": "{{active}} active · {{completed}} completed",
+    "active_count": "{{active}} active · {{completed}} with subtitles · {{empty}} with no usable subtitles",
     "task_failed": "Transcription failed. Check the media and local resources.",
     "close": "Close",
     "shared_hint": "Models, speech detection and CUDA resources are stored in the app’s shared directory. Both subtitle tools use one installation.",
@@ -505,7 +505,7 @@
     "shared_busy_error": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
     "delete_resource": "Delete resource",
     "delete_shared_confirmation": "Delete the shared “{{name}}” resource? Local transcription and Subtitle Studio will both need it installed again before use. Existing subtitle documents are kept.",
-    "clear_completed": "Clear successful tasks",
+    "clear_completed": "Clear finished",
     "clear_terminal": "Clear all finished tasks",
     "queue_actions": "Queue actions",
     "cancel_all": "Cancel all unfinished",
@@ -516,8 +516,9 @@
     "auto_translation_pending_short": "Auto translate",
     "auto_translation_admitted_short": "Translation linked",
     "auto_translation_recovery_short": "Translation needs attention",
-    "clear_completed_hint": "Remove successful records only; keep subtitle documents",
-    "clear_terminal_hint": "Includes success, failure and cancellation; keeps subtitle documents"
+    "clear_completed_hint": "Remove records with subtitles or no usable content. Keep subtitle documents.",
+    "clear_terminal_hint": "Includes success, failure and cancellation; keeps subtitle documents",
+    "status_no_content": "No usable subtitles"
   },
   "overview": {
     "title": "Translation tasks",

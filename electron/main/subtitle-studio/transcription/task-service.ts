@@ -62,7 +62,7 @@ export interface TranscriptionTaskServiceOptions {
 const ownerSchema = z.object({ webContentsId: z.number().int().positive().safe(),
   ownerSessionId: z.string().min(1).max(128).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value)) }).strict();
 const keyOf = (owner: LocalSubtitleOwnerKey) => JSON.stringify([owner.webContentsId, owner.ownerSessionId]);
-const terminal = (record: Record) => ['completed', 'failed', 'cancelled'].includes(record.summary.status);
+const terminal = (record: Record) => ['completed', 'no_content', 'failed', 'cancelled'].includes(record.summary.status);
 const cleanupError = () => createLocalSubtitleError('cleanup_failed', 'Transcription cleanup failed.', { stage: 'cleanup' });
 const timestamp = () => new Date().toISOString();
 
@@ -266,6 +266,10 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
             update(record, { automaticTranslation: { status: 'needs_configuration' } });
           }
         }
+      }
+      else if (result.status === 'no_content') {
+        assertActive(record);
+        finish(record, { status: 'no_content', progress: 100, ...duration });
       }
       else if (result.status === 'failed') finish(record, { status: 'failed', error: publicError(result.error), ...duration });
       else finish(record, { status: record.leaseFailure ? 'failed' : 'cancelled',

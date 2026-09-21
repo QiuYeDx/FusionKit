@@ -88,9 +88,10 @@ const EXPECTED_TRANSITIONS = {
   preparing_media: ["loading_model", "transcribing", "cancelling", "failed"],
   loading_model: ["transcribing", "cancelling", "failed"],
   transcribing: ["post_processing", "cancelling", "failed"],
-  post_processing: ["exporting", "cancelling", "failed"],
+  post_processing: ["exporting", "no_content", "cancelling", "failed"],
   exporting: ["completed", "cancelling", "failed"],
   completed: [],
+  no_content: [],
   cancelling: ["completed", "cancelled", "failed"],
   cancelled: [],
   failed: [],
@@ -209,6 +210,20 @@ describe("local subtitle batch config snapshots", () => {
 });
 
 describe("local subtitle task transitions", () => {
+  it("settles a validated empty transcript without manufacturing export completion", () => {
+    expect(transitionLocalSubtitleTaskState(taskState("post_processing"), "no_content", transitionContext()))
+      .toEqual({ ok: true, state: { status: "no_content", artifactResults: [] } });
+    for (const context of [
+      transitionContext({ cancellationRequested: true }),
+      transitionContext({ error: createLocalSubtitleError("cleanup_failed", "cleanup failed") }),
+      transitionContext({ artifactResults: [committed("SRT")] }),
+    ]) {
+      expect(transitionLocalSubtitleTaskState(taskState("post_processing"), "no_content", context).ok).toBe(false);
+    }
+    expect(transitionLocalSubtitleTaskState(taskState("transcribing"), "no_content", transitionContext()).ok).toBe(false);
+    expect(transitionLocalSubtitleTaskState(taskState("cancelling"), "no_content", transitionContext()).ok).toBe(false);
+  });
+
   it("implements the complete allowed and rejected transition matrix", () => {
     expect(LOCAL_SUBTITLE_TASK_TRANSITIONS).toEqual(EXPECTED_TRANSITIONS);
 
@@ -223,7 +238,7 @@ describe("local subtitle task transitions", () => {
   });
 
   it("rejects transitions out of terminal states and other disallowed jumps", () => {
-    for (const status of ["completed", "cancelled", "failed"] as const) {
+    for (const status of ["completed", "no_content", "cancelled", "failed"] as const) {
       expect(
         transitionLocalSubtitleTaskState(
           taskState(status),
@@ -907,6 +922,9 @@ describe("local subtitle batch status derivation", () => {
   it.each([
     { statuses: [] as LocalSubtitleTaskStatus[], expected: "queued" },
     { statuses: ["queued"] as LocalSubtitleTaskStatus[], expected: "queued" },
+    { statuses: ["no_content"] as LocalSubtitleTaskStatus[], expected: "completed" },
+    { statuses: ["no_content", "completed"] as LocalSubtitleTaskStatus[], expected: "completed" },
+    { statuses: ["no_content", "transcribing"] as LocalSubtitleTaskStatus[], expected: "running" },
     {
       statuses: ["queued", "transcribing"] as LocalSubtitleTaskStatus[],
       expected: "running",

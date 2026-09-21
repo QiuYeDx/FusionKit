@@ -392,7 +392,7 @@
       "delete_resource": "Delete resource",
       "start": "Start transcription",
       "start_all": "Start all",
-      "clear_completed": "Clear completed",
+      "clear_completed": "Clear finished",
       "clear_all": "Clear all",
       "retry_on_cpu": "Retry on CPU",
       "reveal": "Show in folder",
@@ -534,7 +534,8 @@
       "cancelling": "Cancelling",
       "cancelled": "Cancelled",
       "failed": "Transcription failed",
-      "interrupted": "Interrupted"
+      "interrupted": "Interrupted",
+      "no_content": "No usable subtitles"
     },
     "queue": {
       "title": "Task queue",
