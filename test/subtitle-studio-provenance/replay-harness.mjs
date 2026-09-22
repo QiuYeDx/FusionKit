@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import ts from 'typescript';
 import * as esbuild from 'esbuild';
+import { readCurrentCopyAudits, matchesCurrentCopy } from '../../scripts/subtitle-studio-provenance/current-copy-audits.mjs';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const executorTest = 'test/local-subtitle/productionExecutor.test.ts';
@@ -130,8 +131,10 @@ async function bundleSide(sideRoot, executorPath, mediaPath) {
 }
 
 export async function createReplayPair() {
-  const { createCopyPlan } = await import('../../scripts/subtitle-studio-provenance/copy.mjs');
+  const { createCopyPlan, applyCopyPlan } = await import('../../scripts/subtitle-studio-provenance/copy.mjs');
   const plan = await createCopyPlan({ root: repositoryRoot });
+  applyCopyPlan(plan, { root: repositoryRoot });
+  const audits = readCurrentCopyAudits(repositoryRoot, plan);
   const baseline = plan.baseline;
   const sourceFiles = new Map(baseline.files.map(file => [file.sourcePath, file]));
   const planned = new Map(plan.files.map(file => [file.sourcePath, file]));
@@ -146,7 +149,7 @@ export async function createReplayPair() {
       const frozen = frozenBlob(baseline.sourceCommit, file.sourcePath);
       if (digest(frozen) !== sourceFiles.get(file.sourcePath)?.sha256) throw new Error(`Frozen replay source digest differs: ${file.sourcePath}`);
       const actual = await fs.readFile(path.join(repositoryRoot, file.destinationPath));
-      if (digest(actual) !== digest(file.bytes)) throw new Error(`Studio replay source differs from mechanical copy: ${file.destinationPath}`);
+      if (!matchesCurrentCopy(file.destinationPath, actual, file.bytes, audits)) throw new Error(`Studio replay source differs from reviewed copy: ${file.destinationPath}`);
       await write(legacyRoot, file.sourcePath, frozen);
       await write(studioRoot, file.destinationPath, actual);
     }
@@ -171,7 +174,7 @@ export async function createReplayPair() {
     const studio = await bundleSide(studioRoot, 'test/subtitle-studio/transcription/__executor-migration-harness.ts', 'test/subtitle-studio/transcription/__media-migration-harness.ts');
     return {
       legacy: legacy.api, studio: studio.api,
-      evidence: { sourceCommit: baseline.sourceCommit, copiedFiles: plan.files.length, helperEvidence, legacyInputs: legacy.bundledInputs, studioInputs: studio.bundledInputs },
+      evidence: { sourceCommit: baseline.sourceCommit, copiedFiles: plan.files.length, currentCopyAudits: [...audits.values()], helperEvidence, legacyInputs: legacy.bundledInputs, studioInputs: studio.bundledInputs },
       async cleanup() {
         const results = await Promise.allSettled([legacy.api.executor.cleanup(), studio.api.executor.cleanup()]);
         const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);

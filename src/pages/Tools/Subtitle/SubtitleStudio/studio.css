@@ -66,6 +66,13 @@
 .studio-library-footer .studio-page-jump input { width: 32px; }
 .studio-library-dialog .studio-library-content { height: min(60dvh, 600px); min-height: 240px; }
 .studio-recovery-content { display: grid; gap: 12px; }
+.studio-recovery-selection { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 12px; }
+.studio-recovery-selection label { display: inline-flex; align-items: center; gap: 8px; }
+.studio-recovery-selection > span { color: var(--muted-foreground); }
+.studio-recovery-footer { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.studio-recovery-feedback:empty { display: none; }
+.studio-recovery-feedback p { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.6; }
+.studio-recovery-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .studio-recovery-item { padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 .studio-recovery-item-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .studio-recovery-path { display: grid; gap: 4px; margin-top: 10px; font-size: 11px; }

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "3a0f50ed15c1b63451402cecf27240182235e567",
+  "entries": [
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/filesystem-object-identity.ts",
+      "copiedSha256": "c1a66f69d5dea89a7e0c203fe0b3132ac679aa2c922c98f6253b877ec0ad469d",
+      "currentSha256": "6697fe32b3714802ea9585b86ff5925f7cdae2641f58d6c91dcff049f8da089a",
+      "reason": "2026-09-22: Reviewed user-source metadata identity correction. Ignore ctime only for user inputs; distinguish source probes from private snapshots, unify stream binding and post-copy source checks. Exact file object, size, mtime and parent checks remain; strict private-file/resource integrity is unchanged."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/media-normalizer.ts",
+      "copiedSha256": "ffd2586d7e589ed5f10ac809a64e2e5445b7b8b0e83dd239b795577eba2479a9",
+      "currentSha256": "d81f920a52851bdfcc95e7b970eb030b4c6f208005ab5f21d97523cbc4857b45",
+      "reason": "2026-09-22: Reviewed user-source metadata identity correction. Ignore ctime only for user inputs; distinguish source probes from private snapshots, unify stream binding and post-copy source checks. Exact file object, size, mtime and parent checks remain; strict private-file/resource integrity is unchanged."
+    }
+  ]
+}

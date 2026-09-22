@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { writeFile } from 'node:fs/promises';
+import { touchSourceMetadata } from './helpers/source-metadata';
+import { SourceLocationService } from '../../electron/main/subtitle-studio/source-location-service';
 import { afterEach, expect, it, vi } from 'vitest';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { createTranscriptionTaskService, type TranscriptionTaskServiceOptions } from '../../electron/main/subtitle-studio/transcription/task-service';
@@ -68,6 +70,41 @@ async function fixture() {
   disposals.push(async () => { await service.shutdown(); service.confirmCleanup(); await bundle.cleanup(); });
   return { service, inputs, leases, repository, model, modelResolver, backendResolver, media, executor, request, timers, options, transcript };
 }
+
+it('keeps queued leases, renewals and document source bindings valid after external metadata changes', async () => {
+  const f = await fixture(), request = await f.request(ownerA, 2);
+  const paths = await Promise.all(request.files.map(file => f.inputs.resolveDraft(ownerA, file.fileToken, 'transcribe').then(input => input.filePath)));
+  paths.forEach(touchSourceMetadata);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  f.executor.execute.mockImplementationOnce(async () => {
+    await gate;
+    return { status: 'transcript_ready', transcript: f.transcript, durationMs: 5000, cueSummary: { cueCount: 1, exceedsTargetCount: 0 } };
+  });
+  const admission = await f.service.enqueue(ownerA, request);
+  try {
+    await eventually(() => f.executor.execute.mock.calls.length === 1);
+    paths.forEach(touchSourceMetadata);
+    for (const [index, task] of admission.tasks.entries()) {
+      await f.inputs.renewTaskLease(ownerA, task.taskId);
+      await f.inputs.resolveTaskSourceOutputDirectory(ownerA, task.taskId, request.files[index].fileToken);
+    }
+  } finally { release(); }
+  await f.service.waitForIdle();
+  const tasks = f.service.list(ownerA);
+  expect(tasks.map(task => task.status)).toEqual(['completed', 'completed']);
+  for (const task of tasks) expect(await new SourceLocationService(f.repository).get(task.documentId!)).toEqual({ status: 'ready', origin: 'input' });
+});
+
+it('rejects duplicate source objects authorized on either side of a metadata update', async () => {
+  const f = await fixture(), request = await f.request(ownerA);
+  const input = await f.inputs.resolveDraft(ownerA, request.files[0].fileToken, 'transcribe');
+  touchSourceMetadata(input.filePath);
+  const second = await f.inputs.authorize(ownerA, input.filePath, ['probe', 'transcribe', 'derive_source_output']);
+  request.files.push({ fileToken: second.fileToken });
+  await expect(f.service.enqueue(ownerA, request)).rejects.toThrow('invalid_input');
+  expect(f.service.list(ownerA)).toEqual([]);
+});
 
 it('admits bounded media capabilities and sequentially publishes complete documents without output authority', async () => {
   const f = await fixture(), request = await f.request(ownerA, 2, true);

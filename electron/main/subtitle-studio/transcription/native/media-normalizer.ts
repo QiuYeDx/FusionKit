@@ -469,6 +469,7 @@ export class LocalSubtitleMediaNormalizer {
         tools,
         operation,
         input.identity,
+        "input",
       );
       await assertResolvedInputCurrent(input);
       throwIfAborted(operation.signal, "probe_failed");
@@ -506,7 +507,7 @@ export class LocalSubtitleMediaNormalizer {
       !selectedTrack ||
       record.ownerKey !== ownedBy ||
       record.runtimeGeneration !== options.runtimeGeneration ||
-      !sameFileIdentity(record.inputIdentity, options.inputIdentity)
+      !sameInputFileIdentity(record.inputIdentity, options.inputIdentity)
     ) {
       throw mediaFailure(
         "media_changed",
@@ -610,6 +611,7 @@ export class LocalSubtitleMediaNormalizer {
           tools,
           operation,
           sourceSnapshotIdentity,
+          "private",
         );
         const selected = this.#resolveTrackSelection({
           owner: options.owner,
@@ -1483,9 +1485,11 @@ export class LocalSubtitleMediaNormalizer {
     tools: MediaTools,
     operation: MediaOwnerOperation,
     expectedIdentity: LocalSubtitleFileIdentity,
+    identityKind: "input" | "private",
   ): Promise<ParsedMediaProbe> {
     const { signal } = operation;
-    await assertPathFileIdentity(inputPath, expectedIdentity);
+    const sameIdentity = identityKind === "input" ? sameInputFileIdentity : sameFileIdentity;
+    await assertPathFileIdentity(inputPath, expectedIdentity, sameIdentity);
     const result = await this.#processRunner({
       command: tools.ffprobe.absolutePath,
       args: [
@@ -1509,7 +1513,7 @@ export class LocalSubtitleMediaNormalizer {
     });
     operation.trackProcess(result);
     throwIfAborted(signal, "probe_failed");
-    await assertPathFileIdentity(inputPath, expectedIdentity);
+    await assertPathFileIdentity(inputPath, expectedIdentity, sameIdentity);
     if (!processSucceeded(result)) {
       if (!result.aborted && result.status === "spawn_error") {
         throw mediaFailure(
@@ -2202,7 +2206,7 @@ async function copyAuthorizedInputSnapshot(options: {
       throw new Error("Private media snapshot identity is invalid.");
     }
     if (
-      !sameFileIdentity(
+      !sameInputFileIdentity(
         await localSubtitleFileIdentityForHandle(source),
         sourceIdentity,
       )
@@ -2267,13 +2271,14 @@ async function assertResolvedInputCurrent(
 async function assertPathFileIdentity(
   filePath: string,
   expected: LocalSubtitleFileIdentity,
+  sameIdentity = sameFileIdentity,
 ): Promise<void> {
   try {
     const current = await lstat(filePath);
     if (
       !current.isFile() ||
       current.isSymbolicLink() ||
-      !sameFileIdentity(
+      !sameIdentity(
         await localSubtitleFileIdentityForPath(filePath),
         expected,
       )

@@ -17,7 +17,7 @@ import type { TranscriptionExecutor, TranscriptionBatchExecutionContext, Transcr
 import type { LocalSubtitleCapabilityLeaseCoordinator, LocalSubtitleInputAuthorizationRegistry, LocalSubtitleOwnerKey,
   LocalSubtitleFileIdentity } from './native/authorizations';
 import { isLocalSubtitleVerifiedBackendResolution } from './native/backend-resolver';
-import { sameLocalSubtitleFileIdentity } from './native/filesystem-object-identity';
+import { sameLocalSubtitleInputFileIdentity } from './native/filesystem-object-identity';
 import type { LocalSubtitleJobBackendResolver, LocalSubtitleJobModelResolver, LocalSubtitleJobTaskUpdate } from './native/job-manager';
 import type { LocalSubtitleMediaNormalizer } from './native/media-normalizer';
 import type { LocalSubtitleServerManagedResourceIdentity } from './native/server-process-contract';
@@ -332,7 +332,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       if (!/^[a-f0-9]{64}$/.test(runtime.runtimeGeneration)) throw new StudioError('invalid_input');
       for (let index = 0; index < inputs.length; index++) {
         const input = inputs[index]!;
-        if (inputs.slice(0, index).some(other => sameLocalSubtitleFileIdentity(other.identity, input.identity))) throw new StudioError('invalid_input');
+        if (inputs.slice(0, index).some(other => sameLocalSubtitleInputFileIdentity(other.identity, input.identity))) throw new StudioError('invalid_input');
         const claim = sourceClaim(owner.key, input.sourceKey);
         if (sourceClaims.has(claim)) throw createLocalSubtitleError('resource_busy', 'This source already has an active transcription.');
         sourceClaims.add(claim); claims.push(claim);

@@ -355,7 +355,16 @@
     "confirm_remove": "Confirm removal",
     "close": "Close",
     "count": "{{count}} need attention",
-    "view": "View"
+    "view": "View",
+    "select_all": "Select all",
+    "select_document": "Select document {{id}}",
+    "selected_count": "{{count}} of {{total}} selected",
+    "remove_selected": "Clear selected ({{count}})",
+    "confirm_batch": "Clear the data saved in the workbench for these {{count}} selected documents? This cannot be undone. Original subtitle files and exported files will be kept.",
+    "progress": "Clearing {{count}} of {{total}} documents…",
+    "batch_result": "{{count}} documents cleared; {{failed}} could not be cleared.",
+    "item_failed": "Could not clear",
+    "batch_success": "{{count}} documents cleared."
   },
   "batch": {
     "translation": "Translate selected documents",

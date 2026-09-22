@@ -9,6 +9,7 @@ import { BASELINE_PATH, POLICY as BASELINE_POLICY } from './policy.mjs';
 import { checkBaseline, serialize } from './generate.mjs';
 import { COPY_POLICY, FORK_PATH } from './copy-policy.mjs';
 import { readSharedResourceIntegrationAudits } from './shared-resource-integration.mjs';
+import { readCurrentCopyAudits, matchesCurrentCopy } from './current-copy-audits.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
@@ -249,14 +250,16 @@ function safeDestination(root, name) {
 }
 
 export function applyCopyPlan(plan, { root = process.cwd(), write = false, provenancePath = FORK_PATH } = {}) {
+  const audits = provenancePath === FORK_PATH ? readCurrentCopyAudits(root, plan) : new Map();
   const outputs = [...plan.files.map(file => ({ path: file.destinationPath, bytes: file.bytes })), { path: provenancePath, bytes: Buffer.from(serialize(plan.provenance)) }];
   const pending = [];
   // Complete preflight before the first write; a conflicting user edit is never reset.
   for (const output of outputs) {
     const absolute = safeDestination(root, output.path);
     if (fs.existsSync(absolute)) {
-      if (!fs.statSync(absolute).isFile() || !fs.readFileSync(absolute).equals(output.bytes)) throw new Error(`Destination content differs: ${output.path}`);
-    } else if (!write) throw new Error(`Missing destination: ${output.path}`);
+      if (!fs.statSync(absolute).isFile() || !matchesCurrentCopy(output.path, fs.readFileSync(absolute), output.bytes, audits)) throw new Error(`Destination content differs: ${output.path}`);
+    } else if (audits.has(output.path)) throw new Error(`Missing audited destination: ${output.path}`);
+    else if (!write) throw new Error(`Missing destination: ${output.path}`);
     else pending.push({ ...output, absolute });
   }
   const created = [];
@@ -266,7 +269,7 @@ export function applyCopyPlan(plan, { root = process.cwd(), write = false, prove
       fs.writeFileSync(output.absolute, output.bytes, { flag: 'wx' });
       created.push(output.absolute);
     }
-    for (const output of outputs) if (!fs.readFileSync(safeDestination(root, output.path)).equals(output.bytes)) throw new Error(`Destination verification failed: ${output.path}`);
+    for (const output of outputs) if (!matchesCurrentCopy(output.path, fs.readFileSync(safeDestination(root, output.path)), output.bytes, audits)) throw new Error(`Destination verification failed: ${output.path}`);
   } catch (error) {
     for (const absolute of created.reverse()) fs.unlinkSync(absolute);
     throw error;

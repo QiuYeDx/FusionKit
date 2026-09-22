@@ -99,3 +99,10 @@ No ready resource receipt is generated. Later native rebuilding/signing, model
 copy-only import, document sink and packaging composition remain separate work.
 Normal tests consume only the new copy. Migration replay stays in the separate
 maintenance test directory and may use isolated frozen Git sources for comparison.
+
+Current Studio bug fixes may intentionally diverge from the historical copy.
+`current-copy-audits.json` binds the two reviewed source-metadata fixes to exact
+original and current SHA-256 values. The copy verifier and paired replay share
+this check; all other destinations and the historical manifests remain exact.
+It neither rewrites the frozen copy plan nor lets `--write` restore an audited
+file to its old behavior. Further changes require a new explicit file review.

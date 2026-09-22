@@ -15,6 +15,7 @@ import { planSubtitleExport } from '../../electron/main/subtitle-studio/export-p
 import { createTranscriptionDocumentSink } from '../../electron/main/subtitle-studio/transcription/document-sink';
 import { captureSourceInput } from '../../electron/main/subtitle-studio/source-location-service';
 import { summarizeDocument } from '../../src/subtitle-studio/ipc-contract';
+import { touchSourceMetadata } from './helpers/source-metadata';
 
 const roots: string[] = [];
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }); });
@@ -37,6 +38,31 @@ async function fixture() {
 }
 
 describe('private source locations and safe exports', () => {
+  it('reopens persisted source bindings and exports after external metadata changes, including after planning', async () => {
+    const f = await fixture(), input = await f.imports('metadata-source');
+    touchSourceMetadata(input.file);
+    const reopened = new DocumentRepository(f.repositoryRoot), service = new ExportService(reopened);
+    expect(await new SourceLocationService(reopened).get(input.document.id)).toEqual({ status: 'ready', origin: 'input' });
+    const plan = await service.plan(7, input.document.id, 1, options());
+    touchSourceMetadata(input.file);
+    const result = await service.publishToSource(7, input.document.id, 1, plan.planId!, losses(plan));
+    expect(await readFile(path.join(input.parent, result.fileName), 'utf8')).toContain('Original subtitle.');
+    const original = await service.exportOriginalToSource(input.document.id, 1);
+    expect(await readFile(path.join(input.parent, original.fileName), 'utf8')).toBe(raw);
+    expect(await readFile(input.file, 'utf8')).toBe(raw);
+  });
+
+  it.each(['edited', 'replaced', 'moved'] as const)('still rejects a genuinely %s source after metadata drift', async kind => {
+    const f = await fixture(), input = await f.imports('changed-source');
+    const plan = await f.service.plan(7, input.document.id, 1, options());
+    touchSourceMetadata(input.file);
+    if (kind !== 'edited') await rename(input.file, `${input.file}.old`);
+    if (kind === 'replaced') await writeFile(input.file, raw);
+    if (kind === 'edited') await writeFile(input.file, `${raw}changed`);
+    expect(await f.sources.get(input.document.id)).toMatchObject({ status: 'unavailable' });
+    await expect(f.service.publishToSource(7, input.document.id, 1, plan.planId!, losses(plan))).rejects.toThrow('output_write_failed');
+  });
+
   it('persists the actual selected source across repository reopen without exposing paths in documents or summaries', async () => {
     const f = await fixture(), input = await f.imports('audio-project');
     const reopened = new DocumentRepository(f.repositoryRoot), sources = new SourceLocationService(reopened);

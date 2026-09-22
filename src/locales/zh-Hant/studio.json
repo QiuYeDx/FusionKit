@@ -355,7 +355,16 @@
     "confirm_remove": "確認清除",
     "close": "關閉",
     "count": "待處理 {{count}}",
-    "view": "查看"
+    "view": "查看",
+    "select_all": "全選",
+    "select_document": "選取文件 {{id}}",
+    "selected_count": "已選 {{count}} / {{total}} 份",
+    "remove_selected": "清理所選（{{count}}）",
+    "confirm_batch": "將清除所選 {{count}} 份文件在工作台內儲存的資料，此操作無法復原。原字幕檔案和已匯出的檔案會保留。",
+    "progress": "正在清理 {{count}} / {{total}} 份文件…",
+    "batch_result": "已清理 {{count}} 份文件，{{failed}} 份未能清理。",
+    "item_failed": "清理失敗",
+    "batch_success": "已清理 {{count}} 份文件。"
   },
   "batch": {
     "translation": "批次翻譯",
