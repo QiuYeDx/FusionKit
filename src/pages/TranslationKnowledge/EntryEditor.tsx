@@ -2,7 +2,7 @@ import { optionKey, type FieldName } from "./labels";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { FilePenLine } from "lucide-react";
+import { FilePenLine, Info, Layers3, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { KnowledgeFormSection, KnowledgeRecordDialog } from "./KnowledgeRecordDialog";
 import type { Entry } from "@/translation-knowledge/schemas";
 import type {
@@ -17,13 +17,13 @@ import {
   LinesField,
   LanguageField,
   ErrorNotice,
-  MultiChoice,
   TextField,
 } from "./Controls";
 import type { Diagnostic } from "@/translation-knowledge/validation";
 import { manualEntryRequest, splitLines } from "./model";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import { EntrySettingsPanel } from "./EntrySettingsPanel";
+import { ToolSwitchRow, ToolToggleRow } from "@/pages/Tools/_shared/ui/ToolSwitchRow";
 
 function changeKind(entry: Entry, kind: Entry["kind"]): Entry {
   const base = { ...entry, kind };
@@ -401,7 +401,6 @@ export function EntryEditor({
               { value: "scope", label: t("record.tab_scope") },
               { value: "metadata", label: t("record.tab_metadata") },
             ]}>
-            <div className="knowledge-entry-settings-panels">
             {entry.kind === "term" && (
               <EntrySettingsPanel value="wording" active={settingsTab === "wording"}>
                 <div className="space-y-4">
@@ -449,10 +448,11 @@ export function EntryEditor({
                       options={options("match", ["literal_phrase", "whole_term"])}
                     />
                   </div>
-                  <Check
+                  <ToolSwitchRow
+                    disabled={pending || blocked}
                     label={t("fields.case_sensitive")}
                     checked={entry.payload.match.caseSensitive}
-                    onChange={(caseSensitive) =>
+                    onCheckedChange={(caseSensitive) =>
                       setEntry({
                         ...entry,
                         payload: {
@@ -542,128 +542,89 @@ export function EntryEditor({
               </div>
             </EntrySettingsPanel>
             <EntrySettingsPanel value="scope" active={settingsTab === "scope"}>
-              <div className="space-y-4">
-                <p className="knowledge-editor-help">
-                  {t("editor.scope_help")}
-                </p>
-                <MultiChoice
-                  label={t("fields.about_subjects")}
-                  options={snapshot.data.subjects}
-                  value={entry.aboutSubjectIds}
-                  onChange={(aboutSubjectIds) =>
-                    setEntry({ ...entry, aboutSubjectIds })
-                  }
-                />
-                <div className="space-y-4">
-                  {snapshot.data.subjects.map((subject) => {
-                    const condition = entry.scope.requiredSubjects.find(
-                      (item) => item.subjectId === subject.id,
-                    );
-                    return (
-                      <div
-                        key={subject.id}
-                        className="knowledge-form-grid items-end"
-                      >
-                        <Check
+              <div className="knowledge-scope-builder">
+                <div className="knowledge-scope-intro">
+                  <div className="knowledge-scope-intro-icon" aria-hidden="true"><ShieldCheck /></div>
+                  <div className="knowledge-scope-intro-copy">
+                    <div className="knowledge-scope-intro-title">{t("editor.scope")}</div>
+                    <p>{t("editor.scope_help")}</p>
+                  </div>
+                  <div className="knowledge-scope-summary" aria-label={t("editor.scope")}>
+                    <span className="knowledge-scope-summary-item"><strong>{entry.scope.requiredSubjects.length}</strong>{t("fields.subject_role")}</span>
+                    <span className="knowledge-scope-summary-item"><strong>{entry.aboutSubjectIds.length}</strong>{t("fields.about_subjects")}</span>
+                  </div>
+                </div>
+
+                <section className="knowledge-scope-card" aria-labelledby="knowledge-scope-about-subjects">
+                  <div className="knowledge-scope-card-heading">
+                    <div className="knowledge-scope-card-icon" aria-hidden="true"><Layers3 /></div>
+                    <div>
+                      <h4 id="knowledge-scope-about-subjects">{t("fields.about_subjects")}</h4>
+                    </div>
+                    <span className="knowledge-scope-count">{entry.aboutSubjectIds.length}</span>
+                  </div>
+                  <div className="knowledge-scope-subject-list">
+                    {snapshot.data.subjects.length ? snapshot.data.subjects.map((subject) => {
+                      const selected = entry.aboutSubjectIds.includes(subject.id);
+                      return <ToolToggleRow key={subject.id}
+                          control="checkbox"
+                          disabled={pending || blocked}
                           label={subject.name}
-                          checked={!!condition}
-                          onChange={(checked) =>
-                            setEntry({
-                              ...entry,
-                              scope: {
-                                ...entry.scope,
-                                requiredSubjects: checked
-                                  ? [
-                                    ...entry.scope.requiredSubjects,
-                                    { subjectId: subject.id, role: "topic" },
-                                  ]
-                                  : entry.scope.requiredSubjects.filter(
-                                    (item) => item.subjectId !== subject.id,
-                                  ),
-                              },
-                            })
-                          }
-                        />
-                        {condition && (
+                          hint={t(`subject_kind.${subject.kind}`)}
+                          checked={selected}
+                          onCheckedChange={(checked) => setEntry({ ...entry, aboutSubjectIds: checked ? [...entry.aboutSubjectIds, subject.id] : entry.aboutSubjectIds.filter((id) => id !== subject.id) })}
+                        />;
+                    }) : <p className="knowledge-scope-empty">{t("empty.options")}</p>}
+                  </div>
+                </section>
+
+                <section className="knowledge-scope-card knowledge-scope-requirements" aria-labelledby="knowledge-scope-requirements-title">
+                  <div className="knowledge-scope-card-heading">
+                    <div className="knowledge-scope-card-icon" aria-hidden="true"><SlidersHorizontal /></div>
+                    <div>
+                      <h4 id="knowledge-scope-requirements-title">{t("fields.subject_role")}</h4>
+                    </div>
+                    <span className="knowledge-scope-count">{entry.scope.requiredSubjects.length}</span>
+                  </div>
+                  <div className="knowledge-scope-requirement-list">
+                    {snapshot.data.subjects.length ? snapshot.data.subjects.map((subject) => {
+                      const condition = entry.scope.requiredSubjects.find((item) => item.subjectId === subject.id);
+                      return <ToolToggleRow key={subject.id}
+                        control="checkbox"
+                        disabled={pending || blocked}
+                        label={subject.name}
+                        hint={t(`subject_kind.${subject.kind}`)}
+                        checked={!!condition}
+                        onCheckedChange={(checked) => setEntry({ ...entry, scope: { ...entry.scope, requiredSubjects: checked ? [...entry.scope.requiredSubjects, { subjectId: subject.id, role: "topic" }] : entry.scope.requiredSubjects.filter((item) => item.subjectId !== subject.id) } })}
+                      >
+                        {condition && <div className="knowledge-scope-role-field">
                           <Choice
                             label={t("fields.subject_role")}
                             value={condition.role}
-                            options={options(
-                              "role",
-                              subject.kind === "person"
-                                ? ["topic", "speaker", "mentioned", "present"]
-                                : ["topic", "mentioned", "present"],
-                            )}
-                            onChange={(role) =>
-                              setEntry({
-                                ...entry,
-                                scope: {
-                                  ...entry.scope,
-                                  requiredSubjects:
-                                    entry.scope.requiredSubjects.map((item) =>
-                                      item.subjectId === subject.id
-                                        ? {
-                                          ...item,
-                                          role: role as typeof item.role,
-                                        }
-                                        : item,
-                                    ),
-                                },
-                              })
-                            }
+                            options={options("role", subject.kind === "person" ? ["topic", "speaker", "mentioned", "present"] : ["topic", "mentioned", "present"])}
+                            onChange={(role) => setEntry({ ...entry, scope: { ...entry.scope, requiredSubjects: entry.scope.requiredSubjects.map((item) => item.subjectId === subject.id ? { ...item, role: role as typeof item.role } : item) } })}
                           />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <Choice
-                  label={t("fields.condition")}
-                  value={entry.scope.condition.mode}
-                  options={options(
-                    "condition",
-                    (entry.kind === "term" || entry.kind === "rule") &&
-                      entry.payload.strength === "required"
-                      ? ["none", "requires_confirmation"]
-                      : ["none", "advisory", "requires_confirmation"],
-                  )}
-                  onChange={(mode) =>
-                    setEntry({
-                      ...entry,
-                      scope: {
-                        ...entry.scope,
-                        condition:
-                          mode === "none"
-                            ? { mode: "none" }
-                            : {
-                              mode: mode as "advisory" | "requires_confirmation",
-                              text: "",
-                            },
-                      },
-                    })
-                  }
-                />
-                {entry.scope.condition.mode !== "none" &&
-                  text(
-                    "condition_text",
-                    entry.scope.condition.text,
-                    (text) =>
-                      setEntry({
-                        ...entry,
-                        scope: {
-                          ...entry.scope,
-                          condition: {
-                            ...entry.scope.condition,
-                            mode: entry.scope.condition.mode as
-                              | "advisory"
-                              | "requires_confirmation",
-                            text,
-                          },
-                        },
-                      }),
-                    true,
-                    true,
-                  )}
+                        </div>}
+                      </ToolToggleRow>;
+                    }) : <p className="knowledge-scope-empty">{t("empty.options")}</p>}
+                  </div>
+                </section>
+
+                <section className="knowledge-scope-card knowledge-scope-condition" aria-labelledby="knowledge-scope-condition-title">
+                  <div className="knowledge-scope-card-heading">
+                    <div className="knowledge-scope-card-icon" aria-hidden="true"><Info /></div>
+                    <div>
+                      <h4 id="knowledge-scope-condition-title">{t("fields.condition")}</h4>
+                    </div>
+                  </div>
+                  <Choice
+                    label={t("fields.condition")}
+                    value={entry.scope.condition.mode}
+                    options={options("condition", (entry.kind === "term" || entry.kind === "rule") && entry.payload.strength === "required" ? ["none", "requires_confirmation"] : ["none", "advisory", "requires_confirmation"])}
+                    onChange={(mode) => setEntry({ ...entry, scope: { ...entry.scope, condition: mode === "none" ? { mode: "none" } : { mode: mode as "advisory" | "requires_confirmation", text: "" } } })}
+                  />
+                  {entry.scope.condition.mode !== "none" && text("condition_text", entry.scope.condition.text, (value) => setEntry({ ...entry, scope: { ...entry.scope, condition: { ...entry.scope.condition, mode: entry.scope.condition.mode as "advisory" | "requires_confirmation", text: value } } }), true, true)}
+                </section>
               </div>
             </EntrySettingsPanel>
             <EntrySettingsPanel value="metadata" active={settingsTab === "metadata"}>
@@ -677,10 +638,8 @@ export function EntryEditor({
                 </p>
               </div>
             </EntrySettingsPanel>
-            </div>
           </ClipPathTabs>
         </KnowledgeFormSection>
-        {initial.state !== "archived" && <p className="knowledge-editor-help">{t("workspace.apply_help")}</p>}
       </fieldset>
       <ErrorNotice error={error} diagnostics={diagnostics} />
     </KnowledgeRecordDialog>

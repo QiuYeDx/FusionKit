@@ -1,8 +1,22 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { ToolSwitchRow } from "./ToolSwitchRow";
+import { ToolSwitchRow, ToolToggleRow } from "./ToolSwitchRow";
 
 describe("ToolSwitchRow", () => {
+  it("keeps a checkbox row's additional controls outside its label", () => {
+    const markup = renderToStaticMarkup(
+      <ToolToggleRow id="subject" label="Subject" control="checkbox" checked disabled onCheckedChange={() => undefined}>
+        <select aria-label="Role"><option>Topic</option></select>
+      </ToolToggleRow>,
+    );
+    expect(markup).toContain('for="subject"');
+    expect(markup).toContain('role="checkbox"');
+    expect(markup).toContain('aria-checked="true"');
+    expect(markup).not.toContain('role="switch"');
+    expect(markup.slice(0, markup.indexOf('</label>'))).toContain('disabled');
+    expect(markup.indexOf('<select')).toBeGreaterThan(markup.indexOf('</label>'));
+  });
+
   it("renders a full-row label bound to an accessible switch", () => {
     const markup = renderToStaticMarkup(
       <ToolSwitchRow

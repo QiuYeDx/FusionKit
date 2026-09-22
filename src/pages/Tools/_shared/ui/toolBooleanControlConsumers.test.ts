@@ -43,7 +43,11 @@ describe("tool boolean controls", () => {
       // Studio stages file interpretations and export choices before a separate confirmation.
       "Subtitle/SubtitleStudio/StudioBilingual.tsx",
       "Subtitle/SubtitleStudio/StudioExport.tsx",
+      "Subtitle/SubtitleStudio/StudioLibrary.tsx",
+      "Subtitle/SubtitleStudio/StudioMaterialsFields.tsx",
       "Subtitle/SubtitleTranslator/components/RecoveryDialog.tsx",
+      // Shared selection-card variant; boolean settings still default to Switch.
+      "_shared/ui/ToolSwitchRow.tsx",
     ]);
 
     expect(read("Audio/AudioTranscriber/index.tsx")).toContain(
