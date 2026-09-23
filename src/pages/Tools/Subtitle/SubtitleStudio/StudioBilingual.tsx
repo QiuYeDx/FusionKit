@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { AlertCircle, Check, Columns2, Eraser, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { ToolField } from '../../_shared/ui/ToolField';
@@ -12,6 +12,7 @@ import { StudioError, type ErrorCode, type SubtitleDocument } from '@/subtitle-s
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import type { BilingualCandidate, BilingualOptions, BilingualPreview } from '@/subtitle-studio/bilingual-contract';
 import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
+import { StudioScrollFade } from './StudioScrollFade';
 import './StudioBilingual.css';
 
 const errorKeys = {
@@ -56,6 +57,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
   const trigger = useRef<HTMLButtonElement>(null);
   const firstControl = useRef<HTMLButtonElement>(null);
   const optionsRegion = useRef<HTMLDivElement>(null);
+  const candidatesRegion = useRef<HTMLOListElement>(null);
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
   const [options, setOptions] = useState<BilingualOptions>({ sourceSide: 'first', splitInline: false, overrides: [] });
@@ -119,6 +121,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
   const changePage = (value: number) => {
     setOffset(value);
     optionsRegion.current?.closest('[data-slot="scroll-area-viewport"]')?.scrollTo({ top: 0 });
+    candidatesRegion.current?.closest('.studio-scroll-fade-viewport')?.scrollTo({ top: 0 });
   };
   const configure = (patch: Partial<BilingualOptions>) => {
     setSelectionLimit(false);
@@ -175,14 +178,14 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
               <SelectContent><SelectItem value="first">{t('studio:bilingual.first_source')}</SelectItem><SelectItem value="second">{t('studio:bilingual.second_source')}</SelectItem></SelectContent>
             </Select>
           </ToolField>
-          <div className="studio-bilingual-checks">
-            <label className="studio-bilingual-inline" htmlFor={`${controlId}-inline`}>
-              <Checkbox id={`${controlId}-inline`} checked={options.splitInline} onCheckedChange={checked => configure({ splitInline: checked === true })} disabled={applying || busy} />
+          <div className="studio-bilingual-switches">
+            <label className="studio-bilingual-switch" htmlFor={`${controlId}-inline`}>
               <span>{t('studio:bilingual.split_inline')}</span>
+              <Switch id={`${controlId}-inline`} checked={options.splitInline} onCheckedChange={splitInline => configure({ splitInline })} disabled={applying || busy} />
             </label>
-            <label className="studio-bilingual-inline" htmlFor={`${controlId}-review`}>
-              <Checkbox id={`${controlId}-review`} checked={reviewOnly} onCheckedChange={checked => { setReviewOnly(checked === true); changePage(0); }} disabled={applying || busy} />
+            <label className="studio-bilingual-switch" htmlFor={`${controlId}-review`}>
               <span>{t('studio:bilingual.review_only')}</span>
+              <Switch id={`${controlId}-review`} checked={reviewOnly} onCheckedChange={checked => { setReviewOnly(checked); changePage(0); }} disabled={applying || busy} />
             </label>
           </div>
         </div>
@@ -198,7 +201,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
             <div><dt>{t('studio:bilingual.review')}</dt><dd>{visiblePreview.reviewCount.toLocaleString()}</dd></div>
             <div><dt>{t('studio:bilingual.result_cues')}</dt><dd>{visiblePreview.cueCount.toLocaleString()}</dd></div>
           </dl>
-          {visiblePreview.candidates.length ? <ol className="studio-bilingual-candidates" start={visiblePreview.offset + 1} aria-label={t('studio:bilingual.candidates')} aria-busy={loading}>
+          {visiblePreview.candidates.length ? <StudioScrollFade className="studio-bilingual-list" maxHeight="min(400px, max(160px, calc(100dvh - 340px)))"><ol ref={candidatesRegion} className="studio-bilingual-candidates" start={visiblePreview.offset + 1} aria-label={t('studio:bilingual.candidates')} aria-busy={loading}>
             {visiblePreview.candidates.map((candidate, index) => {
               const override = options.overrides.find(item => item.cueId === candidate.id);
               const selected = override ? override.splitAt === null ? 'keep' : `split:${override.splitAt}` : 'suggested';
@@ -208,23 +211,25 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
                 <div className="studio-bilingual-candidate-heading">
                   <span className="studio-bilingual-number">{visiblePreview.offset + index + 1}</span>
                   <time>{formatStudioTime(candidate.startMs)}</time>
-                  {candidate.needsReview && <span className="studio-bilingual-review"><AlertCircle className="size-3" />{t('studio:bilingual.review')}</span>}
+                </div>
+                <dl className="studio-bilingual-pair">
+                  <div><dt>{t('studio:bilingual.source_label', { language: languageName(preview?.sourceSide === options.sourceSide ? visiblePreview.sourceLanguage : visiblePreview.targetLanguage) })}</dt><dd>{source}</dd></div>
+                  <div><dt>{t('studio:bilingual.target_label', { language: languageName(preview?.sourceSide === options.sourceSide ? visiblePreview.targetLanguage : visiblePreview.sourceLanguage) })}</dt><dd>{target}</dd></div>
+                </dl>
+                <div className="studio-bilingual-candidate-actions">
                   <Select value={selected} onValueChange={value => choose(candidate, value)} disabled={pending || !currentPreview}>
-                    <SelectTrigger aria-label={t('studio:bilingual.candidate_action', { number: visiblePreview.offset + index + 1 })} className="h-7 w-[148px] min-w-0 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label={t('studio:bilingual.candidate_action', { number: visiblePreview.offset + index + 1 })} className="h-7 w-full min-w-0 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent className="max-w-[min(28rem,calc(100vw-2rem))]">
                       <SelectItem value="suggested">{t('studio:bilingual.use_suggested')}</SelectItem>
                       {candidate.splitChoices.map(choice => <SelectItem key={choice.offset} value={`split:${choice.offset}`} className="whitespace-normal break-all">{choice.label}</SelectItem>)}
                       <SelectItem value="keep">{t('studio:bilingual.keep')}</SelectItem>
                     </SelectContent>
                   </Select>
+                  {candidate.needsReview && <span className="studio-bilingual-review"><AlertCircle className="size-3" />{t('studio:bilingual.review')}</span>}
                 </div>
-                <dl className="studio-bilingual-pair">
-                  <div><dt>{t('studio:bilingual.source_label', { language: languageName(preview?.sourceSide === options.sourceSide ? visiblePreview.sourceLanguage : visiblePreview.targetLanguage) })}</dt><dd>{source}</dd></div>
-                  <div><dt>{t('studio:bilingual.target_label', { language: languageName(preview?.sourceSide === options.sourceSide ? visiblePreview.targetLanguage : visiblePreview.sourceLanguage) })}</dt><dd>{target}</dd></div>
-                </dl>
               </li>;
             })}
-          </ol> : <p className="studio-bilingual-empty">{reviewOnly ? t('studio:bilingual.no_review_candidates') : t('studio:bilingual.no_candidates')}</p>}
+          </ol></StudioScrollFade> : <p className="studio-bilingual-empty">{reviewOnly ? t('studio:bilingual.no_review_candidates') : t('studio:bilingual.no_candidates')}</p>}
         </> : !error && eligible && <div className="studio-bilingual-loading" role="status"><LoaderCircle className="size-4 studio-spin" />{t('studio:loading')}</div>}
         </DialogTransition>
       </ScrollableDialogContent>

@@ -10,7 +10,8 @@ export function KnowledgeDisclosure({
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
-  variant?: "panel" | "inline";
+  /** Sections belong to an edge-to-edge group; panels/inline triggers own rounded insets. */
+  variant?: "panel" | "inline" | "section";
   defaultOpen?: boolean;
   className?: string;
   contentClassName?: string;
@@ -23,14 +24,15 @@ export function KnowledgeDisclosure({
     id={id}
     data-testid={testId}
     data-slot="knowledge-disclosure"
+    data-variant={variant}
     type="single"
     collapsible
     value={value}
     onValueChange={setValue}
-    className={cn("min-w-0", variant === "panel" ? "rounded-xl border bg-card" : "rounded-lg", className)}
+    className={cn("min-w-0", variant === "panel" ? "rounded-[12px] border bg-card" : variant === "inline" ? "rounded-[8px]" : "rounded-none", className)}
   >
     <AccordionItem value="content" className="border-0">
-      <AccordionTrigger className={cn("w-full cursor-pointer px-3", variant === "panel" ? "min-h-11 rounded-xl" : "min-h-9 rounded-lg px-2 py-2 text-xs")}>
+      <AccordionTrigger className={cn("w-full cursor-pointer px-3", variant === "panel" ? "min-h-11 rounded-[11px]" : variant === "inline" ? "min-h-9 rounded-[8px] px-2 py-2 text-xs" : "min-h-10 rounded-none py-2 text-xs")}>
         <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5 [overflow-wrap:anywhere]">
           <span className="leading-5">{title}</span>
           {description && <span className="text-xs font-normal leading-5 text-muted-foreground">{description}</span>}

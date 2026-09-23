@@ -1,0 +1,22 @@
+.studio-knowledge-scope { display: grid; min-width: 0; gap: 12px; --studio-scroll-fade-surface: var(--card); }
+.studio-knowledge-scope-help { color: var(--muted-foreground); font-size: 12px; line-height: 20px; }
+.studio-knowledge-cue-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.studio-knowledge-cue { display: grid; min-width: 0; gap: 6px; border-radius: 8px; padding: 8px; transition: background-color 150ms ease; }
+.studio-knowledge-cue:hover { background: color-mix(in srgb, var(--muted) 60%, transparent); }
+.studio-knowledge-cue[data-selected="true"] { background: var(--muted); }
+.studio-knowledge-cue-label { display: grid; min-width: 0; grid-template-columns: 16px minmax(2ch, max-content) minmax(0, 1fr); align-items: start; gap: 8px; cursor: pointer; font-size: 13px; line-height: 20px; }
+.studio-knowledge-cue-label > [data-slot="checkbox"] { margin-top: 2px; }
+.studio-knowledge-cue-number { color: var(--muted-foreground); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.studio-knowledge-cue-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.studio-knowledge-cue-roles { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px 12px; padding-left: 24px; }
+.studio-knowledge-cue-role { display: flex; min-width: 0; flex: 1 1 170px; align-items: center; gap: 6px; }
+.studio-knowledge-cue-role > label { flex-shrink: 0; color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
+.studio-knowledge-cue-role > .studio-knowledge-cue-role-trigger { min-width: 0; width: 100%; height: 28px; flex: 1; gap: 4px; padding: 3px 8px; font-size: 12px; box-shadow: none; }
+.studio-knowledge-cue-role-trigger > [data-slot="select-value"] { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-knowledge-cue-conditions { display: grid; min-width: 0; gap: 4px; padding-left: 24px; }
+.studio-knowledge-scope-actions { display: flex; min-width: 0; flex-wrap: wrap; gap: 8px; }
+.studio-knowledge-issue-list { display: grid; min-width: 0; gap: 8px; padding: 3px; }
+.studio-knowledge-trial-results { display: grid; min-width: 0; gap: 4px; }
+.studio-knowledge-trial-result-row { display: grid; min-width: 0; gap: 4px; padding: 8px; border-radius: 8px; overflow-wrap: anywhere; }
+.studio-knowledge-trial-result-row:nth-child(even) { background: color-mix(in srgb, var(--muted) 45%, transparent); }
+@media (prefers-reduced-motion: reduce) { .studio-knowledge-cue { transition: none; } }

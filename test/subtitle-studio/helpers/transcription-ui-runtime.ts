@@ -9,6 +9,7 @@ import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/au
 import type { AutomaticTranslationCoordinator } from '../../../electron/main/subtitle-studio/automatic-translation';
 import type { AutomaticKnowledgeCapture } from '../../../electron/main/subtitle-studio/automatic-knowledge';
 import { StudioError } from '../../../src/subtitle-studio/domain';
+import type { SpeechResourcesStatus } from '../../../src/speech-resources/events';
 import type { LocalSubtitleOwnerKey } from '../../../electron/main/subtitle-studio/transcription/native/authorizations';
 import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '../../../src/subtitle-studio/transcription/task-contract';
 import { localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
@@ -19,6 +20,9 @@ type Job = { owner: string; value: ReturnType<typeof localSubtitleResourceJobSum
 type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { operation: 'probe-recovered' }
   | { operation: 'revoke-failures'; count: number }
   | { operation: 'resource-complete'; resourceId: string }
+  | { operation: 'resource-failed'; resourceId: string }
+  | { operation: 'resource-busy'; resourceId: string; busy: boolean }
+  | { operation: 'resource-name'; resourceId: string; displayName: string }
   | { operation: 'task-state'; taskId: string; status: 'preparing_media' | 'loading_model' | 'transcribing' | 'post_processing' | 'failed'; progress?: number; cleanupPending?: true }
   | { operation: 'complete'; taskId: string; cueCount?: number; texts?: string[] }
   | { operation: 'no-content'; taskId: string }
@@ -41,6 +45,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
   const released = new Set<string>();
   const admissions = new Map<Promise<unknown>, string>();
   let recoveredProbe = false, revokeFailures = 0, closed = false;
+  let shared: SpeechResourcesStatus | undefined;
   const key = (owner: Owner) => `${owner.webContentsId}:${owner.ownerSessionId}`;
   const trace = (operation: string, detail?: unknown) => { traces.push({ operation, detail }); if (traces.length > 200) traces.shift(); };
   const check = (owner: Owner) => { if (closed || released.has(key(owner))) throw Object.assign(new Error('Released owner'), { code: 'owner_released' }); return key(owner); };
@@ -61,6 +66,23 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
     if (command.operation === 'resources-ready') resources.forEach(resource => { resource.status = 'ready'; });
     if (command.operation === 'probe-recovered') recoveredProbe = true;
     if (command.operation === 'revoke-failures') revokeFailures = command.count;
+    if (command.operation === 'resource-busy') shared = { shared: true, revision: (shared?.revision ?? 0) + 1,
+      busyResourceIds: command.busy ? [command.resourceId] : [], migrationIssues: [], cleanupPending: false };
+    if (command.operation === 'resource-name') {
+      const resource = resources.find(item => item.resourceId === command.resourceId);
+      if (!resource) throw new Error('Unknown fixture resource');
+      resource.displayName = command.displayName;
+      localSubtitleManagedResourceListSchema.parse(resources);
+    }
+    if (command.operation === 'resource-failed') {
+      const resource = resources.find(item => item.resourceId === command.resourceId);
+      if (!resource) throw new Error('Unknown fixture resource');
+      resource.status = 'not_installed';
+      for (const job of jobs.filter(job => job.value.resourceId === command.resourceId && active(job.value.status))) {
+        job.value = localSubtitleResourceJobSummarySchema.parse({ ...job.value, status: 'failed', updatedAt: new Date().toISOString(),
+          error: { code: 'model_download_failed', stage: 'resource', retryable: true, message: 'Controlled resource download failure' } });
+      }
+    }
     if (command.operation === 'resource-complete') {
       const resource = resources.find(item => item.resourceId === command.resourceId);
       if (!resource) throw new Error('Unknown fixture resource');
@@ -119,7 +141,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
         segments: [{ id: 'newer-segment', startMs: 0, endMs: 1000, text: 'A newer document places the completed result beyond the first library page.' }] }));
       trace('seed-newer-documents', { count: 21 });
     }
-    return structuredClone({ resources, jobs: jobs.map(job => job.value), tasks: tasks.map(task => task.value), traces, tokenCount: tokens.size });
+    return structuredClone({ resources, jobs: jobs.map(job => job.value), tasks: tasks.map(task => task.value), traces, tokenCount: tokens.size, shared });
   };
   (globalThis as unknown as { __studioT06Control: typeof control }).__studioT06Control = control;
   return {
@@ -153,7 +175,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
       },
     },
     resources: {
-      status() { return undefined; },
+      status() { return shared ? structuredClone(shared) : undefined; },
       async list(owner: Owner) { check(owner); trace('list-resources'); return structuredClone(resources); },
       snapshot(owner: Owner) { return { resourceJobs: structuredClone(jobs.filter(job => job.owner === check(owner)).map(job => job.value)) }; },
       async importModel(input: { owner: Owner; modelId: string; filePath: string }) { trace('import-model', { modelId: input.modelId }); return startResource(input.owner, input.modelId); },
@@ -163,6 +185,13 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
         if (!job) return false;
         job.value = { ...job.value, status: 'cancelled', updatedAt: new Date().toISOString() };
         resources.find(resource => resource.resourceId === job.value.resourceId)!.status = 'not_installed'; trace('cancel-resource'); return true;
+      },
+      async delete(owner: Owner, resourceId: string) {
+        check(owner);
+        if (shared?.busyResourceIds.includes(resourceId)) throw Object.assign(new Error('Fixture resource is in use'), { code: 'resource_busy' });
+        const resource = resources.find(item => item.resourceId === resourceId);
+        if (!resource) throw Object.assign(new Error('Unknown resource'), { code: 'resource_not_allowed' });
+        resource.status = 'not_installed'; trace('delete-resource', { resourceId }); return { deleted: true };
       },
       async waitForIdle() {},
     },

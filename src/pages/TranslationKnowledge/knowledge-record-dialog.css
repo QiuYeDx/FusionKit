@@ -23,10 +23,10 @@
 .knowledge-section-heading p, .knowledge-editor-help, .knowledge-form-intro { font-size: 12px; line-height: 20px; color: var(--muted-foreground); }
 .knowledge-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
 .knowledge-form-grid > * { min-width: 0; }
-.knowledge-editor-disclosures { border-top: 1px solid var(--border); }
-.knowledge-editor-disclosures > [data-slot="knowledge-disclosure"] { margin-inline: -8px; border-radius: 0; border-bottom: 1px solid var(--border); }
-.knowledge-editor-disclosures > [data-slot="knowledge-disclosure"]:last-child { border-bottom: 0; }
-.knowledge-editor-disclosures > [data-slot="knowledge-disclosure"] > div > [data-slot="accordion-header"] > button { min-height: 44px; }
+.knowledge-editor-disclosures, .knowledge-entry-secondary { min-width: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.knowledge-editor-disclosures > [data-slot="knowledge-disclosure"] + [data-slot="knowledge-disclosure"],
+.knowledge-entry-secondary > [data-slot="knowledge-disclosure"] + [data-slot="knowledge-disclosure"] { border-top: 1px solid var(--border); }
+.knowledge-form-section.knowledge-form-disclosure-section { border-top: 0; padding-top: 0; }
 /* The editor's field labels provide the hierarchy; reserve rules for the shell. */
 .knowledge-entry-editor-form > .knowledge-form-section + .knowledge-form-section { border: 0; padding-top: 0; }
 .knowledge-entry-editor-form > .knowledge-form-section > .knowledge-section-heading { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -77,8 +77,6 @@
 .knowledge-entry-condition p { white-space: pre-wrap; }
 .knowledge-entry-note { display: flex; align-items: flex-start; gap: 8px; border-radius: 8px; padding: 10px 12px; background: var(--muted); font-size: 12px; line-height: 20px; color: var(--muted-foreground); }
 .knowledge-entry-note > svg { width: 15px; height: 15px; margin-top: 2px; flex-shrink: 0; }
-.knowledge-entry-secondary { border-top: 1px solid var(--border); }
-.knowledge-entry-secondary > [data-slot="knowledge-disclosure"] { margin-inline: -8px; }
 .knowledge-entry-evidence { display: grid; gap: 8px; padding-block: 12px; border-bottom: 1px solid var(--border); }
 .knowledge-entry-evidence:first-child { padding-top: 0; }
 .knowledge-entry-evidence:last-child { padding-bottom: 0; border-bottom: 0; }

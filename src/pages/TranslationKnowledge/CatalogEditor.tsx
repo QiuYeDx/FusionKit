@@ -407,9 +407,9 @@ export function CatalogEditor({
                 true,
               )}
             </KnowledgeFormSection>
-            <KnowledgeFormSection title={t("record.optional")}>
+            <KnowledgeFormSection title={t("record.optional")} className="knowledge-form-disclosure-section">
               <div className="knowledge-editor-disclosures">
-                <KnowledgeDisclosure variant="inline" title={t("fields.subject_suggestions")}>
+                <KnowledgeDisclosure variant="section" title={t("fields.subject_suggestions")}>
                   <div className="space-y-4">
                     {snapshot.data.subjects.map((subject) => {
                       const suggestion = record.subjectSuggestions.find(
@@ -472,7 +472,7 @@ export function CatalogEditor({
                     </p>
                   </div>
                 </KnowledgeDisclosure>
-                <KnowledgeDisclosure variant="inline" title={t("guide.future_preferences")}>
+                <KnowledgeDisclosure variant="section" title={t("guide.future_preferences")}>
                   <div className="space-y-4">
                     <p className="knowledge-editor-help">{t("guide.future_preferences_help")}</p>
                     <Check
@@ -539,7 +539,7 @@ export function CatalogEditor({
         )}
         {("kind" in record || "aboutSubjectIds" in record) && (
           <div className="knowledge-editor-disclosures">
-            <KnowledgeDisclosure variant="inline" title={t("workspace.collection_optional")}>
+            <KnowledgeDisclosure variant="section" title={t("workspace.collection_optional")}>
               <div className="space-y-4">
                 {"kind" in record && <div className="knowledge-form-grid">
                   <LinesField

@@ -22,16 +22,47 @@ export function KnowledgeRecordDialog({ title, description, icon, children, noti
   const opener = useRef<HTMLElement | null>(document.activeElement instanceof HTMLElement ? document.activeElement : null);
   useEffect(() => {
     if (!error) return;
-    // A fixed footer can submit while the error region is below the viewport.
-    const frame = requestAnimationFrame(() => {
-      // Presence may retain the previous error while the new error enters.
-      const alert = Array.from(bodyRef.current?.querySelectorAll<HTMLElement>('[role="alert"]') ?? [])
-        .find(element => !element.closest('[data-dialog-exiting="true"], [inert]'));
-      if (!alert) return;
-      alert.scrollIntoView({ block: 'nearest', behavior: 'instant' });
-      alert.tabIndex = -1; alert.focus({ preventScroll: true });
-    });
-    return () => cancelAnimationFrame(frame);
+    // The first frame can still have a zero-height error region. Follow only
+    // that region's opening and the viewport, so scrolling isn't clamped to
+    // the old scrollHeight before the error has entered the document flow.
+    const alert = Array.from(bodyRef.current?.querySelectorAll<HTMLElement>('[role="alert"]') ?? [])
+      .find(element => !element.closest('[data-dialog-exiting="true"], [inert]'));
+    const viewport = alert?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+    if (!alert || !viewport) return;
+    const region = alert.closest<HTMLElement>('[data-flow-motion="true"]');
+    let frame = 0, focused = false, active = true;
+    const stop = () => {
+      active = false; cancelAnimationFrame(frame);
+      resize.disconnect(); motion.disconnect();
+      viewport.removeEventListener('wheel', stop);
+      viewport.removeEventListener('pointerdown', stop);
+      viewport.removeEventListener('keydown', stop);
+    };
+    const reveal = () => {
+      frame = 0;
+      if (!alert.isConnected || alert.closest('[data-dialog-exiting="true"], [inert]')) { stop(); return; }
+      if (!focused) { alert.tabIndex = -1; alert.focus({ preventScroll: true }); focused = true; }
+      const bounds = viewport.getBoundingClientRect();
+      const top = bounds.top + viewport.clientTop, bottom = top + viewport.clientHeight;
+      const rect = alert.getBoundingClientRect();
+      const delta = rect.top < top || rect.height > viewport.clientHeight ? rect.top - top
+        : rect.bottom > bottom ? rect.bottom - bottom : 0;
+      if (delta) viewport.scrollTop += delta;
+      const visible = alert.getBoundingClientRect();
+      if (region?.dataset.flowAnimating !== 'true' && visible.top >= top - 1
+        && visible.top + Math.min(visible.height, viewport.clientHeight) <= bottom + 1) stop();
+    };
+    const schedule = () => { if (active && !frame) frame = requestAnimationFrame(reveal); };
+    const resize = new ResizeObserver(schedule);
+    const motion = new MutationObserver(schedule);
+    resize.observe(viewport); resize.observe(region ?? alert);
+    if (region) motion.observe(region, { attributes: true, attributeFilter: ['data-flow-animating'] });
+    // Once the user navigates or scrolls, their intent wins over error reveal.
+    viewport.addEventListener('wheel', stop, { passive: true });
+    viewport.addEventListener('pointerdown', stop, { passive: true });
+    viewport.addEventListener('keydown', stop);
+    schedule();
+    return stop;
   }, [error]);
   return <ScrollableDialog open animateSize onOpenChange={open => { if (!open && !pending) onClose(); }}
     maxWidth={wide ? 'sm:max-w-[760px]' : 'sm:max-w-[640px]'}

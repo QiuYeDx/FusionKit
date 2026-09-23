@@ -49,16 +49,36 @@
 .studio-transcription-empty > p { font-size: 12px; }
 .studio-transcription-empty > span { font-size: 11px; }
 .studio-transcription-resource-dialog [data-slot=scroll-area-viewport] > div { display: block !important; width: 100%; min-width: 0; }
-.studio-transcription-resource-content { display: flex; flex-direction: column; gap: 12px; padding: 12px; min-width: 0; }
-.studio-transcription-resource-list { display: flex; flex-direction: column; gap: 8px; list-style: none; padding: 0; margin: 0; }
-.studio-transcription-resource-list > li { min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
-.studio-transcription-resource-heading { display: flex; align-items: flex-start; gap: 8px; justify-content: space-between; }
-.studio-transcription-resource-heading > div { min-width: 0; }
-.studio-transcription-resource-heading p { font-size: 12px; line-height: 20px; overflow-wrap: anywhere; }
-.studio-transcription-resource-heading span { font-size: 10px; color: var(--muted-foreground); }
-.studio-transcription-resource-heading [data-slot=badge] { flex-shrink: 0; font-size: 10px; }
-.studio-transcription-resource-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.studio-transcription-resource-actions:empty { display: none; }
+.studio-transcription-resource-dialog [data-dialog-body-measure] { padding: 12px; }
+.studio-resources-header { display: flex; min-height: 52px; align-items: center; padding: 12px; padding-right: 48px; }
+.studio-resources-content { display: grid; gap: 12px; min-width: 0; }
+.studio-resources-overview { min-width: 0; }
+.studio-resources-overview > .studio-transcription-runtime { margin-top: 8px; }
+.studio-resources-overview > .studio-transcription-help { margin-top: 4px; }
+.studio-resources-notices { display: grid; gap: 4px; padding-top: 6px; }
+.studio-resources-notices .studio-transcription-row-warning { margin: 0; }
+.studio-resources-list { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.studio-resource-row { min-width: 0; padding: 8px; border-radius: 8px; transition: background-color 150ms ease-out; }
+.studio-resource-row:hover, .studio-resource-row:focus-within { background: var(--muted); }
+.studio-resource-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 12px; min-width: 0; }
+.studio-resource-identity { min-width: 0; flex: 1 1 180px; }
+.studio-resource-name { margin: 0; font-size: 12px; font-weight: 500; line-height: 20px; overflow-wrap: anywhere; }
+.studio-resource-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; min-width: 0; margin-top: 2px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; }
+.studio-resource-meta [data-slot=badge] { min-height: 18px; padding: 0 5px; font-size: 10px; line-height: 16px; }
+.studio-resource-percentage { font-variant-numeric: tabular-nums; }
+.studio-resource-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px; max-width: 100%; flex: 0 0 auto; }
+.studio-resource-actions > button { height: 28px; padding: 0 8px; font-size: 11px; }
+.studio-resource-actions > button svg { width: 14px; height: 14px; }
+.studio-resource-actions > .studio-resource-delete { width: 28px; padding: 0; color: var(--muted-foreground); }
+.studio-resource-delete:not(:disabled):hover { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 12%, transparent); }
+.studio-resource-feedback { display: grid; gap: 4px; padding-top: 6px; }
+.studio-resource-feedback .studio-transcription-progress, .studio-resource-feedback .studio-transcription-help, .studio-resource-feedback .studio-transcription-row-warning { margin: 0; }
+.studio-resource-row:hover .studio-transcription-progress, .studio-resource-row:focus-within .studio-transcription-progress { --studio-transcription-progress-track: var(--background); }
+@media (max-width: 520px) {
+  .studio-resource-heading { flex-wrap: wrap; }
+  .studio-resource-actions { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .studio-resource-row { transition: none; } }
 @media (min-width: 640px) and (max-width: 1023px) {
   .studio-transcription-config-fields, .studio-transcription-advanced-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .studio-transcription-wide-field { grid-column: 1 / -1; }

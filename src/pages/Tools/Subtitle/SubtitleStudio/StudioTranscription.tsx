@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { ToolDetailLayout } from '../../_shared/ui/ToolDetailLayout';
 import { ToolPanel } from '../../_shared/ui/ToolPanel';
 import { TranscriptionEmptyResult } from '../../_shared/ui/TranscriptionEmptyResult';
@@ -229,22 +230,47 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
       <ScrollableDialogFooter className="p-3"><Button variant="outline" size="sm" disabled={!!state.queueAction} onClick={() => setCancelTargets(null)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" data-testid="studio-queue-confirm-cancel" disabled={queueBusy || !cancelTargets?.length} onClick={() => { if (cancelTargets) { void controller.cancelTasks(cancelTargets); setCancelTargets(null); } }}><Square />{t('studio:transcription.confirm_cancel_all')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
     <ScrollableDialog animateSize open={resourcesOpen} onOpenChange={setResourcesOpen} maxWidth="sm:max-w-[640px]" contentClassName="studio-transcription-resource-dialog" onCloseAutoFocus={event => { event.preventDefault(); resourceTrigger.current?.focus({ preventScroll: true }); }}>
-      <ScrollableDialogHeader><DialogTitle className="flex items-center gap-2 text-sm"><HardDrive className="size-4" />{t('studio:transcription.resources')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.resource_description')}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent><div data-testid="studio-transcription-resources" className="studio-transcription-resource-content">{runtimeNotice}
-        {state.sharedResources && <p className="studio-transcription-help" data-testid="studio-shared-resource-hint">{t('studio:transcription.shared_hint')}</p>}
-        {!!state.sharedResources?.migrationIssues.length && <p role="status" className="studio-transcription-row-warning">{t('studio:transcription.migration_issues')}</p>}
-        {state.sharedResources?.cleanupPending && <p role="status" className="studio-transcription-row-warning">{t('studio:transcription.shared_cleanup_pending')}</p>}
-        {state.error && <p role="alert" className="studio-transcription-row-warning">{t(errorMessage)}</p>}
-        {state.resources.length ? <ul className="studio-transcription-resource-list">{state.resources.map(resource => {
+      <ScrollableDialogHeader className="studio-resources-header"><DialogTitle className="flex min-w-0 items-center gap-2 text-sm"><HardDrive className="size-4 shrink-0" />{t('studio:transcription.resources')}</DialogTitle></ScrollableDialogHeader>
+      <ScrollableDialogContent fadeMaskHeight={20}><div data-testid="studio-transcription-resources" className="studio-resources-content">
+        <div className="studio-resources-overview">
+          <DialogDescription className="text-xs leading-5">{t('studio:transcription.resource_description')}</DialogDescription>
+          {runtimeNotice}
+          {state.sharedResources && <p className="studio-transcription-help" data-testid="studio-shared-resource-hint">{t('studio:transcription.shared_hint')}</p>}
+          <DialogTransition transitionKey="resource-notices" stageClassName="studio-resources-notices">
+            {!!state.sharedResources?.migrationIssues.length && <p role="status" className="studio-transcription-row-warning">{t('studio:transcription.migration_issues')}</p>}
+            {state.sharedResources?.cleanupPending && <p role="status" className="studio-transcription-row-warning">{t('studio:transcription.shared_cleanup_pending')}</p>}
+            {state.error && <p role="alert" className="studio-transcription-row-warning">{t(errorMessage)}</p>}
+          </DialogTransition>
+        </div>
+        {state.resources.length ? <ul className="studio-resources-list">{state.resources.map(resource => {
         const job = [...state.resourceJobs].reverse().find(item => item.resourceId === resource.resourceId);
         const running = !!job && activeResource(job.status);
         const pending = state.resourceActions.includes(resource.resourceId) || (!!job && state.resourceActions.includes(job.jobId));
         const busy = speechResourceIsBusy(state.sharedResources, resource.resourceId);
-        return <li key={resource.resourceId} data-resource-id={resource.resourceId} data-state={resource.status}><div className="studio-transcription-resource-heading"><div><p>{resource.displayName}</p><span>{bytes(resource.byteSize)} · {t(resource.resourceType === 'model' ? 'studio:transcription.resource_model' : resource.resourceType === 'vad' ? 'studio:transcription.resource_vad' : 'studio:transcription.resource_accelerator')}</span></div><Badge variant={resource.status === 'ready' ? 'secondary' : 'outline'}>{t(resourceStatusKeys[resource.status])}</Badge></div>
-          {running && <progress max={100} value={job.progress} aria-label={resource.displayName} className="studio-transcription-progress" />}
-          {job?.error && !running && resource.status !== 'ready' && <p className="studio-transcription-row-warning">{t('studio:transcription.resource_failed')}</p>}
-          {busy && <p className="studio-transcription-help">{t('studio:transcription.shared_busy')}</p>}
-          <div className="studio-transcription-resource-actions">{running ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void controller.cancelResourceJob(job.jobId)}><Square />{t('studio:transcription.cancel_download')}</Button> : resource.status !== 'ready' ? <><Button variant="outline" size="sm" disabled={pending || busy} onClick={() => void controller.installResource(resource.resourceId)}>{pending ? <LoaderCircle className="studio-spin" /> : <Download />}{t('studio:transcription.download')}</Button>{resource.resourceType === 'model' && <Button variant="ghost" size="sm" disabled={pending || busy} onClick={() => void controller.importModel(resource.resourceId)}><FolderOpen />{t('studio:transcription.import_model')}</Button>}</> : <Button variant="ghost" size="sm" disabled={pending || busy} onClick={() => { controller.clearError(); setDeleteTarget(resource); }}><Trash2 />{t('studio:transcription.delete_resource')}</Button>}</div>
+        return <li key={resource.resourceId} data-resource-id={resource.resourceId} data-state={resource.status} className="studio-resource-row">
+          <div className="studio-resource-heading">
+            <div className="studio-resource-identity">
+              <p className="studio-resource-name">{resource.displayName}</p>
+              <div className="studio-resource-meta">
+                <span>{t(resource.resourceType === 'model' ? 'studio:transcription.resource_model' : resource.resourceType === 'vad' ? 'studio:transcription.resource_vad' : 'studio:transcription.resource_accelerator')}</span>
+                <span>{bytes(resource.byteSize)}</span>
+                <Badge variant={resource.status === 'ready' ? 'secondary' : 'outline'}>{t(resourceStatusKeys[resource.status])}</Badge>
+                {running && <span className="studio-resource-percentage">{Math.round(job.progress)}%</span>}
+              </div>
+            </div>
+            <div className="studio-resource-actions">
+              {running ? <Button variant="outline" size="sm" disabled={pending} onClick={() => void controller.cancelResourceJob(job.jobId)}><Square />{t('studio:transcription.cancel_download')}</Button>
+                : resource.status !== 'ready' ? <>
+                  <Button variant="outline" size="sm" disabled={pending || busy} onClick={() => void controller.installResource(resource.resourceId)}>{pending ? <LoaderCircle className="studio-spin" /> : <Download />}{t('studio:transcription.download')}</Button>
+                  {resource.resourceType === 'model' && <Button variant="ghost" size="sm" disabled={pending || busy} onClick={() => void controller.importModel(resource.resourceId)}><FolderOpen />{t('studio:transcription.import_model')}</Button>}
+                </> : <StudioIconButton className="studio-resource-delete" label={t('studio:transcription.delete_resource')} disabled={pending || busy} onClick={() => { controller.clearError(); setDeleteTarget(resource); }}>{pending ? <LoaderCircle className="studio-spin" /> : <Trash2 />}</StudioIconButton>}
+            </div>
+          </div>
+          <DialogTransition transitionKey="resource-feedback" stageClassName="studio-resource-feedback">
+            {running && <progress max={100} value={job.progress} aria-label={resource.displayName} className="studio-transcription-progress" />}
+            {job?.error && !running && resource.status !== 'ready' && <p className="studio-transcription-row-warning">{t('studio:transcription.resource_failed')}</p>}
+            {busy && <p className="studio-transcription-help">{t('studio:transcription.shared_busy')}</p>}
+          </DialogTransition>
         </li>;
       })}</ul> : <p className="studio-transcription-help">{t('studio:transcription.resource_empty')}</p>}</div></ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap justify-between gap-2 p-3"><Button variant="ghost" size="sm" disabled={state.refreshing} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} />{t('studio:transcription.check_again')}</Button><Button variant="outline" size="sm" onClick={() => setResourcesOpen(false)}>{t('studio:transcription.close')}</Button></ScrollableDialogFooter>

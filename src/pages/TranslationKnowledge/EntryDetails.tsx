@@ -95,7 +95,7 @@ export function EntryDetails({ entry, snapshot, busy, blocked, error, diagnostic
     </div>
     {(reviewable || archived || entry.kind === 'memory' || entry.kind === 'expression') && <div className="knowledge-entry-note"><Info /><p>{t(archived ? 'maintenance.restore_help' : entry.kind === 'memory' || entry.kind === 'expression' ? 'guide.storage_only_help' : 'record.review_help')}</p></div>}
     <div className="knowledge-entry-secondary">
-      <KnowledgeDisclosure data-testid="knowledge-entry-sources" variant="inline" title={t('detail.sources')} description={t('record.source_count', { count: entry.evidence.length })}>
+      <KnowledgeDisclosure data-testid="knowledge-entry-sources" variant="section" title={t('detail.sources')} description={t('record.source_count', { count: entry.evidence.length })}>
         {entry.evidence.map((evidence, index) => {
           const source = snapshot.data.sources.find(item => item.id === evidence.sourceId);
           return source ? <article className="knowledge-entry-evidence" key={index}>
@@ -108,7 +108,7 @@ export function EntryDetails({ entry, snapshot, busy, blocked, error, diagnostic
           </article> : <p className="knowledge-editor-help" key={index}>{t('record.source_missing')}</p>;
         })}
       </KnowledgeDisclosure>
-      <KnowledgeDisclosure data-testid="knowledge-entry-all-fields" variant="inline" title={t('detail.all_fields')}><RecordDetails record={entry} /></KnowledgeDisclosure>
+      <KnowledgeDisclosure data-testid="knowledge-entry-all-fields" variant="section" title={t('detail.all_fields')}><RecordDetails record={entry} /></KnowledgeDisclosure>
     </div>
   </KnowledgeRecordDialog>;
 }

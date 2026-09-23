@@ -29,14 +29,18 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
     const input = path.join(root, 'materials-layout.fktk.json');
     const subtitleFiles = ['First episode with carefully confirmed cue scope.lrc', 'Second episode requires its own scope confirmations.lrc'].map(name => path.join(root, name));
     await writeFile(input, JSON.stringify(fixture));
-    for (const filename of subtitleFiles) await writeFile(filename, '[00:01]We reached the checkpoint.\n[00:03]She mentioned Mira.');
+    const subtitleLines = ['We reached the checkpoint.', 'She mentioned Mira.',
+      'Before we move on, make sure the checkpoint has saved every part of our progress, including the conversation with Mira and the route through the old town, so that we can return here without losing anything.',
+      ...Array.from({ length: 9 }, (_, index) => index % 3 === 0 ? 'Ready when you are.' : `Mira reached checkpoint ${index + 2} and waited for the rest of the group.`)];
+    for (const filename of subtitleFiles) await writeFile(filename, subtitleLines.map((text, index) => `[00:${String(index * 2 + 1).padStart(2, '0')}]${text}`).join('\n'));
     const en = JSON.parse(await readFile(path.resolve('src/locales/en/studio.json'), 'utf8'));
     const zh = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
     const enKnowledge = JSON.parse(await readFile(path.resolve('src/locales/en/knowledge.json'), 'utf8'));
     const errors: string[] = [];
-    app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
+    app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`, '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-features=CalculateNativeWinOcclusion'], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
     page = await app.firstWindow();
     const ui = page, nativeWindow = await app.browserWindow(ui);
+    await nativeWindow.evaluate(win => { win.webContents.setBackgroundThrottling(false); win.show(); win.focus(); });
     ui.on('pageerror', error => errors.push(error.message));
     const readLibrary = () => ui.evaluate(async () => {
       const result = await window.translationKnowledge.read(); if (!result.ok) throw new Error(result.error); return result.value;
@@ -58,10 +62,140 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       })).toBe(true);
       expect(await target.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
     };
+    const visualMeasurements: Array<{ name: string; metrics: unknown }> = [];
+    const waitForGeometry = async (target: Locator) => {
+      await nativeWindow.evaluate(win => { win.show(); win.focus(); });
+      await ui.bringToFront();
+      await target.evaluate(element => new Promise<void>((resolve, reject) => {
+        let previous: number[] = [], stable = 0;
+        const started = performance.now();
+        const sample = () => {
+          const nodes = [element, element.closest('[role=dialog]')].filter((node): node is Element => !!node);
+          const current = nodes.flatMap(node => { const box = node.getBoundingClientRect(); return [box.x, box.y, box.width, box.height, node.scrollHeight]; });
+          const moving = [...element.querySelectorAll('[data-flow-animating="true"]')].some(node => node.getClientRects().length > 0);
+          stable = !moving && previous.length === current.length && current.every((value, index) => Math.abs(value - previous[index]) < 0.1) ? stable + 1 : 0;
+          previous = current;
+          if (stable >= 4) resolve();
+          else if (performance.now() - started > 5000) reject(new Error('Dialog geometry did not settle before visual capture'));
+          else requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      }));
+    };
     const capture = async (name: string, target: Locator) => {
-      await settled(); await target.scrollIntoViewIfNeeded(); await ui.waitForTimeout(200);
+      await settled(); await target.scrollIntoViewIfNeeded(); await waitForGeometry(target);
       await geometry(target);
       await ui.screenshot({ path: path.join(artifacts, `${name}.png`), animations: 'disabled' });
+    };
+    const disclosureLayout = async (name: string) => {
+      await waitForGeometry(form());
+      const metrics = await ui.getByTestId('studio-materials').evaluate(card => {
+        const cardBox = card.getBoundingClientRect();
+        return ['studio-materials-topics', 'studio-materials-more'].map(id => {
+          const panel = card.querySelector(`[data-testid="${id}"]`)!;
+          const trigger = panel.querySelector('[data-slot=accordion-trigger]')!;
+          const triggerBox = trigger.getBoundingClientRect();
+          const title = trigger.querySelector('span')!.getBoundingClientRect();
+          const icon = trigger.querySelector('svg')!.getBoundingClientRect();
+          const clipClearances: number[] = [];
+          for (let parent = trigger.parentElement; parent; parent = parent.parentElement) {
+            if (!['hidden', 'clip', 'auto', 'scroll'].includes(getComputedStyle(parent).overflowX)) continue;
+            const box = parent.getBoundingClientRect(), left = box.left + parent.clientLeft;
+            clipClearances.push(title.left - left, left + parent.clientWidth - icon.right);
+          }
+          return { id, leftInset: triggerBox.left - cardBox.left, rightInset: cardBox.right - triggerBox.right,
+            titleInset: title.left - triggerBox.left, iconInset: triggerBox.right - icon.right,
+            minimumClipClearance: Math.min(...clipClearances), corner: Number.parseFloat(getComputedStyle(trigger).borderTopLeftRadius) };
+        });
+      });
+      visualMeasurements.push({ name, metrics });
+      for (const metric of metrics) {
+        expect(metric.leftInset).toBeGreaterThanOrEqual(0); expect(metric.leftInset).toBeLessThanOrEqual(1.5);
+        expect(metric.rightInset).toBeGreaterThanOrEqual(0); expect(metric.rightInset).toBeLessThanOrEqual(1.5);
+        expect(metric.titleInset).toBeGreaterThanOrEqual(11); expect(metric.titleInset).toBeLessThanOrEqual(13);
+        expect(metric.iconInset).toBeGreaterThanOrEqual(11); expect(metric.iconInset).toBeLessThanOrEqual(13);
+        expect(metric.minimumClipClearance).toBeGreaterThanOrEqual(8);
+        expect(metric.corner).toBe(0);
+      }
+    };
+    const scopeLayout = async (name: string) => {
+      const scopes = ui.getByTestId('knowledge-trial-scopes');
+      const scroll = scopes.locator('.studio-knowledge-scope-scroll');
+      const viewport = scroll.locator('.studio-scroll-fade-viewport');
+      await waitForGeometry(form());
+      const captureScopeList = async (captureName: string) => {
+        // Wait for the disclosure's final footprint before positioning it. A
+        // zero-height box during enter scrolls only its heading into view.
+        await settled(); await waitForGeometry(form());
+        await scroll.evaluate(element => {
+          const outer = element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
+          const actions = element.closest('.studio-knowledge-scope')?.querySelector('.studio-knowledge-scope-actions');
+          if (!outer || !actions) throw new Error('Missing actual dialog scroll viewport or scope actions');
+          const viewportBox = outer.getBoundingClientRect(), listBox = element.getBoundingClientRect(), actionsBox = actions.getBoundingClientRect();
+          // The list and its toolbar form the acceptance region. Scroll only
+          // the outer dialog, preserving the inner list's top/middle/end state.
+          outer.scrollTo({ top: outer.scrollTop + (listBox.top + actionsBox.bottom) / 2 - (viewportBox.top + outer.clientHeight / 2), behavior: 'instant' });
+        });
+        await waitForGeometry(scroll);
+        const visible = await scroll.evaluate(element => {
+          const outer = element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
+          const actions = element.closest('.studio-knowledge-scope')!.querySelector('.studio-knowledge-scope-actions')!.getBoundingClientRect();
+          const outerBox = outer.getBoundingClientRect(), listBox = element.getBoundingClientRect();
+          const visibleTop = Math.max(outerBox.top, listBox.top), visibleBottom = Math.min(outerBox.bottom, listBox.bottom);
+          const completeRows = [...element.querySelectorAll('.studio-knowledge-cue')].filter(row => {
+            const box = row.getBoundingClientRect(); return box.top >= visibleTop - 1 && box.bottom <= visibleBottom + 1;
+          }).length;
+          return { completeRows, visibleListHeight: visibleBottom - visibleTop, listHeight: listBox.height,
+            actionsVisible: actions.top >= outerBox.top - 1 && actions.bottom <= outerBox.bottom + 1,
+            top: listBox.top, bottom: listBox.bottom, viewportTop: outerBox.top, viewportBottom: outerBox.bottom, outerScrollTop: outer.scrollTop };
+        });
+        visualMeasurements.push({ name: `${captureName}-visible-content`, metrics: visible });
+        expect(visible.visibleListHeight).toBeGreaterThanOrEqual(visible.listHeight - 1);
+        expect(visible.completeRows).toBeGreaterThanOrEqual(2);
+        expect(visible.actionsVisible).toBe(true);
+        await geometry(form());
+        await ui.screenshot({ path: path.join(artifacts, `${captureName}.png`), animations: 'disabled' });
+      };
+      const metrics = await scopes.evaluate(element => {
+        const help = element.querySelector('.studio-knowledge-scope-help')!.getBoundingClientRect();
+        const list = element.querySelector('.studio-knowledge-scope-scroll')!.getBoundingClientRect();
+        const actions = element.querySelector('.studio-knowledge-scope-actions')!.getBoundingClientRect();
+        const rows = [...element.querySelectorAll<HTMLElement>('.studio-knowledge-cue')];
+        const first = rows[0], long = rows[2];
+        const firstRoles = [...first.querySelectorAll('.studio-knowledge-cue-role')].map(role => role.getBoundingClientRect());
+        const trigger = element.querySelector('[data-slot=accordion-trigger]')!;
+        const triggerBox = trigger.getBoundingClientRect();
+        const panel = element.getBoundingClientRect();
+        return { listGapAbove: list.top - help.bottom, listGapBelow: actions.top - list.bottom,
+          shortHeight: first.getBoundingClientRect().height, shortTextHeight: first.querySelector('.studio-knowledge-cue-text')!.getBoundingClientRect().height,
+          longTextHeight: long.querySelector('.studio-knowledge-cue-text')!.getBoundingClientRect().height,
+          roleTopDelta: Math.max(...firstRoles.map(role => role.top)) - Math.min(...firstRoles.map(role => role.top)),
+          roleControlHeights: [...first.querySelectorAll('[data-slot=select-trigger]')].map(control => control.getBoundingClientRect().height),
+          overflow: rows.some(row => row.scrollWidth > row.clientWidth + 1),
+          titleInset: trigger.querySelector('span')!.getBoundingClientRect().left - triggerBox.left,
+          iconInset: triggerBox.right - trigger.querySelector('svg')!.getBoundingClientRect().right,
+          panelCorner: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius), triggerInset: triggerBox.left - panel.left };
+      });
+      visualMeasurements.push({ name, metrics });
+      expect(metrics.listGapAbove).toBeCloseTo(12, 0); expect(metrics.listGapBelow).toBeCloseTo(12, 0);
+      expect(metrics.shortTextHeight).toBeLessThanOrEqual(21); expect(metrics.longTextHeight).toBeGreaterThan(metrics.shortTextHeight);
+      expect(metrics.shortHeight).toBeLessThanOrEqual(136); expect(metrics.roleTopDelta).toBeLessThanOrEqual(1);
+      expect(metrics.roleControlHeights).toEqual([28, 28, 28]); expect(metrics.overflow).toBe(false);
+      expect(metrics.titleInset).toBeGreaterThanOrEqual(11); expect(metrics.iconInset).toBeGreaterThanOrEqual(11);
+      expect(metrics.panelCorner).toBeGreaterThan(0); expect(metrics.triggerInset).toBeLessThanOrEqual(1.5);
+      expect(await viewport.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(100);
+      for (const [position, top, bottom] of [['top', false, true], ['middle', true, true], ['bottom', true, false]] as const) {
+        await viewport.evaluate((element, at) => { const max = element.scrollHeight - element.clientHeight; element.scrollTop = at === 'top' ? 0 : at === 'bottom' ? max : max / 2; }, position);
+        await uiExpect(scroll).toHaveAttribute('data-fade-top', String(top)); await uiExpect(scroll).toHaveAttribute('data-fade-bottom', String(bottom));
+        for (const [edge, shown] of [['top', top], ['bottom', bottom]] as const) {
+          const overlay = scroll.locator(`.studio-scroll-fade-edge[data-edge="${edge}"]`);
+          await uiExpect(overlay).toHaveCSS('pointer-events', 'none'); await uiExpect(overlay).toHaveAttribute('aria-hidden', 'true');
+          await uiExpect.poll(() => overlay.evaluate(element => Number(getComputedStyle(element).opacity))).toBe(shown ? 1 : 0);
+        }
+        await captureScopeList(`${name}-${position}`);
+      }
+      await viewport.evaluate(element => { element.scrollTop = 0; });
+      await uiExpect(scroll).toHaveAttribute('data-fade-top', 'false');
     };
     const compactLayout = async () => {
       const metrics = await ui.getByTestId('studio-translation-header').evaluate(header => {
@@ -238,11 +372,15 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await ui.getByTestId(`studio-materials-exclude-${context.id}`).check();
       await expand('studio-materials-topics');
       await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).check();
+      await disclosureLayout('materials-disclosures-zh-light');
+      await capture('materials-disclosures-expanded-zh-light', form());
       const scopes = ui.getByTestId('knowledge-trial-scopes');
       await scopes.locator('[data-slot=accordion-trigger]').first().click();
+      await scopeLayout('scope-list-zh-light');
       await ui.getByTestId(`studio-materials-cue-${first.cues[0].id}`).check();
       await ui.getByTestId(`studio-materials-role-${first.cues[0].id}-speaker`).click();
       await ui.getByRole('option', { name: fixture.subjects[1].name, exact: true }).click();
+      await uiExpect(ui.getByTestId(`studio-materials-cue-${first.cues[0].id}`)).toBeChecked();
       await ui.getByTestId(`studio-materials-confirm-${first.cues[0].id}-${term.id}`).check();
       await scopes.locator('[data-slot=accordion-trigger]').first().click();
       await ui.getByTestId('studio-translation-settings').click();
@@ -351,6 +489,12 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await selectRecipe();
       await capture('single-selected-en-dark-narrow', form());
       await compactLayout();
+      await expand('studio-materials-topics'); await expand('studio-materials-more');
+      await disclosureLayout('materials-disclosures-en-dark');
+      await capture('materials-disclosures-expanded-en-dark-narrow', form());
+      await expand('knowledge-trial-scopes');
+      await scopeLayout('scope-list-en-dark-narrow');
+      await ui.getByTestId('knowledge-trial-scopes').locator('[data-slot=accordion-trigger]').first().click();
       await ui.getByTestId('studio-translation-check').click();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
       await capture('review-materials-en-dark-narrow', review());
@@ -378,7 +522,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       const unchanged = await readDocuments();
       for (const document of unchanged) { expect(document.tasks).toHaveLength(0); expect(document.translationTracks).toHaveLength(0); }
       expect(errors).toEqual([]);
+      await writeFile(path.join(artifacts, 'visual-metrics.json'), JSON.stringify(visualMeasurements, null, 2));
     } catch (error) {
+      await writeFile(path.join(artifacts, 'visual-metrics.json'), JSON.stringify(visualMeasurements, null, 2));
       await ui.screenshot({ path: path.join(artifacts, 'failure.png'), animations: 'disabled' }).catch(() => undefined);
       throw error;
     }
