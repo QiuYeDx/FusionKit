@@ -19,11 +19,17 @@ export function useNaturalHeight() {
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const measure = () => setSize(previous => {
-      const height = element.getBoundingClientRect().height;
-      const following = hasMovingFlow(element);
-      return previous !== null && Math.abs(previous.height - height) < 0.1 && previous.following === following ? previous : { height, following };
-    });
+    const measure = () => {
+      // Retained tab panels use display:none. Their missing layout box is not
+      // an empty content tree: preserve the last natural size (or initial auto)
+      // so showing the tab doesn't manufacture nested 0 -> content animations.
+      if (!element.getClientRects().length) return;
+      setSize(previous => {
+        const height = element.getBoundingClientRect().height;
+        const following = hasMovingFlow(element);
+        return previous !== null && Math.abs(previous.height - height) < 0.1 && previous.following === following ? previous : { height, following };
+      });
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -33,17 +39,20 @@ export function useNaturalHeight() {
 }
 
 /** Animate the actual flow footprint. Siblings move through normal layout, without text scaling. */
-export function DialogMotionRegion({ children, className, innerClassName, open = true, fade = false, enterFromZero = false, onHeightComplete }: {
+export function DialogMotionRegion({ children, className, innerClassName, open = true, fade = false, enterFromZero = false, transitionKey, onHeightComplete }: {
   children: ReactNode; className?: string; innerClassName?: string; open?: boolean; fade?: boolean;
   enterFromZero?: boolean; onHeightComplete?: () => void;
+  /** A retained tab/step change owns its size transition, even if children reflow. */
+  transitionKey?: Key;
 }) {
   const { ref, height, following } = useNaturalHeight();
   const outer = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotionPreference();
-  const [visibility, setVisibility] = useState({ open, moving: false });
-  if (visibility.open !== open) setVisibility({ open, moving: true });
+  const [visibility, setVisibility] = useState({ open, transitionKey, moving: false });
+  if (visibility.open !== open || visibility.transitionKey !== transitionKey) setVisibility({ open, transitionKey, moving: true });
   // A parent's own open/close (including reversal) owns its interpolation even
-  // while a nested disclosure is moving. Only steady, open parents follow.
+  // while a nested disclosure is moving. Retained tabs also own reflow at a new
+  // width when revealed. Only steady, open parents follow their descendants.
   const follow = open && following && !visibility.moving;
   const target = open ? height ?? (enterFromZero ? 0 : 'auto') : 0;
   const latestTarget = useRef(target); latestTarget.current = target;
@@ -58,7 +67,9 @@ export function DialogMotionRegion({ children, className, innerClassName, open =
   return <motion.div ref={outer} data-flow-motion="true"
     initial={enterFromZero ? { height: 0 } : false} animate={{ height: target }}
     onAnimationComplete={() => {
-      if (outer.current && typeof latestTarget.current === 'number' && Math.abs(outer.current.getBoundingClientRect().height - latestTarget.current) > 0.5) return;
+      // A panel can become display:none while its child finishes. Its hidden
+      // zero rect must not leave a stale "moving" marker for the next visit.
+      if (outer.current?.getClientRects().length && typeof latestTarget.current === 'number' && Math.abs(outer.current.getBoundingClientRect().height - latestTarget.current) > 0.5) return;
       if (outer.current) delete outer.current.dataset.flowAnimating;
       setVisibility(previous => previous.moving ? { ...previous, moving: false } : previous);
       onHeightComplete?.();

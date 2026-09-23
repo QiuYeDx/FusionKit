@@ -145,10 +145,11 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_CONTENT_MOTION_E2E === '1')('dialog 
     try {
       const launchEnv = Object.fromEntries(Object.entries(process.env)
         .filter((entry): entry is [string, string] => entry[0] !== 'ELECTRON_RUN_AS_NODE' && typeof entry[1] === 'string'));
-      app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(),
+      app = await electron.launch({ args: ['.', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding',
+        '--disable-background-timer-throttling', '--disable-features=CalculateNativeWinOcclusion', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(),
         env: { ...launchEnv, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
       const page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
-      const nativeWindow = await app.browserWindow(page); await nativeWindow.evaluate(win => win.setSize(1280, 1100));
+      const nativeWindow = await app.browserWindow(page); await nativeWindow.evaluate(win => { win.webContents.setBackgroundThrottling(false); win.setSize(1280, 1100); });
       await page.emulateMedia({ reducedMotion: 'no-preference' });
       await page.evaluate(() => {
         localStorage.setItem('lang', 'zh'); localStorage.setItem('translation-knowledge-tour-done', '1');
@@ -156,9 +157,17 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_CONTENT_MOTION_E2E === '1')('dialog 
         location.hash = '/tools/subtitle/studio';
       });
       await page.reload();
-      const ready = () => page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
+      const ready = async () => {
+        await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
+        await nativeWindow.evaluate(win => { win.show(); win.focus(); });
+        await page.bringToFront();
+      };
       const dialog = () => page.locator(dialogSelector);
       const trace = async (name: string, disclosure: Locator, sibling: Locator, action?: () => Promise<unknown>, followingEdge: 'top' | 'bottom' = 'top', conditional = false) => {
+        // Native DOM clicks do not activate an occluded Windows test window.
+        // Keep RAF sampling foregrounded without changing production motion.
+        await nativeWindow.evaluate(win => { win.show(); win.focus(); });
+        await page.bringToFront();
         await settled(dialog());
         const sampler = await sampleFrames(disclosure, sibling, followingEdge, conditional);
         let recorded = false;

@@ -122,11 +122,12 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_MOTION_E2E === '1')('measured dialog
     let app: ElectronApplication | undefined;
     const errors: string[] = [], evidence: { name: string; frames: Frame[] }[] = [];
     try {
-      app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(),
+      app = await electron.launch({ args: ['.', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding',
+        '--disable-background-timer-throttling', '--disable-features=CalculateNativeWinOcclusion', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(),
         env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
       const page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
       const nativeWindow = await app.browserWindow(page);
-      await nativeWindow.evaluate(win => win.setSize(1280, 1000));
+      await nativeWindow.evaluate(win => { win.webContents.setBackgroundThrottling(false); win.setSize(1280, 1000); });
       await page.emulateMedia({ reducedMotion: 'no-preference' });
       await page.evaluate(() => {
         localStorage.setItem('lang', 'zh');
@@ -137,6 +138,8 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_MOTION_E2E === '1')('measured dialog
       await page.reload();
       const ready = async () => {
         await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
+        await nativeWindow.evaluate(win => { win.show(); win.focus(); });
+        await page.bringToFront();
       };
       const dialog = () => page.locator(`${dialogSelector}[data-state="open"]`);
       const trace = async (name: string, action: () => Promise<unknown>, closing = false) => {
