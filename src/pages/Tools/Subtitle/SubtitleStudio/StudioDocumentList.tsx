@@ -1,4 +1,4 @@
-import { Children, type ComponentPropsWithoutRef, type CSSProperties, type ReactNode } from 'react';
+import { Children, forwardRef, type ComponentPropsWithoutRef, type CSSProperties, type ReactNode } from 'react';
 import { StudioFileName } from './StudioControls';
 import { StudioScrollFade } from './StudioScrollFade';
 import './StudioDocumentList.css';
@@ -11,10 +11,12 @@ export function StudioDocumentList({ children, label, scroll = true, maxHeight, 
   return scroll ? <StudioScrollFade maxHeight={maxHeight}>{list}</StudioScrollFade> : list;
 }
 
-export function StudioDocumentRow({ name, title, index, metadata, status, actions, children, density = 'compact', className = '', ...props }: Omit<ComponentPropsWithoutRef<'li'>, 'title'> & {
+type StudioDocumentRowProps = Omit<ComponentPropsWithoutRef<'li'>, 'title'> & {
   name?: string; title?: ReactNode; index?: number; metadata?: ReactNode; status?: ReactNode; actions?: ReactNode; density?: 'compact' | 'detail';
-}) {
-  return <li {...props} className={`studio-document-row ${className}`} data-density={density}>
+};
+
+export const StudioDocumentRow = forwardRef<HTMLLIElement, StudioDocumentRowProps>(function StudioDocumentRow({ name, title, index, metadata, status, actions, children, density = 'compact', className = '', ...props }, ref) {
+  return <li {...props} ref={ref} className={`studio-document-row ${className}`} data-density={density}>
     {index !== undefined && <span className="studio-document-row-number" aria-hidden="true">{index}</span>}
     <div className="studio-document-row-body">
       <div className="studio-document-row-heading">
@@ -26,4 +28,4 @@ export function StudioDocumentRow({ name, title, index, metadata, status, action
       {Children.toArray(children).length > 0 && <div className="studio-document-row-details">{children}</div>}
     </div>
   </li>;
-}
+});

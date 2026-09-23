@@ -1,4 +1,7 @@
-import { useRef, useState } from "react";
+import { useReducedMotionPreference } from '@/hooks/use-reduced-motion';
+import { forwardRef, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import { DialogMotionRegion, DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import { useTranslation } from "react-i18next";
 import { Check as CheckIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +15,17 @@ import { entryStatus, freshId, manualEntryRequest, newEntry } from "./model";
 import { parseTermPaste, pastedTermProblem, type PastedTerm, type PasteProblem } from "./term-paste";
 
 type Row = PastedTerm & { id: string; saved: boolean };
+const PasteRow = forwardRef<HTMLDivElement, { row: Row; failed: boolean; children: ReactNode }>(function PasteRow({ row, failed, children }, ref) {
+  const present = useIsPresent();
+  const reducedMotion = useReducedMotionPreference();
+  return <motion.div ref={ref} layout={reducedMotion ? false : 'position'}
+    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    transition={{ opacity: { duration: reducedMotion ? 0 : 0.14 }, layout: { duration: reducedMotion ? 0 : 0.24, type: 'spring', bounce: 0 } }}
+    inert={!present} aria-hidden={!present || undefined}
+    className={`space-y-2 rounded-md border p-3 ${failed ? "border-destructive/60" : ""}`}
+    data-paste-row={row.id} data-saved={row.saved}
+  >{children}</motion.div>;
+});
 export function BulkTermPaste({ collection, api, onSnapshot, onClose }: {
   collection: Collection;
   api: TranslationKnowledgeApi;
@@ -87,30 +101,42 @@ export function BulkTermPaste({ collection, api, onSnapshot, onClose }: {
       {remaining.length ? <Button data-testid="knowledge-paste-save" size="sm" disabled={pending || invalid || duplicates} onClick={() => void save()}>{t(pending ? "actions.saving" : saved ? "paste.retry" : "paste.save")}</Button> : <Button size="sm" onClick={onClose}>{t("tour.finish")}</Button>}
     </> : <Button data-testid="knowledge-paste-preview" size="sm" onClick={parse}>{t("paste.preview")}</Button>
   }>
+    <div>
+    <DialogTransition transitionKey={rows ? 'review' : 'input'}>
     {!rows ? <div className="space-y-4">
       <p className="text-sm leading-6 text-muted-foreground">{t("paste.help")}</p>
       <Textarea data-testid="knowledge-paste-input" aria-label={t("paste.input")} rows={8} value={text} onChange={event => setText(event.target.value)} placeholder={"checkpoint\t存档点\nsave slot\t存档槽"} className="font-mono text-xs" />
       <Choice label={t("paste.format")} value={format} onChange={value => setFormat(value as typeof format)} options={[{ value: "auto", label: t("paste.auto") }, { value: "tab", label: "TSV" }, { value: "comma", label: "CSV" }]} />
-      <Check label={t("paste.header")} checked={skipHeader} onChange={setSkipHeader} />
-      {problem && <p role="alert" className="text-sm text-destructive">{t(`paste.error_${problem}`)}</p>}
+      <div>
+        <Check label={t("paste.header")} checked={skipHeader} onChange={setSkipHeader} />
+        <DialogTransition transitionKey={problem ?? 'valid'} stageClassName="pt-4">{problem && <p role="alert" className="text-sm text-destructive">{t(`paste.error_${problem}`)}</p>}</DialogTransition>
+      </div>
     </div> : <div className="space-y-3">
       <p className="text-xs leading-5 text-muted-foreground">{t("paste.review_help")}</p>
-      <div className="space-y-2" data-testid="knowledge-paste-rows">
-        {rows.map((row, index) => <div key={row.id} className={`space-y-2 rounded-md border p-3 ${row.id === failedId ? "border-destructive/60" : ""}`} data-paste-row={row.id} data-saved={row.saved}>
+      <div>
+      <DialogMotionRegion><div className="relative flex flex-col gap-2" data-testid="knowledge-paste-rows">
+        <AnimatePresence mode="popLayout" initial={false}>
+        {rows.map((row, index) => <PasteRow key={row.id} row={row} failed={row.id === failedId}>
           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{index + 1}</span>{row.saved ? <span className="flex items-center gap-1"><CheckIcon className="size-3.5" />{t("paste.saved")}</span> : <Button variant="ghost" size="icon-xs" disabled={pending} aria-label={t("paste.remove", { row: index + 1 })} onClick={() => setRows(current => current?.filter(value => value.id !== row.id) ?? null)}><Trash2 /></Button>}</div>
           <div className="grid grid-cols-2 gap-2">
             <Input aria-label={`${t("fields.source_text")} ${index + 1}`} value={row.source} disabled={pending || row.saved} onChange={event => update(row.id, "source", event.target.value)} className="h-8 text-sm" />
             <Input aria-label={`${t("fields.target_text")} ${index + 1}`} value={row.target} disabled={pending || row.saved} onChange={event => update(row.id, "target", event.target.value)} className="h-8 text-sm" />
           </div>
-          <Input aria-label={`${t("workspace.note")} ${index + 1}`} placeholder={t("workspace.note")} value={row.note} disabled={pending || row.saved} onChange={event => update(row.id, "note", event.target.value)} className="h-8 text-xs" />
-          {!row.saved && pastedTermProblem(row) && <p className="text-xs text-destructive">{t(pastedTermProblem(row) === "required" ? "paste.row_required" : "paste.error_limit")}</p>}
-          {row.id === duplicateId && <p role="alert" className="text-xs text-destructive">{t("paste.existing")}</p>}
-        </div>)}
+          <div>
+            <Input aria-label={`${t("workspace.note")} ${index + 1}`} placeholder={t("workspace.note")} value={row.note} disabled={pending || row.saved} onChange={event => update(row.id, "note", event.target.value)} className="h-8 text-xs" />
+            <DialogTransition transitionKey={!row.saved ? pastedTermProblem(row) ?? 'valid' : 'saved'} stageClassName="pt-2">{!row.saved && pastedTermProblem(row) && <p className="text-xs text-destructive">{t(pastedTermProblem(row) === "required" ? "paste.row_required" : "paste.error_limit")}</p>}</DialogTransition>
+            <DialogTransition transitionKey={row.id === duplicateId ? 'duplicate' : 'valid'} stageClassName="pt-2">{row.id === duplicateId && <p role="alert" className="text-xs text-destructive">{t("paste.existing")}</p>}</DialogTransition>
+          </div>
+        </PasteRow>)}
+        </AnimatePresence>
+      </div></DialogMotionRegion>
+      <DialogTransition transitionKey={duplicates ? 'duplicates' : 'valid'} stageClassName="pt-3">{duplicates && <p role="alert" className="text-sm text-destructive">{t("paste.duplicates")}</p>}</DialogTransition>
+      <DialogTransition transitionKey={saved > 0 && remaining.length > 0 ? 'partial' : 'complete'} stageClassName="pt-3">{saved > 0 && remaining.length > 0 && <p role="status" className="text-xs leading-5 text-muted-foreground">{t("paste.partial")}</p>}</DialogTransition>
+      <DialogTransition transitionKey={saved ? 'saved' : 'review'} stageClassName="pt-3">{!saved && <Button variant="ghost" size="sm" disabled={pending} onClick={() => { setRows(null); setError(null); }}>{t("paste.back")}</Button>}</DialogTransition>
       </div>
-      {duplicates && <p role="alert" className="text-sm text-destructive">{t("paste.duplicates")}</p>}
-      {saved > 0 && remaining.length > 0 && <p role="status" className="text-xs leading-5 text-muted-foreground">{t("paste.partial")}</p>}
-      {!saved && <Button variant="ghost" size="sm" disabled={pending} onClick={() => { setRows(null); setError(null); }}>{t("paste.back")}</Button>}
     </div>}
-    <ErrorNotice error={error} />
+    </DialogTransition>
+    <ErrorNotice error={error} stageClassName="pt-4" />
+    </div>
   </KnowledgeDialog>;
 }

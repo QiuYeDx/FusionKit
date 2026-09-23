@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { DialogDescription, DialogTitle, ScrollableDialogContent, ScrollableDialogFooter, ScrollableDialogHeader } from '@/components/qiuye-ui/scrollable-dialog';
 import { StudioFileName } from './StudioControls';
 import { StudioDocumentDisclosureHeading } from './StudioDocumentDisclosureHeading';
+import { StudioDisclosure } from './StudioDisclosure';
 import './StudioOperationResult.css';
 
 export const STUDIO_RESULT_DIALOG_CLASS = 'studio-result-dialog';
@@ -74,9 +75,10 @@ export function StudioOperationResult({ operation, items, onClose, closeButtonId
         <FileText aria-hidden="true" />
         <StudioFileName name={items[0].outputName ?? items[0].name} focusable />
         {items[0].actions}
-      </div> : items.length > 0 && <details className="studio-selected-documents studio-result-details" data-result-details onToggle={event => setExpanded(event.currentTarget.open)}>
-        <summary className="studio-selected-documents-header" aria-label={t('studio:operation_result.details_count', { count: items.length })}><StudioDocumentDisclosureHeading title={t('studio:export.review_details')} count={items.length} /></summary>
-        {expanded && <ul className="studio-result-files">
+      </div> : items.length > 0 && <StudioDisclosure lazyMount className="studio-selected-documents studio-result-details" data-result-details open={expanded} onOpenChange={setExpanded}
+        triggerClassName="studio-selected-documents-header" triggerLabel={t('studio:operation_result.details_count', { count: items.length })}
+        title={<StudioDocumentDisclosureHeading title={t('studio:export.review_details')} count={items.length} />}>
+        <ul className="studio-result-files">
           {[...items].sort((a, b) => stateOrder[a.state] - stateOrder[b.state]).map(item => {
             const ItemIcon = item.state === 'success' && requested ? ArrowUpRight : stateIcons[item.state];
             return <li className="studio-result-item" data-result-id={item.id} data-state={item.state} key={item.id}>
@@ -89,8 +91,8 @@ export function StudioOperationResult({ operation, items, onClose, closeButtonId
               </div>
             </li>;
           })}
-        </ul>}
-      </details>}
+        </ul>
+      </StudioDisclosure>}
     </ScrollableDialogContent>
     <ScrollableDialogFooter className="studio-result-footer">
       <Button id={closeButtonId} variant={primaryAction ? 'outline' : 'default'} onClick={onClose}>{t('studio:operation_result.done')}</Button>

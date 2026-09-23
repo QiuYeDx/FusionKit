@@ -95,6 +95,7 @@ export function KnowledgeTour({ open, onOpenChange }: {
   const remember = () => localStorage.setItem(TOUR_DONE_KEY, "1");
 
   return <Tour
+    animateSize
     steps={steps}
     open={open}
     onOpenChange={onOpenChange}

@@ -19,7 +19,7 @@ import { TranscriptionEmptyResult } from '../../_shared/ui/TranscriptionEmptyRes
 import { ToolConfigPanel } from '../../_shared/ui/ToolConfigPanel';
 import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
-import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
+import { StudioDisclosure } from './StudioDisclosure';
 import { ToolFilePickerSurface } from '../../_shared/ui/ToolFilePickerSurface';
 import { useToolFileDropTarget } from '../../_shared/ui/ToolFileDropScope';
 import { getStudioTranscriptionController, getTranscriptionReadiness } from '@/services/subtitle-studio/transcription-controller';
@@ -164,7 +164,7 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
             <ToolField label={t('studio:transcription.task_mode')} htmlFor="studio-transcription-task-mode" className="studio-transcription-wide-field"><Select value={state.config.taskMode} onValueChange={taskMode => setConfig({ taskMode: taskMode as Config['taskMode'] })} disabled={state.submitting}><SelectTrigger id="studio-transcription-task-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="transcribe">{t('studio:transcription.mode_transcribe')}</SelectItem><SelectItem value="translate_to_english">{t('studio:transcription.mode_english')}</SelectItem></SelectContent></Select></ToolField>
           </div>
           <ToolSwitchRow id="studio-transcription-vad" label={t('studio:transcription.vad')} hint={t('studio:transcription.vad_hint')} checked={state.config.vadEnabled} disabled={state.submitting} onCheckedChange={vadEnabled => setConfig({ vadEnabled, ...(!vadEnabled ? { windowStrategy: 'fixed_v1' } : {}) })} />
-          <ToolConfigDisclosure title={t('studio:transcription.advanced')} icon={SlidersHorizontal} testId="studio-transcription-advanced">
+          <StudioDisclosure triggerTestId="studio-transcription-advanced" className="-mx-3 border-y" contentClassName="space-y-3 px-3 pb-3 pt-2" title={<span className="flex min-w-0 items-center gap-2"><SlidersHorizontal aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />{t('studio:transcription.advanced')}</span>}>
             <div className="studio-transcription-advanced-fields">
               {numericFields.map(([key, label, min, max, step]) => {
                 const valid = numericValid(numericDrafts[key], min, max, step);
@@ -177,7 +177,7 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
               <ToolField label={t('studio:transcription.window_strategy')} htmlFor="studio-transcription-window" className="studio-transcription-wide-field"><Select value={state.config.windowStrategy ?? 'fixed_v1'} onValueChange={windowStrategy => setConfig({ windowStrategy: windowStrategy as Config['windowStrategy'] })} disabled={state.submitting}><SelectTrigger id="studio-transcription-window"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="fixed_v1">{t('studio:transcription.window_fixed')}</SelectItem><SelectItem value="acoustic_quiet_v1" disabled={!state.config.vadEnabled}>{t('studio:transcription.window_quiet')}</SelectItem></SelectContent></Select></ToolField>
               <ToolField label={t('studio:transcription.initial_prompt')} htmlFor="studio-transcription-prompt" className="studio-transcription-wide-field"><Textarea id="studio-transcription-prompt" value={state.config.advanced.initialPrompt ?? ''} maxLength={LOCAL_SUBTITLE_LIMITS.maxInitialPromptChars} placeholder={t('studio:transcription.initial_prompt_hint')} disabled={state.submitting} onChange={event => setAdvanced('initialPrompt', event.target.value)} /></ToolField>
             </div>
-          </ToolConfigDisclosure>
+          </StudioDisclosure>
           <ToolSwitchRow id="studio-transcription-auto-translation" testId="studio-transcription-auto-translation-row" label={t('studio:transcription.auto_translation')} hint={t('studio:transcription.auto_translation_hint')} checked={state.autoTranslation.enabled} disabled={state.submitting} onCheckedChange={enabled => controller.setAutoTranslation({ ...state.autoTranslation, enabled })} />
           {state.autoTranslation.enabled && <div className="studio-transcription-config-fields" data-testid="studio-transcription-auto-configuration">
             <ToolField label={t('studio:transcription.auto_translation_model')} htmlFor="studio-transcription-translation-model"><Select value={automaticProfile?.id ?? ''} onValueChange={profileId => controller.setAutoTranslation({ ...state.autoTranslation, profileId })} disabled={state.submitting || !profiles.length}><SelectTrigger id="studio-transcription-translation-model"><SelectValue placeholder={t('studio:transcription.auto_translation_configuration')} /></SelectTrigger><SelectContent>{profiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.modelKey}</SelectItem>)}</SelectContent></Select></ToolField>
@@ -224,11 +224,11 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
         </ToolPanel>
       </div>
     </ToolDetailLayout>
-    <ScrollableDialog open={cancelTargets !== null} onOpenChange={open => { if (!open && !state.queueAction) setCancelTargets(null); }} maxWidth="sm:max-w-[480px]">
+    <ScrollableDialog animateSize open={cancelTargets !== null} onOpenChange={open => { if (!open && !state.queueAction) setCancelTargets(null); }} maxWidth="sm:max-w-[480px]">
       <ScrollableDialogHeader><DialogTitle className="text-sm">{t('studio:transcription.cancel_all')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.cancel_all_confirmation', { count: cancelTargets?.length ?? 0 })}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogFooter className="p-3"><Button variant="outline" size="sm" disabled={!!state.queueAction} onClick={() => setCancelTargets(null)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" data-testid="studio-queue-confirm-cancel" disabled={queueBusy || !cancelTargets?.length} onClick={() => { if (cancelTargets) { void controller.cancelTasks(cancelTargets); setCancelTargets(null); } }}><Square />{t('studio:transcription.confirm_cancel_all')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
-    <ScrollableDialog open={resourcesOpen} onOpenChange={setResourcesOpen} maxWidth="sm:max-w-[640px]" contentClassName="studio-transcription-resource-dialog" onCloseAutoFocus={event => { event.preventDefault(); resourceTrigger.current?.focus({ preventScroll: true }); }}>
+    <ScrollableDialog animateSize open={resourcesOpen} onOpenChange={setResourcesOpen} maxWidth="sm:max-w-[640px]" contentClassName="studio-transcription-resource-dialog" onCloseAutoFocus={event => { event.preventDefault(); resourceTrigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader><DialogTitle className="flex items-center gap-2 text-sm"><HardDrive className="size-4" />{t('studio:transcription.resources')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.resource_description')}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogContent><div data-testid="studio-transcription-resources" className="studio-transcription-resource-content">{runtimeNotice}
         {state.sharedResources && <p className="studio-transcription-help" data-testid="studio-shared-resource-hint">{t('studio:transcription.shared_hint')}</p>}
@@ -249,7 +249,7 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
       })}</ul> : <p className="studio-transcription-help">{t('studio:transcription.resource_empty')}</p>}</div></ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap justify-between gap-2 p-3"><Button variant="ghost" size="sm" disabled={state.refreshing} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} />{t('studio:transcription.check_again')}</Button><Button variant="outline" size="sm" onClick={() => setResourcesOpen(false)}>{t('studio:transcription.close')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
-    <ScrollableDialog open={!!deleteTarget} onOpenChange={open => { if (!open && (!deleteTarget || !state.resourceActions.includes(deleteTarget.resourceId))) setDeleteTarget(null); }} maxWidth="sm:max-w-[480px]">
+    <ScrollableDialog animateSize open={!!deleteTarget} onOpenChange={open => { if (!open && (!deleteTarget || !state.resourceActions.includes(deleteTarget.resourceId))) setDeleteTarget(null); }} maxWidth="sm:max-w-[480px]">
       <ScrollableDialogHeader><DialogTitle className="text-sm">{t('studio:transcription.delete_resource')}</DialogTitle><DialogDescription className="text-xs leading-5 break-words">{t('studio:transcription.delete_shared_confirmation', { name: deleteTarget?.displayName ?? '' })}</DialogDescription></ScrollableDialogHeader>
       {state.error && <ScrollableDialogContent><p role="alert" className="studio-transcription-row-warning">{t(errorMessage)}</p></ScrollableDialogContent>}
       <ScrollableDialogFooter className="p-3"><Button variant="outline" size="sm" disabled={!!deleteTarget && state.resourceActions.includes(deleteTarget.resourceId)} onClick={() => setDeleteTarget(null)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" data-testid="studio-confirm-delete-resource" disabled={!deleteTarget || state.resourceActions.includes(deleteTarget.resourceId) || speechResourceIsBusy(state.sharedResources, deleteTarget.resourceId)} onClick={async () => { if (deleteTarget && await controller.deleteResource(deleteTarget.resourceId)) setDeleteTarget(null); }}><Trash2 />{t('studio:transcription.delete_resource')}</Button></ScrollableDialogFooter>

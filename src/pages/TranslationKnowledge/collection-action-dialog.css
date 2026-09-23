@@ -12,10 +12,10 @@
   transition: opacity 150ms ease-out;
 }
 
-/* Only fade dividers touching the highlighted summary. An expanded row's
+/* Only fade dividers touching the highlighted trigger. An expanded row's
    lower divider borders its details instead, so it stays visible. */
-.collection-action-impact-list > .collection-action-impact-row:has(> summary:is(:hover, :focus-visible))::before,
-.collection-action-impact-list > .collection-action-impact-row:not([open]):has(> summary:is(:hover, :focus-visible)) + .collection-action-impact-row::before {
+.collection-action-impact-list > .collection-action-impact-row:has(> [data-slot="accordion-item"] > h3 > .collection-action-impact-trigger:is(:hover, :focus-visible))::before,
+.collection-action-impact-list > .collection-action-impact-row[data-state="closed"]:has(> [data-slot="accordion-item"] > h3 > .collection-action-impact-trigger:is(:hover, :focus-visible)) + .collection-action-impact-row::before {
   opacity: 0;
 }
 

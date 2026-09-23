@@ -72,9 +72,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       await page.locator('.studio-document').filter({ hasText: names[0] }).click();
       await openExport(page);
       const scope = page.getByTestId('studio-selected-documents');
-      expect(await scope.evaluate(element => element.hasAttribute('open'))).toBe(false);
+      await uiExpect(scope.locator('[data-slot="accordion-trigger"]').first()).toHaveAttribute('aria-expanded', 'false');
       expect(await scope.evaluate(element => !!(element.compareDocumentPosition(document.querySelector('[data-testid="studio-export-advanced"]')!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
-      await scope.locator('summary').focus(); await page.keyboard.press('Enter');
+      await scope.locator('[data-slot="accordion-trigger"]').first().focus(); await page.keyboard.press('Enter');
       await page.waitForFunction(() => !document.getAnimations().some(animation => animation.playState === 'running'));
       const baseline = await scope.locator('.studio-document-row').evaluate(row => {
         const number = row.querySelector('.studio-document-row-number')!;
@@ -132,14 +132,14 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       await nativeWindow.evaluate(win => win.setSize(786, 540)); await page.evaluate(() => document.documentElement.classList.add('dark'));
       await review(page, 2); await capture('06-partial-review-narrow-dark');
       await uiExpect(page.getByRole('dialog').locator('.studio-export-summary')).toContainText('4 条');
-      const details = page.getByTestId('studio-export-review-details'); await details.locator('summary').focus(); await page.keyboard.press('Space');
+      const details = page.getByTestId('studio-export-review-details'); await details.locator('[data-slot="accordion-trigger"]').first().focus(); await page.keyboard.press('Space');
       await uiExpect(details.locator('.studio-document-row')).toHaveCount(3);
       await uiExpect(details.locator('[data-state="failed"]')).toHaveCount(1);
       await details.evaluate(element => element.scrollIntoView({ block: 'center' })); await capture('07-partial-details-narrow-dark');
       await page.getByRole('button', { name: '确认并导出 2 份', exact: true }).click();
       const result = page.getByTestId('studio-batch-result'); await uiExpect(result).toHaveAttribute('data-outcome', 'partial');
       await uiExpect(result.locator('[data-result-id]')).toHaveCount(0); await capture('08-partial-result-narrow-dark');
-      await result.locator('[data-result-details] > summary').focus(); await page.keyboard.press('Enter');
+      await result.locator('[data-result-details] [data-slot="accordion-trigger"]').first().focus(); await page.keyboard.press('Enter');
       await uiExpect(result.locator('[data-result-id]')).toHaveCount(3);
       await uiExpect(result.locator('[data-result-id][data-state="failed"]')).toHaveCount(1); await uiExpect(result.locator('[data-result-id][data-state="failed"]')).toContainText(names[2]); await capture('09-failure-details-narrow-dark');
       for (const file of files.slice(0, 2)) expect(await readFile(file.replace(/\.srt$/, ' (1).srt'), 'utf8')).toBe(sourceText + '\n');

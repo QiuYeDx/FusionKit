@@ -1,4 +1,5 @@
 import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
+import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import { useRef, useState } from "react";
 import { Archive, ChevronLeft, ChevronRight, FileText, History, LoaderCircle, RotateCcw, Trash2, Upload, X } from "lucide-react";
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from "@/components/qiuye-ui/scrollable-dialog";
@@ -85,6 +86,7 @@ export function MaintenanceDialog({
     }
   };
   const impacts = <>
+      <DialogTransition transitionKey={page}>
       <div className="knowledge-impact-list">
         {preview.items
           .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -102,13 +104,14 @@ export function MaintenanceDialog({
             </div>
           ))}
       </div>
+      </DialogTransition>
       {preview.items.length > PAGE_SIZE && <Pagination page={page} total={preview.items.length} onChange={setPage} />}
   </>;
   const taskReferences = (nested = false) => preview.taskTracking === "connected" && preview.tasks ? <section data-testid="knowledge-maintenance-tasks" className={nested ? "min-w-0 space-y-3" : "min-w-0 space-y-3 border-t pt-3"}>
         {!nested && <h3 className="text-sm font-medium">{t("maintenance.related_records", { count: preview.tasks.total })}</h3>}
         <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.task_references_help")}</p>
         {preview.tasks.unknownDocuments > 0 && <p role="status" className="text-xs leading-5 text-destructive">{t("maintenance.task_references_unknown", { count: preview.tasks.unknownDocuments })}</p>}
-        {preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <KnowledgeDisclosure key={knowledgeReferenceKey(task)} title={<>{task.displayName || t('maintenance.automatic_queue')} · {t(task.kind === 'automatic_preparation' ? 'maintenance.automatic_preparation' : task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</>}>
+        <DialogTransition transitionKey={taskPage}><div className="space-y-3">{preview.tasks.items.slice(taskPage * PAGE_SIZE, (taskPage + 1) * PAGE_SIZE).map(task => <KnowledgeDisclosure key={knowledgeReferenceKey(task)} title={<>{task.displayName || t('maintenance.automatic_queue')} · {t(task.kind === 'automatic_preparation' ? 'maintenance.automatic_preparation' : task.status === "active" ? "maintenance.record_active" : "maintenance.record_retained")}</>}>
           <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{task.kind === 'automatic_preparation' ? t('maintenance.automatic_preparation_help') : t("maintenance.record_id", { id: task.recordId })}</p>
           <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
             {task.resources.map(resource => {
@@ -117,12 +120,13 @@ export function MaintenanceDialog({
               return <li key={`${resource.group}:${resource.id}:${resource.revision}`} className="[overflow-wrap:anywhere]">{t("maintenance.record_resource", { group: t(`group.${resource.group}`), title, revision: resource.revision })}</li>;
             })}
           </ul>
-        </KnowledgeDisclosure>)}
+        </KnowledgeDisclosure>)}</div></DialogTransition>
         {!preview.tasks.total && !preview.tasks.unknownDocuments && <p className="text-xs text-muted-foreground">{t("maintenance.no_related_records")}</p>}
         {(!nested || preview.tasks.items.length > PAGE_SIZE) && <Pagination page={taskPage} total={preview.tasks.items.length} onChange={setTaskPage} />}
         {preview.tasks.total > preview.tasks.items.length && <p className="text-xs text-muted-foreground">{t("maintenance.records_limited", { count: preview.tasks.items.length, total: preview.tasks.total })}</p>}
       </section> : <p className="text-xs text-muted-foreground">{t("maintenance.tasks_not_connected")}</p>;
   const notice = <ErrorNotice
+        stageClassName={collectionDelete || (preview.action === "archive" && collectionIds.size > 0) ? "pb-3" : "pt-4"}
         error={
           stale
             ? "plan_expired"
@@ -143,7 +147,7 @@ export function MaintenanceDialog({
     onSubmit={() => void submit()}
     tasks={taskReferences()}
     notice={<>
-      {preview.blockers.filter(item => item.code.startsWith("PURGE_TASK_")).map(item => <p key={item.code} role="alert" data-testid="knowledge-maintenance-reference-blocker" className="text-xs leading-5 text-destructive">{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
+      {preview.blockers.filter(item => item.code.startsWith("PURGE_TASK_")).map(item => <p key={item.code} role="alert" data-testid="knowledge-maintenance-reference-blocker" className="pb-3 text-xs leading-5 text-destructive">{t(diagnosticKey(`diagnostic.${item.code}`))}</p>)}
       {notice}
     </>}
   />;
@@ -164,6 +168,7 @@ export function MaintenanceDialog({
       description={t("maintenance.preview_help")}
       icon={preview.action === 'purge' ? <Trash2 /> : preview.action === 'archive' ? <Archive /> : <RotateCcw />}
       testId="knowledge-entry-maintenance-preview"
+      notice={notice}
       error={stale ? 'plan_expired' : preview.blockers.length ? 'invalid_input' : error}
       restoreFocusTo={restoreFocusTo}
       closeLabel={t('record.cancel')}
@@ -255,7 +260,6 @@ export function MaintenanceDialog({
           defaultOpen={!!preview.tasks?.unknownDocuments || preview.blockers.some(item => item.code.startsWith('PURGE_TASK_'))}>
           {taskReferences(true)}
         </KnowledgeDisclosure>}
-      {notice}
     </KnowledgeRecordDialog>
   );
 }
@@ -283,6 +287,7 @@ export function HistoryDialog({
   return (
     <ScrollableDialog
       open
+      animateSize
       onOpenChange={open => { if (!open && !pending) onClose(); }}
       maxWidth="sm:max-w-3xl"
       contentClassName="max-h-[88vh] grid-rows-[auto_minmax(0,1fr)_auto] [&>button]:hidden"
@@ -300,8 +305,9 @@ export function HistoryDialog({
       </ScrollableDialogHeader>
       <ScrollableDialogContent fadeMaskHeight={16} className="min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]>div>div]:px-4 [&>[data-slot=scroll-area-viewport]>div>div]:pt-1 [&>[data-slot=scroll-area-viewport]>div>div]:pb-4">
         <div data-testid="knowledge-history-content" aria-busy={pending} className="min-w-0 space-y-3 [overflow-wrap:anywhere]">
-          <ErrorNotice error={error} diagnostics={diagnostics} />
-          {imports.length ? <ul data-testid="knowledge-history-list" className="min-w-0 divide-y rounded-xl border">
+          <div>
+          <ErrorNotice error={error} diagnostics={diagnostics} stageClassName="pb-3" />
+          <DialogTransition transitionKey={imports.length ? `history:${currentPage}` : 'empty'}>{imports.length ? <ul data-testid="knowledge-history-list" className="min-w-0 divide-y rounded-xl border">
             {imports.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE).map(receipt => {
               const undone = snapshot.maintenance?.undoneImportIds.includes(receipt.id);
               const undoable = snapshot.maintenance?.undoableImportIds.includes(receipt.id);
@@ -324,27 +330,23 @@ export function HistoryDialog({
             <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">{t("maintenance.no_imports_help")}</p>
             <Button data-testid="knowledge-history-import" className="mt-5 max-w-full whitespace-normal" disabled={pending || cleaning} onClick={onImport}>{pending ? <LoaderCircle className="animate-spin" /> : <Upload />}{t("maintenance.import_now")}</Button>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">{t("maintenance.import_file_hint")}</p>
-          </section>}
-          <details data-testid="knowledge-history-cleanup" className="group min-w-0 rounded-xl border">
-            <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl p-3 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [&::-webkit-details-marker]:hidden">
-              <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" />
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex items-center gap-2 text-sm font-medium">{t("maintenance.cleanup_title")}<span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{sources.length.toLocaleString(i18n.language)}</span></div>
-                <p className="text-xs font-normal leading-5 text-muted-foreground">{t("maintenance.cleanup_summary", { count: sources.length })}</p>
-              </div>
-            </summary>
-            <div className="space-y-3 border-t p-3">
+          </section>}</DialogTransition>
+          </div>
+          <KnowledgeDisclosure data-testid="knowledge-history-cleanup" contentClassName="border-t pt-3"
+            title={<span className="block space-y-1">
+              <span className="flex items-center gap-2">{t("maintenance.cleanup_title")}<span className="rounded-full bg-muted px-2 py-0.5 text-xs tabular-nums text-muted-foreground">{sources.length.toLocaleString(i18n.language)}</span></span>
+              <span className="block text-xs font-normal leading-5 text-muted-foreground">{t("maintenance.cleanup_summary", { count: sources.length })}</span>
+            </span>}>
               <p className="text-xs leading-5 text-muted-foreground">{t("maintenance.unused_sources_help")}</p>
-              {sources.length ? <>
+              <DialogTransition transitionKey={sources.length ? `sources:${currentSourcePage}` : 'empty'}>{sources.length ? <>
                 <div className="space-y-2">{sources.slice(currentSourcePage * PAGE_SIZE, (currentSourcePage + 1) * PAGE_SIZE).map(source => <div key={source.id} className="space-y-2 rounded-lg border p-3">
                   <p className="text-sm font-medium">{source.title}</p>
                   <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">{source.excerpt}</p>
                   <Button data-testid="knowledge-purge-source" variant="outline" size="sm" disabled={pending || cleaning} onClick={() => onPlan({ generation: snapshot.generation, action: "purge", targets: [{ group: "sources", id: source.id }] })}>{t("maintenance.preview_purge")}</Button>
                 </div>)}</div>
                 {sources.length > PAGE_SIZE && <Pagination page={currentSourcePage} total={sources.length} onChange={setSourcePage} />}
-              </> : <p data-testid="knowledge-history-no-sources" className="rounded-lg bg-muted/30 px-3 py-4 text-center text-xs text-muted-foreground">{t("maintenance.no_unused_sources")}</p>}
-            </div>
-          </details>
+              </> : <p data-testid="knowledge-history-no-sources" className="rounded-lg bg-muted/30 px-3 py-4 text-center text-xs text-muted-foreground">{t("maintenance.no_unused_sources")}</p>}</DialogTransition>
+          </KnowledgeDisclosure>
         </div>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap items-center justify-between gap-3 p-4">

@@ -99,7 +99,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       await uiExpect(result.locator('[data-result-id]')).toHaveCount(0);
       await uiExpect(result).toHaveAttribute('data-operation', 'import'); await uiExpect(result).toHaveAttribute('data-outcome', 'partial');
       await page.screenshot({ path: path.join(root, '02-import-result-summary.png'), animations: 'disabled' });
-      await result.locator('[data-result-details] > summary').click();
+      await result.locator('[data-result-details] [data-slot="accordion-trigger"]').first().click();
       await uiExpect(result.locator('[data-result-id]')).toHaveCount(3);
       await uiExpect(result.locator('[data-result-id][data-state="failed"]')).toHaveCount(1); await uiExpect(result).toContainText('04-invalid.bin');
       await page.getByRole('button', { name: '完成', exact: true }).click();
@@ -117,13 +117,13 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       await translation.getByTestId('studio-translation-check').click();
       const review = page.getByRole('dialog').filter({ has: page.getByTestId('studio-translation-review-dialog') });
       await uiExpect(review.getByTestId('studio-batch-plan')).toBeVisible();
-      expect(await review.locator('.studio-translation-plan-details').evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+      await uiExpect(review.locator('.studio-translation-plan-details [data-slot="accordion-trigger"]').first()).toHaveAttribute('aria-expanded', 'false');
       expect(requests).toBe(0);
       await review.getByTestId('studio-translation-review-start').click();
       const submitted = page.getByTestId('studio-batch-result'); await uiExpect(submitted).toBeVisible();
       await uiExpect(submitted.locator('[data-result-id]')).toHaveCount(0); await uiExpect(submitted).toHaveAttribute('data-operation', 'translation'); await uiExpect(submitted).toContainText('已提交');
       await page.screenshot({ path: path.join(root, '03-translation-submitted-summary.png'), animations: 'disabled' });
-      await submitted.locator('[data-result-details] > summary').click(); await uiExpect(submitted.locator('[data-result-id]')).toHaveCount(3);
+      await submitted.locator('[data-result-details] [data-slot="accordion-trigger"]').first().click(); await uiExpect(submitted.locator('[data-result-id]')).toHaveCount(3);
       await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       evidence.results = { importSummaryBeforeDetails: true, failureOnDemand: true, translationCheckIsLocal: true, translationPlanDetailsCollapsed: true, translationSubmittedNotCompleted: true, translationDetailsOnDemand: true };
 

@@ -219,7 +219,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
       return second.top - first.bottom;
     })).toBeGreaterThanOrEqual(4);
     await capture('adjacent-document-hover');
-    await page.locator('.studio-diagnostics summary').click();
+    await page.locator('.studio-diagnostics [data-slot="accordion-trigger"]').first().click();
     await uiExpect(page.locator('.studio-diagnostics')).toContainText('负起始时间');
     await capture('document-checks');
     await app.evaluate(({ dialog }, selected) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [selected] }); }, path.join(root, 'invalid.srt'));

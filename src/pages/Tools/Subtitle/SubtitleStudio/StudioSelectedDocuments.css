@@ -1,16 +1,14 @@
 .studio-selected-documents { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background); font-size: 12px; line-height: 18px; }
 .studio-selected-documents-header { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px; border-radius: calc(var(--radius-lg) - 1px); background: color-mix(in srgb, var(--muted) 45%, transparent); }
-.studio-selected-documents > summary { cursor: pointer; list-style: none; }
-.studio-selected-documents > summary::-webkit-details-marker { display: none; }
-.studio-selected-documents > summary:hover { background: var(--accent); }
-.studio-selected-documents > summary:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
-.studio-selected-documents[open] > summary, .studio-selected-documents > div.studio-selected-documents-header { border-bottom: 1px solid var(--border); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.studio-selected-documents-header[data-slot="accordion-trigger"] { cursor: pointer; }
+.studio-selected-documents-header[data-slot="accordion-trigger"]:hover { background: var(--accent); }
+.studio-selected-documents-header[data-slot="accordion-trigger"]:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--ring); }
+.studio-selected-documents-header[data-state="open"], .studio-selected-documents > div.studio-selected-documents-header { border-bottom: 1px solid var(--border); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .studio-selected-documents-icon { display: grid; place-items: center; width: 20px; flex-shrink: 0; color: var(--muted-foreground); }
-.studio-selected-documents-icon > svg, .studio-selected-documents-chevron { width: 14px; height: 14px; flex-shrink: 0; }
 .studio-selected-documents-heading { display: flex; align-items: center; flex: 1; gap: 8px; min-width: 0; font-weight: 500; }
 .studio-selected-documents-heading > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .studio-selected-documents-count { min-width: 24px; justify-content: center; padding: 0 6px; font-family: var(--font-mono); font-size: 10px; line-height: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.studio-selected-documents-chevron { color: var(--muted-foreground); }
-.studio-selected-documents[open] .studio-selected-documents-chevron { transform: rotate(180deg); }
-@media (forced-colors: active) { .studio-selected-documents > summary:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; } }
+@media (forced-colors: active) { .studio-selected-documents-header[data-slot="accordion-trigger"]:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; } }
 .studio-selected-documents-format { padding: 0 4px; color: var(--muted-foreground); font-family: var(--font-mono); font-size: 10px; line-height: 16px; font-weight: 400; }
+
+.studio-selected-documents-icon > svg { width: 14px; height: 14px; flex-shrink: 0; }

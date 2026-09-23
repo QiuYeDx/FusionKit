@@ -67,6 +67,7 @@ export function EntryDetails({ entry, snapshot, busy, blocked, error, diagnostic
   const subjectName = (id: string) => snapshot.data.subjects.find(item => item.id === id)?.name ?? id;
   return <KnowledgeRecordDialog title={t('workspace.entry_details')} icon={<BookOpen />} description={entry.title}
     testId="knowledge-entry-detail" pending={busy} error={error} onClose={onClose}
+    notice={<ErrorNotice error={error} diagnostics={diagnostics} stageClassName="pt-4" />}
     footerStart={<KnowledgeRecordMenu testId="knowledge-entry-actions" disabled={disabled}>
       <DropdownMenuItem data-testid="knowledge-entry-copy" onSelect={onCopy}><Copy />{t('actions.copy')}</DropdownMenuItem>
       {reviewable && <DropdownMenuItem data-testid="knowledge-entry-reject" onSelect={() => onReview('reject')}><X />{t('actions.reject')}</DropdownMenuItem>}
@@ -109,6 +110,5 @@ export function EntryDetails({ entry, snapshot, busy, blocked, error, diagnostic
       </KnowledgeDisclosure>
       <KnowledgeDisclosure data-testid="knowledge-entry-all-fields" variant="inline" title={t('detail.all_fields')}><RecordDetails record={entry} /></KnowledgeDisclosure>
     </div>
-    <ErrorNotice error={error} diagnostics={diagnostics} />
   </KnowledgeRecordDialog>;
 }

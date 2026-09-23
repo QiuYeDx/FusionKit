@@ -2,6 +2,7 @@ import * as React from "react";
 import { Accordion as AccordionPrimitive } from "radix-ui";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DialogMotionRegion } from "@/components/qiuye-ui/dialog-motion";
 
 function Accordion(props: React.ComponentProps<typeof AccordionPrimitive.Root>) {
   return <AccordionPrimitive.Root data-slot="accordion" {...props} />;
@@ -24,7 +25,12 @@ function AccordionTrigger({ className, children, ...props }: React.ComponentProp
   </AccordionPrimitive.Header>;
 }
 
-function AccordionContent({ className, children, forceMount, ...props }: React.ComponentProps<typeof AccordionPrimitive.Content>) {
+function AccordionContent({ className, children, forceMount, motionOpen, ...props }: React.ComponentProps<typeof AccordionPrimitive.Content> & { motionOpen?: boolean }) {
+  // Radix disables transitions on its own Content while measuring. Keep the
+  // animated native DOM below that node, with a natural inner measuring box.
+  if (motionOpen !== undefined) return <AccordionPrimitive.Content data-slot="accordion-content" forceMount {...props} className="text-sm">
+    <DialogMotionRegion open={motionOpen} fade innerClassName={cn("pb-4", className)}>{children}</DialogMotionRegion>
+  </AccordionPrimitive.Content>;
   return <AccordionPrimitive.Content
     data-slot="accordion-content"
     forceMount={forceMount}

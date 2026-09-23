@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, FileClock, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import {
   ScrollableDialog,
   ScrollableDialogHeader,
@@ -12,6 +13,7 @@ import {
 } from "@/components/qiuye-ui/scrollable-dialog";
 import type { ExecutionRecordPage } from "@/subtitle-studio/execution-view-contract";
 import type { DocumentPage } from "@/subtitle-studio/ipc-contract";
+import { KnowledgeDisclosure } from '@/pages/TranslationKnowledge/KnowledgeDisclosure';
 import { StudioExecutionKnowledge } from './StudioExecutionKnowledge';
 import {
   StudioFileName,
@@ -225,7 +227,7 @@ export function StudioExecutionRecord({
         <FileClock className="size-3.5" />
         {t("studio:execution.open")}
       </Button>
-      <ScrollableDialog
+      <ScrollableDialog animateSize
         open={open}
         onOpenChange={(next) => {
           if (!next) close();
@@ -259,6 +261,7 @@ export function StudioExecutionRecord({
             aria-busy={pending}
             className="min-w-0 space-y-4 [overflow-wrap:anywhere]"
           >
+            <DialogTransition transitionKey={pending && !current ? 'loading' : hasError ? 'error' : available ? `${available.recordId}:${available.batchOffset}` : current?.state ?? 'empty'} stageClassName="min-w-0 space-y-4">
             {pending && (
               <p
                 role="status"
@@ -360,37 +363,33 @@ export function StudioExecutionRecord({
                   title={t("studio:execution.prior_ai")}
                   texts={available.batch.request?.priorModelTranslations ?? []}
                 />
-                <details
+                <KnowledgeDisclosure
                   key={`${available.recordId}-${available.batchOffset}`}
                   data-testid="studio-execution-technical"
-                  className="rounded-md border p-3"
+                  title={t("studio:execution.technical")}
                 >
-                  <summary className="cursor-pointer text-xs font-medium">
-                    {t("studio:execution.technical")}
-                  </summary>
-                  <div className="mt-3 min-w-0 space-y-3">
-                    <p className="text-xs text-muted-foreground">
-                      {t("studio:execution.policy_version")}:{" "}
-                      {available.policyVersion}
-                    </p>
-                    {available.batch.request && (
-                      <>
-                        <p className="text-xs text-muted-foreground">
-                          {t("studio:execution.request_saved_at")}:{" "}
-                          {formatDate(available.batch.request.createdAt)}
-                        </p>
-                        <h3 className="text-xs font-medium">
-                          {t("studio:execution.http_body")}
-                        </h3>
-                        <pre className="whitespace-pre-wrap break-all rounded-md bg-muted/35 p-2 text-[11px] leading-5">
-                          {available.batch.request.httpBody}
-                        </pre>
-                      </>
-                    )}
-                  </div>
-                </details>
+                  <p className="text-xs text-muted-foreground">
+                    {t("studio:execution.policy_version")}:{" "}
+                    {available.policyVersion}
+                  </p>
+                  {available.batch.request && (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        {t("studio:execution.request_saved_at")}:{" "}
+                        {formatDate(available.batch.request.createdAt)}
+                      </p>
+                      <h3 className="text-xs font-medium">
+                        {t("studio:execution.http_body")}
+                      </h3>
+                      <pre className="whitespace-pre-wrap break-all rounded-md bg-muted/35 p-2 text-[11px] leading-5">
+                        {available.batch.request.httpBody}
+                      </pre>
+                    </>
+                  )}
+                </KnowledgeDisclosure>
               </>
             )}
+            </DialogTransition>
           </div>
         </ScrollableDialogContent>
         <ScrollableDialogFooter className="flex flex-wrap items-center justify-between gap-3 p-3">

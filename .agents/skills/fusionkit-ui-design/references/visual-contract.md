@@ -21,6 +21,10 @@
 
 `ToolPanel` 默认正文没有 padding，这是给表格、列表和空状态自行控制的结构，不是缺陷。需要有内边距的表单正文通常用 `bodyClassName="p-3"`；不能直接给所有面板正文全局加 padding。
 
+字幕工作台与翻译资料的折叠入口统一使用 `src/components/ui/accordion.tsx`：右侧细线 ChevronDown、展开后旋转 180°、统一 hover 与键盘焦点。包括执行记录、资料说明、文档检查、导出预览、结果详情、高级配置、归档/删除影响和历史清理弹窗；不保留原生 details/summary 三角标记。紧凑工作台区域复用 `StudioDisclosure`，资料区域复用 `KnowledgeDisclosure`；折叠表单保持挂载并设置 inert / aria-hidden，保留原有输入和独立嵌套状态。
+
+这两页弹窗的动态内容必须同时具备淡入淡出与真实文档流高度过渡：复用 `DialogMotionRegion` / `DialogTransition`，测量自然内层，通过 Motion `animate` 改变占位高度，使下方控件连续移动。折叠 Motion 节点放在 Radix Content 内部，避免其测量逻辑打断过渡；可选内容的间距归入动画 stage，不能让父级 gap 或末项 margin 在挂载/卸载时瞬跳。收起动画完成后完全隐藏，但保留表单草稿；退出立即不可交互。列表重排可用 `layout="position"`，普通折叠不叠加兄弟布局缩放。验收须逐帧检查实际内容和后续控件，不能只看弹窗外框（FK-PIT-0172）。
+
 ## 当前尺度
 
 | 层次 | 基线 | 说明 |

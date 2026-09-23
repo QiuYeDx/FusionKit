@@ -84,7 +84,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
     await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
     await uiExpect(page.locator('.studio-diagnostics')).toBeVisible();
     await nativeWindow.evaluate(win => win.setSize(786, 540));
-    await page.locator('.studio-diagnostics summary').click();
+    await page.locator('.studio-diagnostics [data-slot="accordion-trigger"]').first().click();
     await page.waitForTimeout(350);
     expect(await page.locator('.studio-reader').evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(120);
     expect(await page.locator('.studio-reader-footer').evaluate(element => element.getBoundingClientRect().bottom <= document.querySelector('.fixed.bottom-0')!.getBoundingClientRect().top)).toBe(true);

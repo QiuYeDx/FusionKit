@@ -1,4 +1,5 @@
 import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
+import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import type {
   ExportPreview,
   ExportSelectionRequest,
@@ -152,6 +153,7 @@ export function ImportDialog({
         </Button>
       }
     >
+      <div><div className="space-y-4">
       <p className="text-sm">{t("import.counts", preview.counts)}</p>
       <p className="text-xs text-muted-foreground">{t("import.trust_help")}</p>
       {preview.warnings.length > 0 && (
@@ -165,6 +167,7 @@ export function ImportDialog({
           </ul>
         </KnowledgeDisclosure>
       )}
+      <DialogTransition transitionKey={page}>
       <div className="space-y-2">
         {ordered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((item) => (
           <div key={item.id} className="space-y-3 rounded-lg border p-3">
@@ -231,6 +234,7 @@ export function ImportDialog({
           </div>
         ))}
       </div>
+      </DialogTransition>
       <Pagination page={page} total={ordered.length} onChange={setPage} />
       {ready > 0 && (
         <Check
@@ -240,7 +244,9 @@ export function ImportDialog({
           onChange={setAdoptReady}
         />
       )}
-      <ErrorNotice error={error} diagnostics={diagnostics} />
+      </div>
+      <ErrorNotice error={error} diagnostics={diagnostics} stageClassName="pt-4" />
+      </div>
     </KnowledgeDialog>
   );
 }
@@ -400,6 +406,7 @@ export function ExportDialog({
         </>
       }
     >
+      <div>
       <fieldset disabled={pending || blocked} className="space-y-4">
         <Choice
           label={t("export.purpose")}
@@ -410,11 +417,12 @@ export function ExportDialog({
             label: t(`export.${value}`),
           }))}
         />
+        <div>
         <p className="text-xs text-muted-foreground">
           {t(`export.${selection.purpose}_help`)}
         </p>
-        {selection.purpose === "share" && (
-          <>
+        <DialogTransition transitionKey={selection.purpose} stageClassName="pt-4">{selection.purpose === "share" && (
+          <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <MultiChoice
                 label={t("fields.collections")}
@@ -466,14 +474,17 @@ export function ExportDialog({
                 />
               </div>
             </KnowledgeDisclosure>
-          </>
-        )}
+          </div>
+        )}</DialogTransition>
+        </div>
       </fieldset>
+      <DialogTransition transitionKey={preview && current ? preview.planId : preview ? 'expired' : 'unplanned'} stageClassName="pt-4">
       {preview && current && (
         <section
-          className="space-y-4 border-t pt-4"
+          className="border-t pt-4"
           data-testid="knowledge-export-preview-content"
         >
+          <div className="space-y-4">
           <h3 className="text-sm font-semibold">
             {t("export.preview_title", {
               count: preview.counts.entries,
@@ -549,7 +560,7 @@ export function ExportDialog({
                 count: preview.sourceExcerpts.length,
               })}
             </h4>
-            {preview.sourceExcerpts
+            <DialogTransition transitionKey={sourcePage}><div className="space-y-2">{preview.sourceExcerpts
               .slice(sourcePage * PAGE_SIZE, (sourcePage + 1) * PAGE_SIZE)
               .map((source) => (
                 <div key={source.id} className="space-y-2 rounded-md border p-3">
@@ -580,7 +591,7 @@ export function ExportDialog({
                     </Button>
                   )}
                 </div>
-              ))}
+              ))}</div></DialogTransition>
             <Pagination
               page={sourcePage}
               total={preview.sourceExcerpts.length}
@@ -593,7 +604,7 @@ export function ExportDialog({
                 count: preview.memoryExcerpts.length,
               })}
             </h4>
-            {preview.memoryExcerpts
+            <DialogTransition transitionKey={memoryPage}><div className="space-y-2">{preview.memoryExcerpts
               .slice(memoryPage * PAGE_SIZE, (memoryPage + 1) * PAGE_SIZE)
               .map((memory) => (
                 <div
@@ -610,7 +621,7 @@ export function ExportDialog({
                     {memory.target}
                   </p>
                 </div>
-              ))}
+              ))}</div></DialogTransition>
             <Pagination
               page={memoryPage}
               total={preview.memoryExcerpts.length}
@@ -628,11 +639,14 @@ export function ExportDialog({
               </ul>
             </KnowledgeDisclosure>
           )}
+          </div>
           <ErrorNotice
             error={preview.errors.length ? "invalid_input" : null}
             diagnostics={preview.errors}
+            stageClassName="pt-4"
           />
           {preview.warnings.length > 0 && (
+            <div className="pt-4">
             <KnowledgeDisclosure title={t("import.warnings", { count: preview.warnings.length })}>
               <ul className="space-y-2 text-xs">
                 {preview.warnings.map((warning, index) => (
@@ -645,6 +659,7 @@ export function ExportDialog({
                 ))}
               </ul>
             </KnowledgeDisclosure>
+            </div>
           )}
         </section>
       )}
@@ -653,10 +668,13 @@ export function ExportDialog({
           {t("export.preview_required")}
         </p>
       )}
+      </DialogTransition>
       <ErrorNotice
         error={preview && !current ? "plan_expired" : error}
         diagnostics={diagnostics}
+        stageClassName="pt-4"
       />
+      </div>
     </KnowledgeDialog>
   );
 }

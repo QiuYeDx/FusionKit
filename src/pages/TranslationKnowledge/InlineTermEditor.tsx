@@ -39,7 +39,7 @@ export function InlineTermEditor({ collection, snapshot, disabled, onSave, onAdv
     } catch { setError("unexpected"); }
     finally { lock.current = false; setPending(false); }
   };
-  return <form data-testid="knowledge-inline-term" className="space-y-3 border-t p-3" onSubmit={event => { event.preventDefault(); void save(true); }}>
+  return <form data-testid="knowledge-inline-term" className="border-t p-3" onSubmit={event => { event.preventDefault(); void save(true); }}>
     <fieldset disabled={disabled || pending} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <Input ref={sourceInput} aria-label={t("fields.source_text")} placeholder={t("fields.source_text")} value={source} onChange={event => setSource(event.target.value)} className="h-8 text-sm" />
@@ -52,6 +52,6 @@ export function InlineTermEditor({ collection, snapshot, disabled, onSave, onAdv
       </div>
       <p className="text-xs leading-5 text-muted-foreground">{t("workspace.apply_help")}</p>
     </fieldset>
-    <ErrorNotice error={error} />
+    <ErrorNotice error={error} stageClassName="pt-3" />
   </form>;
 }

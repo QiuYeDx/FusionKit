@@ -1,4 +1,5 @@
 import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
+import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import { diagnosticKey } from "./labels";
 import { useId, useState, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -169,12 +170,14 @@ export function MultiChoice({
 export function ErrorNotice({
   error,
   diagnostics = [],
+  stageClassName,
 }: {
   error: KnowledgeErrorCode | "unexpected" | "required" | null;
   diagnostics?: Diagnostic[];
+  stageClassName?: string;
 }) {
   const { t } = useTranslation("knowledge");
-  return error ? (
+  return <DialogTransition transitionKey={error ?? "clear"} stageClassName={stageClassName}>{error ? (
     <div
       role="alert"
       className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive"
@@ -197,7 +200,7 @@ export function ErrorNotice({
         )}
       </div>
     </div>
-  ) : null;
+  ) : null}</DialogTransition>;
 }
 export function KnowledgeDialog({
   title,
@@ -220,6 +223,7 @@ export function KnowledgeDialog({
   return (
     <ScrollableDialog
       open
+      animateSize
       onOpenChange={(open) => {
         if (!open && !pending) onClose();
       }}
@@ -363,7 +367,7 @@ export function LanguageField({
     valid = false;
   }
   return (
-    <div className="space-y-2">
+    <div>
       <Choice
         label={label}
         value={custom ? "custom" : value}
@@ -381,8 +385,8 @@ export function LanguageField({
           { value: "custom", label: t("languages.custom") },
         ]}
       />
-      {custom && (
-        <>
+      <DialogTransition transitionKey={custom ? "custom" : "common"} stageClassName="pt-2">{custom && (
+        <div>
           <TextField
             label={t("languages.custom_tag")}
             value={value}
@@ -390,11 +394,11 @@ export function LanguageField({
             hint={t("languages.custom_help")}
             required
           />
-          {value && !valid && (
+          <DialogTransition transitionKey={value && !valid ? "invalid" : "valid"} stageClassName="pt-2">{value && !valid && (
             <p className="text-xs text-destructive">{t("languages.invalid")}</p>
-          )}
-        </>
-      )}
+          )}</DialogTransition>
+        </div>
+      )}</DialogTransition>
     </div>
   );
 }

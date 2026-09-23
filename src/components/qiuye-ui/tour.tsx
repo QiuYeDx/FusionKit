@@ -1,9 +1,12 @@
 "use client";
 
+import { useReducedMotionPreference } from '@/hooks/use-reduced-motion';
+
 import React, {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -13,12 +16,13 @@ import {
   AnimatePresence,
   LayoutGroup,
   motion,
-  useReducedMotion,
+  useIsPresent,
 } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DialogTransition, hasMovingFlow } from "./dialog-motion";
 
 /** Tour 弹层相对目标元素的展示方向 */
 export type TourPlacement = "top" | "right" | "bottom" | "left";
@@ -143,6 +147,8 @@ export interface TourProps {
    * @default 340
    */
   popoverWidth?: number;
+  /** Animate measured natural dimensions without scaling the popover's text. */
+  animateSize?: boolean;
   /**
    * 视口边缘安全距离，单位 px
    * @default 16
@@ -222,6 +228,12 @@ const reducedTransition = {
 const instantTransition = {
   duration: 0,
 };
+
+/** An exiting tour keeps its visual receipt but releases interaction immediately. */
+function TourPresenceLayer(props: React.ComponentProps<typeof motion.div>) {
+  const present = useIsPresent();
+  return <motion.div {...props} inert={present ? props.inert : true} aria-hidden={present ? props["aria-hidden"] : true} />;
+}
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -572,13 +584,14 @@ export function Tour({
   showMask = true,
   zIndex = DEFAULT_Z_INDEX,
   popoverWidth = DEFAULT_POPOVER_WIDTH,
+  animateSize = false,
   viewportPadding = DEFAULT_VIEWPORT_PADDING,
   popoverClassName,
   spotlightClassName,
   renderFooter,
   className,
 }: TourProps) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useReducedMotionPreference();
   const reactId = useId();
   const instanceId = useMemo(() => reactId.replace(/:/g, ""), [reactId]);
   const titleId = `${instanceId}-title`;
@@ -602,6 +615,8 @@ export function Tour({
   const [scrollPhase, setScrollPhase] = useState<TourScrollPhase>("idle");
 
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const naturalPopoverRef = useRef<HTMLDivElement | null>(null);
+  const [naturalPopoverSize, setNaturalPopoverSize] = useState<{ height: number; borderWidth: number; following: boolean } | null>(null);
   const measureFrameRef = useRef<number | null>(null);
   const scrollMonitorFrameRef = useRef<number | null>(null);
   const scrollRestoreFrameRef = useRef<number | null>(null);
@@ -1102,7 +1117,7 @@ export function Tour({
   }, [requestedStep, resolvedOpen, stepIndex, steps]);
 
   useEffect(() => {
-    if (!resolvedOpen || !popoverRef.current) return;
+    if (animateSize || !resolvedOpen || !popoverRef.current) return;
 
     const updateSize = () => {
       const rect = popoverRef.current?.getBoundingClientRect();
@@ -1120,7 +1135,7 @@ export function Tour({
     observer.observe(popoverRef.current);
 
     return () => observer.disconnect();
-  }, [popoverWidth, resolvedOpen, stepKey]);
+  }, [animateSize, popoverWidth, resolvedOpen, stepKey]);
 
   const preferredPlacement = activeStep?.placement ?? "bottom";
   const align = activeStep?.align ?? "center";
@@ -1151,6 +1166,32 @@ export function Tour({
     ],
   );
   const isCompactFooter = popoverPosition.width < 300;
+  const measuredTransition = prefersReducedMotion || scrollPhase !== "idle"
+    ? instantTransition : layoutTransition;
+
+  // This layer stays at its final width and natural height while the outer
+  // frame interpolates. Observing the frame would feed intermediate heights
+  // back into both animation and collision placement on every frame.
+  useLayoutEffect(() => {
+    if (!animateSize || !resolvedOpen || !hasMeasured) return;
+    const natural = naturalPopoverRef.current;
+    const surface = popoverRef.current;
+    if (!natural || !surface) return;
+    const measure = () => {
+      const style = getComputedStyle(surface);
+      const borderWidth = (Number.parseFloat(style.borderLeftWidth) || 0) + (Number.parseFloat(style.borderRightWidth) || 0);
+      const height = natural.offsetHeight + (Number.parseFloat(style.borderTopWidth) || 0) + (Number.parseFloat(style.borderBottomWidth) || 0);
+      const following = hasMovingFlow(natural);
+      setNaturalPopoverSize(previous => previous && Math.abs(previous.height - height) < 0.5 && previous.borderWidth === borderWidth && previous.following === following ? previous : { height, borderWidth, following });
+      setPopoverSize(previous => Math.abs(previous.width - popoverPosition.width) < 0.5 && Math.abs(previous.height - height) < 0.5
+        ? previous : { width: popoverPosition.width, height });
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(natural);
+    return () => observer.disconnect();
+  }, [animateSize, resolvedOpen, hasMeasured, stepKey, popoverPosition.width, naturalPopoverSize?.borderWidth]);
 
   const renderContext: TourRenderContext | null = activeStep
     ? {
@@ -1222,7 +1263,7 @@ export function Tour({
     ];
   }, [spotlightRect, viewport]);
 
-  if (!mounted || !resolvedOpen || steps.length === 0 || !activeStep) {
+  if (!mounted || (!resolvedOpen && !animateSize) || steps.length === 0 || !activeStep) {
     return null;
   }
 
@@ -1237,7 +1278,7 @@ export function Tour({
 
   return createPortal(
     <AnimatePresence>
-      <motion.div
+      {resolvedOpen && <TourPresenceLayer
         key="tour-root"
         className={cn("fixed inset-0 pointer-events-none", className)}
         style={{ zIndex }}
@@ -1247,7 +1288,7 @@ export function Tour({
         animate={{ opacity: scrollPhase === "idle" ? 1 : 0 }}
         exit={{ opacity: 0 }}
         transition={
-          prefersReducedMotion ? reducedTransition : { duration: 0.2 }
+          animateSize && prefersReducedMotion ? instantTransition : prefersReducedMotion ? reducedTransition : { duration: 0.2 }
         }
       >
         <LayoutGroup id={`${instanceId}-layout`}>
@@ -1302,36 +1343,51 @@ export function Tour({
               aria-modal="true"
               aria-labelledby={titleId}
               aria-describedby={contentId}
-              layout
-              layoutId={`${instanceId}-popover`}
+              layout={!animateSize}
+              layoutId={animateSize ? undefined : `${instanceId}-popover`}
+              data-tour-measured-size={animateSize || undefined}
               className={cn(
                 "fixed pointer-events-auto outline-none",
                 "rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-2xl",
                 "focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 popoverClassName,
                 activeStep.popoverClassName,
+                animateSize && "w-[var(--tour-width)]",
               )}
               style={
                 {
-                  top: popoverPosition.top,
-                  left: popoverPosition.left,
-                  width: popoverPosition.width,
+                  ...(animateSize ? { "--tour-width": `${popoverPosition.width}px` } : {
+                    top: popoverPosition.top,
+                    left: popoverPosition.left,
+                    width: popoverPosition.width,
+                  }),
                   "--tour-arrow-x": `${popoverPosition.arrowX}px`,
                   "--tour-arrow-y": `${popoverPosition.arrowY}px`,
-                } as React.CSSProperties
+                } as React.CSSProperties & Partial<Record<`--${string}`, string>>
               }
               initial={
-                prefersReducedMotion
+                animateSize
+                  ? { opacity: 0, y: prefersReducedMotion ? 0 : 4, top: popoverPosition.top, left: popoverPosition.left, width: popoverPosition.width }
+                  : prefersReducedMotion
                   ? { opacity: 0 }
                   : { opacity: 0, scale: 0.96, y: 6 }
               }
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              animate={animateSize ? {
+                opacity: 1, y: 0, top: popoverPosition.top, left: popoverPosition.left,
+                width: popoverPosition.width, height: naturalPopoverSize?.height ?? "auto",
+              } : { opacity: 1, scale: 1, y: 0 }}
               exit={
-                prefersReducedMotion
+                animateSize
+                  ? { opacity: 0, y: prefersReducedMotion ? 0 : 4 }
+                  : prefersReducedMotion
                   ? { opacity: 0 }
                   : { opacity: 0, scale: 0.98, y: 4 }
               }
-              transition={positionTransition}
+              transition={animateSize ? {
+                top: naturalPopoverSize?.following ? instantTransition : measuredTransition, left: measuredTransition, width: measuredTransition, height: naturalPopoverSize?.following ? instantTransition : measuredTransition,
+                opacity: prefersReducedMotion ? instantTransition : reducedTransition,
+                y: prefersReducedMotion ? instantTransition : reducedTransition,
+              } : positionTransition}
             >
               {spotlightRect && (
                 <span
@@ -1349,8 +1405,12 @@ export function Tour({
                 />
               )}
 
+              <div className={animateSize ? "h-full overflow-hidden rounded-[inherit]" : "contents"}>
               <motion.div
-                layout
+                ref={naturalPopoverRef}
+                data-tour-natural-size={animateSize || undefined}
+                layout={!animateSize}
+                style={animateSize ? { width: Math.max(0, popoverPosition.width - (naturalPopoverSize?.borderWidth ?? 0)) } : undefined}
                 className={cn(
                   "relative z-10",
                   isCompactFooter ? "space-y-3 p-3" : "space-y-4 p-4",
@@ -1358,7 +1418,7 @@ export function Tour({
                 transition={positionTransition}
               >
                 <motion.div
-                  layout
+                  layout={animateSize ? "position" : true}
                   className="flex items-start justify-between gap-3"
                   transition={positionTransition}
                 >
@@ -1382,11 +1442,18 @@ export function Tour({
                 </motion.div>
 
                 <motion.div
-                  layout
-                  className="relative overflow-hidden"
+                  layout={!animateSize}
+                  className={cn("relative", !animateSize && "overflow-hidden")}
                   transition={positionTransition}
                 >
-                  <AnimatePresence mode="popLayout" initial={false}>
+                  {animateSize ? <DialogTransition transitionKey={stepKey}>
+                    <div id={contentId} className="text-sm leading-6 text-muted-foreground">
+                      {activeStep.content}
+                      {missingTarget && <p className="mt-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                        当前目标暂不可见，你仍然可以继续下一步或跳过引导。
+                      </p>}
+                    </div>
+                  </DialogTransition> : <AnimatePresence mode="popLayout" initial={false}>
                     <motion.div
                       layout
                       key={stepKey}
@@ -1414,14 +1481,14 @@ export function Tour({
                         </p>
                       )}
                     </motion.div>
-                  </AnimatePresence>
+                  </AnimatePresence>}
                 </motion.div>
 
                 {renderFooter && renderContext ? (
-                  renderFooter(renderContext)
+                  animateSize ? <motion.div layout="position" transition={measuredTransition}>{renderFooter(renderContext)}</motion.div> : renderFooter(renderContext)
                 ) : (
                   <motion.div
-                    layout
+                    layout={animateSize ? "position" : true}
                     className={cn(
                       "flex items-center justify-between pt-1",
                       isCompactFooter ? "gap-1.5" : "flex-wrap gap-2",
@@ -1486,10 +1553,11 @@ export function Tour({
                   </motion.div>
                 )}
               </motion.div>
+              </div>
             </motion.div>
           )}
         </LayoutGroup>
-      </motion.div>
+      </TourPresenceLayer>}
     </AnimatePresence>,
     document.body,
   );

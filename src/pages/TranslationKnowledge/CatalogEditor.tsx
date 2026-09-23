@@ -32,6 +32,7 @@ import {
 import type { Diagnostic } from "@/translation-knowledge/validation";
 import { freshId, splitLines } from "./model";
 import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
+import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 export type CatalogRecord =
   | Subject
   | Collection
@@ -239,6 +240,7 @@ export function CatalogEditor({
       }
       pending={pending}
       error={error}
+      notice={<ErrorNotice error={error} diagnostics={diagnostics} stageClassName="pt-4" />}
       onClose={onClose}
       icon={<FolderPen />}
       testId="knowledge-catalog-editor"
@@ -416,7 +418,7 @@ export function CatalogEditor({
                       return (
                         <div
                           key={subject.id}
-                          className="knowledge-form-grid items-end"
+                          className="grid min-w-0 grid-cols-2 items-start gap-x-4 max-[560px]:grid-cols-1"
                         >
                           <Check
                             label={subject.name}
@@ -435,7 +437,7 @@ export function CatalogEditor({
                               })
                             }
                           />
-                          {suggestion && (
+                          <DialogTransition transitionKey={suggestion ? 'role' : 'none'} stageClassName="max-[560px]:pt-3">{suggestion && (
                             <Choice
                               label={t("fields.subject_role")}
                               value={suggestion.role}
@@ -461,7 +463,7 @@ export function CatalogEditor({
                                 })
                               }
                             />
-                          )}
+                          )}</DialogTransition>
                         </div>
                       );
                     })}
@@ -480,6 +482,7 @@ export function CatalogEditor({
                         setRecord({ ...record, inheritGlobalPreferences })
                       }
                     />
+                    <div>
                     <Choice
                       label={t("fields.learning")}
                       value={record.learningSuggestion}
@@ -497,7 +500,7 @@ export function CatalogEditor({
                         label: t(optionKey(`learning.${value}`)),
                       }))}
                     />
-                    {record.learningSuggestion === "save_reviewed" && (
+                    <DialogTransition transitionKey={record.learningSuggestion} stageClassName="pt-4">{record.learningSuggestion === "save_reviewed" && (
                       <Choice
                         label={t("fields.destination")}
                         value={record.suggestedDestinationCollectionId ?? "none"}
@@ -515,7 +518,8 @@ export function CatalogEditor({
                           })),
                         ]}
                       />
-                    )}
+                    )}</DialogTransition>
+                    </div>
                   </div>
                 </KnowledgeDisclosure>
               </div>
@@ -565,7 +569,6 @@ export function CatalogEditor({
           </div>
         )}
       </fieldset>
-      <ErrorNotice error={error} diagnostics={diagnostics} />
     </KnowledgeRecordDialog>
   );
 }

@@ -4,6 +4,7 @@ import { BookmarkPlus, ChevronDown, History, LoaderCircle, RotateCcw } from 'luc
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DialogMotionRegion, DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import type { TranslationDraft } from '@/services/subtitle-studio/translation-draft';
 import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 
@@ -43,6 +44,7 @@ export function StudioTranslationSettings({ previous, previousModel, previousLan
       </Button>
     </PopoverTrigger>
     <PopoverContent data-testid="studio-translation-settings-panel" aria-label={t('studio:materials.settings')} align="end" sideOffset={8} collisionPadding={16} className="w-[360px] max-w-[calc(100vw-3rem)] max-h-[min(70vh,var(--radix-popover-content-available-height))] overflow-y-auto rounded-xl p-0 motion-reduce:animate-none">
+      <DialogMotionRegion>
       <div className="space-y-3 p-3">
         <div className="flex items-center gap-2 text-sm font-medium"><RotateCcw className="size-4 text-muted-foreground" />{t('studio:materials.recent_settings')}</div>
         {previous ? <>
@@ -57,6 +59,7 @@ export function StudioTranslationSettings({ previous, previousModel, previousLan
         </> : <p className="text-xs leading-5 text-muted-foreground">{t('studio:materials.no_recent_settings')}</p>}
       </div>
       <div className="space-y-3 border-t p-3">
+        <DialogTransition transitionKey={saving ? 'save' : 'actions'} stageClassName="space-y-3">
         {saving ? <>
           <label className="block space-y-2 text-xs font-medium">
             <span>{t('studio:materials.recipe_name')}</span>
@@ -72,7 +75,9 @@ export function StudioTranslationSettings({ previous, previousModel, previousLan
           <Button data-testid="studio-translation-save-recipe" type="button" size="sm" variant="ghost" className="h-auto w-full justify-start whitespace-normal px-2 py-2 text-left" disabled={disabled || !canSave} onClick={() => onSavingChange(true)}><BookmarkPlus />{t('studio:materials.save_recipe')}</Button>
           {!canSave && <p className="text-xs leading-5 text-muted-foreground">{t('studio:materials.save_requires_materials')}</p>}
         </>}
+        </DialogTransition>
       </div>
+      </DialogMotionRegion>
     </PopoverContent>
   </Popover>;
 }

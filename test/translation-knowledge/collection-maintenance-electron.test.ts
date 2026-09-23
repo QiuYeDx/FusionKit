@@ -172,7 +172,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       const beforeEmpty = await read();
       await openMaintenance('archive');
       await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.empty.name);
-      await uiExpect(ui.getByTestId('knowledge-collection-archive-details').locator('summary')).toContainText('0 项');
+      await uiExpect(ui.getByTestId('knowledge-collection-archive-details').locator('[data-slot=accordion-trigger]').first()).toContainText('0 项');
       await uiExpect(ui.getByRole('button', { name: '取消', exact: true })).toBeFocused();
       await capture('collection-archive-empty-light-wide', ui.getByRole('dialog'));
       await ui.keyboard.press('Escape');
@@ -181,7 +181,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       expect(await read()).toEqual(beforeEmpty);
       await openMaintenance('delete');
       await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.empty.name);
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('0 项');
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('[data-slot=accordion-trigger]').first()).toContainText('0 项');
       await uiExpect(ui.getByRole('button', { name: '取消', exact: true })).toBeFocused();
       await expectDirectDeletion();
       await cancel();
@@ -203,24 +203,24 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await capture('collection-menu-light-wide', ui.getByRole('menu'));
       await ui.getByTestId('knowledge-collection-delete').click();
       await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.filled.name);
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('2 项');
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('[data-slot=accordion-trigger]').first()).toContainText('2 项');
       for (const term of fixture.filledTerms) await uiExpect(ui.getByRole('dialog')).toContainText(term.title);
       await uiExpect(ui.getByRole('dialog')).toContainText(fixture.sharedSource.title);
       await uiExpect(ui.getByRole('dialog')).toContainText('来源依据');
       const details = ui.getByTestId('knowledge-collection-delete-details');
-      expect(await details.evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+      await uiExpect(details.locator('[data-slot=accordion-trigger]').first()).toHaveAttribute('aria-expanded', 'false');
       await uiExpect(ui.getByTestId('knowledge-collection-delete-history')).toContainText('清理全部资料集的本地历史');
       await uiExpect(ui.getByTestId('knowledge-collection-delete-tasks')).toContainText('不受影响');
       await capture('collection-delete-light-wide', ui.getByRole('dialog'));
       const history = ui.getByTestId('knowledge-collection-delete-history');
       const separatorOpacity = () => history.evaluate(element => getComputedStyle(element, '::before').opacity);
       await uiExpect.poll(separatorOpacity).toBe('1');
-      for (const [name, summary] of [
-        ['entries', details.locator('summary')], ['history', history.locator('summary')],
+      for (const [name, trigger] of [
+        ['entries', details.locator('[data-slot=accordion-trigger]').first()], ['history', history.locator('[data-slot=accordion-trigger]').first()],
       ] as const) {
-        await summary.hover();
+        await trigger.hover();
         await uiExpect.poll(separatorOpacity).toBe('0');
-        const inset = await summary.evaluate(element => {
+        const inset = await trigger.evaluate(element => {
           const row = element.getBoundingClientRect();
           const icon = element.firstElementChild!.getBoundingClientRect();
           const end = element.lastElementChild!.getBoundingClientRect();
@@ -231,10 +231,24 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
         await ui.getByRole('button', { name: '取消', exact: true }).hover();
         await uiExpect.poll(separatorOpacity).toBe('1');
       }
-      await details.locator('summary').click();
+      const detailsTrigger = details.locator('[data-slot=accordion-trigger]').first();
+      await detailsTrigger.focus();
+      // Programmatic focus after hover remains in pointer modality. Traverse
+      // the actual tab order so this checks the keyboard focus-visible state.
+      await ui.keyboard.press('Tab');
+      await ui.keyboard.press('Shift+Tab');
+      await uiExpect(detailsTrigger).toBeFocused();
+      await uiExpect.poll(separatorOpacity).toBe('0');
+      await ui.keyboard.press('Enter');
+      await uiExpect(detailsTrigger).toHaveAttribute('aria-expanded', 'true');
       // The lower divider now borders expanded content, not the hovered heading.
       await uiExpect.poll(separatorOpacity).toBe('1');
       await capture('collection-delete-details-light-wide', ui.getByRole('dialog'));
+      await ui.keyboard.press('Space');
+      await uiExpect(detailsTrigger).toHaveAttribute('aria-expanded', 'false');
+      await uiExpect(details.locator('[data-slot=accordion-content]').first()).toHaveAttribute('inert', '');
+      await uiExpect(details.locator('li').first()).toBeHidden();
+      await uiExpect.poll(separatorOpacity).toBe('0');
       await cancel();
       expect(await read()).toEqual(beforeFilled);
 
@@ -246,8 +260,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await openActions();
       await capture('collection-menu-dark-narrow', ui.getByRole('menu'));
       await ui.getByTestId('knowledge-collection-delete').click();
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('2 项');
-      await ui.getByTestId('knowledge-collection-delete-history').locator('summary').hover();
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('[data-slot=accordion-trigger]').first()).toContainText('2 项');
+      await ui.getByTestId('knowledge-collection-delete-history').locator('[data-slot=accordion-trigger]').first().hover();
       await uiExpect.poll(separatorOpacity).toBe('0');
       await capture('collection-delete-dark-narrow', ui.getByRole('dialog'));
       await expectDirectDeletion();
@@ -280,10 +294,10 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toHaveText('归档资料集');
       const archiveDetails = ui.getByTestId('knowledge-collection-archive-details');
-      expect(await archiveDetails.evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
-      await uiExpect(archiveDetails.locator('summary')).toContainText('1 项');
+      await uiExpect(archiveDetails.locator('[data-slot=accordion-trigger]').first()).toHaveAttribute('aria-expanded', 'false');
+      await uiExpect(archiveDetails.locator('[data-slot=accordion-trigger]').first()).toContainText('1 项');
       await capture('collection-archive-light-wide', ui.getByRole('dialog'));
-      await archiveDetails.locator('summary').click();
+      await archiveDetails.locator('[data-slot=accordion-trigger]').first().click();
       await uiExpect(archiveDetails.locator('li').filter({ hasText: fixture.archivalTerm.title })).toBeVisible();
       await capture('collection-archive-details-light-wide', ui.getByRole('dialog'));
       await cancel();
@@ -295,7 +309,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await uiExpect(ui.locator('html')).toHaveClass(/dark/);
       await selectCollection(fixture.archival.id, fixture.archival.name);
       await openMaintenance('archive');
-      await archiveDetails.locator('summary').hover();
+      await archiveDetails.locator('[data-slot=accordion-trigger]').first().hover();
       await capture('collection-archive-dark-narrow', ui.getByRole('dialog'));
       await confirm();
       stored = await read();
@@ -324,7 +338,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await selectCollection(fixture.archival.id, fixture.archival.name);
       await openMaintenance('delete');
       await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.archival.name);
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('summary')).toContainText('1 项');
+      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('[data-slot=accordion-trigger]').first()).toContainText('1 项');
       await expectDirectDeletion();
       await confirm();
       stored = await read();
@@ -364,7 +378,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await uiExpect(ui.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toHaveText('Archive collection');
       await capture('collection-archive-english-long-name', ui.getByRole('dialog'));
-      await archiveDetails.locator('summary').click();
+      await archiveDetails.locator('[data-slot=accordion-trigger]').first().click();
       await capture('collection-archive-english-long-name-expanded', ui.getByRole('dialog'));
       await ui.getByRole('dialog').locator('[data-slot=scroll-area-viewport]').first().evaluate(element => { element.scrollTop = element.scrollHeight; });
       await uiExpect(ui.getByTestId('knowledge-collection-archive-restore-hint')).toBeVisible();
@@ -375,7 +389,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       await openMaintenance('delete');
       await uiExpect(ui.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
       await capture('collection-delete-english-long-name', ui.getByRole('dialog'));
-      await ui.getByTestId('knowledge-collection-delete-history').locator('summary').click();
+      await ui.getByTestId('knowledge-collection-delete-history').locator('[data-slot=accordion-trigger]').first().click();
       await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
       await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
       await capture('collection-delete-english-long-name-expanded', ui.getByRole('dialog'));

@@ -72,10 +72,19 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await uiExpect(page.getByTestId('knowledge-history-previous')).toBeDisabled();
     await uiExpect(page.getByTestId('knowledge-history-next')).toBeDisabled();
     await capture('history-empty-light');
-    await page.getByTestId('knowledge-history-cleanup').locator('summary').click();
+    const cleanup = page.getByTestId('knowledge-history-cleanup');
+    const cleanupTrigger = cleanup.locator('[data-slot=accordion-trigger]').first();
+    await uiExpect(cleanupTrigger).toHaveAttribute('aria-expanded', 'false');
+    await cleanupTrigger.focus();
+    await page.keyboard.press('Enter');
+    await uiExpect(cleanupTrigger).toHaveAttribute('aria-expanded', 'true');
     await uiExpect(page.getByTestId('knowledge-history-no-sources')).toBeVisible();
     await capture('history-empty-cleanup');
-    await page.getByTestId('knowledge-history-cleanup').locator('summary').click();
+    await cleanupTrigger.focus();
+    await page.keyboard.press('Space');
+    await uiExpect(cleanupTrigger).toHaveAttribute('aria-expanded', 'false');
+    await uiExpect(cleanup.locator('[data-slot=accordion-content]').first()).toHaveAttribute('inert', '');
+    await uiExpect(page.getByTestId('knowledge-history-no-sources')).toBeHidden();
     await application.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] }); });
     await page.getByTestId('knowledge-history-import').click();
     await uiExpect(page.getByTestId('knowledge-history-import')).toBeEnabled();
@@ -172,7 +181,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     await uiExpect(page.getByTestId('knowledge-export-preview-content')).toBeVisible();
     await capture('export-backup');
     await page.getByTestId('knowledge-export-save').click();
-    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
+    // Accessibility closes immediately; the following OS drop starts only after
+    // the visual shell and its modal interaction lock have actually unmounted.
+    await uiExpect(page.locator('[role="dialog"]')).toHaveCount(0);
     const bytes = await readFile(output, 'utf8');
     const validated = parseKnowledgePackage(bytes);
     expect(validated.valid, JSON.stringify(validated.errors)).toBe(true);
@@ -314,14 +325,14 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     const geometry = await page.getByRole('dialog').evaluate(element => ({ width: element.clientWidth, scrollWidth: element.scrollWidth, bottom: element.getBoundingClientRect().bottom, height: innerHeight }));
     expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width + 1);
     expect(geometry.bottom).toBeLessThanOrEqual(geometry.height);
-    await page.getByTestId('knowledge-record-close').click();
+    await page.getByRole('dialog').getByTestId('knowledge-record-close').click();
     await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
     await page.getByTestId('knowledge-entry-actions').click();
     await page.getByTestId('knowledge-entry-maintenance').click();
     await uiExpect(page.getByRole('dialog')).toContainText('归档影响预览');
     await capture('maintenance-dark-narrow');
     await uiExpect(page.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
-    await page.getByTestId('knowledge-record-close').click();
+    await page.getByRole('dialog').getByTestId('knowledge-record-close').click();
     await openHistory();
     await capture('history-dark-narrow');
     await uiExpect(page.getByTestId('knowledge-undo-import').first()).toBeDisabled();

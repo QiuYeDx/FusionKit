@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import { Archive, CheckCircle2, Database, FileText, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MaintenancePreview } from "@/translation-knowledge/maintenance-contract";
@@ -27,7 +28,7 @@ export function CollectionArchiveDialog({ preview, names, entries, tasks, notice
     {...action}
   >
     <div className="min-w-0 [overflow-wrap:anywhere]">
-      <div className="space-y-3 [&:has(>*)]:pb-3">{notice}</div>
+      {notice}
       <section className="pb-1" aria-labelledby="collection-archive-impact-heading">
         <h3 id="collection-archive-impact-heading" className="mb-1 text-sm font-semibold">{t("collection_actions.will_archive")}</h3>
         <div className="collection-action-impact-list -mx-2">
@@ -36,12 +37,12 @@ export function CollectionArchiveDialog({ preview, names, entries, tasks, notice
             description={t("collection_actions.archive_contents_help")}
             badge={t("collection_actions.entry_count", { count: entries })}
             testId="knowledge-collection-archive-details" defaultOpen={!preview.canCommit}>
-            <ul className="divide-y divide-border/60 rounded-lg border px-3">
+            <DialogTransition transitionKey={page}><ul className="divide-y divide-border/60 rounded-lg border px-3">
               {preview.items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((item, index) => <li key={`${item.group}-${item.id}-${index}`} className="py-2 text-xs leading-5">
                 <p className="font-medium">{item.title}</p>
                 <p className="text-muted-foreground">{t(`group.${item.group}`)} · {t(`maintenance.effect.${item.effect}`)} · {t(`maintenance.reason.${item.reason}`)}</p>
               </li>)}
-            </ul>
+            </ul></DialogTransition>
             {preview.items.length > PAGE_SIZE && <Pagination page={page} total={preview.items.length} onChange={setPage} />}
           </CollectionImpactRow>
         </div>

@@ -65,7 +65,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
     const ui = page;
     ui.on('pageerror', error => errors.push(error.message));
     const capture = (name: string) => ui.screenshot({ path: path.join(artifacts, `${name}.png`), animations: 'disabled' });
-    const dialogFor = (testId: string) => ui.getByRole('dialog').filter({ has: ui.getByTestId(testId) });
+    const dialogFor = (testId: string) => ui.locator('[role="dialog"][data-state="open"]:not([data-dialog-exiting="true"])').filter({ has: ui.getByTestId(testId) });
     const geometry = async (dialog: Locator) => {
       expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
       expect(await dialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
@@ -214,9 +214,13 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await ui.evaluate(() => { document.documentElement.classList.remove('dark'); });
       await ui.getByTestId('studio-execution-record').click();
       const execution = dialogFor('studio-execution-record-content');
-      const knowledge = ui.getByTestId('studio-execution-knowledge');
+      // A paginated record retains the previous batch for its visual exit.
+      // Only the live stage may own the inspection controls.
+      const knowledge = execution.locator('[data-testid="studio-execution-knowledge"]:not([data-dialog-exiting="true"] *)');
+      await uiExpect(knowledge).toHaveCount(1);
+      await uiExpect(execution.locator('[data-dialog-exiting="true"]')).toHaveCount(0);
       await uiExpect(knowledge).toContainText(fixture.recipes[0].name);
-      await knowledge.locator('summary').filter({ hasText: term.title }).click();
+      await knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: term.title }).click();
       await uiExpect(knowledge).toContainText(fixture.sources[0].excerpt);
       await knowledge.scrollIntoViewIfNeeded();
       await capture('execution-knowledge-light');
@@ -227,17 +231,21 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await geometry(execution);
       const lastOffset = firstRecord.totalBatches - 1;
       for (let offset = 0; offset < lastOffset; offset++) {
-        await execution.getByRole('button', { name: '下一页', exact: true }).last().click();
-        await uiExpect(ui.getByTestId('studio-execution-record-content')).toHaveAttribute('aria-busy', 'false');
+        await execution.getByRole('button', { name: '下一页', exact: true }).click();
+        await uiExpect(execution.getByTestId('studio-execution-record-content')).toHaveAttribute('aria-busy', 'false');
+        const title = zh.execution.batch.replace('{{current}}', String(offset + 2)).replace('{{total}}', String(firstRecord.totalBatches));
+        await uiExpect(execution.getByRole('heading', { name: title, exact: true })).toBeVisible();
+        await uiExpect(execution.locator('[data-dialog-exiting="true"]')).toHaveCount(0);
+        await uiExpect(knowledge).toHaveCount(1);
       }
       const lastRecord = await readRecord(lastOffset);
       expect(lastRecord.batch.items.some(item => item.id === 'u21')).toBe(true);
       expect(lastRecord.batch.request?.httpBody).toBe(requests.at(-1)!.raw);
       expect(lastRecord.knowledge?.compiled.items.filter(item => item.kind === 'term').flatMap(item => item.applicableCueIds)).toEqual([completed.cues[20].id]);
       expect(lastRecord.knowledge?.compiled.items.some(item => item.kind === 'context' || item.kind === 'rule')).toBe(false);
-      await uiExpect(knowledge.locator('summary').filter({ hasText: term.title })).toBeVisible();
-      const technical = ui.getByTestId('studio-execution-technical');
-      await technical.locator('summary').click();
+      await uiExpect(knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: term.title })).toBeVisible();
+      const technical = execution.locator('[data-testid="studio-execution-technical"]:not([data-dialog-exiting="true"] *)');
+      await technical.locator('[data-slot="accordion-trigger"]').click();
       await uiExpect(technical.locator('pre')).toHaveText(requests.at(-1)!.raw);
       await technical.scrollIntoViewIfNeeded();
       await capture('execution-http-body-dark-narrow');
@@ -288,7 +296,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await ui.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
       await ui.getByTestId('studio-execution-record').click();
       await uiExpect(knowledge).toContainText(fixture.recipes[0].name);
-      await knowledge.locator('summary').filter({ hasText: term.title }).click();
+      await knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: term.title }).click();
       await uiExpect(knowledge).toContainText(fixture.sources[0].excerpt);
       await execution.getByRole('button', { name: '关闭', exact: true }).click();
       expect(errors).toEqual([]);

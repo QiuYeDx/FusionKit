@@ -69,6 +69,7 @@
     "src/components/ui/",
     "src/components/qiuye-ui/",
     "src/lib/",
+    "src/hooks/use-reduced-motion.ts",
     "src/constants/router.ts",
     "src/pages/Tools/_shared/",
     "electron/main/ai/model-runtime-client.ts",

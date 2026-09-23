@@ -1,6 +1,8 @@
 import { useRef } from 'react';
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
+import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ArrowLeft, Calculator, CheckCheck, ChevronDown, LoaderCircle, Play, RefreshCw } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Calculator, CheckCheck, LoaderCircle, Play, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { ToolStatBar } from '../../_shared/ui/ToolStatBar';
@@ -51,7 +53,7 @@ export function StudioTranslationReview(props: Props) {
     batchCount: batch.items.reduce((count, item) => count + (item.ok ? item.plan.batchCount : 0), 0) } : null);
   const canStart = props.open && props.canAct && !!props.check && readyCount(props.check) > 0 && !props.result;
   const partial = !!check && partialCheck(check) && readyCount(check) > 0;
-  return <ScrollableDialog open={props.open} onOpenChange={value => { if (!value && activity !== 'start') props.onClose(); }}
+  return <ScrollableDialog animateSize open={props.open} onOpenChange={value => { if (!value && activity !== 'start') props.onClose(); }}
     maxWidth="sm:max-w-[560px]" contentClassName="studio-translation-review-dialog"
     onOpenAutoFocus={event => { event.preventDefault(); back.current?.focus({ preventScroll: true }); }}
     onCloseAutoFocus={event => { event.preventDefault(); props.onRestoreFocus(); }}>
@@ -61,6 +63,7 @@ export function StudioTranslationReview(props: Props) {
     </ScrollableDialogHeader>
     <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}>
       <div data-testid="studio-translation-review-dialog" className="studio-translation-review-body" aria-busy={pending}>
+        <DialogTransition transitionKey={pending ? `pending-${activity}` : result ? 'result' : error ? 'error' : check?.kind ?? 'empty'} stageClassName="studio-translation-review-body">
         {pending ? <div data-testid="studio-translation-review-loading" className="studio-translation-review-loading" role="status">
           <LoaderCircle className="size-5 animate-spin text-muted-foreground" aria-hidden="true" />
           <p>{t(activity === 'trial' ? 'studio:materials.review_trial_running' : activity === 'start' ? 'studio:materials.review_starting' : 'studio:materials.review_checking')}</p>
@@ -79,16 +82,16 @@ export function StudioTranslationReview(props: Props) {
               ]} />
             {batch && <>
               <p className="studio-batch-note">{t('studio:batch.translation_queue_note')}</p>
-              <details key={batch.batchId} className="studio-translation-plan-details">
-                <summary>{t('studio:operation_result.details')}<ChevronDown aria-hidden="true" /></summary>
+              <StudioDisclosure key={batch.batchId} className="studio-translation-plan-details" title={t('studio:operation_result.details')}>
                 <StudioBatchItems>{batch.items.map(item => <StudioDocumentRow key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'} name={item.displayName} status={item.ok ? t('studio:batch.ready') : errorLabel(item.error)} />)}</StudioBatchItems>
-              </details>
+              </StudioDisclosure>
             </>}
           </section>}
           <StudioKnowledgeTrial library={library} page={page} preview={check?.kind === 'trial' ? check.value : null} documentPreview={check?.kind === 'knowledge' ? check.value : null} result={result} />
           {check?.kind === 'knowledge-batch' && <StudioKnowledgeBatch preview={check.value} library={library} />}
           {!error && !check && !result && <p role="status" className="text-xs leading-5 text-muted-foreground">{t('studio:materials.review_stale')}</p>}
         </>}
+        </DialogTransition>
       </div>
     </ScrollableDialogContent>
     <ScrollableDialogFooter className="studio-translation-review-footer">

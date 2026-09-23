@@ -4,6 +4,7 @@ import { AlertCircle, Check, Clock3, Languages, LoaderCircle, RefreshCw, Square,
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { getStudioTranslationOverviewController, getTranslationRoundProgress } from '@/services/subtitle-studio/translation-overview-controller';
 import type { TranslationTasksSnapshot, TranslationTaskStatus } from '@/subtitle-studio/ipc-contract';
 import { StudioIconButton, StudioPagination } from './StudioControls';
@@ -90,11 +91,12 @@ export function StudioTranslationOverview({ onOpenDocument, compact = false }: {
       {(state.error || !!snapshot?.unavailableDocuments) && <p className="studio-translation-overview-warning" role="status"><AlertCircle className="size-3.5" />{state.error ? t('studio:overview.read_error') : t('studio:overview.unavailable', { count: snapshot?.unavailableDocuments })}</p>}
       </ToolPanel>
     </section>}
-    <ScrollableDialog open={state.detailsOpen} onOpenChange={controller.setDetailsOpen} maxWidth="sm:max-w-[720px]" contentClassName="studio-translation-overview-dialog" onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+    <ScrollableDialog animateSize open={state.detailsOpen} onOpenChange={controller.setDetailsOpen} maxWidth="sm:max-w-[720px]" contentClassName="studio-translation-overview-dialog" onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader><DialogTitle className="flex items-center gap-2 text-sm"><Languages className="size-4" />{t('studio:overview.title')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:overview.description')}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogContent fadeMaskHeight={16}><div className="studio-translation-overview-content">
         {(state.error || openError) && <p role="alert" className="studio-translation-overview-warning"><AlertCircle className="size-4" />{t(openError ? 'studio:overview.open_error' : 'studio:overview.read_error')}</p>}
         {!!snapshot?.unavailableDocuments && <p role="status" className="studio-translation-overview-warning">{t('studio:overview.unavailable', { count: snapshot.unavailableDocuments })}</p>}
+        <DialogTransition transitionKey={snapshot?.items.length ? `page:${state.offset}` : state.refreshing && !snapshot ? 'loading' : 'empty'}>
         {snapshot?.items.length ? <StudioTaskQueue className="studio-translation-overview-list" data-testid="studio-translation-overview-list">{snapshot.items.map(task => <StudioTaskQueueRow key={task.taskId} data-task-id={task.taskId} data-state={task.status} name={task.displayName}
           icon={task.status === 'completed' ? <Check className="text-emerald-600 dark:text-emerald-400" /> : attention(task.status) ? <AlertCircle className="text-destructive" /> : task.status === 'cancelled' ? <Square className="text-muted-foreground" /> : <LoaderCircle className={task.status === 'running' ? 'studio-spin text-muted-foreground' : 'text-muted-foreground'} />}
           actions={<StudioIconButton label={t('studio:overview.open_document')} disabled={opening !== null} onClick={() => void open(task.documentId, task.trackId)}>{opening === task.documentId ? <LoaderCircle className="studio-spin" /> : <Subtitles />}</StudioIconButton>}
@@ -104,6 +106,7 @@ export function StudioTranslationOverview({ onOpenDocument, compact = false }: {
           {(task.status === 'queued' || task.status === 'running' || task.canResume) && (task.notBefore ?? 0) > now && <p className="studio-translation-overview-task-note"><Clock3 className="size-3" />{t('studio:translation.provider_wait', { seconds: Math.max(0, Math.ceil((task.notBefore! - now) / 1000)) })}</p>}
           {task.error && <p className="studio-translation-overview-warning">{t(errorKeys[task.error])}</p>}
         </StudioTaskQueueRow>)}</StudioTaskQueue> : <p className="studio-translation-overview-empty">{t(state.refreshing && !snapshot ? 'studio:overview.loading' : 'studio:overview.empty')}</p>}
+        </DialogTransition>
       </div></ScrollableDialogContent>
       <ScrollableDialogFooter className="studio-translation-overview-footer"><StudioIconButton label={t('studio:refresh')} disabled={state.refreshing} onClick={() => void controller.refresh()}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} /></StudioIconButton><StudioPagination offset={state.offset} pageSize={state.pageSize} total={snapshot?.total ?? 0} busy={state.refreshing} onChange={controller.setOffset} /><Button variant="outline" size="sm" onClick={() => controller.setDetailsOpen(false)}>{t('studio:batch.close')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>

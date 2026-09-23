@@ -286,7 +286,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     const englishRecord = page.getByRole('dialog', { name: 'Translation execution record', exact: true });
     await uiExpect(englishRecord).toContainText('Request saved');
     await page.screenshot({ path: path.join(artifacts, 'execution-english-narrow.png'), animations: 'disabled' });
-    await page.getByTestId('studio-execution-technical').locator('summary').click();
+    await page.getByTestId('studio-execution-technical').locator('[data-slot="accordion-trigger"]').first().click();
     await uiExpect(englishRecord.locator('pre')).toHaveText((await trace(page, 0)).batch.request!.httpBody);
     await englishRecord.locator('pre').scrollIntoViewIfNeeded();
     expect(await englishRecord.evaluate(element => [...element.querySelectorAll<HTMLElement>('[data-slot=scroll-area-viewport]')].every(viewport => viewport.scrollWidth <= viewport.clientWidth + 1))).toBe(true);

@@ -224,7 +224,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
 
       const result = ui.getByTestId('studio-batch-result');
       await uiExpect(result).toHaveAttribute('data-outcome', 'partial');
-      await result.locator('summary').click();
+      await result.locator('[data-slot="accordion-trigger"]').first().click();
       await uiExpect(result.locator('[data-state="success"]')).toHaveCount(2);
       await uiExpect(result.locator(`[data-result-id="${documents[2].summary.id}"]`)).toHaveAttribute('data-state', 'failed');
       await capture('partial-admission-dark-narrow', result);
@@ -300,7 +300,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('batch knowledge tra
       await ui.getByTestId('studio-execution-record').click();
       const knowledge = ui.getByTestId('studio-execution-knowledge');
       await uiExpect(knowledge).toContainText(fixture.recipes[0].name);
-      await knowledge.locator('summary').filter({ hasText: term.title }).click();
+      await knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: term.title }).click();
       await uiExpect(knowledge).toContainText(historicalSource.excerpt);
       await capture('retained-batch-evidence-light', knowledge);
       await geometry(dialogFor('studio-execution-record-content'));

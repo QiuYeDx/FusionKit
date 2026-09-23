@@ -38,6 +38,7 @@ export function KnowledgeDisclosure({
       </AccordionTrigger>
       <AccordionContent
         forceMount
+        motionOpen={open}
         aria-hidden={!open}
         inert={!open}
         className={cn("space-y-3 px-3 pb-3 pt-1 [overflow-wrap:anywhere]", variant === "inline" && "px-2 pb-2", contentClassName)}

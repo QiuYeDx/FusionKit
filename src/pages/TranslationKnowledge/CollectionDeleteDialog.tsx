@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import { CheckCircle2, Database, FileText, History, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { LibrarySnapshot } from "@/translation-knowledge/ipc-contract";
@@ -41,22 +42,20 @@ export function CollectionDeleteDialog({ preview, snapshot, names, entries, pend
     onSubmit={onSubmit}
   >
     <div className="min-w-0 [overflow-wrap:anywhere]">
-      <div className="space-y-3 [&:has(>*)]:pb-3">
-        {preview.blockers.some(item => item.code === "PURGE_REFERENCED") && <p role="alert" className="text-xs leading-5 text-destructive">{t("collection_actions.references_help")}</p>}
-        {notice}
-      </div>
+      {preview.blockers.some(item => item.code === "PURGE_REFERENCED") && <p role="alert" className="pb-3 text-xs leading-5 text-destructive">{t("collection_actions.references_help")}</p>}
+      {notice}
       <section className="pb-1" aria-labelledby="collection-delete-removal-heading">
         <h3 id="collection-delete-removal-heading" className="mb-1 text-sm font-semibold">{t("collection_actions.will_delete")}</h3>
         <div className="collection-action-impact-list -mx-2">
           <CollectionImpactRow icon={FileText} tone="bg-violet-500/10 text-violet-600 dark:text-violet-400" title={t("collection_actions.entries_label")}
             description={sample ? t("collection_actions.entry_example", { title: sample.title }) : t("collection_actions.empty_entries")}
             badge={t("collection_actions.entry_count", { count: entries })} testId="knowledge-collection-delete-details" defaultOpen={!preview.canCommit}>
-            <ul className="divide-y divide-border/60 rounded-lg border px-3">
+            <DialogTransition transitionKey={page}><ul className="divide-y divide-border/60 rounded-lg border px-3">
               {affected.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((item, index) => <li key={`${item.group}-${item.id}-${index}`} className="py-2 text-xs leading-5">
                 <p className="font-medium">{item.title}</p>
                 <p className="text-muted-foreground">{t(`group.${item.group}`)} · {t(`maintenance.effect.${item.effect}`)} · {t(`maintenance.reason.${item.reason}`)}</p>
               </li>)}
-            </ul>
+            </ul></DialogTransition>
             {affected.length > PAGE_SIZE && <Pagination page={page} total={affected.length} onChange={setPage} />}
           </CollectionImpactRow>
           {hasHistory && <CollectionImpactRow icon={History} tone="bg-destructive/8 text-destructive" title={t("collection_actions.history_label")}

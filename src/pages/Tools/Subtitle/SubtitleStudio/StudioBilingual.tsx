@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, Check, Columns2, Eraser, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
@@ -161,7 +162,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
   if (!page.summary.bilingualAvailable) return null;
   return <>
     <StudioIconButton ref={trigger} label={t('studio:bilingual.action')} disabled={busy || !eligible || applying} onClick={() => { autoOpened.current = true; setOpen(true); }}><Columns2 /></StudioIconButton>
-    <ScrollableDialog open={open} onOpenChange={value => { if (!applying) { autoOpened.current = true; setOpen(value); } }} maxWidth="sm:max-w-[720px]" contentClassName="studio-bilingual-dialog" onOpenAutoFocus={event => { event.preventDefault(); firstControl.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+    <ScrollableDialog animateSize open={open} onOpenChange={value => { if (!applying) { autoOpened.current = true; setOpen(value); } }} maxWidth="sm:max-w-[720px]" contentClassName="studio-bilingual-dialog" onOpenAutoFocus={event => { event.preventDefault(); firstControl.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="relative p-3 pr-12">
         <DialogTitle className="flex items-center gap-2 text-base"><Columns2 className="size-4" />{t('studio:bilingual.title')}</DialogTitle>
         <DialogDescription className="text-xs"><StudioFileName name={page.summary.origin.displayName} /></DialogDescription>
@@ -186,6 +187,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
           </div>
         </div>
         <p className="studio-bilingual-decision-note">{t('studio:bilingual.decision_note')}</p>
+        <DialogTransition transitionKey={visiblePreview ? `preview:${visiblePreview.offset}:${reviewOnly}` : error ? 'error' : 'loading'}>
         {selectionLimit && <p className="studio-bilingual-error" role="alert">{t('studio:bilingual.selection_limit')}</p>}
         {error && <div className="studio-bilingual-error" role="alert"><AlertCircle className="size-4" /><span>{t(errorKeys[error])}</span><Button variant="ghost" size="sm" disabled={pending} onClick={() => setAttempt(value => value + 1)}><RefreshCw />{t('studio:retry')}</Button></div>}
         {!eligible && <p className="studio-bilingual-error" role="alert">{t('studio:bilingual.unavailable')}</p>}
@@ -224,6 +226,7 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
             })}
           </ol> : <p className="studio-bilingual-empty">{reviewOnly ? t('studio:bilingual.no_review_candidates') : t('studio:bilingual.no_candidates')}</p>}
         </> : !error && eligible && <div className="studio-bilingual-loading" role="status"><LoaderCircle className="size-4 studio-spin" />{t('studio:loading')}</div>}
+        </DialogTransition>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="studio-bilingual-footer p-3">
         <div className="studio-bilingual-pagination">
@@ -269,9 +272,9 @@ export function StudioRemoveTranslation({ page, track, busy, onChanged, onError 
   };
   return <>
     <StudioIconButton ref={trigger} label={t('studio:remove_translation.action')} disabled={busy || removing || hasActiveTask} onClick={() => setOpen(true)}><Eraser /></StudioIconButton>
-    <ScrollableDialog open={open} onOpenChange={value => { if (!removing) setOpen(value); }} onOpenAutoFocus={event => { event.preventDefault(); cancel.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+    <ScrollableDialog animateSize open={open} onOpenChange={value => { if (!removing) setOpen(value); }} onOpenAutoFocus={event => { event.preventDefault(); cancel.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="p-3 pr-12"><DialogTitle className="text-base">{t('studio:remove_translation.action')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:remove_translation.description')}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent className="studio-bilingual-content" fadeMaskHeight={16}><StudioFileName name={page.summary.origin.displayName} />{error && <p className="studio-bilingual-error" role="alert">{t(errorKeys[error])}</p>}</ScrollableDialogContent>
+      <ScrollableDialogContent className="studio-bilingual-content" fadeMaskHeight={16}><StudioFileName name={page.summary.origin.displayName} /><DialogTransition transitionKey={error ?? 'error'}>{error && <p className="studio-bilingual-error" role="alert">{t(errorKeys[error])}</p>}</DialogTransition></ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap justify-end gap-2 p-3"><Button ref={cancel} variant="outline" size="sm" disabled={removing} onClick={() => setOpen(false)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" disabled={removing || busy || hasActiveTask} onClick={() => void remove()}>{removing ? <LoaderCircle className="studio-spin" /> : <Eraser />}{t('studio:remove_translation.action')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
   </>;

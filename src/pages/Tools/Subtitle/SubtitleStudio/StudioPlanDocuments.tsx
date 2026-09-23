@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioDocumentDisclosureHeading } from './StudioDocumentDisclosureHeading';
+import { StudioDisclosure } from './StudioDisclosure';
 import './StudioSelectedDocuments.css';
 import './StudioPlanDocuments.css';
 
@@ -17,7 +18,7 @@ export function StudioPlanDocuments({ documents, collapsible = true, tracks, ren
   renderActions?: (document: DocumentSummary) => ReactNode;
 }) {
   const { t } = useTranslation();
-  const heading = <StudioDocumentDisclosureHeading title={t('studio:batch.selected_title')} count={documents.length} collapsible={collapsible} />;
+  const heading = <StudioDocumentDisclosureHeading title={t('studio:batch.selected_title')} count={documents.length} />;
   const list = <div className="studio-plan-documents-body"><StudioDocumentList label={t('studio:library.selected', { count: documents.length })} maxHeight="min(240px, 32vh)">
     {documents.map((document, index) => <StudioDocumentRow key={document.id} data-document-id={document.id} data-state={rowState?.(document)} name={document.origin.displayName} index={index + 1}
       status={<span className="studio-plan-document-status"><Badge variant="outline" className="studio-selected-documents-format">{document.origin.format.toUpperCase()}</Badge>{renderStatus?.(document)}</span>}
@@ -32,9 +33,8 @@ export function StudioPlanDocuments({ documents, collapsible = true, tracks, ren
   if (!collapsible) return <section className="studio-selected-documents" data-testid="studio-selected-documents" aria-label={t('studio:library.selected', { count: documents.length })}>
     <div className="studio-selected-documents-header">{heading}</div>{list}
   </section>;
-  return <details className="studio-selected-documents" data-testid="studio-selected-documents">
-    <summary className="studio-selected-documents-header" aria-label={t('studio:batch.selected_documents', { count: documents.length })}>
-      {heading}
-    </summary>{list}
-  </details>;
+  return <StudioDisclosure className="studio-selected-documents" data-testid="studio-selected-documents"
+    triggerClassName="studio-selected-documents-header" triggerLabel={t('studio:batch.selected_documents', { count: documents.length })} title={heading}>
+    {list}
+  </StudioDisclosure>;
 }

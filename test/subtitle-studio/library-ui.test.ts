@@ -39,7 +39,7 @@ async function expandOperationResult(page: Page, testId = 'studio-library-result
   const result = page.getByTestId(testId);
   await uiExpect(result).toBeVisible();
   await uiExpect(result.locator('li')).toHaveCount(0);
-  await result.locator('[data-result-details] > summary').click();
+  await result.locator('[data-result-details] [data-slot="accordion-trigger"]').first().click();
 }
 
 async function documentPage(page: Page, id: string): Promise<DocumentPage> {
@@ -433,7 +433,7 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     await uiExpect(exporting).toHaveAccessibleName('确认导出');
     const reviewDetails = exporting.getByTestId('studio-export-review-details');
     await uiExpect(reviewDetails.locator('.studio-document-row')).toHaveCount(0);
-    await reviewDetails.locator('summary').click();
+    await reviewDetails.locator('[data-slot="accordion-trigger"]').first().click();
     await uiExpect(reviewDetails.locator('.studio-document-row[data-state="ready"]')).toHaveCount(2);
     const save = exporting.getByRole('button', { name: '确认并导出 2 份', exact: true });
     await application!.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] }); });

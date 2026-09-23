@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, ClipboardList, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
 import type { AutomaticKnowledgeReportPage } from '@/subtitle-studio/automatic-knowledge-report-contract';
@@ -52,12 +53,13 @@ export function StudioAutomaticKnowledgeFailure({ page, taskId, trackId, disable
       if (active.current) return;
       active.current = true; handingOff.current = false; setOpen(true); setFailed(false); setResult(null); setOffset(0);
     }}><ClipboardList />{t('knowledge:recovery.open')}</Button>
-    <ScrollableDialog open={open} onOpenChange={next => { if (!next) close(); }} maxWidth="sm:max-w-3xl" contentClassName="grid-rows-[auto_minmax(0,1fr)_auto] [&>button]:hidden"
+    <ScrollableDialog animateSize open={open} onOpenChange={next => { if (!next) close(); }} maxWidth="sm:max-w-3xl" contentClassName="grid-rows-[auto_minmax(0,1fr)_auto] [&>button]:hidden"
       onOpenAutoFocus={event => { event.preventDefault(); dismiss.current?.focus({ preventScroll: true }); }}
       onCloseAutoFocus={event => { event.preventDefault(); if (!handingOff.current && trigger.current?.isConnected) trigger.current.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="p-3"><DialogTitle className="flex items-center gap-2 text-base"><AlertCircle className="size-4 text-destructive" />{t('knowledge:recovery.title')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('knowledge:recovery.description')}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogContent className="min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]>div>div]:p-3" fadeMaskHeight={16}>
         <div data-testid="automatic-knowledge-report-content" data-state={pending ? 'loading' : failed ? 'error' : result?.state} aria-busy={pending} className="min-w-0 space-y-4 text-xs leading-5 [overflow-wrap:anywhere]">
+          <DialogTransition transitionKey={pending ? 'loading' : failed ? 'error' : `${result?.state ?? 'empty'}:${currentPage}`} stageClassName="min-w-0 space-y-4">
           <div className="text-sm"><StudioFileName name={page.summary.origin.displayName} focusable /></div>
           {available && <p data-testid="automatic-knowledge-report-time" className="text-muted-foreground">{t('knowledge:recovery.checked_at', { time: new Date(available.createdAt).toLocaleString(i18n.language) })}</p>}
           {pending && <p role="status" className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="size-3.5 animate-spin" />{t('knowledge:loading')}</p>}
@@ -85,6 +87,7 @@ export function StudioAutomaticKnowledgeFailure({ page, taskId, trackId, disable
             {pages > 1 && <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-muted-foreground"><span>{t('knowledge:pagination', { count: issues.length, page: currentPage + 1, pages })}</span><div className="flex gap-1"><Button size="sm" variant="ghost" disabled={pending || currentPage === 0} onClick={() => setOffset(currentPage - 1)}>{t('knowledge:actions.previous')}</Button><Button size="sm" variant="ghost" disabled={pending || currentPage + 1 >= pages} onClick={() => setOffset(currentPage + 1)}>{t('knowledge:actions.next')}</Button></div></div>}
           </>}
           {!pending && (result?.state === 'available' || result?.state === 'legacy') && <p className="text-muted-foreground">{t(seed ? 'knowledge:recovery.recheck_help' : 'knowledge:recovery.seed_unavailable')}</p>}
+          </DialogTransition>
         </div>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap justify-end gap-2 p-3">

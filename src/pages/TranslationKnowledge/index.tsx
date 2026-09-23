@@ -6,6 +6,8 @@ import { HistoryDialog, MaintenanceDialog } from "./Maintenance";
 import { languagePairLabel, optionKey } from "./labels";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { AnimatePresence } from "motion/react";
+import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import {
   Archive,
   ArrowRight,
@@ -365,10 +367,12 @@ export default function TranslationKnowledge() {
   return (
     <div {...dropProps} data-testid="translation-knowledge">
       <ToolDetailLayout header={header} aside={aside} className="translation-knowledge md:[&>div.grid]:grid-cols-[240px_minmax(0,1fr)] lg:[&>div.grid]:grid-cols-[280px_minmax(0,1fr)]" asideClassName="lg:static lg:w-full">
-        {dropError && <p role="alert" className="rounded-md border border-destructive/25 p-3 text-sm text-destructive">{t("drop.invalid")}</p>}
-        {blocked && <div role="status" className="space-y-2 rounded-md border p-3"><p className="text-sm">{t("maintenance.cleanup_pending")}</p><Button data-testid="knowledge-cleanup-retry" size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>{t("maintenance.retry_cleanup")}</Button></div>}
-        <ErrorNotice error={error} diagnostics={diagnostics} />
-        {notice && <div role="status" className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3 text-xs"><p className="break-words leading-5">{notice}</p><Button size="icon-xs" variant="ghost" aria-label={t("actions.dismiss")} onClick={() => setNotice("")}><X /></Button></div>}
+        <div>
+        <DialogTransition transitionKey="drop-error" stageClassName="pb-3">{dropError && <p role="alert" className="rounded-md border border-destructive/25 p-3 text-sm text-destructive">{t("drop.invalid")}</p>}</DialogTransition>
+        <DialogTransition transitionKey="cleanup-pending" stageClassName="pb-3">{blocked && <div role="status" className="space-y-2 rounded-md border p-3"><p className="text-sm">{t("maintenance.cleanup_pending")}</p><Button data-testid="knowledge-cleanup-retry" size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>{t("maintenance.retry_cleanup")}</Button></div>}</DialogTransition>
+        <ErrorNotice error={error} diagnostics={diagnostics} stageClassName="pb-3" />
+        <DialogTransition transitionKey="notice" stageClassName="pb-3">{notice && <div role="status" className="flex items-start justify-between gap-3 rounded-md border bg-muted/30 p-3 text-xs"><p className="break-words leading-5">{notice}</p><Button size="icon-xs" variant="ghost" aria-label={t("actions.dismiss")} onClick={() => setNotice("")}><X /></Button></div>}</DialogTransition>
+        <div className="flex min-w-0 flex-col gap-3">
         {loading && !snapshot ? <div role="status" className="flex items-center gap-2 p-6 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" />{t("loading")}</div> : snapshot && <>
           <div id="knowledge-content-heading" className="flex min-w-0 items-start justify-between gap-3">
             <div className="min-w-0 space-y-1"><h2 className="break-words text-lg font-semibold">{workspaceTitle}</h2>{currentCollection && <p className="break-words text-xs leading-5 text-muted-foreground">{currentCollection.defaultLanguagePair ? languagePairLabel(t, currentCollection.defaultLanguagePair) : t("workspace.mixed_languages")}{currentCollection.description ? ` · ${currentCollection.description}` : ""}</p>}</div>
@@ -421,14 +425,17 @@ export default function TranslationKnowledge() {
             </>}
           </ToolPanel>
         </>}
-        {snapshot && destination && <KnowledgeDialog title={t("workspace.choose_collection")} description={t("workspace.choose_collection_help")} footer={null} onClose={() => setDestination(null)}>
+        </div>
+        </div>
+        <AnimatePresence>
+        {snapshot && destination && <KnowledgeDialog key="destination" title={t("workspace.choose_collection")} description={t("workspace.choose_collection_help")} footer={null} onClose={() => setDestination(null)}>
           <div className="space-y-2">{activeCollections.map(collection => <Button key={collection.id} variant="outline" className="h-auto w-full justify-between gap-2 whitespace-normal py-3 text-left" onClick={() => beginForCollection(collection.id, destination)}><span className="break-words">{collection.name}</span><ArrowRight className="shrink-0" /></Button>)}</div>
           <Button variant="ghost" size="sm" onClick={() => { continuationKind.current = destination; continueWithEntry.current = true; setDestination(null); addCatalog("collections"); }}><Plus />{t("actions.new_collection")}</Button>
         </KnowledgeDialog>}
-        {bulkCollection && <BulkTermPaste collection={bulkCollection} api={api} onSnapshot={setSnapshot} onClose={() => setBulkCollectionId(null)} />}
+        {bulkCollection && <BulkTermPaste key={`paste:${bulkCollection.id}`} collection={bulkCollection} api={api} onSnapshot={setSnapshot} onClose={() => setBulkCollectionId(null)} />}
         {snapshot && entryEditor && (
           <EntryEditor
-            key={entryEditor.id}
+            key={`entry:${entryEditor.id}`}
             initial={entryEditor}
             snapshot={snapshot}
             onSave={save}
@@ -438,7 +445,7 @@ export default function TranslationKnowledge() {
         )}
         {snapshot && catalog && (
           <CatalogEditor
-            key={catalog.record.id}
+            key={`catalog:${catalog.record.id}`}
             group={catalog.group}
             initial={catalog.record}
             snapshot={snapshot}
@@ -457,6 +464,7 @@ export default function TranslationKnowledge() {
         )}
         {preview && (
           <ImportDialog
+            key="import"
             preview={preview}
             blocked={blocked}
             api={api}
@@ -469,6 +477,7 @@ export default function TranslationKnowledge() {
         )}
         {snapshot && exportOpen && (
           <ExportDialog
+            key="export"
             snapshot={snapshot}
             api={api}
             initialCollection={currentCollection?.id}
@@ -477,7 +486,7 @@ export default function TranslationKnowledge() {
           />
         )}
         {snapshot && currentEntry && !entryEditor && (
-          <EntryDetails entry={currentEntry} snapshot={snapshot} busy={busy} blocked={blocked}
+          <EntryDetails key={`details:${currentEntry.id}`} entry={currentEntry} snapshot={snapshot} busy={busy} blocked={blocked}
             error={detailError} diagnostics={detailDiagnostics} onClose={() => setSelected(null)}
             onEdit={() => setEntryEditor(currentEntry)}
             onCopy={() => {
@@ -490,6 +499,7 @@ export default function TranslationKnowledge() {
         )}
         {snapshot && historyOpen && (
           <HistoryDialog
+            key="history"
             snapshot={snapshot}
             pending={busy}
             error={error}
@@ -501,6 +511,7 @@ export default function TranslationKnowledge() {
         )}
         {snapshot && maintenancePreview && (
           <MaintenanceDialog
+            key="maintenance"
             restoreFocusTo={() => maintenanceFocusTarget.current}
             preview={maintenancePreview}
             snapshot={snapshot}
@@ -516,6 +527,7 @@ export default function TranslationKnowledge() {
             }}
           />
         )}
+        </AnimatePresence>
       </ToolDetailLayout>
       <KnowledgeTour open={tourOpen && tourReady} onOpenChange={setTourOpen} />
     </div>

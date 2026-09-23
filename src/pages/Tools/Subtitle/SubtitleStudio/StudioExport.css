@@ -16,10 +16,6 @@
 .studio-export-note { color: var(--muted-foreground); font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
 .studio-export-advanced { min-width: 0; }
 .studio-export-advanced:last-child { margin-bottom: -12px; }
-.studio-export-preview summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; cursor: pointer; list-style: none; color: var(--muted-foreground); font-size: 12px; }
-.studio-export-preview summary::-webkit-details-marker { display: none; }
-.studio-export-preview[open] > summary svg { transform: rotate(180deg); }
-.studio-export-preview summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
 .studio-export-error { display: flex; align-items: flex-start; gap: 6px; color: var(--destructive); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-export-error svg { flex-shrink: 0; }
 .studio-export-plan { display: grid; gap: 10px; min-width: 0; margin-inline: -12px; border-top: 1px solid var(--border); padding: 12px 12px 0; }
@@ -34,7 +30,6 @@
 .studio-export-issues li svg { flex-shrink: 0; margin-top: 2px; }
 .studio-export-issue-dot { flex-shrink: 0; width: 4px; height: 4px; margin: 7px 5px; border-radius: 50%; background: currentColor; }
 .studio-export-preview { min-width: 0; }
-.studio-export-preview summary { min-height: 26px; font-size: 11px; }
 .studio-export-preview pre { margin-top: 6px; padding: 8px 10px; border-radius: 6px; background: var(--muted); color: var(--muted-foreground); font-family: var(--font-mono); font-size: 11px; line-height: 17px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .studio-export-ready { display: flex; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
 .studio-export-footer button { flex-shrink: 0; }
@@ -52,11 +47,7 @@
 .studio-export-change-types li > span { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; }
 .studio-export-change-types li > span:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 3px; }
 .studio-export-change-count { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--foreground); }
-.studio-export-review-details { min-width: 0; margin-inline: -12px; padding-inline: 12px; border-top: 1px solid var(--border); }
-.studio-export-review-details > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; cursor: pointer; list-style: none; font-size: 12px; line-height: 18px; color: var(--muted-foreground); }
-.studio-export-review-details > summary::-webkit-details-marker { display: none; }
-.studio-export-review-details > summary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
-.studio-export-review-details[open] > summary svg { transform: rotate(180deg); }
+.studio-export-review-details { min-width: 0; margin-inline: -12px; border-top: 1px solid var(--border); }
 .studio-export-review-details .studio-document-row-details { display: grid; gap: 6px; }
 @media (max-width: 480px) {
   .studio-export-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }

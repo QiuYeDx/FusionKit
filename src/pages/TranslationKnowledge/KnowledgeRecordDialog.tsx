@@ -8,8 +8,10 @@ import { cn } from '@/lib/utils';
 import './knowledge-record-dialog.css';
 
 /** Record reading/editing has its own action hierarchy; exchange dialogs keep their existing shell. */
-export function KnowledgeRecordDialog({ title, description, icon, children, footer, footerStart, onClose, pending = false, closeLabel, testId, wide = false, error, restoreFocusTo }: {
+export function KnowledgeRecordDialog({ title, description, icon, children, notice, footer, footerStart, onClose, pending = false, closeLabel, testId, wide = false, error, restoreFocusTo }: {
   title: string; description?: string; icon?: ReactNode; children: ReactNode;
+  /** Optional feedback owns its animated spacing instead of a parent flex gap. */
+  notice?: ReactNode;
   footer?: ReactNode; footerStart?: ReactNode; onClose: () => void; pending?: boolean;
   closeLabel?: string; testId?: string; wide?: boolean;
   error?: string | null; restoreFocusTo?: () => HTMLElement | null;
@@ -22,14 +24,16 @@ export function KnowledgeRecordDialog({ title, description, icon, children, foot
     if (!error) return;
     // A fixed footer can submit while the error region is below the viewport.
     const frame = requestAnimationFrame(() => {
-      const alert = bodyRef.current?.querySelector<HTMLElement>('[role="alert"]');
+      // Presence may retain the previous error while the new error enters.
+      const alert = Array.from(bodyRef.current?.querySelectorAll<HTMLElement>('[role="alert"]') ?? [])
+        .find(element => !element.closest('[data-dialog-exiting="true"], [inert]'));
       if (!alert) return;
       alert.scrollIntoView({ block: 'nearest', behavior: 'instant' });
       alert.tabIndex = -1; alert.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [error]);
-  return <ScrollableDialog open onOpenChange={open => { if (!open && !pending) onClose(); }}
+  return <ScrollableDialog open animateSize onOpenChange={open => { if (!open && !pending) onClose(); }}
     maxWidth={wide ? 'sm:max-w-[760px]' : 'sm:max-w-[640px]'}
     contentClassName="knowledge-record-dialog"
     onOpenAutoFocus={event => { event.preventDefault(); titleRef.current?.focus({ preventScroll: true }); }}
@@ -46,7 +50,10 @@ export function KnowledgeRecordDialog({ title, description, icon, children, foot
       <DialogDescription className="sr-only">{description ?? title}</DialogDescription>
     </ScrollableDialogHeader>
     <ScrollableDialogContent className="knowledge-record-content" fadeMaskHeight={16}>
-      <div ref={bodyRef} data-testid={testId} className="knowledge-record-body" aria-busy={pending}>{children}</div>
+      <div ref={bodyRef} data-testid={testId} className="min-w-0" aria-busy={pending}>
+        <div className="knowledge-record-body">{children}</div>
+        {notice}
+      </div>
     </ScrollableDialogContent>
     <ScrollableDialogFooter className="knowledge-record-footer">
       {footerStart && <div className="knowledge-record-footer-start">{footerStart}</div>}

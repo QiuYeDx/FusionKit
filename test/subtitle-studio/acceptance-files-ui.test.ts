@@ -135,7 +135,7 @@ describe.runIf(enabled)('I3 native files, format preservation and export UI', ()
       await page.getByRole('button', { name: '确认并导出 2 份', exact: true }).click();
       await uiExpect(page.getByTestId('studio-batch-result')).toContainText('已保存 2 份字幕文件');
       await uiExpect(page.getByTestId('studio-batch-result').locator('[data-result-id]')).toHaveCount(0);
-      await page.getByTestId('studio-batch-result').locator('[data-result-details] > summary').click();
+      await page.getByTestId('studio-batch-result').locator('[data-result-details] [data-slot="accordion-trigger"]').first().click();
       await uiExpect(page.getByTestId('studio-batch-result')).toContainText('Session.srt');
       await uiExpect(page.getByTestId('studio-batch-result')).toContainText('Dialogue.srt');
       expect(await readFile(path.join(a, 'Session.srt'), 'utf8')).toContain('这是经过翻译的字幕。');
@@ -171,7 +171,7 @@ describe.runIf(enabled)('I3 native files, format preservation and export UI', ()
       await uiExpect(page.getByRole('button', { name: '确认并导出 0 份', exact: true })).toBeDisabled();
       await page.getByRole('button', { name: '返回设置', exact: true }).click();
       await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }); }, a);
-      await page.getByRole('dialog').getByTestId('studio-selected-documents').locator('summary').click();
+      await page.getByRole('dialog').getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click();
       await page.getByRole('button', { name: '重新指定来源目录…', exact: true }).click();
       await uiExpect(page.getByTestId('studio-source-location')).toHaveAttribute('data-state', 'ready');
       await uiExpect(page.getByRole('dialog')).toContainText('使用你重新指定的来源目录');

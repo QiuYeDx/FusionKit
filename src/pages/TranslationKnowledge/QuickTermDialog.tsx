@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence } from 'motion/react';
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, LoaderCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,7 +22,7 @@ type Props = {
 
 /** A fresh form per explicit invocation. Saving never changes a running task. */
 export function QuickTermDialog(props: Props) {
-  return props.open ? <QuickTermForm {...props} /> : null;
+  return <AnimatePresence>{props.open && <QuickTermForm key="quick-term" {...props} />}</AnimatePresence>;
 }
 
 function QuickTermForm({ onOpenChange, initialSource = '', initialTarget = '', initialLanguagePair, preferredCollectionId, onSaved }: Props) {
@@ -132,24 +134,26 @@ function QuickTermForm({ onOpenChange, initialSource = '', initialTarget = '', i
   return <KnowledgeDialog title={t('title')} description={t('description')} pending={pending} onClose={() => onOpenChange(false)} footer={
     <Button data-testid="quick-term-save" size="sm" disabled={!valid || pending} onClick={() => void save()}>{pending ? <LoaderCircle className="size-4 animate-spin" /> : <BookOpen className="size-4" />}{t('save')}</Button>
   }>
-    <div data-testid="quick-term-form" className="space-y-4">
-      <ErrorNotice error={error} />
-      {!snapshot && !error && <p role="status" className="text-xs text-muted-foreground">{t('loading')}</p>}
+    <div data-testid="quick-term-form">
+      <ErrorNotice error={error} stageClassName="pb-4" />
+      <DialogTransition transitionKey={!snapshot && !error ? 'loading' : 'ready'} stageClassName="pb-4">{!snapshot && !error && <p role="status" className="text-xs text-muted-foreground">{t('loading')}</p>}</DialogTransition>
       <fieldset disabled={pending || !snapshot} className="space-y-4 disabled:opacity-60">
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField label={t('source')} value={source} onChange={setSource} required />
           <TextField label={t('target')} value={target} onChange={setTarget} required />
         </div>
         <p className="text-xs leading-5 text-muted-foreground">{t('boundary_hint')}</p>
-        <Choice label={t('collection')} value={collectionId} onChange={chooseCollection} options={[...collections.map(item => ({ value: item.id, label: item.name })), { value: 'new', label: t('new_collection') }]} />
-        {collectionId === 'new' && <TextField label={t('collection_name')} value={collectionName} onChange={setCollectionName} required />}
+        <div>
+          <Choice label={t('collection')} value={collectionId} onChange={chooseCollection} options={[...collections.map(item => ({ value: item.id, label: item.name })), { value: 'new', label: t('new_collection') }]} />
+          <DialogTransition transitionKey={collectionId === 'new' ? 'new' : 'existing'} stageClassName="pt-4">{collectionId === 'new' && <TextField label={t('collection_name')} value={collectionName} onChange={setCollectionName} required />}</DialogTransition>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <LanguageField label={t('source_language')} value={pair.source} onChange={value => setPair(current => ({ ...current, source: value }))} />
           <LanguageField label={t('target_language')} value={pair.target} onChange={value => setPair(current => ({ ...current, target: value }))} />
         </div>
       </fieldset>
-      {duplicate ? <p role="status" className="text-xs leading-5 text-muted-foreground">{t('duplicate')}</p> : !!matchingTerms.length && <p role="status" className="text-xs leading-5 text-amber-700 dark:text-amber-400">{t('conflict')}</p>}
-      <p className="text-xs leading-5 text-muted-foreground">{t('future_hint')}</p>
+      <DialogTransition transitionKey={duplicate ? 'duplicate' : matchingTerms.length ? 'conflict' : 'clear'} stageClassName="pt-4">{duplicate ? <p role="status" className="text-xs leading-5 text-muted-foreground">{t('duplicate')}</p> : !!matchingTerms.length && <p role="status" className="text-xs leading-5 text-amber-700 dark:text-amber-400">{t('conflict')}</p>}</DialogTransition>
+      <p className="pt-4 text-xs leading-5 text-muted-foreground">{t('future_hint')}</p>
     </div>
   </KnowledgeDialog>;
 }

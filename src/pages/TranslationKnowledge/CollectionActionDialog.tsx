@@ -1,7 +1,8 @@
 import { useRef, useState, type ReactNode } from "react";
-import { ChevronRight, LoaderCircle, X, type LucideIcon } from "lucide-react";
+import { LoaderCircle, X, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
   ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent,
   ScrollableDialogFooter, DialogTitle, DialogDescription,
@@ -26,12 +27,21 @@ export function CollectionImpactRow({ icon: Icon, tone, title, description, badg
       <span className="block text-xs font-normal leading-5 text-muted-foreground [overflow-wrap:anywhere]">{description}</span>
     </span>
     <span className="max-w-[35%] shrink-0 rounded-full bg-muted/70 px-2.5 py-1 text-center text-xs font-medium tabular-nums text-muted-foreground">{badge}</span>
-    {children && <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90 motion-reduce:transition-none" />}
   </>;
-  return children ? <details data-testid={testId} open={open} onToggle={event => setOpen(event.currentTarget.open)} className="collection-action-impact-row group min-w-0">
-    <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl p-2 outline-none transition-colors duration-150 ease-out hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 motion-reduce:transition-none [&::-webkit-details-marker]:hidden">{content}</summary>
-    <div className="px-2 pb-2">{children}</div>
-  </details> : <div data-testid={testId} className="collection-action-impact-row flex min-w-0 items-center gap-3 p-2">{content}</div>;
+  return children ? <Accordion
+    data-testid={testId}
+    data-state={open ? "open" : "closed"}
+    type="single"
+    collapsible
+    value={open ? "impact" : ""}
+    onValueChange={value => setOpen(value === "impact")}
+    className="collection-action-impact-row min-w-0"
+  >
+    <AccordionItem value="impact" className="border-0">
+      <AccordionTrigger className="collection-action-impact-trigger cursor-pointer rounded-xl p-2 duration-150 ease-out focus-visible:bg-muted/40">{content}</AccordionTrigger>
+      <AccordionContent forceMount motionOpen={open} aria-hidden={!open} inert={!open} className="px-2 pb-2">{children}</AccordionContent>
+    </AccordionItem>
+  </Accordion> : <div data-testid={testId} className="collection-action-impact-row flex min-w-0 items-center gap-3 p-2">{content}</div>;
 }
 
 export type CollectionActionState = {
@@ -55,6 +65,7 @@ export function CollectionActionDialog({ icon: Icon, tone, title, description, c
   const cancelButton = useRef<HTMLButtonElement>(null);
   return <ScrollableDialog
     open
+    animateSize
     onOpenChange={open => { if (!open && !pending) onClose(); }}
     maxWidth="sm:max-w-[600px]"
     contentClassName="max-h-[88vh] grid-rows-[auto_minmax(0,1fr)_auto] rounded-[20px] [&>button]:hidden"

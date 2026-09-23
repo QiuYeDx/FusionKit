@@ -24,7 +24,7 @@ async function exporting(page: Page, batch = false, sourceOnly = false) {
   else await uiExpect(dialog.getByRole('combobox', { name: '导出内容', exact: true })).toBeDisabled();
   await uiExpect(dialog.getByRole('combobox', { name: '文件名后缀', exact: true })).toContainText('无');
   await uiExpect(dialog.getByTestId('studio-selected-documents')).toHaveCount(1);
-  expect(await dialog.getByTestId('studio-selected-documents').evaluate(element => element.hasAttribute('open'))).toBe(false);
+  await uiExpect(dialog.getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first()).toHaveAttribute('aria-expanded', 'false');
   return dialog;
 }
 async function prepare(page: Page) {
@@ -76,7 +76,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await app.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, files);
       await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
       await uiExpect(page.getByTestId('studio-library-result').locator('[data-result-id]')).toHaveCount(0);
-      await page.getByTestId('studio-library-result').locator('[data-result-details] > summary').click();
+      await page.getByTestId('studio-library-result').locator('[data-result-details] [data-slot="accordion-trigger"]').first().click();
       await uiExpect(page.getByTestId('studio-library-result').locator('[data-result-id]')).toHaveCount(8);
       await capture('01-import-shared-rows-light');
       await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
@@ -97,16 +97,44 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await page.locator('.studio-document').filter({ hasText: names[0] }).click();
       let dialog = await exporting(page); const scope = dialog.getByTestId('studio-selected-documents');
       await capture('02-defaults-collapsed-light');
-      await scope.locator('summary').focus(); await page.keyboard.press('Enter');
+      const advanced = dialog.getByTestId('studio-export-advanced');
+      const newline = dialog.locator('[id$="-newline"]');
+      await advanced.click(); await uiExpect(advanced).toHaveAttribute('aria-expanded', 'true');
+      await option(page, '换行方式', 'CRLF');
+      await advanced.focus(); await page.keyboard.press('Space');
+      await uiExpect(advanced).toHaveAttribute('aria-expanded', 'false'); await uiExpect(newline).toBeHidden();
+      await page.keyboard.press('Enter'); await uiExpect(newline).toContainText('CRLF');
+      await option(page, '换行方式', 'LF'); await advanced.click();
+      await scope.locator('[data-slot="accordion-trigger"]').first().focus(); await page.keyboard.press('Enter');
       await uiExpect(scope.getByRole('combobox')).toHaveCount(1); await uiExpect(scope.getByRole('combobox')).toContainText('ja');
       await scope.getByRole('combobox').click(); await page.getByRole('option', { name: 'zh · 1', exact: true }).click();
-      await prepare(page); await page.getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
+      await prepare(page);
+      const singleReview = dialog.getByTestId('studio-export-review-details');
+      const reviewTrigger = singleReview.locator('[data-slot="accordion-trigger"]').first();
+      await reviewTrigger.click();
+      const preview = singleReview.locator('.studio-export-preview').first();
+      const previewTrigger = preview.locator('[data-slot="accordion-trigger"]');
+      await uiExpect(previewTrigger).toHaveAttribute('aria-expanded', 'false'); await uiExpect(preview.locator('pre')).toBeHidden();
+      await previewTrigger.focus(); await page.keyboard.press('Enter');
+      await uiExpect(previewTrigger).toHaveAttribute('aria-expanded', 'true'); await uiExpect(reviewTrigger).toHaveAttribute('aria-expanded', 'true');
+      await uiExpect(preview.locator('pre')).toBeVisible(); await uiExpect(preview.locator('pre')).toContainText('Older translation.');
+      await capture('02b-nested-preview-light');
+      await page.keyboard.press('Space');
+      await uiExpect(previewTrigger).toHaveAttribute('aria-expanded', 'false'); await uiExpect(reviewTrigger).toHaveAttribute('aria-expanded', 'true');
+      await uiExpect(preview.locator('pre')).toBeHidden();
+      await reviewTrigger.click();
+      // First expansion mounts the expensive preview once. Collapse retains it
+      // for a readable exit and restores its state on the next expansion.
+      await uiExpect(singleReview.locator('.studio-document-row')).toHaveCount(1);
+      await uiExpect(singleReview.locator('.studio-document-row')).toBeHidden();
+      await uiExpect(singleReview.locator('[data-slot="accordion-content"]').first()).toHaveAttribute('inert', '');
+      await page.getByRole('button', { name: '确认并导出 1 份', exact: true }).click();
       await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份字幕文件');
       await dialog.getByRole('button', { name: '完成', exact: true }).click();
       await uiExpect(page.getByRole('dialog')).toHaveCount(0);
       const firstOutput = files[0].replace(/\.srt$/, ' (1).srt'); expect(await readFile(firstOutput, 'utf8')).toContain('Older translation.'); expect(await readFile(firstOutput, 'utf8')).not.toContain('Latest translation.');
       await page.locator('.studio-document').filter({ hasText: names[1] }).click(); dialog = await exporting(page);
-      await dialog.getByTestId('studio-selected-documents').locator('summary').click(); await uiExpect(dialog.getByTestId('studio-selected-documents').getByRole('combobox')).toHaveCount(0);
+      await dialog.getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click(); await uiExpect(dialog.getByTestId('studio-selected-documents').getByRole('combobox')).toHaveCount(0);
       await dialog.getByRole('button', { name: '取消', exact: true }).click();
       await page.locator('.studio-document').filter({ hasText: names[2] }).click(); dialog = await exporting(page, false, true);
       await prepare(page); await uiExpect(dialog.locator('[data-issue="source_fallback"]')).toHaveCount(0);
@@ -116,7 +144,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       expect(await readFile(files[2].replace(/\.srt$/, ' (1).srt'), 'utf8')).toBe(source + '\n');
       for (const name of names) await page.getByRole('checkbox', { name: `选择 ${name}`, exact: true }).check();
       dialog = await exporting(page, true); await capture('03-batch-defaults-light');
-      const batchScope = dialog.getByTestId('studio-selected-documents'); await batchScope.locator('summary').focus(); await page.keyboard.press('Space');
+      const batchScope = dialog.getByTestId('studio-selected-documents'); await batchScope.locator('[data-slot="accordion-trigger"]').first().focus(); await page.keyboard.press('Space');
       await uiExpect(batchScope.getByRole('combobox')).toHaveCount(1); await uiExpect(batchScope.locator('.studio-document-row')).toHaveCount(8);
       const fade = batchScope.locator('.studio-scroll-fade'); const viewport = fade.locator('.studio-scroll-fade-viewport');
       await uiExpect(fade).toHaveAttribute('data-fade-top', 'false'); await uiExpect(fade).toHaveAttribute('data-fade-bottom', 'true');
@@ -131,14 +159,14 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await prepare(page);
       await uiExpect(dialog.locator('.studio-document-row')).toHaveCount(0);
       const reviewScope = dialog.getByTestId('studio-export-review-details');
-      await reviewScope.locator('summary').click();
+      await reviewScope.locator('[data-slot="accordion-trigger"]').first().click();
       await uiExpect(reviewScope.locator('.studio-document-row[data-state="ready"]')).toHaveCount(8);
       await reviewScope.evaluate(element => element.scrollIntoView({ block: 'center' }));
       await capture('06-batch-plan-narrow-dark');
       await dialog.getByRole('button', { name: '确认并导出 8 份', exact: true }).click();
       await uiExpect(page.getByTestId('studio-batch-result')).toContainText('已保存 8 份字幕文件');
       await uiExpect(page.getByTestId('studio-batch-result').locator('[data-result-id]')).toHaveCount(0);
-      await page.getByTestId('studio-batch-result').locator('[data-result-details] > summary').click();
+      await page.getByTestId('studio-batch-result').locator('[data-result-details] [data-slot="accordion-trigger"]').first().click();
       await uiExpect(page.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(8); await capture('07-batch-result-narrow-dark');
       expect(await readFile(files[0].replace(/\.srt$/, ' (2).srt'), 'utf8')).toContain('Older translation.');
       await dialog.getByRole('button', { name: '完成', exact: true }).click();
@@ -148,7 +176,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await uiExpect(dialog).toContainText('来源目录不可用'); await prepare(page);
       await uiExpect(dialog.getByRole('button', { name: '确认并导出 0 份', exact: true })).toBeDisabled();
       await dialog.getByRole('button', { name: '返回设置', exact: true }).click();
-      await dialog.getByTestId('studio-selected-documents').locator('summary').click();
+      await dialog.getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click();
       await app.evaluate(({ dialog }, directory) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [directory] }); }, path.dirname(files[3]));
       await dialog.getByRole('button', { name: '重新指定来源目录…', exact: true }).click(); await uiExpect(page.getByTestId('studio-source-location')).toHaveAttribute('data-state', 'ready');
       await prepare(page); await uiExpect(dialog.getByRole('button', { name: '确认并导出 1 份', exact: true })).toBeEnabled(); await capture('08-source-rebind-dark');
@@ -158,13 +186,13 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export def
       await capture('09-translation-overview-shared-rows-dark');
       await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
       await page.getByRole('button', { name: '批量翻译', exact: true }).click();
-      await page.getByRole('dialog').getByTestId('studio-selected-documents').locator('summary').click();
+      await page.getByRole('dialog').getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click();
       await uiExpect(page.getByRole('dialog').locator('.studio-document-row')).toHaveCount(8);
       await capture('10-translation-scope-shared-rows-dark');
       await page.getByTestId('studio-translation-check').click();
       const translationReview = page.getByRole('dialog').filter({ has: page.getByTestId('studio-translation-review-dialog') });
       await uiExpect(translationReview.getByTestId('studio-batch-plan')).toBeVisible();
-      await translationReview.locator('.studio-translation-plan-details > summary').click();
+      await translationReview.locator('.studio-translation-plan-details [data-slot="accordion-trigger"]').first().click();
       await uiExpect(translationReview.getByTestId('studio-batch-plan').locator('.studio-document-row')).toHaveCount(8);
       await capture('11-translation-plan-shared-rows-dark', translationReview);
       await page.getByTestId('studio-translation-review-close').click();

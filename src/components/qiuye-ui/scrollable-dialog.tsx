@@ -12,8 +12,9 @@ import {
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@/lib/utils";
+import { AnimatedScrollableDialog } from './animated-scrollable-dialog';
 
-interface ScrollableDialogProps {
+export interface ScrollableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children?: React.ReactNode;
@@ -23,6 +24,10 @@ interface ScrollableDialogProps {
   onCloseAutoFocus?: (e: Event) => void;
   /** 对话框最大宽度，默认 'sm:max-w-md' */
   maxWidth?: string;
+  /** Smooth natural dimensions without scaling text; opt in per workflow. */
+  animateSize?: boolean;
+  /** Only change for a complete semantic stage, never for ordinary form edits. */
+  transitionKey?: React.Key;
 }
 
 interface ScrollableDialogHeaderProps {
@@ -82,9 +87,12 @@ function ScrollableDialog({
   onOpenAutoFocus = (e) => e.preventDefault(),
   onCloseAutoFocus,
   maxWidth = "sm:max-w-md",
+  animateSize = false,
+  transitionKey,
 }: // ! 如果内容很宽, 需要手动设置 maxWidth 为合适的值
 // ! 如 "sm:max-w-[calc(100%-2rem)]" "sm:max-w-[600px] md:max-w-[728px] lg:max-w-4xl xl:max-w-5xl"等
 ScrollableDialogProps) {
+  if (animateSize) return <AnimatedScrollableDialog {...{ open, onOpenChange, children, className, contentClassName, onOpenAutoFocus, onCloseAutoFocus, maxWidth, transitionKey }} />;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -110,7 +118,7 @@ function ScrollableDialogHeader({
   className,
 }: ScrollableDialogHeaderProps) {
   return (
-    <div className={cn("border-b px-4 py-4", className)}>
+    <div data-slot="scrollable-dialog-header" data-dialog-section="header" className={cn("border-b px-4 py-4", className)}>
       <DialogHeader>{children}</DialogHeader>
     </div>
   );
@@ -173,6 +181,9 @@ function ScrollableDialogContent({
       checkScrollAffordance();
     });
     ro.observe(viewport);
+    // Content may grow while the viewport stays at the dialog's height limit.
+    const content = container.querySelector('[data-dialog-body-measure]');
+    if (content) ro.observe(content);
 
     return () => {
       viewport.removeEventListener("scroll", onScroll);
@@ -183,13 +194,14 @@ function ScrollableDialogContent({
   return (
     <ScrollArea
       ref={containerRef}
+      data-dialog-section="body"
       className={cn(
         "relative overflow-hidden",
         "[&_[data-radix-scroll-area-viewport]]:border-t [&_[data-radix-scroll-area-viewport]]:border-b [&_[data-radix-scroll-area-viewport]]:border-background",
         className
       )}
     >
-      <div className={cn("px-4 py-4 w-full", horizontalScroll && "min-w-max")}>
+      <div data-dialog-body-measure className={cn("px-4 py-4 w-full", horizontalScroll && "min-w-max")}>
         {/* <div className={cn("px-4 py-4 w-full")}> */}
         {children}
       </div>
@@ -237,7 +249,7 @@ function ScrollableDialogFooter({
   children,
   className,
 }: ScrollableDialogFooterProps) {
-  return <div className={cn("border-t px-4 py-4", className)}>{children}</div>;
+  return <div data-slot="scrollable-dialog-footer" data-dialog-section="footer" className={cn("border-t px-4 py-4", className)}>{children}</div>;
 }
 
 export {

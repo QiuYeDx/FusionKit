@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ArrowDownToLine, CheckCheck, ChevronDown, ClipboardCheck, FileCog, FolderOpen, LoaderCircle } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, CheckCheck, ClipboardCheck, FileCog, FolderOpen, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
-import { ToolConfigDisclosure } from '../../_shared/ui/ToolConfigDisclosure';
+import { StudioDisclosure } from './StudioDisclosure';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { encodingSchema, StudioError, type Encoding, type ErrorCode } from '@/subtitle-studio/domain';
 import { exportOptionsSchema, fileNameSuffixSchema, type ExportDestination, type SourceLocationSummary, type ExportIssue, type ExportIssueCode, type ExportOptions, type ExportPlanSummary } from '@/subtitle-studio/export-contract';
@@ -352,7 +353,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
 
   return <>
     {triggerContainer === null ? null : triggerContainer ? createPortal(triggerControl, triggerContainer) : triggerControl}
-    <ScrollableDialog open={open} onOpenChange={changeOpen} maxWidth={step === 'result' ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[600px]'} contentClassName={step === 'result' ? STUDIO_RESULT_DIALOG_CLASS : 'studio-export-dialog'} onOpenAutoFocus={event => {
+    <ScrollableDialog animateSize transitionKey={step} open={open} onOpenChange={changeOpen} maxWidth={step === 'result' ? STUDIO_RESULT_DIALOG_WIDTH : 'sm:max-w-[600px]'} contentClassName={step === 'result' ? STUDIO_RESULT_DIALOG_CLASS : 'studio-export-dialog'} onOpenAutoFocus={event => {
       if (!sourceMode) { event.preventDefault(); document.getElementById(`${controlId}-mode`)?.focus({ preventScroll: true }); }
     }} onCloseAutoFocus={event => { event.preventDefault(); onRequestClosed?.(); if (openRequest) openRequest.restoreFocus(); else trigger.current?.focus({ preventScroll: true }); }}>
       {step === 'result' ? <StudioOperationResult operation={sourceMode ? 'source' : 'export'} items={resultItems ?? []}
@@ -362,6 +363,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
         <DialogDescription className={batch ? 'text-xs' : 'sr-only'}>{batch ? t('studio:batch.document_count', { count: batchDocuments.length }) : page?.summary.origin.displayName}</DialogDescription>
       </ScrollableDialogHeader>
       <ScrollableDialogContent key={step} className="studio-export-content" fadeMaskHeight={16}>
+        <div className="min-w-0">
         <div className="studio-export-form" data-step={step}>
           {step === 'settings' && <>
             <div className="studio-export-fields">
@@ -459,7 +461,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
               </>;
             }} />}
           {!sourceMode && step === 'settings' && <>
-          <ToolConfigDisclosure testId="studio-export-advanced" className="studio-export-advanced border-b-0" icon={FileCog} title={t('studio:export.advanced')}>
+          <StudioDisclosure triggerTestId="studio-export-advanced" className="studio-export-advanced -mx-3 border-t" contentClassName="space-y-3 px-3 pb-3 pt-2" title={<span className="flex min-w-0 items-center gap-2"><FileCog className="size-4 shrink-0 text-muted-foreground" />{t('studio:export.advanced')}</span>}>
             <div className="studio-export-fields">
               <ToolField label={t('studio:encoding')} htmlFor={`${controlId}-encoding`}>
                 <Select value={encoding} onValueChange={value => { setEncoding(encodingSchema.parse(value)); if (value !== 'utf-8' && value !== 'utf-16le') setBom(false); }} disabled={pending}>
@@ -475,7 +477,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
               </ToolField>
             </div>
             <label className="studio-export-check" htmlFor={`${controlId}-bom`}><Checkbox id={`${controlId}-bom`} checked={unicode && bom} onCheckedChange={value => setBom(value === true)} disabled={pending || !unicode} /><span>{t('studio:export.bom')}</span></label>
-          </ToolConfigDisclosure>
+          </StudioDisclosure>
           </>}
           {step === 'review' && reviewedOptions && <section className="studio-export-plan studio-export-review" data-testid={batch ? 'studio-batch-plan' : 'studio-export-review'} data-revision={currentPlan?.revision} data-partial={currentPlan?.partial}>
             <p className="studio-export-note">{t('studio:export.review_description')}</p>
@@ -504,9 +506,8 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
             </section> : readyCount > 0 && <p className="studio-export-ready"><CheckCheck className="size-3.5" />{t('studio:export.ready')}</p>}
             {readyCount < sourceDocuments.length && <p className="studio-export-note" role="status">{t('studio:export.review_not_ready')}</p>}
             {needsAcceptance && <p className="studio-export-note">{t('studio:export.review_accept')}</p>}
-            <details className="studio-export-review-details" data-testid="studio-export-review-details" onToggle={event => setReviewDetailsOpen(event.currentTarget.open)}>
-              <summary>{t('studio:export.review_details')}<ChevronDown className="size-3.5" /></summary>
-              {reviewDetailsOpen && <StudioDocumentList label={t('studio:export.review_details')} maxHeight="min(280px, 42vh)">
+            <StudioDisclosure lazyMount className="studio-export-review-details" data-testid="studio-export-review-details" open={reviewDetailsOpen} onOpenChange={setReviewDetailsOpen} contentClassName="px-3" title={t('studio:export.review_details')}>
+              <StudioDocumentList label={t('studio:export.review_details')} maxHeight="min(280px, 42vh)">
                 {sourceDocuments.map((document, index) => {
                   const batchItem = batchPlan?.items.find(item => item.documentId === document.id);
                   const checked = batch ? batchItem?.ok ? batchItem.plan : undefined : currentPlan ?? undefined;
@@ -516,15 +517,17 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
                     status={batchItem && !batchItem.ok ? t(errorKeys[batchItem.error]) : locationUnavailable ? t(checked?.sourceLocation?.status === 'missing' ? 'studio:export.source_missing' : 'studio:export.source_unavailable') : t(ready ? 'studio:batch.ready' : 'studio:batch.blocked')}>
                     {checked && <><p className="studio-export-note">{checked.fileName} · {number(checked.byteLength)} B</p>
                       {!!checked.issues.length && <ul className="studio-export-issues">{checked.issues.map(issue => <li key={issue.code} data-blocking={issue.blocking}><span>{t(issueKeys[issue.code], { count: issue.count })}</span></li>)}</ul>}
-                      {checked.preview && <details className="studio-export-preview"><summary>{t('studio:export.preview')}<ChevronDown className="size-3.5" /></summary><pre>{checked.preview}</pre></details>}
+                      {checked.preview && <StudioDisclosure className="studio-export-preview" title={t('studio:export.preview')} triggerClassName="min-h-8 px-2 py-1 text-xs text-muted-foreground"><pre>{checked.preview}</pre></StudioDisclosure>}
                     </>}
                   </StudioDocumentRow>;
                 })}
-              </StudioDocumentList>}
-            </details>
+              </StudioDocumentList>
+            </StudioDisclosure>
           </section>}
-          {error && <p className="studio-export-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
-          {sourceMode && pending && <p role="status" className="studio-batch-note">{t('studio:loading')}</p>}
+        </div>
+          {/* The terminal advanced panel consumes 12px of bottom padding; keep that inset and the feedback gap inside the animated stage. */}
+          <DialogTransition transitionKey={error ?? 'error'} stageClassName={!sourceMode && step === 'settings' ? 'pt-6' : 'pt-3'}>{error && <p className="studio-export-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}</DialogTransition>
+          <DialogTransition transitionKey="loading" stageClassName="pt-3">{sourceMode && pending && <p role="status" className="studio-batch-note">{t('studio:loading')}</p>}</DialogTransition>
         </div>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="studio-export-footer flex flex-wrap items-center justify-end gap-2 p-3">

@@ -17,6 +17,7 @@ type ToolSwitchRowProps = {
 type ToolToggleRowProps = ToolSwitchRowProps & {
   control?: "switch" | "checkbox";
   children?: ReactNode;
+  detailsClassName?: string;
 };
 
 /** One visual surface for boolean settings; details stay outside the clickable label. */
@@ -31,6 +32,7 @@ export function ToolToggleRow({
   className,
   control = "switch",
   children,
+  detailsClassName,
 }: ToolToggleRowProps) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
@@ -69,7 +71,7 @@ export function ToolToggleRow({
           onCheckedChange={onCheckedChange}
         />}
       </label>
-      {children && <div className="min-w-0 px-3 pb-3">{children}</div>}
+      {children && <div className={cn("min-w-0 px-3 pb-3", detailsClassName)}>{children}</div>}
     </div>
   );
 }

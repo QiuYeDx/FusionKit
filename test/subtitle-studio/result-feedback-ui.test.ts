@@ -21,9 +21,26 @@ async function ready(page: Page) {
   await uiExpect(page.locator('.studio-preview-region')).toHaveAttribute('aria-busy', 'false');
 }
 async function settled(page: Page) {
-  // Active translation spinners are intentionally infinite. Geometry requires
-  // finite entry/exit transitions to settle, not the running work to finish.
-  await page.waitForFunction(() => !document.getAnimations().some(animation => animation.playState === 'running' && animation.effect?.getComputedTiming().iterations !== Infinity));
+  // Motion's JS width/height springs are not exposed by getAnimations(). Read
+  // the dialog and its fixed chrome together until consecutive paints agree.
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const started = performance.now();
+    let previous: number[] = [], stable = 0;
+    const sample = () => {
+      const nodes = [...document.querySelectorAll('[role="dialog"], [role="dialog"] [data-slot="scrollable-dialog-header"], [role="dialog"] [data-slot="scrollable-dialog-footer"], [role="dialog"] [data-slot="scroll-area-viewport"]')];
+      const values = nodes.flatMap(node => {
+        const box = node.getBoundingClientRect(); return [box.x, box.y, box.width, box.height];
+      });
+      // Translation spinners are intentionally infinite and never block readiness.
+      const finiteMotion = document.getAnimations().some(animation => animation.playState === 'running' && animation.effect?.getComputedTiming().iterations !== Infinity);
+      stable = !finiteMotion && previous.length === values.length && values.every((value, i) => Math.abs(value - previous[i]) < 0.05) ? stable + 1 : 0;
+      previous = values;
+      if (stable >= 8) { resolve(); return; }
+      if (performance.now() - started > 5000) { reject(new Error('Dialog result geometry did not settle')); return; }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
 }
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent operation feedback', () => {
@@ -72,11 +89,11 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       const assertResult = async (operation: string, outcome: string, count: number, testId = 'studio-library-result') => {
         const surface = result(testId); await uiExpect(surface).toHaveAttribute('data-operation', operation); await uiExpect(surface).toHaveAttribute('data-outcome', outcome);
         const dialog = page!.getByRole('dialog'); await uiExpect(dialog).toHaveClass(/studio-result-dialog/);
-        await uiExpect(dialog.getByRole('heading')).toBeFocused();
+        await uiExpect(dialog.getByRole('heading', { level: 2 })).toBeFocused();
         await uiExpect(surface.locator('[data-result-id]')).toHaveCount(outcome === 'success' && count === 1 ? 1 : 0);
         const details = surface.locator('[data-result-details]');
         await uiExpect(details).toHaveCount(outcome === 'success' && count === 1 ? 0 : 1);
-        if (await details.count()) expect(await details.evaluate(element => (element as HTMLDetailsElement).open)).toBe(false);
+        if (await details.count()) await uiExpect(details.locator('[data-slot="accordion-trigger"]').first()).toHaveAttribute('aria-expanded', 'false');
         await settled(page!);
         expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(420.5);
         actions.push({ operation, outcome, count, defaultDetailsClosed: true });
@@ -150,7 +167,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
 
       await importFiles([...files.slice(1), invalidFiles[0]]); await assertResult('import', 'partial', 4);
       await capture('03-partial-import-overview-light');
-      await result().locator('[data-result-details] > summary').focus(); await page!.keyboard.press('Space');
+      await result().locator('[data-result-details] [data-slot="accordion-trigger"]').first().focus(); await page!.keyboard.press('Space');
       await uiExpect(result().locator('[data-result-id]')).toHaveCount(4); await uiExpect(result().locator('[data-result-id]').first()).toHaveAttribute('data-state', 'failed');
       const longName = result().locator('[data-result-id]').filter({ hasText: names[1] }).locator('.studio-file-name');
       await longName.focus(); await uiExpect(page!.getByRole('tooltip')).toContainText(names[1]);
@@ -180,9 +197,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await uiExpect.poll(async () => (await documents()).find(item => item.id === runningDocument.id)?.task?.status).toBe('running');
       await choose([names[2], names[3]]); await batchAction('library.cancel_selected');
       await assertResult('cancel', 'partial', 2);
-      await uiExpect(result().getByRole('heading')).toContainText('取消'); await uiExpect(result().getByRole('heading')).not.toContainText('已完成');
+      await uiExpect(result().getByRole('heading', { level: 2 })).toContainText('取消'); await uiExpect(result().getByRole('heading', { level: 2 })).not.toContainText('已完成');
       await nativeWindow.evaluate(win => win.setSize(787, 540)); await capture('06-cancel-request-and-skipped-narrow-dark');
-      await result().locator('[data-result-details] > summary').click();
+      await result().locator('[data-result-details] [data-slot="accordion-trigger"]').first().click();
       await uiExpect(result().locator('[data-result-id][data-state="success"]')).toHaveCount(1); await uiExpect(result().locator('[data-result-id][data-state="skipped"]')).toHaveCount(1);
       await uiExpect(result().locator('[data-result-id]').first()).toHaveAttribute('data-state', 'skipped');
       await capture('07-cancel-request-details-narrow-dark'); await closeResult();
@@ -191,7 +208,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await choose([names[1], names[3]]); await page!.getByRole('button', { name: text('batch.translation'), exact: true }).click();
       await page!.getByTestId('studio-translation-check').click();
       const planDetails = page!.locator('.studio-translation-plan-details');
-      await planDetails.locator('summary').click();
+      await planDetails.locator('[data-slot="accordion-trigger"]').first().click();
       const padding = await planDetails.evaluate(element => {
         const box = element.querySelector('.studio-batch-results')!.getBoundingClientRect();
         const list = element.querySelector('.studio-document-list')!.getBoundingClientRect();
@@ -201,7 +218,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await page!.screenshot({ path: path.join(root, 'i8-plan-details-padding-dark.png'), animations: 'disabled' });
       await page!.getByTestId('studio-translation-review-start').click();
       await assertResult('translation', 'success', 2, 'studio-batch-result');
-      await uiExpect(result('studio-batch-result').getByRole('heading')).toContainText('已提交');
+      await uiExpect(result('studio-batch-result').getByRole('heading', { level: 2 })).toContainText('已提交');
       const snapshot = await page!.evaluate(async () => { const list = await window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100 }); if (!list.ok) throw new Error(list.error); return list.value; });
       expect(snapshot.counts.completed).toBe(0); expect(snapshot.items.filter(item => ['queued', 'running'].includes(item.status))).toHaveLength(2);
       actions.push({ submittedTaskIds: snapshot.items.filter(item => ['queued', 'running'].includes(item.status)).map(item => item.taskId), completedAtSubmission: 0 });
@@ -240,7 +257,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
         localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 }));
       }); await page!.reload(); await ready(page!); await uiExpect(page!.locator('html')).toHaveClass(/dark/); await nativeWindow.evaluate(win => win.setSize(787, 540));
       await importFiles(invalidFiles); await assertResult('import', 'failed', 2); await capture('12-failed-overview-English-narrow-dark');
-      await result().locator('[data-result-details] > summary').focus(); await page!.keyboard.press('Enter'); await uiExpect(result().locator('[data-result-id][data-state="failed"]')).toHaveCount(2);
+      await result().locator('[data-result-details] [data-slot="accordion-trigger"]').first().focus(); await page!.keyboard.press('Enter'); await uiExpect(result().locator('[data-result-id][data-state="failed"]')).toHaveCount(2);
       await capture('13-failed-details-English-narrow-dark'); await closeResult(undefined, true);
       expect(errors).toEqual([]);
       const sourcesAfter = await Promise.all([...files, ...invalidFiles].map(async file => ({ name: path.basename(file), sha256: createHash('sha256').update(await readFile(file)).digest('hex') })));

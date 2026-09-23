@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DialogMotionRegion, DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { KnowledgeDisclosure } from '@/pages/TranslationKnowledge/KnowledgeDisclosure';
 import { ToolField } from '../../_shared/ui/ToolField';
@@ -127,6 +128,7 @@ export function StudioMaterialsFields({ value, library, disabled, loading, onCha
               <div className="studio-materials-collection-heading"><FolderOpen className="size-3.5" aria-hidden="true" /><span>{t('materials:selection.collections')}</span></div>
               <div className="studio-materials-search"><Search className="size-3.5" aria-hidden="true" /><Input ref={searchRef} data-testid="studio-materials-search" aria-label={t('studio:materials.search')} placeholder={t('studio:materials.search')} className="h-8 pl-8 text-xs" value={search} disabled={disabled || unavailableLibrary || loading} onChange={event => setSearch(event.target.value)} /></div>
               <div className="studio-materials-collection-list">
+                <DialogMotionRegion><DialogTransition transitionKey={loading ? 'loading' : unavailableLibrary ? 'unavailable' : collections.map(item => item.id).join(':') || 'empty'} stageClassName="grid gap-1">
                 {loading ? <div className="studio-materials-picker-empty" role="status"><RefreshCw className="size-4 animate-spin" aria-hidden="true" /><p>{t('knowledge:loading')}</p></div>
                   : unavailableLibrary ? <div className="studio-materials-picker-empty" role="status"><AlertCircle className="size-4" aria-hidden="true" /><p>{t('materials:selection.library_unavailable')}</p><Button type="button" variant="outline" size="xs" disabled={disabled} onClick={onRefresh}>{t('materials:selection.retry')}</Button></div>
                     : availableCollections.length === 0 ? <div className="studio-materials-picker-empty"><FolderOpen className="size-5" aria-hidden="true" /><p>{t('materials:selection.empty_library')}</p><span>{t('materials:selection.empty_library_help')}</span></div>
@@ -140,6 +142,7 @@ export function StudioMaterialsFields({ value, library, disabled, loading, onCha
                             <span className="studio-materials-collection-label"><span>{item.name}</span><span className="studio-materials-collection-meta"><span>{pair ? pairName(pair) : t(info?.pairs.size ? 'materials:selection.multiple_languages' : 'materials:selection.language_unspecified')}</span><span>{t('materials:selection.entry_count', { count: info?.count ?? 0 })}</span>{inherited && <span className="studio-materials-preset-source"><LockKeyhole className="size-3" aria-hidden="true" />{t('materials:selection.from_preset')}</span>}</span></span>
                           </label>;
                         })}
+                </DialogTransition></DialogMotionRegion>
               </div>
             </div>
             <div className="studio-materials-picker-footer">
@@ -151,7 +154,7 @@ export function StudioMaterialsFields({ value, library, disabled, loading, onCha
       </div>
     </div>
     {loading && !choosing && <p role="status" className="studio-materials-loading"><RefreshCw className="size-3 animate-spin" aria-hidden="true" />{t('knowledge:loading')}</p>}
-    {active && <div className="studio-materials-configuration">
+    <DialogTransition transitionKey="configuration">{active && <div className="studio-materials-configuration">
       <div className="studio-materials-source-row"><label htmlFor={`${formId}-source`}>{t('knowledge:fields.source_language')}</label><Select value={value.languagePair.source || 'none'} disabled={disabled || sourceLocked} onValueChange={source => update({ languagePair: { ...value.languagePair, source: source === 'none' ? '' : source }, bindings: [], confirmations: [] })}><SelectTrigger id={`${formId}-source`} data-testid="studio-materials-source" className="h-8 min-w-0 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('knowledge:automatic.choose_source')}</SelectItem>{materialLanguages.map(language => <SelectItem key={language} value={language}>{t(`knowledge:languages.${language}`)}</SelectItem>)}{value.languagePair.source && !materialLanguages.includes(value.languagePair.source as typeof materialLanguages[number]) && <SelectItem value={value.languagePair.source}>{value.languagePair.source}</SelectItem>}</SelectContent></Select></div>
       {sourceLocked && <p className="studio-materials-help">{t('knowledge:automatic.english_source')}</p>}
       {problem && <div role="status" data-testid="studio-materials-problem" className="studio-materials-problem"><AlertCircle className="size-3.5" aria-hidden="true" /><p>{t(problemKeys[problem])}</p>{problem === 'library' && <Button type="button" variant="outline" size="xs" disabled={disabled || loading} onClick={onRefresh}>{t('materials:selection.retry')}</Button>}</div>}
@@ -160,6 +163,6 @@ export function StudioMaterialsFields({ value, library, disabled, loading, onCha
         <ToolField label={t('knowledge:trial.context')} htmlFor={`${formId}-context`}><Textarea id={`${formId}-context`} data-testid="studio-materials-context" className="min-h-16 text-xs" maxLength={4000} disabled={disabled} value={value.context ?? recipe?.context ?? ''} onChange={event => update({ context: event.target.value })} /></ToolField>
         {(entries.length > 0 || unavailableExclusions.length > 0) && <KnowledgeDisclosure data-testid="studio-materials-exclusions" variant="inline" title={t('knowledge:trial.disable')}><div className="studio-materials-options studio-materials-exclusion-list">{entries.map(entry => <MaterialToggle key={entry.id} testId={`studio-materials-exclude-${entry.id}`} label={entry.title} checked={value.disabledEntryIds.includes(entry.id)} disabled={disabled} onChange={checked => update({ disabledEntryIds: checked ? [...new Set([...value.disabledEntryIds, entry.id])] : value.disabledEntryIds.filter(id => id !== entry.id) })} />)}{unavailableExclusions.map(id => <MaterialToggle key={id} testId={`studio-materials-exclude-${id}`} label={t('materials:selection.unavailable_exclusion')} checked disabled={disabled} onChange={() => update({ disabledEntryIds: value.disabledEntryIds.filter(item => item !== id) })} />)}</div></KnowledgeDisclosure>}
       </KnowledgeDisclosure>
-    </div>}
+    </div>}</DialogTransition>
   </section>;
 }

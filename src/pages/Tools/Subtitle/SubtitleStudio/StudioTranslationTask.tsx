@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Clock3, LoaderCircle, Play, Settings, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
+import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import useModelStore from '@/store/useModelStore';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { getStudioTranslationOverviewController } from '@/services/subtitle-studio/translation-overview-controller';
@@ -123,18 +124,18 @@ function TranslationTaskControls({ page, busy, onChanged, onError, task }: Props
     {task.status === 'cancelled' && <span className="studio-translation-task-note">{t('studio:translation.cancelled_preserved')}</span>}
     {recoverable && <Button ref={trigger} variant="outline" size="sm" disabled={busy || pending || otherRunning} onClick={() => { setError(null); setOpen(true); }}><Play />{t('studio:translation.resume')}</Button>}
     {canCancel && <StudioIconButton label={t('studio:translation.cancel_task')} disabled={busy || pending} onClick={() => void run('cancel')}>{activity === 'cancel' ? <LoaderCircle className="studio-spin" /> : <Square />}</StudioIconButton>}
-    <ScrollableDialog open={open} onOpenChange={value => { if (!pending) setOpen(value); }} maxWidth="sm:max-w-[520px]" contentClassName="studio-translation-dialog" onOpenAutoFocus={event => { event.preventDefault(); dismiss.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+    <ScrollableDialog animateSize open={open} onOpenChange={value => { if (!pending) setOpen(value); }} maxWidth="sm:max-w-[520px]" contentClassName="studio-translation-dialog" onOpenAutoFocus={event => { event.preventDefault(); dismiss.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="p-3 pr-12"><DialogTitle className="text-base">{t('studio:translation.resume')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:translation.resume_description')}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}>
-        <div className="studio-translation-recovery">
+        <div className="min-w-0">
           <dl className="studio-translation-frozen">
             <div><dt>{t('studio:translation.original_model')}</dt><dd>{progress.config.model.modelKey}</dd></div>
             <div><dt>{t('studio:translation.completed_batches')}</dt><dd>{task.completedBatchIds.length} / {progress.totalBatches}</dd></div>
           </dl>
-          {uncertain > 0 && <p className="studio-translation-recovery-note" role="note"><AlertCircle className="size-4" /><span>{t('studio:translation.uncertain_resume', { count: uncertain })}</span></p>}
-          {waiting && <p className="studio-translation-recovery-note"><Clock3 className="size-4" /><span>{t('studio:translation.provider_wait', { seconds: seconds.toLocaleString(i18n.language) })}</span></p>}
-          {!configured && <div className="studio-translation-configuration"><p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.repair_model')}</p><Button variant="outline" size="sm" disabled={pending} onClick={() => { setOpen(false); navigate('/setting?tab=model'); }}><Settings />{t('studio:translation.model_settings')}</Button></div>}
-          {error && <p className="studio-translation-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}
+          <DialogTransition transitionKey="uncertain" stageClassName="pt-3">{uncertain > 0 && <p className="studio-translation-recovery-note" role="note"><AlertCircle className="size-4" /><span>{t('studio:translation.uncertain_resume', { count: uncertain })}</span></p>}</DialogTransition>
+          <DialogTransition transitionKey="waiting" stageClassName="pt-3">{waiting && <p className="studio-translation-recovery-note"><Clock3 className="size-4" /><span>{t('studio:translation.provider_wait', { seconds: seconds.toLocaleString(i18n.language) })}</span></p>}</DialogTransition>
+          <DialogTransition transitionKey="configuration" stageClassName="pt-3">{!configured && <div className="studio-translation-configuration"><p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.repair_model')}</p><Button variant="outline" size="sm" disabled={pending} onClick={() => { setOpen(false); navigate('/setting?tab=model'); }}><Settings />{t('studio:translation.model_settings')}</Button></div>}</DialogTransition>
+          <DialogTransition transitionKey={error ?? 'error'} stageClassName="pt-3">{error && <p className="studio-translation-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}</DialogTransition>
         </div>
       </ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap justify-end gap-2 p-3"><Button ref={dismiss} variant="ghost" size="sm" disabled={pending} onClick={() => setOpen(false)}>{t('studio:cancel')}</Button><Button size="sm" disabled={!canResume} onClick={() => void run('resume')}>{activity === 'resume' ? <LoaderCircle className="studio-spin" /> : <Play />}{t('studio:translation.resume')}</Button></ScrollableDialogFooter>

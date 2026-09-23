@@ -23,6 +23,7 @@ import type { Diagnostic } from "@/translation-knowledge/validation";
 import { manualEntryRequest, splitLines } from "./model";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import { EntrySettingsPanel } from "./EntrySettingsPanel";
+import { DialogMotionRegion, DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import { ToolSwitchRow, ToolToggleRow } from "@/pages/Tools/_shared/ui/ToolSwitchRow";
 
 function changeKind(entry: Entry, kind: Entry["kind"]): Entry {
@@ -182,6 +183,7 @@ export function EntryEditor({
       onClose={onClose}
       pending={pending}
       error={error}
+      notice={<ErrorNotice error={error} diagnostics={diagnostics} stageClassName="pt-4" />}
       footerStart={initial.state !== "archived" && (
         <Button data-testid="knowledge-save-draft" variant="outline" size="sm" disabled={pending || blocked} onClick={() => void submit(false)}>{t("workspace.save_draft")}</Button>
       )}
@@ -218,6 +220,8 @@ export function EntryEditor({
           </div>
         </KnowledgeFormSection>
         <KnowledgeFormSection title={t("record.content")}>
+          <DialogTransition transitionKey={entry.kind} className="min-w-0">
+          <div className="flex min-w-0 flex-col gap-3">
           {(entry.kind === "expression" || entry.kind === "memory") && <p className="knowledge-editor-help">{t("guide.storage_only_help")}</p>}
           {(entry.kind === "term" || entry.kind === "memory") && (
             <div className="knowledge-form-grid">
@@ -391,6 +395,8 @@ export function EntryEditor({
 
             </>
           )}
+          </div>
+          </DialogTransition>
         </KnowledgeFormSection>
         <KnowledgeFormSection title={t("record.settings")} className="knowledge-entry-settings-section">
           <ClipPathTabs value={settingsTab} onValueChange={setSettingsTab} size="sm" shape="rounded" smoothCorners fullWidth
@@ -401,6 +407,7 @@ export function EntryEditor({
               { value: "scope", label: t("record.tab_scope") },
               { value: "metadata", label: t("record.tab_metadata") },
             ]}>
+            <DialogMotionRegion><div className="knowledge-entry-settings-panels">
             {entry.kind === "term" && (
               <EntrySettingsPanel value="wording" active={settingsTab === "wording"}>
                 <div className="space-y-4">
@@ -591,20 +598,21 @@ export function EntryEditor({
                       const condition = entry.scope.requiredSubjects.find((item) => item.subjectId === subject.id);
                       return <ToolToggleRow key={subject.id}
                         control="checkbox"
+                        detailsClassName="p-0"
                         disabled={pending || blocked}
                         label={subject.name}
                         hint={t(`subject_kind.${subject.kind}`)}
                         checked={!!condition}
                         onCheckedChange={(checked) => setEntry({ ...entry, scope: { ...entry.scope, requiredSubjects: checked ? [...entry.scope.requiredSubjects, { subjectId: subject.id, role: "topic" }] : entry.scope.requiredSubjects.filter((item) => item.subjectId !== subject.id) } })}
                       >
-                        {condition && <div className="knowledge-scope-role-field">
+                        <DialogTransition transitionKey={condition ? 'required' : 'optional'}>{condition && <div className="knowledge-scope-role-field px-3 pb-3">
                           <Choice
                             label={t("fields.subject_role")}
                             value={condition.role}
                             options={options("role", subject.kind === "person" ? ["topic", "speaker", "mentioned", "present"] : ["topic", "mentioned", "present"])}
                             onChange={(role) => setEntry({ ...entry, scope: { ...entry.scope, requiredSubjects: entry.scope.requiredSubjects.map((item) => item.subjectId === subject.id ? { ...item, role: role as typeof item.role } : item) } })}
                           />
-                        </div>}
+                        </div>}</DialogTransition>
                       </ToolToggleRow>;
                     }) : <p className="knowledge-scope-empty">{t("empty.options")}</p>}
                   </div>
@@ -617,13 +625,15 @@ export function EntryEditor({
                       <h4 id="knowledge-scope-condition-title">{t("fields.condition")}</h4>
                     </div>
                   </div>
+                  <div>
                   <Choice
                     label={t("fields.condition")}
                     value={entry.scope.condition.mode}
                     options={options("condition", (entry.kind === "term" || entry.kind === "rule") && entry.payload.strength === "required" ? ["none", "requires_confirmation"] : ["none", "advisory", "requires_confirmation"])}
                     onChange={(mode) => setEntry({ ...entry, scope: { ...entry.scope, condition: mode === "none" ? { mode: "none" } : { mode: mode as "advisory" | "requires_confirmation", text: "" } } })}
                   />
-                  {entry.scope.condition.mode !== "none" && text("condition_text", entry.scope.condition.text, (value) => setEntry({ ...entry, scope: { ...entry.scope, condition: { ...entry.scope.condition, mode: entry.scope.condition.mode as "advisory" | "requires_confirmation", text: value } } }), true, true)}
+                  <DialogTransition transitionKey={entry.scope.condition.mode === 'none' ? 'none' : 'condition'} stageClassName="pt-3">{entry.scope.condition.mode !== "none" && text("condition_text", entry.scope.condition.text, (value) => setEntry({ ...entry, scope: { ...entry.scope, condition: { ...entry.scope.condition, mode: entry.scope.condition.mode as "advisory" | "requires_confirmation", text: value } } }), true, true)}</DialogTransition>
+                  </div>
                 </section>
               </div>
             </EntrySettingsPanel>
@@ -638,10 +648,10 @@ export function EntryEditor({
                 </p>
               </div>
             </EntrySettingsPanel>
+            </div></DialogMotionRegion>
           </ClipPathTabs>
         </KnowledgeFormSection>
       </fieldset>
-      <ErrorNotice error={error} diagnostics={diagnostics} />
     </KnowledgeRecordDialog>
   );
 }
