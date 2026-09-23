@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   Archive, ArrowRight, BookOpen, CircleCheck, Download, Folder, FolderPlus,
-  History, Import, Layers3, Library, Plus, SlidersHorizontal, Subtitles,
-  Users, type LucideIcon,
+  History, Layers3, Library, Plus, SlidersHorizontal, Subtitles,
+  Upload, Users, type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -167,8 +167,8 @@ export function KnowledgeSidebar({
     </div>
 
     <div className="grid grid-cols-2 gap-2 border-t p-3">
-      <Button data-testid="knowledge-import" size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-2 py-1.5 text-xs" aria-label={t("actions.import")} title={t("actions.import")} disabled={busy || !snapshot || blocked} onClick={onImport}><Import className="size-3.5" />{t("sidebar.import")}</Button>
-      <Button data-testid="knowledge-export" size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-2 py-1.5 text-xs" aria-label={t("actions.export")} title={t("actions.export")} disabled={!snapshot || busy || blocked} onClick={onExport}><Download className="size-3.5" />{t("sidebar.export")}</Button>
+      <Button data-testid="knowledge-import" size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-2 py-1.5 text-xs" aria-label={t("actions.import")} title={t("actions.import")} disabled={busy || !snapshot || blocked} onClick={onImport}><Download className="size-3.5" />{t("sidebar.import")}</Button>
+      <Button data-testid="knowledge-export" size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-2 py-1.5 text-xs" aria-label={t("actions.export")} title={t("actions.export")} disabled={!snapshot || busy || blocked} onClick={onExport}><Upload className="size-3.5" />{t("sidebar.export")}</Button>
     </div>
     <Link
       id="knowledge-tour-studio"
