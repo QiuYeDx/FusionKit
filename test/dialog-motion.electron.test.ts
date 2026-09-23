@@ -193,18 +193,18 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_MOTION_E2E === '1')('measured dialog
       };
       await openExport();
       for (let cycle = 0; cycle < 3; cycle++) {
-        const grow = await trace(`export-advanced-grow-${cycle}`, () => dialog().getByTestId('studio-export-advanced').click());
+        const grow = await trace(`export-selected-documents-grow-${cycle}`, () => dialog().getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click());
         assertInterpolated(grow, 'height');
-        const shrink = await trace(`export-advanced-shrink-${cycle}`, () => dialog().getByTestId('studio-export-advanced').click());
+        const shrink = await trace(`export-selected-documents-shrink-${cycle}`, () => dialog().getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click());
         assertInterpolated(shrink, 'height');
       }
-      await trace('export-advanced-interrupted', async () => {
-        await dialog().getByTestId('studio-export-advanced').click();
+      await trace('export-selected-documents-interrupted', async () => {
+        await dialog().getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click();
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         // Reverse while the parent is moving; locator actionability would wait for it to settle.
-        await dialog().getByTestId('studio-export-advanced').evaluate(button => (button as HTMLButtonElement).click());
+        await dialog().getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().evaluate(button => (button as HTMLButtonElement).click());
       });
-      await uiExpect(dialog().getByTestId('studio-export-advanced')).toHaveAttribute('aria-expanded', 'false');
+      await uiExpect(dialog().getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first()).toHaveAttribute('aria-expanded', 'false');
       await capture('01-export-settings-light');
       const review = await trace('export-settings-to-review', () => dialog().getByRole('button', { name: '检查导出', exact: true }).click());
       assertInterpolated(review, 'height');
@@ -236,7 +236,7 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_MOTION_E2E === '1')('measured dialog
       await nativeWindow.evaluate(win => win.setSize(786, 540));
       await page.evaluate(() => document.documentElement.classList.add('dark'));
       await openExport();
-      await dialog().getByTestId('studio-export-advanced').click();
+      await dialog().getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click();
       const narrow = await capture('03-export-settings-narrow-dark');
       expect(narrow.scroller!.scrollHeight).toBeGreaterThan(narrow.scroller!.clientHeight);
       await dialog().locator('[data-slot="scroll-area-viewport"]').first().evaluate(element => { element.scrollTop = element.scrollHeight; });
@@ -252,7 +252,7 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_MOTION_E2E === '1')('measured dialog
       await page.reload(); await page.getByTestId('subtitle-studio').waitFor(); await ready();
       await page.locator('.studio-document').filter({ hasText: names[0] }).click();
       await openExport();
-      const reduced = await trace('export-advanced-reduced-motion', () => dialog().getByTestId('studio-export-advanced').click());
+      const reduced = await trace('export-selected-documents-reduced-motion', () => dialog().getByTestId('studio-selected-documents').locator('[data-slot="accordion-trigger"]').first().click());
       const low = Math.min(reduced[0].box.height, reduced.at(-1)!.box.height), high = Math.max(reduced[0].box.height, reduced.at(-1)!.box.height);
       expect(high - low).toBeGreaterThan(15);
       expect(reduced.filter(frame => frame.box.height > low + 1 && frame.box.height < high - 1)).toHaveLength(0);

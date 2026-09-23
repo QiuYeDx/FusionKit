@@ -207,15 +207,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent
       await nativeWindow.evaluate(win => win.setSize(1281, 860));
       await choose([names[1], names[3]]); await page!.getByRole('button', { name: text('batch.translation'), exact: true }).click();
       await page!.getByTestId('studio-translation-check').click();
-      const planDetails = page!.locator('.studio-translation-plan-details');
-      await planDetails.locator('[data-slot="accordion-trigger"]').first().click();
-      const padding = await planDetails.evaluate(element => {
-        const box = element.querySelector('.studio-batch-results')!.getBoundingClientRect();
-        const list = element.querySelector('.studio-document-list')!.getBoundingClientRect();
-        return [list.top-box.top, list.left-box.left, box.right-list.right, box.bottom-list.bottom];
-      });
-      expect(padding).toEqual([8, 12, 12, 8]);
-      await page!.screenshot({ path: path.join(root, 'i8-plan-details-padding-dark.png'), animations: 'disabled' });
+      await uiExpect(page!.getByTestId('studio-batch-plan')).toBeVisible();
+      await uiExpect(page!.getByTestId('studio-translation-review-dialog').getByRole('button', { name: '查看文件详情', exact: true })).toHaveCount(0);
+      await page!.screenshot({ path: path.join(root, 'i8-plan-summary-dark.png'), animations: 'disabled' });
       await page!.getByTestId('studio-translation-review-start').click();
       await assertResult('translation', 'success', 2, 'studio-batch-result');
       await uiExpect(result('studio-batch-result').getByRole('heading', { level: 2 })).toContainText('已提交');

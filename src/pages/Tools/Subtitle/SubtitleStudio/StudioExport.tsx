@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ArrowDownToLine, CheckCheck, ClipboardCheck, FileCog, FolderOpen, LoaderCircle } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, CheckCheck, ClipboardCheck, FolderOpen, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
 import { StudioDisclosure } from './StudioDisclosure';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
-import { encodingSchema, StudioError, type Encoding, type ErrorCode } from '@/subtitle-studio/domain';
+import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import { exportOptionsSchema, fileNameSuffixSchema, type ExportDestination, type SourceLocationSummary, type ExportIssue, type ExportIssueCode, type ExportOptions, type ExportPlanSummary } from '@/subtitle-studio/export-contract';
 import { subtitleExportFileName } from '@/subtitle-studio/export-filename';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
@@ -132,9 +132,6 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   const [format, setFormat] = useState<ExportOptions['format']>(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
   const [selectedTrackId, setSelectedTrackId] = useState(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
   const [order, setOrder] = useState<ExportOptions['order']>('source-first');
-  const [encoding, setEncoding] = useState<Encoding>('utf-8');
-  const [bom, setBom] = useState(false);
-  const [newline, setNewline] = useState<ExportOptions['newline']>('lf');
   const [incomplete, setIncomplete] = useState<ExportOptions['incomplete']>('source-fallback');
   const [estimateEnd, setEstimateEnd] = useState(false);
   const [finalDuration, setFinalDuration] = useState('2000');
@@ -142,13 +139,12 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   const [activity, setActivity] = useState<'plan' | 'save' | 'source' | null>(null);
   const [error, setError] = useState<ErrorCode | null>(null);
   const pending = activity !== null || rebinding !== null;
-  const unicode = encoding === 'utf-8' || encoding === 'utf-16le';
   const options = useMemo(() => exportOptionsSchema.safeParse({
     mode, format, ...(mode !== 'source' && selectedTrackId ? { trackId: selectedTrackId } : {}),
     fileNameSuffix: suffixMode === 'custom' ? { mode: 'custom', value: customSuffix } : suffixMode === 'none' ? { mode: 'none' } : { mode: 'preset', preset: suffixMode },
-    order, encoding, bom: unicode && bom, newline, incomplete, conflictPolicy, stripMediaExt,
+    order, encoding: 'utf-8', bom: false, newline: 'lf', incomplete, conflictPolicy, stripMediaExt,
     missingEnd: estimateEnd && format !== 'lrc' ? { mode: 'next-start', finalDurationMs: Number(finalDuration) } : { mode: 'block' },
-  }), [mode, format, selectedTrackId, order, encoding, unicode, bom, newline, incomplete, estimateEnd, finalDuration, suffixMode, customSuffix, conflictPolicy, stripMediaExt]);
+  }), [mode, format, selectedTrackId, order, incomplete, estimateEnd, finalDuration, suffixMode, customSuffix, conflictPolicy, stripMediaExt]);
   // A checked plan keeps its own revision while newer translation results arrive.
   const identity = JSON.stringify([batch ? batchDocuments.map(item => item.id) : page?.summary.id, options.success ? options.data : null, batch ? batchTracks : null, destination]);
   const currentIdentity = useRef(identity);
@@ -460,25 +456,6 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
                 </div>}
               </>;
             }} />}
-          {!sourceMode && step === 'settings' && <>
-          <StudioDisclosure triggerTestId="studio-export-advanced" className="studio-export-advanced -mx-3 border-t" contentClassName="space-y-3 px-3 pb-3 pt-2" title={<span className="flex min-w-0 items-center gap-2"><FileCog className="size-4 shrink-0 text-muted-foreground" />{t('studio:export.advanced')}</span>}>
-            <div className="studio-export-fields">
-              <ToolField label={t('studio:encoding')} htmlFor={`${controlId}-encoding`}>
-                <Select value={encoding} onValueChange={value => { setEncoding(encodingSchema.parse(value)); if (value !== 'utf-8' && value !== 'utf-16le') setBom(false); }} disabled={pending}>
-                  <SelectTrigger id={`${controlId}-encoding`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>{encodingSchema.options.map(value => <SelectItem key={value} value={value}>{value.toUpperCase()}</SelectItem>)}</SelectContent>
-                </Select>
-              </ToolField>
-              <ToolField label={t('studio:export.newline')} htmlFor={`${controlId}-newline`}>
-                <Select value={newline} onValueChange={value => setNewline(value as ExportOptions['newline'])} disabled={pending}>
-                  <SelectTrigger id={`${controlId}-newline`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="lf">LF</SelectItem><SelectItem value="crlf">CRLF</SelectItem></SelectContent>
-                </Select>
-              </ToolField>
-            </div>
-            <label className="studio-export-check" htmlFor={`${controlId}-bom`}><Checkbox id={`${controlId}-bom`} checked={unicode && bom} onCheckedChange={value => setBom(value === true)} disabled={pending || !unicode} /><span>{t('studio:export.bom')}</span></label>
-          </StudioDisclosure>
-          </>}
           {step === 'review' && reviewedOptions && <section className="studio-export-plan studio-export-review" data-testid={batch ? 'studio-batch-plan' : 'studio-export-review'} data-revision={currentPlan?.revision} data-partial={currentPlan?.partial}>
             <p className="studio-export-note">{t('studio:export.review_description')}</p>
             <div className="studio-export-summary"><h3>{t('studio:batch.ready_count', { count: readyCount, total: sourceDocuments.length })}</h3>
@@ -525,8 +502,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
             </StudioDisclosure>
           </section>}
         </div>
-          {/* The terminal advanced panel consumes 12px of bottom padding; keep that inset and the feedback gap inside the animated stage. */}
-          <DialogTransition transitionKey={error ?? 'error'} stageClassName={!sourceMode && step === 'settings' ? 'pt-6' : 'pt-3'}>{error && <p className="studio-export-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}</DialogTransition>
+          <DialogTransition transitionKey={error ?? 'error'} stageClassName="pt-3">{error && <p className="studio-export-error" role="alert"><AlertCircle className="size-4" />{t(errorKeys[error])}</p>}</DialogTransition>
           <DialogTransition transitionKey="loading" stageClassName="pt-3">{sourceMode && pending && <p role="status" className="studio-batch-note">{t('studio:loading')}</p>}</DialogTransition>
         </div>
       </ScrollableDialogContent>

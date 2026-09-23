@@ -1,6 +1,5 @@
 import { useRef } from 'react';
 import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
-import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, ArrowLeft, Calculator, CheckCheck, LoaderCircle, Play, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,8 +10,6 @@ import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
 import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 import type { KnowledgeTrialResult } from '@/subtitle-studio/knowledge-trial-contract';
 import { partialCheck, readyCount, type TranslationCheck } from '@/services/subtitle-studio/translation-session';
-import { StudioBatchItems } from './StudioBatchItems';
-import { StudioDocumentRow } from './StudioDocumentList';
 import { StudioKnowledgeTrial } from './StudioKnowledgeTrial';
 import { StudioKnowledgeBatch } from './StudioKnowledgeBatch';
 
@@ -80,12 +77,7 @@ export function StudioTranslationReview(props: Props) {
                 { label: t('studio:translation.batch_count'), value: estimate.batchCount.toLocaleString(i18n.language) },
                 { label: t('studio:translation.output_reserve'), value: estimate.outputTokenReserve.toLocaleString(i18n.language) },
               ]} />
-            {batch && <>
-              <p className="studio-batch-note">{t('studio:batch.translation_queue_note')}</p>
-              <StudioDisclosure key={batch.batchId} className="studio-translation-plan-details" title={t('studio:operation_result.details')}>
-                <StudioBatchItems>{batch.items.map(item => <StudioDocumentRow key={item.documentId} data-document-id={item.documentId} data-state={item.ok ? 'ready' : 'failed'} name={item.displayName} status={item.ok ? t('studio:batch.ready') : errorLabel(item.error)} />)}</StudioBatchItems>
-              </StudioDisclosure>
-            </>}
+            {batch && <p className="studio-batch-note">{t('studio:batch.translation_queue_note')}</p>}
           </section>}
           <StudioKnowledgeTrial library={library} page={page} preview={check?.kind === 'trial' ? check.value : null} documentPreview={check?.kind === 'knowledge' ? check.value : null} result={result} />
           {check?.kind === 'knowledge-batch' && <StudioKnowledgeBatch preview={check.value} library={library} />}

@@ -228,14 +228,14 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_CONTENT_MOTION_E2E === '1')('dialog 
       await settled(dialog());
 
       const selected = dialog().getByTestId('studio-selected-documents');
-      const advanced = dialog().locator('.studio-export-advanced');
-      await fullTransition('studio-selected-grow-pushes-advanced', selected, advanced);
-      await fullTransition('studio-selected-shrink-pulls-advanced', selected, advanced);
+      const footer = dialog().locator('.studio-export-footer');
+      await fullTransition('studio-selected-grow-pushes-footer', selected, footer);
+      await fullTransition('studio-selected-shrink-pulls-footer', selected, footer);
       await selected.locator('[data-slot="accordion-trigger"]').first().evaluate(button => (button as HTMLButtonElement).click());
       await captureMidExpansion('00-studio-content-mid-expansion', selected); await settled(dialog());
       await selected.locator('[data-slot="accordion-trigger"]').first().evaluate(button => (button as HTMLButtonElement).click());
       await settled(dialog());
-      const reversal = await trace('studio-selected-reverse-mid-expansion', selected, advanced, async () => {
+      const reversal = await trace('studio-selected-reverse-mid-expansion', selected, footer, async () => {
         await selected.locator('[data-slot="accordion-trigger"]').first().evaluate(button => (button as HTMLButtonElement).click());
         await selected.evaluate(element => new Promise<void>((resolve, reject) => {
           const start = performance.now();

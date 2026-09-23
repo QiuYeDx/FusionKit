@@ -4,6 +4,25 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
 
+async function waitForDialogLayout(page: Page) {
+  // Wait for the surface being measured, independent of background animations.
+  await page.getByRole('dialog').evaluate(element => new Promise<void>((resolve, reject) => {
+    let previous: number[] = [], stable = 0;
+    const started = performance.now();
+    const sample = () => {
+      const current = [element, ...element.querySelectorAll('[data-flow-motion], .studio-document-row')]
+        .flatMap(node => { const box = node.getBoundingClientRect(); return [box.x, box.y, box.width, box.height]; });
+      const moving = [...element.querySelectorAll('[data-flow-animating="true"]')].some(node => node.getClientRects().length > 0);
+      stable = !moving && previous.length === current.length && current.every((value, index) => Math.abs(value - previous[index]) < 0.1) ? stable + 1 : 0;
+      previous = current;
+      if (stable >= 8) resolve();
+      else if (performance.now() - started > 5000) reject(new Error('Export dialog layout did not settle'));
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+}
+
 async function select(page: Page, label: string, value: string) {
   await page.getByRole('dialog').getByRole('combobox', { name: label, exact: true }).click();
   await page.getByRole('option', { name: value, exact: true }).click();
@@ -53,11 +72,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
       const nativeWindow = await app.browserWindow(page); await nativeWindow.evaluate(win => win.setSize(1280, 860));
       const capture = async (name: string) => {
-        await page!.waitForFunction(() => !document.getAnimations().some(animation => animation.playState === 'running'));
+        await waitForDialogLayout(page!);
         const data = await page!.getByRole('dialog').evaluate(dialog => {
           const box = dialog.getBoundingClientRect();
-          const done = [...dialog.querySelectorAll('button')].find(button => button.textContent?.trim() === '完成');
-          const footer = (done?.parentElement ?? dialog.querySelector(':scope > .contents > .border-t'))!.getBoundingClientRect();
+          const footer = dialog.querySelector('[data-dialog-section="footer"]')!.getBoundingClientRect();
           return { x: box.x, right: box.right, bottom: box.bottom, viewportWidth: innerWidth, viewportHeight: innerHeight, overflow: dialog.scrollWidth - dialog.clientWidth, footerBottom: footer.bottom };
         });
         expect(data.x).toBeGreaterThanOrEqual(0); expect(data.right).toBeLessThanOrEqual(data.viewportWidth + 1); expect(data.bottom).toBeLessThanOrEqual(data.viewportHeight + 1); expect(data.footerBottom).toBeLessThanOrEqual(data.viewportHeight + 1); expect(data.overflow).toBeLessThanOrEqual(1);
@@ -73,9 +91,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit e
       await openExport(page);
       const scope = page.getByTestId('studio-selected-documents');
       await uiExpect(scope.locator('[data-slot="accordion-trigger"]').first()).toHaveAttribute('aria-expanded', 'false');
-      expect(await scope.evaluate(element => !!(element.compareDocumentPosition(document.querySelector('[data-testid="studio-export-advanced"]')!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+      await uiExpect(page.getByRole('dialog').getByRole('combobox', { name: '文件编码', exact: true })).toHaveCount(0);
+      await uiExpect(page.getByRole('dialog').getByRole('combobox', { name: '换行方式', exact: true })).toHaveCount(0);
       await scope.locator('[data-slot="accordion-trigger"]').first().focus(); await page.keyboard.press('Enter');
-      await page.waitForFunction(() => !document.getAnimations().some(animation => animation.playState === 'running'));
+      await waitForDialogLayout(page);
       const baseline = await scope.locator('.studio-document-row').evaluate(row => {
         const number = row.querySelector('.studio-document-row-number')!;
         const name = row.querySelector('.studio-file-name-start') ?? row.querySelector('.studio-file-name')!;

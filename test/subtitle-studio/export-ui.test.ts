@@ -7,7 +7,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { decodeSubtitle } from '../../electron/main/subtitle-studio/input-service';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
-import type { Encoding } from '../../src/subtitle-studio/domain';
 import type { DocumentPage } from '../../src/subtitle-studio/ipc-contract';
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local export workspace', () => {
@@ -44,7 +43,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
     };
     const launch = async () => {
-      app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`], cwd: process.cwd(), env: { ...process.env, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
+      app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`, '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-features=CalculateNativeWinOcclusion'], cwd: process.cwd(), env: { ...process.env, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
       const page = await app.firstWindow();
       page.on('pageerror', error => errors.push(error.message));
       await openStudio(page);
@@ -58,7 +57,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       if (!result.ok) throw new Error(result.error);
       return result.value;
     });
-    const parsedFile = async (file: string, format: 'lrc' | 'srt', encoding: Encoding = 'utf-8') => {
+    const parsedFile = async (file: string, format: 'lrc' | 'srt') => {
+      const encoding = 'utf-8';
       const bytes = await readFile(file);
       const { text, bom } = decodeSubtitle(bytes, encoding);
       return { bytes, text, document: importSubtitleText(text, {
@@ -94,11 +94,14 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       await page.getByRole('button', { name: '下载', exact: true }).click();
       await page.getByRole('menuitem', { name: '导出字幕', exact: true }).click();
       await uiExpect(exportDialog()).toBeVisible();
-      await uiExpect(exportDialog().getByRole('combobox', { name: '导出内容', exact: true })).toBeFocused();
+      const content = exportDialog().getByRole('combobox', { name: '导出内容', exact: true });
+      if (await content.isEnabled()) await uiExpect(content).toBeFocused();
       // These projection cases explicitly exercise blocking and a chosen output path; I5 covers the new defaults.
       await select('保存位置', '选择其他位置');
-      await select('缺失或过期的译文', '阻止导出，等待译文完整');
-      await select('导出内容', '仅原文');
+      if (await content.isEnabled()) {
+        await select('缺失或过期的译文', '阻止导出，等待译文完整');
+        await select('导出内容', '仅原文');
+      }
     };
     const select = async (name: string, value: string) => {
       if (await exportDialog().locator('[data-step="review"]').count()) await exportDialog().getByRole('button', { name: '返回设置', exact: true }).click();
@@ -144,12 +147,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await uiExpect(exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true })).toBeEnabled();
     await acceptLosses();
     await exportDialog().getByRole('button', { name: '返回设置', exact: true }).click();
-    await exportDialog().getByTestId('studio-export-advanced').click();
-    await select('文件编码', 'GB18030');
-    await uiExpect(page.locator('.studio-export-plan')).toHaveCount(0);
-    await uiExpect(exportDialog().getByRole('checkbox', { name: '添加 Unicode BOM', exact: true })).toBeDisabled();
-    await select('文件编码', 'UTF-8');
-    await exportDialog().getByTestId('studio-export-advanced').click();
+    await uiExpect(exportDialog().getByRole('combobox', { name: '文件编码', exact: true })).toHaveCount(0);
+    await uiExpect(exportDialog().getByRole('combobox', { name: '换行方式', exact: true })).toHaveCount(0);
+    await uiExpect(exportDialog().getByRole('checkbox', { name: '添加 Unicode BOM', exact: true })).toHaveCount(0);
     await check();
     await uiExpect(exportDialog().getByRole('checkbox', { name: '接受以上格式变化', exact: true })).toHaveCount(0);
     await acceptLosses();
@@ -224,14 +224,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await select('字幕格式', 'srt'.toUpperCase());
     await select('缺失或过期的译文', '未完成处使用原文');
     await exportDialog().getByRole('checkbox', { name: '允许估算缺失的结束时间', exact: true }).check();
-    await exportDialog().getByTestId('studio-export-advanced').click();
-    await select('文件编码', 'UTF-16LE');
-    await select('换行方式', 'CRLF');
-    await exportDialog().getByRole('checkbox', { name: '添加 Unicode BOM', exact: true }).check();
     await check();
     await uiExpect(page.locator('[data-issue="source_fallback"]')).toContainText('1');
     await acceptLosses();
     const viewport = exportDialog().locator('[data-slot="scroll-area-viewport"]');
+    // The closing settings stage retains its viewport until the exit finishes.
+    await uiExpect(viewport).toHaveCount(1);
     await viewport.evaluate(element => { element.scrollTop = 0; });
     expect(await exportDialog().evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     expect(await exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true }).evaluate(element => {
@@ -240,10 +238,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await page.screenshot({ path: path.join(artifacts, 'bilingual-dark-narrow-options.png'), animations: 'disabled' });
     await viewport.evaluate(element => { element.scrollTop = element.scrollHeight; });
     await page.screenshot({ path: path.join(artifacts, 'bilingual-dark-narrow-check.png'), animations: 'disabled' });
-    const fallback = await parsedFile(await saveFile('fallback-utf16.srt'), 'srt', 'utf-16le');
-    expect(fallback.bytes.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xfe]));
-    expect(fallback.text).toContain('\r\n');
-    expect(fallback.text.replace(/\r\n/g, '')).not.toContain('\n');
+    const fallback = await parsedFile(await saveFile('fallback-utf8.srt'), 'srt');
+    expect(fallback.bytes.subarray(0, 3)).not.toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
+    expect(fallback.text).toContain('\n');
+    expect(fallback.text).not.toContain('\r');
     expect(fallback.document.cues).toHaveLength(4);
     expect(fallback.document.cues[3].source.plain).toContain(sourceLines[3]);
 
@@ -251,9 +249,6 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     await select('导出内容', '仅译文');
     await select('字幕格式', 'LRC');
     await select('缺失或过期的译文', '仅导出已有有效译文的字幕');
-    await exportDialog().getByTestId('studio-export-advanced').click();
-    await select('文件编码', 'UTF-8');
-    await exportDialog().getByRole('checkbox', { name: '添加 Unicode BOM', exact: true }).uncheck();
     await check(); await acceptLosses();
     const frozenRevision = await page.locator('.studio-export-plan').getAttribute('data-revision');
     const frozenFile = path.join(root, 'frozen-target.lrc');
@@ -269,23 +264,27 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
       const result = await window.subtitleStudio.removeTranslationTrack({ documentId: summary.id, revision: summary.revision, trackId: translationTracks[0].id });
       if (!result.ok) throw new Error(result.error);
     }, beforeClear);
-    await uiExpect(page.locator('.studio-export-frozen')).toBeVisible();
-    await uiExpect(page.locator('.studio-export-plan')).toHaveAttribute('data-revision', frozenRevision!);
+    // Removing the last track resets the available content to source-only.
+    // The in-flight save must still write the target plan already handed to main.
+    await uiExpect.poll(async () => (await snapshot(page)).summary.revision).toBeGreaterThan(Number(frozenRevision));
     await app!.evaluate((_electron, file) => {
       const globals = globalThis as typeof globalThis & { studioExportSave?: (result: { canceled: boolean; filePath: string }) => void };
       globals.studioExportSave!({ canceled: false, filePath: file }); delete globals.studioExportSave;
     }, frozenFile);
-    await uiExpect(page.getByTestId('studio-export-result')).toContainText('已保存 1 份字幕文件');
-    await exportDialog().getByRole('button', { name: '完成', exact: true }).click();
+    await uiExpect.poll(async () => {
+      try { return (await parsedFile(frozenFile, 'lrc')).document.cues.map(cue => cue.source.plain); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; }
+    }).toEqual(targetLines);
+    // The content identity changed while saving, so the previous request must
+    // not replace the current dialog with an obsolete success receipt.
+    await uiExpect(page.getByTestId('studio-export-result')).toHaveCount(0);
+    await exportDialog().getByRole('button', { name: '取消', exact: true }).click();
     await uiExpect(exportDialog()).toHaveCount(0);
     expect((await parsedFile(frozenFile, 'lrc')).document.cues.map(cue => cue.source.plain)).toEqual(targetLines);
     await openExport();
-    await select('导出内容', '仅译文');
-    await check();
-    await uiExpect(page.locator('[data-issue="track_missing"]')).toBeVisible();
-    await uiExpect(exportDialog().getByRole('button', { name: '确认并导出 1 份', exact: true })).toHaveCount(0);
-    await page.screenshot({ path: path.join(artifacts, 'missing-track-dark-narrow.png'), animations: 'disabled' });
-    await select('导出内容', '仅原文');
+    await uiExpect(exportDialog().getByRole('combobox', { name: '导出内容', exact: true })).toBeDisabled();
+    await uiExpect(exportDialog().getByRole('combobox', { name: '导出内容', exact: true })).toContainText('仅原文');
+    await page.screenshot({ path: path.join(artifacts, 'source-only-after-clear-dark-narrow.png'), animations: 'disabled' });
     await check(); await acceptLosses();
     expect((await parsedFile(await saveFile('source-after-clear.lrc'), 'lrc')).document.cues.map(cue => cue.source.plain)).toEqual(sourceLines);
     expect((await snapshot(page)).cues.every(cue => cue.timing.endMs === null)).toBe(true);
