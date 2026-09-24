@@ -28,7 +28,7 @@ import { STUDIO_BATCH_LIMIT, type UnavailableDocument, type BatchImportResult } 
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import useModelStore from '@/store/useModelStore';
 import { translationModelSchema, normalizeTranslationModel } from '@/subtitle-studio/translation-contract';
-import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
+import { formatStudioTime, formatStudioTrackName, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioTranslation, StudioTranslationStatus, StudioBatchTranslation } from './StudioTranslation';
 import { StudioTranslationTask } from './StudioTranslationTask';
 import type { AutomaticKnowledgeRecheckRequest } from './automatic-knowledge-recheck';
@@ -40,6 +40,7 @@ import { StudioRecovery } from './StudioRecovery';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
+import { StudioRenameTranslation } from './StudioRenameTranslation';
 import { StudioTranscription } from './StudioTranscription';
 import { StudioCueCopy } from './StudioCueCopy';
 import { QuickTermDialog } from '@/pages/TranslationKnowledge/QuickTermDialog';
@@ -611,7 +612,8 @@ export default function SubtitleStudio() {
           {page ? <>
             {track && <div className="studio-translation-toolbar">
               <div className="studio-translation-track-controls">
-              <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} className="h-7 w-[160px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent>{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{item.language === 'und' ? t('studio:language_unknown') : item.language} · {index + 1}</SelectItem>)}</SelectContent></Select>
+              <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} title={formatStudioTrackName(track.language, page.translationTracks.findIndex(item => item.id === track.id), t('studio:language_unknown'), track.name)} className="h-7 w-[160px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent className="studio-track-options">{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{formatStudioTrackName(item.language, index, t('studio:language_unknown'), item.name)}</SelectItem>)}</SelectContent></Select>
+              <StudioRenameTranslation key={`${page.summary.id}:${track.id}`} page={page} track={track} busy={busy} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
               <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
               </div>
               <div className="studio-translation-progress-controls">

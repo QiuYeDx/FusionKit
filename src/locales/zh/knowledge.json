@@ -1,4 +1,38 @@
 {
+  "bulk_review": {
+    "title": "批量审核",
+    "exit": "结束选择",
+    "collection": "资料集",
+    "kind": "条目类型",
+    "all_kinds": "全部类型",
+    "select_page": "选择本页待确认",
+    "selected": "已选 {{count}} 条",
+    "select_filtered": "选择全部筛选结果（{{count}} 条）",
+    "clear": "清空选择",
+    "adopt": "批量采纳",
+    "reject": "批量拒绝",
+    "scope_help": "跨页选择；切换筛选范围会清空选择。",
+    "select_entry": "选择：{{title}}",
+    "adopt_title": "审核并采纳所选资料",
+    "reject_title": "审核并拒绝所选资料",
+    "preview_help": "核对本次选择的内容，可取消勾选不想处理的条目。",
+    "adopt_help": "采纳后，这些资料可用于之后选用它们的翻译。使用条件与人物范围保持原样，不会改动已有译文。",
+    "reject_help": "拒绝后，这些资料保留在资料库中，但不会用于新翻译；不会删除内容。",
+    "target_count": "本次处理 {{count}} 条",
+    "confirm_adopt": "采纳 {{count}} 条",
+    "confirm_reject": "拒绝 {{count}} 条",
+    "skipped": "有 {{count}} 条暂不参与本次处理，原因显示在对应条目中。",
+    "changed": "原选择中有 {{count}} 条已不再待确认或已不存在，不纳入本次处理。",
+    "reason_individual": "强制译法、强制要求或核心背景需要打开单条详情核对采纳。",
+    "reason_dependency": "所属资料集或必需对象已归档，恢复后再处理。",
+    "reason_unavailable": "该条目当前不再待确认。",
+    "evidence": "适用范围与来源",
+    "stale": "资料库已变化。刷新后重新核对原选条目，再提交；不会自动添加新条目。",
+    "refresh": "刷新并重新核对",
+    "failed": "尚未确认处理成功，选择已保留。",
+    "adopted": "已批量采纳 {{count}} 条资料。",
+    "rejected": "已批量拒绝 {{count}} 条资料。"
+  },
   "title": "翻译资料",
   "description": "保存可重复使用的术语、背景与规则，在字幕工作台翻译时按需选用。",
   "loading": "正在读取资料…",
@@ -244,7 +278,7 @@
   "import": {
     "title": "检查导入内容",
     "counts": "新增 {{added}} 项 · 未变化 {{unchanged}} 项 · 冲突 {{conflicts}} 项",
-    "trust_help": "外部文件不能替你确认资料。导入后默认进入待审核；冲突默认保留本机版本。",
+    "trust_help": "导入完成后将打开待确认列表，可筛选并批量采纳资料。冲突默认保留本机版本。",
     "warnings": "{{count}} 项提示",
     "warning_generic": "存在需要检查的资料，导入前请核对对应内容与范围。",
     "decision": "此项如何处理",
@@ -868,5 +902,11 @@
     "tab_language": "翻译方向",
     "tab_scope": "适用范围",
     "tab_metadata": "标题与来源"
+  },
+  "skill_export": {
+    "save": "保存资料编写 Skill",
+    "saving": "正在保存…",
+    "help": "供 AI 编写可导入的资料。ZIP 含说明、示例与校验器，解压后交给 AI 工具使用。",
+    "saved": "已保存 {{fileName}}。解压后将整个文件夹交给 AI 工具使用。"
   }
 }

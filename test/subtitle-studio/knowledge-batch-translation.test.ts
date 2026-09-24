@@ -79,7 +79,7 @@ describe('formal knowledge batch admission', () => {
   });
 
   it.each(['chat_completions', 'responses'] as const)('freezes one library read for independent %s records and does not consume the single-file preview', async apiFormat => {
-    const f = await fixture(); const input = f.request({ config: config({ model: { ...config().model, apiFormat } }) });
+    const f = await fixture(); const input = f.request({ config: config({ trackName: '批量校订版', model: { ...config().model, apiFormat } }) });
     const first = f.documents[0];
     const singlePreview = await f.service.plan(1, { documentId: first.id, revision: first.revision, knowledgeGeneration: 1, config: input.config,
       knowledge: { ...input.knowledge, bindings: [], confirmations: [] }, documentTopicIds: input.documentTopicIds });
@@ -95,6 +95,8 @@ describe('formal knowledge batch admission', () => {
       await f.translation.settled(item.taskId);
       const snapshot = await f.repository.readSnapshot(item.documentId), record = resolveExecutionRecord(snapshot, item.taskId);
       expect(snapshot.tasks[0].status).toBe('completed'); expect(record.knowledge!.generation).toBe(1);
+      expect(snapshot.document.translationTracks[0].name).toBe('批量校订版');
+      expect(JSON.stringify(f.sent.mock.calls)).not.toContain('批量校订版');
       expect(record.knowledge!.data.entries[0]).toEqual(f.term);
       expect(record.plan.batches[0].units.map(unit => unit.id)).toEqual(['u1', 'u2']);
       expect(record.requests.b1.httpBody).toBe(planner.serializeTranslationRequest(f.sent.mock.calls.find(([request]) => record.requests.b1.httpBody === planner.serializeTranslationRequest(request))![0]));

@@ -375,7 +375,11 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_CONTENT_MOTION_E2E === '1')('dialog 
     } finally {
       await writeFile(path.join(artifacts, 'frames.json'), JSON.stringify(evidence, null, 2));
       try { if (app) { const child = app.process(); await app.close(); expect(child.exitCode !== null || child.signalCode !== null).toBe(true); } }
-      finally { await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); }
+      finally {
+        expect(path.dirname(root)).toBe(path.resolve(tmpdir()));
+        expect(path.basename(root)).toMatch(/^fusionkit-dialog-content-motion-/);
+        await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      }
     }
   }, 150000);
 });

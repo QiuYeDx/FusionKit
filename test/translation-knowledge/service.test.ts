@@ -49,6 +49,43 @@ async function importData(service: KnowledgeService, data = example(), adoptRead
 }
 
 describe('translation knowledge service', () => {
+  it('keeps the whole review batch unchanged after a failed write and permits a retry', async () => {
+    let fail = false;
+    const { service } = await fixture({ publicationHook: stage => { if (fail && stage === 'before_pointer_rename') throw new Error('Injected review write failure'); } });
+    const data = example();
+    data.entries.forEach(entry => { entry.state = 'candidate'; });
+    await importData(service, data);
+    const before = await service.read(), request = { generation: before.generation, ids: data.entries.map(entry => entry.id), action: 'adopt' as const };
+    fail = true;
+    await expect(service.reviewEntries(request)).rejects.toMatchObject({ code: 'write_failed' });
+    expect(await service.read()).toEqual(before);
+    fail = false;
+    expect(Object.keys((await service.reviewEntries(request)).approvals)).toHaveLength(data.entries.length);
+  });
+
+  it('reviews a whole candidate pack atomically and treats repeated same-state review as a no-op', async () => {
+    const { service } = await fixture(), data = example();
+    const template = data.entries[0];
+    data.entries = Array.from({ length: 125 }, (_, index) => ({ ...structuredClone(template), id: randomUUID(), title: `Candidate ${index}`, state: 'candidate' }));
+    data.styles = []; data.recipes = [];
+    data.sources[0].kind = 'ai_proposal';
+    await importData(service, data);
+    const before = await service.read(), ids = data.entries.map(entry => entry.id);
+    const after = await service.reviewEntries({ generation: before.generation, ids, action: 'adopt' });
+    expect(after.generation).toBe(before.generation + 1);
+    expect(after.data.entries.every(entry => entry.state === 'ready' && entry.revision === 2)).toBe(true);
+    expect(Object.keys(after.approvals)).toHaveLength(125);
+    for (const entry of after.data.entries) expect(after.approvals[entry.id]).toMatchObject({ method: 'human', revision: entry.revision, digest: sha256Canonical(entry) });
+    expect(await service.reviewEntries({ generation: after.generation, ids, action: 'adopt' })).toEqual(after);
+    await expect(service.reviewEntries({ generation: before.generation, ids, action: 'reject' })).rejects.toMatchObject({ code: 'revision_conflict' });
+    await expect(service.reviewEntries({ generation: after.generation, ids: [ids[0], randomUUID()], action: 'reject' })).rejects.toMatchObject({ code: 'not_found' });
+    expect(await service.read()).toEqual(after);
+    const rejected = await service.reviewEntries({ generation: after.generation, ids: ids.slice(0, 100), action: 'reject' });
+    expect(rejected.data.entries.filter(entry => entry.state === 'rejected')).toHaveLength(100);
+    expect(Object.keys(rejected.approvals)).toHaveLength(25);
+    expect(rejected.data.entries).toHaveLength(125);
+  });
+
   it('round-trips every v1 entity, status, reference and inert extension without exporting approval credentials', async () => {
     const first = await fixture(), second = await fixture();
     const data = example(); data.entries[1].state = 'candidate'; data.entries[2].state = 'archived';

@@ -11,6 +11,8 @@ import { ModelRuntimeClientError } from '../../electron/main/ai/model-runtime-er
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { buildTranslationRequest, planTranslation, requestTokenEstimate, serializeTranslationRequest, sourceDigest } from '../../electron/main/subtitle-studio/translation-planner';
 import { normalizeUsage, TranslationService } from '../../electron/main/subtitle-studio/translation-service';
+import { TranslationTrackService } from '../../electron/main/subtitle-studio/translation-track-service';
+import { summarizeDocument } from '../../src/subtitle-studio/ipc-contract';
 
 const config = (overrides: Partial<TranslationConfig> = {}): TranslationConfig => ({
   model: { profileId: 'fixture-profile', modelKey: 'gpt-4o-mini', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' },
@@ -68,6 +70,36 @@ afterEach(async () => {
 });
 
 describe('subtitle studio translation request planning', () => {
+  it('persists local result names and renames without changing translation content or checkpoints', async () => {
+    const send = vi.fn(async (request: ModelRuntimeTextRequest) => result(request));
+    const current = await fixture(send);
+    const before = await run(current, config({ trackName: '  本地记录名称  ' }));
+    const track = before.document.translationTracks[0];
+    expect(track.name).toBe('本地记录名称');
+    expect(JSON.stringify(send.mock.calls)).not.toContain('本地记录名称');
+    const tracks = new TranslationTrackService(current.repository);
+    const renamed = await tracks.rename(current.doc.id, before.document.revision, track.id, ' 校订版 ');
+    expect(renamed.translationTracks[0]).toEqual({ ...track, name: '校订版' });
+    expect(summarizeDocument(renamed).translationTracks[0].name).toBe('校订版');
+    const after = await current.repository.readSnapshot(current.doc.id);
+    expect(after.tasks).toEqual(before.tasks);
+    expect(after.executionRecords).toEqual(before.executionRecords);
+    expect(after.document.cues).toEqual(before.document.cues);
+    await expect(tracks.rename(current.doc.id, before.document.revision, track.id, 'stale')).rejects.toMatchObject({ code: 'revision_conflict' });
+    await expect(tracks.rename(current.doc.id, renamed.revision, randomUUID(), 'missing')).rejects.toMatchObject({ code: 'invalid_input' });
+    for (const invalid of ['x'.repeat(101), 'line\nbreak', 'bad\u0000name']) {
+      await expect(tracks.rename(current.doc.id, renamed.revision, track.id, invalid)).rejects.toMatchObject({ code: 'invalid_input' });
+    }
+    expect(await current.repository.readSnapshot(current.doc.id)).toEqual(after);
+    const reopened = new DocumentRepository(path.join(current.root, 'documents'));
+    expect((await reopened.read(current.doc.id)).translationTracks[0].name).toBe('校订版');
+    const reset = await tracks.rename(current.doc.id, renamed.revision, track.id, '   ');
+    expect(reset.translationTracks[0].name).toBeUndefined();
+    expect(reset.translationTracks[0].revision).toBe(track.revision);
+    const busy = await current.repository.transact(current.doc.id, reset.revision, snapshot => { snapshot.tasks[0].status = 'queued'; });
+    await expect(tracks.rename(current.doc.id, busy.document.revision, track.id, 'busy')).rejects.toMatchObject({ code: 'resource_busy' });
+  });
+
   it.each([
     { modelKey: 'deepseek-chat', apiFormat: 'chat_completions', configured: undefined, expected: false },
     { modelKey: '  DeEpSeEk-V3  ', apiFormat: 'chat_completions', configured: undefined, expected: false },

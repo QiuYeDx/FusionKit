@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { encodingSchema, idSchema, LIMITS, type ErrorCode, type SubtitleDocument } from './domain';
+import { encodingSchema, idSchema, LIMITS, translationTrackNameSchema, type ErrorCode, type SubtitleDocument } from './domain';
 import { translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from './translation-contract';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
@@ -58,6 +58,7 @@ export const STUDIO_CHANNELS = {
   previewBilingual: 'subtitle-studio:preview-bilingual',
   applyBilingual: 'subtitle-studio:apply-bilingual',
   removeTranslationTrack: 'subtitle-studio:remove-translation-track',
+  renameTranslationTrack: 'subtitle-studio:rename-translation-track',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   probeTranscriptionMedia: 'subtitle-studio:probe-transcription-media',
@@ -127,6 +128,7 @@ export const requestSchemas = {
   previewBilingual: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: bilingualOptionsSchema, offset: z.number().int().min(0).max(LIMITS.cues), reviewOnly: z.boolean().optional() }).strict(),
   applyBilingual: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: bilingualOptionsSchema }).strict(),
   removeTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema }).strict(),
+  renameTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema, name: translationTrackNameSchema }).strict(),
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -134,7 +136,7 @@ export type DocumentListSnapshot = { documents: DocumentSummary[]; total: number
 export type DocumentSummary = Pick<SubtitleDocument, 'id' | 'revision' | 'origin' | 'capabilities' | 'diagnostics' | 'bilingualImport'> & {
   cueCount: number; bilingualAvailable?: boolean; bilingualRecommended?: boolean; updatedAt?: number;
   translationStatus?: 'none' | 'partial' | 'complete';
-  translationTracks?: Pick<SubtitleDocument['translationTracks'][number], 'id' | 'language' | 'origin'>[];
+  translationTracks?: Pick<SubtitleDocument['translationTracks'][number], 'id' | 'language' | 'origin' | 'name'>[];
   task?: { id: string; status: DocumentSnapshot['tasks'][number]['status']; model?: z.infer<typeof translationModelSchema>; completedBatches: number; totalBatches: number } | null;
 };
 type StoredTask = DocumentSnapshot['tasks'][number];
@@ -217,6 +219,7 @@ export interface SubtitleStudioApi {
   previewBilingual(request: z.infer<typeof requestSchemas.previewBilingual>): Promise<StudioResult<BilingualPreview>>;
   applyBilingual(request: z.infer<typeof requestSchemas.applyBilingual>): Promise<StudioResult<DocumentSummary>>;
   removeTranslationTrack(request: z.infer<typeof requestSchemas.removeTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
+  renameTranslationTrack(request: z.infer<typeof requestSchemas.renameTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 
@@ -230,7 +233,7 @@ export function summarizeDocument(doc: SubtitleDocument, tasks: DocumentSnapshot
   return { id: doc.id, revision: doc.revision, origin: doc.origin, capabilities: doc.capabilities, diagnostics: doc.diagnostics, cueCount: doc.cues.length,
     ...(updatedAt !== undefined ? { updatedAt } : {}),
     translationStatus: translated ? translated === nonempty.length ? 'complete' : 'partial' : 'none',
-    translationTracks: doc.translationTracks.map(({ id, language, origin }) => ({ id, language, ...(origin ? { origin } : {}) })),
+    translationTracks: doc.translationTracks.map(({ id, language, origin, name }) => ({ id, language, ...(origin ? { origin } : {}), ...(name ? { name } : {}) })),
     task: task ? { id: task.id, status: task.status, ...(task.translation ? { model: task.translation.config.model } : {}), completedBatches: task.completedBatchIds.length, totalBatches: task.translation?.totalBatches ?? 0 } : null,
     ...(doc.bilingualImport ? { bilingualImport: doc.bilingualImport } : {}),
     bilingualAvailable: !doc.translationTracks.length && !doc.bilingualImport && hasBilingualCandidates(doc),

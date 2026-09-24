@@ -1,0 +1,3 @@
+interface:
+  display_name: "FusionKit 翻译资料准备"
+  short_description: "搜集、组织并校验可直接导入字幕工作台的翻译资料包，保留来源和适用范围"

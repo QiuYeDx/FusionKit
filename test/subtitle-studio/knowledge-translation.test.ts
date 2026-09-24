@@ -61,7 +61,7 @@ async function fixture(count = 43, send: (request: ModelRuntimeTextRequest) => P
 describe('formal document knowledge translation', () => {
   it.each(['', 'Keep the dialogue concise.'])('normalizes undefined selection options before preview and admission with parent instructions %j', async instructions => {
     const f = await fixture(1);
-    const input = f.request({ config: config({ instructions }) });
+    const input = f.request({ config: config({ instructions, trackName: '资料翻译初稿' }) });
     const absent = await prepareKnowledgeTranslation(f.repository, input, f.library);
     input.knowledge = { ...input.knowledge, recipeId: undefined, instructions: undefined, context: undefined };
     const preview = await f.service.plan(1, input);
@@ -71,6 +71,8 @@ describe('formal document knowledge translation', () => {
     await f.translation.settled(started.taskId);
     const snapshot = await f.repository.readSnapshot(f.document.id), record = resolveExecutionRecord(snapshot, started.taskId);
     expect(snapshot.tasks[0].status).toBe('completed');
+    expect(snapshot.document.translationTracks[0].name).toBe('资料翻译初稿');
+    expect(JSON.stringify(f.sent.mock.calls)).not.toContain('资料翻译初稿');
     expect(record.knowledge).toEqual(absent.prepared!.knowledge);
     expect(record.knowledge!.selection).not.toHaveProperty('recipeId');
     expect(record.knowledge!.selection).not.toHaveProperty('context');

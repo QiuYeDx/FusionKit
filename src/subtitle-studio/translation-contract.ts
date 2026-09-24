@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { executionRefSchema, idSchema, LIMITS, StudioError } from './domain';
+import { executionRefSchema, idSchema, LIMITS, StudioError, translationTrackNameSchema } from './domain';
 
 const tokenCount = z.number().int().nonnegative().safe();
 export const translationModelSchema = z.object({
@@ -22,6 +22,7 @@ export function normalizeTranslationModel(input: TranslationModel): TranslationM
   return model;
 }
 export const translationConfigSchema = z.object({
+  trackName: translationTrackNameSchema.optional(),
   model: translationModelSchema,
   language: z.string().trim().min(1).max(100),
   instructions: z.string().max(4000),

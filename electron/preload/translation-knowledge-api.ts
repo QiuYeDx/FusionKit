@@ -32,5 +32,6 @@ export function createTranslationKnowledgeApi(ipc: {
     commitMaintenance: request => invoke(KNOWLEDGE_CHANNELS.commitMaintenance, request),
     planExport: request => invoke(KNOWLEDGE_CHANNELS.planExport, request),
     exportFile: request => invoke(KNOWLEDGE_CHANNELS.exportFile, request),
+    exportSkill: () => invoke(KNOWLEDGE_CHANNELS.exportSkill, {}),
   } satisfies TranslationKnowledgeApi);
 }

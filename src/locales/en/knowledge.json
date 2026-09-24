@@ -1,4 +1,38 @@
 {
+  "bulk_review": {
+    "title": "Review in bulk",
+    "exit": "End selection",
+    "collection": "Collection",
+    "kind": "Entry type",
+    "all_kinds": "All types",
+    "select_page": "Select pending on this page",
+    "selected": "{{count}} selected",
+    "select_filtered": "Select all filtered results ({{count}})",
+    "clear": "Clear selection",
+    "adopt": "Accept selected",
+    "reject": "Reject selected",
+    "scope_help": "Selection spans pages; changing filters clears it.",
+    "select_entry": "Select: {{title}}",
+    "adopt_title": "Review and accept selected materials",
+    "reject_title": "Review and reject selected materials",
+    "preview_help": "Check the selected content and uncheck anything you want to leave out.",
+    "adopt_help": "Accepted materials become available for future translations that select them. Conditions and speaker scope stay intact; existing translations are unchanged.",
+    "reject_help": "Rejected materials stay in the library but are excluded from new translations. Nothing is deleted.",
+    "target_count": "{{count}} to process",
+    "confirm_adopt": "Accept {{count}}",
+    "confirm_reject": "Reject {{count}}",
+    "skipped": "Entries left out: {{count}}. Each entry shows the reason.",
+    "changed": "{{count}} originally selected entries are no longer pending or no longer exist and will be left out.",
+    "reason_individual": "Required terms, required rules and core context need individual review in entry details.",
+    "reason_dependency": "The collection or a required subject is archived. Restore it first.",
+    "reason_unavailable": "This entry is no longer pending review.",
+    "evidence": "Scope and sources",
+    "stale": "The library has changed. Refresh and review the original selection again before submitting. New entries will not be added automatically.",
+    "refresh": "Refresh and review again",
+    "failed": "Completion is unconfirmed. Your selection is kept.",
+    "adopted": "Accepted {{count}} materials.",
+    "rejected": "Rejected {{count}} materials."
+  },
   "title": "Translation materials",
   "description": "Save reusable terms, context and rules to use when translating in Subtitle Studio.",
   "loading": "Loading materials…",
@@ -244,7 +278,7 @@
   "import": {
     "title": "Review import",
     "counts": "{{added}} new · {{unchanged}} unchanged · {{conflicts}} conflicts",
-    "trust_help": "External files cannot approve entries for you. Imports await review; conflicts keep your local version by default.",
+    "trust_help": "After import, the pending review list opens so you can filter and accept materials in bulk. Conflicts keep your local version by default.",
     "warnings": "{{count}} warnings",
     "warning_generic": "Some material needs attention. Check its content and scope before importing.",
     "decision": "Action for this item",
@@ -868,5 +902,11 @@
     "tab_language": "Languages",
     "tab_scope": "Scope",
     "tab_metadata": "Title & source"
+  },
+  "skill_export": {
+    "save": "Save material-writing skill",
+    "saving": "Saving…",
+    "help": "Help AI prepare importable materials. The ZIP includes instructions, examples and a validator. Extract it for your AI tool.",
+    "saved": "Saved {{fileName}}. Extract the entire folder for your AI tool."
   }
 }

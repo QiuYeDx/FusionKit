@@ -5,6 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { LIMITS } from '@/subtitle-studio/domain';
 
+/** Match record identity in selectors and destructive confirmations. */
+export function formatStudioTrackName(language: string, index: number, unknownLanguage: string, name?: string): string {
+  return name?.trim() || `${language === 'und' ? unknownLanguage : language} · ${index + 1}`;
+}
+
 export function StudioFileName({ name, focusable = false }: { name: string; focusable?: boolean }) {
   const characters = Array.from(name);
   const tailLength = Math.min(12, Math.ceil(characters.length / 2));

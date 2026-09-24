@@ -1,0 +1,154 @@
+{
+  "format": "fusionkit.translation-knowledge",
+  "schemaVersion": 1,
+  "package": {
+    "id": "90000000-0000-4000-8000-000000000001",
+    "revision": 1,
+    "name": "日中字幕入门示例",
+    "description": "虚构护理术语和规则示例；不含真实字幕，不需额外对象绑定。",
+    "purpose": "share",
+    "createdAt": "2026-09-14T00:00:00Z",
+    "generator": {
+      "name": "FusionKit skill example",
+      "version": "2.0.0"
+    },
+    "author": "示例作者",
+    "sharingNote": "示例文本，不包含真实作品设定或外部网页摘录。"
+  },
+  "subjects": [],
+  "collections": [
+    {
+      "id": "90000000-0000-4000-8000-000000000002",
+      "revision": 1,
+      "archived": false,
+      "name": "日中 · 护理入门",
+      "description": "选择本集并采纳条目后使用，不要求创建对象。",
+      "aboutSubjectIds": [],
+      "defaultLanguagePair": {
+        "source": "ja",
+        "target": "zh-Hans"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "id": "90000000-0000-4000-8000-000000000003",
+      "revision": 1,
+      "kind": "ai_proposal",
+      "title": "示例编辑建议",
+      "excerpt": "技能作者构造的普通词汇与字幕保真建议，用于协议演示；不是官方译名或人工确认字幕。"
+    }
+  ],
+  "entries": [
+    {
+      "revision": 1,
+      "collectionId": "90000000-0000-4000-8000-000000000002",
+      "aboutSubjectIds": [],
+      "scope": {
+        "languagePair": {
+          "source": "ja",
+          "target": "zh-Hans"
+        },
+        "requiredSubjects": [],
+        "condition": {
+          "mode": "none"
+        }
+      },
+      "state": "candidate",
+      "evidence": [
+        {
+          "sourceId": "90000000-0000-4000-8000-000000000003",
+          "support": "inferred"
+        }
+      ],
+      "derivedFrom": [],
+      "id": "90000000-0000-4000-8000-000000000004",
+      "title": "綿棒 → 棉签",
+      "kind": "term",
+      "payload": {
+        "source": "綿棒",
+        "target": "棉签",
+        "aliases": [
+          "めんぼう"
+        ],
+        "sense": "日常护理用具。",
+        "match": {
+          "mode": "literal_phrase",
+          "caseSensitive": false
+        },
+        "strength": "preferred"
+      }
+    },
+    {
+      "revision": 1,
+      "collectionId": "90000000-0000-4000-8000-000000000002",
+      "aboutSubjectIds": [],
+      "scope": {
+        "languagePair": {
+          "source": "ja",
+          "target": "zh-Hans"
+        },
+        "requiredSubjects": [],
+        "condition": {
+          "mode": "none"
+        }
+      },
+      "state": "candidate",
+      "evidence": [
+        {
+          "sourceId": "90000000-0000-4000-8000-000000000003",
+          "support": "inferred"
+        }
+      ],
+      "derivedFrom": [],
+      "id": "90000000-0000-4000-8000-000000000005",
+      "title": "自然忠实的字幕",
+      "kind": "rule",
+      "payload": {
+        "dimension": "fidelity",
+        "text": "使用自然的简体中文，保留否定、左右方位和施受关系；不添加原文没有的动作、台词或口头禅。",
+        "strength": "preferred"
+      }
+    }
+  ],
+  "styles": [
+    {
+      "id": "90000000-0000-4000-8000-000000000006",
+      "revision": 1,
+      "archived": false,
+      "name": "忠实简洁",
+      "description": "须先在本机采纳引用要求。",
+      "languagePair": {
+        "source": "ja",
+        "target": "zh-Hans"
+      },
+      "ruleEntryIds": [
+        "90000000-0000-4000-8000-000000000005"
+      ]
+    }
+  ],
+  "recipes": [
+    {
+      "id": "90000000-0000-4000-8000-000000000007",
+      "revision": 1,
+      "archived": false,
+      "name": "日中 · 护理入门",
+      "description": "无人物绑定；候选先核对采纳。",
+      "languagePair": {
+        "source": "ja",
+        "target": "zh-Hans"
+      },
+      "readCollectionIds": [
+        "90000000-0000-4000-8000-000000000002"
+      ],
+      "subjectSuggestions": [],
+      "baseStyleId": "90000000-0000-4000-8000-000000000006",
+      "modifierStyleIds": [],
+      "instructions": "",
+      "context": "",
+      "inheritGlobalPreferences": false,
+      "learningSuggestion": "off"
+    }
+  ],
+  "preferenceTemplates": []
+}

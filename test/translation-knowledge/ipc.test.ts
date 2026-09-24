@@ -45,11 +45,41 @@ vi.mock('../../electron/main/translation-knowledge/export-plans', () => ({
   },
 }));
 import { publishKnowledgeFile, readKnowledgeFile, registerTranslationKnowledge } from '../../electron/main/translation-knowledge';
+import { skillArchiveBase64 } from '../../electron/main/translation-knowledge/skill-archive.generated';
 
 const directories: string[] = [];
 afterEach(async () => { for (const directory of directories.splice(0)) await rm(directory, { recursive: true, force: true }); vi.clearAllMocks(); });
 
 describe('knowledge IPC and native publication', () => {
+  it('saves the bundled skill through the native picker, cancels cleanly and refuses renderer paths or overwrites', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'knowledge-skill-save-')); directories.push(directory);
+    const destination = path.join(directory, 'skill.zip');
+    const bridge = registerTranslationKnowledge();
+    const contents = Object.assign(new EventEmitter(), { id: 81, mainFrame: { url: pathToFileURL(path.join(process.cwd(), 'dist/index.html')).href }, isDestroyed: () => false });
+    bridge.attach(contents as any);
+    const event = { sender: contents, senderFrame: contents.mainFrame, returnValue: undefined as unknown };
+    const api = createTranslationKnowledgeApi({
+      sendSync: (channel, payload) => { state.listeners.get(channel)!(event, payload); return event.returnValue; },
+      invoke: async (channel, envelope) => state.handlers.get(channel)!(event, envelope),
+    });
+    try {
+      const handler = state.handlers.get(KNOWLEDGE_CHANNELS.exportSkill)!;
+      expect(await handler(event, { capability: event.returnValue, payload: { path: destination } })).toEqual({ ok: false, error: 'invalid_input' });
+      expect(state.save).not.toHaveBeenCalled();
+      expect(await api.exportSkill()).toEqual({ ok: true, value: null });
+      expect(await readdir(directory)).toEqual([]);
+      state.save.mockResolvedValueOnce({ canceled: false, filePath: destination });
+      expect(await api.exportSkill()).toEqual({ ok: true, value: { fileName: 'skill.zip' } });
+      const expected = Buffer.from(skillArchiveBase64, 'base64');
+      expect(await readFile(destination)).toEqual(expected);
+      state.save.mockResolvedValueOnce({ canceled: false, filePath: destination });
+      expect(await api.exportSkill()).toEqual({ ok: false, error: 'file_exists' });
+      expect(await readFile(destination)).toEqual(expected);
+      expect(await readdir(directory)).toEqual(['skill.zip']);
+      expect(state.read).not.toHaveBeenCalled();
+    } finally { await bridge.dispose(); }
+  });
+
   it('keeps capabilities private and rejects every protected namespace in the legacy bridge', async () => {
     const invoke = vi.fn(async () => ({ ok: true }));
     const api = createTranslationKnowledgeApi({ sendSync: () => 'capability', invoke });
@@ -167,7 +197,7 @@ describe('knowledge IPC and native publication', () => {
     await bridge.dispose();
   });
 
-  it.each(['selectImport', 'exportFile'] as const)('closes while %s has an open dialog and ignores its later selection', async method => {
+  it.each(['selectImport', 'exportFile', 'exportSkill'] as const)('closes while %s has an open dialog and ignores its later selection', async method => {
     const directory = await mkdtemp(path.join(tmpdir(), 'knowledge-dialog-')); directories.push(directory);
     const chosenPath = path.join(directory, 'late-selection.fktk.json');
     let resolveDialog!: (value: any) => void;
@@ -180,7 +210,7 @@ describe('knowledge IPC and native publication', () => {
     bridge.attach(contents as any);
     const event = { sender: contents, senderFrame: contents.mainFrame, returnValue: undefined as unknown };
     state.listeners.get(KNOWLEDGE_CHANNELS.register)!(event, {});
-    const payload = method === 'selectImport' ? {} : { planId: '10000000-0000-4000-8000-000000000001' };
+    const payload = method === 'exportFile' ? { planId: '10000000-0000-4000-8000-000000000001' } : {};
     const operation = state.handlers.get(KNOWLEDGE_CHANNELS[method])!(event, { capability: event.returnValue, payload });
     await opened;
     try {

@@ -29,6 +29,7 @@ export interface TranslationKnowledgeApi {
   commitMaintenance(request: MaintenanceCommit): Promise<KnowledgeResult<MaintenanceReceipt>>;
   planExport(request: ExportSelectionRequest): Promise<KnowledgeResult<ExportPreview>>;
   exportFile(request: ExportCommit): Promise<KnowledgeResult<ExportReceipt | null>>;
+  exportSkill(): Promise<KnowledgeResult<{ fileName: string } | null>>;
 }
 export const KNOWLEDGE_CHANNELS = {
   register: 'translation-knowledge:internal:register',
@@ -42,6 +43,7 @@ export const KNOWLEDGE_CHANNELS = {
   commitMaintenance: 'translation-knowledge:commit-maintenance',
   planExport: 'translation-knowledge:plan-export',
   exportFile: 'translation-knowledge:export-file',
+  exportSkill: 'translation-knowledge:export-skill',
 } as const;
 
 export const entrySummary = (entry: Entry): string => {

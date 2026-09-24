@@ -10,6 +10,7 @@ import type { MaintenanceCommit, MaintenancePreview, MaintenanceReceipt, Mainten
 import { buildMaintenance, captureImportChanges, maintenanceCommitRequestSchema, maintenanceRequestSchema } from './maintenance';
 import type { KnowledgeReferenceInventory, KnowledgeTaskTracking } from '../../../src/translation-knowledge/task-reference-contract';
 import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
+import { requiresIndividualReview as highRisk, hasArchivedReviewDependency as unavailable } from '../../../src/translation-knowledge/review-policy';
 export { KnowledgeServiceError } from './errors';
 
 const generation = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -52,18 +53,12 @@ function nextRevision(current: number): number {
 function requireGeneration(state: StoredLibrary, expected: number): void {
   if (state.generation !== expected) throw new KnowledgeServiceError('revision_conflict');
 }
-function highRisk(entry: Entry): boolean {
-  return (entry.kind === 'context' && entry.payload.core) || ((entry.kind === 'term' || entry.kind === 'rule') && entry.payload.strength === 'required');
-}
 function entryDependencies(entry: Entry): string[] {
   return [entry.collectionId, ...entry.scope.requiredSubjects.map(item => item.subjectId), ...entry.evidence.map(item => item.sourceId), ...entry.derivedFrom.flatMap(item => [item.entryId, item.evidenceSourceId])];
 }
 /** Collection labels/defaults do not alter any existing entry's explicit scope. */
 function affectsDependents(group: EntityGroup, before: KnowledgeEntity, after: KnowledgeEntity): boolean {
   return group !== 'collections' || (before as KnowledgePackage['collections'][number]).archived !== (after as KnowledgePackage['collections'][number]).archived;
-}
-function unavailable(entry: Entry, data: KnowledgePackage): boolean {
-  return data.collections.find(item => item.id === entry.collectionId)?.archived === true || data.subjects.some(item => item.archived && entry.scope.requiredSubjects.some(subject => subject.subjectId === item.id));
 }
 /** Preserve archived/rejected/candidate states; only formerly ready dependents need re-review. */
 function invalidate(state: StoredLibrary, changed: Set<string>, explicitlyReviewed = new Set<string>()): void {
@@ -308,20 +303,24 @@ export class KnowledgeService {
     if (new Set(input.ids).size !== input.ids.length) fail('DUPLICATE_REVIEW', 'Select each review entry once.');
     return this.repository.transact(state => {
       requireGeneration(state, input.generation);
-      const selected = input.ids.map(id => { const entry = state.data.entries.find(item => item.id === id); if (!entry) throw new KnowledgeServiceError('not_found'); return entry; });
+      const entriesById = new Map(state.data.entries.map(entry => [entry.id, entry]));
+      const selected = input.ids.map(id => { const entry = entriesById.get(id); if (!entry) throw new KnowledgeServiceError('not_found'); return entry; });
       if (input.action === 'adopt') {
         if (selected.length > 1 && selected.some(highRisk)) throw new KnowledgeServiceError('import_conflict', [diagnostic('INDIVIDUAL_REVIEW_REQUIRED', 'Required rules and core facts need individual review.')]);
         if (selected.some(entry => unavailable(entry, state.data))) throw new KnowledgeServiceError('import_conflict', [diagnostic('REVIEW_DEPENDENCY_ARCHIVED', 'Restore the required archived dependencies before accepting these entries.')]);
       }
-      for (const entry of selected) {
+      const targetState = input.action === 'adopt' ? 'ready' : input.action === 'archive' ? 'archived' : 'rejected';
+      const changedEntries = selected.filter(entry => entry.state !== targetState || input.action === 'adopt' && !isTrusted(state, entry));
+      if (!changedEntries.length) return { result: snapshot };
+      for (const entry of changedEntries) {
         entry.state = input.action === 'adopt' ? 'ready' : input.action === 'archive' ? 'archived' : 'rejected';
         entry.revision = nextRevision(entry.revision);
         delete state.approvals[entry.id];
       }
-      const changed = new Set(input.ids);
+      const changed = new Set(changedEntries.map(entry => entry.id));
       invalidate(state, changed, input.action === 'adopt' ? changed : undefined);
       checkPackage(state.data);
-      if (input.action === 'adopt') for (const entry of selected) approve(state, entry, 'human');
+      if (input.action === 'adopt') for (const entry of changedEntries) approve(state, entry, 'human');
       delete state.importedOriginal;
       return { state, result: snapshot };
     }, guard);

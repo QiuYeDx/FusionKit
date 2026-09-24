@@ -25,6 +25,7 @@ export const knowledgeRequestSchemas = {
   commitMaintenance: z.object({ planId: id, confirmHistoryRemoval: z.boolean().optional() }).strict(),
   planExport: z.object({ generation, purpose: z.enum(['backup', 'share']), collectionIds: ids, recipeIds: ids, includeMemories: z.boolean(), includeUnreviewed: z.boolean(), includeInactive: z.boolean(), excludedSourceIds: ids }).strict(),
   exportFile: z.object({ planId: id }).strict(),
+  exportSkill: empty,
 };
 export const knowledgeEnvelopeSchema = z.object({ capability: id, payload: z.unknown() }).strict();
 export const publicKnowledgeChannels = Object.keys(knowledgeRequestSchemas).map(key => KNOWLEDGE_CHANNELS[key as keyof typeof knowledgeRequestSchemas]);

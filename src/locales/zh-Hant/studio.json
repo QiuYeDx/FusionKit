@@ -717,5 +717,15 @@
     "review_stale": "設定或原文已變更，請重新檢查。",
     "review_trial_result": "檢視試譯結果",
     "review_rerun_trial": "重新試譯"
+  },
+  "track_naming": {
+    "label": "結果名稱（選填）",
+    "hint": "留空按語言和序號自動命名，僅用於本機記錄。",
+    "batch_hint": "此名稱用於本批各檔案的翻譯結果；留空則自動命名。",
+    "rename": "重新命名譯文",
+    "name": "結果名稱",
+    "reset": "恢復自動命名",
+    "save": "儲存名稱",
+    "invalid": "名稱最多 100 個字元，不能包含換行或控制字元。"
   }
 }

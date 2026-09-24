@@ -2,6 +2,7 @@ import type { KnowledgeSelection } from '@/translation-knowledge/execution-contr
 import type { AutomaticKnowledgePreferences } from '@/subtitle-studio/transcription/preferences-contract';
 
 export type TranslationDraft = {
+  trackName?: string;
   profileId: string;
   language: string;
   instructions: string;
@@ -16,7 +17,8 @@ export const knowledgeTarget = (language: string) => language === 'zh' ? 'zh-Han
 export const emptySelection = (target: string): KnowledgeSelection => ({ version: 1, languagePair: { source: '', target: knowledgeTarget(target) }, collectionIds: [], bindings: [], confirmations: [], disabledEntryIds: [] });
 export const hasMaterials = (selection: Pick<KnowledgeSelection, 'recipeId' | 'collectionIds'>) => !!selection.recipeId || selection.collectionIds.length > 0;
 export function reusableTranslationDraft(draft: TranslationDraft): TranslationDraft {
-  return { ...structuredClone(draft), documentTopicIds: [], cueIds: [], selection: { ...structuredClone(draft.selection), bindings: [], confirmations: [], disabledEntryIds: [] } };
+  const { trackName: _name, ...settings } = structuredClone(draft);
+  return { ...settings, documentTopicIds: [], cueIds: [], selection: { ...structuredClone(draft.selection), bindings: [], confirmations: [], disabledEntryIds: [] } };
 }
 /** Deliberately in memory: no credentials, plans or file-specific authority are persisted. */
 export class TranslationDraftMemory {

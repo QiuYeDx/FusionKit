@@ -9,6 +9,7 @@ import { KnowledgeService } from './service';
 import { KnowledgeServiceError } from './errors';
 import { KnowledgeExportPlans } from './export-plans';
 import { knowledgeEnvelopeSchema, knowledgeRequestSchemas, publicKnowledgeChannels, trustedKnowledgeUrl } from './ipc';
+import { skillArchiveBase64, skillArchiveName } from './skill-archive.generated';
 
 const MAX_FILE_BYTES = 32 * 1024 * 1024;
 
@@ -34,11 +35,11 @@ export async function readKnowledgeFile(filePath: string): Promise<string> {
 }
 
 /** Publish a complete new file without replacing an existing user file. */
-export async function publishKnowledgeFile(filePath: string, contents: string, alive: () => void = () => {}): Promise<void> {
+export async function publishKnowledgeFile(filePath: string, contents: string | Uint8Array, alive: () => void = () => {}): Promise<void> {
   const temporary = path.join(path.dirname(filePath), `.fktk-${randomUUID()}.tmp`);
   let created = false;
   try {
-    const bytes = Buffer.from(contents, 'utf8');
+    const bytes = typeof contents === 'string' ? Buffer.from(contents, 'utf8') : Buffer.from(contents);
     if (bytes.length > MAX_FILE_BYTES) throw new KnowledgeServiceError('limit_exceeded');
     const file = await open(temporary, 'wx', 0o600);
     created = true;
@@ -134,6 +135,12 @@ export function registerTranslationKnowledge(taskTracking?: KnowledgeTaskTrackin
             value = await service.commitMaintenance(owner.capability, knowledgeRequestSchemas.commitMaintenance.parse(payload.data), alive);
           } else if (method === 'planExport') {
             value = await exportPlans.plan(owner.capability, knowledgeRequestSchemas.planExport.parse(payload.data), alive);
+          } else if (method === 'exportSkill') {
+            const selected = await waitForDialog(dialog.showSaveDialog(window, { defaultPath: skillArchiveName, filters: [{ name: 'ZIP', extensions: ['zip'] }] }));
+            alive();
+            if (selected.canceled || !selected.filePath) return { ok: true, value: null };
+            await publishKnowledgeFile(selected.filePath, Buffer.from(skillArchiveBase64, 'base64'), alive);
+            value = { fileName: path.basename(selected.filePath) };
           } else {
             const request = knowledgeRequestSchemas.exportFile.parse(payload.data);
             await exportPlans.prepare(owner.capability, request, alive);

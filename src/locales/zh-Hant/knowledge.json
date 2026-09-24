@@ -1,4 +1,38 @@
 {
+  "bulk_review": {
+    "title": "批次審核",
+    "exit": "結束選取",
+    "collection": "資料集",
+    "kind": "條目類型",
+    "all_kinds": "全部類型",
+    "select_page": "選取本頁待確認",
+    "selected": "已選 {{count}} 條",
+    "select_filtered": "選取全部篩選結果（{{count}} 條）",
+    "clear": "清空選取",
+    "adopt": "批次採納",
+    "reject": "批次拒絕",
+    "scope_help": "跨頁選取；切換篩選範圍會清空選取。",
+    "select_entry": "選取：{{title}}",
+    "adopt_title": "審核並採納所選資料",
+    "reject_title": "審核並拒絕所選資料",
+    "preview_help": "核對本次選取的內容，可取消勾選不想處理的條目。",
+    "adopt_help": "採納後，這些資料可用於之後選用它們的翻譯。使用條件與人物範圍維持原樣，不會改動既有譯文。",
+    "reject_help": "拒絕後，這些資料保留在資料庫中，但不會用於新翻譯；不會刪除內容。",
+    "target_count": "本次處理 {{count}} 條",
+    "confirm_adopt": "採納 {{count}} 條",
+    "confirm_reject": "拒絕 {{count}} 條",
+    "skipped": "有 {{count}} 條暫不參與本次處理，原因顯示在對應條目中。",
+    "changed": "原選取中有 {{count}} 條已不再待確認或已不存在，不納入本次處理。",
+    "reason_individual": "強制譯法、強制要求或核心背景需要開啟單條詳情核對採納。",
+    "reason_dependency": "所屬資料集或必要對象已封存，還原後再處理。",
+    "reason_unavailable": "該條目目前不再待確認。",
+    "evidence": "適用範圍與來源",
+    "stale": "資料庫已變更。重新整理後核對原選條目，再提交；不會自動加入新條目。",
+    "refresh": "重新整理並核對",
+    "failed": "尚未確認處理成功，選取已保留。",
+    "adopted": "已批次採納 {{count}} 條資料。",
+    "rejected": "已批次拒絕 {{count}} 條資料。"
+  },
   "title": "翻譯資料",
   "description": "儲存可重複使用的術語、背景與規則，在字幕工作台翻譯時按需選用。",
   "loading": "正在讀取資料…",
@@ -244,7 +278,7 @@
   "import": {
     "title": "檢查匯入內容",
     "counts": "新增 {{added}} 項 · 未變更 {{unchanged}} 項 · 衝突 {{conflicts}} 項",
-    "trust_help": "外部檔案不能替你確認資料。匯入後預設進入待審核；衝突預設保留本機版本。",
+    "trust_help": "匯入完成後將開啟待確認清單，可篩選並批次採納資料。衝突預設保留本機版本。",
     "warnings": "{{count}} 項提示",
     "warning_generic": "存在需要檢查的資料，匯入前請核對對應內容與範圍。",
     "decision": "此項如何處理",
@@ -868,5 +902,11 @@
     "tab_language": "翻譯方向",
     "tab_scope": "適用範圍",
     "tab_metadata": "標題與來源"
+  },
+  "skill_export": {
+    "save": "儲存資料編寫 Skill",
+    "saving": "正在儲存…",
+    "help": "供 AI 編寫可匯入的資料。ZIP 含說明、範例與驗證工具，解壓縮後交給 AI 工具使用。",
+    "saved": "已儲存 {{fileName}}。解壓縮後將整個資料夾交給 AI 工具使用。"
   }
 }

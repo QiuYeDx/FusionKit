@@ -3,6 +3,9 @@
 .studio-bilingual-content [data-slot="scroll-area-viewport"] { overflow-anchor: none; }
 .studio-bilingual-content [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
 .studio-bilingual-content [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
+.studio-remove-translation-target { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; gap: 12px; padding-block: 4px; }
+.studio-remove-translation-target dt { color: var(--muted-foreground); font-size: 12px; line-height: 20px; }
+.studio-remove-translation-target dd { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 500; line-height: 20px; }
 .studio-bilingual-options { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); align-items: center; gap: 16px; }
 .studio-bilingual-switches { display: grid; gap: 4px; min-width: 0; }
 .studio-bilingual-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; padding-block: 4px; cursor: pointer; font-size: 12px; line-height: 18px; }

@@ -188,6 +188,7 @@ export class TranslationService {
     const status = !plan || conflict ? 'failed' : launch ? 'queued' : 'needs_configuration';
     const error = preparationError ?? (conflict ? 'revision_conflict' : launch ? undefined : 'needs_configuration');
     const track: DocumentSnapshot['document']['translationTracks'][number] = { id: trackId, revision: 1,
+      ...(intent.config.trackName?.trim() ? { name: intent.config.trackName.trim() } : {}),
       language: plan?.config.language ?? intent.knowledge?.selection.languagePair.target ?? intent.config.language,
       origin: 'ai', entries: {}, ...(execution ? { executionRef: execution.ref } : {}) };
     const task: Task = { id: taskId, trackId, generation: 1, status, completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
@@ -268,7 +269,7 @@ export class TranslationService {
       if (value.tasks.some(activeStatus)) throw new StudioError('revision_conflict');
       const execution = createExecutionRecord(plan, documentSourceDigest(value.document), taskId, trackId, prepared);
       (value.executionRecords ??= {})[execution.record.id] = execution.record;
-      value.document.translationTracks.push({ id: trackId, language: plan.config.language, revision: 1, origin: 'ai', entries: {}, executionRef: execution.ref });
+      value.document.translationTracks.push({ id: trackId, language: plan.config.language, ...(plan.config.trackName ? { name: plan.config.trackName } : {}), revision: 1, origin: 'ai', entries: {}, executionRef: execution.ref });
       value.tasks.push({ id: taskId, trackId, generation: 1, status: 'queued', completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
         translation: { config: plan.config, totalBatches: plan.batches.length, estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * plan.config.maxOutputTokens,
           usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checkpoint: checkpointForPlan(plan, value.document, 1, execution.ref), uncertainAttempts: 0 } });

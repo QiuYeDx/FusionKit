@@ -15,6 +15,7 @@ import { TranslationService } from './translation-service';
 import { createAutomaticTranslationCoordinator } from './automatic-translation';
 import { AutomaticKnowledgeService } from './automatic-knowledge';
 import { BilingualService } from './bilingual-service';
+import { TranslationTrackService } from './translation-track-service';
 import { BatchService } from './batch-service';
 import { selectLibrary } from './library-service';
 import { STUDIO_BATCH_LIMIT, type BatchImportResult } from '../../../src/subtitle-studio/batch-contract';
@@ -41,6 +42,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   const automaticTranslation = createAutomaticTranslationCoordinator({ repository, translation });
   const automaticKnowledge = new AutomaticKnowledgeService(readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
   const bilingual = new BilingualService(repository);
+  const tracks = new TranslationTrackService(repository);
   const exports = new ExportService(repository);
   const batches = new BatchService(repository, translation);
   const sources = new SourceLocationService(repository);
@@ -346,6 +348,11 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
         if (method === 'removeTranslationTrack') {
           const { trackId } = requestSchemas.removeTranslationTrack.parse(payload);
           const value = await bilingual.removeTrack(request.documentId, request.revision, trackId, alive); alive();
+          return { ok: true, value: summarizeDocument(value) };
+        }
+        if (method === 'renameTranslationTrack') {
+          const { trackId, name } = requestSchemas.renameTranslationTrack.parse(payload);
+          const value = await tracks.rename(request.documentId, request.revision, trackId, name, alive); alive();
           return { ok: true, value: summarizeDocument(value) };
         }
         if (method === 'planTranslation') {

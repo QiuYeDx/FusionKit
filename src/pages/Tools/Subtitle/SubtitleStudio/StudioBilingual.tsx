@@ -11,7 +11,7 @@ import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioError, type ErrorCode, type SubtitleDocument } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import type { BilingualCandidate, BilingualOptions, BilingualPreview } from '@/subtitle-studio/bilingual-contract';
-import { formatStudioTime, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
+import { formatStudioTime, formatStudioTrackName, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioScrollFade } from './StudioScrollFade';
 import './StudioBilingual.css';
 
@@ -279,7 +279,13 @@ export function StudioRemoveTranslation({ page, track, busy, onChanged, onError 
     <StudioIconButton ref={trigger} label={t('studio:remove_translation.action')} disabled={busy || removing || hasActiveTask} onClick={() => setOpen(true)}><Eraser /></StudioIconButton>
     <ScrollableDialog animateSize open={open} onOpenChange={value => { if (!removing) setOpen(value); }} onOpenAutoFocus={event => { event.preventDefault(); cancel.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="p-3 pr-12"><DialogTitle className="text-base">{t('studio:remove_translation.action')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:remove_translation.description')}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent className="studio-bilingual-content" fadeMaskHeight={16}><StudioFileName name={page.summary.origin.displayName} /><DialogTransition transitionKey={error ?? 'error'}>{error && <p className="studio-bilingual-error" role="alert">{t(errorKeys[error])}</p>}</DialogTransition></ScrollableDialogContent>
+      <ScrollableDialogContent className="studio-bilingual-content" fadeMaskHeight={16}>
+        <dl className="studio-remove-translation-target" data-testid="studio-remove-translation-target">
+          <dt>{t('studio:translation_track')}</dt>
+          <dd>{formatStudioTrackName(track.language, page.translationTracks.findIndex(item => item.id === track.id), t('studio:language_unknown'), track.name)}</dd>
+        </dl>
+        <DialogTransition transitionKey={error ?? 'error'}>{error && <p className="studio-bilingual-error" role="alert">{t(errorKeys[error])}</p>}</DialogTransition>
+      </ScrollableDialogContent>
       <ScrollableDialogFooter className="flex flex-wrap justify-end gap-2 p-3"><Button ref={cancel} variant="outline" size="sm" disabled={removing} onClick={() => setOpen(false)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" disabled={removing || busy || hasActiveTask} onClick={() => void remove()}>{removing ? <LoaderCircle className="studio-spin" /> : <Eraser />}{t('studio:remove_translation.action')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
   </>;

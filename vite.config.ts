@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 import electron from 'vite-plugin-electron/simple'
 import tailwindcss from '@tailwindcss/vite'
 import pkg from './package.json'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => {
@@ -36,6 +38,10 @@ export default defineConfig(({ command }) => {
       'import.meta.env.VITE_REACT_VERSION': JSON.stringify(reactVersion),
     },
     plugins: [
+      // Fail before bundling if the shipped skill, validator or schema drifted.
+      ...(!isVitest ? [{ name: 'translation-knowledge-skill-parity', async buildStart() {
+        await promisify(execFile)(process.execPath, ['scripts/translation-knowledge/build-artifacts.mjs', '--check'], { cwd: __dirname })
+      } }] : []),
       react(),
       tailwindcss(),
       ...(isVitest ? [] : [electron({

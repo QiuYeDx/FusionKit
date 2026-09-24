@@ -1,6 +1,6 @@
 # FK-TK/1 文件协议
 
-Skill 版本 1.0.0；支持 schemaVersion 1；CLI 最低 Node.js 18。
+Skill 版本 2.0.0；支持 schemaVersion 1；CLI 最低 Node.js 18。本文描述文件契约；当前参与翻译的类型见 [当前能力](application-usage.md)，不能将可存储字段等同于已执行功能。
 
 文件为 UTF-8（导出无 BOM）、单个严格 JSON 对象，扩展名 `.fktk.json`。不要注释、重复键、NaN、尾随逗号或代码围栏。全部核心对象拒绝未知字段；`extensions` 仅保存反向域名命名空间下的非执行性 JSON 元数据，不用于扩展翻译行为、文件访问或本机授权。未知扩展原样保留。
 

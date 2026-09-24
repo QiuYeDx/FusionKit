@@ -12,7 +12,7 @@
 
 | 任务 | 写入范围/负责人 | 状态 |
 | --- | --- | --- |
-| T01 FK-TK/1、类型/语义校验、Schema、CLI、示例与 Skill | `src/translation-knowledge/`（排除 IPC）、`scripts/translation-knowledge/`、`resources/translation-knowledge/`、`skills/fusionkit-translation-knowledge/`；协议 Agent | 已完成 |
+| T01 FK-TK/1、类型/语义校验、Schema、CLI、示例与 Skill | `src/translation-knowledge/`（排除 IPC）、`scripts/translation-knowledge/`、`resources/translation-knowledge/`、`.agents/skills/fusionkit-translation-knowledge/`；协议 Agent | 已完成；2026-09-25 迁移并更新技能，见 [保存入口记录](2026-09-25-authoring-skill.md) |
 | T02 仓库、原子发布、审核、导入差异/幂等、备份/分享 | `electron/main/translation-knowledge/`（排除 index/ipc）；仓库 Agent | 已完成 |
 | T03 三视图管理页、结构化编辑、导入/导出、四语种 | `src/pages/TranslationKnowledge/`、四份 `knowledge.json`；界面 Agent | 已完成 |
 | T04 IPC、原生文件边界、注册与入口、集成验收 | `ipc-contract.ts`、`electron/main/translation-knowledge/index.ts` / `ipc.ts`、preload、应用入口/路由/i18n 注册；主任务 | 已完成 |
@@ -48,7 +48,7 @@
 - `src/translation-knowledge/`：共享 Zod 字段模型、严格 JSON 解析、语义校验、JCS 摘要与固定 IPC 契约。
 - `electron/main/translation-knowledge/`：独立本地仓库、导入计划与持久收据、修订/信任、分享/备份和原生文件边界。存储保证与限制见该目录 README。
 - `src/pages/TranslationKnowledge/`：资料 / 方案与风格 / 待审核三视图，以及对象、资料集、五类条目和方案的结构化编辑。入口位于工具列表和两个字幕工具。
-- `skills/fusionkit-translation-knowledge/`：可独立分发的 Skill、协议参考、示例、Schema 与便携 Node 校验器。尚未安装到用户个人 Skill 目录。
+- `.agents/skills/fusionkit-translation-knowledge/`：项目级、可独立分发的 Skill、协议参考、示例、Schema 与便携 Node 校验器。2026-09-25 已迁移旧路径，并在翻译资料页提供 ZIP 保存入口；不自动安装到个人目录。
 
 ### 2026-09-14 本机验证
 

@@ -6,6 +6,7 @@ import type { DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioDocumentDisclosureHeading } from './StudioDocumentDisclosureHeading';
 import { StudioDisclosure } from './StudioDisclosure';
+import { formatStudioTrackName } from './StudioControls';
 import './StudioSelectedDocuments.css';
 import './StudioPlanDocuments.css';
 
@@ -24,7 +25,7 @@ export function StudioPlanDocuments({ documents, collapsible = true, tracks, ren
       status={<span className="studio-plan-document-status"><Badge variant="outline" className="studio-selected-documents-format">{document.origin.format.toUpperCase()}</Badge>{renderStatus?.(document)}</span>}
       actions={renderActions || tracks && (document.translationTracks?.length ?? 0) > 1 ? <>{tracks && (document.translationTracks?.length ?? 0) > 1 && <Select value={tracks.selected[document.id] ?? ''} onValueChange={value => tracks.onChange(document.id, value)} disabled={tracks.disabled}>
         <SelectTrigger aria-label={t('studio:batch.track_for', { name: document.origin.displayName })} className="studio-plan-document-track h-8 text-xs"><SelectValue placeholder={t('studio:export.no_track')} /></SelectTrigger>
-        <SelectContent>{document.translationTracks?.map((track, trackIndex) => <SelectItem key={track.id} value={track.id}>{track.language === 'und' ? t('studio:language_unknown') : track.language} · {trackIndex + 1}</SelectItem>)}</SelectContent>
+        <SelectContent className="studio-track-options">{document.translationTracks?.map((track, trackIndex) => <SelectItem key={track.id} value={track.id}>{formatStudioTrackName(track.language, trackIndex, t('studio:language_unknown'), track.name)}</SelectItem>)}</SelectContent>
       </Select>}{renderActions?.(document)}</> : undefined}>
       {tracks && !document.translationTracks?.length && tracks.emptyNote && <p className="studio-plan-documents-note">{tracks.emptyNote}</p>}
       {renderDetails?.(document)}

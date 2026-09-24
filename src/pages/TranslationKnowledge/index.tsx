@@ -24,10 +24,12 @@ import {
   ClipboardPaste,
   Ellipsis,
   X,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
@@ -59,6 +61,8 @@ import { KnowledgeTour, useKnowledgeTour } from "./KnowledgeTour";
 import { KnowledgeSidebar, type KnowledgeLibraryView } from "./KnowledgeSidebar";
 import { ExportDialog, ImportDialog } from "./Exchange";
 import { EntryDetails } from "./EntryDetails";
+import { BatchReviewDialog } from "./BatchReviewDialog";
+import { type BatchReviewAction } from "./batch-review";
 import {
   entryStatus,
   newEntry,
@@ -89,6 +93,9 @@ export default function TranslationKnowledge() {
   const [bulkCollectionId, setBulkCollectionId] = useState<string | null>(null);
   const continuationKind = useRef<ContentKind | "bulk">("term");
   const [page, setPage] = useState(0);
+  const [batchMode, setBatchMode] = useState(false);
+  const [batchSelection, setBatchSelection] = useState<{ scope: string; generation: number; ids: string[] }>({ scope: '', generation: -1, ids: [] });
+  const [batchReview, setBatchReview] = useState<{ snapshot: LibrarySnapshot; ids: string[]; action: BatchReviewAction } | null>(null);
   const [planPage, setPlanPage] = useState(0);
   const [planGroup, setPlanGroup] = useState<
     "recipes" | "styles" | "preferenceTemplates"
@@ -140,7 +147,7 @@ export default function TranslationKnowledge() {
   const filtered = useMemo(() => {
     if (!snapshot) return [];
     const archivedCollections = new Set(snapshot.data.collections.filter(item => item.archived).map(item => item.id));
-    const base = filterEntries(snapshot, { ...query, kind: view === "materials" ? contentKind : "all" }, view === "review");
+    const base = filterEntries(snapshot, { ...query, kind: view === "materials" ? contentKind : query.kind }, view === "review");
     return base.filter(entry => {
       const archived = entry.state === "archived" || archivedCollections.has(entry.collectionId);
       if (view === "archived") return archived;
@@ -156,6 +163,19 @@ export default function TranslationKnowledge() {
   const currentEntry = snapshot?.data.entries.find(
     (item) => item.id === selected,
   );
+  const batchVisible = (batchMode || view === 'review') && !['plans', 'archived'].includes(view);
+  const selectionScope = JSON.stringify([view, query, contentKind]);
+  const reviewable = snapshot ? filtered.filter(entry => needsReview(entry, snapshot)) : [];
+  const reviewableIds = new Set(reviewable.map(entry => entry.id));
+  const selectedIds = batchSelection.scope === selectionScope && batchSelection.generation === snapshot?.generation
+    ? batchSelection.ids.filter(id => reviewableIds.has(id)) : [];
+  const pageReviewable = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE).filter(entry => reviewableIds.has(entry.id));
+  const pageSelected = pageReviewable.filter(entry => selectedIds.includes(entry.id)).length;
+  const setBatchIds = (ids: string[]) => setBatchSelection({ scope: selectionScope, generation: snapshot?.generation ?? -1, ids });
+  const openBatchReview = (action: BatchReviewAction) => {
+    if (!snapshot || !selectedIds.length || busy || blocked) return;
+    setBatchReview({ snapshot, ids: [...selectedIds], action });
+  };
   const reviewCount =
     snapshot?.data.entries.filter((entry) => needsReview(entry, snapshot) && !snapshot.data.collections.find(collection => collection.id === entry.collectionId)?.archived)
       .length ?? 0;
@@ -396,18 +416,37 @@ export default function TranslationKnowledge() {
           ]} />}
           {view === "stored" && <p className="text-xs leading-5 text-muted-foreground">{t("guide.storage_only_help")}</p>}
           <ToolPanel id="knowledge-content" title={t(view === "materials" ? `workspace.${contentKind === "term" ? "terms" : contentKind === "context" ? "contexts" : "rules"}` : view === "plans" ? "views.plans" : "views.materials")} badge={<Badge variant="secondary">{view === "plans" ? plans.length : filtered.length}</Badge>} actions={<>
+            {!['plans', 'archived', 'review'].includes(view) && reviewable.length > 0 && <Button data-testid="knowledge-batch-toggle" size="sm" variant="outline" disabled={busy || blocked} onClick={() => { setBatchMode(value => !value); setBatchIds([]); }}><Check />{t(batchVisible ? 'bulk_review.exit' : 'bulk_review.title')}</Button>}
             {view === "materials" && contentKind === "term" && <Button data-testid="knowledge-paste-open" variant="outline" size="sm" disabled={busy || blocked} onClick={() => startEntry("bulk")}><ClipboardPaste />{t("paste.title")}</Button>}
             {(view === "materials" || view === "plans") && <Button data-testid="knowledge-new-entry" size="sm" disabled={busy || blocked} onClick={() => view === "plans" ? addCatalog(planGroup) : startEntry()}><Plus />{t(view === "plans" ? "actions.new_plan_item" : contentKind === "term" ? "workspace.add_term" : contentKind === "context" ? "workspace.add_context" : "workspace.add_rule")}</Button>}
           </>} bodyClassName="min-w-0">
             <div className="space-y-3 border-b p-3"><div className="relative"><Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" /><Input aria-label={t("filters.search")} placeholder={t("filters.search")} value={query.search} onChange={event => { change("search", event.target.value); setPlanPage(0); }} className="h-8 pl-8 text-sm" /></div>
               {view === "plans" && <Choice label={t("plans.category")} value={planGroup} onChange={value => { setPlanGroup(value as typeof planGroup); setPlanPage(0); }} options={["recipes", "styles", "preferenceTemplates"].map(value => ({ value, label: t(optionKey(`group.${value}`)) }))} />}
+              {view === 'review' && <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                <Choice label={t('bulk_review.collection')} value={query.collection} disabled={busy || blocked} onChange={value => change('collection', value)} options={[{ value: 'all', label: t('workspace.all') }, ...activeCollections.map(c => ({ value: c.id, label: c.name }))]} />
+                <Choice label={t('bulk_review.kind')} value={query.kind} disabled={busy || blocked} onChange={value => change('kind', value)} options={[{ value: 'all', label: t('bulk_review.all_kinds') }, ...(['term', 'context', 'rule', 'expression', 'memory'] as const).map(value => ({ value, label: t(`kind.${value}`) }))]} />
+              </div>}
             </div>
             {view === "plans" ? <>
               <div className="space-y-1 p-2">{plans.slice(safePlanPage * PAGE_SIZE, (safePlanPage + 1) * PAGE_SIZE).map(item => <div key={item.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted/50"><button data-catalog-id={item.id} className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCatalog({ group: planGroup, record: item })}><p className="break-words text-sm font-medium">{item.name}{item.archived ? ` · ${t("status.archived")}` : ""}</p><p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">{"description" in item ? item.description : item.instructions}</p></button><Button size="icon-sm" variant="ghost" aria-label={t("actions.copy")} onClick={() => setCatalog({ group: planGroup, record: { ...item, id: freshId(), revision: 1, name: t("copy_name", { name: item.name }), archived: false } })}><Copy /></Button></div>)}{!plans.length && <Empty title={t("empty.plans")} description={t("empty.plans_help")} />}</div>
               <Pagination page={safePlanPage} total={plans.length} onChange={setPlanPage} />
             </> : <>
-              {view === "materials" && contentKind === "term" && filtered.length > 0 && <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] gap-3 border-b px-4 py-2 text-xs text-muted-foreground"><span>{t("fields.source_text")}</span><span>{t("fields.target_text")}</span><span /></div>}
-              <div className="space-y-1 p-2">{filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE).map(entry => <div key={entry.id} className="group flex min-w-0 items-start gap-2 rounded-md p-2 hover:bg-muted/60">
+              {batchVisible && <div data-testid="knowledge-batch-toolbar" className="space-y-2 border-b p-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+                  <label className="flex items-center gap-2 text-xs"><Checkbox data-testid="knowledge-select-page" aria-label={t('bulk_review.select_page')} disabled={!pageReviewable.length || busy || blocked} checked={pageSelected === 0 ? false : pageSelected === pageReviewable.length ? true : 'indeterminate'} onCheckedChange={checked => setBatchIds(checked ? [...new Set([...selectedIds, ...pageReviewable.map(e => e.id)])] : selectedIds.filter(id => !pageReviewable.some(e => e.id === id)))} />{t('bulk_review.select_page')}</label>
+                  <span className="text-xs tabular-nums text-muted-foreground" data-testid="knowledge-selection-count">{t('bulk_review.selected', { count: selectedIds.length })}</span>
+                  <Button size="sm" variant="ghost" data-testid="knowledge-select-filtered" disabled={!reviewable.length || busy || blocked || selectedIds.length === reviewable.length} onClick={() => setBatchIds(reviewable.map(e => e.id))}>{t('bulk_review.select_filtered', { count: reviewable.length })}</Button>
+                  {selectedIds.length > 0 && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setBatchIds([])}>{t('bulk_review.clear')}</Button>}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" data-testid="knowledge-batch-adopt" disabled={!selectedIds.length || busy || blocked} onClick={() => openBatchReview('adopt')}><Check />{t('bulk_review.adopt')}</Button>
+                  <Button size="sm" variant="outline" data-testid="knowledge-batch-reject" disabled={!selectedIds.length || busy || blocked} onClick={() => openBatchReview('reject')}>{t('bulk_review.reject')}</Button>
+                  <span className="text-xs leading-5 text-muted-foreground">{t('bulk_review.scope_help')}</span>
+                </div>
+              </div>}
+              {view === "materials" && contentKind === "term" && filtered.length > 0 && <div className={`grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] gap-3 border-b py-2 pr-4 text-xs text-muted-foreground ${batchVisible ? 'pl-10' : 'pl-4'}`}><span>{t("fields.source_text")}</span><span>{t("fields.target_text")}</span><span /></div>}
+              <div className="space-y-1 p-2">{filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE).map(entry => <div key={entry.id} className={`group flex min-w-0 items-start gap-2 rounded-md p-2 hover:bg-muted/60 ${batchVisible && selectedIds.includes(entry.id) ? 'bg-muted/60' : ''}`}>
+                {batchVisible && <Checkbox className="mt-1 shrink-0" data-testid={`knowledge-select-entry-${entry.id}`} aria-label={t('bulk_review.select_entry', { title: entry.title })} disabled={!needsReview(entry, snapshot) || busy || blocked} checked={selectedIds.includes(entry.id)} onCheckedChange={checked => setBatchIds(checked ? [...selectedIds, entry.id] : selectedIds.filter(id => id !== entry.id))} />}
                 <button data-entry-id={entry.id} onClick={() => setEntryEditor(entry)} className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {entry.kind === "term" ? <div className="grid grid-cols-2 gap-3 text-sm"><span className="break-words font-medium">{entry.payload.source}</span><span className="break-words">{entry.payload.target}</span></div> : <p className="whitespace-pre-wrap break-words text-sm leading-6">{entrySummary(entry)}</p>}
                   <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[11px] leading-5 text-muted-foreground">
@@ -428,6 +467,8 @@ export default function TranslationKnowledge() {
         </div>
         </div>
         <AnimatePresence>
+        {batchReview && <BatchReviewDialog key="batch-review" initial={batchReview.snapshot} ids={batchReview.ids} action={batchReview.action} api={api} blocked={blocked} onSnapshot={setSnapshot} onClose={() => setBatchReview(null)}
+          onComplete={(next, count, remainingIds) => { setSnapshot(next); setBatchSelection({ scope: selectionScope, generation: next.generation, ids: remainingIds }); setNotice(t(batchReview.action === 'adopt' ? 'bulk_review.adopted' : 'bulk_review.rejected', { count })); setBatchReview(null); }} />}
         {snapshot && destination && <KnowledgeDialog key="destination" title={t("workspace.choose_collection")} description={t("workspace.choose_collection_help")} footer={null} onClose={() => setDestination(null)}>
           <div className="space-y-2">{activeCollections.map(collection => <Button key={collection.id} variant="outline" className="h-auto w-full justify-between gap-2 whitespace-normal py-3 text-left" onClick={() => beginForCollection(collection.id, destination)}><span className="break-words">{collection.name}</span><ArrowRight className="shrink-0" /></Button>)}</div>
           <Button variant="ghost" size="sm" onClick={() => { continuationKind.current = destination; continueWithEntry.current = true; setDestination(null); addCatalog("collections"); }}><Plus />{t("actions.new_collection")}</Button>
@@ -472,6 +513,7 @@ export default function TranslationKnowledge() {
             onImported={async (message) => {
               setNotice(message);
               await refresh();
+              setLibraryView('review');
             }}
           />
         )}

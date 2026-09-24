@@ -19,20 +19,24 @@ export function useNaturalHeight() {
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
-    const measure = () => {
+    const measure = (height: number) => {
       // Retained tab panels use display:none. Their missing layout box is not
       // an empty content tree: preserve the last natural size (or initial auto)
       // so showing the tab doesn't manufacture nested 0 -> content animations.
       if (!element.getClientRects().length) return;
       setSize(previous => {
-        const height = element.getBoundingClientRect().height;
         const following = hasMovingFlow(element);
         return previous !== null && Math.abs(previous.height - height) < 0.1 && previous.following === following ? previous : { height, following };
       });
     };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
+    // Screen-space rectangles include ancestor entrance scales (e.g. Popover
+    // zoom-in at .95). ResizeObserver doesn't fire when that transform ends,
+    // so caching the scaled rectangle permanently clips the last content.
+    measure(element.offsetHeight);
+    const observer = new ResizeObserver(([entry]) => {
+      measure(entry.borderBoxSize[0]?.blockSize ?? element.offsetHeight);
+    });
+    observer.observe(element, { box: 'border-box' });
     return () => observer.disconnect();
   }, []);
   return { ref, height: size?.height ?? null, following: size?.following ?? false };

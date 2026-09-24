@@ -31,7 +31,7 @@ describe('FK-TK/1', () => {
   })
   it('uses the same generated Draft 2020-12 schema for application and skill', () => {
     const expected = knowledgePackageJsonSchema()
-    for (const file of ['resources/translation-knowledge/knowledge-v1.schema.json', 'skills/fusionkit-translation-knowledge/references/knowledge-v1.schema.json']) expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(expected)
+    for (const file of ['resources/translation-knowledge/knowledge-v1.schema.json', '.agents/skills/fusionkit-translation-knowledge/references/knowledge-v1.schema.json']) expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(expected)
     expect(expected.$schema).toBe('https://json-schema.org/draft/2020-12/schema')
   })
   it('rejects duplicate keys, syntax errors, lone surrogates, and overflowing numbers before schema validation', () => {
@@ -156,7 +156,7 @@ describe('portable CLI', () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'fktk-cli-'))
     try {
       const cli = path.join(directory, 'validate.mjs')
-      cpSync('skills/fusionkit-translation-knowledge/scripts/validate.mjs', cli)
+      cpSync('.agents/skills/fusionkit-translation-knowledge/scripts/validate.mjs', cli)
       const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: 'utf8' })
       const good = invoke(path.join(exampleDirectory, 'multi-subject.fktk.json'), '--json')
       expect(good.status, good.stderr).toBe(0)

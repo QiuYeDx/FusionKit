@@ -717,5 +717,15 @@
     "review_stale": "The settings or source changed. Run the check again.",
     "review_trial_result": "View sample result",
     "review_rerun_trial": "Run sample again"
+  },
+  "track_naming": {
+    "label": "Result name (optional)",
+    "hint": "Leave blank to name by language and number. Used only for local records.",
+    "batch_hint": "Use this name for each result in the batch, or leave blank for automatic names.",
+    "rename": "Rename translation",
+    "name": "Result name",
+    "reset": "Use automatic name",
+    "save": "Save name",
+    "invalid": "Use up to 100 characters without line breaks or control characters."
   }
 }

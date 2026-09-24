@@ -15,6 +15,7 @@ import type { Collection, Subject } from "@/translation-knowledge/schemas";
 import { cn } from "@/lib/utils";
 import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import { languagePairLabel } from "./labels";
+import { KnowledgeSkillDownload } from "./KnowledgeSkillDownload";
 
 export type KnowledgeLibraryView = "materials" | "plans" | "review" | "archived" | "stored";
 
@@ -170,6 +171,7 @@ export function KnowledgeSidebar({
       <Button data-testid="knowledge-import" size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-2 py-1.5 text-xs" aria-label={t("actions.import")} title={t("actions.import")} disabled={busy || !snapshot || blocked} onClick={onImport}><Download className="size-3.5" />{t("sidebar.import")}</Button>
       <Button data-testid="knowledge-export" size="sm" variant="outline" className="h-auto min-h-8 min-w-0 whitespace-normal px-2 py-1.5 text-xs" aria-label={t("actions.export")} title={t("actions.export")} disabled={!snapshot || busy || blocked} onClick={onExport}><Upload className="size-3.5" />{t("sidebar.export")}</Button>
     </div>
+    <KnowledgeSkillDownload />
     <Link
       id="knowledge-tour-studio"
       data-testid="knowledge-open-studio"

@@ -14,7 +14,11 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await app?.close();
       if (child) expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
     } finally {
-      if (root) await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      if (root) {
+        expect(path.dirname(root)).toBe(path.resolve(tmpdir()));
+        expect(path.basename(root)).toMatch(/^fusionkit-materials-layout-/);
+        await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      }
     }
   });
 
@@ -26,6 +30,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
     fixture.collections[0].name = '游戏 X · 系列视频翻译资料与人物固定译法 / Game X terminology and dialogue references';
     const otherCollection = { ...fixture.collections[0], id: '30000000-0000-4000-8000-000000000002', name: '保留但不选用的其他资料集' };
     fixture.collections.push(otherCollection);
+    // Enough actual library rows to overflow the portalled picker at both sizes.
+    fixture.collections.push(...Array.from({ length: 18 }, (_, index) => ({ ...otherCollection,
+      id: `30000000-0000-4000-8000-${String(index + 3).padStart(12, '0')}`, name: `${index < 6 ? '六条样本 · ' : ''}滚轮验证资料集 ${index + 1}${index === 17 ? ' · 用较长的末条名称检查自然换行后，名称和语言说明仍能完整显示' : ''}` })));
     const input = path.join(root, 'materials-layout.fktk.json');
     const subtitleFiles = ['First episode with carefully confirmed cue scope.lrc', 'Second episode requires its own scope confirmations.lrc'].map(name => path.join(root, name));
     await writeFile(input, JSON.stringify(fixture));
@@ -86,6 +93,56 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await settled(); await target.scrollIntoViewIfNeeded(); await waitForGeometry(target);
       await geometry(target);
       await ui.screenshot({ path: path.join(artifacts, `${name}.png`), animations: 'disabled' });
+    };
+    const wheelPicker = async (name: string) => {
+      const picker = ui.getByTestId('studio-materials-picker');
+      const body = picker.locator('.studio-materials-picker-body');
+      await waitForGeometry(picker);
+      expect(await body.evaluate(node => node.scrollHeight - node.clientHeight)).toBeGreaterThan(100);
+      const background = () => ui.getByTestId('studio-translation-form').evaluate(node => [...node.closest('[role="dialog"]')!.querySelectorAll('[data-slot="scroll-area-viewport"]')].map(viewport => viewport.scrollTop));
+      const before = await background();
+      expect(before.length).toBeGreaterThan(0);
+      const box = (await body.boundingBox())!;
+      await ui.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      // Real wheel input: assigning scrollTop cannot detect a modal scroll lock.
+      await ui.mouse.wheel(0, 280);
+      await uiExpect.poll(() => body.evaluate(node => node.scrollTop)).toBeGreaterThan(30);
+      await capture(`${name}-wheel-down`, picker);
+      await ui.mouse.wheel(0, 10000);
+      await uiExpect.poll(() => body.evaluate(node => node.scrollHeight - node.clientHeight - node.scrollTop)).toBeLessThan(2);
+      const end = await picker.locator('.studio-materials-collection-row').last().evaluate(row => {
+        const box = row.getBoundingClientRect();
+        const clips = [];
+        const ancestors = [];
+        for (let parent = row.parentElement; parent; parent = parent.parentElement) {
+          const style = getComputedStyle(parent);
+          ancestors.push({ className: parent.className, inline: parent.getAttribute('style'), height: parent.getBoundingClientRect().height, scrollHeight: parent.scrollHeight, display: style.display, gap: style.gap, padding: style.padding, gridRows: style.gridTemplateRows, transform: style.transform });
+          if (!['auto', 'scroll', 'hidden', 'clip'].includes(getComputedStyle(parent).overflowY)) continue;
+          const bounds = parent.getBoundingClientRect();
+          clips.push({ className: parent.className, top: bounds.top, bottom: bounds.top + parent.clientTop + parent.clientHeight });
+        }
+        return { top: box.top, bottom: box.bottom, clips, ancestors };
+      });
+      visualMeasurements.push({ name: `${name}-last-row`, metrics: end });
+      await capture(`${name}-wheel-bottom`, picker);
+      for (const clip of end.clips) {
+        expect(end.top, `Last row above ${clip.className}`).toBeGreaterThanOrEqual(clip.top - 1);
+        expect(end.bottom, `Last row clipped by ${clip.className}`).toBeLessThanOrEqual(clip.bottom + 1);
+      }
+      const bottomGap = await body.evaluate((node, rowBottom) => node.getBoundingClientRect().bottom - rowBottom, end.bottom);
+      expect(bottomGap).toBeGreaterThanOrEqual(11);
+      expect(bottomGap).toBeLessThanOrEqual(14);
+      const footer = picker.locator('.studio-materials-picker-footer');
+      expect((await footer.boundingBox())!.height).toBeLessThanOrEqual(46);
+      const buttonSizes = await footer.locator('[data-slot="button"]').evaluateAll(nodes => nodes.map(node => ({ height: node.getBoundingClientRect().height, font: getComputedStyle(node).fontSize })));
+      expect(buttonSizes.length).toBeGreaterThanOrEqual(3);
+      for (const size of buttonSizes) { expect(size.height).toBe(28); expect(size.font).toBe('12px'); }
+      await ui.mouse.wheel(0, 300);
+      await ui.mouse.wheel(0, -10000);
+      await uiExpect.poll(() => body.evaluate(node => node.scrollTop)).toBeLessThan(2);
+      await ui.mouse.wheel(0, -300);
+      expect(await background()).toEqual(before);
+      await uiExpect(ui.getByTestId('studio-materials-done')).toBeVisible();
     };
     const disclosureLayout = async (name: string) => {
       await waitForGeometry(form());
@@ -300,11 +357,16 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await capture('single-empty-zh-light-wide', form());
       await compactLayout();
 
-      // A non-modal picker owns Escape. Closing it never closes its parent or
+      // The portalled picker owns scrolling and Escape. Closing it never closes its parent or
       // navigates, and selections take effect without an extra commit dialog.
       await ui.getByTestId('studio-materials-choose').click();
       const picker = ui.getByTestId('studio-materials-picker');
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(2);
+      await uiExpect(ui.getByRole('dialog', { includeHidden: true })).toHaveCount(2);
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
+      await wheelPicker('picker-zh-light-wide');
+      await ui.getByTestId('studio-materials-search').fill('六条样本');
+      await uiExpect(picker.locator('.studio-materials-collection-row')).toHaveCount(6);
+      await wheelPicker('picker-six-zh-light-wide');
       await ui.getByTestId('studio-materials-search').fill('There is no collection with this title');
       await uiExpect(ui.getByTestId('studio-materials-search-empty')).toBeVisible();
       await uiExpect(picker.locator('[data-testid^="studio-materials-collection-"]')).toHaveCount(0);
@@ -321,6 +383,13 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await uiExpect(ui.getByTestId(`studio-materials-collection-${fixture.collections[0].id}`)).toBeChecked();
       await capture('picker-selected-zh-light-wide', picker);
       await ui.getByTestId('studio-materials-done').click();
+      // Hand off to another dialog, then recover actual pointer interaction.
+      await ui.getByTestId('studio-materials-choose').click();
+      await ui.getByTestId('studio-materials-add-term').click();
+      await uiExpect(ui.getByTestId('quick-term-form')).toBeVisible();
+      await uiExpect(picker).toHaveCount(0);
+      await ui.keyboard.press('Escape');
+      await uiExpect(ui.getByTestId('quick-term-form')).toHaveCount(0);
       await ui.getByTestId('studio-materials-clear').click();
       await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
       await uiExpect(ui.getByTestId('studio-materials-source')).toHaveCount(0);
@@ -453,7 +522,10 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await ui.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); location.hash = '/tools/translation-knowledge'; });
       await ui.reload(); await nativeWindow.evaluate(win => win.setSize(820, 700)); await settled();
       await uiExpect(ui.locator('html')).toHaveClass(/dark/);
-      await capture('library-sidebar-en-dark-narrow', ui.locator('#knowledge-collection-list'));
+      // The skill-download help can make even the collapsed sidebar taller than
+      // the window. Check width here and individual actions' reachability below.
+      expect(await ui.locator('#knowledge-collection-list').evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+      await capture('library-sidebar-en-dark-narrow', ui.getByTestId('knowledge-new-collection'));
       const compactManagement = ui.locator('#knowledge-more-management');
       const managementTrigger = compactManagement.locator('[data-slot=accordion-trigger]').first();
       await managementTrigger.click();
@@ -501,7 +573,15 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await returnToSettings();
       await ui.getByTestId('studio-materials-choose').click();
       await capture('picker-selected-en-dark-narrow', picker);
+      await wheelPicker('picker-en-dark-narrow');
       await ui.keyboard.press('Escape'); await uiExpect(form()).toBeVisible();
+      const outerViewport = form().locator('[data-slot="scroll-area-viewport"]').first();
+      expect(await outerViewport.evaluate(node => node.scrollHeight - node.clientHeight)).toBeGreaterThan(50);
+      const outerBefore = await outerViewport.evaluate(node => node.scrollTop);
+      const outerBox = (await outerViewport.boundingBox())!;
+      await ui.mouse.move(outerBox.x + 8, outerBox.y + outerBox.height / 2);
+      await ui.mouse.wheel(0, outerBefore > 30 ? -200 : 200);
+      await uiExpect.poll(() => outerViewport.evaluate(node => node.scrollTop)).not.toBe(outerBefore);
       await closeTranslation();
       await showLibrary();
       for (const document of documents) await ui.locator(`[data-testid="studio-library-row"][data-document-id="${document.summary.id}"]`).getByRole('checkbox').check();

@@ -112,7 +112,9 @@ export function StudioMaterialsFields({ value, library, disabled, loading, onCha
       </div>
       <div className="studio-materials-heading-actions">
         {active && <Button data-testid="studio-materials-clear" type="button" variant="ghost" size="xs" disabled={disabled} onClick={() => onChange({ ...emptySelection(value.languagePair.target), languagePair: value.languagePair, ...(value.instructions !== undefined ? { instructions: value.instructions } : {}) })}>{t('studio:materials.clear')}</Button>}
-        <Popover open={choosing} onOpenChange={next => { if (!disabled || !next) setChoosing(next); }} modal={false}>
+        {/* The portalled picker must own its scroll lock: the parent dialog's
+            lock treats a non-modal portal as background and cancels its wheel events. */}
+        <Popover open={choosing} onOpenChange={next => { if (!disabled || !next) setChoosing(next); }} modal>
           <PopoverTrigger asChild><Button data-testid="studio-materials-choose" type="button" variant="outline" size="sm" disabled={disabled} aria-expanded={choosing} aria-controls={`${formId}-picker`}>{t(active ? 'materials:selection.change' : 'studio:materials.choose')}<ChevronDown className="size-3.5" aria-hidden="true" /></Button></PopoverTrigger>
           <PopoverContent id={`${formId}-picker`} data-testid="studio-materials-picker" aria-labelledby={`${formId}-picker-title`} className="studio-materials-picker" align="end" sideOffset={8} collisionPadding={16} onEscapeKeyDown={event => { event.stopPropagation(); }} onOpenAutoFocus={event => { if (searchRef.current && !searchRef.current.disabled) { event.preventDefault(); searchRef.current.focus(); } }}>
             <div className="studio-materials-picker-heading"><span id={`${formId}-picker-title`}>{t('studio:materials.choose')}</span><span>{t('materials:selection.selected_count', { count: selected.size })}</span></div>
