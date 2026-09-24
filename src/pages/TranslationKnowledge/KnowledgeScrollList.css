@@ -1,0 +1,3 @@
+.knowledge-scroll-list { min-width: 0; --studio-scroll-fade-surface: var(--card); }
+#knowledge-content [data-slot="tool-panel-header"] > div:first-child { max-width: 100%; }
+#knowledge-content [data-slot="clip-path-tabs"] { min-width: 0; font-weight: 500; }

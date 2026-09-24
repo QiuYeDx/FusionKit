@@ -279,6 +279,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       await capture('maintenance-archive-references');
       await ui.getByTestId('knowledge-maintenance-confirm').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      const moreManagement = ui.locator('#knowledge-more-management [data-slot=accordion-trigger]').first();
+      if (await moreManagement.getAttribute('aria-expanded') === 'false') await moreManagement.click();
       await ui.getByTestId('knowledge-archive').click();
       await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
       await ui.getByTestId('knowledge-entry-actions').click();

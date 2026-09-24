@@ -3,7 +3,7 @@ import type {
   MaintenanceRequest,
 } from "@/translation-knowledge/maintenance-contract";
 import { HistoryDialog, MaintenanceDialog } from "./Maintenance";
-import { languagePairLabel, optionKey } from "./labels";
+import { languagePairLabel } from "./labels";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence } from "motion/react";
@@ -59,6 +59,7 @@ import { InlineTermEditor } from "./InlineTermEditor";
 import { BulkTermPaste } from "./BulkTermPaste";
 import { KnowledgeTour, useKnowledgeTour } from "./KnowledgeTour";
 import { KnowledgeSidebar, type KnowledgeLibraryView } from "./KnowledgeSidebar";
+import { KnowledgeScrollList } from "./KnowledgeScrollList";
 import { ExportDialog, ImportDialog } from "./Exchange";
 import { EntryDetails } from "./EntryDetails";
 import { BatchReviewDialog } from "./BatchReviewDialog";
@@ -152,7 +153,6 @@ export default function TranslationKnowledge() {
       const archived = entry.state === "archived" || archivedCollections.has(entry.collectionId);
       if (view === "archived") return archived;
       if (archived) return false;
-      if (view === "stored") return entry.kind === "expression" || entry.kind === "memory";
       return true;
     });
   }, [snapshot, query, view, contentKind]);
@@ -381,7 +381,7 @@ export default function TranslationKnowledge() {
     planPage,
     Math.max(0, Math.ceil(plans.length / PAGE_SIZE) - 1),
   );
-  const workspaceTitle = currentCollection?.name ?? (view === "materials" ? t("workspace.all") : t(view === "plans" ? "views.plans" : view === "review" ? "workspace.review" : view === "archived" ? "workspace.archived" : "workspace.stored"));
+  const workspaceTitle = currentCollection?.name ?? (view === "materials" ? t("workspace.all") : t(view === "plans" ? "views.plans" : view === "review" ? "workspace.review" : "workspace.archived"));
   const editableCollection = view === "materials" && currentCollection && !currentCollection.archived ? currentCollection : null;
   const bulkCollection = snapshot?.data.collections.find(item => item.id === bulkCollectionId);
   return (
@@ -414,21 +414,19 @@ export default function TranslationKnowledge() {
           {view === "materials" && <ClipPathTabs data-testid="knowledge-views" size="sm" shape="rounded" smoothCorners value={contentKind} onValueChange={value => setContentKind(value as ContentKind)} ariaLabel={t("workspace.content_types")} items={[
             { value: "term", label: t("workspace.terms") }, { value: "context", label: t("workspace.contexts") }, { value: "rule", label: t("workspace.rules") },
           ]} />}
-          {view === "stored" && <p className="text-xs leading-5 text-muted-foreground">{t("guide.storage_only_help")}</p>}
-          <ToolPanel id="knowledge-content" title={t(view === "materials" ? `workspace.${contentKind === "term" ? "terms" : contentKind === "context" ? "contexts" : "rules"}` : view === "plans" ? "views.plans" : "views.materials")} badge={<Badge variant="secondary">{view === "plans" ? plans.length : filtered.length}</Badge>} actions={<>
+          <ToolPanel id="knowledge-content" title={view === "plans" ? <ClipPathTabs data-testid="knowledge-plan-tabs" size="sm" shape="rounded" smoothCorners value={planGroup} onValueChange={value => { setPlanGroup(value as typeof planGroup); setPlanPage(0); }} ariaLabel={t("plans.category")} items={[{ value: "recipes", label: t("plans.recipes") }, { value: "styles", label: t("plans.styles") }, { value: "preferenceTemplates", label: t("plans.preferenceTemplates") }]} /> : t(view === "materials" ? `workspace.${contentKind === "term" ? "terms" : contentKind === "context" ? "contexts" : "rules"}` : "views.materials")} badge={<Badge variant="secondary">{view === "plans" ? plans.length : filtered.length}</Badge>} actions={<>
             {!['plans', 'archived', 'review'].includes(view) && reviewable.length > 0 && <Button data-testid="knowledge-batch-toggle" size="sm" variant="outline" disabled={busy || blocked} onClick={() => { setBatchMode(value => !value); setBatchIds([]); }}><Check />{t(batchVisible ? 'bulk_review.exit' : 'bulk_review.title')}</Button>}
             {view === "materials" && contentKind === "term" && <Button data-testid="knowledge-paste-open" variant="outline" size="sm" disabled={busy || blocked} onClick={() => startEntry("bulk")}><ClipboardPaste />{t("paste.title")}</Button>}
             {(view === "materials" || view === "plans") && <Button data-testid="knowledge-new-entry" size="sm" disabled={busy || blocked} onClick={() => view === "plans" ? addCatalog(planGroup) : startEntry()}><Plus />{t(view === "plans" ? "actions.new_plan_item" : contentKind === "term" ? "workspace.add_term" : contentKind === "context" ? "workspace.add_context" : "workspace.add_rule")}</Button>}
           </>} bodyClassName="min-w-0">
             <div className="space-y-3 border-b p-3"><div className="relative"><Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" /><Input aria-label={t("filters.search")} placeholder={t("filters.search")} value={query.search} onChange={event => { change("search", event.target.value); setPlanPage(0); }} className="h-8 pl-8 text-sm" /></div>
-              {view === "plans" && <Choice label={t("plans.category")} value={planGroup} onChange={value => { setPlanGroup(value as typeof planGroup); setPlanPage(0); }} options={["recipes", "styles", "preferenceTemplates"].map(value => ({ value, label: t(optionKey(`group.${value}`)) }))} />}
               {view === 'review' && <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                 <Choice label={t('bulk_review.collection')} value={query.collection} disabled={busy || blocked} onChange={value => change('collection', value)} options={[{ value: 'all', label: t('workspace.all') }, ...activeCollections.map(c => ({ value: c.id, label: c.name }))]} />
                 <Choice label={t('bulk_review.kind')} value={query.kind} disabled={busy || blocked} onChange={value => change('kind', value)} options={[{ value: 'all', label: t('bulk_review.all_kinds') }, ...(['term', 'context', 'rule', 'expression', 'memory'] as const).map(value => ({ value, label: t(`kind.${value}`) }))]} />
               </div>}
             </div>
             {view === "plans" ? <>
-              <div className="space-y-1 p-2">{plans.slice(safePlanPage * PAGE_SIZE, (safePlanPage + 1) * PAGE_SIZE).map(item => <div key={item.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted/50"><button data-catalog-id={item.id} className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCatalog({ group: planGroup, record: item })}><p className="break-words text-sm font-medium">{item.name}{item.archived ? ` · ${t("status.archived")}` : ""}</p><p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">{"description" in item ? item.description : item.instructions}</p></button><Button size="icon-sm" variant="ghost" aria-label={t("actions.copy")} onClick={() => setCatalog({ group: planGroup, record: { ...item, id: freshId(), revision: 1, name: t("copy_name", { name: item.name }), archived: false } })}><Copy /></Button></div>)}{!plans.length && <Empty title={t("empty.plans")} description={t("empty.plans_help")} />}</div>
+              <KnowledgeScrollList key={`plans:${planGroup}:${safePlanPage}:${query.search}`} testId="knowledge-results-scroll">{plans.slice(safePlanPage * PAGE_SIZE, (safePlanPage + 1) * PAGE_SIZE).map(item => <div key={item.id} className="flex items-start gap-2 rounded-md p-2 hover:bg-muted/50"><button data-catalog-id={item.id} className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCatalog({ group: planGroup, record: item })}><p className="break-words text-sm font-medium">{item.name}{item.archived ? ` · ${t("status.archived")}` : ""}</p><p className="mt-1 line-clamp-2 break-words text-xs text-muted-foreground">{"description" in item ? item.description : item.instructions}</p></button><Button size="icon-sm" variant="ghost" aria-label={t("actions.copy")} onClick={() => setCatalog({ group: planGroup, record: { ...item, id: freshId(), revision: 1, name: t("copy_name", { name: item.name }), archived: false } })}><Copy /></Button></div>)}{!plans.length && <Empty title={t("empty.plans")} description={t("empty.plans_help")} />}</KnowledgeScrollList>
               <Pagination page={safePlanPage} total={plans.length} onChange={setPlanPage} />
             </> : <>
               {batchVisible && <div data-testid="knowledge-batch-toolbar" className="space-y-2 border-b p-3">
@@ -445,7 +443,7 @@ export default function TranslationKnowledge() {
                 </div>
               </div>}
               {view === "materials" && contentKind === "term" && filtered.length > 0 && <div className={`grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_28px] gap-3 border-b py-2 pr-4 text-xs text-muted-foreground ${batchVisible ? 'pl-10' : 'pl-4'}`}><span>{t("fields.source_text")}</span><span>{t("fields.target_text")}</span><span /></div>}
-              <div className="space-y-1 p-2">{filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE).map(entry => <div key={entry.id} className={`group flex min-w-0 items-start gap-2 rounded-md p-2 hover:bg-muted/60 ${batchVisible && selectedIds.includes(entry.id) ? 'bg-muted/60' : ''}`}>
+              <KnowledgeScrollList key={`${selectionScope}:${safePage}`} testId="knowledge-results-scroll">{filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE).map(entry => <div key={entry.id} className={`group flex min-w-0 items-start gap-2 rounded-md p-2 hover:bg-muted/60 ${batchVisible && selectedIds.includes(entry.id) ? 'bg-muted/60' : ''}`}>
                 {batchVisible && <Checkbox className="mt-1 shrink-0" data-testid={`knowledge-select-entry-${entry.id}`} aria-label={t('bulk_review.select_entry', { title: entry.title })} disabled={!needsReview(entry, snapshot) || busy || blocked} checked={selectedIds.includes(entry.id)} onCheckedChange={checked => setBatchIds(checked ? [...selectedIds, entry.id] : selectedIds.filter(id => id !== entry.id))} />}
                 <button data-entry-id={entry.id} onClick={() => setEntryEditor(entry)} className="min-w-0 flex-1 rounded text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   {entry.kind === "term" ? <div className="grid grid-cols-2 gap-3 text-sm"><span className="break-words font-medium">{entry.payload.source}</span><span className="break-words">{entry.payload.target}</span></div> : <p className="whitespace-pre-wrap break-words text-sm leading-6">{entrySummary(entry)}</p>}
@@ -458,7 +456,7 @@ export default function TranslationKnowledge() {
                   </div>
                 </button>
                 <Button size="icon-sm" variant="ghost" data-testid={`knowledge-entry-details-${entry.id}`} aria-label={t("workspace.entry_details")} onClick={() => { setSelected(entry.id); setDetailError(null); }}><Ellipsis /></Button>
-              </div>)}{!filtered.length && <Empty title={t(view === "review" ? "empty.review" : "workspace.empty_content")} description={t(query.search ? "empty.filtered" : "workspace.empty_content_help")} />}</div>
+              </div>)}{!filtered.length && <Empty title={t(view === "review" ? "empty.review" : "workspace.empty_content")} description={t(query.search ? "empty.filtered" : "workspace.empty_content_help")} />}</KnowledgeScrollList>
               {editableCollection && contentKind === "term" && <InlineTermEditor key={editableCollection.id} collection={editableCollection} snapshot={snapshot} disabled={busy || blocked} onSave={save} onAdvanced={setEntryEditor} />}
               <Pagination page={safePage} total={filtered.length} onChange={setPage} />
             </>}

@@ -318,7 +318,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
         }
       });
       await ui.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
-      await capture('library-sidebar-zh-light-wide', ui.locator('#knowledge-collection-list'));
+      await capture('library-sidebar-zh-light-wide', ui.getByTestId('knowledge-plans'));
       for (const id of ['knowledge-import', 'knowledge-export', 'knowledge-open-studio']) await uiExpect(ui.getByTestId(id)).toBeVisible();
       await ui.getByTestId('knowledge-export').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
@@ -529,11 +529,12 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       const compactManagement = ui.locator('#knowledge-more-management');
       const managementTrigger = compactManagement.locator('[data-slot=accordion-trigger]').first();
       await managementTrigger.click();
-      const subjectsTrigger = compactManagement.getByRole('button', { name: enKnowledge.subjects.title, exact: true });
+      const subjectsPanel = ui.locator('#knowledge-subjects');
+      const subjectsTrigger = subjectsPanel.getByRole('button', { name: enKnowledge.subjects.title, exact: true });
       await subjectsTrigger.click();
       await uiExpect(managementTrigger).toHaveAttribute('aria-expanded', 'true');
       await uiExpect(subjectsTrigger).toHaveAttribute('aria-expanded', 'true');
-      for (const subject of fixture.subjects) await uiExpect(compactManagement.getByRole('button', { name: subject.name, exact: true })).toBeVisible();
+      for (const subject of fixture.subjects) await uiExpect(subjectsPanel.getByRole('button', { name: subject.name, exact: true })).toBeVisible();
       // The expanded sidebar can be taller than the window. Verify the actual
       // controls are reachable while scrolling, including fixed navigation.
       for (const id of ['knowledge-history', 'knowledge-import', 'knowledge-export', 'knowledge-open-studio']) {

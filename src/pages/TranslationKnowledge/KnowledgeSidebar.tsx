@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   Archive, ArrowRight, BookOpen, CircleCheck, Download, Folder, FolderPlus,
-  History, Layers3, Library, Plus, SlidersHorizontal, Subtitles,
+  History, Layers3, Plus, SlidersHorizontal, Subtitles,
   Upload, Users, type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,9 @@ import { cn } from "@/lib/utils";
 import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import { languagePairLabel } from "./labels";
 import { KnowledgeSkillDownload } from "./KnowledgeSkillDownload";
+import { KnowledgeScrollList } from "./KnowledgeScrollList";
 
-export type KnowledgeLibraryView = "materials" | "plans" | "review" | "archived" | "stored";
+export type KnowledgeLibraryView = "materials" | "plans" | "review" | "archived";
 
 type KnowledgeSidebarProps = {
   snapshot: LibrarySnapshot | null;
@@ -119,6 +120,23 @@ export function KnowledgeSidebar({
     </Tooltip>}
     bodyClassName="min-w-0"
   >
+    <div className="space-y-1 border-b p-2">
+      <NavigationRow id="knowledge-plans" data-testid="knowledge-plans" icon={SlidersHorizontal} active={view === "plans"} onClick={() => onSelectView("plans")}>{t("views.plans")}</NavigationRow>
+      <KnowledgeDisclosure
+        id="knowledge-subjects"
+        variant="inline"
+        title={<span className="flex items-center gap-2.5 text-[13px] font-normal"><Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />{t("subjects.title")}</span>}
+        className="[&>div>h3>button]:px-2.5"
+        contentClassName="space-y-1 pl-8 pr-2 pb-2"
+      >
+        <KnowledgeScrollList testId="knowledge-subjects-scroll" maxHeight="min(15rem, 32vh)" contentClassName="space-y-1 p-1">
+          {snapshot?.data.subjects.map(subject => <Button key={subject.id} data-catalog-id={subject.id} variant="ghost" size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal px-2 text-left text-xs [overflow-wrap:anywhere]" onClick={() => onEditSubject(subject)}>
+            {subject.name}{subject.archived ? ` · ${t("status.archived")}` : ""}
+          </Button>)}
+        </KnowledgeScrollList>
+        <Button variant="outline" size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal text-left text-xs" disabled={!snapshot || blocked} onClick={onCreateSubject}><Plus />{t("actions.new_subject")}</Button>
+      </KnowledgeDisclosure>
+    </div>
     <nav aria-label={t("workspace.collections")} className="space-y-1 p-2">
       <NavigationRow
         data-testid="knowledge-all"
@@ -127,9 +145,9 @@ export function KnowledgeSidebar({
         count={activeEntryCount}
         onClick={() => onSelectCollection("all")}
       >{t("workspace.all")}</NavigationRow>
-      <div data-testid="knowledge-collections-scroll" className="max-h-[min(19rem,42vh)] space-y-1 overflow-y-auto overscroll-contain">
+      <KnowledgeScrollList testId="knowledge-collections-scroll" maxHeight="min(19rem, 42vh)" contentClassName="space-y-1 p-1">
         {activeCollections.map(collection => collectionRow(collection))}
-      </div>
+      </KnowledgeScrollList>
       {!activeCollections.length && <p className="px-2.5 py-3 text-xs leading-5 text-muted-foreground">{t("workspace.empty_collections")}</p>}
     </nav>
 
@@ -137,12 +155,6 @@ export function KnowledgeSidebar({
       {reviewCount > 0 && <NavigationRow data-testid="knowledge-review" icon={CircleCheck} active={view === "review"} count={reviewCount} onClick={() => onSelectView("review")}>
         {t("workspace.review")}
       </NavigationRow>}
-      <NavigationRow data-testid="knowledge-archive" icon={Archive} active={view === "archived" && selectedCollectionId === "all"} onClick={() => onSelectView("archived")}>
-        {t("workspace.archived")}
-      </NavigationRow>
-      {view === "archived" && archivedCollections.length > 0 && <div className="ml-4 max-h-40 space-y-1 overflow-y-auto overscroll-contain border-l pl-2">
-        {archivedCollections.map(collection => collectionRow(collection, true))}
-      </div>}
       <KnowledgeDisclosure
         id="knowledge-more-management"
         variant="inline"
@@ -150,19 +162,10 @@ export function KnowledgeSidebar({
         className="[&>div>h3>button]:px-2.5"
         contentClassName="space-y-1 px-0 pb-0 pt-1"
       >
-        <NavigationRow icon={SlidersHorizontal} active={view === "plans"} onClick={() => onSelectView("plans")}>{t("views.plans")}</NavigationRow>
-        <NavigationRow icon={Library} active={view === "stored"} onClick={() => onSelectView("stored")}>{t("workspace.stored")}</NavigationRow>
-        <KnowledgeDisclosure
-          variant="inline"
-          title={<span className="flex items-center gap-2.5 text-[13px] font-normal"><Users aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />{t("subjects.title")}</span>}
-          className="[&>div>h3>button]:px-2.5"
-          contentClassName="space-y-1 pl-8 pr-2 pb-2"
-        >
-          {snapshot?.data.subjects.map(subject => <Button key={subject.id} data-catalog-id={subject.id} variant="ghost" size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal px-2 text-left text-xs [overflow-wrap:anywhere]" onClick={() => onEditSubject(subject)}>
-            {subject.name}{subject.archived ? ` · ${t("status.archived")}` : ""}
-          </Button>)}
-          <Button variant="outline" size="sm" className="h-auto min-h-8 w-full justify-start whitespace-normal text-left text-xs" disabled={!snapshot || blocked} onClick={onCreateSubject}><Plus />{t("actions.new_subject")}</Button>
-        </KnowledgeDisclosure>
+        <NavigationRow data-testid="knowledge-archive" icon={Archive} active={view === "archived" && selectedCollectionId === "all"} onClick={() => onSelectView("archived")}>{t("workspace.archived")}</NavigationRow>
+        {view === "archived" && archivedCollections.length > 0 && <div className="ml-4 border-l pl-2"><KnowledgeScrollList testId="knowledge-archived-collections-scroll" maxHeight="10rem" contentClassName="space-y-1 p-1">
+          {archivedCollections.map(collection => collectionRow(collection, true))}
+        </KnowledgeScrollList></div>}
         <NavigationRow data-testid="knowledge-history" icon={History} disabled={!snapshot || busy} onClick={onHistory}>{t("sidebar.history")}</NavigationRow>
       </KnowledgeDisclosure>
     </div>

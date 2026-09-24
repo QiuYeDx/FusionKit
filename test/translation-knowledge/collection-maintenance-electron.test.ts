@@ -317,6 +317,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       expect(stored.data.entries.find(entry => entry.id === fixture.archivalTerm.id)?.state).toBe('needs_review');
       expect(stored.approvals[fixture.archivalTerm.id]).toBeUndefined();
       expect(stored.data.sources.find(source => source.id === fixture.archivalSource.id)).toEqual(fixture.archivalSource);
+      const moreManagement = ui.locator('#knowledge-more-management [data-slot=accordion-trigger]').first();
+      if (await moreManagement.getAttribute('aria-expanded') === 'false') await moreManagement.click();
       await ui.getByTestId('knowledge-archive').click();
       await selectCollection(fixture.archival.id, fixture.archival.name);
       await uiExpect(ui.locator(`[data-entry-id="${fixture.archivalTerm.id}"]`)).toBeVisible();

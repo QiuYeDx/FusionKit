@@ -412,8 +412,6 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
         await uiExpect(byTestId('knowledge-catalog-editor')).toBeVisible();
         await closeRecord();
         await uiExpect(allDialogs()).toHaveCount(0);
-        const management = page.locator('#knowledge-more-management').locator('[data-slot="accordion-trigger"]').first();
-        if (await management.getAttribute('aria-expanded') === 'false') await management.click();
         await page.getByRole('button', { name: labels.views.plans, exact: true }).click();
         await page.getByRole('button').filter({ hasText: fixture.recipes[0].name }).first().click();
         await uiExpect(byTestId('knowledge-catalog-editor')).toBeVisible();

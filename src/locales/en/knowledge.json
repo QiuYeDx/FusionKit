@@ -233,7 +233,10 @@
   },
   "plans": {
     "category": "Category",
-    "notice": "Presets combine collections, styles and translation requirements for use in Subtitle Studio. Only applicable approved context, terms and rules participate. Global preferences and automatic learning are not enabled yet."
+    "notice": "Presets combine collections, styles and translation requirements for use in Subtitle Studio. Only applicable approved context, terms and rules participate. Global preferences and automatic learning are not enabled yet.",
+    "recipes": "Presets",
+    "styles": "Styles",
+    "preferenceTemplates": "Preferences"
   },
   "empty": {
     "options": "No items available",
@@ -754,13 +757,13 @@
     "materials_title": "Choose a collection and write",
     "materials_content": "Select a collection on the left to maintain fixed translations, context and requirements. You can combine collections in Studio.",
     "term_example": "チェックポイント",
-    "materials_hint": "A fixed translation looks like this. Existing expressions and reference translations remain under More management.",
+    "materials_hint": "Enter fixed translations as source and target pairs. Manage context and translation requirements in their own tabs.",
     "review_title": "Save and apply when ready",
     "review_content": "Choose Save and apply to make your content available for new translations. Type terms directly or paste a table and review the rows together.",
     "review_hint": "Use Save draft if you are still working on it. Editing materials does not change existing translations.",
-    "plans_title": "More management when needed",
-    "plans_content": "Find subjects, existing plans and other saved materials here. Imported content and unconfirmed drafts appear under To confirm on the left.",
-    "plans_hint": "Collections are enough for everyday use. Entry details keep sources, revisions and explicit scope conditions accessible.",
+    "plans_title": "Presets and styles",
+    "plans_content": "Manage translation presets, styles and preference templates here. Manage subjects separately below.",
+    "plans_hint": "Archived materials and import history are under More management.",
     "studio_title": "Choose materials for this task",
     "studio_content": "Open Subtitle Studio and choose collections in translation settings. Starting a translation or trial checks local materials before sending a request.",
     "studio_hint": "No selection means no materials. Only confirmed content matching the language and scope is included; terms must also match the source."
@@ -778,7 +781,6 @@
     "review": "To confirm",
     "archived": "Archived",
     "management": "More management",
-    "stored": "Other saved materials",
     "mixed_languages": "Multiple language pairs",
     "edit_collection": "Edit collection",
     "content_types": "Material content types",

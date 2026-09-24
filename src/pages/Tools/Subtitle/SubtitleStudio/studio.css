@@ -159,17 +159,25 @@
 .studio-raw li:last-child { border-bottom: 0; }
 .studio-raw li > span { padding-right: 12px; font: 10px/16px ui-monospace, monospace; color: var(--muted-foreground); text-align: right; font-variant-numeric: tabular-nums; }
 .studio-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/16px ui-monospace, monospace; user-select: text; }
-.studio-translation-toolbar { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px 12px; flex-shrink: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.studio-translation-toolbar { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); }
 .studio-translation-track-controls { display: flex; align-items: center; gap: 6px; min-width: 0; flex-shrink: 0; }
 .studio-translation-track-controls [data-slot="select-value"], .studio-plan-document-track [data-slot="select-value"] { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-track-options { max-width: min(380px, calc(100vw - 32px)); }
 .studio-track-options [data-slot="select-item"] { white-space: normal; overflow-wrap: anywhere; }
-.studio-translation-progress-controls { display: flex; align-items: flex-start; justify-content: flex-end; flex-wrap: wrap; flex: 1 1 280px; gap: 4px 8px; min-width: 0; margin-left: auto; }
+.studio-translation-progress-controls { display: flex; align-items: center; justify-content: flex-end; flex: 1 1 0; gap: 6px; min-width: 0; margin-left: auto; }
 .studio-translation-progress-controls:empty { display: none; }
-.studio-translation-progress-controls .studio-translation-status { justify-content: flex-end; font-variant-numeric: tabular-nums; }
-.studio-translation-progress-controls .studio-translation-status > span:first-child { min-height: 32px; }
+.studio-translation-progress-controls .studio-translation-status { flex: 1; flex-wrap: nowrap; justify-content: flex-end; gap: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.studio-translation-progress-controls .studio-translation-status > span { flex-shrink: 0; }
+.studio-translation-progress-controls .studio-translation-status > .studio-translation-usage { display: block; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.studio-translation-progress-controls .studio-translation-status > span:first-child { min-height: 28px; }
+.studio-translation-progress-controls .studio-translation-status > button { flex-shrink: 0; }
 .studio-translation-progress-controls .studio-translation-task-controls { flex-shrink: 0; max-width: 100%; }
 .studio-translation-toolbar [data-slot=select-trigger] { height: 28px; min-height: 28px; }
+@container (max-width: 640px) {
+  .studio-translation-toolbar [data-slot=select-trigger] { width: 124px; }
+  .studio-translation-track-controls { gap: 2px; }
+  .studio-translation-progress-controls .studio-translation-status { gap: 6px; }
+}
 .studio-parallel-text { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .studio-target-text { min-width: 0; }
 .studio-reader-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }

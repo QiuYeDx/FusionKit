@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle, Calculator, CheckCheck, FileText, Files, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -385,7 +386,7 @@ export function StudioTranslationStatus({ page, trackId, busy = false, onRecheck
   return <div className="studio-translation-status" role="status" data-state={task.status}>
     <span className={failed ? 'text-destructive' : ''}>{running ? <LoaderCircle className="size-3.5 studio-spin" /> : failed ? <AlertCircle className="size-3.5" /> : <CheckCheck className="size-3.5" />}{t(statusKeys[task.status])}</span>
     <span>{t('studio:translation.batch_progress', { completed: task.completedBatchIds.length, total: task.translation.totalBatches })}</span>
-    <span>{t('studio:translation.actual_usage', { input: count(task.translation.usage.inputTokens), output: count(task.translation.usage.outputTokens) })}</span>
+    <Tooltip><TooltipTrigger asChild><span tabIndex={0} className="studio-translation-usage">{t('studio:translation.actual_usage', { input: count(task.translation.usage.inputTokens), output: count(task.translation.usage.outputTokens) })}</span></TooltipTrigger><TooltipContent className="max-w-xs">{t('studio:translation.actual_usage', { input: count(task.translation.usage.inputTokens), output: count(task.translation.usage.outputTokens) })}</TooltipContent></Tooltip>
     {(task.translation.uncertainAttempts ?? task.uncertainBatchIds.length) > 0 && <span>{t('studio:translation.uncertain_usage', { count: task.translation.uncertainAttempts ?? task.uncertainBatchIds.length })}</span>}
     {task.translation.error && <span className="text-destructive">{t(errorKeys[task.translation.error])}</span>}
     {execution}

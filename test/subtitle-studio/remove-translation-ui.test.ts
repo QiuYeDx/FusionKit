@@ -16,7 +16,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('translation record rem
       requests.push(body);
       const payload = JSON.parse(JSON.parse(body).messages[1].content);
       response.setHeader('Content-Type', 'application/json');
-      response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ items: payload.items.map((item: { id: string }) => ({ id: item.id, text: `译文 ${item.id}` })) }) } }], usage: { prompt_tokens: 20, completion_tokens: 10, total_tokens: 30 } }));
+      response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ items: payload.items.map((item: { id: string }) => ({ id: item.id, text: `译文 ${item.id}` })) }) } }], usage: { prompt_tokens: 14450, completion_tokens: 1312, total_tokens: 15762 } }));
     });
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     const port = (server.address() as { port: number }).port;
@@ -65,6 +65,21 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('translation record rem
         await uiExpect.poll(async () => (await readDocument()).tasks.filter(task => task.status === 'completed').length).toBe(index + 1);
       }
       const initial = await readDocument(); expect(initial.translationTracks).toHaveLength(2);
+      const checkToolbar = async (name: string) => {
+        const toolbar = page.locator('.studio-translation-toolbar');
+        await uiExpect(page.getByTestId('studio-execution-record')).toBeVisible();
+        await uiExpect.poll(() => toolbar.evaluate(node => node.getBoundingClientRect().height)).toBeLessThanOrEqual(46);
+        expect(await toolbar.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+        const record = (await page.getByTestId('studio-execution-record').boundingBox())!;
+        const rename = (await page.getByTestId('studio-rename-translation').boundingBox())!;
+        expect(Math.abs(record.y + record.height / 2 - rename.y - rename.height / 2)).toBeLessThan(2);
+        await page.locator('.studio-translation-usage').hover();
+        await uiExpect(page.getByRole('tooltip', { name: /实际 tokens/ })).toContainText('14,450');
+        await page.mouse.move(1, 1);
+        await page.screenshot({ path: path.join(artifacts, `toolbar-${name}.png`), animations: 'disabled' });
+      };
+      await window.evaluate(win => win.setSize(1100, 800));
+      await checkToolbar('light-constrained');
       expect(initial.translationTracks[0].name).toBeUndefined();
       expect(initial.translationTracks[1].name).toBe('夜间陪伴 · 初稿');
       expect(requests.join('\n')).not.toContain('夜间陪伴');
@@ -92,6 +107,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('translation record rem
       await page.evaluate(() => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })));
       await window.evaluate(win => win.setSize(820, 700)); await page.reload(); await settled();
       await uiExpect(page.locator('html')).toHaveClass(/dark/);
+      await checkToolbar('dark-narrow');
       await select(recordNames[1]);
       await page.getByTestId('studio-rename-translation').click();
       await page.getByTestId('studio-rename-input').fill('取消的改名');
