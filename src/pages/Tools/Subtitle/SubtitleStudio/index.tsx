@@ -3,7 +3,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent }
 import { AnimatePresence } from 'motion/react';
 import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { readStudioNavigationView } from './navigation';
 import { AlertCircle, ArrowRight, AudioLines, CheckCheck, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -65,7 +66,8 @@ let lastWorkspaceView: WorkspaceView = 'documents';
 
 export default function SubtitleStudio() {
   const { t } = useTranslation();
-  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>(lastWorkspaceView);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>(() => readStudioNavigationView(searchParams.toString()) ?? lastWorkspaceView);
   const workspaceRoot = useRef<HTMLDivElement>(null);
   const resetWorkspaceScroll = () => {
     const viewport = workspaceRoot.current?.closest('[data-radix-scroll-area-viewport]');
@@ -79,6 +81,14 @@ export default function SubtitleStudio() {
     lastWorkspaceView = value; setWorkspaceView(value);
   };
   useLayoutEffect(resetWorkspaceScroll, [workspaceView]);
+  useEffect(() => {
+    const hint = readStudioNavigationView(searchParams.toString());
+    if (!hint) return;
+    changeWorkspaceView(hint);
+    lastWorkspaceView = hint;
+    const next = new URLSearchParams(searchParams); next.delete('view');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   const { encoding, setEncoding, dismissedRecoveryKey, dismissRecovery } = useStudioPreferences();
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const librarySnapshot = useRef<DocumentListSnapshot | null>(null);

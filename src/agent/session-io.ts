@@ -1,18 +1,40 @@
 import useAgentStore from "@/store/agent/useAgentStore";
-import { parseSessionJson } from "./session-schema";
+import { MAX_SESSION_BYTES, parseSessionJson } from "./session-schema";
 
-export async function exportSession(): Promise<boolean> {
-  const data = useAgentStore.getState().getSessionExportData();
-  const json = JSON.stringify(data, null, 2);
+export interface SessionExportResult {
+  success: boolean;
+  cancelled?: boolean;
+  errorCode?: "too_large" | "invalid" | "save_failed";
+}
+
+export async function exportSession(): Promise<SessionExportResult> {
+  let json: string;
+  let createdAt: number;
+  try {
+    const data = useAgentStore.getState().getSessionExportData();
+    json = JSON.stringify(data, null, 2);
+    if (json.length > MAX_SESSION_BYTES || new TextEncoder().encode(json).byteLength > MAX_SESSION_BYTES) {
+      return { success: false, errorCode: "too_large" };
+    }
+    // Validate the exact bytes we save, without truncating history or restoring authority.
+    createdAt = parseSessionJson(json).session.createdAt;
+  } catch {
+    return { success: false, errorCode: "invalid" };
+  }
 
   try {
     const result = await window.ipcRenderer.invoke("save-session-file", {
-      defaultName: `agent-session-${formatDateForFilename(data.session.createdAt)}.json`,
+      defaultName: `agent-session-${formatDateForFilename(createdAt)}.json`,
       content: json,
     });
-    return result?.success === true;
+    if (result?.success === true) return { success: true };
+    // The existing main handler returns only { success: false } on dialog cancellation.
+    if (result?.cancelled === true || (result?.success === false && !result.error && result.cancelled !== false)) {
+      return { success: false, cancelled: true };
+    }
+    return { success: false, errorCode: "save_failed" };
   } catch {
-    return false;
+    return { success: false, errorCode: "save_failed" };
   }
 }
 

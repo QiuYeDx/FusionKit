@@ -15,14 +15,6 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import useAgentStore from "@/store/agent/useAgentStore";
 import type { AgentLogEntry, AgentLogEntryType } from "@/agent/types";
@@ -31,6 +23,9 @@ import {
   ScrollableDialog,
   ScrollableDialogContent,
   ScrollableDialogHeader,
+  ScrollableDialogFooter,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/qiuye-ui/scrollable-dialog";
 import { Badge } from "@/components/ui/badge";
 
@@ -97,16 +92,48 @@ export default function SessionLogViewer({
   const { t, i18n } = useTranslation();
   const sessionLog = useAgentStore((s) => s.sessionLog);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLElement | null>(null);
+  const followLatest = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
 
   const locale = i18n.resolvedLanguage || i18n.language || "en-US";
 
   useEffect(() => {
-    if (open) {
-      requestAnimationFrame(() =>
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" }),
-      );
-    }
+    if (!open) return;
+    let viewport: HTMLElement | null = null;
+    const onScroll = () => {
+      if (!viewport) return;
+      const following = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop <= 16;
+      followLatest.current = following;
+      setAtBottom(following);
+    };
+    const frame = requestAnimationFrame(() => {
+      viewport = bottomRef.current?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]') ?? null;
+      viewportRef.current = viewport;
+      followLatest.current = true;
+      setAtBottom(true);
+      if (viewport) {
+        viewport.dataset.testid = "logs-viewport";
+        viewport.scrollTop = viewport.scrollHeight;
+        viewport.addEventListener("scroll", onScroll, { passive: true });
+      }
+    });
+    return () => { cancelAnimationFrame(frame); viewport?.removeEventListener("scroll", onScroll); viewportRef.current = null; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || !followLatest.current) return;
+    const frame = requestAnimationFrame(() => {
+      if (followLatest.current && viewportRef.current) viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [open, sessionLog.length]);
+
+  const scrollToLatest = () => {
+    followLatest.current = true;
+    if (viewportRef.current) viewportRef.current.scrollTop = viewportRef.current.scrollHeight;
+    setAtBottom(true);
+  };
 
   return (
     <ScrollableDialog
@@ -114,7 +141,7 @@ export default function SessionLogViewer({
       open={open}
       onOpenChange={onOpenChange}
     >
-      <ScrollableDialogHeader className="px-6 pt-6 pb-3">
+      <ScrollableDialogHeader className="p-3 pr-12">
         <DialogTitle className="text-base">
           {t("home:session_log_title")}
         </DialogTitle>
@@ -123,7 +150,7 @@ export default function SessionLogViewer({
         </DialogDescription>
       </ScrollableDialogHeader>
       <ScrollableDialogContent
-        className="max-h-[80vh] flex flex-col p-0 gap-0"
+        className="min-h-0 p-0 [&_[data-dialog-body-measure]]:p-3 [&_[data-slot=scroll-area-viewport]>div]:!block"
         fadeMasks={true}
         fadeMaskHeight={40}
       >
@@ -132,14 +159,15 @@ export default function SessionLogViewer({
             {t("home:session_log_empty")}
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className="space-y-1" data-testid="agent-log-entries">
             {sessionLog.map((entry) => (
               <LogEntryRow key={entry.id} entry={entry} locale={locale} />
             ))}
-            <div ref={bottomRef} />
           </div>
         )}
+        <div ref={bottomRef} />
       </ScrollableDialogContent>
+      {!atBottom && <ScrollableDialogFooter className="flex justify-end p-3"><Button variant="outline" size="sm" className="h-7 text-xs" onClick={scrollToLatest} data-testid="logs-latest">{t("home:logs_latest")}</Button></ScrollableDialogFooter>}
     </ScrollableDialog>
   );
 }
@@ -158,11 +186,12 @@ function LogEntryRow({
   const typeLabel = t(`home:log_type_${entry.type}`);
 
   return (
-    <div className={cn("rounded-lg border px-3 py-2", BG_MAP[entry.type])}>
+    <div className={cn("rounded-lg border px-3 py-2", BG_MAP[entry.type])} data-testid={`agent-log-entry-${entry.id}`}>
       <button
         type="button"
         disabled={!hasData}
         aria-expanded={hasData ? expanded : undefined}
+        data-testid={`agent-log-toggle-${entry.id}`}
         className={cn(
           "flex w-full items-start gap-2 text-left text-xs rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           hasData && "cursor-pointer select-none",
@@ -196,7 +225,7 @@ function LogEntryRow({
         </span>
 
         {/* summary */}
-        <span className="flex-1 text-foreground/80 text-[10px] leading-[14px] break-all leading-relaxed">
+        <span className="min-w-0 flex-1 text-foreground/80 text-xs leading-5 [overflow-wrap:anywhere]">
           {entry.summary}
         </span>
 

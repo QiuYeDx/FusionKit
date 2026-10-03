@@ -1,5 +1,30 @@
 # HomeAgent 运行可靠性任务
 
+### T-RUNTIME-02 修复停止、确认上下文与归档协议
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I2 |
+| 需求 | R-RUNTIME-02 |
+| 验收 | AC-RUNTIME-02-1, AC-RUNTIME-02-2, AC-RUNTIME-02-3, AC-RUNTIME-02-4 |
+| 依赖 | - |
+| 写集 | src/agent/orchestrator.ts, src/agent/orchestrator.test.ts, src/agent/runtime/responses-agent-adapter.ts, src/agent/runtime/responses-agent-adapter.test.ts, src/agent/tool-executor.ts, src/agent/tool-executor-translation.test.ts, src/agent/session-io.ts, src/agent/session-io.test.ts, src/services/rename/nameTranslationPlanner.ts, src/services/rename/nameTranslationPlanner.test.ts |
+| 负责人 | audit_runtime |
+| 依赖确认 | 同一161b109基线；tools与UI消费已有接口，export typed结果已同步；共享executor本轮由runtime单写 |
+| 完成日期 | 2026-10-03 |
+| 实施记录 | records/i2/T-RUNTIME-02.md |
+| 集成版本 | 161b109 + records/i2/source-snapshot.json (432f739d9aaad6c65a05c15e505a22fa14ecc77832273bd15cb1c729ee5c8495) |
+
+#### 实现要点
+按本模块 I2 design 与复审记录修复；保留原授权边界，Responses 仅当前 turn 内存回传，不改模型参数。
+
+#### 验证计划
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-RUNTIME-02-1 | unit | required | Vitest 定向运行上述测试：取消无后续请求、长历史确认投影、导出边界及取消、Responses原序与不完整流/密文预算 | - |
+| V-RUNTIME-02-2 | static | required | tsc --noEmit 与 git diff --check | - |
+
 ### T-RUNTIME-01 建立可取消隔离的运行循环与完整工具历史
 
 | 字段 | 值 |

@@ -191,6 +191,7 @@ describe("ResponsesAgentAdapter streaming", () => {
             item_id: "fc_1",
             arguments: "{}",
           },
+          { type: "response.output_item.done", output_index: 0, item: { id: "fc_1", type: "function_call", call_id: "call_1", name: "echo_tool", arguments: "{}", status: "completed" } },
           {
             type: "response.completed",
             response: {
@@ -309,6 +310,7 @@ describe("ResponsesAgentAdapter streaming", () => {
         {
           type: "response.completed",
           response: {
+            output: [{ id: "fc_limit", type: "function_call", call_id: "call_limit", name: "echo_tool", arguments: '{"value":"again"}', status: "completed" }],
             usage: {
               input_tokens: 4,
               output_tokens: 2,
@@ -355,7 +357,7 @@ describe("ResponsesAgentAdapter streaming", () => {
 });
 
 describe("Responses terminal safety", () => {
-  const call = (id = "call-1", argumentsText = "{}") => ({ type: "response.output_item.added", item: { id: `fc-${id}`, type: "function_call", call_id: id, name: "run", arguments: argumentsText } });
+  const call = (id = "call-1", argumentsText = "{}") => ({ type: "response.output_item.done", item: { id: `fc-${id}`, type: "function_call", call_id: id, name: "run", arguments: argumentsText } });
   const completed = { type: "response.completed", response: { status: "completed" } };
   const create = (execute: (...args: any[]) => any, signal = new AbortController().signal) => new ResponsesAgentAdapter().streamTurn({
     profile, system: "safe", messages: [{ id: "u", role: "user", content: "run", timestamp: 1 }],
@@ -372,6 +374,64 @@ describe("Responses terminal safety", () => {
     vi.stubGlobal("fetch", vi.fn(async () => sseResponse([call(), ...ending])));
     await expect(collectParts(create(execute).fullStream)).rejects.toThrow(error);
     expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("does not accept added-only calls even when the response terminal says completed", async () => {
+    const execute = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([{ ...call(), type: "response.output_item.added" }, completed])));
+    await expect(collectParts(create(execute).fullStream)).rejects.toThrow("did not complete");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("rejects the whole step when only one of two announced calls completes", async () => {
+    const execute = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([
+      { ...call("first"), type: "response.output_item.added" },
+      { ...call("unfinished"), type: "response.output_item.added" },
+      call("first"), completed,
+    ])));
+    await expect(collectParts(create(execute).fullStream)).rejects.toThrow("did not complete");
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it.each(["response_output", "done_events"])("replays opaque reasoning and assistant phase in original order using %s", async (source) => {
+    const output = [
+      { type: "reasoning", id: "rs_1", summary: [], encrypted_content: "opaque-one" },
+      { type: "message", id: "msg_1", role: "assistant", phase: "commentary", status: "completed", content: [{ type: "output_text", text: "Checking", annotations: [] }] },
+      call("first").item,
+      { type: "reasoning", id: "rs_2", summary: [], encrypted_content: "opaque-two" },
+      call("second").item,
+    ];
+    const requests: any[] = [];
+    const execute = vi.fn(async () => ({ success: true }));
+    vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      if (requests.length > 1) return sseResponse([completed]);
+      // Done events deliberately arrive in reverse order to exercise output_index.
+      const events = output.map((item, output_index) => ({ type: "response.output_item.done", output_index, item })).reverse();
+      return sseResponse([...events, source === "response_output" ? { type: "response.completed", response: { status: "completed", output } } : completed]);
+    }));
+    const events = await collectParts(create(execute).fullStream);
+    expect(requests[1].input.slice(1, 6)).toEqual(output);
+    expect(requests[1].input.slice(6).map((item: any) => item.call_id)).toEqual(["first", "second"]);
+    expect(requests[0]).toMatchObject({ store: false });
+    expect(requests[0]).not.toHaveProperty("include");
+    expect(JSON.stringify(events)).not.toContain("opaque-");
+    expect(JSON.stringify(events)).not.toContain('"type":"reasoning"');
+    expect(execute).toHaveBeenCalledTimes(2);
+    await collectParts(create(execute).fullStream);
+    expect(requests[2].input).toEqual([{ role: "user", content: "run" }]);
+  });
+
+  it("counts encrypted reasoning toward the next-request budget", async () => {
+    const execute = vi.fn(async () => ({ success: true }));
+    const fetchMock = vi.fn(async () => sseResponse([{ type: "response.completed", response: { status: "completed", output: [
+      { type: "reasoning", id: "rs_large", summary: [], encrypted_content: "x".repeat(96_000) }, call().item,
+    ] } }]));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(collectParts(create(execute).fullStream)).rejects.toThrow("context budget");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 
   it.each(["{bad json", '{"value":123}'])("returns invalid arguments as a tool failure and lets the next step recover: %s", async (argumentsText) => {

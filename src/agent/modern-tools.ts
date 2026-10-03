@@ -11,7 +11,7 @@ import { transcriptionTaskConfigSchema } from "@/subtitle-studio/transcription/t
 import type { DocumentSummary, StudioResult } from "@/subtitle-studio/ipc-contract";
 import { entrySummary } from "@/translation-knowledge/ipc-contract";
 import { AGENT_CAPABILITIES } from "./capability-catalog";
-import { registerPreparedAction, usePreparedActionsStore, type PreparedAction, type PreparedActionResult } from "./prepared-actions";
+import { registerPreparedAction, usePreparedActionsStore, type PreparedAction, type PreparedActionReceipt, type PreparedActionResult } from "./prepared-actions";
 
 interface Context { sessionId: string; signal?: AbortSignal; check: () => void }
 const page = { offset: z.number().int().min(0).max(100000).default(0), limit: z.number().int().min(1).max(50).default(20) };
@@ -19,8 +19,13 @@ const id = z.string().uuid();
 const language = z.string().trim().min(2).max(32).regex(/^(?:auto|[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$/);
 const safeText = (value: string, length = 255) => value.slice(0, length);
 class ToolFailure extends Error {}
-const failed = (error: string): PreparedActionResult => ({ success: false, error });
+const failed = (error: string, data?: unknown): PreparedActionResult => ({ success: false, error, ...(data !== undefined ? { data } : {}) });
 const succeeded = (data: unknown): PreparedActionResult => ({ success: true, data });
+function receipt(phase: PreparedActionReceipt["phase"], items: PreparedActionReceipt["items"]): PreparedActionReceipt {
+  const bounded = items.slice(0, 50).map(item => ({ ...item, name: safeText(item.name) }));
+  const failureCount = bounded.filter(item => item.status === "failed").length;
+  return { phase, total: bounded.length, successCount: bounded.length - failureCount, failureCount, items: bounded };
+}
 function unwrap<T>(result: StudioResult<T>): T {
   if (!result.ok) throw new ToolFailure(result.error);
   return result.value;
@@ -56,10 +61,11 @@ async function exposePrepared(action: PreparedAction, ctx: Context): Promise<Pre
   if (useAgentStore.getState().executionMode === "auto_execute") {
     await usePreparedActionsStore.getState().confirmAction(action.id);
     const completed = usePreparedActionsStore.getState().actions.find(item => item.id === action.id)!;
-    return completed.status === "completed" ? succeeded({ actionId: action.id, executionStatus: "submitted", result: completed.result })
-      : failed(completed.error ?? "prepared_action_not_submitted");
+    const data = { actionId: action.id, receipt: action.preparationReceipt, result: completed.result };
+    return completed.status === "completed" ? succeeded({ ...data, executionStatus: "submitted" })
+      : failed(completed.error ?? "prepared_action_not_submitted", data);
   }
-  return succeeded({ actionId: action.id, executionStatus: "prepared", title: action.title, summary: action.summary,
+  return succeeded({ actionId: action.id, executionStatus: "prepared", title: action.title, summary: action.summary, receipt: action.preparationReceipt,
     nextAction: "Confirm this prepared action in HomeAgent to submit it. No task has started." });
 }
 
@@ -139,22 +145,33 @@ export const modernAgentTools = {
       }
       ctx.check(); const plan = unwrap(await studio().planTranslationBatch({ documents: input.documents, config: config.data })); ctx.check();
       const ready = plan.items.filter(item => item.ok);
-      if (!ready.length) return failed("studio_translation_plan_has_no_ready_documents");
+      const preparationReceipt = receipt("preparation", plan.items.map(item => ({ id: item.documentId, name: item.displayName,
+        status: item.ok ? "ready" : "failed", ...(!item.ok ? { error: item.error } : {}) })));
+      if (!ready.length) return failed("studio_translation_plan_has_no_ready_documents", { receipt: preparationReceipt });
       const sessionId = ctx.sessionId;
       const fileNames = ready.slice(0, 5).map(item => safeText(item.displayName, 120)).join(", ");
       const action = registerPreparedAction({ sessionId, toolKey: "subtitleStudio", title: "Subtitle studio translation",
+        preparationReceipt,
         summary: `${ready.length}/${input.documents.length} documents → ${safeText(input.targetLanguage, 100)}; estimated input tokens: ${plan.totalEstimatedInputTokens}. ${fileNames}`,
         summaryKey: "home:prepared_translation_summary", summaryValues: { count: ready.length, total: input.documents.length, language: input.targetLanguage, tokens: plan.totalEstimatedInputTokens, files: fileNames },
         execute: async () => {
-          if (useAgentStore.getState().session.id !== sessionId) return failed("agent_session_changed");
-          const response = await studio().createTranslationBatch({ batchId: plan.batchId, apiKey: profile.apiKey });
-          if (!response.ok) return failed(response.error);
+          const notSubmitted = (error: string) => failed(error, { receipt: receipt("submission", preparationReceipt.items.map(item => ({
+            id: item.id, name: item.name, status: "failed", error: item.error ?? error }))) });
+          if (useAgentStore.getState().session.id !== sessionId) return notSubmitted("agent_session_changed");
+          let response: Awaited<ReturnType<ReturnType<typeof studio>["createTranslationBatch"]>>;
+          try { response = await studio().createTranslationBatch({ batchId: plan.batchId, apiKey: profile.apiKey }); }
+          // A lost IPC response may follow a committed admission. No per-file outcome is known.
+          catch { return failed("studio_translation_submission_unknown"); }
+          if (!response.ok) return notSubmitted(response.error);
           const result = response.value;
           const taskIds = result.items.flatMap(item => item.ok ? [item.taskId] : []);
           if (taskIds.length) getStudioTranslationOverviewController().trackStarted(taskIds);
-          return taskIds.length ? succeeded({ executionStatus: "queued", taskIds, items: result.items.map(item => item.ok
-            ? { documentId: item.documentId, taskId: item.taskId, ok: true } : { documentId: item.documentId, ok: false, error: item.error }) })
-            : failed("studio_translation_not_admitted");
+          const submissionReceipt = receipt("submission", result.items.map(item => ({ id: item.documentId,
+            name: item.displayName, status: item.ok ? "queued" : "failed", ...(item.ok ? { taskId: item.taskId } : { error: item.error }) })));
+          const data = { receipt: submissionReceipt, taskIds, items: result.items.map(item => item.ok
+            ? { documentId: item.documentId, name: safeText(item.displayName), taskId: item.taskId, ok: true }
+            : { documentId: item.documentId, name: safeText(item.displayName), ok: false, error: item.error }) };
+          return taskIds.length ? succeeded({ ...data, executionStatus: "queued" }) : failed("studio_translation_not_admitted", data);
         },
       });
       return exposePrepared(action, ctx);
@@ -180,21 +197,37 @@ export const modernAgentTools = {
         ctx.check();
         if (!ownedIds.length) return selected.error ? failed(selected.error) : succeeded({ cancelled: true });
         const readiness = getTranscriptionReadiness(selected);
-        if (!readiness.canEnqueue || readiness.readyCount !== ownedIds.length) { release(); return failed(readiness.reason ?? "studio_transcription_media_not_ready"); }
+        // Draft IDs are native file capabilities. Use display-only row references in receipts.
+        const preparationReceipt = receipt("preparation", selected.drafts.map((draft, index) => ({ id: `media-${index + 1}`,
+          name: draft.displayName, status: draft.status === "ready" && !readiness.reason ? "ready" : "failed",
+          ...(draft.status !== "ready" || readiness.reason ? { error: draft.error ?? readiness.reason ?? "studio_transcription_media_not_ready" } : {}) })));
+        if (!readiness.canEnqueue || readiness.readyCount !== ownedIds.length) {
+          release(); return failed(readiness.reason ?? "studio_transcription_media_not_ready", { receipt: preparationReceipt });
+        }
         const signature = JSON.stringify({ config: selected.config, automatic: selected.autoTranslation, drafts: selected.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) });
         const sessionId = ctx.sessionId;
         const fileNames = selected.drafts.slice(0, 5).map(item => safeText(item.displayName, 120)).join(", ");
         const action = registerPreparedAction({ sessionId, toolKey: "subtitleStudio", title: "Subtitle studio transcription",
+          preparationReceipt,
           summary: `${ownedIds.length} media files; ${safeText(selected.config.modelId, 128)}; ${selected.config.language}. ${fileNames}`, cleanup: release,
           summaryKey: "home:prepared_transcription_summary", summaryValues: { count: ownedIds.length, model: selected.config.modelId, language: selected.config.language, files: fileNames },
           execute: async () => {
-            if (useAgentStore.getState().session.id !== sessionId) return failed("agent_session_changed");
+            const notAdmitted = (error: string) => failed(error, { receipt: receipt("submission", preparationReceipt.items.map((item, index) => ({
+              id: item.id, name: item.name, status: "failed",
+              error: controller.getState().drafts.find(current => current.id === ownedIds[index])?.error ?? error }))) });
+            if (useAgentStore.getState().session.id !== sessionId) return notAdmitted("agent_session_changed");
             const current = controller.getState();
-            if (signature !== JSON.stringify({ config: current.config, automatic: current.autoTranslation, drafts: current.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) })) return failed("studio_transcription_draft_changed");
-            if (!getTranscriptionReadiness(current).canEnqueue) return failed("studio_transcription_not_ready");
-            const admission = await controller.enqueue();
-            if (!admission) return failed(controller.getState().drafts.some(item => item.status === "submission_unknown") ? "studio_transcription_submission_unknown" : controller.getState().error ?? "studio_transcription_not_admitted");
-            return succeeded({ executionStatus: "queued", batchId: admission.batchId, tasks: admission.tasks.map(item => ({ taskId: item.taskId, name: safeText(item.displayName), status: item.status })) });
+            if (signature !== JSON.stringify({ config: current.config, automatic: current.autoTranslation, drafts: current.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) })) return notAdmitted("studio_transcription_draft_changed");
+            const currentReadiness = getTranscriptionReadiness(current);
+            if (!currentReadiness.canEnqueue || currentReadiness.readyCount !== ownedIds.length) return notAdmitted("studio_transcription_not_ready");
+            const admission = await controller.enqueue({ expectedDraftIds: ownedIds });
+            if (!admission) {
+              if (controller.getState().drafts.some(item => item.status === "submission_unknown")) return failed("studio_transcription_submission_unknown");
+              return notAdmitted(controller.getState().error ?? "studio_transcription_not_admitted");
+            }
+            return succeeded({ executionStatus: "queued", batchId: admission.batchId,
+              receipt: receipt("submission", admission.tasks.map(item => ({ id: item.taskId, name: item.displayName, taskId: item.taskId, status: "queued" }))),
+              tasks: admission.tasks.map(item => ({ taskId: item.taskId, name: safeText(item.displayName), status: item.status })) });
           },
         });
         return await exposePrepared(action, ctx);
@@ -232,11 +265,16 @@ export const modernAgentTools = {
       const entries = library.data.entries.filter(item => (input.includeArchived || item.state !== "archived")
         && (!input.collectionId || item.collectionId === input.collectionId) && (input.kind === "all" || item.kind === input.kind)
         && matches(`${item.title} ${entrySummary(item)}`));
+      const collections = library.data.collections.filter(item => (input.includeArchived || !item.archived) && matches(item.name));
+      const recipes = library.data.recipes.filter(item => (input.includeArchived || !item.archived) && matches(item.name));
+      const pagination = (total: number) => ({ total, hasMore: input.offset + input.limit < total,
+        nextOffset: input.offset + input.limit < total ? input.offset + input.limit : null });
       return succeeded({ generation: library.generation, counts: { entries: library.data.entries.length, collections: library.data.collections.length, recipes: library.data.recipes.length },
+        pagination: { offset: input.offset, limit: input.limit, entries: pagination(entries.length), collections: pagination(collections.length), recipes: pagination(recipes.length) },
         total: entries.length, offset: input.offset, entries: entries.slice(input.offset, input.offset + input.limit).map(item => ({ id: item.id, revision: item.revision,
           kind: item.kind, title: safeText(item.title), collectionId: item.collectionId, languagePair: { source: safeText(item.scope.languagePair.source, 32), target: safeText(item.scope.languagePair.target, 32) },
           state: item.state === "ready" && library.approvals[item.id]?.revision !== item.revision ? "unconfirmed" : item.state, summary: safeText(entrySummary(item), 400) })),
-        collections: library.data.collections.filter(item => (input.includeArchived || !item.archived) && matches(item.name)).slice(0, input.limit).map(item => ({ id: item.id, name: safeText(item.name) })),
-        recipes: library.data.recipes.filter(item => (input.includeArchived || !item.archived) && matches(item.name)).slice(0, input.limit).map(item => ({ id: item.id, name: safeText(item.name), languagePair: { source: safeText(item.languagePair.source, 32), target: safeText(item.languagePair.target, 32) } })) });
+        collections: collections.slice(input.offset, input.offset + input.limit).map(item => ({ id: item.id, name: safeText(item.name) })),
+        recipes: recipes.slice(input.offset, input.offset + input.limit).map(item => ({ id: item.id, name: safeText(item.name), languagePair: { source: safeText(item.languagePair.source, 32), target: safeText(item.languagePair.target, 32) } })) });
     }) }),
 };

@@ -6,6 +6,7 @@ import { AGENT_CAPABILITIES } from "@/agent/capability-catalog";
 import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ScrollableDialog, ScrollableDialogContent, ScrollableDialogHeader } from "@/components/qiuye-ui/scrollable-dialog";
+import { agentToolPath } from "../presentation";
 
 export const capabilityLabels = {
   subtitleStudio: { title: "home:capability_studio", description: "home:capability_studio_description" },
@@ -39,7 +40,7 @@ export default function AgentCapabilities() {
                 <h3 className="text-sm font-medium">{t(labels.title)}</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{t(labels.description)}</p>
               </div>
-              <Button variant="ghost" size="sm" className="size-7 shrink-0 p-0" aria-label={t("home:open_tool_named", { name: t(labels.title) })} onClick={() => { setOpen(false); navigate(capability.route); }}><ArrowUpRight className="size-4" /></Button>
+              <Button variant="ghost" size="sm" className="size-7 shrink-0 p-0" aria-label={t("home:open_tool_named", { name: t(labels.title) })} onClick={() => { setOpen(false); navigate(agentToolPath(capability.toolKey, capability.route)); }}><ArrowUpRight className="size-4" /></Button>
             </div>;
           })}
         </div>

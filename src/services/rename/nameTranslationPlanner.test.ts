@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { generateObject, generateText } from "ai";
 import {
   createNameTranslationPlan,
   parseNameTranslationModelOutputText,
@@ -29,12 +30,56 @@ import {
   MemoryNameTranslationCache,
 } from "./nameTranslationCache";
 
+const modelMocks = vi.hoisted(() => ({ getTaskProfile: vi.fn() }));
+vi.mock("@/store/useModelStore", () => ({ default: { getState: () => modelMocks } }));
+vi.mock("ai", async (importOriginal) => ({ ...await importOriginal<typeof import("ai")>(), generateObject: vi.fn(), generateText: vi.fn() }));
+
 afterEach(() => {
   clearAllNameTranslationPlansForTest();
   clearDefaultNameTranslationCacheForTest();
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("createNameTranslationPlan", () => {
+  it.each(["structured", "text_fallback", "responses"])("aborts the %s request without retry, splitting or later batches", async (phase) => {
+    const controller = new AbortController();
+    const targets = [createTarget("a", "第一章.srt", "第一章"), createTarget("b", "第二章.srt", "第二章"), createTarget("c", "第三章.srt", "第三章")];
+    const requests: AbortSignal[] = [];
+    const pending = (signal: AbortSignal | undefined) => new Promise<never>((_resolve, reject) => {
+      if (!signal) { reject(new Error("Request is missing its cancellation signal")); return; }
+      requests.push(signal);
+      signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    });
+    modelMocks.getTaskProfile.mockReturnValue({ ...createResponsesProfile("https://fixture.invalid/v1"), apiFormat: phase === "responses" ? "responses" : "chat_completions" });
+    if (phase === "text_fallback") {
+      vi.mocked(generateObject).mockRejectedValue(new Error("could not parse the response"));
+      vi.mocked(generateText).mockImplementation(options => pending(options.abortSignal));
+    } else {
+      vi.mocked(generateObject).mockImplementation(options => pending(options.abortSignal));
+    }
+    const fetchMock = vi.fn((_url: unknown, init?: RequestInit) => pending(init?.signal ?? undefined));
+    vi.stubGlobal("fetch", fetchMock);
+    const progress: NameTranslationPlanningProgress[] = [];
+    const operation = createNameTranslationPlan(createOptions(), {
+      planIdFactory: () => "cancel_model_request", scanTargets: async () => createScanResult(targets),
+      checkPathExists: async () => false, signal: controller.signal, progress: value => progress.push(value),
+      batchConfig: { batchSize: 1, minBatchSize: 1, concurrency: 1, adaptiveBatching: false },
+    });
+    const rejected = expect(operation).rejects.toMatchObject({ code: "planning_cancelled" });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toBe(controller.signal);
+    controller.abort();
+    await rejected;
+    expect(requests).toHaveLength(1);
+    expect(generateObject).toHaveBeenCalledTimes(phase === "responses" ? 0 : 1);
+    expect(generateText).toHaveBeenCalledTimes(phase === "text_fallback" ? 1 : 0);
+    expect(fetchMock).toHaveBeenCalledTimes(phase === "responses" ? 1 : 0);
+    expect(progress.at(-1)?.phase).toBe("cancelled");
+    expect(progress.at(-1)?.retryCount ?? 0).toBe(0);
+    expect(getNameTranslationPlan("cancel_model_request")).toBeNull();
+  });
+
   it("creates a dry-run plan, preserves extensions, and stores full items", async () => {
     const targets = [
       createTarget("target_a", "第01話.srt", "第01話"),

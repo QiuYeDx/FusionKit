@@ -140,4 +140,65 @@ describe("Agent turn ownership and receipts", () => {
     await handleUserMessage("run");
     expect(JSON.stringify(useAgentStore.getState().getSessionExportData())).not.toContain("secret-test-key");
   });
+
+  it("restores the composer when stopping an abort-aware tool request", async () => {
+    mocks.execute.mockImplementation((_input, options) => new Promise((_resolve, reject) => {
+      options.abortSignal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    }));
+    mocks.chat.mockImplementation(request => turn((async function* () {
+      await request.tools.echo.execute({}, { toolCallId: "slow", messages: [] });
+      yield { type: "finish", reason: "completed" } as const;
+    })()));
+    const operation = handleUserMessage("plan names");
+    await vi.waitFor(() => expect(mocks.execute).toHaveBeenCalledTimes(1));
+    abortCurrentStream();
+    await operation;
+    expect(useAgentStore.getState()).toMatchObject({ isStreaming: false, session: { status: "idle" } });
+  });
+
+  it.each(["queue_only", "ask_before_execute", "auto_execute"] as const)("distinguishes classic queues from modern prepared actions in %s", async executionMode => {
+    useAgentStore.setState({ executionMode });
+    await handleUserMessage("prepare a translation");
+    const prompt = mocks.chat.mock.calls[0][0].system;
+    expect(prompt).toContain("Classic queued_only tasks are already in their tool queue");
+    expect(prompt).toContain("modern prepared/ready action requires confirmation on HomeAgent");
+    expect(prompt).not.toContain("After queuing, tell the user");
+    if (executionMode === "queue_only") expect(prompt).toContain("no task is admitted until the user confirms that action here");
+  });
+
+  it("preserves bounded current confirmation state after its original preview leaves context", async () => {
+    const store = useAgentStore.getState();
+    store.addMessage({ id: "preview-user", role: "user", content: "ORIGINAL_PREVIEW_CONTEXT", timestamp: 1 });
+    store.addMessage({ id: "long-one", role: "user", content: "x".repeat(60_000), timestamp: 2 });
+    store.addMessage({ id: "long-two", role: "user", content: "y".repeat(60_000), timestamp: 3 });
+    useAgentStore.setState({
+      pendingExecution: { stores: ["convert"], taskCounts: { convert: 100 }, taskRefs: Array.from({ length: 100 }, (_, i) => ({ store: "convert", taskId: `task-${i}` })), timestamp: 1, resolvedAction: "confirm" },
+      pendingNameTranslationPlan: {
+        planId: "rename-current", createdByUserMessageId: "preview-user", createdAt: 1, resolvedAction: null,
+        summary: { planId: "rename-current", totalTargets: 100, previewLimit: 30, readyCount: 100, blockedCount: 0, skippedCount: 0, unchangedCount: 0, warnings: [], applyable: true,
+          itemsPreview: Array.from({ length: 30 }, (_, i) => ({ sourcePath: `source-${i}` + "s".repeat(1000), targetPath: `target-${i}` + "t".repeat(1000), status: "ready" })) as never },
+      },
+    });
+    await handleUserMessage("确认执行刚才的重命名计划");
+    const request = mocks.chat.mock.calls[0][0];
+    expect(JSON.stringify(request.messages)).not.toContain("ORIGINAL_PREVIEW_CONTEXT");
+    expect(request.system).toContain('"planId":"rename-current"');
+    expect(request.system).toContain('"createdByUserMessageId":"preview-user"');
+    expect(request.system).toContain('"status":"awaiting_confirmation"');
+    expect(request.system).toContain('"status":"execution_requested"');
+    expect(request.system).toContain('"taskRefsTruncated":true');
+    expect(request.system).not.toContain('"taskId":"task-20"');
+    expect(request.system).not.toContain("source-3");
+    expect(request.system.length).toBeLessThan(22_000);
+    expect(request.system).toContain("still requires a later explicit user confirmation");
+    expect(useAgentStore.getState().pendingNameTranslationPlan?.resolvedAction).toBeNull();
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+
+  it("does not carry pending authority into a new session", async () => {
+    useAgentStore.getState().setPendingExecution({ stores: ["convert"], taskCounts: { convert: 1 }, taskRefs: [{ store: "convert", taskId: "old-task-id" }], timestamp: 1 });
+    useAgentStore.getState().resetSession();
+    await handleUserMessage("status");
+    expect(mocks.chat.mock.calls[0][0].system).not.toContain("old-task-id");
+  });
 });

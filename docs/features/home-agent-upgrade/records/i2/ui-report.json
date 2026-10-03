@@ -1,0 +1,253 @@
+{
+  "runRoot": "test-results/home-agent/i2/run-1791039242396",
+  "checks": [
+    "No-model send disabled",
+    "Native session picker cancellation/invalid preserve draft; valid import works without model and restores no execution authority",
+    "Native save cancellation is harmless; real exported JSON reimports successfully; settled no-model composer leaves plan fully readable",
+    {
+      "language": "zh",
+      "theme": "light",
+      "width": 1280,
+      "height": 860,
+      "metrics": [
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-plan",
+          "width": 670,
+          "overflow": 0
+        },
+        {
+          "id": "agent-capabilities-list",
+          "width": 550,
+          "overflow": 0
+        }
+      ]
+    },
+    {
+      "language": "en",
+      "theme": "dark",
+      "width": 786,
+      "height": 660,
+      "metrics": [
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-plan",
+          "width": 670,
+          "overflow": 0
+        },
+        {
+          "id": "agent-capabilities-list",
+          "width": 550,
+          "overflow": 0
+        }
+      ]
+    },
+    {
+      "language": "ja",
+      "theme": "light",
+      "width": 786,
+      "height": 660,
+      "metrics": [
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-plan",
+          "width": 670,
+          "overflow": 0
+        },
+        {
+          "id": "agent-capabilities-list",
+          "width": 550,
+          "overflow": 0
+        }
+      ]
+    },
+    {
+      "language": "zh-Hant",
+      "theme": "dark",
+      "width": 1280,
+      "height": 860,
+      "metrics": [
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-plan",
+          "width": 670,
+          "overflow": 0
+        },
+        {
+          "id": "agent-capabilities-list",
+          "width": 550,
+          "overflow": 0
+        }
+      ]
+    },
+    "Plan progress affordance preserves existing draft, fills an empty draft and never sends automatically",
+    {
+      "settledLongDraft": {
+        "inputTop": 750,
+        "inputBottom": 798,
+        "capsuleTop": 746,
+        "capsuleBottom": 802,
+        "height": 48,
+        "scrollHeight": 48
+      }
+    },
+    {
+      "keyboardModeFocus": {
+        "visible": true,
+        "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, oklab(0.556 0 0 / 0.00357457) 0px 0px 0px 0.0142983px, rgba(0, 0, 0, 0) 0px 0px 0px 0px"
+      }
+    },
+    "zh: task stages/errors and mixed receipt are visible in imported history",
+    "en: task stages/errors and mixed receipt are visible in imported history",
+    "Studio transcription result opens transcription; general Studio entry returns documents; view hint consumed",
+    "Reading/expanded log remains anchored after real stream appends; latest button restores follow",
+    "Prepared cancellation starts no task",
+    "Confirmation enqueues one real fixture task; synthetic local response completes it",
+    "Real mixed preparation preserves stale authorized document failure beside the ready subset"
+  ],
+  "screenshots": [
+    {
+      "file": "test-results/home-agent/i2/empty-no-model-light.png",
+      "sha256": "16af19c15b430215d182ff43e476e61edee8ee996af1c2f938e208a4a79c0bd2"
+    },
+    {
+      "file": "test-results/home-agent/i2/restored-session-no-model.png",
+      "sha256": "2d5bae6441aa34794c68a009f3c332a8cbee6065edc1562b4de868dd82c6acd2",
+      "archived": "records/i2/screenshots/restored-session-no-model.png"
+    },
+    {
+      "file": "test-results/home-agent/i2/plan-zh-1280.png",
+      "sha256": "0d007001394ccc50828840db34316d1011a009e1c0308ddb43b7c53b09075f37"
+    },
+    {
+      "file": "test-results/home-agent/i2/receipts-zh-1280.png",
+      "sha256": "280bda61014b213c34294fed3755f99d6b580b241c59a6d528e0b446e19e9ead"
+    },
+    {
+      "file": "test-results/home-agent/i2/capabilities-zh-1280.png",
+      "sha256": "a82c42d507985e02ab8ccc1d408bfac71af30ad861ce64291b7ab8357684548d"
+    },
+    {
+      "file": "test-results/home-agent/i2/plan-en-786.png",
+      "sha256": "570d61d4ddca7c3657fddf92bdb8dc4cf3af5d9b5869c8cd46aa36563a6fc923",
+      "archived": "records/i2/screenshots/plan-en-786.png"
+    },
+    {
+      "file": "test-results/home-agent/i2/receipts-en-786.png",
+      "sha256": "342d5bb4464e280df6e1a4e0eb5c9a8cf287f501c4d7e36aac1debba0de9eb40"
+    },
+    {
+      "file": "test-results/home-agent/i2/capabilities-en-786.png",
+      "sha256": "db3963fdb4886bbc345119f06e7d19cf317b563ba44ffe7b75d4a009e346f51e"
+    },
+    {
+      "file": "test-results/home-agent/i2/plan-ja-786.png",
+      "sha256": "145685b7160300996dc691afb8708fec7563508777fede2490cba12ea11bcb0d"
+    },
+    {
+      "file": "test-results/home-agent/i2/receipts-ja-786.png",
+      "sha256": "27353bece3e369f4c35f5b354dac81ba2f864b6a752bfe11ab6175c5e26601b4"
+    },
+    {
+      "file": "test-results/home-agent/i2/capabilities-ja-786.png",
+      "sha256": "f0d2796a53c389b2ead4db189904433058c3df7e7b18b1b9bdfa249e6a72d5cf"
+    },
+    {
+      "file": "test-results/home-agent/i2/plan-zh-Hant-1280.png",
+      "sha256": "5aaad08116b9586eb74b63bff664e75c6662499f81e4a95ab3f279e7611b687b"
+    },
+    {
+      "file": "test-results/home-agent/i2/receipts-zh-Hant-1280.png",
+      "sha256": "b5e85063d64eb90ac9224bf07c49aa48cd2651624a391cbb35d357e027a32234"
+    },
+    {
+      "file": "test-results/home-agent/i2/capabilities-zh-Hant-1280.png",
+      "sha256": "466ef67d14d08f1d7cc5ba564600e3373762b9c3ee779f93abeac8f05d1d1c6c"
+    },
+    {
+      "file": "test-results/home-agent/i2/long-progress-draft-en-dark.png",
+      "sha256": "f81e502ff39c10aec1fd07622e17f24ad9c48f92b2dac453feb74d0895014577",
+      "archived": "records/i2/screenshots/long-progress-draft-en-dark.png"
+    },
+    {
+      "file": "test-results/home-agent/i2/keyboard-mode-focus-en-dark.png",
+      "sha256": "0a297d42d3a939a1f3b068bdc7c2cac4511168da43d026f2bc0d3ea2911c9bce",
+      "archived": "records/i2/screenshots/keyboard-mode-focus-en-dark.png"
+    },
+    {
+      "file": "test-results/home-agent/i2/transcription-status-zh-1280.png",
+      "sha256": "8b48d14a13cace3253aa915641e08df23390507538cd79a56d6ea06d75166f55"
+    },
+    {
+      "file": "test-results/home-agent/i2/batch-failure-zh-1280.png",
+      "sha256": "3572a7ecd2cd9e097fe98e58814a89d33d0974bae1b16215612b0137c7515737"
+    },
+    {
+      "file": "test-results/home-agent/i2/transcription-status-en-786.png",
+      "sha256": "0385d34d22b62197f872877495222522612a265770e0ed2537338b6d9c7d3f22",
+      "archived": "records/i2/screenshots/transcription-status-en-786.png"
+    },
+    {
+      "file": "test-results/home-agent/i2/batch-failure-en-786.png",
+      "sha256": "1975f7d1abda81b9331277127bb6bcd65f2a6ec0afe84327e62a4bb71a066461"
+    },
+    {
+      "file": "test-results/home-agent/i2/logs-reading-anchor-en-dark.png",
+      "sha256": "3e95027707de9ccadf17f6abd342cc027186ebdd6ca623b44afb018ce4044c4a",
+      "archived": "records/i2/screenshots/logs-reading-anchor-en-dark.png"
+    },
+    {
+      "file": "test-results/home-agent/i2/prepared-translation-light.png",
+      "sha256": "7854cf9256bf0449f4db27aff7143e59c0855a53040cb99ffbc6fdf0e78056d0"
+    },
+    {
+      "file": "test-results/home-agent/i2/submitted-translation-light.png",
+      "sha256": "2c88bca0ff7b2473a3ef2665fdef04094df269741ec7ef7291b4822cfcdce183",
+      "archived": "records/i2/screenshots/submitted-translation-light.png"
+    },
+    {
+      "file": "test-results/home-agent/i2/prepared-partial-failure-light.png",
+      "sha256": "409706ba504bd0802799d60bc326f9de8497aba0ee046ecd7c5de4f1a815d3c3",
+      "archived": "records/i2/screenshots/prepared-partial-failure-light.png"
+    }
+  ],
+  "pageErrors": [],
+  "requestCount": 11,
+  "evidenceBoundary": "Real isolated Electron and native service import/queue; model responses are synthetic loopback SSE/JSON, not real provider quality."
+}

@@ -3,11 +3,26 @@ import { Model } from "@/type/model";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
+import * as namePlanner from "@/services/rename/nameTranslationPlanner";
 import {
   executeQueueRecoveredSubtitleTranslate,
   executeQueueTranslate,
   executeScanSubtitleRecoveryTasks,
+  executeCreateNameTranslationPlan,
 } from "./tool-executor";
+
+it("passes cancellation into name planning and leaves no pending preview after cancellation", async () => {
+  const controller = new AbortController();
+  const planner = vi.spyOn(namePlanner, "createNameTranslationPlan").mockImplementation(async (_options, deps) => {
+    expect(deps?.signal).toBe(controller.signal);
+    controller.abort();
+    throw new DOMException("Aborted", "AbortError");
+  });
+  const result = await executeCreateNameTranslationPlan({ roots: ["C:/names"], scope: "children", targetKind: "files" } as never, controller.signal);
+  expect(result.success).toBe(false);
+  expect(useAgentStore.getState().pendingNameTranslationPlan).toBeNull();
+  planner.mockRestore();
+});
 
 const api = {
   selectAgentInputFiles: vi.fn(),

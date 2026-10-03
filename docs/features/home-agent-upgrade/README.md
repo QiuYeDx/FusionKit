@@ -4,11 +4,15 @@
 
 从 [业务范围](brd.md)、[总体设计](architecture.md)、spec.json 及 modules 下的需求/设计/任务恢复工作。用户明确要求先文档后开发，并授权“自行进行改造和完善工作”；本批自主实现与隔离验证，不代签用户验收，不发布。
 
+2026-10-03 追加 I2 真实流程复审，基线为 I1 提交 `161b109`。实施前问题证据、产品取舍和 UI 基准见 [I2 复审设计](records/review-i2-plan.md)；新证据独立归档于 `records/i2/`，保留 I1 原有记录。
+
 ## 交付入口
 
 - [总体设计与能力盘点](architecture.md)：正式工具范围、运行/确认/导入契约与取舍。
-- [集成结果](records/integration.md)：已实现行为、验证结论及未覆盖范围。
-- [验证证据与最终截图](records/verification.md)：763 项通过、13 项跳过、Electron 四语言及真实任务链路。
+- [I2 复审与完善结果](records/i2/integration.md)：停止、确认、回执、会话恢复及 UI/UX 修复。
+- [I2 验证证据与截图](records/i2/verification.md)：2322 项通过、52 项跳过，17 项 Electron 交互检查与 24 张截图。
+- [I1 集成结果](records/integration.md)：首轮实现行为、验证结论及未覆盖范围。
+- [I1 验证证据与截图](records/verification.md)：763 项通过、13 项跳过、Electron 四语言及真实任务链路。
 - [任务总览](task-list-overall.md)：由模块台账生成，不在此复制任务状态。
 
 ## 使用方式

@@ -1,5 +1,8 @@
 # HomeAgent 运行可靠性设计
 
+## I2 已审查的修复设计
+依据 ../../records/review-i2-plan.md 与 R-RUNTIME-02。名称 planner 使用同一个 AbortSignal 贯穿 executor、batch 和 SDK/fetch，取消分支必须在 fallback/retry 前退出。系统上下文从真实 store 读出当前 pendingExecution/pendingNameTranslationPlan 的有限摘要，仍由原确认门禁决定执行资格。导出返回 `{success, cancelled?, errorCode?: 'too_large'|'invalid'|'save_failed'}`；先验证待保存 JSON 字节数和 parseSessionJson，再调用保存 IPC。Responses 在完整 response 后收集原序 replayable output，下一请求附上结果；事件只发普通文字与工具事实，reasoning 临时数据不持久化，并计入原有请求预算。不添加新的模型参数。
+
 ## 现状与约束
 
 orchestrator.ts 的全局 controller 与当前 store 写入没有 session/turn 归属；reset/import 后迟到流可写入新会话。工具调用在 finish-step 才保存，异常路径丢失工具回执。两种 adapter 一条直接透传 AI SDK 流，一条自行解析 SSE，缺少相同的终止语义。全部历史与完整工具结果每轮回传模型，规模无界。
@@ -37,6 +40,7 @@ conversation-context.ts 用纯函数构建请求历史：过滤不完整/孤立�
 
 | 需求 | 设计元素 |
 | --- | --- |
+| R-RUNTIME-02 | 完整取消链、当前pending有限投影、模式真实状态、导出同schema预检、Responses完整输出原序回传 |
 | R-RUNTIME-01 | turn ownership、工具串行包装、ledger 完整提交、上下文预算、adapter 明确终止 |
 
 ## 验证与风险

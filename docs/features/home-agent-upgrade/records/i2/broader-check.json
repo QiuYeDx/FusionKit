@@ -1,0 +1,77 @@
+{
+  "stage": "Before final composer-only layout repair",
+  "filterDifference": "test/subtitle-studio without trailing slash also matches test/subtitle-studio-provenance",
+  "success": false,
+  "files": 206,
+  "total": 2597,
+  "passed": 2490,
+  "skipped": 98,
+  "failed": 9,
+  "failures": [
+    {
+      "file": "test/subtitle-studio-provenance/replay.test.ts",
+      "message": "Changed audited shared integration source: electron/main/subtitle-studio/index.ts",
+      "tests": []
+    },
+    {
+      "file": "test/subtitle-studio-provenance/shared-resources.test.ts",
+      "message": "",
+      "tests": [
+        {
+          "name": "neutral shared resource extraction provenance replays the reviewed transforms from the actual pinned Git commit and checks six exact historical snapshots",
+          "reason": "Error: Extraction source worktree changed: src/type/localSubtitle.ts"
+        },
+        {
+          "name": "neutral shared resource extraction provenance reconstructs every output in an isolated fixture using the captured authoritative source bytes",
+          "reason": "Error: Frozen extraction source differs: src/type/localSubtitle.ts"
+        },
+        {
+          "name": "neutral shared resource extraction provenance rejects a linked output without following or altering its target",
+          "reason": "AssertionError: expected [Function check] to throw error matching /symlink/ but got 'Frozen extraction source differs: src…'"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio-provenance/transcript-executor-replay.test.ts",
+      "message": "Changed audited shared integration source: electron/main/subtitle-studio/index.ts",
+      "tests": []
+    },
+    {
+      "file": "test/subtitle-studio-provenance/windows-addon-copy.test.ts",
+      "message": "",
+      "tests": [
+        {
+          "name": "T07 independent Windows addon tooling provenance reconstructs six Windows scripts from the fixed source and verifies frozen C++ dependencies",
+          "reason": "Error: Changed audited shared integration source: electron/main/subtitle-studio/index.ts"
+        },
+        {
+          "name": "T07 independent Windows addon tooling provenance records the exact recovery-host environment repair and its reason",
+          "reason": "Error: Changed audited shared integration source: electron/main/subtitle-studio/index.ts"
+        },
+        {
+          "name": "T07 independent Windows addon tooling provenance rejects stale exact transforms, undeclared dependencies and unused C++ edits",
+          "reason": "AssertionError: expected [Function] to throw error matching /literal count differs/ but got 'Changed audited shared integration so…'"
+        },
+        {
+          "name": "T07 independent Windows addon tooling provenance rejects a different source commit and modified source digest",
+          "reason": "AssertionError: expected [Function] to throw error matching /source content differs/ but got 'Changed audited shared integration so…'"
+        },
+        {
+          "name": "T07 independent Windows addon tooling provenance preflights destination conflict and never overwrites user bytes or publishes partial provenance",
+          "reason": "Error: Changed audited shared integration source: electron/main/subtitle-studio/index.ts"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/transcription-task-service.test.ts",
+      "message": "",
+      "tests": [
+        {
+          "name": "reclaims clean released-owner task history so later owners do not inherit exhausted capacity",
+          "reason": "Error: Test timed out in 15000ms."
+        }
+      ]
+    }
+  ],
+  "disposition": "Historical provenance mismatches predate this increment (484894e/6f84227). Working tree source matches HEAD after CRLF normalization; not a line-ending cause. Transcription task service isolated rerun passed 41/41; its 12.85s case remains close to the unchanged 15s timeout."
+}

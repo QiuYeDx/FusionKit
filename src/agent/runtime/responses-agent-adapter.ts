@@ -25,6 +25,21 @@ export interface ResponsesAgentTurnRequest {
 
 type ResponsesInputItem =
   | {
+      type: "reasoning";
+      id?: string;
+      summary: unknown[];
+      encrypted_content?: string;
+      status?: string;
+    }
+  | {
+      type: "message";
+      id?: string;
+      role: "assistant";
+      content: unknown[];
+      status?: string;
+      phase?: string;
+    }
+  | {
       role: "user" | "assistant";
       content: string;
     }
@@ -53,6 +68,7 @@ interface PendingFunctionCall {
 interface ResponsesStepResult {
   functionCalls: PendingFunctionCall[];
   assistantText: string;
+  replayItems: ResponsesInputItem[];
   usage?: AgentRuntimeUsage;
 }
 
@@ -90,6 +106,7 @@ export class ResponsesAgentAdapter {
         const stepResult: ResponsesStepResult = {
           functionCalls: [],
           assistantText: "",
+          replayItems: [],
         };
 
         const response = await fetch(resolveResponsesAgentUrl(request.profile.baseUrl), {
@@ -149,10 +166,7 @@ export class ResponsesAgentAdapter {
 
         input = [
           ...input,
-          ...(stepResult.assistantText
-            ? [{ role: "assistant" as const, content: stepResult.assistantText }]
-            : []),
-          ...stepResult.functionCalls.map(toFunctionCallInputItem),
+          ...stepResult.replayItems,
           ...toolResults.map((toolResult) => ({
             type: "function_call_output" as const,
             call_id: toolResult.call.callId,
@@ -257,6 +271,9 @@ async function* parseResponsesStream(
 ): AsyncGenerator<AgentRuntimeStreamPart> {
   const callsByItemId = new Map<string, PendingFunctionCall>();
   const itemIdByOutputIndex = new Map<number, string>();
+  const outputIndexById = new Map<string, number>();
+  const completedItems = new Map<string, { index: number; item: Record<string, unknown> }>();
+  let responseOutput: unknown[] = [];
 
   let completed = false;
   events: for await (const event of readSseJsonEvents(stream, signal)) {
@@ -275,10 +292,11 @@ async function* parseResponsesStream(
 
       case "response.output_item.added": {
         const item = isRecord(event.item) ? event.item : undefined;
+        const outputIndex = numberValue(event.output_index);
+        if (item && typeof item.id === "string" && outputIndex !== undefined) outputIndexById.set(item.id, outputIndex);
         if (!item || item.type !== "function_call") break;
 
         const call = upsertFunctionCall(callsByItemId, item);
-        const outputIndex = numberValue(event.output_index);
         if (outputIndex !== undefined && call.responseItemId) {
           itemIdByOutputIndex.set(outputIndex, call.responseItemId);
         }
@@ -317,8 +335,10 @@ async function* parseResponsesStream(
 
       case "response.output_item.done": {
         const item = isRecord(event.item) ? event.item : undefined;
-        if (item?.type === "function_call") {
-          upsertFunctionCall(callsByItemId, item);
+        if (item) {
+          const index = numberValue(event.output_index) ?? outputIndexById.get(stringValue(item.id)) ?? completedItems.size;
+          const key = stringValue(item.id) || `output_${index}`;
+          completedItems.set(key, { index, item });
         }
         break;
       }
@@ -329,9 +349,10 @@ async function* parseResponsesStream(
         if (response?.status && response.status !== "completed") {
           throw new Error("Responses API returned an incomplete response.");
         }
-        for (const item of Array.isArray(response?.output) ? response.output : []) {
-          if (isRecord(item) && item.type === "function_call") upsertFunctionCall(callsByItemId, item);
-        }
+        // A completed response is authoritative. Legacy streams may instead supply
+        // completed output_item.done events; added/argument deltas are never enough.
+        responseOutput = Array.isArray(response?.output) ? response.output
+          : [...completedItems.values()].sort((a, b) => a.index - b.index).map(({ item }) => item);
         completed = true;
         break events;
       }
@@ -348,6 +369,35 @@ async function* parseResponsesStream(
 
   assertTurnActive(signal);
   if (!completed) throw new Error("Responses API stream ended before completion; no tools were executed.");
+  const announcedCallIds = [...callsByItemId.values()].map(call => call.callId);
+  callsByItemId.clear();
+  for (const item of responseOutput) {
+    if (!isRecord(item)) continue;
+    if (item.type === "function_call") {
+      if (item.status && item.status !== "completed") throw new Error("Responses API returned an incomplete function call.");
+      const call = upsertFunctionCall(callsByItemId, item);
+      stepResult.replayItems.push(toFunctionCallInputItem(call));
+    } else if (item.type === "reasoning") {
+      // Opaque reasoning is request-local protocol state, never a runtime/UI event.
+      stepResult.replayItems.push({
+        type: "reasoning", id: optionalString(item.id),
+        summary: Array.isArray(item.summary) ? item.summary : [],
+        encrypted_content: optionalString(item.encrypted_content), status: optionalString(item.status),
+      });
+    } else if (item.type === "message" && item.role === "assistant" && Array.isArray(item.content)) {
+      stepResult.replayItems.push({
+        type: "message", id: optionalString(item.id), role: "assistant", content: item.content,
+        status: optionalString(item.status), phase: optionalString(item.phase),
+      });
+    }
+  }
+  const completedCallIds = new Set([...callsByItemId.values()].map(call => call.callId));
+  if (announcedCallIds.some(id => !completedCallIds.has(id))) {
+    throw new Error("Responses API did not complete its announced function calls; no tools were executed.");
+  }
+  if (!stepResult.replayItems.some((item) => "role" in item && item.role === "assistant") && stepResult.assistantText) {
+    stepResult.replayItems.unshift({ role: "assistant", content: stepResult.assistantText });
+  }
   for (const call of callsByItemId.values()) {
     try {
       call.parsedInput = await parseAndValidateToolInput(tools[call.name], call.argumentsText);
@@ -597,6 +647,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 function numberValue(value: unknown): number | undefined {

@@ -460,10 +460,23 @@ export class StudioTranscriptionController {
     this.emit({ drafts: Object.freeze(this.state.drafts.filter(row => row.id !== id)) }); this.armPoll();
   };
   clearDrafts = (): void => { for (const draft of this.state.drafts) this.removeDraft(draft.id); };
-  enqueue = (): Promise<TranscriptionBatchAdmission | null> => {
-    if (this.enqueueOperation) return this.enqueueOperation;
+  enqueue = (options?: { expectedDraftIds?: readonly string[] }): Promise<TranscriptionBatchAdmission | null> => {
+    if (this.enqueueOperation) {
+      // A scoped confirmation must never adopt another caller's in-flight batch.
+      if (options?.expectedDraftIds) { this.emit({ error: 'resource_busy' }); return Promise.resolve(null); }
+      return this.enqueueOperation;
+    }
     this.refreshTranslationConfiguration();
     this.expireDrafts();
+    if (options?.expectedDraftIds) {
+      const expected = new Set(options.expectedDraftIds);
+      // Check after expiry and immediately before constructing the actual request.
+      // The workbench's default enqueue still admits its ready subset.
+      if (!expected.size || expected.size !== options.expectedDraftIds.length || expected.size !== this.state.drafts.length
+        || this.state.drafts.some(draft => !expected.has(draft.id) || draft.status !== 'ready' || !draft.media || !draft.probe)) {
+        this.emit({ error: 'revision_conflict' }); return Promise.resolve(null);
+      }
+    }
     if (!getTranscriptionReadiness(this.state).canEnqueue) return Promise.resolve(null);
     const drafts = this.state.drafts.filter(draft => draft.status === 'ready' && draft.media && draft.probe);
     const ids = new Set(drafts.map(draft => draft.id));

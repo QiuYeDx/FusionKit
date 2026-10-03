@@ -12,6 +12,20 @@ const errorKeys = {
   agent_cancelled: "home:action_dismissed",
   prepared_action_failed: "home:action_error_failed",
   tool_request_failed: "home:action_error_failed",
+  revision_conflict: "studio:errors.revision_conflict",
+  document_unavailable: "studio:errors.document_unavailable",
+  needs_configuration: "studio:errors.needs_configuration",
+  translation_failed: "studio:errors.translation_failed",
+  transcription_failed: "studio:errors.transcription_failed",
+  prepared_action_limit: "home:action_error_limit",
+  invalid_tool_arguments: "home:action_error_arguments",
+  studio_transcription_not_admitted: "home:action_error_changed",
+  studio_transcription_submission_unknown: "home:action_error_submission_unknown",
+  studio_translation_submission_unknown: "home:action_error_submission_unknown",
+  access_denied: "studio:errors.access_denied",
+  studio_transcription_not_ready: "home:action_error_changed",
+  unsupported_feature: "studio:errors.unsupported_feature",
+  limit_exceeded: "studio:errors.limit_exceeded",
 } as const;
 
 export function actionErrorMessage(error: string, t: TFunction): string {

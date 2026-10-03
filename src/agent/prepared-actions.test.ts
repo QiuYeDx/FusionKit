@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useAgentStore from "@/store/agent/useAgentStore";
 import { registerPreparedAction, usePreparedActionsStore } from "./prepared-actions";
 
@@ -10,11 +10,29 @@ beforeEach(() => {
   usePreparedActionsStore.setState({ actions: [] });
   setSession("prepared-test");
 });
+afterEach(() => { vi.restoreAllMocks(); });
 const register = (execute = vi.fn().mockResolvedValue({ success: true, data: { taskId: "task-one" } }), cleanup = vi.fn()) => ({
   action: registerPreparedAction({ sessionId: "prepared-test", toolKey: "subtitleStudio", title: "Translation", summary: "One document", execute, cleanup }), execute, cleanup,
 });
 
 describe("prepared action authority", () => {
+  it("timestamps actual state changes when an older preparation completes after newer actions", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+    let finish!: (value: unknown) => void;
+    const older = register(vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve; })));
+    expect(older.action.updatedAt).toBe(1000);
+    now.mockReturnValue(2000); const newer = register();
+    now.mockReturnValue(3000); await usePreparedActionsStore.getState().confirmAction(newer.action.id);
+    now.mockReturnValue(4000); const pending = usePreparedActionsStore.getState().confirmAction(older.action.id);
+    expect(usePreparedActionsStore.getState().actions.find(item => item.id === older.action.id)).toMatchObject({ status: "running", updatedAt: 4000 });
+    now.mockReturnValue(5000); finish({ success: false, error: "revision_conflict" }); await pending;
+    const actions = usePreparedActionsStore.getState().actions;
+    expect(actions.find(item => item.id === newer.action.id)).toMatchObject({ status: "completed", updatedAt: 3000 });
+    expect(actions.find(item => item.id === older.action.id)).toMatchObject({ status: "failed", updatedAt: 5000 });
+    now.mockReturnValue(6000); const dismissed = register();
+    now.mockReturnValue(7000); usePreparedActionsStore.getState().dismissAction(dismissed.action.id);
+    expect(usePreparedActionsStore.getState().actions.find(item => item.id === dismissed.action.id)).toMatchObject({ status: "dismissed", updatedAt: 7000 });
+  });
   it("claims synchronously so concurrent confirmation submits only once", async () => {
     let finish!: (value: unknown) => void;
     const execute = vi.fn().mockImplementation(() => new Promise(resolve => { finish = resolve; }));
@@ -44,6 +62,18 @@ describe("prepared action authority", () => {
     expect(value.execute).toHaveBeenCalledTimes(1);
     expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "failed", error: "prepared_action_failed" });
     expect(JSON.stringify(usePreparedActionsStore.getState())).not.toContain("private");
+  });
+  it("retains preparation details and all-failed submission receipts without enabling retry", async () => {
+    const preparationReceipt = { phase: "preparation" as const, total: 1, successCount: 1, failureCount: 0,
+      items: [{ id: "doc-one", name: "one.srt", status: "ready" as const }] };
+    const submissionReceipt = { phase: "submission" as const, total: 1, successCount: 0, failureCount: 1,
+      items: [{ id: "doc-one", name: "one.srt", status: "failed" as const, error: "revision_conflict" }] };
+    const execute = vi.fn().mockResolvedValue({ success: false, error: "not_admitted", data: { receipt: submissionReceipt } });
+    const action = registerPreparedAction({ sessionId: "prepared-test", toolKey: "subtitleStudio", title: "Translation", summary: "One document", preparationReceipt, execute });
+    await usePreparedActionsStore.getState().confirmAction(action.id);
+    await usePreparedActionsStore.getState().confirmAction(action.id);
+    expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "failed", preparationReceipt, error: "not_admitted", result: { receipt: submissionReceipt } });
+    expect(execute).toHaveBeenCalledTimes(1);
   });
   it("keeps running receipts truthful when the chat changes", async () => {
     let finish!: (value: unknown) => void;

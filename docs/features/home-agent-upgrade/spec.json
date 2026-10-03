@@ -3,7 +3,7 @@
   "feature": "home-agent-upgrade",
   "tier": "L",
   "risk": "medium",
-  "current_increment": "I1",
+  "current_increment": "I2",
   "modules": [
     {
       "slug": "runtime",
@@ -22,6 +22,18 @@
     }
   ],
   "increments": [
+    {
+      "id": "I2",
+      "title": "真实流程复审与确认结果闭环",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-03 用户要求自行 review 最新实现，从专业产品经理、UI/UX工程师及真实用户视角检查并完善。沿用先记录设计后开发，自主修复有证据的问题，不新增实验工具、付费调用或发布。初始ready通过后仅修正文档约束标题归属、I2 executor单写负责人及BRD的I1/I2路线图说明，未扩大需求；相应刷新摘要。",
+        "digest": "980d270b508d304f497c0432cf584bd8898ac6122f1eb227962289832f1178d8"
+      },
+      "acceptance": { "state": "pending", "by": "", "basis": "", "digest": "", "record": "" }
+    },
     {
       "id": "I1",
       "title": "HomeAgent 可靠规划与正式工具升级",
@@ -60,7 +72,7 @@
       },
       {
         "path": "src/agent/tool-executor.ts",
-        "owner": "root"
+        "owner": "audit_runtime"
       }
     ]
   }

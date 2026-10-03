@@ -206,7 +206,7 @@ export async function executeCreateNameTranslationPlan(
   check();
   try {
     const options = toNameTranslationOptions(args);
-    const summary = await createNameTranslationPlan(options);
+    const summary = await createNameTranslationPlan(options, { signal });
     check();
     const requiresConfirmation = !summary.clarificationRequired;
     const executionStatus = summary.clarificationRequired

@@ -5,23 +5,24 @@ import type { AgentPlan } from "@/agent/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 const statusKeys = {
   pending: "home:plan_pending", in_progress: "home:plan_in_progress",
   completed: "home:plan_completed", blocked: "home:plan_blocked",
 } as const;
 
-export default function AgentPlanPanel({ plan }: { plan: AgentPlan }) {
-  const { t } = useTranslation();
+export default function AgentPlanPanel({ plan, onCheckProgress, busy }: { plan: AgentPlan; onCheckProgress: () => void; busy: boolean }) {
+  const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState("plan");
   const completed = plan.steps.filter(step => step.status === "completed").length;
   return <SmoothCorners radius={16} smoothing={0.72} className="min-w-0 border bg-card" data-testid="agent-plan">
     <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded}>
       <AccordionItem value="plan" className="border-0">
-        <AccordionTrigger className="gap-3 p-3 hover:bg-muted/30">
+        <AccordionTrigger className="gap-3 p-3 hover:bg-muted/30" data-testid="plan-toggle">
           <ListChecks className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 text-left">
-            <span className="block text-xs font-medium">{t("home:plan_title")}</span>
+            <span className="block text-xs font-medium">{t("home:plan_last_snapshot")}</span>
             <span className="mt-1 block text-sm font-normal leading-5 [overflow-wrap:anywhere]">{plan.goal}</span>
           </span>
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{completed}/{plan.steps.length}</span>
@@ -31,7 +32,7 @@ export default function AgentPlanPanel({ plan }: { plan: AgentPlan }) {
             {plan.steps.map((step, index) => {
               const Icon = { pending: Circle, in_progress: Loader2, completed: CheckCircle2, blocked: PauseCircle }[step.status];
               return <li key={step.id} data-plan-status={step.status} className={cn("flex items-start gap-2 rounded-lg p-2", step.status === "in_progress" && "bg-muted/60")}>
-                <Icon aria-hidden className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground", step.status === "completed" && "text-emerald-600 dark:text-emerald-400", step.status === "blocked" && "text-amber-600 dark:text-amber-400", step.status === "in_progress" && "animate-spin motion-reduce:animate-none")} />
+                <Icon aria-hidden className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground", step.status === "completed" && "text-emerald-600 dark:text-emerald-400", step.status === "blocked" && "text-amber-600 dark:text-amber-400")} />
                 <div className="min-w-0 flex-1">
                   <div className="text-xs leading-5 [overflow-wrap:anywhere]"><span className="mr-1.5 text-muted-foreground tabular-nums">{index + 1}.</span>{step.title}</div>
                   {step.detail && <p className="mt-0.5 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{step.detail}</p>}
@@ -40,6 +41,13 @@ export default function AgentPlanPanel({ plan }: { plan: AgentPlan }) {
               </li>;
             })}
           </ol>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+            <div className="min-w-0 flex-1 text-[11px] leading-5 text-muted-foreground">
+              <p>{t("home:plan_updated_at", { time: new Date(plan.updatedAt).toLocaleString(i18n.resolvedLanguage || i18n.language, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) })}</p>
+              <p>{t("home:plan_snapshot_help")}</p>
+            </div>
+            <Button variant="outline" size="sm" className="h-7 text-xs" data-testid="plan-check-progress" disabled={busy} onClick={onCheckProgress}>{t("home:plan_check_progress")}</Button>
+          </div>
         </AccordionContent>
       </AccordionItem>
     </Accordion>

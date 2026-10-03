@@ -3,6 +3,13 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import type { AgentCapabilityKey } from "./capability-catalog";
 
 export interface PreparedActionResult { success: boolean; data?: unknown; error?: string }
+export interface PreparedActionReceipt {
+  phase: "preparation" | "submission";
+  total: number;
+  successCount: number;
+  failureCount: number;
+  items: { id: string; name: string; status: "ready" | "queued" | "failed"; error?: string; taskId?: string }[];
+}
 export interface PreparedAction {
   id: string;
   sessionId: string;
@@ -10,8 +17,10 @@ export interface PreparedAction {
   summary: string;
   summaryKey?: "home:prepared_translation_summary" | "home:prepared_transcription_summary";
   summaryValues?: Record<string, string | number>;
+  preparationReceipt?: PreparedActionReceipt;
   toolKey: AgentCapabilityKey;
   status: "ready" | "running" | "completed" | "failed" | "dismissed";
+  updatedAt?: number;
   error?: string;
   result?: unknown;
 }
@@ -47,15 +56,16 @@ export const usePreparedActionsStore = create<PreparedActionsState>((set, get) =
     const entry = callbacks.get(id);
     callbacks.delete(id);
     // Claim before the first await. UI clicks and automatic execution share this path.
-    set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "running" } : item) }));
+    set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "running", updatedAt: Date.now() } : item) }));
     try {
       const result = entry ? await entry.execute() : { success: false, error: "prepared_action_expired" };
       set(state => ({ actions: state.actions.map(item => item.id === id ? {
-        ...item, status: result.success ? "completed" : "failed",
-        ...(result.success ? { result: result.data } : { error: result.error ?? "prepared_action_failed" }),
+        ...item, status: result.success ? "completed" : "failed", updatedAt: Date.now(),
+        ...(result.data !== undefined ? { result: result.data } : {}),
+        ...(!result.success ? { error: result.error ?? "prepared_action_failed" } : {}),
       } : item) }));
     } catch {
-      set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "failed", error: "prepared_action_failed" } : item) }));
+      set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "failed", updatedAt: Date.now(), error: "prepared_action_failed" } : item) }));
     } finally { await cleanup(entry); }
   },
   dismissAction: id => {
@@ -63,18 +73,19 @@ export const usePreparedActionsStore = create<PreparedActionsState>((set, get) =
     if (!action || action.status !== "ready") return;
     const entry = callbacks.get(id);
     callbacks.delete(id);
-    set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "dismissed" } : item) }));
+    set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "dismissed", updatedAt: Date.now() } : item) }));
     void cleanup(entry);
   },
 }));
 
-export function registerPreparedAction(input: Pick<PreparedAction, "sessionId" | "title" | "summary" | "toolKey" | "summaryKey" | "summaryValues"> & ActionCallbacks): PreparedAction {
+export function registerPreparedAction(input: Pick<PreparedAction, "sessionId" | "title" | "summary" | "toolKey" | "summaryKey" | "summaryValues" | "preparationReceipt"> & ActionCallbacks): PreparedAction {
   if (input.sessionId !== useAgentStore.getState().session.id) throw new Error("agent_session_changed");
   const current = usePreparedActionsStore.getState().actions;
   if (current.filter(item => item.status === "ready" || item.status === "running").length >= MAX_READY_ACTIONS) throw new Error("prepared_action_limit");
   const action: PreparedAction = { id: `prepared-${Date.now()}-${++sequence}`, sessionId: input.sessionId,
-    title: input.title.slice(0, 200), summary: input.summary.slice(0, 2000), toolKey: input.toolKey, status: "ready",
-    ...(input.summaryKey ? { summaryKey: input.summaryKey, summaryValues: input.summaryValues } : {}) };
+    title: input.title.slice(0, 200), summary: input.summary.slice(0, 2000), toolKey: input.toolKey, status: "ready", updatedAt: Date.now(),
+    ...(input.summaryKey ? { summaryKey: input.summaryKey, summaryValues: input.summaryValues } : {}),
+    ...(input.preparationReceipt ? { preparationReceipt: input.preparationReceipt } : {}) };
   callbacks.set(action.id, { execute: input.execute, cleanup: input.cleanup });
   const active = current.filter(item => item.status === "ready" || item.status === "running");
   const terminal = current.filter(item => item.status !== "ready" && item.status !== "running").slice(-(MAX_ACTION_HISTORY - active.length - 1));

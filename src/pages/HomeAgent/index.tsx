@@ -41,6 +41,7 @@ import AgentPreparedActions from "./components/AgentPreparedActions";
 import AgentToolCallView from "./components/AgentToolCall";
 import AgentToolResultView, { isModernToolResult } from "./components/AgentToolResult";
 import { createWidgetActionHandler, isNamePlanResultFor } from "./widget-actions";
+import { appendProgressPrompt } from "./presentation";
 import type {
   AgentMessage,
   AgentToolResult,
@@ -255,12 +256,15 @@ function HomeAgent() {
   const isAtBottomRef = useRef(true);
   const scrollFrameRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const bottomComposerRef = useRef<HTMLDivElement>(null);
+  const [bottomComposerHeight, setBottomComposerHeight] = useState(0);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
   const [logOpen, setLogOpen] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [sessionFeedback, setSessionFeedback] = useState<string | null>(null);
 
   const {
     session,
@@ -369,6 +373,17 @@ function HomeAgent() {
       setIsMultiline(false);
     }
   }, [input, isMultiline]);
+
+  useLayoutEffect(() => {
+    const composer = bottomComposerRef.current;
+    if (isEmpty || !composer) return;
+    // Layout height excludes shared-layout transforms during the empty-state handoff.
+    const measure = () => setBottomComposerHeight(composer.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, [isEmpty]);
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -492,6 +507,8 @@ function HomeAgent() {
       setConfirmingReset(false);
       if (confirmResetTimer.current) clearTimeout(confirmResetTimer.current);
       resetSession();
+      setImportError(null);
+      setSessionFeedback(null);
     } else {
       setConfirmingReset(true);
       confirmResetTimer.current = setTimeout(
@@ -502,21 +519,36 @@ function HomeAgent() {
   };
 
   const handleExport = async () => {
-    await exportSession();
+    setImportError(null);
+    setSessionFeedback(null);
+    const result = await exportSession();
+    if (result.success) setSessionFeedback(t("home:session_exported"));
+    else if (!result.cancelled) {
+      const labels = { too_large: "home:export_error_too_large", invalid: "home:export_error_invalid", save_failed: "home:export_error_save" } as const;
+      setImportError(t(labels[result.errorCode ?? "save_failed"]));
+    }
   };
 
   const handleImport = async () => {
     setImportError(null);
+    setSessionFeedback(null);
     const result = await importSession();
     if (!result.success && result.error) {
-      setImportError(result.error);
-      setTimeout(() => setImportError(null), 4000);
+      setImportError(`${t("home:import_failed")}: ${result.error}`);
     }
+    if (result.success) setSessionFeedback(t("home:session_imported"));
+  };
+
+  const handleCheckProgress = () => {
+    setInput(current => appendProgressPrompt(current, t("home:plan_check_prompt")));
+    setSessionFeedback(t("home:plan_check_draft_added"));
+    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || isStreaming || !hasAgentConfig || hasUnsupportedAgentApiFormat) return;
+    setSessionFeedback(null);
     pushHistory(trimmed);
     setInput("");
     historyIndexRef.current = -1;
@@ -525,6 +557,7 @@ function HomeAgent() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
@@ -662,6 +695,7 @@ function HomeAgent() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setLogOpen(true)}
+                data-testid="agent-logs-trigger"
                 disabled={sessionLog.length === 0}
                 className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30"
                 title={t("home:session_log_title")}
@@ -672,6 +706,7 @@ function HomeAgent() {
                 variant="ghost"
                 size="sm"
                 onClick={handleExport}
+                data-testid="agent-export"
                 disabled={isStreaming || messages.length === 0}
                 className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30"
                 title={t("home:export_session")}
@@ -682,6 +717,7 @@ function HomeAgent() {
                 variant="ghost"
                 size="sm"
                 onClick={handleImport}
+                data-testid="agent-import"
                 disabled={isStreaming}
                 className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30"
                 title={t("home:import_session")}
@@ -720,13 +756,13 @@ function HomeAgent() {
           >
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
               <AlertTriangle className="h-3 w-3 shrink-0" />
-              <span>
-                {t("home:import_failed")}: {importError}
-              </span>
+              <span role="alert" className="min-w-0 flex-1 [overflow-wrap:anywhere]" data-testid="agent-session-error">{importError}</span>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setImportError(null)}>{t("home:feedback_dismiss")}</Button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+      {sessionFeedback && <p className="max-w-2xl mx-auto mb-2 px-2 text-xs leading-5 text-muted-foreground" role="status" aria-live="polite" data-testid="agent-session-feedback">{sessionFeedback}</p>}
 
       <motion.div
         onDragEnter={handleDragEnter}
@@ -784,6 +820,7 @@ function HomeAgent() {
           >
             <Textarea
               data-testid="agent-input"
+              aria-label={t("home:agent_input_label")}
               ref={textareaRef}
               rows={1}
               placeholder={t("home:agent_input_placeholder")}
@@ -1004,7 +1041,7 @@ function HomeAgent() {
               }}
             />
           </motion.div>
-          <div className="mt-3"><AgentCapabilities /></div>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2"><AgentCapabilities /><Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs text-muted-foreground" data-testid="agent-import-empty" onClick={handleImport}><Download className="size-3.5" />{t("home:import_session")}</Button></div>
         </motion.div>
       )}
 
@@ -1015,7 +1052,7 @@ function HomeAgent() {
           <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-28 bg-linear-to-t from-background via-background/90 to-transparent" />
 
           <div className="px-4 pt-2 pb-2">
-            <div className="max-w-2xl mx-auto space-y-4 pt-1 pb-44">
+            <div className="max-w-2xl mx-auto space-y-4 pt-1" style={{ paddingBottom: Math.max(176, bottomComposerHeight + 42 + 16) }}>
               {messages.map((msg) => (
                 <MessageBubble
                   key={msg.id}
@@ -1061,8 +1098,8 @@ function HomeAgent() {
                   </div>
                 )}
 
-              {session.plan && <AgentPlanPanel key={session.plan.id} plan={session.plan} />}
-              <AgentPreparedActions sessionId={session.id} busy={isStreaming} />
+              <AgentPreparedActions key={session.id} sessionId={session.id} busy={isStreaming} />
+              {session.plan && <AgentPlanPanel key={session.plan.id} plan={session.plan} onCheckProgress={handleCheckProgress} busy={isStreaming} />}
 
               {/* Pending execution widget */}
               {pendingExecution && !isStreaming && (
@@ -1090,7 +1127,8 @@ function HomeAgent() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 42, scale: 0.8 }}
                 transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-                className="pointer-events-none fixed inset-x-0 bottom-[142px] z-50 flex justify-center px-4"
+                className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4"
+                style={{ bottom: Math.max(142, bottomComposerHeight + 42 + 8) }}
               >
                 <Button
                   variant="outline"
@@ -1124,6 +1162,8 @@ function HomeAgent() {
         <>
           <div className="pointer-events-none fixed inset-x-0 bottom-0 h-32 bg-linear-to-b from-transparent via-background/95 to-background" />
           <motion.div
+            ref={bottomComposerRef}
+            data-testid="agent-bottom-composer"
             layoutId="input-capsule"
             // transition={{
             //   type: "spring",
@@ -1168,11 +1208,13 @@ function CapsuleModeSelector({
     >
       <SelectTrigger
         size="sm"
+        aria-label={t("home:execution_mode_label")}
+        data-testid="agent-execution-mode"
         className={cn(
           "h-8 rounded-full border-0 shadow-none -translate-x-0.5",
           "bg-secondary hover:bg-accent/60",
           "text-foreground/65",
-          "focus-visible:ring-0",
+          "focus-visible:ring-2 focus-visible:ring-ring/50",
           "cursor-pointer shrink-0",
         )}
       >

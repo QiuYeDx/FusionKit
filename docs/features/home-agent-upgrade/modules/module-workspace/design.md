@@ -1,5 +1,14 @@
 # HomeAgent 工作区设计
 
+## I2 实施前 UI/UX 基准
+依据 ../../records/review-i2-plan.md，完整保留当前密度、组件与聊天主线。待办在前，终态折叠为历史，数量和失败提示常显；最新失败不能被折叠吞掉。历史 prepared 文案改为已创建准备操作，计划标注上次更新与只填草稿的检查入口。receipt 采用紧凑数量摘要与可展开逐项结果；有限 tasks/items 投影覆盖转写真实状态。
+
+空态导入与能力入口同行；导出使用 typed 结果的四语言反馈。Studio 导航只带 documents/transcription view hint 并由目标页消费；不添加任务定位承诺。模式和输入有 AX 名称、focus-visible，操作结果用短 polite 提示。日志只在初次打开或原本位于底部时跟随，读旧日志时显示回到最新。root 所有 QA 脚本与最后 Electron 验收；UI agent 不写脚本。具体验收矩阵见 R-WORKSPACE-02 与 T-WORKSPACE-04。
+
+历史“最新结果/失败”按动作实际状态更新时间排序；兼容没有 updatedAt 的旧展示 fixture 时退回创建次序。该时间仅描述显示顺序，不参与确认授权。
+
+Electron 复审确认无模型导入后的固定底部区高于原 pb-44 预留；用 ResizeObserver 测量 composer.offsetHeight，使消息底部留白和回到底部按钮位置随真实高度变化，兼容提示/反馈/多行输入。稳定截图在 Motion 过渡完成后验收，不能以过渡帧或按钮聚焦前的日志 scrollTop 作为最终布局基准。
+
 本文负责本轮首页的规划进度、能力发现、操作确认与执行回执。跨模块业务契约以 runtime/tools 模块及对应 TypeScript 类型为准。
 
 ## 现状与约束
@@ -71,6 +80,7 @@
 
 | 需求 | 设计元素 |
 | --- | --- |
+| R-WORKSPACE-02 | 活动操作优先、历史和上次计划语义、空态导入、失败与阶段投影、有限导航、键盘焦点与日志阅读锚点、隔离Electron复验 |
 | R-WORKSPACE-01 | 保留对话主流程，结构化计划、真实工具状态、能力发现及当前会话确认回执组成统一工作区；四语言与真实 Electron 验收闭环。 |
 
 ## 验证与风险

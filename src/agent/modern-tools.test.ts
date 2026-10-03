@@ -17,6 +17,8 @@ const api = { listDocuments: vi.fn(), importSubtitles: vi.fn(), listTranslationT
 const knowledge = { read: vi.fn() };
 const originalWindow = globalThis.window;
 const documentId = "00000000-0000-4000-8000-000000000001";
+const secondDocumentId = "00000000-0000-4000-8000-000000000003";
+const thirdDocumentId = "00000000-0000-4000-8000-000000000004";
 const collectionId = "00000000-0000-4000-8000-000000000002";
 const doc = { id: documentId, revision: 1, origin: { displayName: "subtitle.srt", format: "srt" }, capabilities: { translate: true }, cueCount: 3, translationStatus: "none" };
 async function call(name: keyof typeof modernAgentTools, args: unknown = {}, abortSignal?: AbortSignal): Promise<any> {
@@ -32,7 +34,7 @@ beforeEach(() => {
   api.listDocuments.mockResolvedValue({ ok: true, value: { documents: [doc], total: 1, unavailableDocuments: 0 } });
   api.importSubtitles.mockResolvedValue({ ok: true, value: null });
   api.planTranslationBatch.mockResolvedValue({ ok: true, value: { batchId: "batch-one", items: [{ ok: true, documentId, displayName: "subtitle.srt", plan: { cueCount: 3 } }], totalEstimatedInputTokens: 400 } });
-  api.createTranslationBatch.mockResolvedValue({ ok: true, value: { items: [{ ok: true, documentId, taskId: "task-one" }] } });
+  api.createTranslationBatch.mockResolvedValue({ ok: true, value: { items: [{ ok: true, documentId, displayName: "subtitle.srt", taskId: "task-one" }] } });
   api.listTranslationTasks.mockResolvedValue({ ok: true, value: { total: 1, counts: { queued: 1 }, items: [{ documentId, revision: 1, taskId: "task-one", displayName: "subtitle.srt", status: "queued", completedBatches: 0, totalBatches: 1, canResume: false, model: { apiKey: "secret" } }] } });
   mocks.state = { config: structuredClone(DEFAULT_STUDIO_TRANSCRIPTION_CONFIG), autoTranslation: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation), drafts: [], error: null };
   mocks.controller = {
@@ -94,6 +96,62 @@ describe("modern tools fixed API boundaries", () => {
 });
 
 describe("translation preparation and admission", () => {
+  it("preserves preparation and submission failures alongside the actual admitted subset", async () => {
+    const unavailable = { ok: false, documentId: thirdDocumentId, displayName: "missing.srt", error: "document_unavailable" };
+    api.planTranslationBatch.mockResolvedValueOnce({ ok: true, value: { batchId: "mixed-batch", totalEstimatedInputTokens: 800, items: [
+      { ok: true, documentId, displayName: "ready.srt", plan: {} },
+      { ok: true, documentId: secondDocumentId, displayName: "changed.srt", plan: {} }, unavailable] } });
+    api.createTranslationBatch.mockResolvedValueOnce({ ok: true, value: { items: [
+      { ok: true, documentId, displayName: "ready.srt", taskId: "task-one" },
+      { ok: false, documentId: secondDocumentId, displayName: "changed.srt", error: "revision_conflict" }, unavailable] } });
+    const result = await call("prepare_studio_translation", { documents: [documentId, secondDocumentId, thirdDocumentId].map(documentId => ({ documentId, revision: 1 })) });
+    expect(result.data.receipt).toMatchObject({ phase: "preparation", total: 3, successCount: 2, failureCount: 1,
+      items: [{ status: "ready" }, { status: "ready" }, { id: thirdDocumentId, name: "missing.srt", status: "failed", error: "document_unavailable" }] });
+    expect(usePreparedActionsStore.getState().actions[0].preparationReceipt).toEqual(result.data.receipt);
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "completed", result: { executionStatus: "queued",
+      receipt: { phase: "submission", total: 3, successCount: 1, failureCount: 2, items: [
+        { id: documentId, name: "ready.srt", status: "queued", taskId: "task-one" },
+        { id: secondDocumentId, name: "changed.srt", status: "failed", error: "revision_conflict" },
+        { id: thirdDocumentId, name: "missing.srt", status: "failed", error: "document_unavailable" }] } } });
+    expect(mocks.trackStarted).toHaveBeenCalledWith(["task-one"]);
+  });
+  it("returns per-file reasons when every document fails preparation", async () => {
+    api.planTranslationBatch.mockResolvedValueOnce({ ok: true, value: { batchId: "failed-plan", totalEstimatedInputTokens: 0,
+      items: [{ ok: false, documentId, displayName: "broken.srt", error: "unsupported_feature" }] } });
+    expect(await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] })).toMatchObject({ success: false,
+      data: { receipt: { phase: "preparation", total: 1, successCount: 0, failureCount: 1,
+        items: [{ id: documentId, name: "broken.srt", status: "failed", error: "unsupported_feature" }] } } });
+    expect(usePreparedActionsStore.getState().actions).toHaveLength(0);
+    expect(api.createTranslationBatch).not.toHaveBeenCalled();
+  });
+  it.each(["queue_only", "auto_execute"] as const)("retains all-failed admission receipts in %s without retrying", async mode => {
+    useAgentStore.setState({ executionMode: mode });
+    api.createTranslationBatch.mockResolvedValueOnce({ ok: true, value: { items: [{ ok: false, documentId, displayName: "subtitle.srt", error: "revision_conflict" }] } });
+    const result = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] });
+    if (mode === "queue_only") await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    const expected = { phase: "submission", total: 1, successCount: 0, failureCount: 1,
+      items: [{ id: documentId, name: "subtitle.srt", status: "failed", error: "revision_conflict" }] };
+    const action = usePreparedActionsStore.getState().actions[0];
+    expect(action).toMatchObject({ status: "failed", result: { receipt: expected } });
+    if (mode === "auto_execute") expect(result).toMatchObject({ success: false, data: { result: { receipt: expected } } });
+    await usePreparedActionsStore.getState().confirmAction(action.id);
+    expect(api.createTranslationBatch).toHaveBeenCalledTimes(1);
+    expect(mocks.trackStarted).not.toHaveBeenCalled();
+  });
+  it("does not invent per-file failures or retry when the admission response is lost", async () => {
+    useAgentStore.setState({ executionMode: "auto_execute" });
+    api.createTranslationBatch.mockRejectedValueOnce(new Error("private-api secret-task-key"));
+    const result = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] });
+    expect(result).toMatchObject({ success: false, error: "studio_translation_submission_unknown", data: {
+      receipt: { phase: "preparation", successCount: 1, failureCount: 0 } } });
+    expect(result.data.result).toBeUndefined();
+    const action = usePreparedActionsStore.getState().actions[0];
+    expect(action.result).toBeUndefined();
+    await usePreparedActionsStore.getState().confirmAction(action.id);
+    expect(api.createTranslationBatch).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(result)).not.toMatch(/private-api|secret-task-key/);
+  });
   it.each(["queue_only", "ask_before_execute"] as const)("does not submit in %s and submits the exact batch once on confirmation", async mode => {
     useAgentStore.setState({ executionMode: mode });
     const result = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] });
@@ -154,6 +212,29 @@ describe("transcription preparation ownership", () => {
     expect(mocks.state.autoTranslation.enabled).toBe(false);
     await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
     expect(mocks.controller.enqueue).toHaveBeenCalledTimes(1);
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"] });
+  });
+  it("rejects a prepared batch when one draft becomes unready without leaking native draft tokens", async () => {
+    mocks.controller.selectMedia.mockImplementationOnce(async () => { mocks.state.drafts = [
+      { id: "private-file-token-one", displayName: "one.mp4", status: "ready", audioStreamId: "audio-one" },
+      { id: "private-file-token-two", displayName: "two.mp4", status: "ready", audioStreamId: "audio-two" }]; });
+    const result = await call("prepare_studio_transcription");
+    expect(result.data.receipt).toMatchObject({ phase: "preparation", total: 2, successCount: 2 });
+    mocks.state.drafts[1].status = "expired"; mocks.state.drafts[1].error = "access_denied";
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(mocks.controller.enqueue).not.toHaveBeenCalled();
+    const action = usePreparedActionsStore.getState().actions[0];
+    expect(action).toMatchObject({ status: "failed", result: { receipt: { total: 2, successCount: 0, failureCount: 2, items: [
+      { id: "media-1", name: "one.mp4", status: "failed" }, { id: "media-2", name: "two.mp4", status: "failed", error: "access_denied" }] } } });
+    expect(JSON.stringify([result, action])).not.toContain("private-file-token");
+  });
+  it("retains exact file evidence when expiry is detected inside scoped admission", async () => {
+    const result = await call("prepare_studio_transcription");
+    mocks.controller.enqueue.mockImplementationOnce(async () => { mocks.state.error = "revision_conflict"; mocks.state.drafts[0].status = "expired"; mocks.state.drafts[0].error = "access_denied"; return null; });
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"] });
+    expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "failed", result: { receipt: {
+      successCount: 0, failureCount: 1, items: [{ id: "media-1", name: "media.mp4", error: "access_denied" }] } } });
   });
   it("does not silently include drafts added after preparation", async () => {
     const result = await call("prepare_studio_transcription");
@@ -196,10 +277,35 @@ describe("transcription preparation ownership", () => {
     expect(mocks.controller.enqueue).toHaveBeenCalledTimes(1);
     expect(mocks.controller.removeDraft).not.toHaveBeenCalled();
     expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "failed", error: "studio_transcription_submission_unknown" });
+    expect(usePreparedActionsStore.getState().actions[0].result).toBeUndefined();
   });
 });
 
 describe("local handoff and knowledge projection", () => {
+  it("paginates matched entries, collections and recipes independently beyond the first page", async () => {
+    const entries = Array.from({ length: 3 }, (_, index) => ({ id: `entry-${index}`, revision: 1, title: `Match entry ${index}`, collectionId,
+      state: "candidate", kind: "term", scope: { languagePair: { source: "ja", target: "zh-Hans" } }, payload: { source: "source", target: "target" } }));
+    const collections = Array.from({ length: 4 }, (_, index) => ({ id: `collection-${index}`, name: `Match collection ${index}`, archived: false }));
+    const recipes = Array.from({ length: 2 }, (_, index) => ({ id: `recipe-${index}`, name: `Match recipe ${index}`, archived: false,
+      languagePair: { source: "ja", target: "zh-Hans" } }));
+    knowledge.read.mockResolvedValue({ ok: true, value: { generation: 1, approvals: {}, data: { entries,
+      collections: [...collections, { id: "archived", name: "Match archived", archived: true }, { id: "other", name: "Unrelated", archived: false }], recipes } } });
+    const first = (await call("search_translation_knowledge", { query: "Match", limit: 2 })).data;
+    const second = (await call("search_translation_knowledge", { query: "Match", limit: 2, offset: 2 })).data;
+    const last = (await call("search_translation_knowledge", { query: "Match", limit: 2, offset: 4 })).data;
+    expect(first.pagination).toEqual({ offset: 0, limit: 2,
+      entries: { total: 3, hasMore: true, nextOffset: 2 }, collections: { total: 4, hasMore: true, nextOffset: 2 }, recipes: { total: 2, hasMore: false, nextOffset: null } });
+    expect(second.pagination).toEqual({ offset: 2, limit: 2,
+      entries: { total: 3, hasMore: false, nextOffset: null }, collections: { total: 4, hasMore: false, nextOffset: null }, recipes: { total: 2, hasMore: false, nextOffset: null } });
+    for (const key of ["entries", "collections", "recipes"] as const) {
+      const ids = [...first[key], ...second[key]].map((item: { id: string }) => item.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids).toEqual(({ entries, collections, recipes })[key].map(item => item.id));
+      expect(last[key]).toEqual([]);
+      expect(last.pagination[key]).toMatchObject({ hasMore: false, nextOffset: null });
+    }
+    expect(second.total).toBe(3); expect(second.offset).toBe(2);
+  });
   it("rejects unsupported classic output formats without changing preferences", async () => {
     expect(await call("configure_local_transcription", { outputFormats: ["VTT"] })).toMatchObject({ success: false, error: "invalid_tool_arguments" });
   });

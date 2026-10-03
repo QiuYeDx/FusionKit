@@ -77,7 +77,8 @@ export interface CreateNameTranslationPlanDeps {
   ) => Promise<ScanRenameTargetsResult>;
   translateBatch?: (
     items: NameTranslationModelInputItem[],
-    options: NameTranslationOptions
+    options: NameTranslationOptions,
+    signal?: AbortSignal
   ) => Promise<NameTranslationModelOutputItem[]>;
   checkPathExists?: (filePath: string) => Promise<boolean>;
   checkPathsExist?: (filePaths: string[]) => Promise<BatchPathCheckResult>;
@@ -859,8 +860,9 @@ async function translateBatchWithRecovery(
       context.observer.stats.requestCount += 1;
       context.observer.onProgress?.({ ...context.observer.stats });
     }
-    return await translateBatch(items, options);
+    return await translateBatch(items, options, context.signal);
   } catch (error) {
+    throwIfPlanningAborted(context.signal);
     if (error instanceof NameTranslationPlannerError) {
       throw error;
     }
@@ -1085,9 +1087,12 @@ async function collectExistingTargetPaths(
 
 async function translateBatchWithTaskModel(
   items: NameTranslationModelInputItem[],
-  options: NameTranslationOptions
+  options: NameTranslationOptions,
+  signal?: AbortSignal
 ): Promise<NameTranslationModelOutputItem[]> {
+  throwIfPlanningAborted(signal);
   const taskProfile = await getTaskProfile();
+  throwIfPlanningAborted(signal);
   if (!taskProfile?.apiKey || !taskProfile.modelKey || !taskProfile.baseUrl) {
     throw new NameTranslationPlannerError(
       "未配置任务执行模型，请在设置页面配置。",
@@ -1104,7 +1109,8 @@ async function translateBatchWithTaskModel(
       taskProfile,
       system,
       prompt,
-      maxOutputTokens
+      maxOutputTokens,
+      signal
     );
   }
 
@@ -1122,12 +1128,15 @@ async function translateBatchWithTaskModel(
       temperature: 0.2,
       maxOutputTokens,
       maxRetries: 2,
+      abortSignal: signal,
       experimental_repairText: async ({ text }) =>
         repairNameTranslationModelJsonText(text),
     });
 
+    throwIfPlanningAborted(signal);
     return result.object.items;
   } catch (structuredError) {
+    throwIfPlanningAborted(signal);
     const structuredMessage = formatModelError(structuredError);
     if (classifyModelError(structuredMessage) !== "recoverable") {
       throw structuredError;
@@ -1144,10 +1153,13 @@ async function translateBatchWithTaskModel(
         temperature: 0.2,
         maxOutputTokens,
         maxRetries: 2,
+        abortSignal: signal,
       });
 
+      throwIfPlanningAborted(signal);
       return parseNameTranslationModelOutputText(result.text);
     } catch (fallbackError) {
+      throwIfPlanningAborted(signal);
       throw new Error(
         `structured_output_failed:${formatModelError(structuredError)}; text_fallback_failed:${formatModelError(fallbackError)}`
       );
@@ -1159,8 +1171,10 @@ export async function translateBatchWithResponsesProfile(
   profile: ModelProfile,
   system: string,
   prompt: string,
-  maxOutputTokens: number
+  maxOutputTokens: number,
+  signal?: AbortSignal
 ): Promise<NameTranslationModelOutputItem[]> {
+  throwIfPlanningAborted(signal);
   const response = await fetch(normalizeModelEndpoint(profile.baseUrl).responsesUrl, {
     method: "POST",
     headers: {
@@ -1178,9 +1192,12 @@ export async function translateBatchWithResponsesProfile(
       max_output_tokens: maxOutputTokens,
       store: false,
     }),
+    signal,
   });
 
+  throwIfPlanningAborted(signal);
   const data = await response.json().catch(() => undefined);
+  throwIfPlanningAborted(signal);
   if (!response.ok) {
     throw new Error(
       sanitizeModelErrorMessage(

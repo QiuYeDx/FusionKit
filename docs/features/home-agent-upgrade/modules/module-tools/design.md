@@ -1,5 +1,12 @@
 # HomeAgent 正式工具接入设计
 
+## I2 批量回执和准确范围设计
+依据 ../../records/review-i2-plan.md 与 R-TOOLS-02。`PreparedActionReceipt` 使用 phase(preparation/submission)、total、successCount、failureCount 和最多50条 items；条目为 id/name/status(ready/queued/failed)/error?/taskId?。准备结果放 data.receipt 与 action.preparationReceipt，提交结果放 result.receipt；失败 data 也写入 action.result。失败不自动重试，回执不承载执行权限。
+
+知识分页保留既有字段，增加 pagination(offset/limit/entries/collections/recipes)，三类均返回 total/hasMore/nextOffset。转写 controller.enqueue 接受可选 expectedDraftIds，在 expireDrafts 后、构造请求前要求全部且仅目标草稿 ready，否则零入队；不传参数保留工作台行为。现代工具与动作管理由 tools 单写，UI 只消费此契约。
+
+提交的 transport reject / submission_unknown 不能证明零入队。此类保留准备回执并明确“提交结果未知”，不伪造 submission 成败统计，不自动重试；仅确定返回值或提交前拒绝具有逐项提交结果。这是既有未知副作用边界的落实。
+
 ## 现状与约束
 
 现有九个 Agent 工具只覆盖经典字幕翻译、转换、提取及名称翻译/恢复。正式范围由工具页栏目定义，不由 TOOL_META.status 推断。工作台和资料库已有受保护 preload API。经典转写仅从真实 File 捕获授权；工作台有固定 selectTranscriptionMedia 选择器，两类 token 不可互换。
@@ -54,6 +61,7 @@
 
 | 需求 | 设计元素 |
 | --- | --- |
+| R-TOOLS-02 | preparation/submission逐项receipt、失败data保留、expectedDraftIds admission校验、三类独立分页 |
 | R-TOOLS-01 | 正式目录、固定 API 适配、会话绑定动作、controller 复用、有界结果投影 |
 
 ## 验证与风险

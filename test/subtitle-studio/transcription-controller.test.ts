@@ -326,6 +326,64 @@ it('prevents duplicate enqueue, freezes captured choices, then revokes consumed 
   expect(f.api.revokeTranscriptionMedia).toHaveBeenCalledWith({ fileToken: 'ls-input-1' });
 });
 
+it('admits the complete explicitly confirmed draft set exactly once', async () => {
+  const f = fixture(); await f.choose(media('1'), media('2'));
+  const tasks = [task(), task('44444444-4444-4444-8444-444444444444')];
+  f.api.enqueueTranscription.mockResolvedValueOnce(ok({ batchId: task().batchId, tasks }));
+  expect(await f.controller.enqueue({ expectedDraftIds: ['ls-input-2', 'ls-input-1'] })).toMatchObject({ tasks });
+  expect(f.api.enqueueTranscription).toHaveBeenCalledTimes(1);
+  expect(f.api.enqueueTranscription.mock.calls[0][0].files).toEqual([
+    { fileToken: 'ls-input-1', audioStreamId: 'stream-1' }, { fileToken: 'ls-input-2', audioStreamId: 'stream-1' }]);
+  expect(f.controller.getState().drafts).toEqual([]);
+});
+
+it.each([
+  ['extra current draft', ['ls-input-1']],
+  ['missing expected draft', ['ls-input-1', 'ls-input-2', 'ls-input-3']],
+  ['duplicate expected draft', ['ls-input-1', 'ls-input-1']],
+  ['empty expected scope', []],
+] as const)('rejects scoped enqueue with %s without consuming any draft', async (_label, expectedDraftIds) => {
+  const f = fixture(); await f.choose(media('1'), media('2'));
+  expect(await f.controller.enqueue({ expectedDraftIds })).toBeNull();
+  expect(f.api.enqueueTranscription).not.toHaveBeenCalled();
+  expect(f.api.revokeTranscriptionMedia).not.toHaveBeenCalled();
+  expect(f.controller.getState()).toMatchObject({ error: 'revision_conflict', drafts: [{ status: 'ready' }, { status: 'ready' }] });
+});
+
+it('checks expiry at scoped admission without silently falling back to the remaining ready subset', async () => {
+  const f = fixture(); await f.choose(media('1', Date.now() + 100), media('2', Date.now() + 2000));
+  // Move the clock without firing the poll: both rows still appear ready until enqueue expires them.
+  vi.setSystemTime(Date.now() + 101);
+  expect(f.controller.getState().drafts.every(draft => draft.status === 'ready')).toBe(true);
+  expect(await f.controller.enqueue({ expectedDraftIds: ['ls-input-1', 'ls-input-2'] })).toBeNull();
+  expect(f.api.enqueueTranscription).not.toHaveBeenCalled();
+  expect(f.controller.getState()).toMatchObject({ error: 'revision_conflict', drafts: [{ status: 'expired' }, { status: 'ready' }] });
+  // The existing workbench intentionally starts its ready subset when no exact scope was requested.
+  await f.controller.enqueue();
+  expect(f.api.enqueueTranscription).toHaveBeenCalledTimes(1);
+  expect(f.api.enqueueTranscription.mock.calls[0][0].files).toEqual([{ fileToken: 'ls-input-2', audioStreamId: 'stream-1' }]);
+  expect(f.controller.getState().drafts).toMatchObject([{ id: 'ls-input-1', status: 'expired' }]);
+});
+
+it('rejects a scoped admission when a prepared media probe has failed', async () => {
+  const f = fixture(); await f.choose(media('1'), media('2'));
+  f.api.probeTranscriptionMedia.mockResolvedValueOnce({ ok: false, error: 'transcription_failed' });
+  await f.controller.retryProbe('ls-input-1');
+  expect(await f.controller.enqueue({ expectedDraftIds: ['ls-input-1', 'ls-input-2'] })).toBeNull();
+  expect(f.api.enqueueTranscription).not.toHaveBeenCalled();
+  expect(f.controller.getState().drafts).toMatchObject([{ status: 'error' }, { status: 'ready' }]);
+});
+
+it('does not return another admission receipt to a scoped confirmation during an in-flight enqueue', async () => {
+  const f = fixture(), pending = deferred<Awaited<ReturnType<SubtitleStudioApi['enqueueTranscription']>>>();
+  await f.choose(media()); f.api.enqueueTranscription.mockReturnValueOnce(pending.promise);
+  const first = f.controller.enqueue();
+  expect(await f.controller.enqueue({ expectedDraftIds: ['ls-input-other'] })).toBeNull();
+  expect(f.controller.getState().error).toBe('resource_busy');
+  pending.resolve(ok({ batchId: task().batchId, tasks: [task()] })); await first;
+  expect(f.api.enqueueTranscription).toHaveBeenCalledTimes(1);
+});
+
 it('restores editable drafts on definite enqueue rejection but blocks retries after uncertain transport failure', async () => {
   const f = fixture(); await f.choose(media());
   f.api.enqueueTranscription.mockResolvedValueOnce({ ok: false, error: 'needs_configuration' });

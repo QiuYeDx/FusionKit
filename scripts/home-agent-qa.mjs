@@ -4,7 +4,7 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 // Run after the root Vite test build. All state, files and model traffic are isolated.
-const artifacts = path.resolve('test-results/home-agent');
+const artifacts = path.resolve('test-results/home-agent/i2');
 const runRoot = path.join(artifacts, `run-${Date.now()}`);
 await mkdir(runRoot, { recursive: true });
 const locales = Object.fromEntries(await Promise.all(['zh', 'en', 'ja', 'zh-Hant'].map(async language => [language, JSON.parse(await readFile(`src/locales/${language}/home.json`, 'utf8'))])));
@@ -26,10 +26,33 @@ const fixtureSession = {
     { id: 'verify', title: '查看真实任务结果', status: 'pending', dependsOn: ['prepare'] },
   ] },
 };
+const fixtureLog = Array.from({ length: 80 }, (_, index) => ({ id: `qa-log-${index}`, timestamp: now + index, type: index === 0 ? 'error' : 'tool_result', summary: `Historical log ${index}`, data: { detail: `Preserve this expanded diagnostic ${index}` } }));
+const resultSession = {
+  ...fixtureSession, id: 'home-agent-result-qa', plan: undefined,
+  messages: [
+    { id: 'query-user', role: 'user', content: '查看转写任务及本次批量翻译结果。', timestamp: now },
+    { id: 'query-assistant', role: 'assistant', content: '任务查询已完成，以下保留各项处理状态与失败原因。', timestamp: now + 1, toolCalls: [call('transcription-status', 'get_local_transcription_status'), call('batch-result', 'prepare_studio_translation'), call('studio-transcription', 'get_studio_tasks')] },
+    { id: 'query-result', role: 'tool', content: '{}', timestamp: now + 2, toolResult: { callId: 'transcription-status', toolName: 'get_local_transcription_status', success: true, data: { tasks: [
+      { id: 'loading', name: 'Model-loading-interview.mp4', status: 'loading_model', progress: 10 },
+      { id: 'transcribing', name: 'Lecture-long-file-转写进度.mp4', status: 'transcribing', progress: 46 },
+      { id: 'cancelling', name: 'Cancelled-recording.mp4', status: 'cancelling' },
+      { id: 'failed', name: 'Unsupported-audio.mov', status: 'failed', error: '该音轨格式无法解码，请检查源文件。' },
+      { id: 'completed', name: 'Completed-subtitles.wav', status: 'completed', progress: 100 },
+    ] } } },
+    { id: 'batch-tool-result', role: 'tool', content: '{}', timestamp: now + 3, toolResult: { callId: 'batch-result', toolName: 'prepare_studio_translation', success: true, data: { executionStatus: 'prepared', receipt: { phase: 'preparation', total: 3, successCount: 1, failureCount: 2, items: [
+      { id: 'ok', name: 'Episode-01.srt', status: 'ready' },
+      { id: 'stale', name: 'Episode-02-字幕已更新.srt', status: 'failed', error: 'revision_conflict' },
+      { id: 'missing', name: 'Episode-03-原文件已移除.srt', status: 'failed', error: 'document_unavailable' },
+    ] } } } },
+    { id: 'studio-transcription-result', role: 'tool', content: '{}', timestamp: now + 4, toolResult: { callId: 'studio-transcription', toolName: 'get_studio_tasks', success: true, data: { kind: 'transcription', total: 1, items: [{ taskId: 'studio-task', name: 'Studio-transcription-interview.mp4', status: 'transcribing', progress: 38 }] } } },
+  ],
+};
 
 let app;
 let server;
 let responseQueue = [];
+let holdNextResponse = false;
+let releaseHeldResponse;
 const requests = [];
 const errors = [];
 const checks = [];
@@ -40,7 +63,8 @@ function completion(events) {
 }
 function toolEvent(name, args) {
   const id = `qa-${name}-${Date.now()}`;
-  return [{ type: 'response.output_item.added', output_index: 0, item: { id, type: 'function_call', call_id: id, name, arguments: JSON.stringify(args) } }];
+  const item = { id, type: 'function_call', call_id: id, name, arguments: JSON.stringify(args), status: 'completed' };
+  return [{ type: 'response.output_item.added', output_index: 0, item }, { type: 'response.output_item.done', output_index: 0, item }];
 }
 try {
   server = createServer(async (request, response) => {
@@ -51,7 +75,9 @@ try {
     const body = JSON.parse(text || '{}'); requests.push({ url: request.url, body });
     if (request.url?.endsWith('/responses')) {
       response.setHeader('Content-Type', 'text/event-stream');
-      response.end(completion(responseQueue.shift() ?? [{ type: 'response.output_text.delta', delta: '准备已完成，请检查本次操作摘要。' }]));
+      const payload = completion(responseQueue.shift() ?? [{ type: 'response.output_text.delta', delta: '准备已完成，请检查本次操作摘要。' }]);
+      if (holdNextResponse) { holdNextResponse = false; releaseHeldResponse = () => response.end(payload); }
+      else response.end(payload);
       return;
     }
     if (request.url?.endsWith('/chat/completions')) {
@@ -80,6 +106,10 @@ try {
     await page.screenshot({ path: target, animations: 'disabled' });
     screenshots.push(target);
   }
+  async function revealAction(locator) {
+    await locator.evaluate(element => { const viewport = element.closest('[data-radix-scroll-area-viewport]'); if (!viewport) throw new Error('Missing actual conversation viewport'); viewport.scrollTop += element.getBoundingClientRect().top - 64; });
+    await expect.poll(async () => { const action = await locator.boundingBox(); const composer = await page.getByTestId('agent-bottom-composer').boundingBox(); return action.y >= 40 && action.y + action.height <= composer.y; }).toBe(true);
+  }
   async function composerSettled() {
     let previous;
     let stableSamples = 0;
@@ -89,7 +119,8 @@ try {
       const input = document.querySelector('[data-testid="agent-input"]')?.getBoundingClientRect();
       const mode = document.querySelector('[data-testid="home-agent"] [role="combobox"]')?.getBoundingClientRect();
       const send = document.querySelector('[data-testid="agent-send"]')?.getBoundingClientRect();
-      if (!toolbar || !input || !mode || !send || input.top - toolbar.bottom < 0 || input.top - toolbar.bottom > 40) return null;
+      const feedbackHeight = document.querySelector('[data-testid="agent-session-feedback"]')?.getBoundingClientRect().height ?? 0;
+      if (!toolbar || !input || !mode || !send || input.top - toolbar.bottom < 0 || input.top - toolbar.bottom > 56 + feedbackHeight) return null;
       const center = rect => rect.top + rect.height / 2;
       if (Math.abs(center(mode) - center(input)) > 4 || Math.abs(center(send) - center(input)) > 4) return null;
       return [toolbar.top, toolbar.bottom, input.top, input.height, mode.top, send.top];
@@ -100,14 +131,14 @@ try {
       return stableSamples >= 4;
     }, { timeout: 10000, intervals: [100], message: 'Composer toolbar, mode selector and send button settle beside the input after the empty-state transition' }).toBe(true);
   }
-  async function configure(language, theme, session, model = true) {
-    await page.evaluate(({ language, theme, session, modelState, emptyStats }) => {
+  async function configure(language, theme, session, model = true, sessionLog = []) {
+    await page.evaluate(({ language, theme, session, modelState, emptyStats, sessionLog }) => {
       localStorage.setItem('lang', language);
       localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme }, version: 0 }));
       localStorage.setItem('fusionkit-model', JSON.stringify({ state: modelState, version: 5 }));
-      localStorage.setItem('fusionkit-agent', JSON.stringify({ state: { executionMode: 'ask_before_execute', ...(session ? { session, tokenStats: emptyStats, sessionLog: [] } : {}) }, version: 0 }));
+      localStorage.setItem('fusionkit-agent', JSON.stringify({ state: { executionMode: 'ask_before_execute', ...(session ? { session, tokenStats: emptyStats, sessionLog } : {}) }, version: 0 }));
       location.hash = '/';
-    }, { language, theme, session, modelState: model ? modelState : { profiles: [], assignment: { agent: null, taskExecution: null }, audioProfiles: [], audioAssignment: {} }, emptyStats });
+    }, { language, theme, session, modelState: model ? modelState : { profiles: [], assignment: { agent: null, taskExecution: null }, audioProfiles: [], audioAssignment: {} }, emptyStats, sessionLog });
     await page.reload(); await ready();
     await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*\bdark\b).*$/);
   }
@@ -117,6 +148,41 @@ try {
   await page.getByTestId('agent-input').fill('测试未配置时的发送状态');
   await expect(page.getByTestId('agent-send')).toBeDisabled();
   await capture('empty-no-model-light'); checks.push('No-model send disabled');
+  const sessionFile = path.join(runRoot, 'valid-agent-session.json');
+  const invalidFile = path.join(runRoot, 'invalid-agent-session.json');
+  await writeFile(sessionFile, JSON.stringify({ version: 1, exportedAt: now, executionMode: 'auto_execute', session: fixtureSession, tokenStats: emptyStats, sessionLog: fixtureLog }), 'utf8');
+  await writeFile(invalidFile, '{"session":"invalid"}', 'utf8');
+  await app.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] }); });
+  await page.getByTestId('agent-import-empty').click();
+  await expect(page.getByTestId('agent-import-empty')).toBeVisible();
+  await expect(page.getByTestId('agent-input')).toHaveValue('测试未配置时的发送状态');
+  await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, invalidFile);
+  await page.getByTestId('agent-import-empty').click();
+  await expect(page.getByTestId('agent-import-empty')).toBeVisible();
+  await expect(page.getByTestId('agent-input')).toHaveValue('测试未配置时的发送状态');
+  await expect(page.getByTestId('home-agent')).toContainText('Invalid session');
+  await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, sessionFile);
+  await page.getByTestId('agent-import-empty').click();
+  await expect(page.getByTestId('agent-plan')).toBeVisible();
+  await expect(page.getByTestId('agent-send')).toBeDisabled();
+  await expect(page.locator('[data-action-status="ready"]')).toHaveCount(0);
+  checks.push('Native session picker cancellation/invalid preserve draft; valid import works without model and restores no execution authority');
+  const exportedSessionFile = path.join(runRoot, 'exported-session.json');
+  await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true }); });
+  await page.getByTitle(locales.zh.export_session, { exact: true }).click();
+  await expect(page.getByTestId('agent-plan')).toBeVisible();
+  await app.evaluate(({ dialog }, filePath) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath }); }, exportedSessionFile);
+  await page.getByTitle(locales.zh.export_session, { exact: true }).click();
+  await expect.poll(async () => { try { return JSON.parse(await readFile(exportedSessionFile, 'utf8')).session.messages.length; } catch { return 0; } }).toBe(fixtureSession.messages.length);
+  await configure('zh', 'light', null, false);
+  await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, exportedSessionFile);
+  await page.getByTestId('agent-import-empty').click();
+  await expect(page.getByTestId('agent-plan')).toBeVisible();
+  await composerSettled();
+  await page.getByTestId('agent-plan').evaluate(element => { const viewport = element.closest('[data-radix-scroll-area-viewport]'); if (!viewport) throw new Error('Missing actual conversation viewport'); viewport.scrollTop = viewport.scrollHeight; });
+  await expect.poll(async () => { const plan = await page.getByTestId('agent-plan').boundingBox(); const composer = await page.getByTestId('agent-bottom-composer').boundingBox(); return composer.y - (plan.y + plan.height); }).toBeGreaterThanOrEqual(0);
+  await capture('restored-session-no-model');
+  checks.push('Native save cancellation is harmless; real exported JSON reimports successfully; settled no-model composer leaves plan fully readable');
 
   for (const [language, theme, width, height] of [['zh', 'light', 1280, 860], ['en', 'dark', 786, 660], ['ja', 'light', 786, 660], ['zh-Hant', 'dark', 1280, 860]]) {
     await nativeWindow.evaluate((win, size) => win.setSize(...size), [width, height]);
@@ -129,10 +195,10 @@ try {
     await page.waitForTimeout(150);
     await capture(`plan-${language}-${width}`);
     const plan = page.getByTestId('agent-plan');
-    await plan.getByRole('button').click();
-    await expect(plan.getByRole('button')).toHaveAttribute('aria-expanded', 'false');
-    await plan.getByRole('button').click();
-    await expect(plan.getByRole('button')).toHaveAttribute('aria-expanded', 'true');
+    await plan.getByTestId('plan-toggle').click();
+    await expect(plan.getByTestId('plan-toggle')).toHaveAttribute('aria-expanded', 'false');
+    await plan.getByTestId('plan-toggle').click();
+    await expect(plan.getByTestId('plan-toggle')).toHaveAttribute('aria-expanded', 'true');
     await page.locator('[data-tool-call-id="failed-call"]').evaluate(element => element.scrollIntoView({ block: 'center' }));
     await capture(`receipts-${language}-${width}`);
     await page.getByTestId('agent-capabilities-trigger').click();
@@ -148,6 +214,103 @@ try {
     checks.push({ language, theme, width, height, metrics });
   }
 
+  await configure('en', 'dark', fixtureSession);
+  const requestCountBeforeDraft = requests.length;
+  await page.getByTestId('agent-input').fill('Keep my existing draft');
+  await page.getByTestId('plan-check-progress').click();
+  await expect(page.getByTestId('agent-input')).toHaveValue(/^Keep my existing draft/);
+  const preservedDraft = await page.getByTestId('agent-input').inputValue();
+  await page.getByTestId('plan-check-progress').click();
+  await expect(page.getByTestId('agent-input')).toHaveValue(preservedDraft);
+  await expect(page.getByTestId('agent-input')).toBeFocused();
+  await page.getByTestId('agent-input').fill('');
+  await page.getByTestId('plan-check-progress').click();
+  await expect(page.getByTestId('agent-input')).not.toHaveValue('');
+  await expect(page.getByTestId('agent-input')).toBeFocused();
+  expect(requests.length).toBe(requestCountBeforeDraft);
+  checks.push('Plan progress affordance preserves existing draft, fills an empty draft and never sends automatically');
+  await composerSettled();
+  const longDraftMetrics = await page.getByTestId('agent-input').evaluate(element => {
+    const capsule = element.closest('.relative.bg-background');
+    if (!capsule) throw new Error('Missing composer capsule');
+    const input = element.getBoundingClientRect(); const outer = capsule.getBoundingClientRect();
+    return { inputTop: input.top, inputBottom: input.bottom, capsuleTop: outer.top, capsuleBottom: outer.bottom, height: element.offsetHeight, scrollHeight: element.scrollHeight };
+  });
+  expect(longDraftMetrics.inputTop).toBeGreaterThanOrEqual(longDraftMetrics.capsuleTop);
+  expect(longDraftMetrics.inputBottom).toBeLessThanOrEqual(longDraftMetrics.capsuleBottom);
+  expect(longDraftMetrics.scrollHeight).toBeLessThanOrEqual(longDraftMetrics.height);
+  await capture('long-progress-draft-en-dark');
+  checks.push({ settledLongDraft: longDraftMetrics });
+  await page.getByTestId('agent-input').fill('Keyboard focus test');
+  await composerSettled();
+  const modeSelector = page.getByTestId('home-agent').getByRole('combobox');
+  await expect(page.getByTestId('agent-input')).toHaveAttribute('aria-label', /.+/);
+  await expect(modeSelector).toHaveAttribute('aria-label', /.+/);
+  await page.getByTestId('agent-input').focus();
+  await page.keyboard.press('Shift+Tab');
+  // Find the mode selector using keyboard navigation, retaining a visible focus witness.
+  for (let step = 0; step < 20 && !(await modeSelector.evaluate(element => element === document.activeElement)); step++) await page.keyboard.press('Tab');
+  await expect(modeSelector).toBeFocused();
+  const focusRing = await modeSelector.evaluate(element => ({ visible: element.matches(':focus-visible'), shadow: getComputedStyle(element).boxShadow }));
+  expect(focusRing.visible).toBe(true); expect(focusRing.shadow).not.toBe('none');
+  await capture('keyboard-mode-focus-en-dark');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(modeSelector).toBeFocused();
+  checks.push({ keyboardModeFocus: focusRing });
+
+  for (const [language, theme, width, height] of [['zh', 'light', 1280, 860], ['en', 'dark', 786, 660]]) {
+    await nativeWindow.evaluate((win, size) => win.setSize(...size), [width, height]);
+    await configure(language, theme, resultSession);
+    await page.locator('[data-tool-call-id="transcription-status"]').getByRole('button').first().click();
+    await expect(page.getByTestId('home-agent')).toContainText('Lecture-long-file-转写进度.mp4');
+    await expect(page.getByTestId('home-agent')).toContainText('该音轨格式无法解码');
+    await page.getByTestId('agent-tool-result').filter({ hasText: 'Model-loading-interview.mp4' }).evaluate(element => element.scrollIntoView({ block: 'center' }));
+    await capture(`transcription-status-${language}-${width}`);
+    await page.locator('[data-tool-call-id="batch-result"]').getByRole('button').first().click();
+    await page.getByTestId('agent-action-receipt').evaluate(element => element.scrollIntoView({ block: 'center' }));
+    await capture(`batch-failure-${language}-${width}`);
+    await expect(page.getByTestId('home-agent')).toContainText('Episode-02-字幕已更新.srt');
+    checks.push(`${language}: task stages/errors and mixed receipt are visible in imported history`);
+  }
+  await page.getByTestId('agent-tool-result').filter({ hasText: 'Studio-transcription-interview.mp4' }).getByRole('button', { name: locales.en.open_tool, exact: true }).click();
+  await expect(page.getByTestId('subtitle-studio')).toHaveAttribute('data-workspace-view', 'transcription');
+  await expect.poll(() => page.evaluate(() => location.hash)).not.toContain('view=');
+  await page.evaluate(() => { location.hash = '/'; }); await ready();
+  await page.getByTestId('agent-capabilities-trigger').click();
+  await page.getByTestId('agent-capabilities-list').getByRole('button', { name: locales.en.open_tool_named.replace('{{name}}', locales.en.capability_studio), exact: true }).click();
+  await expect(page.getByTestId('subtitle-studio')).toHaveAttribute('data-workspace-view', 'documents');
+  checks.push('Studio transcription result opens transcription; general Studio entry returns documents; view hint consumed');
+
+  await configure('en', 'dark', fixtureSession, true, fixtureLog);
+  holdNextResponse = true;
+  await page.getByTestId('agent-input').fill('Please append one response while I read earlier logs.');
+  await page.getByTestId('agent-send').click();
+  await expect.poll(() => typeof releaseHeldResponse).toBe('function');
+  await page.getByTestId('agent-logs-trigger').click();
+  const logEntries = page.getByTestId('agent-log-entries');
+  await logEntries.waitFor();
+  await logEntries.evaluate(element => { const viewport = element.closest('[data-slot="scroll-area-viewport"]'); if (!viewport) throw new Error('Missing actual log viewport'); viewport.scrollTop = 0; viewport.dispatchEvent(new Event('scroll')); });
+  await page.getByTestId('agent-log-toggle-qa-log-0').click();
+  await expect(page.getByTestId('agent-log-toggle-qa-log-0')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByTestId('logs-latest')).toBeVisible();
+  let previousLogMetrics;
+  let stableLogSamples = 0;
+  const logMetrics = () => logEntries.evaluate(element => { const viewport = element.closest('[data-slot="scroll-area-viewport"]'); const entry = element.querySelector('[data-testid="agent-log-entry-qa-log-0"]'); return { scrollTop: viewport.scrollTop, top: entry.getBoundingClientRect().top }; });
+  await expect.poll(async () => { const current = await logMetrics(); stableLogSamples = previousLogMetrics && Math.abs(current.scrollTop - previousLogMetrics.scrollTop) < 0.25 && Math.abs(current.top - previousLogMetrics.top) < 0.25 ? stableLogSamples + 1 : 0; previousLogMetrics = current; return stableLogSamples; }, { intervals: [100] }).toBeGreaterThanOrEqual(4);
+  const beforeLogAppend = await logMetrics();
+  const oldLogCount = await logEntries.locator('[data-testid^="agent-log-entry-"]').count();
+  releaseHeldResponse(); releaseHeldResponse = undefined;
+  await expect.poll(() => logEntries.locator('[data-testid^="agent-log-entry-"]').count()).toBeGreaterThan(oldLogCount);
+  await expect(page.getByTestId('agent-log-toggle-qa-log-0')).toHaveAttribute('aria-expanded', 'true');
+  await expect.poll(async () => { const current = await logMetrics(); return Math.max(Math.abs(current.scrollTop - beforeLogAppend.scrollTop), Math.abs(current.top - beforeLogAppend.top)); }).toBeLessThan(2);
+  await capture('logs-reading-anchor-en-dark');
+  await page.getByTestId('logs-latest').click();
+  await expect.poll(() => logEntries.evaluate(element => { const viewport = element.closest('[data-slot="scroll-area-viewport"]'); return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight; })).toBeLessThan(17);
+  await page.keyboard.press('Escape');
+  checks.push('Reading/expanded log remains anchored after real stream appends; latest button restores follow');
+
   // A real import and prepared translation exercise the new runtime/tool/UI boundary.
   await nativeWindow.evaluate(win => win.setSize(1280, 860));
   await configure('zh', 'light', null);
@@ -161,11 +324,11 @@ try {
     if (!listed.ok) throw new Error(listed.error);
     return listed.value.documents.map(document => ({ documentId: document.id, revision: document.revision }));
   });
-  async function prepare() {
+  async function prepare(targets = documents) {
     responseQueue = [toolEvent('update_agent_plan', { goal: '准备并确认字幕翻译', steps: [
       { id: 'review', title: '检查真实字幕文档', status: 'completed', dependsOn: [] },
       { id: 'queue', title: '准备翻译，等待确认后加入队列', status: 'in_progress', dependsOn: ['review'] },
-    ] }), toolEvent('prepare_studio_translation', { documents, targetLanguage: 'zh' })];
+    ] }), toolEvent('prepare_studio_translation', { documents: targets, targetLanguage: 'zh' })];
     await page.getByTestId('agent-input').fill('请准备翻译已导入的字幕，等待我确认后执行。');
     await page.getByTestId('agent-send').click();
     await expect(page.locator('[data-action-status="ready"]')).toBeVisible({ timeout: 30000 });
@@ -173,17 +336,36 @@ try {
     await composerSettled();
   }
   await prepare();
+  await revealAction(page.locator('[data-action-status="ready"]'));
   await capture('prepared-translation-light');
   await page.locator('[data-action-status="ready"]').getByRole('button', { name: locales.zh.action_dismiss, exact: true }).click();
-  await expect(page.locator('[data-action-status="dismissed"]')).toBeVisible();
+  await expect(page.getByTestId('action-history-toggle')).toBeVisible();
   let taskCount = await page.evaluate(async () => { const result = await window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 50 }); return result.ok ? result.value.total : -1; });
   expect(taskCount).toBe(0); checks.push('Prepared cancellation starts no task');
   await prepare();
   await page.locator('[data-action-status="ready"]').getByRole('button', { name: locales.zh.action_confirm, exact: true }).click();
+  await expect(page.locator('[data-action-status="ready"]')).toHaveCount(0, { timeout: 30000 });
+  await page.getByTestId('action-history-toggle').click();
   await expect(page.locator('[data-action-status="completed"]')).toContainText(locales.zh.result_submitted, { timeout: 30000 });
   await expect.poll(async () => page.evaluate(async () => { const result = await window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 50 }); return result.ok ? result.value.counts.completed : -1; }), { timeout: 30000 }).toBe(1);
   await composerSettled();
+  await revealAction(page.locator('[data-action-status="completed"]'));
   await capture('submitted-translation-light'); checks.push('Confirmation enqueues one real fixture task; synthetic local response completes it');
+
+  const staleSubtitle = path.join(runRoot, '版本已更新-Episode-02.srt');
+  await writeFile(staleSubtitle, '1\n00:00:01,000 --> 00:00:03,000\nA second real imported subtitle.\n', 'utf8');
+  await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, staleSubtitle);
+  const currentDocuments = await page.evaluate(async staleName => {
+    const imported = await window.subtitleStudio.importSubtitles({ encoding: 'utf-8' }); if (!imported.ok) throw new Error(imported.error);
+    const result = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!result.ok) throw new Error(result.error);
+    return result.value.documents.map(document => ({ documentId: document.id, revision: document.revision + (document.origin.displayName === staleName ? 1 : 0) }));
+  }, path.basename(staleSubtitle));
+  await prepare(currentDocuments);
+  await expect(page.locator('[data-action-status="ready"]')).toContainText(path.basename(staleSubtitle));
+  await revealAction(page.locator('[data-action-status="ready"]'));
+  await capture('prepared-partial-failure-light');
+  await page.locator('[data-action-status="ready"]').getByRole('button', { name: locales.zh.action_dismiss, exact: true }).click();
+  checks.push('Real mixed preparation preserves stale authorized document failure beside the ready subset');
   expect(errors).toEqual([]);
   await writeFile(path.join(artifacts, 'report.json'), JSON.stringify({ runRoot, checks, screenshots, pageErrors: errors, requestCount: requests.length, evidenceBoundary: 'Real isolated Electron and native service import/queue; model responses are synthetic loopback SSE/JSON, not real provider quality.' }, null, 2));
   console.log(JSON.stringify({ success: true, artifacts, screenshots: screenshots.length, checks: checks.length, requests: requests.length }));
@@ -193,5 +375,6 @@ try {
   throw error;
 } finally {
   await app?.close();
+  server?.closeAllConnections();
   await new Promise(resolve => server ? server.close(resolve) : resolve());
 }

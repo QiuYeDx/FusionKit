@@ -1,0 +1,1403 @@
+{
+  "command": "node node_modules/vitest/vitest.mjs run src/agent src/store/agent src/pages/HomeAgent src/pages/Tools/Subtitle/SubtitleStudio/navigation.test.ts src/services/rename/nameTranslationPlanner.test.ts src/store/tools/subtitle src/services/subtitle test/translation test/subtitle-studio/ src/services/subtitle-studio/translation-session.test.ts --maxWorkers=2 --minWorkers=1 --reporter=json --outputFile=test-results/home-agent/i2/unit-results.json",
+  "startedAt": "2026-10-03T14:43:18.359Z",
+  "success": true,
+  "files": 189,
+  "total": 2374,
+  "passed": 2322,
+  "skipped": 52,
+  "failed": 0,
+  "results": [
+    {
+      "file": "test/subtitle-studio/acceptance-files-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I3 native files, format preservation and export UI imports real dropped Files, translates VTT/ASS, exports to separate source folders and restores locations",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/acceptance-formats.test.ts",
+      "status": "passed",
+      "passed": 36,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/acceptance-live-refresh-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I5 real Electron reader refresh and toolbar keeps progress silent, joins foreground clicks and rejects obsolete query results",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/acceptance-queue-overview-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I3 queue maintenance and global translation progress in Electron uses actual IPC/repository, snapshot bulk actions and real submitted IDs across pages and SPA navigation",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/acceptance-queue-overview.test.ts",
+      "status": "passed",
+      "passed": 16,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/acceptance-source-output.test.ts",
+      "status": "passed",
+      "passed": 27,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/automatic-knowledge-capture.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/automatic-translation.test.ts",
+      "status": "passed",
+      "passed": 12,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/batch-service.test.ts",
+      "status": "passed",
+      "passed": 7,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/bilingual-local-files.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "authorized local bilingual files without network interprets the supplied lrc while retaining original bytes and evidence",
+          "status": "skipped"
+        },
+        {
+          "name": "authorized local bilingual files without network interprets the supplied srt while retaining original bytes and evidence",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/bilingual-mixed.test.ts",
+      "status": "passed",
+      "passed": 46,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/bilingual-service.test.ts",
+      "status": "passed",
+      "passed": 24,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/bilingual-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio bilingual import workspace confirms local candidates, clears an imported track, and translates only the separated source",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/bilingual.test.ts",
+      "status": "passed",
+      "passed": 23,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/boundaries.test.ts",
+      "status": "passed",
+      "passed": 8,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/context-menu-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "document context actions in real Electron keeps selection and preview independent, freezes cross-page scope and reuses batch workflows",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/cue-copy.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/development-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "uses the dev renderer to import, preview and export after restart beside an unreadable historical document",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/drop-import.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio production Electron integration (dialog responses controlled) imports SRT/LRC through production IPC, previews, persists and exports after restart",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/execution-record.test.ts",
+      "status": "passed",
+      "passed": 23,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/experience-export-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I5 export defaults and shared document lists uses real tracks, source folders and fallback with one collapsed scope and scroll-aware lists",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/experience-transcription-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I5 actual Electron transcription experience persists settings, captures native drop and hands committed documents to real automatic translation once",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/export-conflict-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "export conflict policy in real Electron aligns the footer menu and publishes indexed and native overwrite exports",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/export-filename.test.ts",
+      "status": "passed",
+      "passed": 6,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/export-planner.test.ts",
+      "status": "passed",
+      "passed": 41,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/export-service.test.ts",
+      "status": "passed",
+      "passed": 23,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/export-translation.test.ts",
+      "status": "passed",
+      "passed": 2,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/export-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio local export workspace exports separated tracks without model calls, explains losses, and saves a frozen revision",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/formats.test.ts",
+      "status": "passed",
+      "passed": 17,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/i1-coexistence-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio I1 coexistence and locales keeps legacy preferences and entry points while localizing the workspace, export, and recovery",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/i1-independence-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio I1 production independence (coexistence build) imports, translates, restarts and exports independently of simulated old data and the original source file",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/i1-legacy-real-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "runs real legacy ASR alongside Studio without changing source media or preferences",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/i1-legacy-recovery-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "recovers an actual partially translated legacy task through the native directory picker after restart",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/interaction-copy-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I6 explicit copy and concise results copies the selected content and reveals operation details only on request",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/interaction-export-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I6 explicit export review and concise operation results keeps real plans guarded across back, cancel, expiry, partial blocking and original byte downloads",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/interaction-queue-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I6 actual Electron queue presentation keeps two information lines and a distinct progress trough in wide light and exact small dark windows",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/interaction-workspace-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I6 actual Electron workspace layout and selection keeps view origins stable and selection local through slow reads, new queries and disposal",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/ipc.test.ts",
+      "status": "passed",
+      "passed": 34,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/knowledge-batch-translation.test.ts",
+      "status": "passed",
+      "passed": 27,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/knowledge-references.test.ts",
+      "status": "passed",
+      "passed": 23,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/knowledge-translation.test.ts",
+      "status": "passed",
+      "passed": 24,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/knowledge-trial.test.ts",
+      "status": "passed",
+      "passed": 17,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/library-navigation-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "responsive document navigation in real Electron selects immediately, ignores superseded reads and isolates loading and errors",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/library-service.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/library-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "manages a paginated subtitle library and batch work through the real renderer",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/lifecycle-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio recovery and deletion in Electron recovers one complete generation, exports without its source, confirms deletion and stays deleted after restart",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/media-drop.test.ts",
+      "status": "passed",
+      "passed": 2,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/observations.test.ts",
+      "status": "passed",
+      "passed": 1,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/recovery-batch-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "selects, confirms once and clears unreadable documents with isolated failures through real Electron IPC",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/refresh-coordinator.test.ts",
+      "status": "passed",
+      "passed": 7,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/remove-translation-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "translation record removal confirmation names the selected record like the selector and removes only that record",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/repository-creation.test.ts",
+      "status": "passed",
+      "passed": 14,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/repository.test.ts",
+      "status": "passed",
+      "passed": 26,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/resources-dialog-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "keeps local resource information and actions compact through installation, occupancy and deletion",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/result-feedback-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "I7 consistent operation feedback shows actual receipts and action-specific outcomes with one optional detail list and honest request semantics",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/smart-export-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "content-aware export in real Electron restricts source-only scopes and exports mixed target/bilingual files with one source fallback",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/transcription-bridge.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "uses the built isolated Studio bridge without requiring installed ASR resources",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/transcription-controller.test.ts",
+      "status": "passed",
+      "passed": 41,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-document-producer.test.ts",
+      "status": "passed",
+      "passed": 14,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-document-sink.test.ts",
+      "status": "passed",
+      "passed": 12,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-document-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "renders stored media documents and preserves subtitle-only download semantics",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/transcription-document.test.ts",
+      "status": "passed",
+      "passed": 27,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-ipc.test.ts",
+      "status": "passed",
+      "passed": 18,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-preferences.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-runtime-lifecycle.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-runtime.test.ts",
+      "status": "passed",
+      "passed": 19,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-task-contract.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-task-service.test.ts",
+      "status": "passed",
+      "passed": 41,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio transcription in the actual Electron window uses real IPC and repository for resource actions, media choices, retained queues and opening a completed document",
+          "status": "skipped"
+        },
+        {
+          "name": "Subtitle Studio transcription in the actual Electron window shows unavailable runtime from the unmodified production native implementation in an empty isolated app",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/translation-checkpoint.test.ts",
+      "status": "passed",
+      "passed": 11,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/translation-overview.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/translation-protocol.test.ts",
+      "status": "passed",
+      "passed": 40,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/translation-real-api.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio authorized real API translates srt with the same defaults as the workspace",
+          "status": "skipped"
+        },
+        {
+          "name": "Subtitle Studio authorized real API translates lrc with the same defaults as the workspace",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/translation-recovery-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio translation recovery workspace recovers committed batches after restart, requires the original model, and discards cancelled responses",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/translation-recovery.test.ts",
+      "status": "passed",
+      "passed": 39,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/translation-service.test.ts",
+      "status": "passed",
+      "passed": 36,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/translation-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio translation workspace plans and translates through native IPC, persists targets and fits narrow windows",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/vertical-layout.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio vertical workspace uses the space between the title bar and navigation for the reader",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/workspace-ui.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "Subtitle Studio workspace interactions supports native import, page navigation, copy, raw view, error recovery, export and responsive themes",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation/base-translator-runtime.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/base-translator.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/generated-import-candidate.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/local-subtitle-handoff-structure.test.ts",
+      "status": "passed",
+      "passed": 10,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/lrc-utils.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/recovery-artifacts.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/subtitle-context.test.ts",
+      "status": "passed",
+      "passed": 19,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/subtitle-translation-directory-capability.test.ts",
+      "status": "passed",
+      "passed": 11,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/subtitle-translation-ipc-service.test.ts",
+      "status": "passed",
+      "passed": 12,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/subtitle-translation-preload.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/subtitle-translation-recovery-capability.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/subtitle-translation-reference-schema.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/subtitle-translation-retry-policy.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/subtitle-translation-usage.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "test/translation/translation-service-task-identity.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/automatic-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "automatic knowledge translation through native Electron freezes materials before transcription and explains then repairs automatic conflicts with an explicit new translation",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/automatic-service.test.ts",
+      "status": "passed",
+      "passed": 33,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/automatic-snapshot.test.ts",
+      "status": "passed",
+      "passed": 20,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/batch-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "batch knowledge translation through native Electron checks three files, explicitly starts two ready files, and retains independent frozen knowledge and requests",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/batch-review.test.ts",
+      "status": "passed",
+      "passed": 2,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/bulk-review-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "bulk review of imported materials in native Electron reviews across pages, freezes selection, recovers stale versions and preserves skipped entries",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/collection-maintenance-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "collection maintenance in native Electron previews direct deletion, preserves cancelled changes and sources, and distinguishes archive from deletion",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/consumer-ux-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "translation materials first-use journey in native Electron uses explicitly selected materials in Studio and keeps classic subtitle imports in the classic queue",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "translation knowledge in Electron uses native import, explicit review, structured editing, export and isolated restore",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/entry-dialogs-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "translation material record dialogs in native Electron keeps five record types readable and separates editing, review and maintenance actions",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/entry-scope-motion-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "entry scope tab flow in native Electron keeps scope swaps continuous on first/repeated visits and reversal, with scrollable compact drafts and reduced motion",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/execution.test.ts",
+      "status": "passed",
+      "passed": 68,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/export-plans.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/export-selection.test.ts",
+      "status": "passed",
+      "passed": 14,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/formal-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "formal knowledge translation through native Electron translates beyond the trial window, retains exact knowledge after task cleanup, and protects referenced materials",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/ipc.test.ts",
+      "status": "passed",
+      "passed": 13,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/labels.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/maintenance-crash.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/maintenance.test.ts",
+      "status": "passed",
+      "passed": 26,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/matching.test.ts",
+      "status": "passed",
+      "passed": 34,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/materials-layout-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "materials selection and reuse layout through native Electron keeps selection explicit, reuses only shared settings across documents, and makes library actions reachable",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/protocol.test.ts",
+      "status": "passed",
+      "passed": 17,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/service.test.ts",
+      "status": "passed",
+      "passed": 30,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/skill-archive.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/skill-download-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "save authoring skill in native Electron saves an offline ZIP from an empty library, handles cancel and existing files, and fits wide/narrow layouts",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/snapshot.test.ts",
+      "status": "passed",
+      "passed": 21,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/task-maintenance.test.ts",
+      "status": "passed",
+      "passed": 13,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/term-paste.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/trial-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "knowledge trial through native Electron checks explicit scopes, sends frozen guidance, shows trial results, and leaves official tracks untouched",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/translation-knowledge/ui-model.test.ts",
+      "status": "passed",
+      "passed": 11,
+      "skipped": []
+    },
+    {
+      "file": "test/translation-knowledge/workspace-layout-electron.test.ts",
+      "status": "passed",
+      "passed": 0,
+      "skipped": [
+        {
+          "name": "knowledge workspace list layout keeps primary management visible, tabs alongside New, and long lists inside fading viewports",
+          "status": "skipped"
+        }
+      ]
+    },
+    {
+      "file": "test/subtitle-studio/transcription/config.test.ts",
+      "status": "passed",
+      "passed": 10,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueBoundaryPlanner.test.ts",
+      "status": "passed",
+      "passed": 21,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueContainedOverlapEvidence.test.ts",
+      "status": "passed",
+      "passed": 23,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueContainedOverlapResolver.test.ts",
+      "status": "passed",
+      "passed": 10,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueDisplaySeparators.test.ts",
+      "status": "passed",
+      "passed": 12,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueLocalAnchorHead.test.ts",
+      "status": "passed",
+      "passed": 7,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueMultiOverlapResolver.test.ts",
+      "status": "passed",
+      "passed": 10,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueOverlapResolver.test.ts",
+      "status": "passed",
+      "passed": 22,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cuePrefixOverlapResolver.test.ts",
+      "status": "passed",
+      "passed": 9,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cuePrefixSeparator.test.ts",
+      "status": "passed",
+      "passed": 9,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueSeparatorRestorer.test.ts",
+      "status": "passed",
+      "passed": 37,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueShortOnsetEvidence.test.ts",
+      "status": "passed",
+      "passed": 33,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueSummary.test.ts",
+      "status": "passed",
+      "passed": 12,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueVariantOverlapEvidence.test.ts",
+      "status": "passed",
+      "passed": 28,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/cueVariantOverlapResolver.test.ts",
+      "status": "passed",
+      "passed": 13,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/domain.test.ts",
+      "status": "passed",
+      "passed": 44,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/input-identity.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/ipc-contract.test.ts",
+      "status": "passed",
+      "passed": 51,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/overlapGroupReview.test.ts",
+      "status": "passed",
+      "passed": 18,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/overlapGroupSplice.test.ts",
+      "status": "passed",
+      "passed": 30,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/pauseWindowPlan.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/productionExecutor.test.ts",
+      "status": "passed",
+      "passed": 159,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/quietAudio.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/serverContract.test.ts",
+      "status": "passed",
+      "passed": 37,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/source-media-lifecycle.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "test/subtitle-studio/transcription/subtitlePostProcessor.test.ts",
+      "status": "passed",
+      "passed": 85,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/api-format-capability.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/capability-catalog.test.ts",
+      "status": "passed",
+      "passed": 1,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/conversation-context.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/guarded-tools.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/modern-tools.test.ts",
+      "status": "passed",
+      "passed": 38,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/name-plan-confirmation.test.ts",
+      "status": "passed",
+      "passed": 36,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/name-translation-intent.test.ts",
+      "status": "passed",
+      "passed": 8,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/orchestrator.test.ts",
+      "status": "passed",
+      "passed": 16,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/plan.test.ts",
+      "status": "passed",
+      "passed": 7,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/prepared-actions.test.ts",
+      "status": "passed",
+      "passed": 7,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/queue-batch.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/session-io.test.ts",
+      "status": "passed",
+      "passed": 8,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/session-schema.test.ts",
+      "status": "passed",
+      "passed": 8,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/task-model-config.test.ts",
+      "status": "passed",
+      "passed": 4,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/tool-executor-scope.test.ts",
+      "status": "passed",
+      "passed": 9,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/tool-executor-translation.test.ts",
+      "status": "passed",
+      "passed": 12,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/tool-schemas.test.ts",
+      "status": "passed",
+      "passed": 15,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/translation-slice-config.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/runtime/chat-completions-agent-adapter.test.ts",
+      "status": "passed",
+      "passed": 7,
+      "skipped": []
+    },
+    {
+      "file": "src/agent/runtime/responses-agent-adapter.test.ts",
+      "status": "passed",
+      "passed": 21,
+      "skipped": []
+    },
+    {
+      "file": "src/pages/HomeAgent/presentation.test.ts",
+      "status": "passed",
+      "passed": 20,
+      "skipped": []
+    },
+    {
+      "file": "src/pages/HomeAgent/widget-actions.test.ts",
+      "status": "passed",
+      "passed": 6,
+      "skipped": []
+    },
+    {
+      "file": "src/services/rename/nameTranslationPlanner.test.ts",
+      "status": "passed",
+      "passed": 30,
+      "skipped": []
+    },
+    {
+      "file": "src/services/subtitle/generatedSubtitleImportCoordinator.test.ts",
+      "status": "passed",
+      "passed": 19,
+      "skipped": []
+    },
+    {
+      "file": "src/services/subtitle/subtitleTranslatorTaskFactory.test.ts",
+      "status": "passed",
+      "passed": 3,
+      "skipped": []
+    },
+    {
+      "file": "src/services/subtitle/subtitleUsageStats.test.ts",
+      "status": "passed",
+      "passed": 2,
+      "skipped": []
+    },
+    {
+      "file": "src/services/subtitle/translatorExecutionService.test.ts",
+      "status": "passed",
+      "passed": 2,
+      "skipped": []
+    },
+    {
+      "file": "src/services/subtitle/translatorImportLedger.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "src/services/subtitle/translatorQueueService.test.ts",
+      "status": "passed",
+      "passed": 30,
+      "skipped": []
+    },
+    {
+      "file": "src/services/subtitle-studio/translation-session.test.ts",
+      "status": "passed",
+      "passed": 12,
+      "skipped": []
+    },
+    {
+      "file": "src/store/agent/useAgentStore.test.ts",
+      "status": "passed",
+      "passed": 5,
+      "skipped": []
+    },
+    {
+      "file": "src/store/tools/subtitle/localSubtitleTranscriberConfig.test.ts",
+      "status": "passed",
+      "passed": 10,
+      "skipped": []
+    },
+    {
+      "file": "src/store/tools/subtitle/subtitleTranslatorConfigBootstrap.test.ts",
+      "status": "passed",
+      "passed": 2,
+      "skipped": []
+    },
+    {
+      "file": "src/store/tools/subtitle/useLocalSubtitleTranscriberStore.test.ts",
+      "status": "passed",
+      "passed": 12,
+      "skipped": []
+    },
+    {
+      "file": "src/store/tools/subtitle/useSubtitleConverterStore.test.ts",
+      "status": "passed",
+      "passed": 2,
+      "skipped": []
+    },
+    {
+      "file": "src/store/tools/subtitle/useSubtitleTranslatorConfigStore.test.ts",
+      "status": "passed",
+      "passed": 7,
+      "skipped": []
+    },
+    {
+      "file": "src/pages/Tools/Subtitle/SubtitleStudio/navigation.test.ts",
+      "status": "passed",
+      "passed": 7,
+      "skipped": []
+    }
+  ]
+}
