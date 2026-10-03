@@ -1,0 +1,189 @@
+{
+  "runRoot": "test-results/home-agent/run-1791019359000",
+  "checks": [
+    "No-model send disabled",
+    {
+      "language": "zh",
+      "theme": "light",
+      "width": 1280,
+      "height": 860,
+      "metrics": [
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-plan",
+          "width": 670,
+          "overflow": 0
+        },
+        {
+          "id": "agent-capabilities-list",
+          "width": 550,
+          "overflow": 0
+        }
+      ]
+    },
+    {
+      "language": "en",
+      "theme": "dark",
+      "width": 786,
+      "height": 660,
+      "metrics": [
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-plan",
+          "width": 670,
+          "overflow": 0
+        },
+        {
+          "id": "agent-capabilities-list",
+          "width": 550,
+          "overflow": 0
+        }
+      ]
+    },
+    {
+      "language": "ja",
+      "theme": "light",
+      "width": 786,
+      "height": 660,
+      "metrics": [
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-plan",
+          "width": 670,
+          "overflow": 0
+        },
+        {
+          "id": "agent-capabilities-list",
+          "width": 550,
+          "overflow": 0
+        }
+      ]
+    },
+    {
+      "language": "zh-Hant",
+      "theme": "dark",
+      "width": 1280,
+      "height": 860,
+      "metrics": [
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-tool-result",
+          "width": 630,
+          "overflow": 0
+        },
+        {
+          "id": "agent-plan",
+          "width": 670,
+          "overflow": 0
+        },
+        {
+          "id": "agent-capabilities-list",
+          "width": 550,
+          "overflow": 0
+        }
+      ]
+    },
+    "Prepared cancellation starts no task",
+    "Confirmation enqueues one real fixture task; synthetic local response completes it"
+  ],
+  "screenshots": [
+    {
+      "file": "test-results/home-agent/empty-no-model-light.png",
+      "sha256": "6a815379e5919f66edb32b0ebfca5aaa906771c415556b37da2b716a6af06869"
+    },
+    {
+      "file": "test-results/home-agent/plan-zh-1280.png",
+      "sha256": "dd9b3c6afa87d9c9044ed203e8164b265cf88a4b74e40cc79d12902561351a50"
+    },
+    {
+      "file": "test-results/home-agent/receipts-zh-1280.png",
+      "sha256": "af14ceac3cb0378e00b970239c45c34f77371763a5ff6975ee76aa3a13aeb09f"
+    },
+    {
+      "file": "test-results/home-agent/capabilities-zh-1280.png",
+      "sha256": "f83dde70aab43527cb731faaf54861c08f678a83b15b8f85d7864bd69a05338c"
+    },
+    {
+      "file": "test-results/home-agent/plan-en-786.png",
+      "sha256": "eb2a224b990831ba83557d89c9edf8c8f3ab9005a536e4218a362b87bde8af9b",
+      "archived": "records/screenshots/plan-en-786.png"
+    },
+    {
+      "file": "test-results/home-agent/receipts-en-786.png",
+      "sha256": "b957e3e248344779271bb4d3aace42efd39b0f1d7d972f7e9e49076a3375ca3b"
+    },
+    {
+      "file": "test-results/home-agent/capabilities-en-786.png",
+      "sha256": "c00d027ad3a2981211b33f7eca1707e899217e5affa48f653afc3e8108bf042d"
+    },
+    {
+      "file": "test-results/home-agent/plan-ja-786.png",
+      "sha256": "05fb811a1597ec58a5bb8ab7de3db5bb0ef646c8f6566003118c9d2c2f93dccb"
+    },
+    {
+      "file": "test-results/home-agent/receipts-ja-786.png",
+      "sha256": "f57641ee5c69b78f9ecdf864629eefa61d43df9e1afb19e49c72fd14424b4ab3"
+    },
+    {
+      "file": "test-results/home-agent/capabilities-ja-786.png",
+      "sha256": "21e01c0572aa5e9725f9b313107cd675bd2efa877c18c1ae30a3eb6a35b37a7c",
+      "archived": "records/screenshots/capabilities-ja-786.png"
+    },
+    {
+      "file": "test-results/home-agent/plan-zh-Hant-1280.png",
+      "sha256": "7346a11b1c7ba3e99fb9150ee1084dd0c719f003eb43f4913bc10062cb690ee4"
+    },
+    {
+      "file": "test-results/home-agent/receipts-zh-Hant-1280.png",
+      "sha256": "3c9b74a6dfd25f36d3b3a1daee33e508736730f979cd75cbc21b7595a69bec11"
+    },
+    {
+      "file": "test-results/home-agent/capabilities-zh-Hant-1280.png",
+      "sha256": "f3a4a4aed9d6aefbc014ca359d46098f08786d091df7dc429b57db68f47d7ec5"
+    },
+    {
+      "file": "test-results/home-agent/prepared-translation-light.png",
+      "sha256": "13721684f357cd6636ecc03cbcdcec7534f4c9cc9eff9faac4407198d35b1822",
+      "archived": "records/screenshots/prepared-translation-light.png"
+    },
+    {
+      "file": "test-results/home-agent/submitted-translation-light.png",
+      "sha256": "a2b764c4f8a7ccccaa3d850a7c6eb11381b63d2291ab29196b86c425b95fb82e",
+      "archived": "records/screenshots/submitted-translation-light.png"
+    }
+  ],
+  "pageErrors": [],
+  "requestCount": 7,
+  "evidenceBoundary": "Real isolated Electron and native service import/queue; model responses are synthetic loopback SSE/JSON, not real provider quality."
+}

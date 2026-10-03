@@ -144,6 +144,7 @@ describe("ResponsesAgentAdapter streaming", () => {
         type: "finish-step",
         usage: { inputTokens: 10, outputTokens: 2, totalTokens: 12 },
       },
+      { type: "finish", reason: "completed" },
     ]);
     await expect(result.usage).resolves.toEqual({
       inputTokens: 10,
@@ -272,6 +273,7 @@ describe("ResponsesAgentAdapter streaming", () => {
         type: "finish-step",
         usage: { inputTokens: 12, outputTokens: 2, totalTokens: 14 },
       },
+      { type: "finish", reason: "completed" },
     ]);
     expect(requests[1].input).toEqual([
       { role: "user", content: "Run echo" },
@@ -341,15 +343,104 @@ describe("ResponsesAgentAdapter streaming", () => {
       maxSteps: 1,
     });
 
-    await expect(collectParts(result.fullStream)).rejects.toThrow(
-      "maximum tool-loop steps",
-    );
+    const parts = await collectParts(result.fullStream);
+    expect(parts.at(-1)).toEqual({ type: "finish", reason: "step_limit" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     await expect(result.usage).resolves.toEqual({
       inputTokens: 4,
       outputTokens: 2,
       totalTokens: 6,
     });
+  });
+});
+
+describe("Responses terminal safety", () => {
+  const call = (id = "call-1", argumentsText = "{}") => ({ type: "response.output_item.added", item: { id: `fc-${id}`, type: "function_call", call_id: id, name: "run", arguments: argumentsText } });
+  const completed = { type: "response.completed", response: { status: "completed" } };
+  const create = (execute: (...args: any[]) => any, signal = new AbortController().signal) => new ResponsesAgentAdapter().streamTurn({
+    profile, system: "safe", messages: [{ id: "u", role: "user", content: "run", timestamp: 1 }],
+    tools: { run: tool({ inputSchema: z.object({ value: z.string().default("ok") }), execute }) },
+    abortSignal: signal, temperature: 0.3, maxOutputTokens: 1000, maxSteps: 2,
+  });
+
+  it.each([
+    { ending: [], error: "ended before completion" },
+    { ending: [{ type: "response.incomplete", response: { status: "incomplete" } }], error: "response.incomplete" },
+    { ending: [{ type: "response.failed", response: { error: { message: "provider failed" } } }], error: "provider failed" },
+  ])("does not execute collected function calls without successful completion %#", async ({ ending, error }) => {
+    const execute = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([call(), ...ending])));
+    await expect(collectParts(create(execute).fullStream)).rejects.toThrow(error);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it.each(["{bad json", '{"value":123}'])("returns invalid arguments as a tool failure and lets the next step recover: %s", async (argumentsText) => {
+    const requests: any[] = [];
+    const execute = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      return sseResponse(requests.length === 1 ? [call("bad", argumentsText), completed] : [{ type: "response.output_text.delta", delta: "Please provide a string." }, completed]);
+    }));
+    const parts = await collectParts(create(execute).fullStream);
+    expect(parts.find((part) => part.type === "tool-result")).toMatchObject({ output: { success: false, error: expect.stringContaining("Invalid tool arguments") } });
+    expect(requests).toHaveLength(2);
+    expect(requests[1].input.at(-1).type).toBe("function_call_output");
+    expect(execute).not.toHaveBeenCalled();
+    expect(parts.at(-1)).toEqual({ type: "finish", reason: "completed" });
+  });
+
+  it("stops before the next call when a previous admitted tool cancels the turn", async () => {
+    const controller = new AbortController();
+    const execute = vi.fn(async () => { controller.abort(); return { success: true, data: { taskId: "accepted" } }; });
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([call("first"), call("second"), completed])));
+    const received: AgentRuntimeStreamPart[] = [];
+    const consume = async () => { for await (const part of create(execute, controller.signal).fullStream) received.push(part); };
+    await expect(consume()).rejects.toMatchObject({ name: "AbortError" });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(received.find((part) => part.type === "tool-result")).toMatchObject({ toolCallId: "first", output: { success: true } });
+  });
+
+  it("cancels a stalled SSE reader promptly", async () => {
+    const controller = new AbortController();
+    const cancel = vi.fn();
+    const execute = vi.fn();
+    const fetchMock = vi.fn(async () => new Response(new ReadableStream({ cancel })));
+    vi.stubGlobal("fetch", fetchMock);
+    const operation = collectParts(create(execute, controller.signal).fullStream);
+    const rejected = expect(operation).rejects.toMatchObject({ name: "AbortError" });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    controller.abort();
+    await rejected;
+    expect(cancel).toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("bounds model tool output while keeping raw results available in the stream", async () => {
+    const output = { success: false, data: { value: "x".repeat(50_000) }, error: "failed" };
+    const requests: any[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      return sseResponse(requests.length === 1 ? [call(), completed] : [completed]);
+    }));
+    const parts = await collectParts(create(async () => output).fullStream);
+    expect(parts.find((part) => part.type === "tool-result")).toMatchObject({ output });
+    const serialized = requests[1].input.at(-1).output;
+    expect(serialized.length).toBeLessThanOrEqual(6000);
+    expect(JSON.parse(serialized)).toMatchObject({ success: false, truncated: true });
+  });
+
+  it("checks the growing context before sending another model request", async () => {
+    const execute = vi.fn(async () => ({ success: true, data: { text: "x".repeat(50_000) } }));
+    const fetchMock = vi.fn(async () => sseResponse([call(), completed]));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = new ResponsesAgentAdapter().streamTurn({
+      profile, system: "safe", messages: [{ id: "u", role: "user", content: "x".repeat(95_800), timestamp: 1 }],
+      tools: { run: tool({ inputSchema: z.object({}), execute }) },
+      abortSignal: new AbortController().signal, temperature: 0.3, maxOutputTokens: 1000, maxSteps: 5,
+    });
+    await expect(collectParts(result.fullStream)).rejects.toThrow("context budget");
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

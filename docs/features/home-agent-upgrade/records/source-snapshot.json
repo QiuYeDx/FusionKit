@@ -1,0 +1,324 @@
+{
+  "baseCommit": "aab39c9a7fdc3253711b5ee07149f37391af6ca3",
+  "capturedAt": "2026-10-03T09:27:03.627Z",
+  "platform": "win32 10.0.26200 x64",
+  "node": "v24.19.0",
+  "sourceDigest": "b701227f99f70eb31954f65f4abea45a5f5461030d9a955d4fd3e6bc1021e725",
+  "files": [
+    {
+      "file": "package.json",
+      "bytes": 3558,
+      "sha256": "a19ef94ee8b5df3b1ac70b4c5f02d35ec4b52330b457ce031e71399f8a50b8c5"
+    },
+    {
+      "file": "pnpm-lock.yaml",
+      "bytes": 290700,
+      "sha256": "e5c1abbfe325787b178e3e165bdc63110aa820db5901084853f22110b1506a53"
+    },
+    {
+      "file": "scripts/home-agent-qa.mjs",
+      "bytes": 15492,
+      "sha256": "c7cef69b6113b771b362c3930d64c53d54fec7caeb19c47284e462c58787eea0"
+    },
+    {
+      "file": "src/agent/api-format-capability.test.ts",
+      "bytes": 581,
+      "sha256": "e2d931e2c25c26b80679f0e545970536fce6b54e47edb9421aefb6c37ac99312"
+    },
+    {
+      "file": "src/agent/api-format-capability.ts",
+      "bytes": 493,
+      "sha256": "b01e00dadc729c9982e94f82934d1b0e046027d38847056db53cfa2fbaeb8207"
+    },
+    {
+      "file": "src/agent/capability-catalog.test.ts",
+      "bytes": 996,
+      "sha256": "257f771ceeb4d8d406af5755a8c714497145247e756d8d6812becdb77a80f896"
+    },
+    {
+      "file": "src/agent/capability-catalog.ts",
+      "bytes": 2232,
+      "sha256": "429572697eff05732350a356eebfe96e699facdb306325ccf7da165126c34c7c"
+    },
+    {
+      "file": "src/agent/conversation-context.test.ts",
+      "bytes": 2615,
+      "sha256": "fb992a9ff170af849331cd3434210fbf9b2a58bfe8cfdf704352e071603613fc"
+    },
+    {
+      "file": "src/agent/conversation-context.ts",
+      "bytes": 4314,
+      "sha256": "e1b3fb2ca3ec896371ca23410faeb9274ac5128a8e6392e56a20c15d8f45568f"
+    },
+    {
+      "file": "src/agent/guarded-tools.test.ts",
+      "bytes": 3979,
+      "sha256": "47d84e7a685fce70a2c8756b9d5124da744419fd7d197f352d7deeecf930ac11"
+    },
+    {
+      "file": "src/agent/guarded-tools.ts",
+      "bytes": 2473,
+      "sha256": "a08070b43daa850464d527bcb286de4b96294b56c15686f3f7f9d36529a2103a"
+    },
+    {
+      "file": "src/agent/modern-tools.test.ts",
+      "bytes": 18985,
+      "sha256": "32c0400bd73fa631a24c637d8a6fabfbe13bc59ecb558be6103ba6b193b478b9"
+    },
+    {
+      "file": "src/agent/modern-tools.ts",
+      "bytes": 23464,
+      "sha256": "38d094e014facd0cb04c9bb1ff858ad162940a2639668473b6e407b8d1f8a532"
+    },
+    {
+      "file": "src/agent/name-plan-confirmation.test.ts",
+      "bytes": 2260,
+      "sha256": "f04aa97ad8dc9f74d6b80e7512f1e262c321dabd906eef87cdbf99034b94e73e"
+    },
+    {
+      "file": "src/agent/name-plan-confirmation.ts",
+      "bytes": 1662,
+      "sha256": "5ea925e44104d8068019732368d436180579d691d44e67500c73c956186b9c92"
+    },
+    {
+      "file": "src/agent/name-translation-intent.test.ts",
+      "bytes": 982,
+      "sha256": "fc54b50201100d43f01eef5c50a75cfb9100b5f1e7691defdaaf6ee30552b75c"
+    },
+    {
+      "file": "src/agent/name-translation-intent.ts",
+      "bytes": 753,
+      "sha256": "cb465687cc63ed9375ad49e460ac9f085574d4eeb719440be0ba746d53c80686"
+    },
+    {
+      "file": "src/agent/orchestrator.test.ts",
+      "bytes": 8409,
+      "sha256": "d81ae9d9ca9da8a168fcc349213691c31df021d793ccddd9b313e3390e025460"
+    },
+    {
+      "file": "src/agent/orchestrator.ts",
+      "bytes": 25069,
+      "sha256": "80b924ea56087bd04e9a11424d4cda85fe534fcf309cfcdd7b938f98c915d8fc"
+    },
+    {
+      "file": "src/agent/plan.test.ts",
+      "bytes": 1610,
+      "sha256": "5cd751e40eb1de2a657a11eb0e1ce0ae3d73eb575df3b291aaefba3eef008b27"
+    },
+    {
+      "file": "src/agent/plan.ts",
+      "bytes": 2253,
+      "sha256": "d8526bd5a196d3de2e82fcb0fc30e54a9232859a2897d1951effaaacdf5c6ac8"
+    },
+    {
+      "file": "src/agent/planning-tools.ts",
+      "bytes": 3370,
+      "sha256": "5b4d8ed00578ccc9a5776879c98849271c9382365d8f16e6dac3d47cae40e0b3"
+    },
+    {
+      "file": "src/agent/prepared-actions.test.ts",
+      "bytes": 4008,
+      "sha256": "1e653755f339ef9b405189d95ff5c0bec0c96fbd19ba95ce0b0288ddbba6b0fc"
+    },
+    {
+      "file": "src/agent/prepared-actions.ts",
+      "bytes": 4477,
+      "sha256": "69c99db1d8728e5966839e717ff96495fad757c9c309fdcc5b4c0914997dc24b"
+    },
+    {
+      "file": "src/agent/queue-batch.test.ts",
+      "bytes": 3692,
+      "sha256": "f42c0b29f673cf9ca712186b1ec975dcc127b00bbfeb6d5bcf14bba5b1586d73"
+    },
+    {
+      "file": "src/agent/queue-batch.ts",
+      "bytes": 5327,
+      "sha256": "6b29ab11f23878f14d480e414155e888d419c097594fa4e3b7db3e4cfc1bd12d"
+    },
+    {
+      "file": "src/agent/runtime/chat-completions-agent-adapter.test.ts",
+      "bytes": 2994,
+      "sha256": "224036a68bfcfeae6b963b67c1dad2b16b66150ec8713d02cfe32c776ccaa908"
+    },
+    {
+      "file": "src/agent/runtime/chat-completions-agent-adapter.ts",
+      "bytes": 4066,
+      "sha256": "873dafa44dc95adcd5e81690432ef073bcae4c3c65e7f1a0090ff45e15b09049"
+    },
+    {
+      "file": "src/agent/runtime/responses-agent-adapter.test.ts",
+      "bytes": 16458,
+      "sha256": "7f14ad9eff3b416c72976abdee1de362bca37521c67679b677bd736d51fe856c"
+    },
+    {
+      "file": "src/agent/runtime/responses-agent-adapter.ts",
+      "bytes": 18719,
+      "sha256": "382bc5eb22a1ee7e6f9664a42f52548519a7c72a4f5bf119c1a6f283efcf084c"
+    },
+    {
+      "file": "src/agent/runtime/types.ts",
+      "bytes": 1097,
+      "sha256": "38581bff030ae458ffac04fd6005b676680e9174e4b027dd5d0d45fc61d62340"
+    },
+    {
+      "file": "src/agent/session-io.ts",
+      "bytes": 1395,
+      "sha256": "8d8a372a567f7771e31b47ccfbbe19ea96769b604c22959cc9f0b9e189c5ebdd"
+    },
+    {
+      "file": "src/agent/session-schema.test.ts",
+      "bytes": 2070,
+      "sha256": "29243a994e9a986c8c2ca2eb3cf27d09239f69b30cff8f7c26c59ff32e52e3e2"
+    },
+    {
+      "file": "src/agent/session-schema.ts",
+      "bytes": 3251,
+      "sha256": "09e3980394ccae71b376539bb085bd5fac965c9b543425570f1637c59ff24217"
+    },
+    {
+      "file": "src/agent/subtitle-recovery-intent.ts",
+      "bytes": 689,
+      "sha256": "f46bc8125b2c62cac7702b0e31ae5c717c78b7b88b78064228765ff709c5e6ed"
+    },
+    {
+      "file": "src/agent/task-model-config.test.ts",
+      "bytes": 3517,
+      "sha256": "78df6af5c2c45f03c5feb8f3d932ac1155de395b26625c7b5572cb864f4c7a69"
+    },
+    {
+      "file": "src/agent/task-model-config.ts",
+      "bytes": 1840,
+      "sha256": "9d180b4b4545052e26a1fc929babc9caa3a374a95b648493c2744c3c2b17484c"
+    },
+    {
+      "file": "src/agent/tool-executor-scope.test.ts",
+      "bytes": 6256,
+      "sha256": "0ca8be7b6a9cd8ac746e9da37df652fed38ef32b73d02c95f24ccfa80b645e86"
+    },
+    {
+      "file": "src/agent/tool-executor-translation.test.ts",
+      "bytes": 13907,
+      "sha256": "2919c045bb909ab774a84134048c4544a1f16b11f5a1401da35367fb2e15d657"
+    },
+    {
+      "file": "src/agent/tool-executor.ts",
+      "bytes": 32743,
+      "sha256": "91de2f9eb85bae7568ca351aac85bb6cb2babe46aa868c7fa3a678f910ea6176"
+    },
+    {
+      "file": "src/agent/tool-schemas.test.ts",
+      "bytes": 4150,
+      "sha256": "7ee868d754562898fe1390f2280f8b3533a90f6d64c718e3c36b17db777f1ea8"
+    },
+    {
+      "file": "src/agent/tool-schemas.ts",
+      "bytes": 11631,
+      "sha256": "eccc34c65cdaacabaee8b420ff7d1eece1c2fc6ce07dd861b071a92a9a586801"
+    },
+    {
+      "file": "src/agent/tools.ts",
+      "bytes": 5906,
+      "sha256": "1496fe90437146128467dbd87462d224393dfc6c68906349ce7945e0af173aba"
+    },
+    {
+      "file": "src/agent/translation-slice-config.test.ts",
+      "bytes": 1591,
+      "sha256": "f2293f014a946eeca319adac0dc9c32ad33879a6fc57ed6cd6ba08f5b3ab4a96"
+    },
+    {
+      "file": "src/agent/translation-slice-config.ts",
+      "bytes": 1693,
+      "sha256": "f425e6430acd4eceeefd3f13438aab5feff59fc22aa16184ca1bbe538f04ea2e"
+    },
+    {
+      "file": "src/agent/types.ts",
+      "bytes": 4919,
+      "sha256": "ce0f07c4a10da9ef3327798ae90928c3346879a088284acf94afa3d1842b3c99"
+    },
+    {
+      "file": "src/locales/en/home.json",
+      "bytes": 10906,
+      "sha256": "321ea7210a11fec1a849905696df87b19a913af85c6dab4a92872b7e10089b4f"
+    },
+    {
+      "file": "src/locales/ja/home.json",
+      "bytes": 12738,
+      "sha256": "703bf5dbc3c04f8fd5a72ee9097e3219fb7dfad3659a413167c4a8be93bbb465"
+    },
+    {
+      "file": "src/locales/zh-Hant/home.json",
+      "bytes": 10478,
+      "sha256": "572619017ea09fc496aacf2950fef5b646b4c8c3708cdc7b2664d951cf42edf2"
+    },
+    {
+      "file": "src/locales/zh/home.json",
+      "bytes": 10450,
+      "sha256": "d29fb51ee2e88ef84e56dd444730da7cbaf5ac5f83494c6c00d26db76e8f8f54"
+    },
+    {
+      "file": "src/pages/HomeAgent/SessionLogViewer.tsx",
+      "bytes": 8407,
+      "sha256": "faa13657edbce1eb757392172abe8dd5f2b5f269bebe430e2e13e34c839f7fcf"
+    },
+    {
+      "file": "src/pages/HomeAgent/components/AgentCapabilities.tsx",
+      "bytes": 3226,
+      "sha256": "260088339ae8963db10439c617ed8eefad4a299fbf20fbd64786f00de22e5038"
+    },
+    {
+      "file": "src/pages/HomeAgent/components/AgentPlanPanel.tsx",
+      "bytes": 3099,
+      "sha256": "74ab8460da03921717bf729fb527aa4a1a0291abb5af990efddd48ce71fe7462"
+    },
+    {
+      "file": "src/pages/HomeAgent/components/AgentPreparedActions.tsx",
+      "bytes": 4064,
+      "sha256": "ddddb8b9958a95079fbdd4b84100b257f8436601437c274c4bd8a8658e763bdf"
+    },
+    {
+      "file": "src/pages/HomeAgent/components/AgentToolCall.tsx",
+      "bytes": 3638,
+      "sha256": "20066b0edebd1ad073e94fd075b6a369707bd5737e4887f21daf43c275053758"
+    },
+    {
+      "file": "src/pages/HomeAgent/components/AgentToolResult.tsx",
+      "bytes": 5666,
+      "sha256": "63c287af5799327e27d86de5828a8b310f8a2f5d718e67a93d0ffb9fd15d79d6"
+    },
+    {
+      "file": "src/pages/HomeAgent/components/NameTranslationPlanWidget.tsx",
+      "bytes": 17970,
+      "sha256": "7325576fe7def4e2954dc4354a779cfeedc50fb99eeb1c397a2ab86823702c04"
+    },
+    {
+      "file": "src/pages/HomeAgent/components/action-error.ts",
+      "bytes": 937,
+      "sha256": "f8357ff538546df845dea8a06755930db2f21c19896b789d0af4dc25276c11b8"
+    },
+    {
+      "file": "src/pages/HomeAgent/index.tsx",
+      "bytes": 56995,
+      "sha256": "b63c05b176f8ccfc9599566977fe50ffffc614f7f66a9612463f5c5429e84efb"
+    },
+    {
+      "file": "src/pages/HomeAgent/widget-actions.test.ts",
+      "bytes": 5347,
+      "sha256": "0b7f3669de34ba46dc62b150354d2fd86af842b25b699208ce36b6fe6b5a8d81"
+    },
+    {
+      "file": "src/pages/HomeAgent/widget-actions.ts",
+      "bytes": 2729,
+      "sha256": "74e745d0111906941313c9f0d0b02c3e3b1521c04e19f9cda0306c83ec99f673"
+    },
+    {
+      "file": "src/store/agent/useAgentStore.test.ts",
+      "bytes": 3951,
+      "sha256": "8e99642abb0d66a48c49f86a747fb5453c45c8cf88b2134fa930410282a5b219"
+    },
+    {
+      "file": "src/store/agent/useAgentStore.ts",
+      "bytes": 17473,
+      "sha256": "ab91ea1971023ba4579e497db6f739aa47d7670e01728e64d2f61d11166cc0b4"
+    }
+  ]
+}

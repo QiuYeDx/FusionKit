@@ -46,11 +46,33 @@ export type ExecutionMode =
 
 export type TaskStoreType = "translate" | "convert" | "extract";
 
+/** Only receipts minted for tasks actually added by this Agent may be started. */
+export interface AgentTaskReference {
+  store: TaskStoreType;
+  taskId: string;
+}
+
+export interface AgentPlanStep {
+  id: string;
+  title: string;
+  status: "pending" | "in_progress" | "completed" | "blocked";
+  dependsOn: string[];
+  detail?: string;
+}
+
+export interface AgentPlan {
+  id: string;
+  goal: string;
+  steps: AgentPlanStep[];
+  updatedAt: number;
+}
+
 /** ask_before_execute 模式下的待确认执行信息 */
 export interface PendingExecution {
   stores: TaskStoreType[];
   taskCounts: Partial<Record<TaskStoreType, number>>;
   timestamp: number;
+  taskRefs?: AgentTaskReference[];
   /** 用户已做出决策时的操作类型，为 null 表示尚未决策 */
   resolvedAction?: "confirm" | "dismiss" | null;
 }
@@ -59,6 +81,7 @@ export interface PendingExecution {
 export interface PendingNameTranslationPlan {
   planId: string;
   createdAt: number;
+  createdByUserMessageId?: string;
   summary: NameTranslationPlanSummary;
   isApplying?: boolean;
   /** 用户已做出决策时的操作类型，为 null 表示尚未决策 */
@@ -83,6 +106,7 @@ export interface AgentSession {
   status: AgentSessionStatus;
   createdAt: number;
   updatedAt: number;
+  plan?: AgentPlan;
 }
 
 // ---------------------------------------------------------------------------

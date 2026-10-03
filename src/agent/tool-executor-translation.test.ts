@@ -123,6 +123,27 @@ afterEach(() => {
 });
 
 describe("Agent subtitle translation producer", () => {
+  it("revokes a picker selection returned after cancellation without queueing", async () => {
+    const abort = new AbortController();
+    const selected = await api.selectAgentInputFiles();
+    api.selectAgentInputFiles.mockImplementation(async () => { abort.abort(); return selected; });
+    const result = await executeQueueTranslate({ sliceType: "NORMAL", sourceLang: "JA", targetLang: "ZH", translationOutputMode: "bilingual", outputMode: "source", conflictPolicy: "index", concurrentSlices: true }, abort.signal);
+    expect(result).toMatchObject({ success: false, data: { queuedCount: 0, cancelled: true } });
+    expect(api.readAgentInputFile).not.toHaveBeenCalled();
+    expect(api.registerAgentAuthorizedTask).not.toHaveBeenCalled();
+    expect(api.revokeAgentInputSelection).toHaveBeenCalledWith(selected.data.selectionRef);
+  });
+
+  it("releases registered authority if cancellation arrives before queue admission", async () => {
+    const abort = new AbortController();
+    const registration = await api.registerAgentAuthorizedTask();
+    api.registerAgentAuthorizedTask.mockImplementation(async () => { abort.abort(); return registration; });
+    const result = await executeQueueTranslate({ sliceType: "NORMAL", sourceLang: "JA", targetLang: "ZH", translationOutputMode: "bilingual", outputMode: "source", conflictPolicy: "index", concurrentSlices: true }, abort.signal);
+    expect(result).toMatchObject({ success: false, data: { queuedCount: 0 } });
+    expect(api.releaseGeneratedTask).toHaveBeenCalled();
+    expect(useSubtitleTranslatorStore.getState().notStartedTaskQueue).toHaveLength(0);
+  });
+
   it("queues only picker-authorized path-free tasks", async () => {
     const result = await executeQueueTranslate({
       sliceType: "NORMAL",
@@ -248,7 +269,7 @@ describe("Agent subtitle translation recovery", () => {
     expect(JSON.stringify(result)).not.toContain("/private/");
   });
 
-  it("reauthorizes the target in main and returns an explicit task-free batch summary", async () => {
+  it.each([false, true])("reauthorizes recovery and preserves its receipt across a session reset: %s", async (resetDuringCleanup) => {
     api.selectOutputDirectory.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -293,6 +314,10 @@ describe("Agent subtitle translation recovery", () => {
       },
     });
 
+    if (resetDuringCleanup) api.revokeRecoveryScan.mockImplementationOnce(async () => {
+      useAgentStore.getState().resetSession();
+      return { ok: true, data: { released: true } };
+    });
     const result = await executeQueueRecoveredSubtitleTranslate({
       recoveryScanId: "recovery-scan-agent",
       batchStart: 0,
@@ -331,6 +356,11 @@ describe("Agent subtitle translation recovery", () => {
     });
     expect(task).not.toHaveProperty("checkpointPath");
     expect(task).not.toHaveProperty("targetFileURL");
+    if (resetDuringCleanup) {
+      expect(useAgentStore.getState().sessionLog).toEqual([]);
+      expect(useAgentStore.getState().pendingExecution).toBeNull();
+      expect(result.data).toMatchObject({ cancelled: true, queuedCount: 1 });
+    }
   });
 
   it("stops on target cancellation and revokes an unused target after prepare fails", async () => {

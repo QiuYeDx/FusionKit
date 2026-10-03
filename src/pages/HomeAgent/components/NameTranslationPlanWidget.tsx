@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   AlertTriangle,
   ArrowRight,
@@ -50,14 +52,17 @@ interface NameTranslationApplyResultWidgetProps extends NameTranslationApplyResu
 
 function NameTranslationPlanWidgetComponent({
   id,
-  props,
+  props: suppliedProps,
   context,
 }: MarkdownWidgetComponentProps<NameTranslationPlanWidgetProps>) {
+  const { t } = useTranslation();
   const pendingPlan = useAgentStore((state) =>
-    state.pendingNameTranslationPlan?.planId === props.planId
+    state.pendingNameTranslationPlan?.planId === suppliedProps.planId
       ? state.pendingNameTranslationPlan
       : null
   );
+  const isTrustedResult = context.role === "tool";
+  const props = isTrustedResult && pendingPlan ? { ...suppliedProps, ...pendingPlan.summary } : suppliedProps;
 
   const isStreaming = useAgentStore((state) => state.isStreaming);
 
@@ -67,6 +72,8 @@ function NameTranslationPlanWidgetComponent({
   const applyResult = pendingPlan?.applyResult ?? props.applyResult;
   const error = pendingPlan?.error ?? props.error;
   const canConfirm =
+    isTrustedResult &&
+    !!pendingPlan &&
     props.requiresConfirmation !== false &&
     props.applyable &&
     props.blockedCount === 0 &&
@@ -76,9 +83,10 @@ function NameTranslationPlanWidgetComponent({
   const hasRiskPrompt = props.totalTargets > 50 || props.warnings.length > 0;
 
   const handleConfirm = () => {
+    if (!canConfirm) return;
     if (hasRiskPrompt) {
       const accepted = window.confirm(
-        `将应用 ${props.readyCount} 个重命名操作。请确认已经检查预览结果。`
+        t("home:rename_risk_confirm", { count: props.readyCount })
       );
       if (!accepted) return;
     }
@@ -91,6 +99,7 @@ function NameTranslationPlanWidgetComponent({
   };
 
   const handleDismiss = () => {
+    if (!isTrustedResult || !pendingPlan || isApplying || isStreaming) return;
     context.onWidgetAction?.({
       widgetId: id,
       type: "name-translation-plan",
@@ -117,7 +126,7 @@ function NameTranslationPlanWidgetComponent({
       <div className="flex items-center gap-2 px-3 py-2 bg-muted/30">
         <FilePenLine className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-sm font-medium text-foreground">
-          名称翻译预览
+          {t("home:rename_preview")}
         </span>
         <code className="ml-auto max-w-[11rem] truncate text-[11px] text-muted-foreground">
           {shortPlanId(props.planId)}
@@ -126,11 +135,11 @@ function NameTranslationPlanWidgetComponent({
 
       <div className="space-y-3 px-3 py-3">
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
-          <Metric label="总数" value={props.totalTargets} />
-          <Metric label="可应用" value={props.readyCount} tone="success" />
-          <Metric label="冲突" value={props.blockedCount} tone="danger" />
-          <Metric label="跳过" value={props.skippedCount} />
-          <Metric label="无变化" value={props.unchangedCount} />
+          <Metric label={t("home:rename_total")} value={props.totalTargets} />
+          <Metric label={t("home:rename_ready")} value={props.readyCount} tone="success" />
+          <Metric label={t("home:rename_blocked")} value={props.blockedCount} tone="danger" />
+          <Metric label={t("home:rename_skipped")} value={props.skippedCount} />
+          <Metric label={t("home:rename_unchanged")} value={props.unchangedCount} />
         </div>
 
         {props.itemsPreview.length > 0 && (
@@ -140,7 +149,7 @@ function NameTranslationPlanWidgetComponent({
             ))}
             {props.totalTargets > props.itemsPreview.length && (
               <div className="px-2 pt-1 text-[11px] text-muted-foreground">
-                还有 {props.totalTargets - props.itemsPreview.length} 项可在工具页查看。
+                {t("home:rename_more", { count: props.totalTargets - props.itemsPreview.length })}
               </div>
             )}
           </div>
@@ -151,7 +160,7 @@ function NameTranslationPlanWidgetComponent({
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div className="min-w-0 space-y-1">
               {props.warnings.slice(0, 3).map((warning) => (
-                <div key={warning} className="truncate">
+                <div key={warning} className="[overflow-wrap:anywhere]">
                   {warning}
                 </div>
               ))}
@@ -162,7 +171,7 @@ function NameTranslationPlanWidgetComponent({
         {error && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             <XCircle className="h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 truncate">{error}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere]">{error}</span>
           </div>
         )}
 
@@ -181,7 +190,7 @@ function NameTranslationPlanWidgetComponent({
               ) : (
                 <CheckCircle2 className="h-3 w-3" />
               )}
-              确认应用
+              {t("home:rename_confirm")}
             </Button>
             <Button
               variant="outline"
@@ -189,24 +198,24 @@ function NameTranslationPlanWidgetComponent({
               onClick={handleNavigate}
               className="h-7 rounded-full px-3 text-xs"
             >
-              在工具页打开
+              {t("home:open_tool")}
               <ArrowRight className="h-3 w-3" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={handleDismiss}
-              disabled={isApplying || isStreaming}
+              disabled={!isTrustedResult || !pendingPlan || isApplying || isStreaming}
               className="h-7 rounded-full px-3 text-xs text-muted-foreground"
             >
-              取消
+              {t("home:rename_cancel")}
             </Button>
           </div>
         )}
 
         {!props.applyable && !resolvedAction && (
           <p className="text-xs text-muted-foreground">
-            当前计划不可直接应用，请先在工具页处理冲突或重新生成预览。
+            {t("home:rename_unavailable")}
           </p>
         )}
       </div>
@@ -217,6 +226,7 @@ function NameTranslationPlanWidgetComponent({
 function NameTranslationApplyResultWidgetComponent({
   props,
 }: MarkdownWidgetComponentProps<NameTranslationApplyResultWidgetProps>) {
+  const { t } = useTranslation();
   const hasFailures = props.failedCount > 0;
 
   return (
@@ -233,18 +243,18 @@ function NameTranslationApplyResultWidgetComponent({
           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
         )}
         <span className="text-sm font-medium text-foreground">
-          重命名执行结果
+          {t("home:rename_result")}
         </span>
       </div>
       <div className="space-y-2 px-3 py-3 text-sm">
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-          <Metric label="总数" value={props.totalCount} />
-          <Metric label="成功" value={props.successCount} tone="success" />
-          <Metric label="失败" value={props.failedCount} tone="danger" />
-          <Metric label="跳过" value={props.skippedCount} />
+          <Metric label={t("home:rename_total")} value={props.totalCount} />
+          <Metric label={t("home:rename_success")} value={props.successCount} tone="success" />
+          <Metric label={t("home:rename_failed")} value={props.failedCount} tone="danger" />
+          <Metric label={t("home:rename_skipped")} value={props.skippedCount} />
         </div>
         <div className="rounded-lg bg-background/60 px-3 py-2 text-xs text-muted-foreground">
-          Journal: <code>{props.journalId}</code>
+          {t("home:rename_journal")}: <code>{props.journalId}</code>
         </div>
       </div>
     </div>
@@ -277,6 +287,7 @@ function Metric({
 }
 
 function PreviewRow({ item }: { item: NameTranslationPlanItem }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-lg border border-border/40 bg-background/60 px-2.5 py-2">
       <div className="min-w-0">
@@ -294,7 +305,7 @@ function PreviewRow({ item }: { item: NameTranslationPlanItem }) {
         variant={item.status === "blocked" ? "destructive" : "outline"}
         className="h-6 rounded-full px-2 text-[10px]"
       >
-        {statusLabel(item.status)}
+        {statusLabel(item.status, t)}
       </Badge>
     </div>
   );
@@ -307,6 +318,7 @@ function ResolvedState({
   action: ResolvedAction;
   result?: NameTranslationApplyResult;
 }) {
+  const { t } = useTranslation();
   const isConfirm = action === "confirm";
 
   return (
@@ -325,12 +337,12 @@ function ResolvedState({
               : "text-muted-foreground"
           )}
         >
-          {isConfirm ? "已确认应用" : "已取消"}
+          {isConfirm ? t("home:rename_confirmed") : t("home:rename_cancelled")}
         </span>
       </div>
       {result && (
         <div className="mt-2 text-xs text-muted-foreground">
-          成功 {result.successCount} 项，失败 {result.failedCount} 项，Journal:{" "}
+          {t("home:rename_result_summary", { success: result.successCount, failed: result.failedCount })} · {t("home:rename_journal")}: {" "}
           <code>{result.journalId}</code>
         </div>
       )}
@@ -485,15 +497,15 @@ function shortPlanId(planId: string): string {
   return planId.length > 18 ? `...${planId.slice(-12)}` : planId;
 }
 
-function statusLabel(status: NameTranslationPlanItem["status"]): string {
+function statusLabel(status: NameTranslationPlanItem["status"], t: TFunction): string {
   const labels: Record<NameTranslationPlanItem["status"], string> = {
-    ready: "可应用",
-    unchanged: "无变化",
-    skipped: "跳过",
-    blocked: "冲突",
-    applied: "已应用",
-    failed: "失败",
-    rolled_back: "已回滚",
+    ready: t("home:rename_ready"),
+    unchanged: t("home:rename_unchanged"),
+    skipped: t("home:rename_skipped"),
+    blocked: t("home:rename_blocked"),
+    applied: t("home:rename_applied"),
+    failed: t("home:rename_failed"),
+    rolled_back: t("home:rename_rolled_back"),
   };
   return labels[status];
 }

@@ -159,9 +159,12 @@ function LogEntryRow({
 
   return (
     <div className={cn("rounded-lg border px-3 py-2", BG_MAP[entry.type])}>
-      <div
+      <button
+        type="button"
+        disabled={!hasData}
+        aria-expanded={hasData ? expanded : undefined}
         className={cn(
-          "flex items-start gap-2 text-xs",
+          "flex w-full items-start gap-2 text-left text-xs rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           hasData && "cursor-pointer select-none",
         )}
         onClick={() => hasData && setExpanded(!expanded)}
@@ -207,7 +210,7 @@ function LogEntryRow({
             )}
           </span>
         )}
-      </div>
+      </button>
 
       {/* expanded data */}
       {expanded && hasData && <LogDataBlock data={entry.data!} />}
@@ -216,6 +219,7 @@ function LogEntryRow({
 }
 
 function LogDataBlock({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const json = JSON.stringify(data, null, 2);
 
@@ -235,7 +239,8 @@ function LogDataBlock({ data }: { data: Record<string, unknown> }) {
       <Button
         variant="ghost"
         size="sm"
-        className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+        aria-label={t("home:copy_details")}
         onClick={handleCopy}
       >
         {copied ? (

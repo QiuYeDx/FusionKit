@@ -1,0 +1,225 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Model } from "@/type/model";
+import useAgentStore from "@/store/agent/useAgentStore";
+import useModelStore from "@/store/useModelStore";
+import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSubtitleTranscriberStore";
+import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES } from "@/subtitle-studio/transcription/preferences-contract";
+import { modernAgentTools } from "./modern-tools";
+import { usePreparedActionsStore } from "./prepared-actions";
+
+const mocks = vi.hoisted(() => ({ controller: {} as Record<string, any>, trackStarted: vi.fn(), state: {} as Record<string, any> }));
+vi.mock("@/services/subtitle-studio/transcription-controller", () => ({
+  getStudioTranscriptionController: () => mocks.controller,
+  getTranscriptionReadiness: (state: any) => ({ canEnqueue: state.drafts.length > 0 && state.drafts.every((draft: any) => draft.status === "ready"), readyCount: state.drafts.filter((draft: any) => draft.status === "ready").length, reason: null }),
+}));
+vi.mock("@/services/subtitle-studio/translation-overview-controller", () => ({ getStudioTranslationOverviewController: () => ({ trackStarted: mocks.trackStarted }) }));
+const api = { listDocuments: vi.fn(), importSubtitles: vi.fn(), listTranslationTasks: vi.fn(), listTranscriptionTasks: vi.fn(), planTranslationBatch: vi.fn(), createTranslationBatch: vi.fn() };
+const knowledge = { read: vi.fn() };
+const originalWindow = globalThis.window;
+const documentId = "00000000-0000-4000-8000-000000000001";
+const collectionId = "00000000-0000-4000-8000-000000000002";
+const doc = { id: documentId, revision: 1, origin: { displayName: "subtitle.srt", format: "srt" }, capabilities: { translate: true }, cueCount: 3, translationStatus: "none" };
+async function call(name: keyof typeof modernAgentTools, args: unknown = {}, abortSignal?: AbortSignal): Promise<any> {
+  const execute = modernAgentTools[name].execute as (input: unknown, options: unknown) => Promise<unknown>;
+  return execute(args, { toolCallId: "call-one", messages: [], abortSignal });
+}
+const setSession = (id: string) => useAgentStore.setState({ session: { ...useAgentStore.getState().session, id } });
+beforeEach(() => {
+  vi.clearAllMocks(); setSession(`reset-${Math.random()}`); usePreparedActionsStore.setState({ actions: [] }); setSession("modern-test");
+  useAgentStore.setState({ executionMode: "queue_only" });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { subtitleStudio: api, translationKnowledge: knowledge } });
+  useModelStore.setState({ profiles: [{ id: "task-profile", name: "Task model", provider: Model.OpenAI, apiKey: "secret-task-key", baseUrl: "https://private-api.example/v1", modelKey: "model-one", apiFormat: "responses", tokenPricing: { inputTokensPerMillion: 1, outputTokensPerMillion: 1 } }], assignment: { agent: null, taskExecution: "task-profile" } });
+  api.listDocuments.mockResolvedValue({ ok: true, value: { documents: [doc], total: 1, unavailableDocuments: 0 } });
+  api.importSubtitles.mockResolvedValue({ ok: true, value: null });
+  api.planTranslationBatch.mockResolvedValue({ ok: true, value: { batchId: "batch-one", items: [{ ok: true, documentId, displayName: "subtitle.srt", plan: { cueCount: 3 } }], totalEstimatedInputTokens: 400 } });
+  api.createTranslationBatch.mockResolvedValue({ ok: true, value: { items: [{ ok: true, documentId, taskId: "task-one" }] } });
+  api.listTranslationTasks.mockResolvedValue({ ok: true, value: { total: 1, counts: { queued: 1 }, items: [{ documentId, revision: 1, taskId: "task-one", displayName: "subtitle.srt", status: "queued", completedBatches: 0, totalBatches: 1, canResume: false, model: { apiKey: "secret" } }] } });
+  mocks.state = { config: structuredClone(DEFAULT_STUDIO_TRANSCRIPTION_CONFIG), autoTranslation: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation), drafts: [], error: null };
+  mocks.controller = {
+    refresh: vi.fn().mockResolvedValue(undefined), getState: () => mocks.state,
+    setConfig: vi.fn(value => { mocks.state.config = value; }), setAutoTranslation: vi.fn(value => { mocks.state.autoTranslation = value; }),
+    selectMedia: vi.fn(async () => { mocks.state.drafts = [{ id: "picked-draft", displayName: "media.mp4", status: "ready", audioStreamId: "audio-one" }]; }),
+    removeDraft: vi.fn(id => { mocks.state.drafts = mocks.state.drafts.filter((item: any) => item.id !== id); }),
+    enqueue: vi.fn(async () => { mocks.state.drafts = []; return { batchId: "transcription-batch", tasks: [{ taskId: "transcription-task", displayName: "media.mp4", status: "queued" }] }; }),
+  };
+});
+afterEach(() => { setSession(`cleanup-${Math.random()}`); Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow }); });
+
+describe("modern tools fixed API boundaries", () => {
+  it("uses a native import and preserves cancellation without starting translation", async () => {
+    expect(await call("import_studio_subtitles")).toEqual({ success: true, data: { cancelled: true, importedCount: 0 } });
+    expect(api.importSubtitles).toHaveBeenCalledWith({ encoding: "utf-8" });
+    expect(api.createTranslationBatch).not.toHaveBeenCalled();
+  });
+  it.each(["filePaths", "apiKey", "endpoint", "fileToken"])("rejects forbidden %s before opening a picker", async field => {
+    expect(await call("import_studio_subtitles", { [field]: "private" })).toMatchObject({ success: false, error: "invalid_tool_arguments" });
+    expect(api.importSubtitles).not.toHaveBeenCalled();
+  });
+  it("distinguishes fixed API failures and unavailable bridge from an empty library", async () => {
+    api.listDocuments.mockResolvedValueOnce({ ok: false, error: "access_denied" });
+    expect(await call("list_studio_documents")).toEqual({ success: false, error: "access_denied" });
+    api.listDocuments.mockRejectedValueOnce(new Error("secret-task-key"));
+    expect(await call("list_studio_documents")).toEqual({ success: false, error: "tool_request_failed" });
+    Object.defineProperty(globalThis, "window", { configurable: true, value: {} });
+    expect(await call("list_studio_documents")).toMatchObject({ success: false, error: "subtitle_studio_unavailable" });
+  });
+  it("checks abort before a native picker or configuration mutation", async () => {
+    const controller = new AbortController(); controller.abort();
+    expect(await call("import_studio_subtitles", {}, controller.signal)).toMatchObject({ success: false, error: "agent_cancelled" });
+    expect(api.importSubtitles).not.toHaveBeenCalled();
+  });
+  it("preserves an already committed import receipt when stop occurs in the native picker", async () => {
+    const controller = new AbortController();
+    api.importSubtitles.mockImplementationOnce(async () => { controller.abort(); return { ok: true, value: { items: [{ ok: true, document: doc }] } }; });
+    expect(await call("import_studio_subtitles", {}, controller.signal)).toMatchObject({ success: true, data: { importedCount: 1 } });
+    expect(api.createTranslationBatch).not.toHaveBeenCalled();
+  });
+  it("keeps actual queued task status and projects out model metadata", async () => {
+    const result = await call("get_studio_tasks");
+    expect(result.data.items[0].status).toBe("queued");
+    expect(JSON.stringify(result)).not.toContain("secret");
+  });
+  it("bounds document results and forbids excessive pagination", async () => {
+    api.listDocuments.mockResolvedValueOnce({ ok: true, value: { documents: [doc, doc, doc], total: 3, unavailableDocuments: 0 } });
+    expect((await call("list_studio_documents", { limit: 1 })).data.items).toHaveLength(1);
+    expect(await call("list_studio_documents", { limit: 100 })).toMatchObject({ success: false });
+  });
+  it("projects unavailable documents to a count without recovery capabilities or native paths", async () => {
+    api.listDocuments.mockResolvedValueOnce({ ok: true, value: { documents: [doc], total: 1, unavailableDocuments: 1,
+      unavailable: [{ id: documentId, token: "private-recovery-token", directory: "C:\\private\\documents", reason: "document_unavailable" }] } });
+    const result = await call("list_studio_documents");
+    expect(result.data.unavailableCount).toBe(1);
+    expect(JSON.stringify(result)).not.toMatch(/private-recovery-token|private|directory|token/);
+  });
+});
+
+describe("translation preparation and admission", () => {
+  it.each(["queue_only", "ask_before_execute"] as const)("does not submit in %s and submits the exact batch once on confirmation", async mode => {
+    useAgentStore.setState({ executionMode: mode });
+    const result = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] });
+    expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared" } });
+    expect(api.createTranslationBatch).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toMatch(/secret-task-key|private-api/);
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(api.createTranslationBatch).toHaveBeenCalledTimes(1);
+    expect(api.createTranslationBatch).toHaveBeenCalledWith({ batchId: "batch-one", apiKey: "secret-task-key" });
+    expect(mocks.trackStarted).toHaveBeenCalledWith(["task-one"]);
+  });
+  it("auto mode returns submitted receipts rather than claiming translation completion", async () => {
+    useAgentStore.setState({ executionMode: "auto_execute" });
+    expect(await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] })).toMatchObject({ success: true, data: { executionStatus: "submitted", result: { executionStatus: "queued", taskIds: ["task-one"] } } });
+  });
+  it("rejects stale sessions after planning without registering executable authority", async () => {
+    api.planTranslationBatch.mockImplementationOnce(async () => { setSession("new-session"); return { ok: true, value: { batchId: "late-batch", items: [{ ok: true }], totalEstimatedInputTokens: 1 } }; });
+    expect(await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] })).toMatchObject({ success: false, error: "agent_session_changed" });
+    expect(usePreparedActionsStore.getState().actions).toHaveLength(0);
+    expect(api.createTranslationBatch).not.toHaveBeenCalled();
+  });
+  it("records a plan revision conflict once without retrying the mutation", async () => {
+    api.createTranslationBatch.mockResolvedValueOnce({ ok: false, error: "revision_conflict" });
+    const result = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] });
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "failed", error: "revision_conflict" });
+    expect(api.createTranslationBatch).toHaveBeenCalledTimes(1);
+  });
+  it("never falls back to an unassigned task model", async () => {
+    useModelStore.setState({ assignment: { agent: "task-profile", taskExecution: null } });
+    expect(await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] })).toMatchObject({ success: false, error: "task_model_not_configured" });
+    expect(api.planTranslationBatch).not.toHaveBeenCalled();
+  });
+  it("retires the old main-owned plan before a replacement, including cancelled planning", async () => {
+    const first = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] });
+    const abort = new AbortController();
+    api.planTranslationBatch.mockImplementationOnce(async () => { abort.abort(); return { ok: true, value: { batchId: "replacement", items: [] } }; });
+    expect(await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] }, abort.signal)).toMatchObject({ success: false, error: "agent_cancelled" });
+    await usePreparedActionsStore.getState().confirmAction(first.data.actionId);
+    expect(api.createTranslationBatch).not.toHaveBeenCalled();
+    expect(usePreparedActionsStore.getState().actions).toHaveLength(1);
+    expect(usePreparedActionsStore.getState().actions[0].status).toBe("dismissed");
+  });
+});
+
+describe("transcription preparation ownership", () => {
+  it("refuses existing manual drafts before changing configuration or opening a picker", async () => {
+    mocks.state.drafts = [{ id: "manual", status: "ready" }];
+    expect(await call("prepare_studio_transcription")).toMatchObject({ success: false, error: "studio_transcription_existing_drafts" });
+    expect(mocks.controller.selectMedia).not.toHaveBeenCalled(); expect(mocks.controller.setConfig).not.toHaveBeenCalled();
+  });
+  it("uses the prepared media only after confirmation and keeps auto translation off", async () => {
+    const result = await call("prepare_studio_transcription", { language: "ja" });
+    expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared" } });
+    expect(mocks.controller.enqueue).not.toHaveBeenCalled();
+    expect(mocks.state.autoTranslation.enabled).toBe(false);
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(mocks.controller.enqueue).toHaveBeenCalledTimes(1);
+  });
+  it("does not silently include drafts added after preparation", async () => {
+    const result = await call("prepare_studio_transcription");
+    mocks.state.drafts.push({ id: "new-manual", status: "ready" });
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(mocks.controller.enqueue).not.toHaveBeenCalled();
+    expect(mocks.state.drafts).toEqual([{ id: "new-manual", status: "ready" }]);
+  });
+  it("rejects a changed configuration and releases only its prepared draft", async () => {
+    const result = await call("prepare_studio_transcription");
+    mocks.state.config.language = "en";
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(mocks.controller.enqueue).not.toHaveBeenCalled();
+    expect(usePreparedActionsStore.getState().actions[0].error).toBe("studio_transcription_draft_changed");
+    expect(mocks.controller.removeDraft).toHaveBeenCalledWith("picked-draft");
+  });
+  it("does not silently reuse old configuration when the supplied prompt is invalid", async () => {
+    expect(await call("prepare_studio_transcription", { initialPrompt: "bad\u0001prompt" })).toMatchObject({ success: false, error: "studio_transcription_configuration_invalid" });
+    expect(mocks.controller.setConfig).not.toHaveBeenCalled();
+    expect(mocks.controller.selectMedia).not.toHaveBeenCalled();
+  });
+  it("dismissal releases its fixed-picker media without submitting", async () => {
+    const result = await call("prepare_studio_transcription");
+    usePreparedActionsStore.getState().dismissAction(result.data.actionId);
+    expect(mocks.controller.removeDraft).toHaveBeenCalledWith("picked-draft");
+    expect(mocks.controller.enqueue).not.toHaveBeenCalled();
+  });
+  it("cleans owned drafts when cancellation arrives while the native picker is open", async () => {
+    const abort = new AbortController();
+    mocks.controller.selectMedia.mockImplementationOnce(async () => { mocks.state.drafts = [{ id: "picked-draft", status: "ready" }]; abort.abort(); });
+    expect(await call("prepare_studio_transcription", {}, abort.signal)).toMatchObject({ success: false, error: "agent_cancelled" });
+    expect(mocks.controller.removeDraft).toHaveBeenCalledWith("picked-draft");
+    expect(mocks.controller.enqueue).not.toHaveBeenCalled();
+  });
+  it("retains unknown submission evidence and never retries or removes it automatically", async () => {
+    const result = await call("prepare_studio_transcription");
+    mocks.controller.enqueue.mockImplementationOnce(async () => { mocks.state.drafts[0].status = "submission_unknown"; return null; });
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(mocks.controller.enqueue).toHaveBeenCalledTimes(1);
+    expect(mocks.controller.removeDraft).not.toHaveBeenCalled();
+    expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "failed", error: "studio_transcription_submission_unknown" });
+  });
+});
+
+describe("local handoff and knowledge projection", () => {
+  it("rejects unsupported classic output formats without changing preferences", async () => {
+    expect(await call("configure_local_transcription", { outputFormats: ["VTT"] })).toMatchObject({ success: false, error: "invalid_tool_arguments" });
+  });
+  it("does not report all-failed local IPC reads as an empty successful queue", async () => {
+    const failure = { ok: false, error: { code: "owner_released" } };
+    Object.defineProperty(globalThis, "window", { configurable: true, value: { localSubtitleApi: { probeRuntime: vi.fn().mockResolvedValue(failure), listManagedResources: vi.fn().mockResolvedValue(failure), getSessionSnapshot: vi.fn().mockResolvedValue(failure) } } });
+    expect(await call("get_local_transcription_status")).toEqual({ success: false, error: "owner_released" });
+  });
+  it("only updates local transcription preferences and never consumes input authority", async () => {
+    const originalInputs = useLocalSubtitleTranscriberStore.getState().draftInputFiles;
+    expect(await call("configure_local_transcription", { language: "ja", outputFormats: ["SRT", "LRC"] })).toMatchObject({ success: true, data: { executionStatus: "configured", route: "/tools/subtitle/local-transcriber" } });
+    expect(useLocalSubtitleTranscriberStore.getState().preferences.language).toBe("ja");
+    expect(useLocalSubtitleTranscriberStore.getState().draftInputFiles).toBe(originalInputs);
+  });
+  it("returns bounded matched summaries and review state without raw library evidence", async () => {
+    const entry = { id: documentId, revision: 2, title: "Test term", collectionId, state: "ready", kind: "term", scope: { languagePair: { source: "ja", target: "zh-Hans" } }, payload: { source: "source", target: "x".repeat(800) }, evidence: [{ sourceId: "private-evidence" }] };
+    knowledge.read.mockResolvedValueOnce({ ok: true, value: { generation: 1, approvals: {}, data: { entries: [entry, entry], collections: [{ id: collectionId, name: "Test collection", archived: false }], recipes: [], sources: [{ excerpt: "PRIVATE RAW EVIDENCE" }] } } });
+    const result = await call("search_translation_knowledge", { query: "Test", limit: 1 });
+    expect(result.data.entries).toHaveLength(1); expect(result.data.entries[0].state).toBe("unconfirmed");
+    expect(result.data.entries[0].summary.length).toBeLessThanOrEqual(400);
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE RAW EVIDENCE|private-evidence/);
+  });
+});

@@ -32,6 +32,17 @@ export type AgentRuntimeStreamPart =
       usage?: AgentRuntimeUsage;
     }
   | {
+      type: "finish";
+      reason: "completed" | "step_limit" | "cancelled" | "incomplete";
+    }
+  | {
+      type: "tool-error";
+      toolCallId: string;
+      toolName: string;
+      input?: unknown;
+      error: unknown;
+    }
+  | {
       type: "error";
       error: unknown;
     };

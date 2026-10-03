@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "feature": "home-agent-upgrade",
+  "tier": "L",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "runtime",
+      "code": "RUNTIME",
+      "path": "modules/module-runtime"
+    },
+    {
+      "slug": "tools",
+      "code": "TOOLS",
+      "path": "modules/module-tools"
+    },
+    {
+      "slug": "workspace",
+      "code": "WORKSPACE",
+      "path": "modules/module-workspace"
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "HomeAgent 可靠规划与正式工具升级",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-09-30 用户：自行进行改造和完善工作吧，记得先想清楚沉淀到文档再开始做具体的开发。文档先通过ready和语义审查再开工；沿用原授权完成本批可逆实现与隔离验证。范围摘要后续仅因修正需求文档的总体设计引用而刷新；未扩大产品范围，不代签用户验收，不发布。",
+        "digest": "a970d549f9ef98e7520171978097f0e9c0469543e91bdb460c38167294e094e6"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [],
+  "parallel": {
+    "enabled": true,
+    "integrator": "root",
+    "shared_files": [
+      {
+        "path": "src/agent/types.ts",
+        "owner": "root"
+      },
+      {
+        "path": "src/agent/tools.ts",
+        "owner": "root"
+      },
+      {
+        "path": "src/store/agent/useAgentStore.ts",
+        "owner": "root"
+      },
+      {
+        "path": "src/agent/tool-executor.ts",
+        "owner": "root"
+      }
+    ]
+  }
+}

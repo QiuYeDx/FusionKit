@@ -9,7 +9,7 @@ import type {
   ScanSubtitleRecoveryTasksArgs,
   QueueRecoveredSubtitleTranslateArgs,
 } from "./tool-schemas";
-import type { TaskStoreType } from "./types";
+import type { TaskStoreType, AgentTaskReference } from "./types";
 import {
   TaskStatus,
   type SubtitleConverterTask,
@@ -37,11 +37,6 @@ import type {
   TranslationOutputMode,
 } from "@/type/subtitle";
 import { createNameTranslationPlan } from "@/services/rename/nameTranslationPlanner";
-import { getNameTranslationPlan } from "@/services/rename/namePlanStore";
-import {
-  applyNameTranslationPlan as applyStoredNameTranslationPlan,
-  validateNameTranslationPlan,
-} from "@/services/rename/nameApplyService";
 import {
   DEFAULT_NAME_TRANSLATION_OPTIONS,
   type InspectedRenamePath,
@@ -74,50 +69,42 @@ export interface ToolExecutionResult {
 
 function handlePostQueue(
   storeType: TaskStoreType,
-  queuedCount: number,
-  result: ToolExecutionResult
+  taskIds: string[],
+  result: ToolExecutionResult,
+  cancelled = false,
 ): ToolExecutionResult {
-  if (queuedCount === 0) return result;
-
+  const refs: AgentTaskReference[] = taskIds.map((taskId) => ({ store: storeType, taskId }));
+  result.data = { ...result.data, taskRefs: refs, ...(cancelled ? { cancelled: true } : {}) };
+  if (!taskIds.length) return result;
   const { executionMode, pendingExecution } = useAgentStore.getState();
-
-  switch (executionMode) {
-    case "auto_execute":
-      executeTasksInStores([storeType]);
-      result.data = {
-        ...result.data,
-        executionMode: "auto_execute",
-        executionStatus: "started",
-      };
-      break;
-
-    case "ask_before_execute": {
-      const prevStores = pendingExecution?.stores ?? [];
-      const prevCounts = pendingExecution?.taskCounts ?? {};
-      useAgentStore.getState().setPendingExecution({
-        stores: prevStores.includes(storeType) ? prevStores : [...prevStores, storeType],
-        taskCounts: { ...prevCounts, [storeType]: (prevCounts[storeType] ?? 0) + queuedCount },
-        timestamp: Date.now(),
-      });
-      result.data = {
-        ...result.data,
-        executionMode: "ask_before_execute",
-        executionStatus: "pending_confirmation",
-      };
-      break;
-    }
-
-    case "queue_only":
-    default:
-      result.data = {
-        ...result.data,
-        executionMode: "queue_only",
-        executionStatus: "queued_only",
-      };
-      break;
+  if (cancelled) {
+    result.data = { ...result.data, executionMode, executionStatus: "queued_only" };
+    return result;
   }
-
+  if (executionMode === "auto_execute") {
+    const receipt = executeTasksInStores([storeType], refs);
+    result.data = { ...result.data, ...receipt, executionMode, executionStatus: receipt.startedCount === taskIds.length ? "started" : "partially_started" };
+  } else if (executionMode === "ask_before_execute") {
+    const previous = pendingExecution?.resolvedAction ? null : pendingExecution;
+    const taskRefs = [...(previous?.taskRefs ?? []), ...refs];
+    const stores = [...new Set(taskRefs.map((ref) => ref.store))];
+    const taskCounts = Object.fromEntries(stores.map((store) => [store, taskRefs.filter((ref) => ref.store === store).length]));
+    useAgentStore.getState().setPendingExecution({ stores, taskCounts, taskRefs, timestamp: Date.now() });
+    result.data = { ...result.data, executionMode, executionStatus: "pending_confirmation" };
+  } else {
+    result.data = { ...result.data, executionMode, executionStatus: "queued_only" };
+  }
   return result;
+}
+
+function executionFence(signal?: AbortSignal) {
+  const sessionId = useAgentStore.getState().session.id;
+  return () => {
+    signal?.throwIfAborted();
+    if (useAgentStore.getState().session.id !== sessionId) {
+      throw new DOMException("Agent session changed.", "AbortError");
+    }
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -125,8 +112,11 @@ function handlePostQueue(
 // ---------------------------------------------------------------------------
 
 export async function executeScan(
-  args: ScanSubtitleFilesArgs
+  args: ScanSubtitleFilesArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
+  const check = executionFence(signal);
+  check();
   const allFiles: Array<{
     absolutePath: string;
     fileName: string;
@@ -137,12 +127,14 @@ export async function executeScan(
 
   for (const dir of args.directories) {
     try {
+      check();
       const result = await window.ipcRenderer.invoke("scan-directory", {
         directory: dir,
         extensions: args.extensions,
         recursive: args.recursive,
         maxFiles: 10000,
       });
+      check();
       if (result?.files) {
         for (const f of result.files) {
           allFiles.push({
@@ -162,6 +154,7 @@ export async function executeScan(
     }
   }
 
+  check();
   const deduped = deduplicateByPath(allFiles);
 
   return {
@@ -175,8 +168,11 @@ export async function executeScan(
 // ---------------------------------------------------------------------------
 
 export async function executeInspectRenamePaths(
-  args: InspectRenamePathsArgs
+  args: InspectRenamePathsArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
+  const check = executionFence(signal);
+  check();
   try {
     const result = await getIpcRenderer().invoke("inspect-rename-paths", {
       paths: args.paths,
@@ -203,11 +199,15 @@ export async function executeInspectRenamePaths(
 // ---------------------------------------------------------------------------
 
 export async function executeCreateNameTranslationPlan(
-  args: CreateNameTranslationPlanArgs
+  args: CreateNameTranslationPlanArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
+  const check = executionFence(signal);
+  check();
   try {
     const options = toNameTranslationOptions(args);
     const summary = await createNameTranslationPlan(options);
+    check();
     const requiresConfirmation = !summary.clarificationRequired;
     const executionStatus = summary.clarificationRequired
       ? "clarification_required"
@@ -215,9 +215,11 @@ export async function executeCreateNameTranslationPlan(
 
     const store = useAgentStore.getState();
     if (requiresConfirmation) {
+      check();
       store.setPendingNameTranslationPlan({
         planId: summary.planId,
         createdAt: Date.now(),
+        createdByUserMessageId: [...store.session.messages].reverse().find((message) => message.role === "user")?.id,
         summary,
         resolvedAction: null,
       });
@@ -257,117 +259,22 @@ export async function executeCreateNameTranslationPlan(
 // ---------------------------------------------------------------------------
 
 export async function executeApplyNameTranslationPlan(
-  args: ApplyNameTranslationPlanArgs
+  args: ApplyNameTranslationPlanArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
-  const latestUserMessage = getLatestUserMessageContent();
-  if (!isExplicitRenameConfirmation(latestUserMessage, args.planId)) {
-    return {
-      success: false,
-      error:
-        "应用重命名计划前需要用户明确确认，例如「确认执行刚才的重命名计划」。",
-      data: {
-        planId: args.planId,
-        executionStatus: "confirmation_required",
-      },
-    };
-  }
-
+  const check = executionFence(signal);
+  check();
   const store = useAgentStore.getState();
-  const pendingPlan = store.pendingNameTranslationPlan;
-  if (
-    !pendingPlan ||
-    pendingPlan.planId !== args.planId ||
-    pendingPlan.resolvedAction
-  ) {
-    return {
-      success: false,
-      error: "只能应用当前等待确认的最新重命名计划，请先重新生成预览。",
-      data: {
-        planId: args.planId,
-        executionStatus: "no_pending_plan",
-      },
-    };
+  const pending = store.pendingNameTranslationPlan;
+  const latestUser = [...store.session.messages].reverse().find((message) => message.role === "user");
+  if (!pending || pending.planId !== args.planId || pending.resolvedAction || pending.isApplying ||
+      !pending.createdByUserMessageId || !latestUser || latestUser.id === pending.createdByUserMessageId ||
+      !isExplicitRenameConfirmation(latestUser.content, args.planId)) {
+    return { success: false, error: "请在预览后的新一轮消息中明确确认当前重命名计划，或使用预览中的确认按钮。", data: { planId: args.planId, executionStatus: "confirmation_required" } };
   }
-
-  const plan = getNameTranslationPlan(args.planId);
-  if (!plan) {
-    return {
-      success: false,
-      error: "重命名计划已过期或不存在，请重新生成预览。",
-      data: {
-        planId: args.planId,
-        executionStatus: "plan_missing",
-      },
-    };
-  }
-
-  if (!plan.applyable || plan.blockedCount > 0) {
-    return {
-      success: false,
-      error: "当前重命名计划不可应用，请先处理冲突或重新生成预览。",
-      data: {
-        planId: args.planId,
-        executionStatus: "plan_blocked",
-        blockedCount: plan.blockedCount,
-        applyable: plan.applyable,
-      },
-    };
-  }
-
-  try {
-    const validation = await validateNameTranslationPlan(args.planId);
-    if (!validation.valid) {
-      return {
-        success: false,
-        error: validation.errors[0]?.message ?? "重命名计划校验失败。",
-        data: {
-          planId: args.planId,
-          executionStatus: "validation_failed",
-          validation,
-        },
-      };
-    }
-
-    const result = await applyStoredNameTranslationPlan(args.planId);
-    useAgentStore.getState().setPendingNameTranslationPlan({
-      ...pendingPlan,
-      resolvedAction: "confirm",
-      applyResult: result,
-      error: undefined,
-    });
-    useAgentStore.getState().appendLog(
-      "name_translation_apply",
-      `Applied rename plan ${args.planId}`,
-      { planId: args.planId, result }
-    );
-
-    return {
-      success: true,
-      data: {
-        ...result,
-        executionStatus: "applied",
-      },
-    };
-  } catch (err: any) {
-    const error = `Failed to apply name translation plan: ${err?.message || err}`;
-    useAgentStore.getState().setPendingNameTranslationPlan({
-      ...pendingPlan,
-      error,
-    });
-    useAgentStore.getState().appendLog("error", error, {
-      planId: args.planId,
-      source: "apply_name_translation_plan",
-    });
-
-    return {
-      success: false,
-      error,
-      data: {
-        planId: args.planId,
-        executionStatus: "apply_failed",
-      },
-    };
-  }
+  const result = await store.confirmNameTranslationPlan(args.planId, signal);
+  if (result) return { success: true, data: { ...result, executionStatus: "applied" } };
+  return { success: false, error: useAgentStore.getState().pendingNameTranslationPlan?.error ?? "重命名计划未执行。", data: { planId: args.planId, executionStatus: "not_applied" } };
 }
 
 // ---------------------------------------------------------------------------
@@ -375,173 +282,91 @@ export async function executeApplyNameTranslationPlan(
 // ---------------------------------------------------------------------------
 
 export async function executeQueueTranslate(
-  args: QueueTranslateArgs
+  args: QueueTranslateArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
+  const check = executionFence(signal);
+  check();
   if (containsLegacyAgentTranslateAuthority(args)) {
-    return {
-      success: false,
-      error:
-        "字幕翻译不接受 filePaths、scanId 或 outputDir。请通过 FusionKit 文件选择器重新授权。",
-    };
+    return { success: false, error: "字幕翻译不接受 filePaths、scanId 或 outputDir。请通过 FusionKit 文件选择器重新授权。" };
   }
   const store = useSubtitleTranslatorStore.getState();
-  const modelStore = useModelStore.getState();
-  const taskProfile = modelStore.getTaskProfile();
-
-  if (!taskProfile || !taskProfile.apiKey) {
-    return {
-      success: false,
-      error: "未配置任务执行模型，请在设置页面配置。",
-    };
-  }
-
-  await flushPendingAgentTranslationRevocations();
+  const taskProfile = useModelStore.getState().getTaskProfile();
+  if (!taskProfile?.apiKey) return { success: false, error: "未配置任务执行模型，请在设置页面配置。" };
   const api = getSubtitleTranslationApi();
-  let directoryToken: string | undefined;
-  if (args.outputMode === "custom") {
-    const directorySelection = await api.selectOutputDirectory();
-    if (!directorySelection.ok) {
-      return {
-        success: false,
-        error: `无法授权字幕输出目录：${directorySelection.error.code}`,
-      };
-    }
-    if (directorySelection.data.cancelled) {
-      return {
-        success: false,
-        error: "已取消字幕输出目录选择，未创建翻译任务。",
-      };
-    }
-    directoryToken = directorySelection.data.directoryToken;
-  }
-
-  const selected = await api.selectAgentInputFiles();
-  if (!selected.ok) {
-    if (directoryToken) {
-      await scheduleAgentOutputDirectoryRevocation(directoryToken);
-    }
-    return {
-      success: false,
-      error: `无法授权字幕输入文件：${selected.error.code}`,
-    };
-  }
-  if (selected.data.cancelled) {
-    if (directoryToken) {
-      await scheduleAgentOutputDirectoryRevocation(directoryToken);
-    }
-    return {
-      success: false,
-      error: "已取消字幕文件选择，未创建翻译任务。",
-    };
-  }
-
-  const selection = selected.data;
-  let queued = 0;
+  const taskIds: string[] = [];
   const errors: string[] = [];
-  const sliceConfig = resolveTranslationSliceConfig(
-    args,
-    getLatestUserMessageContent(),
-  );
-  const sourceLang = (args.sourceLang || "JA") as TranslationLanguage;
-  const targetLang = (args.targetLang || "ZH") as TranslationLanguage;
-  const translationOutputMode = (args.translationOutputMode ||
-    "bilingual") as TranslationOutputMode;
-
+  let directoryToken: string | undefined;
+  let selectionRef: string | undefined;
+  let totalFiles = 0;
+  let cancelled = false;
   try {
-    for (let i = 0; i < selection.files.length; i++) {
-      if (i > 0) await new Promise((r) => setTimeout(r, 0));
-      const selectedFile = selection.files[i];
-      const inputContent = await api.readAgentInputFile({
-        selectionRef: selection.selectionRef,
-        itemRef: selectedFile.itemRef,
-      });
-      if (!inputContent.ok) {
-        errors.push(`Cannot read ${selectedFile.displayName}: ${inputContent.error.code}`);
+    await flushPendingAgentTranslationRevocations();
+    check();
+    if (args.outputMode === "custom") {
+      const directory = await api.selectOutputDirectory();
+      if (directory.ok) directoryToken = directory.data.directoryToken;
+      check();
+      if (!directory.ok) return { success: false, error: `无法授权字幕输出目录：${directory.error.code}` };
+      if (directory.data.cancelled) return { success: false, error: "已取消字幕输出目录选择，未创建翻译任务。" };
+    }
+    const selected = await api.selectAgentInputFiles();
+    if (selected.ok && !selected.data.cancelled) selectionRef = selected.data.selectionRef;
+    check();
+    if (!selected.ok) return { success: false, error: `无法授权字幕输入文件：${selected.error.code}` };
+    if (selected.data.cancelled) return { success: false, error: "已取消字幕文件选择，未创建翻译任务。" };
+    const selection = selected.data;
+    totalFiles = selection.files.length;
+    const sliceConfig = resolveTranslationSliceConfig(args, getLatestUserMessageContent());
+    const sourceLang = (args.sourceLang || "JA") as TranslationLanguage;
+    const targetLang = (args.targetLang || "ZH") as TranslationLanguage;
+    const translationOutputMode = (args.translationOutputMode || "bilingual") as TranslationOutputMode;
+    for (const selectedFile of selection.files) {
+      check();
+      const input = await api.readAgentInputFile({ selectionRef: selection.selectionRef, itemRef: selectedFile.itemRef });
+      check();
+      if (!input.ok || input.data.displayName !== selectedFile.displayName) {
+        errors.push(`Cannot read ${selectedFile.displayName}: ${input.ok ? "selection_changed" : input.error.code}`);
         continue;
       }
-      if (inputContent.data.displayName !== selectedFile.displayName) {
-        errors.push(`Cannot read ${selectedFile.displayName}: selection_changed`);
-        continue;
-      }
-      const fileContent = inputContent.data.content;
-      const fileName = inputContent.data.displayName;
-
-      const fastEstimate = estimateSubtitleTokensFast(
-        fileContent,
-        sliceConfig.sliceType as SubtitleSliceType,
-        sliceConfig.customSliceLength,
-        taskProfile.provider,
-        taskProfile.tokenPricing,
-        { sourceLang, targetLang, translationOutputMode },
-      );
-
+      const fileContent = input.data.content;
+      const fileName = input.data.displayName;
+      const fastEstimate = estimateSubtitleTokensFast(fileContent, sliceConfig.sliceType as SubtitleSliceType,
+        sliceConfig.customSliceLength, taskProfile.provider, taskProfile.tokenPricing, { sourceLang, targetLang, translationOutputMode });
       const task = createSubtitleTranslatorTask({
-        fileName,
-        fileContent,
-        sliceType: sliceConfig.sliceType as any,
-        customSliceLength: sliceConfig.customSliceLength,
-        status: TaskStatus.NOT_STARTED,
-        progress: 0,
-        costEstimate: fastEstimate,
-        executionBinding: createSubtitleTaskExecutionBinding(taskProfile),
-        sourceLang,
-        targetLang,
-        translationOutputMode,
-        conflictPolicy: args.conflictPolicy ?? "index",
-        concurrentSlices: args.concurrentSlices ?? true,
+        fileName, fileContent, sliceType: sliceConfig.sliceType as any, customSliceLength: sliceConfig.customSliceLength,
+        status: TaskStatus.NOT_STARTED, progress: 0, costEstimate: fastEstimate,
+        executionBinding: createSubtitleTaskExecutionBinding(taskProfile), sourceLang, targetLang, translationOutputMode,
+        conflictPolicy: args.conflictPolicy ?? "index", concurrentSlices: args.concurrentSlices ?? true,
       });
+      check();
       const registration = await api.registerAgentAuthorizedTask({
-        selectionRef: selection.selectionRef,
-        itemRef: selectedFile.itemRef,
-        taskId: task.taskId,
-        outputMode: args.outputMode,
-        outputFileName: fileName,
-        ...(directoryToken ? { directoryToken } : {}),
+        selectionRef: selection.selectionRef, itemRef: selectedFile.itemRef, taskId: task.taskId,
+        outputMode: args.outputMode, outputFileName: fileName, ...(directoryToken ? { directoryToken } : {}),
       });
-      if (!registration.ok) {
-        errors.push(`Cannot authorize ${fileName}: ${registration.error.code}`);
-        continue;
-      }
-      const authorizedTask: SubtitleTranslatorTask = {
-        ...task,
-        taskReference: registration.data,
-      };
-      const addResult = store.addTask(authorizedTask);
-      if (!addResult.added) {
-        releaseSubtitleTranslationTaskAuthority(task.taskId);
-        continue;
-      }
-      queued++;
-
-      const capturedTaskId = task.taskId;
-      estimateSubtitleTokens(
-        fileContent,
-        sliceConfig.sliceType as SubtitleSliceType,
-        sliceConfig.customSliceLength,
-        taskProfile.provider,
-        taskProfile.tokenPricing,
-        { sourceLang, targetLang, translationOutputMode },
-      ).then((precise) => {
-        store.updateTaskCostEstimate(capturedTaskId, precise);
-      });
+      if (!registration.ok) { check(); errors.push(`Cannot authorize ${fileName}: ${registration.error.code}`); continue; }
+      try { check(); } catch (error) { releaseSubtitleTranslationTaskAuthority(task.taskId); throw error; }
+      const receipt = store.addTask({ ...task, taskReference: registration.data });
+      if (!receipt.added) { releaseSubtitleTranslationTaskAuthority(task.taskId); continue; }
+      taskIds.push(task.taskId);
+      void estimateSubtitleTokens(fileContent, sliceConfig.sliceType as SubtitleSliceType, sliceConfig.customSliceLength,
+        taskProfile.provider, taskProfile.tokenPricing, { sourceLang, targetLang, translationOutputMode })
+        .then((estimate) => store.updateTaskCostEstimate(task.taskId, estimate)).catch(() => {});
     }
+  } catch (error) {
+    cancelled = signal?.aborted === true || (error instanceof Error && error.name === "AbortError");
+    if (!cancelled && !taskIds.length) throw error;
+    if (!cancelled) errors.push(error instanceof Error ? error.message : String(error));
   } finally {
-    await scheduleAgentSelectionRevocation(selection.selectionRef);
-    if (directoryToken) {
-      await scheduleAgentOutputDirectoryRevocation(directoryToken);
-    }
+    if (selectionRef) await scheduleAgentSelectionRevocation(selectionRef);
+    if (directoryToken) await scheduleAgentOutputDirectoryRevocation(directoryToken);
   }
-
-  const result: ToolExecutionResult = {
-    success: true,
-    data: {
-      queuedCount: queued,
-      totalFiles: selection.files.length,
-      ...(errors.length > 0 ? { errors } : {}),
-    },
-  };
-
-  return handlePostQueue("translate", queued, result);
+  try { check(); } catch { cancelled = true; }
+  return handlePostQueue("translate", taskIds, {
+    success: taskIds.length > 0 || (!cancelled && errors.length === 0),
+    ...(cancelled && !taskIds.length ? { error: "已停止，未创建翻译任务。" } : {}),
+    data: { queuedCount: taskIds.length, totalFiles, ...(errors.length ? { errors } : {}) },
+  }, cancelled || signal?.aborted === true);
 }
 
 // ---------------------------------------------------------------------------
@@ -549,54 +374,43 @@ export async function executeQueueTranslate(
 // ---------------------------------------------------------------------------
 
 export async function executeQueueConvert(
-  args: QueueConvertArgs
+  args: QueueConvertArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
+  const check = executionFence(signal);
+  check();
   const store = useSubtitleConverterStore.getState();
-
-  let queued = 0;
-  const errors: string[] = [];
   const selection = resolveQueueFileSelection(args);
-  if (!selection.ok) {
-    return {
-      success: false,
-      error: selection.error,
-    };
-  }
-
-  for (let i = 0; i < selection.filePaths.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 0));
-    const filePath = selection.filePaths[i];
-
-    const fileContent = await readFileContent(filePath);
-    if (fileContent === null) {
-      errors.push(`Cannot read: ${filePath}`);
-      continue;
+  if (!selection.ok) return { success: false, error: selection.error };
+  const taskIds: string[] = [];
+  const errors: string[] = [];
+  let cancelled = false;
+  try {
+    for (const filePath of selection.filePaths) {
+      check();
+      const fileContent = await readFileContent(filePath);
+      check();
+      if (fileContent === null) { errors.push(`Cannot read: ${filePath}`); continue; }
+      const fileName = extractFileName(filePath);
+      const ext = extractExtension(filePath);
+      const task: SubtitleConverterTask & { agentTaskId: string } = {
+        agentTaskId: crypto.randomUUID(), fileName, fileContent, from: ext as any, to: args.to as any,
+        originFileURL: filePath, targetFileURL: resolveOutputDir(args.outputMode, args.outputDir, filePath),
+        status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: args.conflictPolicy ?? "index",
+      };
+      store.addTask(task);
+      if (useSubtitleConverterStore.getState().notStartedTasks.includes(task)) taskIds.push(task.agentTaskId);
+      else errors.push(`Not queued (duplicate): ${fileName}`);
     }
-    const fileName = extractFileName(filePath);
-    const ext = extractExtension(filePath);
-    const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
-
-    const task: SubtitleConverterTask = {
-      fileName,
-      fileContent,
-      from: ext as any,
-      to: args.to as any,
-      originFileURL: filePath,
-      targetFileURL: outputDir,
-      status: TaskStatus.NOT_STARTED,
-      progress: 0,
-      conflictPolicy: args.conflictPolicy ?? "index",
-    };
-    store.addTask(task);
-    queued++;
+  } catch (error) {
+    cancelled = signal?.aborted === true || (error instanceof Error && error.name === "AbortError");
+    if (!cancelled) throw error;
   }
-
-  const result: ToolExecutionResult = {
-    success: true,
-    data: createQueueResultData(selection, queued, errors),
-  };
-
-  return handlePostQueue("convert", queued, result);
+  return handlePostQueue("convert", taskIds, {
+    success: taskIds.length > 0 || (!cancelled && errors.length === 0),
+    ...(cancelled && !taskIds.length ? { error: "Agent stopped before creating tasks." } : {}),
+    data: createQueueResultData(selection, taskIds.length, errors),
+  }, cancelled);
 }
 
 // ---------------------------------------------------------------------------
@@ -604,54 +418,43 @@ export async function executeQueueConvert(
 // ---------------------------------------------------------------------------
 
 export async function executeQueueExtract(
-  args: QueueExtractArgs
+  args: QueueExtractArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
+  const check = executionFence(signal);
+  check();
   const store = useSubtitleExtractorStore.getState();
-
-  let queued = 0;
-  const errors: string[] = [];
   const selection = resolveQueueFileSelection(args);
-  if (!selection.ok) {
-    return {
-      success: false,
-      error: selection.error,
-    };
-  }
-
-  for (let i = 0; i < selection.filePaths.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 0));
-    const filePath = selection.filePaths[i];
-
-    const fileContent = await readFileContent(filePath);
-    if (fileContent === null) {
-      errors.push(`Cannot read: ${filePath}`);
-      continue;
+  if (!selection.ok) return { success: false, error: selection.error };
+  const taskIds: string[] = [];
+  const errors: string[] = [];
+  let cancelled = false;
+  try {
+    for (const filePath of selection.filePaths) {
+      check();
+      const fileContent = await readFileContent(filePath);
+      check();
+      if (fileContent === null) { errors.push(`Cannot read: ${filePath}`); continue; }
+      const fileName = extractFileName(filePath);
+      const ext = extractExtension(filePath);
+      const task: SubtitleExtractorTask & { agentTaskId: string } = {
+        agentTaskId: crypto.randomUUID(), fileName, fileContent, fileType: ext as any, keep: args.keep,
+        originFileURL: filePath, targetFileURL: resolveOutputDir(args.outputMode, args.outputDir, filePath),
+        status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: args.conflictPolicy ?? "index",
+      };
+      store.addTask(task);
+      if (useSubtitleExtractorStore.getState().notStartedTasks.includes(task)) taskIds.push(task.agentTaskId);
+      else errors.push(`Not queued (duplicate): ${fileName}`);
     }
-    const fileName = extractFileName(filePath);
-    const ext = extractExtension(filePath);
-    const outputDir = resolveOutputDir(args.outputMode, args.outputDir, filePath);
-
-    const task: SubtitleExtractorTask = {
-      fileName,
-      fileContent,
-      fileType: ext as any,
-      originFileURL: filePath,
-      targetFileURL: outputDir,
-      keep: args.keep,
-      status: TaskStatus.NOT_STARTED,
-      progress: 0,
-      conflictPolicy: args.conflictPolicy ?? "index",
-    };
-    store.addTask(task);
-    queued++;
+  } catch (error) {
+    cancelled = signal?.aborted === true || (error instanceof Error && error.name === "AbortError");
+    if (!cancelled) throw error;
   }
-
-  const result: ToolExecutionResult = {
-    success: true,
-    data: createQueueResultData(selection, queued, errors),
-  };
-
-  return handlePostQueue("extract", queued, result);
+  return handlePostQueue("extract", taskIds, {
+    success: taskIds.length > 0 || (!cancelled && errors.length === 0),
+    ...(cancelled && !taskIds.length ? { error: "Agent stopped before creating tasks." } : {}),
+    data: createQueueResultData(selection, taskIds.length, errors),
+  }, cancelled);
 }
 
 // ---------------------------------------------------------------------------
@@ -660,7 +463,10 @@ export async function executeQueueExtract(
 
 export async function executeScanSubtitleRecoveryTasks(
   args: ScanSubtitleRecoveryTasksArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
+  const check = executionFence(signal);
+  check();
   let payload;
   try {
     payload = args.selectionMode === "manifest"
@@ -671,6 +477,12 @@ export async function executeScanSubtitleRecoveryTasks(
       success: false,
       error: error instanceof Error ? error.message : String(error),
     };
+  }
+  try { check(); } catch (error) {
+    if (!payload.cancelled && payload.recoveryScanId) {
+      await revokeTranslationRecoveryScan(payload.recoveryScanId).catch(() => {});
+    }
+    throw error;
   }
   if (payload.cancelled) {
     return { success: false, error: "Recovery selection was cancelled." };
@@ -699,7 +511,10 @@ export async function executeScanSubtitleRecoveryTasks(
 
 export async function executeQueueRecoveredSubtitleTranslate(
   args: QueueRecoveredSubtitleTranslateArgs,
+  signal?: AbortSignal,
 ): Promise<ToolExecutionResult> {
+  const check = executionFence(signal);
+  check();
   const modelStore = useModelStore.getState();
   const taskProfile = modelStore.getTaskProfile();
 
@@ -711,10 +526,15 @@ export async function executeQueueRecoveredSubtitleTranslate(
   }
 
   await flushPendingAgentTranslationRevocations();
+  check();
   let queuedCount = 0;
   let skippedCount = 0;
   const directory = await getSubtitleTranslationApi().selectOutputDirectory();
-  if (!directory.ok) return { success: false, error: directory.error.message };
+  if (!directory.ok) { check(); return { success: false, error: directory.error.message }; }
+  try { check(); } catch (error) {
+    if (directory.data.directoryToken) await scheduleAgentOutputDirectoryRevocation(directory.data.directoryToken);
+    throw error;
+  }
   if (directory.data.cancelled) {
     return { success: false, error: "Recovery output selection was cancelled." };
   }
@@ -739,6 +559,11 @@ export async function executeQueueRecoveredSubtitleTranslate(
       success: false,
       error: error instanceof Error ? error.message : String(error),
     };
+  }
+  await scheduleAgentOutputDirectoryRevocation(recoveryDirectoryToken);
+  try { check(); } catch (error) {
+    for (const draft of prepared.tasks) releaseSubtitleTranslationTaskAuthority(draft.taskId);
+    throw error;
   }
   const tasks: SubtitleTranslatorTask[] = prepared.tasks.map((draft) => ({
     taskId: draft.taskId,
@@ -817,7 +642,9 @@ export async function executeQueueRecoveredSubtitleTranslate(
     data: resultData,
   };
 
-  useAgentStore.getState().appendLog(
+  let cancelled = false;
+  try { check(); } catch { cancelled = true; }
+  if (!cancelled) useAgentStore.getState().appendLog(
     "subtitle_recovery_queue",
     `Queued ${queuedCount} recovered tasks, skipped ${skippedCount}`,
     {
@@ -829,7 +656,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
     },
   );
 
-  return handlePostQueue("translate", queuedCount, result);
+  return handlePostQueue("translate", [...addResult.addedTaskIds], result, cancelled);
 }
 
 // ---------------------------------------------------------------------------

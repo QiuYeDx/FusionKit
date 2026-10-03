@@ -35,9 +35,15 @@ import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
 import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
 import { exportSession, importSession } from "@/agent/session-io";
 import SessionLogViewer from "./SessionLogViewer";
+import AgentPlanPanel from "./components/AgentPlanPanel";
+import AgentCapabilities from "./components/AgentCapabilities";
+import AgentPreparedActions from "./components/AgentPreparedActions";
+import AgentToolCallView from "./components/AgentToolCall";
+import AgentToolResultView, { isModernToolResult } from "./components/AgentToolResult";
+import { createWidgetActionHandler, isNamePlanResultFor } from "./widget-actions";
 import type {
   AgentMessage,
-  AgentToolCall,
+  AgentToolResult,
   ExecutionMode,
   PendingExecution,
   TaskStoreType,
@@ -141,22 +147,6 @@ const homeAgentWidgetRegistry: MarkdownWidgetRegistry = {
 // Structured data → Widget fence converters
 // ---------------------------------------------------------------------------
 
-function toolCallsToFences(
-  toolCalls: AgentToolCall[],
-  status: "pending" | "running" | "success" = "success",
-): string {
-  return toolCalls
-    .map((tc) => {
-      const payload = JSON.stringify({
-        name: tc.toolName,
-        status,
-        input: tc.args,
-      });
-      return "\n\n```qv:tool-call\n" + payload + "\n```";
-    })
-    .join("");
-}
-
 function pendingExecutionToFence(pe: PendingExecution): string {
   const payload = JSON.stringify({
     stores: pe.stores.map((s) => ({
@@ -199,7 +189,7 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
 
   let body: string;
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = result?.data ?? JSON.parse(raw);
     if (isSuccess && result?.toolName === "create_name_translation_plan") {
       return nameTranslationPlanToFence(parsed);
     }
@@ -280,18 +270,16 @@ function HomeAgent() {
     executionMode,
     setExecutionMode,
     pendingExecution,
-    confirmExecution,
-    dismissExecution,
-    confirmNameTranslationPlan,
-    dismissNameTranslationPlan,
+    pendingNameTranslationPlan,
     activeToolCalls,
     sessionLog,
   } = useAgentStore();
   const { messages, status } = session;
   const isEmpty = messages.length === 0;
+  const toolResults = useMemo(() => new Map(messages.flatMap(message => message.toolResult ? [[message.toolResult.callId, message.toolResult] as const] : [])), [messages]);
 
   const agentProfile = useModelStore((s) => s.getAgentProfile());
-  const hasAgentConfig = !!(agentProfile && agentProfile.apiKey);
+  const hasAgentConfig = !!agentProfile?.apiKey?.trim();
   const hasUnsupportedAgentApiFormat =
     hasAgentConfig && !isAgentProfileApiFormatSupported(agentProfile);
   const agentApiFormatLabel =
@@ -476,38 +464,19 @@ function HomeAgent() {
       conversationId: session.id,
       role: "assistant",
       density: "compact",
-      onWidgetAction: (action) => {
-        if (action.type === "pending-execution") {
-          if (action.action === "confirm") confirmExecution();
-          if (action.action === "dismiss") dismissExecution();
-          if (action.action === "navigate") {
-            const path = (action.payload as { path?: string })?.path;
-            if (path) navigate(path);
-          }
-        }
-        if (action.type === "name-translation-plan") {
-          const planId = (action.payload as { planId?: string })?.planId;
-          if (action.action === "confirm" && planId) {
-            void confirmNameTranslationPlan(planId);
-          }
-          if (action.action === "dismiss" && planId) {
-            dismissNameTranslationPlan(planId);
-          }
-          if (action.action === "navigate") {
-            const path = (action.payload as { path?: string })?.path;
-            if (path) navigate(path);
-          }
-        }
-      },
+      onWidgetAction: createWidgetActionHandler(session.id, useAgentStore.getState, navigate),
     }),
-    [
-      session.id,
-      confirmExecution,
-      dismissExecution,
-      confirmNameTranslationPlan,
-      dismissNameTranslationPlan,
-      navigate,
-    ],
+    [session.id, navigate],
+  );
+  const pendingWidgetContext = useMemo<MarkdownWidgetContext>(
+    () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(session.id, useAgentStore.getState, navigate,
+      pendingExecution ? { kind: "pending-execution", pending: pendingExecution } : { kind: "display" }) }),
+    [widgetContext, session.id, navigate, pendingExecution],
+  );
+  const namePlanWidgetContext = useMemo<MarkdownWidgetContext>(
+    () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(session.id, useAgentStore.getState, navigate,
+      pendingNameTranslationPlan ? { kind: "name-translation-plan", plan: pendingNameTranslationPlan } : { kind: "display" }) }),
+    [widgetContext, session.id, navigate, pendingNameTranslationPlan],
   );
 
   const prevStreamingRef = useRef(false);
@@ -547,7 +516,7 @@ function HomeAgent() {
 
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || isStreaming || hasUnsupportedAgentApiFormat) return;
+    if (!trimmed || isStreaming || !hasAgentConfig || hasUnsupportedAgentApiFormat) return;
     pushHistory(trimmed);
     setInput("");
     historyIndexRef.current = -1;
@@ -649,7 +618,7 @@ function HomeAgent() {
   );
 
   const canSend =
-    input.trim().length > 0 && !isStreaming && !hasUnsupportedAgentApiFormat;
+    input.trim().length > 0 && !isStreaming && hasAgentConfig && !hasUnsupportedAgentApiFormat;
   const showScrollToBottomButton = !isEmpty && !isAtBottom;
   const hasActiveResponse =
     isStreaming || status === "thinking" || status === "streaming";
@@ -681,23 +650,14 @@ function HomeAgent() {
     ) : null;
   const inputCapsule = (
     <motion.div layout transition={EMPTY_STATE_LAYOUT_TRANSITION}>
-      <AnimatePresence mode="popLayout">
         {!isEmpty && (
-          <motion.div
-            layout="position"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
-            transition={{
-              type: "spring",
-              bounce: 0,
-              duration: 0.8,
-              delay: 1.2,
-            }}
-            className="max-w-2xl mx-auto mb-2 pointer-events-auto flex items-end justify-between gap-2"
+          <div
+            data-testid="agent-composer-toolbar"
+            className="max-w-2xl mx-auto mb-2 pointer-events-auto flex flex-wrap items-end justify-between gap-2"
           >
             <TokenStatsBar className="max-w-none mx-0 mb-0" />
             <div className="flex items-center gap-1 ml-auto translate-y-1">
+              <AgentCapabilities />
               <Button
                 variant="ghost"
                 size="sm"
@@ -746,9 +706,8 @@ function HomeAgent() {
                   : t("home:new_conversation")}
               </Button>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Import error toast */}
       <AnimatePresence>
@@ -824,6 +783,7 @@ function HomeAgent() {
             className={isMultiline ? "w-full" : "flex-1 min-w-0"}
           >
             <Textarea
+              data-testid="agent-input"
               ref={textareaRef}
               rows={1}
               placeholder={t("home:agent_input_placeholder")}
@@ -853,6 +813,8 @@ function HomeAgent() {
                 className="shrink-0"
               >
                 <Button
+                  aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
+                  data-testid="agent-send"
                   onClick={
                     isStreaming ? () => abortCurrentStream() : handleSend
                   }
@@ -882,6 +844,8 @@ function HomeAgent() {
               className="ml-auto shrink-0"
             >
               <Button
+                aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
+                data-testid="agent-send"
                 onClick={isStreaming ? () => abortCurrentStream() : handleSend}
                 disabled={!isStreaming && !canSend}
                 className={cn(
@@ -944,6 +908,7 @@ function HomeAgent() {
   return (
     <div
       ref={rootRef}
+      data-testid="home-agent"
       className="relative flex min-h-[calc(100dvh-120px)] flex-col"
     >
       {/* ===== Empty State ===== */}
@@ -1012,13 +977,13 @@ function HomeAgent() {
           <motion.div
             layout="position"
             transition={EMPTY_STATE_LAYOUT_TRANSITION}
-            className="mt-6 flex flex-nowrap justify-center gap-2 max-w-md"
+            className="mt-6 flex flex-wrap justify-center gap-2 max-w-xl"
           >
             <SuggestionPill
               icon={<Sparkles className="h-3 w-3" />}
-              text={t("home:suggestion_translate_srt")}
+              text={t("home:suggestion_studio")}
               onClick={() => {
-                setInput(t("home:suggestion_translate_srt_prompt"));
+                setInput(t("home:suggestion_studio_prompt"));
                 textareaRef.current?.focus();
               }}
             />
@@ -1039,6 +1004,7 @@ function HomeAgent() {
               }}
             />
           </motion.div>
+          <div className="mt-3"><AgentCapabilities /></div>
         </motion.div>
       )}
 
@@ -1056,6 +1022,9 @@ function HomeAgent() {
                   message={msg}
                   widgetRegistry={homeAgentWidgetRegistry}
                   widgetContext={widgetContext}
+                  namePlanWidgetContext={namePlanWidgetContext}
+                  pendingNamePlanId={pendingNameTranslationPlan?.planId}
+                  toolResults={toolResults}
                 />
               ))}
 
@@ -1079,12 +1048,7 @@ function HomeAgent() {
                     </div>
                     <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
                       <ChatMarkdownRenderer
-                        content={
-                          (streamingText || "") +
-                          (activeToolCalls.length > 0
-                            ? toolCallsToFences(activeToolCalls, "running")
-                            : "")
-                        }
+                        content={streamingText || ""}
                         widgetRegistry={homeAgentWidgetRegistry}
                         widgetContext={{
                           ...widgetContext,
@@ -1092,9 +1056,13 @@ function HomeAgent() {
                         }}
                         codeBlock={{ colorTheme: "qiuvision" }}
                       />
+                      <div className="mt-2 space-y-2">{activeToolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} running />)}</div>
                     </div>
                   </div>
                 )}
+
+              {session.plan && <AgentPlanPanel key={session.plan.id} plan={session.plan} />}
+              <AgentPreparedActions sessionId={session.id} busy={isStreaming} />
 
               {/* Pending execution widget */}
               {pendingExecution && !isStreaming && (
@@ -1102,7 +1070,7 @@ function HomeAgent() {
                   <ChatMarkdownRenderer
                     content={pendingExecutionToFence(pendingExecution)}
                     widgetRegistry={homeAgentWidgetRegistry}
-                    widgetContext={widgetContext}
+                    widgetContext={pendingWidgetContext}
                     codeBlock={{ colorTheme: "qiuvision" }}
                   />
                 </div>
@@ -1229,10 +1197,16 @@ const MessageBubble = React.memo(
     message,
     widgetRegistry,
     widgetContext,
+    namePlanWidgetContext,
+    pendingNamePlanId,
+    toolResults,
   }: {
     message: AgentMessage;
     widgetRegistry: MarkdownWidgetRegistry;
     widgetContext: MarkdownWidgetContext;
+    namePlanWidgetContext: MarkdownWidgetContext;
+    pendingNamePlanId?: string;
+    toolResults: ReadonlyMap<string, AgentToolResult>;
   }) {
     const { t } = useTranslation();
     const isUser = message.role === "user";
@@ -1254,24 +1228,23 @@ const MessageBubble = React.memo(
     }
 
     if (isTool) {
+      if (message.toolResult && isModernToolResult(message.toolResult.toolName)) {
+        return <div className="pl-10"><AgentToolResultView result={message.toolResult} /></div>;
+      }
       return (
         <div className="pl-10">
           <ChatMarkdownRenderer
             content={formatToolResultAsMarkdown(message, t)}
             widgetRegistry={widgetRegistry}
-            widgetContext={widgetContext}
+            widgetContext={isNamePlanResultFor(message, pendingNamePlanId) ? namePlanWidgetContext : widgetContext}
             codeBlock={{ colorTheme: "qiuvision" }}
           />
         </div>
       );
     }
 
-    let content = message.content || "";
-    if (message.toolCalls && message.toolCalls.length > 0) {
-      content += toolCallsToFences(message.toolCalls, "success");
-    }
-
-    if (!content.trim()) return null;
+    const content = message.content || "";
+    if (!content.trim() && !message.toolCalls?.length) return null;
 
     return (
       <div className="flex items-start gap-2.5">
@@ -1285,6 +1258,7 @@ const MessageBubble = React.memo(
             widgetContext={widgetContext}
             codeBlock={{ colorTheme: "qiuvision" }}
           />
+          {!!message.toolCalls?.length && <div className="mt-2 space-y-2">{message.toolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} result={toolResults.get(call.toolCallId)} />)}</div>}
         </div>
       </div>
     );
@@ -1292,7 +1266,10 @@ const MessageBubble = React.memo(
   (prev, next) =>
     prev.message === next.message &&
     prev.widgetRegistry === next.widgetRegistry &&
-    prev.widgetContext === next.widgetContext,
+    prev.widgetContext === next.widgetContext &&
+    prev.namePlanWidgetContext === next.namePlanWidgetContext &&
+    prev.pendingNamePlanId === next.pendingNamePlanId &&
+    prev.toolResults === next.toolResults,
 );
 
 function SuggestionPill({

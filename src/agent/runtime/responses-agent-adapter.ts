@@ -2,6 +2,8 @@ import { asSchema, type ModelMessage, type Tool } from "ai";
 import type { ModelProfile } from "@/type/model";
 import { normalizeModelEndpoint } from "@/lib/model-endpoint";
 import type { AgentMessage } from "../types";
+import { abortError, assertTurnActive } from "../guarded-tools";
+import { AGENT_CONTEXT_CHARACTER_BUDGET, compactToolOutput } from "../conversation-context";
 import type {
   AgentRuntimeStreamPart,
   AgentRuntimeTurnResult,
@@ -45,6 +47,7 @@ interface PendingFunctionCall {
   name: string;
   argumentsText: string;
   parsedInput?: unknown;
+  inputError?: string;
 }
 
 interface ResponsesStepResult {
@@ -80,6 +83,10 @@ export class ResponsesAgentAdapter {
       let input = buildResponsesInput(request.messages);
 
       for (let step = 0; step < request.maxSteps; step += 1) {
+        assertTurnActive(request.abortSignal);
+        if (JSON.stringify(input).length > AGENT_CONTEXT_CHARACTER_BUDGET) {
+          throw new Error("Agent context budget reached; continue in a new conversation.");
+        }
         const stepResult: ResponsesStepResult = {
           functionCalls: [],
           assistantText: "",
@@ -107,18 +114,16 @@ export class ResponsesAgentAdapter {
           response.body,
           stepResult,
           request.tools,
+          request.abortSignal,
         )) {
           yield part;
         }
 
         setFinalUsage(stepResult.usage);
 
-        const toolResults = await executeFunctionCalls(
-          stepResult.functionCalls,
-          request,
-        );
-
-        for (const toolResult of toolResults) {
+        const toolResults = [];
+        for await (const toolResult of executeFunctionCalls(stepResult.functionCalls, request)) {
+          toolResults.push(toolResult);
           yield {
             type: "tool-result",
             toolCallId: toolResult.call.callId,
@@ -133,11 +138,13 @@ export class ResponsesAgentAdapter {
         };
 
         if (stepResult.functionCalls.length === 0) {
+          yield { type: "finish", reason: "completed" };
           return;
         }
 
         if (step + 1 >= request.maxSteps) {
-          throw new Error("Responses Agent exceeded the maximum tool-loop steps.");
+          yield { type: "finish", reason: "step_limit" };
+          return;
         }
 
         input = [
@@ -246,11 +253,13 @@ async function* parseResponsesStream(
   stream: ReadableStream<Uint8Array>,
   stepResult: ResponsesStepResult,
   tools: ResponsesAgentToolSet,
+  signal: AbortSignal,
 ): AsyncGenerator<AgentRuntimeStreamPart> {
   const callsByItemId = new Map<string, PendingFunctionCall>();
   const itemIdByOutputIndex = new Map<number, string>();
 
-  for await (const event of readSseJsonEvents(stream)) {
+  let completed = false;
+  events: for await (const event of readSseJsonEvents(stream, signal)) {
     if (!isRecord(event)) continue;
 
     const eventType = stringValue(event.type);
@@ -317,28 +326,35 @@ async function* parseResponsesStream(
       case "response.completed": {
         const response = isRecord(event.response) ? event.response : undefined;
         stepResult.usage = parseResponsesUsage(response?.usage);
-        break;
+        if (response?.status && response.status !== "completed") {
+          throw new Error("Responses API returned an incomplete response.");
+        }
+        for (const item of Array.isArray(response?.output) ? response.output : []) {
+          if (isRecord(item) && item.type === "function_call") upsertFunctionCall(callsByItemId, item);
+        }
+        completed = true;
+        break events;
       }
 
+      case "error":
+      case "response.incomplete":
       case "response.failed": {
         const response = isRecord(event.response) ? event.response : undefined;
         const error = isRecord(response?.error) ? response.error : undefined;
-        yield {
-          type: "error",
-          error: new Error(
-            stringValue(error?.message) || "Responses API stream failed.",
-          ),
-        };
-        break;
+        throw new Error(stringValue(error?.message) || stringValue(event.message) || `Responses API stream ${eventType}.`);
       }
     }
   }
 
+  assertTurnActive(signal);
+  if (!completed) throw new Error("Responses API stream ended before completion; no tools were executed.");
   for (const call of callsByItemId.values()) {
-    call.parsedInput = await parseAndValidateToolInput(
-      tools[call.name],
-      call.argumentsText,
-    );
+    try {
+      call.parsedInput = await parseAndValidateToolInput(tools[call.name], call.argumentsText);
+    } catch (error) {
+      call.inputError = error instanceof Error ? error.message : String(error);
+      call.parsedInput = {};
+    }
     stepResult.functionCalls.push(call);
     yield {
       type: "tool-call",
@@ -352,16 +368,22 @@ async function* parseResponsesStream(
 
 async function* readSseJsonEvents(
   stream: ReadableStream<Uint8Array>,
+  signal: AbortSignal,
 ): AsyncGenerator<unknown> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const onAbort = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener("abort", onAbort, { once: true });
 
   try {
     while (true) {
+      assertTurnActive(signal);
       const { value, done } = await reader.read();
+      assertTurnActive(signal);
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
+      if (buffer.length > 1_000_000) throw new Error("Responses stream event exceeded its size limit.");
 
       let separatorIndex = findSseSeparator(buffer);
       while (separatorIndex >= 0) {
@@ -381,6 +403,8 @@ async function* readSseJsonEvents(
     const parsed = parseSseJsonEvent(buffer);
     if (parsed !== undefined) yield parsed;
   } finally {
+    signal.removeEventListener("abort", onAbort);
+    void reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
 }
@@ -455,22 +479,25 @@ function resolveFunctionCallForArgumentsEvent(
   return undefined;
 }
 
-async function executeFunctionCalls(
+async function* executeFunctionCalls(
   calls: PendingFunctionCall[],
   request: ResponsesAgentTurnRequest,
-): Promise<Array<{ call: PendingFunctionCall; output: unknown }>> {
-  const results: Array<{ call: PendingFunctionCall; output: unknown }> = [];
-
+): AsyncGenerator<{ call: PendingFunctionCall; output: unknown }> {
   for (const call of calls) {
+    assertTurnActive(request.abortSignal);
+    if (call.inputError) {
+      yield { call, output: { success: false, error: `Invalid tool arguments: ${call.inputError}` } };
+      continue;
+    }
     const tool = request.tools[call.name];
     if (!tool?.execute) {
-      results.push({
+      yield {
         call,
         output: {
           success: false,
           error: `Unknown or non-executable tool: ${call.name}`,
         },
-      });
+      };
       continue;
     }
 
@@ -481,19 +508,18 @@ async function executeFunctionCalls(
         messages: [] as ModelMessage[],
         abortSignal: request.abortSignal,
       });
-      results.push({ call, output });
+      yield { call, output };
     } catch (error) {
-      results.push({
+      if (request.abortSignal.aborted || (error instanceof Error && error.name === "AbortError")) throw abortError();
+      yield {
         call,
         output: {
           success: false,
           error: error instanceof Error ? error.message : String(error),
         },
-      });
+      };
     }
   }
-
-  return results;
 }
 
 async function parseAndValidateToolInput(
@@ -530,8 +556,7 @@ function toFunctionCallInputItem(call: PendingFunctionCall): ResponsesInputItem 
 }
 
 function stringifyToolOutput(output: unknown): string {
-  if (typeof output === "string") return output;
-  return JSON.stringify(output ?? null);
+  return JSON.stringify(compactToolOutput(output) ?? null);
 }
 
 function parseResponsesUsage(usage: unknown): AgentRuntimeUsage | undefined {

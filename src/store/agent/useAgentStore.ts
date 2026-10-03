@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type {
   AgentMessage,
+  AgentPlan,
+  AgentTaskReference,
   AgentSession,
   AgentSessionStatus,
   AgentToolCall,
@@ -22,6 +24,8 @@ import {
   applyNameTranslationPlan,
   validateNameTranslationPlan,
 } from "@/services/rename/nameApplyService";
+import type { NameTranslationApplyResult } from "@/services/rename/nameTypes";
+import { createAgentPlan, type AgentPlanInput } from "@/agent/plan";
 
 // ---------------------------------------------------------------------------
 // Agent Store — 会话、消息、流式状态、执行模式
@@ -41,6 +45,8 @@ interface AgentStore {
   addMessage: (message: AgentMessage) => void;
   addMessages: (messages: AgentMessage[]) => void;
   setStatus: (status: AgentSessionStatus) => void;
+  updatePlan: (input: AgentPlanInput) => AgentPlan;
+  interruptPlan: (reason?: string) => void;
   setStreaming: (streaming: boolean) => void;
   appendStreamingText: (delta: string) => void;
   clearStreamingText: () => void;
@@ -56,7 +62,7 @@ interface AgentStore {
   confirmExecution: () => void;
   dismissExecution: () => void;
   setPendingNameTranslationPlan: (plan: PendingNameTranslationPlan | null) => void;
-  confirmNameTranslationPlan: (planId: string) => Promise<void>;
+  confirmNameTranslationPlan: (planId: string, signal?: AbortSignal) => Promise<NameTranslationApplyResult | undefined>;
   dismissNameTranslationPlan: (planId: string) => void;
   setActiveToolCalls: (calls: AgentToolCall[]) => void;
   clearActiveToolCalls: () => void;
@@ -99,20 +105,55 @@ function createEmptyTokenStats(): TokenStats {
   };
 }
 
-export function executeTasksInStores(stores: TaskStoreType[]): void {
+const legacyExecutionLanes: Record<"convert" | "extract", { ids: string[]; pumping: boolean; unsubscribe?: () => void }> = {
+  convert: { ids: [], pumping: false }, extract: { ids: [], pumping: false },
+};
+
+function enqueueScopedLegacyTasks(kind: "convert" | "extract", ids: string[]) {
+  const queue = kind === "convert" ? useSubtitleConverterStore : useSubtitleExtractorStore;
+  const lane = legacyExecutionLanes[kind];
+  const admitted = ids.filter((id) => !lane.ids.includes(id) && queue.getState().notStartedTasks.some((task) => "agentTaskId" in task && task.agentTaskId === id));
+  lane.ids.push(...admitted);
+  const pump = () => {
+    if (lane.pumping) return;
+    lane.pumping = true;
+    try {
+      while (lane.ids.length && queue.getState().pendingTasks.length === 0) {
+        const id = lane.ids.shift()!;
+        const task = queue.getState().notStartedTasks.find((candidate) => "agentTaskId" in candidate && candidate.agentTaskId === id);
+        if (task) queue.getState().startTask(task.fileName);
+      }
+      if (!lane.ids.length) { lane.unsubscribe?.(); lane.unsubscribe = undefined; }
+    } finally { lane.pumping = false; }
+  };
+  if (lane.ids.length && !lane.unsubscribe) lane.unsubscribe = queue.subscribe(pump);
+  pump();
+  return { startedCount: admitted.length, skippedCount: ids.length - admitted.length };
+}
+
+export function executeTasksInStores(stores: TaskStoreType[], taskRefs: AgentTaskReference[] = []) {
+  let startedCount = 0;
+  let skippedCount = 0;
   for (const storeType of stores) {
+    const ids = [...new Set(taskRefs.filter((ref) => ref.store === storeType).map((ref) => ref.taskId))];
     switch (storeType) {
-      case "translate":
-        useSubtitleTranslatorStore.getState().startAllTasks();
+      case "translate": {
+        if (ids.length === 0) break;
+        const receipt = useSubtitleTranslatorStore.getState().startTasks(ids);
+        startedCount += receipt.startedTaskIds.length + receipt.waitingTaskIds.length;
+        skippedCount += receipt.notStartedTaskIds.length;
         break;
+      }
       case "convert":
-        useSubtitleConverterStore.getState().startAllTasks();
+      case "extract": {
+        const receipt = enqueueScopedLegacyTasks(storeType, ids);
+        startedCount += receipt.startedCount;
+        skippedCount += receipt.skippedCount;
         break;
-      case "extract":
-        useSubtitleExtractorStore.getState().startAllTasks();
-        break;
+      }
     }
   }
+  return { startedCount, skippedCount };
 }
 
 const LEGACY_KEY = "agent-execution-mode";
@@ -152,6 +193,18 @@ const useAgentStore = create<AgentStore>()(
         set((state) => ({
           session: { ...state.session, status, updatedAt: Date.now() },
         })),
+
+      updatePlan: (input) => {
+        const plan = createAgentPlan(input, get().session.plan);
+        set((state) => ({ session: { ...state.session, plan, updatedAt: Date.now() } }));
+        return plan;
+      },
+
+      interruptPlan: (reason) => set((state) => {
+        const plan = state.session.plan;
+        if (!plan?.steps.some((step) => step.status === "in_progress")) return state;
+        return { session: { ...state.session, plan: { ...plan, updatedAt: Date.now(), steps: plan.steps.map((step) => step.status === "in_progress" ? { ...step, status: "blocked" as const, detail: reason ?? step.detail } : step) } } };
+      }),
 
       setStreaming: (streaming) => set({ isStreaming: streaming }),
 
@@ -234,10 +287,11 @@ const useAgentStore = create<AgentStore>()(
       confirmExecution: () => {
         const { pendingExecution } = get();
         if (!pendingExecution || pendingExecution.resolvedAction) return;
-        executeTasksInStores(pendingExecution.stores);
         set({
           pendingExecution: { ...pendingExecution, resolvedAction: "confirm" },
         });
+        const receipt = executeTasksInStores(pendingExecution.stores, pendingExecution.taskRefs);
+        get().appendLog("tool_result", "Confirmed scoped task execution", receipt);
       },
 
       dismissExecution: () => {
@@ -251,41 +305,40 @@ const useAgentStore = create<AgentStore>()(
       setPendingNameTranslationPlan: (plan) =>
         set({ pendingNameTranslationPlan: plan }),
 
-      confirmNameTranslationPlan: async (planId) => {
-        const { pendingNameTranslationPlan } = get();
+      confirmNameTranslationPlan: async (planId, signal) => {
+        const { pendingNameTranslationPlan, session } = get();
         if (
           !pendingNameTranslationPlan ||
           pendingNameTranslationPlan.planId !== planId ||
-          pendingNameTranslationPlan.resolvedAction
+          pendingNameTranslationPlan.resolvedAction || pendingNameTranslationPlan.isApplying || signal?.aborted
         ) {
           return;
         }
 
+        const claimed = { ...pendingNameTranslationPlan, isApplying: true, error: undefined };
+        set({ pendingNameTranslationPlan: claimed });
+        const isCurrent = () => get().session.id === session.id && get().pendingNameTranslationPlan === claimed;
+        let submitted = false;
         try {
           const plan = getNameTranslationPlan(planId);
           if (!plan) {
             throw new Error("重命名计划已过期或不存在，请重新生成预览。");
           }
-        if (!plan.applyable || plan.blockedCount > 0) {
-          throw new Error("当前重命名计划不可应用，请先处理冲突或重新生成预览。");
-        }
-
-        set({
-          pendingNameTranslationPlan: {
-            ...pendingNameTranslationPlan,
-            isApplying: true,
-            error: undefined,
-          },
-        });
-
-        const validation = await validateNameTranslationPlan(planId);
-        if (!validation.valid) {
-          throw new Error(
+          if (!plan.applyable || plan.blockedCount > 0) {
+            throw new Error("当前重命名计划不可应用，请先处理冲突或重新生成预览。");
+          }
+          const validation = await validateNameTranslationPlan(planId);
+          signal?.throwIfAborted();
+          if (!isCurrent()) return;
+          if (!validation.valid) {
+            throw new Error(
               validation.errors[0]?.message ?? "重命名计划校验失败。"
             );
           }
 
+          submitted = true;
           const result = await applyNameTranslationPlan(planId);
+          if (!isCurrent()) return result;
           set({
             pendingNameTranslationPlan: {
               ...pendingNameTranslationPlan,
@@ -300,13 +353,17 @@ const useAgentStore = create<AgentStore>()(
             `Applied rename plan ${planId}`,
             { planId, result }
           );
+          return result;
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          if (!isCurrent()) return;
+          const detail = error instanceof Error ? error.message : String(error);
+          const message = submitted ? `执行结果未确认，请先在重命名工具核对结果，不要重复应用。${detail}` : detail;
           set({
             pendingNameTranslationPlan: {
               ...pendingNameTranslationPlan,
               isApplying: false,
               error: message,
+              ...(submitted ? { resolvedAction: "confirm" as const } : {}),
             },
           });
           get().appendLog("error", message, {
@@ -321,7 +378,7 @@ const useAgentStore = create<AgentStore>()(
         if (
           !pendingNameTranslationPlan ||
           pendingNameTranslationPlan.planId !== planId ||
-          pendingNameTranslationPlan.resolvedAction
+          pendingNameTranslationPlan.resolvedAction || pendingNameTranslationPlan.isApplying
         ) {
           return;
         }
@@ -351,7 +408,7 @@ const useAgentStore = create<AgentStore>()(
             stepCount: state.tokenStats.stepCount + stepCount,
             lastPromptTokens,
             interactions: [
-              ...state.tokenStats.interactions,
+              ...state.tokenStats.interactions.slice(-499),
               { timestamp: Date.now(), promptTokens, completionTokens, totalTokens, cost, stepCount },
             ],
           },
@@ -360,7 +417,7 @@ const useAgentStore = create<AgentStore>()(
       appendLog: (type, summary, data) =>
         set((state) => ({
           sessionLog: [
-            ...state.sessionLog,
+            ...state.sessionLog.slice(-1999),
             {
               id: generateId(),
               timestamp: Date.now(),
@@ -385,10 +442,16 @@ const useAgentStore = create<AgentStore>()(
 
       restoreSession: (data) => {
         set({
-          session: data.session,
+          session: {
+            ...data.session,
+            id: generateId(),
+            status: "idle",
+            ...(data.session.plan ? { plan: { ...data.session.plan, steps: data.session.plan.steps.map((step) => step.status === "in_progress" ? { ...step, status: "pending" as const } : step) } } : {}),
+          },
           tokenStats: data.tokenStats,
           sessionLog: data.sessionLog,
-          executionMode: data.executionMode,
+          // Imported history is display data, never an automatic execution grant.
+          executionMode: "queue_only",
           isStreaming: false,
           streamingText: "",
           pendingExecution: null,
