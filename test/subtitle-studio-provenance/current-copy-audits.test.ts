@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { CURRENT_COPY_AUDIT_PATH, validateCurrentCopyAudits, matchesCurrentCopy } from '../../scripts/subtitle-studio-provenance/current-copy-audits.mjs';
+import { CURRENT_COPY_AUDIT_PATH, CURRENT_COPY_AUDIT_OWNERS, validateCurrentCopyAudits, matchesCurrentCopy } from '../../scripts/subtitle-studio-provenance/current-copy-audits.mjs';
 import { applyCopyPlan } from '../../scripts/subtitle-studio-provenance/copy.mjs';
 import { FORK_PATH } from '../../scripts/subtitle-studio-provenance/copy-policy.mjs';
 import { serialize } from '../../scripts/subtitle-studio-provenance/generate.mjs';
@@ -13,15 +13,28 @@ afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursiv
 
 const hash = (text: string) => createHash('sha256').update(text).digest('hex');
 function fixture() {
-  const files = ['filesystem-object-identity', 'media-normalizer'].map(name => ({
-    destinationPath: `electron/main/subtitle-studio/transcription/native/${name}.ts`, bytes: Buffer.from(`original ${name}`),
-  }));
-  const plan = { baseline: { sourceCommit: 'a'.repeat(40) }, files };
+  // Every reviewable destination belongs to one provenance plan; the fixture is the main fork plan.
+  const files = Object.keys(CURRENT_COPY_AUDIT_OWNERS).map(destinationPath => ({ destinationPath, bytes: Buffer.from(`original ${destinationPath}`) }));
+  const forkFiles = files.filter(file => CURRENT_COPY_AUDIT_OWNERS[file.destinationPath as keyof typeof CURRENT_COPY_AUDIT_OWNERS] === FORK_PATH);
+  const plan = { baseline: { sourceCommit: 'a'.repeat(40) }, files: forkFiles };
   const document = { schemaVersion: 1, sourceCommit: plan.baseline.sourceCommit,
     entries: files.map(file => ({ destinationPath: file.destinationPath, copiedSha256: hash(file.bytes.toString()),
       currentSha256: hash(`reviewed ${file.destinationPath}`), reason: 'Reviewed source metadata fix.' })) };
-  return { files, plan, document };
+  return { files: forkFiles, allFiles: files, plan, document };
 }
+
+it('checks each reviewed destination only against the provenance plan that produced it', () => {
+  const f = fixture();
+  const executorPath = 'electron/main/subtitle-studio/transcription/transcript-executor.ts';
+  const executor = f.allFiles.find(file => file.destinationPath === executorPath)!;
+  const executorPlan = { baseline: f.plan.baseline, files: [executor] };
+  const provenance = CURRENT_COPY_AUDIT_OWNERS[executorPath];
+  expect(provenance).not.toBe(FORK_PATH);
+  expect([...validateCurrentCopyAudits(f.plan, f.document).keys()]).not.toContain(executorPath);
+  expect([...validateCurrentCopyAudits(executorPlan, f.document, provenance).keys()]).toEqual([executorPath]);
+  const stale = { ...executorPlan, files: [{ ...executor, bytes: Buffer.from('different derivation') }] };
+  expect(() => validateCurrentCopyAudits(stale, f.document, provenance)).toThrow(/Stale current copy audit/);
+});
 
 it('accepts exact reviewed bytes without changing the historical plan or allowing further edits/reverts', () => {
   const f = fixture(), original = JSON.stringify(f.plan);

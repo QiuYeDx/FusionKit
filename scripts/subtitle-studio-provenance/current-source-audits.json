@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Reviewed current worktree bytes of frozen sources only; frozen blobs, copies, extraction outputs and replay remain unchanged.",
+  "entries": [
+    {
+      "sourcePath": "electron/main/local-subtitle/job-manager.ts",
+      "frozenBlobOid": "4ab13203f67c25c7743cf4b02fd39fceffc9bf7a",
+      "currentBlobOid": "61bd9fff73b1b56cfbc6483112cc595c6c46399f",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "electron/main/local-subtitle/production-executor.ts",
+      "frozenBlobOid": "b70154fb5eb81037cbe1c46aa1a362e426d67518",
+      "currentBlobOid": "d34799c032f01f341d29900f926e0c2959d07309",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "src/pages/Tools/Subtitle/LocalSubtitleTranscriber/index.tsx",
+      "frozenBlobOid": "6bf67cad903d8cefc1270d98dae83e5d47cd9665",
+      "currentBlobOid": "037d77a98e9a48618c4e065067e86ac17fb8bab9",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "src/services/local-subtitle/localSubtitlePostActionService.ts",
+      "frozenBlobOid": "187568f12dad0ed051237588e4170bdac1d04336",
+      "currentBlobOid": "165f0d152af55234f8560cfa9347fe599f5494b4",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "src/services/local-subtitle/localSubtitlePostActionService.test.ts",
+      "frozenBlobOid": "61ce8737ebb1d46d07f0e9e332857bed9fd932bd",
+      "currentBlobOid": "eedb11e62f7e9a3b26b43ec8d91cbfc0a54b5bdd",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "src/type/localSubtitle.ts",
+      "frozenBlobOid": "05a0f0fc30294781d5722b19ea66c0efb172c067",
+      "currentBlobOid": "bf30a99635db9c4d3416cb7ab9f717d6f1768049",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "src/type/localSubtitle.test.ts",
+      "frozenBlobOid": "e6b76bdb1f4ce7fa4f6099bffc190c2340c9bcfd",
+      "currentBlobOid": "ed2291f3c382a013b1bb41c129b40a87c8743cb7",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "src/type/localSubtitleIpc.ts",
+      "frozenBlobOid": "a27acbf8c4db2e612fb43560d1ae67623ffa1e52",
+      "currentBlobOid": "516bf7bb5c9d52b68db380718f91119fede2e0da",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "src/type/localSubtitleIpc.test.ts",
+      "frozenBlobOid": "2423b47b73369a1333e11381c9f1f2ded93cddac",
+      "currentBlobOid": "9cf6a5f931bf4c3362cd6f05e4e13b5b6fd04bee",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "test/local-subtitle/jobManager.test.ts",
+      "frozenBlobOid": "29d57adcec0809a3b900eb4fa8fe3787eaf4f3bb",
+      "currentBlobOid": "08523bc730fb5c86f2be61fe8f2dad9e25304531",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "test/local-subtitle/productionExecutor.test.ts",
+      "frozenBlobOid": "e4d87d4ff0cd83743b2b5fa86a14b91489d3631f",
+      "currentBlobOid": "e76fc68b55798989e9bc83de5358123c990a65e0",
+      "reason": "484894e (2026-09-21) adds the classic local transcriber's no_content terminal outcome: a validated empty canonical transcript from post-processing finishes the task's owned cleanup and settles without artifacts instead of failing, and summaries, removal, translation hand-off and UI treat it as terminal. Subtitle Studio received its own equivalent change in the same commit; the frozen copies and the resource-only shared speech-resource contracts/schemas extracted from these sources are unaffected."
+    },
+    {
+      "sourcePath": "test/local-subtitle/mediaNormalizer.test.ts",
+      "frozenBlobOid": "c73f18ac0b9643c494947d6d6ad00aa36bfd5935",
+      "currentBlobOid": "f8a2d1bc3fd8f5fe3e2a3143cf95d99676843710",
+      "reason": "2026-10-08: the multi-GB RF64 duration-limit fixtures now mark the file sparse on Windows (test/support/sparseFile.ts) before extending it, so NTFS does not allocate the whole length and fail with ENOSPC on hosts with little free space. Fixture bytes, assertions and production code are unchanged."
+    },
+    {
+      "sourcePath": "test/local-subtitle/pcmWindow.test.ts",
+      "frozenBlobOid": "730c34f502d4612803293dc559a7553138b313f6",
+      "currentBlobOid": "962e628d5300fa91764c515400e712f25c30f7bd",
+      "reason": "2026-10-08: the multi-GB RF64 duration-limit fixtures now mark the file sparse on Windows (test/support/sparseFile.ts) before extending it, so NTFS does not allocate the whole length and fail with ENOSPC on hosts with little free space. Fixture bytes, assertions and production code are unchanged."
+    },
+    {
+      "sourcePath": "vite.config.ts",
+      "frozenBlobOid": "b064c35605ea2563b6206078eea256cfd3cfe0f3",
+      "currentBlobOid": "3e16053a6b3b256716964bbf6fa61ad34961180d",
+      "reason": "6f84227 (2026-09-25) adds a buildStart plugin, skipped under Vitest, that runs scripts/translation-knowledge/build-artifacts.mjs --check so a release fails if the shipped translation-knowledge skill artifacts drift. Renderer/main/preload bundling, Electron entries and transcription resource composition are unchanged."
+    },
+    {
+      "sourcePath": "package.json",
+      "frozenBlobOid": "f4796e097b5a65d616db065ae00d96592486982b",
+      "currentBlobOid": "33c40335a5e711c2c2d738230b0ed76faebde151",
+      "reason": "Current bytes keep the composition-audited scripts.build change and the 0.3.0 -> 0.3.1 version (see current-composition-audits.json) and add 6f84227's knowledge:artifacts / knowledge:check scripts. Dependencies, the build script and packaging composition are otherwise unchanged."
+    }
+  ]
+}

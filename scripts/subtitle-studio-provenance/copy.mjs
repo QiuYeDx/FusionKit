@@ -10,6 +10,7 @@ import { checkBaseline, serialize } from './generate.mjs';
 import { COPY_POLICY, FORK_PATH } from './copy-policy.mjs';
 import { readSharedResourceIntegrationAudits } from './shared-resource-integration.mjs';
 import { readCurrentCopyAudits, matchesCurrentCopy } from './current-copy-audits.mjs';
+import { readSourceChangeAudits, isApprovedSourceChange } from './source-change-audits.mjs';
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
@@ -25,6 +26,7 @@ function gitRead(root, args) {
 export function checkCopyWorktree(root, baseline, policy = BASELINE_POLICY) {
   const compositionAudits = readCompositionAudits(root, baseline);
   const sharedIntegrationAudits = readSharedResourceIntegrationAudits(root, baseline);
+  const sourceChangeAudits = readSourceChangeAudits(root);
   const errors = [], registered = new Set(baseline.files.map(file => file.sourcePath));
   const current = gitRead(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z']).toString().split('\0').filter(Boolean);
   for (const name of new Set(current)) if (!registered.has(name) && !sharedIntegrationAudits.has(name) && policy.roots.some(selection => selection.endsWith('/') ? name.startsWith(selection) : name === selection)) errors.push(`Added selected source: ${name}`);
@@ -42,7 +44,9 @@ export function checkCopyWorktree(root, baseline, policy = BASELINE_POLICY) {
       // on this host. Git still owns canonical CRLF/encoding normalization.
       const oid = gitRead(root, ['hash-object', `--path=${file.sourcePath}`, '--', file.sourcePath]).toString().trim();
       const compositionAudit = compositionAudits.get(file.sourcePath) ?? sharedIntegrationAudits.get(file.sourcePath);
-      if (compositionAudit ? oid !== compositionAudit.currentBlobOid : oid !== file.blobOid) {
+      if (isApprovedSourceChange(sourceChangeAudits, file.sourcePath, file.blobOid, oid)) {
+        // A reviewed source change approves these exact bytes; the copy still uses the frozen blob.
+      } else if (compositionAudit ? oid !== compositionAudit.currentBlobOid : oid !== file.blobOid) {
         errors.push(`${compositionAudit ? 'Changed audited composition source' : 'Changed source'}: ${file.sourcePath}`);
       } else if (compositionAudit && file.sourcePath === 'package.json') {
         assertPackageBuildComposition(root, file, fs.readFileSync(absolute));
@@ -250,7 +254,7 @@ function safeDestination(root, name) {
 }
 
 export function applyCopyPlan(plan, { root = process.cwd(), write = false, provenancePath = FORK_PATH } = {}) {
-  const audits = provenancePath === FORK_PATH ? readCurrentCopyAudits(root, plan) : new Map();
+  const audits = readCurrentCopyAudits(root, plan, provenancePath);
   const outputs = [...plan.files.map(file => ({ path: file.destinationPath, bytes: file.bytes })), { path: provenancePath, bytes: Buffer.from(serialize(plan.provenance)) }];
   const pending = [];
   // Complete preflight before the first write; a conflicting user edit is never reset.

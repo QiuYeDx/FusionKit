@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import * as esbuild from 'esbuild';
 import { createTranscriptExecutorPlan, applyTranscriptExecutorPlan } from '../../scripts/subtitle-studio-provenance/transcript-executor-copy.mjs';
+import { createCopyPlan } from '../../scripts/subtitle-studio-provenance/copy.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const helper = 'test/subtitle-studio/transcription/productionExecutor.test.ts';
@@ -64,7 +65,9 @@ function originalUrls(file, source) {
 }
 export async function createTranscriptExecutorReplay() {
   const plan = createTranscriptExecutorPlan({ root }); applyTranscriptExecutorPlan(plan, { root });
-  const source = await fs.readFile(path.join(root, helper), 'utf8');
+  // Replay the frozen T02 helper copy. Reviewed later edits to the worktree copy
+  // (current-copy-audits.json) are not part of the historical equivalence.
+  const source = createCopyPlan({ root }).files.find(file => file.destinationPath === helper)?.bytes.toString('utf8') ?? '';
   const fork = JSON.parse(await fs.readFile(path.join(root, 'resources/subtitle-studio/provenance/transcription-fork.json'), 'utf8'));
   if (digest(source) !== fork.files.find(file => file.destinationPath === helper)?.destinationSha256) throw new Error('T02 replay helper hash differs');
   const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'studio-transcript-executor-replay-')));

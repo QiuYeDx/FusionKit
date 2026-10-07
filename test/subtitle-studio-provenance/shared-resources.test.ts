@@ -2,12 +2,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
 import { applySharedExtractionEdits, checkSharedResourceExtraction, SHARED_EXTRACTION_PATH } from '../../scripts/subtitle-studio-provenance/shared-resource-extraction.mjs';
 import { checkSharedMigrationReceipts, SHARED_MIGRATION_RECEIPTS_PATH } from '../../scripts/subtitle-studio-provenance/shared-migration-receipts.mjs';
 import { SHARED_INTEGRATION_PATHS, validateSharedIntegrationAudit } from '../../scripts/subtitle-studio-provenance/shared-resource-integration.mjs';
+import { gitBlobOid, SOURCE_CHANGE_AUDIT_PATH, SOURCE_CHANGE_AUDIT_PURPOSE } from '../../scripts/subtitle-studio-provenance/source-change-audits.mjs';
 
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
 const sha = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -22,11 +24,21 @@ function fixture(kind: 'engine' | 'receipts' = 'engine') {
   const outputs = kind === 'engine' ? manifest.outputs.map((record: { path: string }) => record.path)
     : manifest.entries.map((record: { destinationPath: string }) => record.destinationPath);
   const sourceBytes = new Map<string, Buffer>();
-  for (const name of [...inputs, ...outputs, manifestPath]) {
+  for (const name of [...outputs, manifestPath]) {
     const destination = path.join(root, name); fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.copyFileSync(path.join(repositoryRoot, name), destination);
   }
-  for (const name of inputs) sourceBytes.set(name, Buffer.from(fs.readFileSync(path.join(repositoryRoot, name), 'utf8').replaceAll('\r\n', '\n')));
+  // Inputs are the frozen Git blobs, not the current worktree: reviewed later
+  // source changes must not leak into the isolated reconstruction.
+  const records: Array<{ path?: string; sourcePath?: string; blobOid?: string; sourceBlobOid?: string }> = kind === 'engine' ? manifest.sources : manifest.entries;
+  for (const record of records) {
+    const name = record.path ?? record.sourcePath!, oid = record.blobOid ?? record.sourceBlobOid;
+    const bytes = oid ? execFileSync('git', ['-C', repositoryRoot, 'cat-file', 'blob', oid], { maxBuffer: 64 * 1024 * 1024 })
+      : Buffer.from(fs.readFileSync(path.join(repositoryRoot, name), 'utf8').replaceAll('\r\n', '\n'));
+    const destination = path.join(root, name); fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, bytes);
+    sourceBytes.set(name, bytes);
+  }
   const readSourceBlob = (record: { path?: string; sourcePath?: string }) => sourceBytes.get(record.path ?? record.sourcePath!);
   return { root, manifest, writeManifest: () => fs.writeFileSync(path.join(root, manifestPath), JSON.stringify(manifest)),
     check: () => kind === 'engine' ? checkSharedResourceExtraction({ root, readSourceBlob }) : checkSharedMigrationReceipts({ root, readSourceBlob }) };
@@ -60,6 +72,20 @@ describe('neutral shared resource extraction provenance', () => {
     if (mutation === 'edit-digest') f.manifest.outputs.find((entry: { edits: unknown[] }) => entry.edits.length).edits[0].removedSha256 = '0'.repeat(64);
     f.writeManifest();
     expect(f.check).toThrow();
+  });
+
+  it('accepts a reviewed source change only for its exact current bytes', () => {
+    const f = fixture(), source = f.manifest.sources[0], sourcePath = path.join(f.root, source.path);
+    fs.appendFileSync(sourcePath, '\n// reviewed fix\n');
+    expect(f.check).toThrow(/Extraction source worktree changed/);
+    const current = Buffer.from(fs.readFileSync(sourcePath, 'utf8').replaceAll('\r\n', '\n'));
+    const audit = { schemaVersion: 1, purpose: SOURCE_CHANGE_AUDIT_PURPOSE, entries: [{ sourcePath: source.path,
+      frozenBlobOid: source.blobOid, currentBlobOid: gitBlobOid(current), reason: 'Reviewed fix.' }] };
+    fs.mkdirSync(path.dirname(path.join(f.root, SOURCE_CHANGE_AUDIT_PATH)), { recursive: true });
+    fs.writeFileSync(path.join(f.root, SOURCE_CHANGE_AUDIT_PATH), JSON.stringify(audit));
+    expect(f.check()).toMatchObject({ outputs: 31, exact: true });
+    fs.appendFileSync(sourcePath, '// unreviewed\n');
+    expect(f.check).toThrow(/Extraction source worktree changed/);
   });
 
   it('rejects a linked output without following or altering its target', () => {

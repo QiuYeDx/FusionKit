@@ -77,15 +77,22 @@ describe('T02 and transcript executor paired final-output replay', () => {
   it.each(replayCases)('$id', async scenario => {
     const original = await run(pair.t02, scenario, false);
     const derived = await run(pair.transcript, scenario, true);
-    expect(derived).toStrictEqual(original);
-    expect(derived.status).toBe(scenario.expected.status === 'completed' ? 'transcript_ready' : scenario.expected.status);
+    if (scenario.expected.derivedStatus === 'no_content') {
+      // Only the terminal outcome of a validated empty post-processed transcript
+      // differs; requests, windows, lifecycle and duration must still match T02.
+      expect(original.error).toMatchObject({ code: 'no_speech_detected', stage: 'post_processing' });
+      expect(derived).toStrictEqual({ ...original, status: 'no_content', error: null });
+    } else {
+      expect(derived).toStrictEqual(original);
+    }
+    expect(derived.status).toBe(scenario.expected.derivedStatus ?? (scenario.expected.status === 'completed' ? 'transcript_ready' : scenario.expected.status));
     expect(derived.requests).toHaveLength(scenario.expected.requests);
     if (scenario.expected.texts) expect(derived.transcript.segments.map((cue: any) => cue.text)).toEqual(scenario.expected.texts);
     if (scenario.expected.times) expect(derived.transcript.segments.map((cue: any) => [cue.startMs, cue.endMs])).toEqual(scenario.expected.times);
     if (scenario.expected.ranges) expect(derived.windows.map((window: any) => [window.descriptor.startMs, window.descriptor.endMs])).toEqual(scenario.expected.ranges);
     if (scenario.expected.conditioned) expect(derived.windows.map((window: any) => window.conditioned)).toEqual(scenario.expected.conditioned);
     if (scenario.expected.dtw) expect(derived.requests.map((request: any) => request.timingMode)).toEqual(scenario.expected.dtw);
-    if (scenario.expected.errorCode) expect(derived.error?.code).toBe(scenario.expected.errorCode);
+    if (scenario.expected.errorCode) expect((scenario.expected.derivedStatus ? original : derived).error?.code).toBe(scenario.expected.errorCode);
     if (scenario.expected.noExport) expect(derived.transcript).toBeNull();
     evidence.push({ id: scenario.id, transcriptSha256: hash(derived.transcript), traceSha256: hash(derived), segments: derived.transcript?.segments.length ?? 0 });
   }, 60_000);

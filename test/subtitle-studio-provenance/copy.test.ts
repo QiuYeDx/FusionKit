@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { generateBaseline, serialize } from '../../scripts/subtitle-studio-provenance/generate.mjs';
 import { applyCopyPlan, createCopyPlan, COMPOSITION_AUDIT_PATH } from '../../scripts/subtitle-studio-provenance/copy.mjs';
+import { SOURCE_CHANGE_AUDIT_PATH, SOURCE_CHANGE_AUDIT_PURPOSE } from '../../scripts/subtitle-studio-provenance/source-change-audits.mjs';
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -181,6 +182,20 @@ describe('transcription source copy', () => {
     f.write('app/main.ts', f.current.replaceAll('\n', '\r\n'));
     expect(createCopyPlan(f.options)).toEqual(f.originalPlan);
     f.write('old/value.ts', 'export const value = 43;\n');
+    expect(() => createCopyPlan(f.options)).toThrow(/Changed source: old\/value.ts/);
+  });
+
+  it('accepts a reviewed source change for exact bytes while the copy keeps the frozen blob', () => {
+    const f = fixture();
+    const original = createCopyPlan(f.options);
+    f.write('old/value.ts', 'export const value = 43;\nexport type Value = number;\n');
+    expect(() => createCopyPlan(f.options)).toThrow(/Changed source: old\/value.ts/);
+    const source = f.baseline.files.find(file => file.sourcePath === 'old/value.ts')!;
+    const audit = { schemaVersion: 1, purpose: SOURCE_CHANGE_AUDIT_PURPOSE, entries: [{ sourcePath: 'old/value.ts',
+      frozenBlobOid: source.blobOid, currentBlobOid: f.git('hash-object', '--path=old/value.ts', '--', 'old/value.ts'), reason: 'Reviewed fix.' }] };
+    f.write(SOURCE_CHANGE_AUDIT_PATH, JSON.stringify(audit));
+    expect(createCopyPlan(f.options)).toEqual(original);
+    f.write('old/value.ts', 'export const value = 44;\nexport type Value = number;\n');
     expect(() => createCopyPlan(f.options)).toThrow(/Changed source: old\/value.ts/);
   });
 

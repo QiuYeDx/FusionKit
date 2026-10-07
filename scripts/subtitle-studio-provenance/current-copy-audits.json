@@ -13,6 +13,18 @@
       "copiedSha256": "ffd2586d7e589ed5f10ac809a64e2e5445b7b8b0e83dd239b795577eba2479a9",
       "currentSha256": "d81f920a52851bdfcc95e7b970eb030b4c6f208005ab5f21d97523cbc4857b45",
       "reason": "2026-09-22: Reviewed user-source metadata identity correction. Ignore ctime only for user inputs; distinguish source probes from private snapshots, unify stream binding and post-copy source checks. Exact file object, size, mtime and parent checks remain; strict private-file/resource integrity is unchanged."
+    },
+    {
+      "destinationPath": "test/subtitle-studio/transcription/productionExecutor.test.ts",
+      "copiedSha256": "816f1fbed205dd8db66b990a27a3b66550b595578aaaa7faa219f61df91d2b6b",
+      "currentSha256": "0fe4adaaa89b28c01c97c33bc4d93035e92a0999532d83cc75613d14612c7d7e",
+      "reason": "484894e (2026-09-21): adds Studio no_content coverage beside the copied production executor tests: a valid complete empty inference returns no_content only after cleanup, cleanup/cancel/native/coverage/malformed/spoofed failures still win over an apparent empty response, and recognized cues in other windows are kept. Existing copied tests and the frozen copy recipe are unchanged."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/transcript-executor.ts",
+      "copiedSha256": "4b22722b1acfc22aff6d36ae381f362bc6f9ed39374f6631023a41f93e376c35",
+      "currentSha256": "6377bdff0eff51689b0a7188231547e18eb301dd085fc335fac766d393bb2d06",
+      "reason": "484894e (2026-09-21): the derived Studio transcript executor returns no_content only when post-processing proves a valid, complete, empty canonical transcript, after the same cleanup and cancellation precedence as a failure; inference, windowing and the frozen derivation recipe are unchanged."
     }
   ]
 }

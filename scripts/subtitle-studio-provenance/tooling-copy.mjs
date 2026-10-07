@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { TOOLING_COPY_RECIPE, TOOLING_FORK_PATH } from './tooling-copy-recipe.mjs';
+import { isApprovedSourceChange, readSourceChangeAudits } from './source-change-audits.mjs';
 
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const serialize = value => `${JSON.stringify(value, null, 2)}\n`;
@@ -31,6 +32,7 @@ export function createToolingCopyPlan({ root = defaultRoot, recipe = TOOLING_COP
   if (baseline.sourceCommit !== recipe.sourceCommit) throw new Error('Tooling source commit differs');
   const destinations = new Set();
   const sources = new Set(recipe.files.map(file => relative(file.sourcePath)));
+  const sourceChangeAudits = readSourceChangeAudits(root);
   const git = args => execFileSync('git', ['-C', root, ...args], { maxBuffer: 32 * 1024 * 1024, timeout: 10_000, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
   const files = recipe.files.map(file => {
     const destinationPath = relative(file.destinationPath);
@@ -46,7 +48,7 @@ export function createToolingCopyPlan({ root = defaultRoot, recipe = TOOLING_COP
     const attributes = git(['check-attr', '-z', 'filter', '--', file.sourcePath]).toString().split('\0');
     if (!['unspecified', 'unset'].includes(attributes[2])) throw new Error(`Unsupported tooling clean filter: ${file.sourcePath}`);
     const currentOid = git(['hash-object', `--path=${file.sourcePath}`, '--', currentPath]).toString().trim();
-    if (currentOid !== record.blobOid) throw new Error(`Tooling source worktree drift: ${file.sourcePath}`);
+    if (currentOid !== record.blobOid && !isApprovedSourceChange(sourceChangeAudits, file.sourcePath, record.blobOid, currentOid)) throw new Error(`Tooling source worktree drift: ${file.sourcePath}`);
     const text = bytes.toString('utf8'), transforms = [];
     for (const edit of file.edits) {
       if (!edit.from || !Number.isSafeInteger(edit.count) || edit.count < 1) throw new Error('Invalid tooling edit');

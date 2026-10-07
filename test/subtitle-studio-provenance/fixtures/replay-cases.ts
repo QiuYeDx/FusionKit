@@ -26,6 +26,8 @@ export type ReplayCase = {
     scans?: number;
     dtw?: Array<string | undefined>;
     noExport?: boolean;
+    /** Reviewed divergence of the derived Studio executor from the frozen T02 result. */
+    derivedStatus?: 'no_content';
   };
 };
 
@@ -92,7 +94,8 @@ export const replayCases: ReplayCase[] = [
     id: 'quiet-empty-negative-control-does-not-retry',
     options: { vadEnabled: true, quietAudioGainDb: 12 },
     inference: (api, { request, window }) => response(api, request, window, []),
-    expected: { status: 'failed', errorCode: 'no_speech_detected', requests: 1, conditioned: [true], noExport: true },
+    // 484894e: Studio reports this validated empty transcript as no_content; T02 keeps failing.
+    expected: { status: 'failed', errorCode: 'no_speech_detected', requests: 1, conditioned: [true], noExport: true, derivedStatus: 'no_content' },
   },
   {
     id: 'degenerate-root-splits-into-two-bounded-children',

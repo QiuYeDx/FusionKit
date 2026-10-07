@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { gitBlobOid, isApprovedSourceChange, readSourceChangeAudits } from './source-change-audits.mjs';
 
 export const SHARED_EXTRACTION_SOURCE_COMMIT = '99d064719d7ec93dea02944a9bfde31c4afec221';
 export const SHARED_EXTRACTION_PATH = 'resources/speech-resources/provenance/resource-engine-extraction.v1.json';
@@ -52,6 +53,7 @@ export function checkSharedResourceExtraction({ root = process.cwd(), manifestPa
     || !manifest.transformations.length || manifest.transformations.some(value => typeof value !== 'string' || !value.trim())
     || !Array.isArray(manifest.sources) || !manifest.sources.length || !Array.isArray(manifest.outputs) || !manifest.outputs.length) throw new Error('Invalid shared extraction header');
   const sourceBytes = new Map();
+  const sourceChangeAudits = readSourceChangeAudits(root);
   for (const source of manifest.sources) {
     if (!exact(source, ['path', 'blobOid', 'byteSize', 'sha256']) || !/^[a-f0-9]{40}$/.test(source.blobOid)
       || !Number.isSafeInteger(source.byteSize) || source.byteSize < 1 || !hashValid(source.sha256)) throw new Error('Invalid extraction source record');
@@ -64,7 +66,7 @@ export function checkSharedResourceExtraction({ root = process.cwd(), manifestPa
     })();
     if (!Buffer.isBuffer(blob) || blob.length !== source.byteSize || sha(blob) !== source.sha256) throw new Error(`Frozen extraction source differs: ${name}`);
     const current = Buffer.from(read(root, name).toString('utf8').replaceAll('\r\n', '\n'));
-    if (!current.equals(blob)) throw new Error(`Extraction source worktree changed: ${name}`);
+    if (!current.equals(blob) && !isApprovedSourceChange(sourceChangeAudits, name, source.blobOid, gitBlobOid(current))) throw new Error(`Extraction source worktree changed: ${name}`);
     sourceBytes.set(name, blob);
   }
   const outputNames = new Set(), usedSources = new Set(); let editCount = 0;
