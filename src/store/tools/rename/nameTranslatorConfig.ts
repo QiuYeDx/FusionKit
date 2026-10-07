@@ -1,158 +1,151 @@
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import {
-  DEFAULT_NAME_TRANSLATION_OPTIONS,
-  normalizeNameTranslationOptions,
-  type NameTranslationOptions,
-} from "@/services/rename/nameTypes";
+  NAME_LANGUAGES,
+  NAME_TRANSLATION_LIMITS,
+  type NameLanguage,
+  type NameSourceLanguage,
+} from "@/name-translation/contract";
+import {
+  BILINGUAL_STYLES,
+  DEFAULT_NAME_TEMPLATE,
+  MAX_NAME_TEMPLATE_CHARS,
+  bilingualTemplate,
+  type BilingualOrder,
+  type BilingualStyle,
+} from "@/name-translation/naming-rules";
 
-export const NAME_TRANSLATOR_STORE_VERSION = 1;
 export const NAME_TRANSLATOR_STORAGE_KEY = "fusionkit-name-translator";
+export const NAME_TRANSLATOR_STORE_VERSION = 3;
 
-const SCOPES = ["self", "children", "descendants"] as const;
-const TARGET_KINDS = ["files", "directories", "both"] as const;
-const SOURCE_LANGUAGES = [
-  "auto",
-  "ZH",
-  "JA",
-  "EN",
-  "KO",
-  "FR",
-  "DE",
-  "ES",
-  "RU",
-  "PT",
-] as const;
-const TARGET_LANGUAGES = [
-  "ZH",
-  "JA",
-  "EN",
-  "KO",
-  "FR",
-  "DE",
-  "ES",
-  "RU",
-  "PT",
-] as const;
-const NAMING_STYLES = [
-  "preserve",
-  "space",
-  "kebab",
-  "snake",
-  "title",
-  "lower",
-] as const;
-const OUTPUT_MODES = [
-  "target_only",
-  "bilingual_target_first",
-  "bilingual_original_first",
-] as const;
-const COLLISION_POLICIES = ["fail", "append_index"] as const;
+export type NameMode = "translated" | "bilingual" | "custom";
+const NAME_MODES: readonly NameMode[] = ["translated", "bilingual", "custom"];
+const BILINGUAL_ORDERS: readonly BilingualOrder[] = ["translated_first", "original_first"];
 
-export function sanitizeNameTranslatorPreferences(
-  value: unknown,
-): NameTranslationOptions {
-  const saved = isRecord(value) ? value : {};
-  return normalizeNameTranslationOptions({
-    roots: [],
-    scope: oneOf(
-      saved.scope,
-      SCOPES,
-      "self",
-    ),
-    targetKind: oneOf(
-      saved.targetKind,
-      TARGET_KINDS,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.targetKind,
-    ),
-    recursive: booleanOr(
-      saved.recursive,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.recursive,
-    ),
-    maxDepth: boundedIntegerOr(
-      saved.maxDepth,
-      0,
-      20,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.maxDepth,
-    ),
-    includeHidden: booleanOr(
-      saved.includeHidden,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.includeHidden,
-    ),
-    includeRoot: booleanOr(
-      saved.includeRoot,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.includeRoot,
-    ),
-    sourceLang: oneOf(
-      saved.sourceLang,
-      SOURCE_LANGUAGES,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.sourceLang,
-    ),
-    targetLang: oneOf(
-      saved.targetLang,
-      TARGET_LANGUAGES,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.targetLang,
-    ),
-    namingStyle: oneOf(
-      saved.namingStyle,
-      NAMING_STYLES,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.namingStyle,
-    ),
-    outputMode: oneOf(
-      saved.outputMode,
-      OUTPUT_MODES,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.outputMode,
-    ),
-    bilingualSeparator:
-      typeof saved.bilingualSeparator === "string"
-        ? saved.bilingualSeparator.slice(0, 64)
-        : DEFAULT_NAME_TRANSLATION_OPTIONS.bilingualSeparator,
-    preserveExtension: booleanOr(
-      saved.preserveExtension,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.preserveExtension,
-    ),
-    preserveLeadingDot: booleanOr(
-      saved.preserveLeadingDot,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.preserveLeadingDot,
-    ),
-    preserveTechnicalTokens: booleanOr(
-      saved.preserveTechnicalTokens,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.preserveTechnicalTokens,
-    ),
-    collisionPolicy: oneOf(
-      saved.collisionPolicy,
-      COLLISION_POLICIES,
-      DEFAULT_NAME_TRANSLATION_OPTIONS.collisionPolicy,
-    ),
-  });
+export interface NameTranslatorConfig {
+  sourceLang: NameSourceLanguage;
+  targetLang: NameLanguage;
+  nameMode: NameMode;
+  bilingualOrder: BilingualOrder;
+  bilingualStyle: BilingualStyle;
+  customTemplate: string;
+  includeHidden: boolean;
+  instructions: string;
 }
 
-function oneOf<const TValues extends readonly string[]>(
-  value: unknown,
-  values: TValues,
-  fallback: TValues[number],
-): TValues[number] {
-  return typeof value === "string" &&
-    (values as readonly string[]).includes(value)
-    ? (value as TValues[number])
-    : fallback;
+export const DEFAULT_NAME_TRANSLATOR_CONFIG: NameTranslatorConfig = {
+  sourceLang: "auto",
+  targetLang: "ZH",
+  nameMode: "translated",
+  bilingualOrder: "translated_first",
+  bilingualStyle: "paren",
+  customTemplate: "{translated} ({original})",
+  includeHidden: false,
+  instructions: "",
+};
+
+/** The `{translated}` / `{original}` template the current settings produce. */
+export function resolveNameTemplate(config: NameTranslatorConfig): string {
+  if (config.nameMode === "bilingual") return bilingualTemplate(config.bilingualStyle, config.bilingualOrder);
+  if (config.nameMode === "custom") return config.customTemplate;
+  return DEFAULT_NAME_TEMPLATE;
 }
 
-function booleanOr(value: unknown, fallback: boolean): boolean {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function boundedIntegerOr(
-  value: unknown,
-  min: number,
-  max: number,
-  fallback: number,
-): number {
-  return Number.isSafeInteger(value) &&
-    (value as number) >= min &&
-    (value as number) <= max
-    ? (value as number)
-    : fallback;
-}
+/** v1 `outputMode` and v2 `format` presets expressed in the v3 fields. */
+const LEGACY_FORMATS: Record<string, Partial<NameTranslatorConfig>> = {
+  target_only: { nameMode: "translated" },
+  translated: { nameMode: "translated" },
+  bilingual_target_first: { nameMode: "bilingual", bilingualOrder: "translated_first", bilingualStyle: "paren" },
+  translated_original: { nameMode: "bilingual", bilingualOrder: "translated_first", bilingualStyle: "paren" },
+  bilingual_original_first: { nameMode: "bilingual", bilingualOrder: "original_first", bilingualStyle: "paren" },
+  original_translated: { nameMode: "bilingual", bilingualOrder: "original_first", bilingualStyle: "paren" },
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+function oneOf<T extends string>(value: unknown, values: readonly T[], fallback: T): T {
+  return typeof value === "string" && (values as readonly string[]).includes(value)
+    ? (value as T)
+    : fallback;
+}
+
+export function sanitizeNameTranslatorConfig(value: unknown): NameTranslatorConfig {
+  const saved = isRecord(value) ? value : {};
+  return {
+    sourceLang: oneOf<NameSourceLanguage>(
+      saved.sourceLang,
+      ["auto", ...NAME_LANGUAGES],
+      DEFAULT_NAME_TRANSLATOR_CONFIG.sourceLang,
+    ),
+    targetLang: oneOf(saved.targetLang, NAME_LANGUAGES, DEFAULT_NAME_TRANSLATOR_CONFIG.targetLang),
+    nameMode: oneOf(saved.nameMode, NAME_MODES, DEFAULT_NAME_TRANSLATOR_CONFIG.nameMode),
+    bilingualOrder: oneOf(saved.bilingualOrder, BILINGUAL_ORDERS, DEFAULT_NAME_TRANSLATOR_CONFIG.bilingualOrder),
+    bilingualStyle: oneOf(saved.bilingualStyle, BILINGUAL_STYLES, DEFAULT_NAME_TRANSLATOR_CONFIG.bilingualStyle),
+    customTemplate:
+      typeof saved.customTemplate === "string"
+        ? saved.customTemplate.slice(0, MAX_NAME_TEMPLATE_CHARS)
+        : DEFAULT_NAME_TRANSLATOR_CONFIG.customTemplate,
+    includeHidden:
+      typeof saved.includeHidden === "boolean"
+        ? saved.includeHidden
+        : DEFAULT_NAME_TRANSLATOR_CONFIG.includeHidden,
+    instructions:
+      typeof saved.instructions === "string"
+        ? saved.instructions.slice(0, NAME_TRANSLATION_LIMITS.maxInstructionsChars)
+        : DEFAULT_NAME_TRANSLATOR_CONFIG.instructions,
+  };
+}
+
+/**
+ * v1 stored `{ options: { targetLang, sourceLang, outputMode, includeHidden, ... } }`;
+ * v2 stored `{ config: { ..., format } }`.
+ */
+export function migrateNameTranslatorConfig(persisted: unknown, version: number): NameTranslatorConfig {
+  if (version < 2) {
+    const options = isRecord(persisted) && isRecord(persisted.options) ? persisted.options : {};
+    return sanitizeNameTranslatorConfig({
+      sourceLang: options.sourceLang,
+      targetLang: options.targetLang,
+      includeHidden: options.includeHidden,
+      ...(typeof options.outputMode === "string" ? LEGACY_FORMATS[options.outputMode] : {}),
+    });
+  }
+  const config = isRecord(persisted) && isRecord(persisted.config) ? persisted.config : {};
+  if (version < 3) {
+    return sanitizeNameTranslatorConfig({
+      ...config,
+      ...(typeof config.format === "string" ? LEGACY_FORMATS[config.format] : {}),
+    });
+  }
+  return sanitizeNameTranslatorConfig(config);
+}
+
+interface NameTranslatorConfigState {
+  config: NameTranslatorConfig;
+  updateConfig: (patch: Partial<NameTranslatorConfig>) => void;
+}
+
+const useNameTranslatorConfigStore = create<NameTranslatorConfigState>()(
+  persist(
+    (set) => ({
+      config: DEFAULT_NAME_TRANSLATOR_CONFIG,
+      updateConfig: (patch) =>
+        set((state) => ({ config: sanitizeNameTranslatorConfig({ ...state.config, ...patch }) })),
+    }),
+    {
+      name: NAME_TRANSLATOR_STORAGE_KEY,
+      storage: createJSONStorage(() => localStorage),
+      version: NAME_TRANSLATOR_STORE_VERSION,
+      partialize: (state) => ({ config: state.config }),
+      migrate: (persisted, version) => ({ config: migrateNameTranslatorConfig(persisted, version) }),
+      merge: (persisted, current) => ({
+        ...current,
+        config: sanitizeNameTranslatorConfig(isRecord(persisted) ? persisted.config : undefined),
+      }),
+    },
+  ),
+);
+
+export default useNameTranslatorConfigStore;

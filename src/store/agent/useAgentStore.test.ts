@@ -1,14 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import useAgentStore from "./useAgentStore";
-import { validateNameTranslationPlan, applyNameTranslationPlan } from "@/services/rename/nameApplyService";
+import { applyAgentNamePlan as applyNameTranslationPlan } from "@/services/name-translation/agentPlan";
 
-vi.mock("@/services/rename/namePlanStore", () => ({ getNameTranslationPlan: () => ({ applyable: true, blockedCount: 0 }) }));
-vi.mock("@/services/rename/nameApplyService", () => ({ validateNameTranslationPlan: vi.fn(), applyNameTranslationPlan: vi.fn() }));
+vi.mock("@/services/name-translation/agentPlan", () => ({ getAgentNamePlan: () => ({ summary: { applyable: true } }), applyAgentNamePlan: vi.fn() }));
 const pending = () => ({ planId: "rename-p", createdAt: 1, createdByUserMessageId: "user-before", summary: {} as never });
 beforeEach(() => {
   vi.clearAllMocks(); useAgentStore.getState().resetSession();
   useAgentStore.getState().setPendingNameTranslationPlan(pending());
-  vi.mocked(validateNameTranslationPlan).mockResolvedValue({ valid: true, errors: [] } as never);
   vi.mocked(applyNameTranslationPlan).mockResolvedValue({ planId: "rename-p", appliedCount: 1 } as never);
 });
 
@@ -18,12 +16,11 @@ describe("Agent state boundaries", () => {
     expect(applyNameTranslationPlan).toHaveBeenCalledTimes(1);
     expect(useAgentStore.getState().pendingNameTranslationPlan?.resolvedAction).toBe("confirm");
   });
-  it("does not apply after a reset while validation is in flight", async () => {
+  it("does not record a receipt after a reset while apply is in flight", async () => {
     let resolve!: (result: never) => void;
-    vi.mocked(validateNameTranslationPlan).mockImplementation(() => new Promise((done) => { resolve = done; }));
+    vi.mocked(applyNameTranslationPlan).mockImplementation(() => new Promise((done) => { resolve = done; }));
     const operation = useAgentStore.getState().confirmNameTranslationPlan("rename-p");
-    useAgentStore.getState().resetSession(); resolve({ valid: true, errors: [] } as never); await operation;
-    expect(applyNameTranslationPlan).not.toHaveBeenCalled();
+    useAgentStore.getState().resetSession(); resolve({ planId: "rename-p" } as never); await operation;
     expect(useAgentStore.getState().pendingNameTranslationPlan).toBeNull();
   });
   it("does not overwrite a new preview with an old apply receipt", async () => {

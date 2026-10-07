@@ -36,12 +36,9 @@ import type {
   TranslationLanguage,
   TranslationOutputMode,
 } from "@/type/subtitle";
-import { createNameTranslationPlan } from "@/services/rename/nameTranslationPlanner";
-import {
-  DEFAULT_NAME_TRANSLATION_OPTIONS,
-  type InspectedRenamePath,
-  type NameTranslationOptions,
-} from "@/services/rename/nameTypes";
+import { createAgentNamePlan } from "@/services/name-translation/agentPlan";
+import { getNameTranslationApi, unwrap as unwrapNameTranslation } from "@/services/name-translation/api";
+import type { NameEntry } from "@/name-translation/contract";
 import { isExplicitRenameConfirmation } from "./name-plan-confirmation";
 import {
   prepareRecoveredSubtitleTasks,
@@ -174,16 +171,23 @@ export async function executeInspectRenamePaths(
   const check = executionFence(signal);
   check();
   try {
-    const result = await getIpcRenderer().invoke("inspect-rename-paths", {
-      paths: args.paths,
-    });
+    const result = await unwrapNameTranslation(
+      getNameTranslationApi().inspectPaths({ paths: args.paths, source: "agent" }),
+    );
+    check();
 
     return {
       success: true,
       data: {
-        paths: ((result?.paths ?? []) as InspectedRenamePath[]).map(
-          enrichInspectedRenamePath
-        ),
+        paths: [
+          ...result.entries.map(enrichInspectedNameEntry),
+          ...result.rejected.map((rejection) => ({
+            path: rejection.path,
+            exists: rejection.reason !== "missing",
+            rejected: rejection.reason,
+            suggestedScopes: [],
+          })),
+        ],
       },
     };
   } catch (err: any) {
@@ -205,13 +209,23 @@ export async function executeCreateNameTranslationPlan(
   const check = executionFence(signal);
   check();
   try {
-    const options = toNameTranslationOptions(args);
-    const summary = await createNameTranslationPlan(options, { signal });
+    const summary = await createAgentNamePlan(
+      {
+        roots: args.roots,
+        scope: args.scope,
+        targetKind: args.targetKind,
+        includeRoots: args.includeRoots,
+        includeHidden: args.includeHidden,
+        sourceLang: args.sourceLang,
+        targetLang: args.targetLang,
+        nameFormat: args.nameFormat,
+        instructions: args.instructions,
+      },
+      signal,
+    );
     check();
-    const requiresConfirmation = !summary.clarificationRequired;
-    const executionStatus = summary.clarificationRequired
-      ? "clarification_required"
-      : "preview_created";
+    const requiresConfirmation = summary.applyable;
+    const executionStatus = summary.applyable ? "preview_created" : "nothing_to_apply";
 
     const store = useAgentStore.getState();
     if (requiresConfirmation) {
@@ -802,84 +816,10 @@ async function flushPendingAgentTranslationRevocations(): Promise<void> {
   }
 }
 
-function enrichInspectedRenamePath(path: InspectedRenamePath) {
+function enrichInspectedNameEntry(entry: NameEntry) {
   return {
-    ...path,
-    suggestedScopes:
-      path.exists && path.kind === "directory"
-        ? ["self", "children", "descendants"]
-        : path.exists && path.kind === "file"
-          ? ["self"]
-          : [],
-  };
-}
-
-function toNameTranslationOptions(
-  args: CreateNameTranslationPlanArgs
-): NameTranslationOptions {
-  const scoped = normalizeNameTranslationScope(args);
-  return {
-    ...DEFAULT_NAME_TRANSLATION_OPTIONS,
-    ...scoped,
-    roots: args.roots,
-    sourceLang: args.sourceLang,
-    targetLang: args.targetLang,
-    namingStyle: args.namingStyle,
-    outputMode: args.outputMode,
-    bilingualSeparator: args.bilingualSeparator,
-    collisionPolicy: args.collisionPolicy,
-    includeHidden: args.includeHidden,
-    preserveExtension: true,
-    preserveLeadingDot: true,
-    preserveTechnicalTokens: true,
-    ...(args.pathSegmentStartPath && args.pathSegmentEndPath
-      ? {
-          pathSegmentRange: {
-            startPath: args.pathSegmentStartPath,
-            endPath: args.pathSegmentEndPath,
-            includeEndFileName: args.includeEndFileName,
-          },
-        }
-      : {}),
-  };
-}
-
-function normalizeNameTranslationScope(args: CreateNameTranslationPlanArgs) {
-  if (args.scope === "self") {
-    return {
-      scope: args.scope,
-      targetKind: args.targetKind,
-      recursive: false,
-      maxDepth: 0,
-      includeRoot: true,
-    };
-  }
-
-  if (args.scope === "children") {
-    return {
-      scope: args.scope,
-      targetKind: args.targetKind,
-      recursive: false,
-      maxDepth: 1,
-      includeRoot: false,
-    };
-  }
-
-  if (args.scope === "descendants") {
-    return {
-      scope: args.scope,
-      targetKind: args.targetKind,
-      recursive: true,
-      maxDepth: Math.max(2, args.maxDepth || 5),
-      includeRoot: false,
-    };
-  }
-
-  return {
-    scope: args.scope,
-    targetKind: args.targetKind,
-    recursive: args.recursive,
-    maxDepth: args.maxDepth,
-    includeRoot: args.includeRoot,
+    ...entry,
+    exists: true,
+    suggestedScopes: entry.kind === "directory" && !entry.symlink ? ["self", "children", "descendants"] : ["self"],
   };
 }

@@ -19,7 +19,7 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import type {
   NameTranslationApplyResult,
   NameTranslationPlanItem,
-} from "@/services/rename/nameTypes";
+} from "@/services/name-translation/agentPlan";
 import type {
   MarkdownWidgetComponentProps,
   MarkdownWidgetDefinition,
@@ -31,12 +31,12 @@ interface NameTranslationPlanWidgetProps {
   planId: string;
   totalTargets: number;
   previewLimit: number;
-  itemsPreview: NameTranslationPlanItem[];
+  itemsPreview: readonly NameTranslationPlanItem[];
   readyCount: number;
   blockedCount: number;
   skippedCount: number;
   unchangedCount: number;
-  warnings: string[];
+  warnings: readonly string[];
   applyable: boolean;
   requiresConfirmation?: boolean;
   executionStatus?: string;
@@ -76,7 +76,6 @@ function NameTranslationPlanWidgetComponent({
     !!pendingPlan &&
     props.requiresConfirmation !== false &&
     props.applyable &&
-    props.blockedCount === 0 &&
     !resolvedAction &&
     !isApplying &&
     !isStreaming;
@@ -143,8 +142,8 @@ function NameTranslationPlanWidgetComponent({
         </div>
 
         {props.itemsPreview.length > 0 && (
-          <div className="space-y-1.5">
-            {props.itemsPreview.slice(0, 8).map((item) => (
+          <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+            {props.itemsPreview.map((item) => (
               <PreviewRow key={item.id} item={item} />
             ))}
             {props.totalTargets > props.itemsPreview.length && (
@@ -253,9 +252,11 @@ function NameTranslationApplyResultWidgetComponent({
           <Metric label={t("home:rename_failed")} value={props.failedCount} tone="danger" />
           <Metric label={t("home:rename_skipped")} value={props.skippedCount} />
         </div>
-        <div className="rounded-lg bg-background/60 px-3 py-2 text-xs text-muted-foreground">
-          {t("home:rename_journal")}: <code>{props.journalId}</code>
-        </div>
+        {props.message ? (
+          <div className="rounded-lg bg-background/60 px-3 py-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+            {props.rolledBack ? t("home:rename_rolled_back_hint") : null} {props.message}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -302,7 +303,7 @@ function PreviewRow({ item }: { item: NameTranslationPlanItem }) {
         </div>
       </div>
       <Badge
-        variant={item.status === "blocked" ? "destructive" : "outline"}
+        variant={item.status === "blocked" || item.status === "failed" ? "destructive" : "outline"}
         className="h-6 rounded-full px-2 text-[10px]"
       >
         {statusLabel(item.status, t)}
@@ -342,8 +343,8 @@ function ResolvedState({
       </div>
       {result && (
         <div className="mt-2 text-xs text-muted-foreground">
-          {t("home:rename_result_summary", { success: result.successCount, failed: result.failedCount })} · {t("home:rename_journal")}: {" "}
-          <code>{result.journalId}</code>
+          {t("home:rename_result_summary", { success: result.successCount, failed: result.failedCount })}
+          {result.rolledBack ? ` · ${t("home:rename_rolled_back_hint")}` : null}
         </div>
       )}
     </div>
@@ -422,17 +423,14 @@ function parsePlanItems(raw: unknown): NameTranslationPlanItem[] {
     .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
     .map((item) => ({
       id: String(item.id ?? ""),
-      targetId: String(item.targetId ?? ""),
       kind: item.kind === "directory" ? "directory" : "file",
       sourcePath: String(item.sourcePath ?? ""),
-      sourceParentPath: String(item.sourceParentPath ?? ""),
       originalName: String(item.originalName ?? ""),
-      translatedStem: String(item.translatedStem ?? ""),
       newName: String(item.newName ?? ""),
-      targetPath: String(item.targetPath ?? ""),
       status: parseItemStatus(item.status),
-      reason: typeof item.reason === "string" ? item.reason : undefined,
-      warnings: parseStringArray(item.warnings),
+      ...(typeof item.reason === "string"
+        ? { reason: item.reason as NameTranslationPlanItem["reason"] }
+        : {}),
     }));
 }
 
@@ -446,41 +444,20 @@ function parseApplyResult(raw: unknown): NameTranslationApplyResult | undefined 
   return {
     planId: value.planId,
     journalId: value.journalId,
-    startedAt: toNumber(value.startedAt),
-    finishedAt: toNumber(value.finishedAt),
     totalCount: toNumber(value.totalCount),
     successCount: toNumber(value.successCount),
     failedCount: toNumber(value.failedCount),
     skippedCount: toNumber(value.skippedCount),
-    failures: Array.isArray(value.failures)
-      ? value.failures
-          .filter(
-            (item): item is Record<string, unknown> =>
-              !!item && typeof item === "object"
-          )
-          .map((item) => ({
-            itemId: String(item.itemId ?? ""),
-            sourcePath: String(item.sourcePath ?? ""),
-            targetPath: String(item.targetPath ?? ""),
-            error: String(item.error ?? ""),
-          }))
-      : [],
+    rolledBack: value.rolledBack === true,
+    ...(typeof value.message === "string" ? { message: value.message } : {}),
   };
 }
 
 function parseItemStatus(raw: unknown): NameTranslationPlanItem["status"] {
-  const allowed: NameTranslationPlanItem["status"][] = [
-    "ready",
-    "unchanged",
-    "skipped",
-    "blocked",
-    "applied",
-    "failed",
-    "rolled_back",
-  ];
+  const allowed: NameTranslationPlanItem["status"][] = ["ready", "unchanged", "blocked", "failed"];
   return allowed.includes(raw as NameTranslationPlanItem["status"])
     ? (raw as NameTranslationPlanItem["status"])
-    : "ready";
+    : "blocked";
 }
 
 function parseStringArray(raw: unknown): string[] {
@@ -501,11 +478,8 @@ function statusLabel(status: NameTranslationPlanItem["status"], t: TFunction): s
   const labels: Record<NameTranslationPlanItem["status"], string> = {
     ready: t("home:rename_ready"),
     unchanged: t("home:rename_unchanged"),
-    skipped: t("home:rename_skipped"),
     blocked: t("home:rename_blocked"),
-    applied: t("home:rename_applied"),
     failed: t("home:rename_failed"),
-    rolled_back: t("home:rename_rolled_back"),
   };
   return labels[status];
 }

@@ -1,239 +1,217 @@
 {
   "page": {
-    "title": "ファイル/フォルダ名翻訳",
-    "description": "ファイルやフォルダを選択し、dry-run プレビューを生成してから安全にリネームします。",
-    "badge": "dry-run first",
-    "error_title": "操作に失敗しました",
-    "loading_plan_title": "HomeAgent の計画を読み込み中",
-    "loading_plan_desc": "先ほど生成したプレビュー、選択パス、適用状態を復元しています。",
-    "loaded_from_agent_title": "HomeAgent のプレビューを読み込みました",
-    "loaded_from_agent_desc": "計画 {{planId}}（対象 {{count}} 件）を表示しています。まだ dry-run のため、ファイルは変更されていません。"
+    "title": "ファイル名/フォルダー名翻訳",
+    "description": "ファイルやフォルダーを追加し、名前を変える項目にチェックを入れて翻訳・確認したあと、まとめて名前を変更します。変更後は元に戻せます。"
   },
-  "risk_reasons": {
-    "directories": "フォルダ名の変更を含む",
-    "descendants": "再帰範囲",
-    "path_segments": "パスセグメント",
-    "large_batch": "100 件超",
-    "warnings": "警告を含む"
+  "add": {
+    "title": "項目を追加",
+    "drop_title": "ファイルやフォルダーをドロップ",
+    "drop_hint": "ファイルとフォルダーを混在して追加できます。追加後、項目一覧で変更する項目を選びます",
+    "drop_label": "名前翻訳の一覧に追加",
+    "files": "ファイルを追加",
+    "folders": "フォルダーを追加",
+    "rejected": {
+      "missing": "見つかりません：{{path}}",
+      "protected": "システムや保護された場所は名前を変更できません：{{path}}",
+      "temp_proxy": "エクスプローラーが作成した一時コピーです。「ファイルを追加」から選択してください：{{path}}",
+      "unsupported": "対応していない項目です：{{path}}",
+      "unreadable": "読み取れません：{{path}}"
+    },
+    "rejected_more": "ほか {{count}} 件は追加されませんでした"
   },
-  "warning_details": {
-    "plan_source": "計画レベルの警告",
-    "item_source": "{{kind}}：{{name}}",
-    "more": "残り {{count}} 件の警告は、高リスク確認ダイアログにすべて表示されます。"
+  "settings": {
+    "title": "翻訳設定",
+    "target_lang": "翻訳先の言語",
+    "source_lang": "翻訳元の言語",
+    "format": {
+      "label": "名前の形式",
+      "hint": "拡張子は常に保持され、形式を切り替えても再翻訳は不要です。カスタム形式では {translated} が訳名、{original} が原名を表します。訳名が原名と同じ場合は元の名前のままです。",
+      "mode_translated": "訳名のみ",
+      "mode_bilingual": "二言語",
+      "mode_custom": "カスタム",
+      "order": "順序",
+      "order_translated_first": "訳名を先に",
+      "order_original_first": "原名を先に",
+      "style": "区切り",
+      "styles": {
+        "paren": "丸括弧 ( )",
+        "bracket": "角括弧 [ ]",
+        "dash": "ハイフン -",
+        "underscore": "アンダースコア _",
+        "space": "スペース"
+      },
+      "template": "カスタムの名前形式",
+      "insert_translated": "訳名",
+      "insert_original": "原名",
+      "errors": {
+        "missing_translated": "形式に {translated} を含めてください",
+        "illegal_chars": "形式に \\ / : * ? \" < > | などは使えません",
+        "too_long": "形式が長すぎます"
+      },
+      "preview": "例：{{name}}",
+      "sample_original": "第1話.mp4",
+      "sample_translated": "Episode 1"
+    },
+    "include_hidden": "隠し項目を含める",
+    "include_hidden_hint": "ドットで始まるファイルやシステムの隠しファイルを表示します",
+    "instructions": "追加の指示",
+    "instructions_empty": "未入力",
+    "instructions_placeholder": "例：人名はローマ字のまま、「話」は「Episode」と訳す"
   },
-  "path": {
-    "section_title": "パス",
-    "dialog_title": "名前を翻訳するファイルまたはフォルダを選択",
-    "dialog_button": "選択",
-    "drop_title": "ファイルまたはフォルダをここにドロップ",
-    "drop_hint": "ファイルとフォルダは個別に選択できます。混在する項目はドロップで追加できます。プレビュー生成ではファイルシステムを変更しません。",
-    "select_files": "ファイル",
-    "select_dirs": "フォルダのみ",
-    "empty": "選択したパスの種類、子項数、リスクラベルが表示されます。",
-    "file_unit": "ファイル",
-    "directory_unit": "フォルダ",
-    "counts": "{{files}} ファイル · {{directories}} フォルダ",
-    "remove_tooltip": "パスを削除",
-    "reset_tooltip": "現在の選択をクリア",
-    "create_preview": "プレビュー生成"
+  "languages": {
+    "auto": "自動検出",
+    "ZH": "中国語（簡体）",
+    "ZH_HANT": "中国語（繁体）",
+    "JA": "日本語",
+    "EN": "英語",
+    "KO": "韓国語",
+    "FR": "フランス語",
+    "DE": "ドイツ語",
+    "ES": "スペイン語",
+    "RU": "ロシア語",
+    "PT": "ポルトガル語"
   },
-  "options": {
-    "section_title": "設定",
-    "scope_label": "翻訳範囲",
-    "scope": {
-      "self": { "label": "選択名", "hint": "選択したファイルまたはフォルダ自体のみ翻訳" },
-      "children": { "label": "直下の項目", "hint": "フォルダ内の第 1 階層のみ翻訳" },
-      "descendants": { "label": "再帰項目", "hint": "下位フォルダも含める" },
-      "path_segments": { "label": "パスセグメント", "hint": "開始/終了階層の指定が必要" }
-    },
-    "target_kind_label": "対象タイプ",
-    "target_kind": {
-      "files": "ファイル",
-      "directories": "フォルダ",
-      "both": "すべて"
-    },
-    "max_depth_label": "再帰深度",
-    "max_depth_hint": "再帰項目モードのみ有効。20 はほぼ無制限です。",
-    "language_label": "言語",
-    "source_auto": "自動検出",
-    "languages": {
-      "ZH": "中国語",
-      "EN": "英語",
-      "JA": "日本語",
-      "KO": "韓国語",
-      "FR": "フランス語",
-      "DE": "ドイツ語",
-      "ES": "スペイン語",
-      "RU": "ロシア語",
-      "PT": "ポルトガル語"
-    },
-    "naming_style_label": "命名スタイル",
-    "naming_styles": {
-      "preserve": "元のスタイルを保持",
-      "space": "スペース区切り",
-      "kebab": "ケバブケース",
-      "snake": "スネークケース",
-      "title": "Title Case",
-      "lower": "lowercase"
-    },
-    "output_mode_label": "出力モード",
-    "output_mode": {
-      "target_only": "翻訳のみ",
-      "bilingual_target_first": "翻訳 + 原文",
-      "bilingual_original_first": "原文 + 翻訳"
-    },
-    "separator_label": "セパレータ",
-    "skip_hidden_label": "隠し項目をスキップ",
-    "skip_hidden_hint": ".env や隠しフォルダなどはデフォルトで処理しません",
-    "preserve_extension_label": "拡張子を保持",
-    "preserve_extension_hint": "ファイル stem のみ翻訳し、.srt / .mp4 などは変更しません",
-    "preserve_tokens_label": "番号と技術タグを保持",
-    "preserve_tokens_hint": "S01E02、1080p、字幕グループなどの token をできるだけ保持",
-    "collision_label": "競合処理",
-    "collision_fail": "ブロック",
-    "collision_append_index": "自動採番"
+  "list": {
+    "title": "項目",
+    "select": "選択",
+    "clear": "一覧をクリア",
+    "column_name": "名前",
+    "column_new_name": "新しい名前",
+    "column_status": "状態",
+    "edit_name": "新しい名前を編集",
+    "edit_name_for": "「{{name}}」の新しい名前を編集",
+    "edited": "手動で変更済み",
+    "unchanged": "変更なし",
+    "collapse": "折りたたむ",
+    "expand": "展開",
+    "check_entry": "「{{name}}」の名前を変更",
+    "inside_count": "内部 {{checked}}/{{total}} 選択",
+    "select_inside": "内部をすべて選択",
+    "row_menu": "「{{name}}」のその他の操作"
   },
-  "preview": {
-    "title": "プレビュー",
-    "empty_title": "リネームプレビューはまだありません",
-    "empty_desc": "パスを選択してプレビューを生成すると、ここで確認、編集、スキップ、適用できます。",
-    "no_targets_title": "条件に一致する項目がありません",
-    "no_targets_desc": "範囲「{{scope}}」と対象タイプ「{{targetKind}}」に一致する翻訳対象がありません。選択したパスがフォルダか確認するか、対象タイプまたは再帰深度を調整してプレビューを再生成してください。",
-    "revalidate": "再検証",
-    "planning": {
-      "title": "プレビューを生成中",
-      "cancel": "キャンセル",
-      "preparing": "準備中",
-      "detail_targets": "{{translated}}/{{total}} 件",
-      "detail_batches": "{{translated}}/{{total}} 件 · {{completed}}/{{batches}} バッチ",
-      "phase": {
-        "idle": "idle",
-        "scanning": "scanning",
-        "classifying": "classifying",
-        "translating": "translating",
-        "checking_targets": "checking",
-        "validating": "validating",
-        "storing": "storing",
-        "done": "done",
-        "failed": "failed",
-        "cancelled": "cancelled"
-      }
-    },
-    "summary": {
-      "ready": "ready",
-      "blocked": "blocked",
-      "skipped": "skipped",
-      "unchanged": "unchanged",
-      "warnings": "warnings"
-    },
-    "incomplete_warning_title": "プレビューが不完全です",
-    "incomplete_warning_desc": "{{count}}/{{total}} 件のみ表示されています。プレビュー制限を超えた項目は読み込まれていません。適用前にプレビューを再生成してください。",
-    "clarification_title": "範囲の詳細が必要です",
-    "columns": {
-      "status": "状態",
-      "type": "タイプ",
-      "original_name": "元の名前",
-      "new_name": "新しい名前",
-      "path": "パス",
-      "reason": "理由/警告",
-      "actions": "操作"
-    },
-    "kind": {
-      "file": "ファイル",
-      "directory": "フォルダ"
-    },
-    "actions": {
-      "skip": "スキップ",
-      "restore": "AI 提案に戻す",
-      "auto_index": "競合に自動採番を使う",
-      "open_folder": "保存先フォルダを開く"
-    },
-    "pagination_hint": "大量プレビューを一度に描画しないよう、1 ページ {{count}} 件です。",
-    "previous": "前へ",
-    "next": "次へ",
-    "status": {
-      "ready": "ready",
-      "unchanged": "unchanged",
-      "skipped": "skipped",
-      "blocked": "blocked",
-      "applied": "applied",
-      "failed": "failed",
-      "rolled_back": "rolled back"
-    }
+  "select_inside": {
+    "all": "内部をすべて選択（サブフォルダーを含む）",
+    "files": "内部のファイルのみ選択",
+    "folders": "内部のフォルダーのみ選択",
+    "children": "直下の項目のみ選択",
+    "none": "内部の選択を解除"
   },
-  "apply": {
-    "title": "適用",
-    "metrics": {
-      "ready": "適用可",
-      "blocked": "ブロック",
-      "skipped": "スキップ",
-      "unchanged": "変更なし",
-      "success": "成功",
-      "failed": "失敗"
-    },
-    "warnings_title": "計画に警告があります",
-    "validation_failed_title": "検証に失敗しました",
-    "result_title": "実行結果",
-    "rollback": "ロールバックを試す",
-    "rollback_summary": "journal {{journalId}} のロールバック：成功 {{success}}、失敗 {{failed}}",
-    "apply_button": "リネームを適用",
-    "no_plan_hint": "実際のリネームでは必ず先に journal を書き込みます。dry-run プレビューは迂回しません。",
-    "incomplete_hint": "プレビューが不完全です（{{count}}/{{total}}）。適用できません。プレビューを再生成してください。",
-    "blocked_hint": "blocked が 0 で ready が 1 以上の場合のみ適用できます。",
-    "confirm_hint": "適用前に高リスク条件を確認します。",
-    "phase": {
-      "validating": "validating",
-      "applying": "applying",
-      "rolling_back": "rolling back",
-      "done": "done",
-      "failed": "failed"
-    }
+  "select_all": {
+    "everything": "すべて選択（サブフォルダーの中身を含む）",
+    "files": "ファイルのみ選択",
+    "folders": "フォルダーのみ選択",
+    "roots": "追加した項目のみ選択",
+    "none": "選択をすべて解除"
   },
-  "risk": {
-    "title": "高リスクのリネームを確認",
-    "description": "この計画には追加確認が必要な操作があります。適用前にリスク理由と警告の詳細を確認してください。",
-    "metrics": {
-      "impacted": "影響項目",
-      "files": "ファイル",
-      "directories": "フォルダ",
-      "warnings": "警告"
-    },
-    "reasons_title": "リスク理由",
-    "warnings_title": "警告の詳細",
-    "warnings_desc": "計画レベルの診断と、個別のファイルまたはフォルダに関する命名警告を表示しています。内容を確認してから適用してください。",
-    "scope": "範囲：{{scope}}",
-    "journal_hint": "journal はアプリデータに保存され、ベストエフォートのロールバックに利用できますが、トランザクション保証ではありません。",
-    "apply_hint": "確認後にのみ apply-rename-plan を呼び出します。",
+  "row": {
+    "edit": "新しい名前を編集",
+    "retranslate": "この項目を再翻訳",
+    "reset": "翻訳結果に戻す",
+    "remove": "一覧から削除"
+  },
+  "status": {
+    "pending": "翻訳待ち",
+    "translating": "翻訳中",
+    "stale": "翻訳設定が変わりました。再翻訳が必要です",
+    "failed": "翻訳に失敗しました。再翻訳できます",
+    "unchanged": "現在の名前と同じため変更しません",
+    "issue": "問題があるためスキップします",
+    "ready": "準備完了"
+  },
+  "issues": {
+    "empty_name": "名前を空にすることはできません",
+    "illegal_chars": "使用できない文字が含まれています：\\ / : * ? \" < > |",
+    "reserved_name": "システムの予約名です（CON、NUL など）",
+    "trailing_dot_space": "名前の末尾にドットや空白は使えません",
+    "too_long": "名前が長すぎます（255 文字またはバイトを超えています）",
+    "duplicate_target": "同じフォルダー内の別の新しい名前と重複しています。「自動で番号付け」を使えます",
+    "target_exists": "同じフォルダーに同名の項目がすでにあります",
+    "source_missing": "元の項目が見つかりません",
+    "source_changed": "元の項目が移動または置き換えられました。もう一度追加してください",
+    "protected_path": "システムや保護された場所は名前を変更できません",
+    "duplicate_source": "同じ項目が重複しています"
+  },
+  "filter": {
+    "label": "表示",
+    "all": "すべて",
+    "checked": "選択中 {{count}}",
+    "issues": "問題 {{count}}",
+    "empty": "この表示に該当する項目はありません"
+  },
+  "empty": {
+    "title": "名前を翻訳するファイルやフォルダーを追加",
+    "description": "追加したら、名前を変える項目にチェックを入れます。フォルダーの中身はワンクリックで選択でき、フォルダー自体と中身を一緒に変更できます。"
+  },
+  "actions": {
+    "stop": "停止",
+    "translate": "{{count}} 件を翻訳",
+    "rename": "{{count}} 件の名前を変更",
+    "number_duplicates": "自動で番号付け",
+    "retranslate": "再翻訳"
+  },
+  "progress": {
+    "translating": "翻訳済み {{done}}/{{total}}"
+  },
+  "summary": {
+    "none_checked": "名前を変更する項目にチェックを入れてください",
+    "checked": "{{count}} 件選択",
+    "ready": "{{count}} 件準備完了",
+    "issues": "{{count}} 件は問題がありスキップ",
+    "format_invalid": "名前の形式を修正してください"
+  },
+  "confirm": {
+    "title": "{{count}} 件の名前を変更しますか",
+    "summary": "ファイル {{files}} 件 · フォルダー {{folders}} 件",
+    "skipped": "ほかの選択中の {{count}} 件は名前を変更しません",
+    "more": "ほか {{count}} 件はここに表示されていません",
+    "changed": "確認後に一部の項目が変更され、一覧に表示しました。閉じて確認してから再試行してください。",
+    "undo_hint": "完了後、このページで元に戻せます",
     "cancel": "キャンセル",
-    "confirm": "適用を確認"
+    "start": "名前を変更",
+    "applying": "名前を変更しています…"
   },
-  "messages": {
-    "select_paths_first": "先にファイルまたはフォルダを 1 つ以上選択してください。",
-    "preview_created": "プレビューを生成しました。ファイルはまだ変更されていません。",
-    "preview_empty": "現在の範囲と対象タイプに一致する項目がありません。設定を調整して再試行してください。",
-    "missing_plan": "先にリネームプレビューを生成してください。",
-    "validating": "リネーム計画を検証中...",
-    "applying": "リネームを適用中...",
-    "done": "リネームが完了しました。",
-    "validation_failed": "リネーム計画の検証に失敗しました。",
-    "rename_finished": "リネーム処理が完了しました。",
-    "planning_cancelled": "プレビュー生成をキャンセルしました。",
-    "rolling_back": "ロールバックを試行中...",
-    "rollback_done": "ロールバック要求が完了しました。",
-    "ipc_unavailable": "Electron IPC を利用できません。",
-    "plan_not_found": "リネーム計画 {{planId}} が見つかりません。期限切れまたはクリア済みの可能性があります。プレビューを再生成してください。",
-    "plan_loaded_from_agent": "HomeAgent のリネームプレビューを読み込みました。",
-    "plan_items_incomplete": "プレビューが不完全です（{{count}}/{{total}} 件のみ）。適用できません。プレビューを再生成してください。"
+  "outcome": {
+    "completed": "{{count}} 件の名前を変更しました",
+    "undone": "元に戻しました。{{count}} 件が元の名前に戻りました",
+    "undo_partial": "元に戻す操作が完了しませんでした。次の項目は戻せませんでした",
+    "undo": "元に戻す",
+    "retry_undo": "元に戻す操作を続ける",
+    "dismiss": "閉じる",
+    "failed_rolled_back": "名前の変更に失敗しました。すべて元に戻しました",
+    "failed_partial": "名前の変更に失敗し、一部の項目を元に戻せませんでした",
+    "failed_at": "エラー箇所：{{path}}（{{message}}）",
+    "unrecovered_item": "{{current}} を {{expected}} に戻す必要があります"
   },
-  "tour": {
-    "path_picker_title": "ファイルまたはフォルダを選択",
-    "path_picker_content": "名前を変更するファイルまたはフォルダをここにドラッグするか、ボタンをクリックして選択します。複数のパスをまとめて追加できます。",
-    "options_title": "翻訳オプション",
-    "options_content": "元の言語、翻訳先の言語、命名スタイル、翻訳範囲などの翻訳パラメータを設定します。設定によって名前変更の結果が変わります。",
-    "preview_title": "名前変更プランをプレビュー",
-    "preview_content": "プレビューを生成すると、名前変更の対象がすべてここに表示されます。項目ごとに編集したり、元の提案に戻したり、一部をスキップしたりできます。",
-    "apply_title": "名前変更を適用",
-    "apply_content": "プランに問題がないことを確認してから適用をクリックします。操作ログは自動的に記録され、必要に応じてワンクリックでロールバックできます。",
-    "trigger": "ガイドを表示"
+  "recovery": {
+    "title": "前回の名前変更が完了していません",
+    "description": "{{time}} に開始した名前変更が中断され、{{count}} 件の変更が行われています。",
+    "restore": "元の名前に戻す",
+    "keep": "このままにする"
+  },
+  "model": {
+    "missing_title": "タスク実行モデルが設定されていません",
+    "missing_description": "項目の追加と選択は先に行えます。翻訳の前に設定でタスク実行モデルを設定してください。",
+    "open_settings": "設定を開く"
+  },
+  "errors": {
+    "invalid_request": "無効なリクエストです",
+    "model_auth": "モデルの認証に失敗しました。API キーを確認してください",
+    "model_quota": "モデルの利用枠が不足しています",
+    "model_not_found": "設定されたモデルが見つかりません",
+    "model_failed": "モデルへのリクエストに失敗しました",
+    "cancelled": "キャンセルしました",
+    "too_many_entries": "項目が多すぎます",
+    "journal_not_found": "名前変更の記録が見つかりません",
+    "busy": "別の名前変更がまだ実行中です",
+    "internal": "操作に失敗しました",
+    "bridge_unavailable": "この機能はデスクトップアプリでのみ利用できます"
+  },
+  "notice": {
+    "truncated_title": "項目が多すぎるため一部のみ読み込みました",
+    "truncated": "「{{path}}」の項目が一度に扱える上限を超えたため、先頭の一部のみ読み込んで選択しました。サブフォルダーごとに分けて処理してください。"
+  },
+  "agent": {
+    "loaded": "HomeAgent の名前変更プランを読み込みました。確認してから変更してください",
+    "missing": "HomeAgent の名前変更プランは期限切れです。もう一度作成してください"
   }
 }

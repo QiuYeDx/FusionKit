@@ -15,6 +15,7 @@ export const capabilityLabels = {
   converter: { title: "home:capability_converter", description: "home:capability_converter_description" },
   extractor: { title: "home:capability_extractor", description: "home:capability_extractor_description" },
   localSubtitleTranscriber: { title: "home:capability_local", description: "home:capability_local_description" },
+  nameTranslator: { title: "home:capability_names", description: "home:capability_names_description" },
 } as const;
 
 export default function AgentCapabilities() {

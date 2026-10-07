@@ -16,7 +16,7 @@ import { setupExtractionIPC } from "./extraction/ipc";
 import { setupProxyIPC } from "./proxy";
 import { setupFsIPC } from "./fs/ipc";
 import { setupNativeFileSelectionIPC } from "./fs/native-file-selection-ipc";
-import { setupRenameIPC } from "./rename/ipc";
+import { setupNameTranslationIPC } from "./name-translation/ipc";
 import {
   emitTextTranslationEvent,
   setupTextTranslationIPC,
@@ -511,7 +511,7 @@ app.whenReady().then(async () => {
   setupExtractionIPC();
   setupProxyIPC();
   setupFsIPC();
-  setupRenameIPC();
+  setupNameTranslationIPC();
   setupTextTranslationIPC(textTranslationService);
   setupAudioIPC();
   setupAudioRealtimeIPC();

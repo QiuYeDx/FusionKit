@@ -1,274 +1,156 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CircleHelp, Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import ToolPageHeader from "@/pages/Tools/_shared/ToolPageHeader";
 import { TOOL_META } from "@/pages/Tools/_shared/toolMeta";
 import { ToolDetailLayout } from "@/pages/Tools/_shared/ui";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
+import { useToolFileDropTarget } from "@/pages/Tools/_shared/ui/ToolFileDropScope";
+import { getFilePathFromFile } from "@/utils/filePath";
+import { showToast } from "@/utils/toast";
+import useModelStore from "@/store/useModelStore";
+import useNameTranslatorConfigStore, { resolveNameTemplate } from "@/store/tools/rename/nameTranslatorConfig";
 import useNameTranslatorStore from "@/store/tools/rename/useNameTranslatorStore";
-import ApplySummaryPanel from "./components/ApplySummaryPanel";
-import OptionsPanel from "./components/OptionsPanel";
-import PathPickerPanel from "./components/PathPickerPanel";
-import PlanPreviewTable from "./components/PlanPreviewTable";
-import RiskConfirmDialog from "./components/RiskConfirmDialog";
-import { getRiskSummary } from "./riskSummary";
+import { getNameTranslationApi, rendererPlatform, toRuntimeModel, unwrap } from "@/services/name-translation/api";
+import { toWorkspaceSession } from "@/services/name-translation/agentPlan";
+import {
+  computeRowStates,
+  computeVisibleRows,
+  settingsKeyOf,
+} from "@/services/name-translation/workspace";
+import { getTemplateError } from "@/name-translation/naming-rules";
+import { NameTranslatorBanners } from "./components/Banners";
+import { ConfirmRenameDialog } from "./components/ConfirmRenameDialog";
+import { EntryList, summarize } from "./components/EntryList";
+import { AddEntriesPanel, SettingsPanel } from "./components/SidePanels";
 
 export default function NameTranslator() {
   const { t } = useTranslation("rename");
-  const [searchParams] = useSearchParams();
-  const requestedPlanId = searchParams.get("planId")?.trim() ?? "";
-  const {
-    selectedPaths,
-    options,
-    currentPlan,
-    isPlanning,
-    planningProgress,
-    isApplying,
-    applyProgress,
-    lastApplyResult,
-    lastRollbackResult,
-    lastValidation,
-    lastError,
-    originalSuggestions,
-    addPaths,
-    removePath,
-    updateOptions,
-    loadPlanFromCache,
-    createPreview,
-    cancelPlanning,
-    updatePlanItem,
-    revalidateCurrentPlan,
-    applyCurrentPlan,
-    rollback,
-    clearSelection,
-  } = useNameTranslatorStore();
-  const [riskDialogOpen, setRiskDialogOpen] = useState(false);
-  const [urlPlanStatus, setUrlPlanStatus] = useState<
-    "idle" | "loading" | "loaded" | "missing"
-  >("idle");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const config = useNameTranslatorConfigStore((state) => state.config);
+  const taskProfile = useModelStore((state) => state.getTaskProfile());
+  const modelReady = Boolean(toRuntimeModel(taskProfile));
 
-  // Tour 引导状态（延迟到入场动画结束后再自动打开）
-  const [tourOpen, setTourOpen] = useState(false);
-  useEffect(() => {
-    if (localStorage.getItem("name-translator-tour-done")) return;
-    const timer = setTimeout(() => setTourOpen(true), 400);
-    return () => clearTimeout(timer);
-  }, []);
-  const tourSteps: TourStep[] = useMemo(
-    () => [
-      {
-        target: "#nt-tour-path-picker",
-        title: t("tour.path_picker_title", "选择文件或文件夹"),
-        content: t(
-          "tour.path_picker_content",
-          "将需要重命名的文件或文件夹拖拽到此处，或点击按钮选择。支持同时添加多个路径。"
-        ),
-        placement: "right" as const,
-      },
-      {
-        target: "#nt-tour-options",
-        title: t("tour.options_title", "翻译选项"),
-        content: t(
-          "tour.options_content",
-          "配置翻译参数：源语言、目标语言、命名风格、翻译范围等。不同配置会影响重命名的结果。"
-        ),
-        placement: "right" as const,
-      },
-      {
-        target: "#nt-tour-preview",
-        title: t("tour.preview_title", "预览重命名计划"),
-        content: t(
-          "tour.preview_content",
-          "生成预览后，所有待重命名的项目会在此展示。你可以逐条编辑、恢复原始建议或跳过某些项。"
-        ),
-        placement: "left" as const,
-      },
-      {
-        target: "#nt-tour-apply",
-        title: t("tour.apply_title", "应用重命名"),
-        content: t(
-          "tour.apply_content",
-          "确认计划无误后点击应用。系统会自动记录操作日志，如需撤销可一键回滚。"
-        ),
-        placement: "top" as const,
-      },
-    ],
-    [t]
+  const roots = useNameTranslatorStore((state) => state.roots);
+  const entries = useNameTranslatorStore((state) => state.entries);
+  const dirs = useNameTranslatorStore((state) => state.dirs);
+  const checked = useNameTranslatorStore((state) => state.checked);
+  const proposals = useNameTranslatorStore((state) => state.proposals);
+  const serverIssues = useNameTranslatorStore((state) => state.serverIssues);
+  const expanded = useNameTranslatorStore((state) => state.expanded);
+  const filter = useNameTranslatorStore((state) => state.filter);
+  const adding = useNameTranslatorStore((state) => state.adding);
+  const rejected = useNameTranslatorStore((state) => state.rejected);
+  const applying = useNameTranslatorStore((state) => state.applying);
+  const run = useNameTranslatorStore((state) => state.run);
+
+  const data = useMemo(
+    () => ({ roots, entries, dirs, checked, proposals, serverIssues }),
+    [roots, entries, dirs, checked, proposals, serverIssues],
+  );
+  const settings = useMemo(
+    () => ({ template: resolveNameTemplate(config), settingsKey: settingsKeyOf(config), platform: rendererPlatform() }),
+    [config],
+  );
+  const states = useMemo(() => computeRowStates(data, settings), [data, settings]);
+  const rows = useMemo(() => computeVisibleRows(data, expanded, states, filter), [data, expanded, states, filter]);
+  const summary = useMemo(() => summarize(checked, states), [checked, states]);
+
+  const addFromDialog = useCallback(
+    async (kind: "file" | "directory") => {
+      try {
+        const result = await unwrap(
+          getNameTranslationApi().selectPaths({
+            kind,
+            title: kind === "file" ? t("add.files") : t("add.folders"),
+          }),
+        );
+        if (!result.canceled && result.paths.length > 0) {
+          await useNameTranslatorStore.getState().addPaths(result.paths, "picker");
+        }
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : String(error), "error");
+      }
+    },
+    [t],
   );
 
-  const risk = useMemo(() => getRiskSummary(currentPlan), [currentPlan]);
+  const handleDrop = (event: DragEvent<HTMLElement>) => {
+    // Capture native paths synchronously inside the drop event (FK-PIT-0148).
+    const paths = Array.from(event.dataTransfer.files)
+      .map(getFilePathFromFile)
+      .filter((path): path is string => Boolean(path));
+    if (paths.length > 0) void useNameTranslatorStore.getState().addPaths(paths, "drop");
+  };
+  const { dragging, dropProps } = useToolFileDropTarget({
+    onDrop: handleDrop,
+    label: t("add.drop_label"),
+    disabled: applying || adding,
+  });
 
+  // Recovery prompt for interrupted runs.
   useEffect(() => {
-    if (!requestedPlanId) {
-      setUrlPlanStatus("idle");
-      return;
+    void useNameTranslatorStore.getState().loadRecovery();
+  }, []);
+
+  // Changing the hidden-item setting reloads what is already listed.
+  const includeHiddenRef = useRef(config.includeHidden);
+  useEffect(() => {
+    if (includeHiddenRef.current === config.includeHidden) return;
+    includeHiddenRef.current = config.includeHidden;
+    void useNameTranslatorStore.getState().reloadDirectories();
+  }, [config.includeHidden]);
+
+  // HomeAgent handoff: ?planId= loads a reviewed plan into the workspace.
+  const requestedPlanId = searchParams.get("planId")?.trim() ?? "";
+  useEffect(() => {
+    if (!requestedPlanId) return;
+    const session = toWorkspaceSession(requestedPlanId);
+    if (session) {
+      useNameTranslatorConfigStore.getState().updateConfig(session.settings);
+      useNameTranslatorStore.getState().loadSession(session);
+      showToast(t("agent.loaded"), "success");
+    } else {
+      showToast(t("agent.missing"), "error");
     }
-
-    let canceled = false;
-    setUrlPlanStatus("loading");
-    void loadPlanFromCache(requestedPlanId).then((loaded) => {
-      if (canceled) return;
-      setUrlPlanStatus(loaded ? "loaded" : "missing");
-    });
-
-    return () => {
-      canceled = true;
-    };
-  }, [loadPlanFromCache, requestedPlanId]);
-
-  const requestApply = () => {
-    if (!currentPlan) return;
-    if (risk.hasRisk) {
-      setRiskDialogOpen(true);
-      return;
-    }
-    void applyCurrentPlan();
-  };
-
-  const confirmRiskApply = () => {
-    setRiskDialogOpen(false);
-    void applyCurrentPlan();
-  };
+    const next = new URLSearchParams(searchParams);
+    next.delete("planId");
+    setSearchParams(next, { replace: true });
+  }, [requestedPlanId, searchParams, setSearchParams, t]);
 
   const header = (
-    <ToolPageHeader
-      meta={TOOL_META.nameTranslator}
-      title={t("page.title")}
-      description={t("page.description")}
-      right={
-        <>
-          <Badge variant="secondary" className="gap-1.5 font-normal">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span className="font-mono text-[11px]">{t("page.badge")}</span>
-          </Badge>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
-            onClick={() => setTourOpen(true)}
-            title={t("tour.trigger", "使用引导")}
-          >
-            <CircleHelp className="h-4 w-4" />
-          </Button>
-        </>
-      }
-    />
+    <ToolPageHeader meta={TOOL_META.nameTranslator} title={t("page.title")} description={t("page.description")} />
   );
 
   const aside = (
     <div className="flex flex-col gap-4">
-      <div id="nt-tour-path-picker">
-        <PathPickerPanel
-          selectedPaths={selectedPaths}
-          isPlanning={isPlanning}
-          onAddPaths={addPaths}
-          onRemovePath={removePath}
-          onCreatePreview={createPreview}
-          onReset={clearSelection}
-        />
-      </div>
-      <div id="nt-tour-options">
-        <OptionsPanel
-          options={options}
-          disabled={isPlanning || isApplying}
-          onUpdateOptions={updateOptions}
-        />
-      </div>
+      <AddEntriesPanel
+        adding={adding}
+        dragging={dragging}
+        rejected={rejected}
+        onAddFiles={() => void addFromDialog("file")}
+        onAddFolders={() => void addFromDialog("directory")}
+      />
+      <SettingsPanel disabled={Boolean(run) || applying} />
     </div>
   );
 
   return (
     <>
-      <ToolDetailLayout header={header} aside={aside}>
-        {requestedPlanId && urlPlanStatus === "loading" ? (
-          <Alert>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <AlertTitle>{t("page.loading_plan_title")}</AlertTitle>
-            <AlertDescription>{t("page.loading_plan_desc")}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        {requestedPlanId &&
-        urlPlanStatus === "loaded" &&
-        currentPlan?.planId === requestedPlanId ? (
-          <Alert>
-            <ShieldCheck className="h-4 w-4" />
-            <AlertTitle>{t("page.loaded_from_agent_title")}</AlertTitle>
-            <AlertDescription>
-              {t("page.loaded_from_agent_desc", {
-                planId: shortPlanId(currentPlan.planId),
-                count: currentPlan.totalTargets,
-              })}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
-        {lastError ? (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("page.error_title")}</AlertTitle>
-            <AlertDescription>{lastError}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        <div id="nt-tour-preview">
-          <PlanPreviewTable
-            plan={currentPlan}
-            isPlanning={isPlanning}
-            planningProgress={planningProgress}
-            originalSuggestions={originalSuggestions}
-            onEditItem={updatePlanItem}
-            onRevalidate={revalidateCurrentPlan}
-            onUseAutoIndex={() =>
-              updateOptions({ collisionPolicy: "append_index" })
-            }
-            onCancelPlanning={cancelPlanning}
-          />
-        </div>
-
-        <div id="nt-tour-apply">
-          <ApplySummaryPanel
-            plan={currentPlan}
-            isApplying={isApplying}
-            applyProgress={applyProgress}
-            lastApplyResult={lastApplyResult}
-            lastRollbackResult={lastRollbackResult}
-            lastValidation={lastValidation}
-            onApply={requestApply}
-            onRollback={rollback}
+      <ToolDetailLayout header={header} aside={aside} asideClassName="order-2 lg:order-1" mainClassName="order-1 lg:order-2">
+        <NameTranslatorBanners modelReady={modelReady} />
+        <div {...dropProps} className="min-w-0">
+          <EntryList
+            rows={rows}
+            states={states}
+            summary={summary}
+            modelReady={modelReady}
+            formatInvalid={config.nameMode === "custom" && Boolean(getTemplateError(config.customTemplate))}
+            onAddFiles={() => void addFromDialog("file")}
+            onAddFolders={() => void addFromDialog("directory")}
           />
         </div>
       </ToolDetailLayout>
-
-      <RiskConfirmDialog
-        open={riskDialogOpen}
-        plan={currentPlan}
-        risk={risk}
-        onOpenChange={setRiskDialogOpen}
-        onConfirm={confirmRiskApply}
-      />
-
-      <Tour
-        steps={tourSteps}
-        open={tourOpen}
-        onOpenChange={setTourOpen}
-        onFinish={() => {
-          localStorage.setItem("name-translator-tour-done", "1");
-        }}
-        onSkip={() => {
-          localStorage.setItem("name-translator-tour-done", "1");
-        }}
-        maskClosable
-        scrollIntoView
-      />
+      <ConfirmRenameDialog />
     </>
   );
-}
-
-function shortPlanId(planId: string): string {
-  return planId.length > 18 ? `...${planId.slice(-12)}` : planId;
 }

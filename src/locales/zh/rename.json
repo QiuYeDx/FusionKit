@@ -1,239 +1,217 @@
 {
   "page": {
     "title": "文件名/文件夹名翻译",
-    "description": "选择文件或文件夹，生成 dry-run 预览，确认后安全应用重命名。",
-    "badge": "dry-run first",
-    "error_title": "操作失败",
-    "loading_plan_title": "正在加载 HomeAgent 计划",
-    "loading_plan_desc": "正在恢复刚刚生成的预览、选中路径和可应用状态。",
-    "loaded_from_agent_title": "已加载 HomeAgent 预览",
-    "loaded_from_agent_desc": "正在查看计划 {{planId}}，共 {{count}} 个目标；这里仍然是 dry-run，未修改任何文件。"
+    "description": "添加文件或文件夹，勾选要改名的条目，翻译并核对新名称后再统一重命名，完成后可撤销。"
   },
-  "risk_reasons": {
-    "directories": "包含目录重命名",
-    "descendants": "递归范围",
-    "path_segments": "路径片段",
-    "large_batch": "超过 100 项",
-    "warnings": "包含警告"
+  "add": {
+    "title": "添加条目",
+    "drop_title": "拖入文件或文件夹",
+    "drop_hint": "可混合添加；添加后在条目列表中选择要改名的项",
+    "drop_label": "添加到文件名翻译列表",
+    "files": "添加文件",
+    "folders": "添加文件夹",
+    "rejected": {
+      "missing": "未找到：{{path}}",
+      "protected": "系统或受保护的位置不能改名：{{path}}",
+      "temp_proxy": "这是资源管理器生成的临时副本，请改用“添加文件”按钮选择：{{path}}",
+      "unsupported": "不支持的条目类型：{{path}}",
+      "unreadable": "无法读取：{{path}}"
+    },
+    "rejected_more": "另有 {{count}} 项未添加"
   },
-  "warning_details": {
-    "plan_source": "计划级警告",
-    "item_source": "{{kind}} · {{name}}",
-    "more": "另有 {{count}} 条警告，将在高风险确认弹窗中完整显示。"
+  "settings": {
+    "title": "翻译设置",
+    "target_lang": "目标语言",
+    "source_lang": "源语言",
+    "format": {
+      "label": "名称格式",
+      "hint": "扩展名始终保留，切换格式无需重新翻译。自定义格式中 {translated} 表示译名、{original} 表示原名；译名与原名相同时保留原名。",
+      "mode_translated": "仅译名",
+      "mode_bilingual": "双语",
+      "mode_custom": "自定义",
+      "order": "顺序",
+      "order_translated_first": "译名在前",
+      "order_original_first": "原名在前",
+      "style": "分隔样式",
+      "styles": {
+        "paren": "圆括号 ( )",
+        "bracket": "方括号 [ ]",
+        "dash": "短横线 -",
+        "underscore": "下划线 _",
+        "space": "空格"
+      },
+      "template": "自定义名称格式",
+      "insert_translated": "译名",
+      "insert_original": "原名",
+      "errors": {
+        "missing_translated": "格式中需要包含 {translated}",
+        "illegal_chars": "格式中不能包含 \\ / : * ? \" < > | 等字符",
+        "too_long": "格式过长"
+      },
+      "preview": "示例：{{name}}",
+      "sample_original": "第1話.mp4",
+      "sample_translated": "第1集"
+    },
+    "include_hidden": "包含隐藏项",
+    "include_hidden_hint": "显示以点开头的文件和系统隐藏文件",
+    "instructions": "补充要求",
+    "instructions_empty": "未填写",
+    "instructions_placeholder": "例如：人名保留罗马音；“話”译为“集”"
   },
-  "path": {
-    "section_title": "路径",
-    "dialog_title": "选择要翻译名称的文件或文件夹",
-    "dialog_button": "选择",
-    "drop_title": "拖拽文件或文件夹到这里",
-    "drop_hint": "可分别选择文件或文件夹，也可拖拽混合添加；生成预览前不会改动文件系统",
-    "select_files": "文件",
-    "select_dirs": "仅文件夹",
-    "empty": "选择路径后会显示类型、子项数量和风险标签。",
-    "file_unit": "文件",
-    "directory_unit": "文件夹",
-    "counts": "{{files}} 文件 · {{directories}} 文件夹",
-    "remove_tooltip": "移除路径",
-    "reset_tooltip": "清空当前选择",
-    "create_preview": "生成预览"
+  "languages": {
+    "auto": "自动检测",
+    "ZH": "简体中文",
+    "ZH_HANT": "繁体中文",
+    "JA": "日语",
+    "EN": "英语",
+    "KO": "韩语",
+    "FR": "法语",
+    "DE": "德语",
+    "ES": "西班牙语",
+    "RU": "俄语",
+    "PT": "葡萄牙语"
   },
-  "options": {
-    "section_title": "配置",
-    "scope_label": "翻译范围",
-    "scope": {
-      "self": { "label": "所选名称", "hint": "只翻译选中的文件或文件夹本身" },
-      "children": { "label": "直接子项", "hint": "只翻译文件夹第一层内容" },
-      "descendants": { "label": "递归子项", "hint": "包含多层子目录" },
-      "path_segments": { "label": "路径片段", "hint": "需要后续指定起止层级" }
-    },
-    "target_kind_label": "目标类型",
-    "target_kind": {
-      "files": "文件",
-      "directories": "文件夹",
-      "both": "全部"
-    },
-    "max_depth_label": "递归深度",
-    "max_depth_hint": "仅递归子项模式生效，20 近似无限",
-    "language_label": "语言",
-    "source_auto": "自动识别",
-    "languages": {
-      "ZH": "中文",
-      "EN": "英文",
-      "JA": "日文",
-      "KO": "韩文",
-      "FR": "法文",
-      "DE": "德文",
-      "ES": "西文",
-      "RU": "俄文",
-      "PT": "葡文"
-    },
-    "naming_style_label": "命名风格",
-    "naming_styles": {
-      "preserve": "保留原风格",
-      "space": "空格分词",
-      "kebab": "短横线",
-      "snake": "下划线",
-      "title": "Title Case",
-      "lower": "lowercase"
-    },
-    "output_mode_label": "输出模式",
-    "output_mode": {
-      "target_only": "仅译文",
-      "bilingual_target_first": "译文在前 + 原文",
-      "bilingual_original_first": "原文在前 + 译文"
-    },
-    "separator_label": "分隔符",
-    "skip_hidden_label": "跳过隐藏项",
-    "skip_hidden_hint": "默认不处理 .env、隐藏目录等路径",
-    "preserve_extension_label": "保留扩展名",
-    "preserve_extension_hint": "文件只翻译 stem，不改 .srt / .mp4 等扩展名",
-    "preserve_tokens_label": "保留编号和技术 tag",
-    "preserve_tokens_hint": "尽量保留 S01E02、1080p、字幕组等 token",
-    "collision_label": "冲突处理",
-    "collision_fail": "阻止",
-    "collision_append_index": "自动编号"
+  "list": {
+    "title": "条目",
+    "select": "选择",
+    "clear": "清空列表",
+    "column_name": "名称",
+    "column_new_name": "新名称",
+    "column_status": "状态",
+    "edit_name": "编辑新名称",
+    "edit_name_for": "编辑“{{name}}”的新名称",
+    "edited": "已手动修改",
+    "unchanged": "无需更改",
+    "collapse": "收起",
+    "expand": "展开",
+    "check_entry": "重命名“{{name}}”",
+    "inside_count": "内含 {{checked}}/{{total}} 已选",
+    "select_inside": "选择内部全部",
+    "row_menu": "“{{name}}”的更多操作"
   },
-  "preview": {
-    "title": "预览",
-    "empty_title": "还没有重命名预览",
-    "empty_desc": "选择路径并生成预览后，可以在这里检查、编辑、跳过和应用。",
-    "no_targets_title": "没有找到符合条件的项目",
-    "no_targets_desc": "范围“{{scope}}”与目标类型“{{targetKind}}”下没有可翻译项目。请确认所选路径是文件夹，或调整目标类型、递归深度后重新生成预览。",
-    "revalidate": "重新校验",
-    "planning": {
-      "title": "正在生成预览",
-      "cancel": "取消",
-      "preparing": "准备中",
-      "detail_targets": "{{translated}}/{{total}} 个目标",
-      "detail_batches": "{{translated}}/{{total}} 个目标 · {{completed}}/{{batches}} 批",
-      "phase": {
-        "idle": "idle",
-        "scanning": "scanning",
-        "classifying": "classifying",
-        "translating": "translating",
-        "checking_targets": "checking",
-        "validating": "validating",
-        "storing": "storing",
-        "done": "done",
-        "failed": "failed",
-        "cancelled": "cancelled"
-      }
-    },
-    "summary": {
-      "ready": "ready",
-      "blocked": "blocked",
-      "skipped": "skipped",
-      "unchanged": "unchanged",
-      "warnings": "warnings"
-    },
-    "incomplete_warning_title": "预览内容不完整",
-    "incomplete_warning_desc": "当前仅展示 {{count}}/{{total}} 个目标，超出预览限制的项目未加载。请重新生成预览以获取完整计划后再应用。",
-    "clarification_title": "需要补充范围",
-    "columns": {
-      "status": "状态",
-      "type": "类型",
-      "original_name": "原名称",
-      "new_name": "新名称",
-      "path": "路径",
-      "reason": "原因/警告",
-      "actions": "操作"
-    },
-    "kind": {
-      "file": "文件",
-      "directory": "文件夹"
-    },
-    "actions": {
-      "skip": "跳过",
-      "restore": "恢复 AI 建议",
-      "auto_index": "对冲突使用自动编号",
-      "open_folder": "打开所在文件夹"
-    },
-    "pagination_hint": "每页 {{count}} 项，避免大批量预览一次渲染过多行。",
-    "previous": "上一页",
-    "next": "下一页",
-    "status": {
-      "ready": "ready",
-      "unchanged": "unchanged",
-      "skipped": "skipped",
-      "blocked": "blocked",
-      "applied": "applied",
-      "failed": "failed",
-      "rolled_back": "rolled back"
-    }
+  "select_inside": {
+    "all": "选择内部全部（含子文件夹）",
+    "files": "仅选择内部文件",
+    "folders": "仅选择内部文件夹",
+    "children": "仅选择直接子项",
+    "none": "取消选择内部"
   },
-  "apply": {
-    "title": "应用",
-    "metrics": {
-      "ready": "可应用",
-      "blocked": "阻塞",
-      "skipped": "跳过",
-      "unchanged": "无变化",
-      "success": "成功",
-      "failed": "失败"
-    },
-    "warnings_title": "计划包含警告",
-    "validation_failed_title": "校验未通过",
-    "result_title": "执行结果",
-    "rollback": "尝试回滚",
-    "rollback_summary": "回滚 journal {{journalId}}：成功 {{success}}，失败 {{failed}}",
-    "apply_button": "应用重命名",
-    "no_plan_hint": "所有真实重命名都会先写 journal；这里不会绕过 dry-run 预览。",
-    "incomplete_hint": "预览不完整（{{count}}/{{total}}），无法应用。请重新生成预览。",
-    "blocked_hint": "只有 blocked 为 0 且 ready 大于 0 时才允许应用。",
-    "confirm_hint": "点击应用前会按高风险规则检查是否需要二次确认。",
-    "phase": {
-      "validating": "validating",
-      "applying": "applying",
-      "rolling_back": "rolling back",
-      "done": "done",
-      "failed": "failed"
-    }
+  "select_all": {
+    "everything": "全选（含所有子文件夹内容）",
+    "files": "仅选择文件",
+    "folders": "仅选择文件夹",
+    "roots": "仅选择添加的条目",
+    "none": "取消全选"
   },
-  "risk": {
-    "title": "确认高风险重命名",
-    "description": "该计划包含需要额外确认的操作。应用前请检查风险原因和警告详情。",
-    "metrics": {
-      "impacted": "影响项",
-      "files": "文件",
-      "directories": "文件夹",
-      "warnings": "警告"
-    },
-    "reasons_title": "风险原因",
-    "warnings_title": "警告详情",
-    "warnings_desc": "以下内容包含计划级诊断，以及具体文件或文件夹的命名警告。请确认这些风险可接受后再应用。",
-    "scope": "范围：{{scope}}",
-    "journal_hint": "journal 会在执行层写入应用数据目录，可用于尽力回滚，但不是事务保证。",
-    "apply_hint": "确认后才会调用 apply-rename-plan。",
+  "row": {
+    "edit": "编辑新名称",
+    "retranslate": "重新翻译此项",
+    "reset": "恢复为翻译结果",
+    "remove": "从列表移除"
+  },
+  "status": {
+    "pending": "待翻译",
+    "translating": "翻译中",
+    "stale": "翻译设置已更改，需要重新翻译",
+    "failed": "翻译失败，可重新翻译",
+    "unchanged": "新名称与原名相同，不会改名",
+    "issue": "有问题，将跳过",
+    "ready": "就绪"
+  },
+  "issues": {
+    "empty_name": "名称不能为空",
+    "illegal_chars": "名称包含不能使用的字符：\\ / : * ? \" < > |",
+    "reserved_name": "这是系统保留名称（如 CON、NUL），请换一个名称",
+    "trailing_dot_space": "名称不能以点或空格结尾",
+    "too_long": "名称过长（超过 255 个字符或字节）",
+    "duplicate_target": "与同一文件夹中的另一个新名称重复，可使用“自动编号”",
+    "target_exists": "同一文件夹中已有同名条目",
+    "source_missing": "原条目已不存在",
+    "source_changed": "原条目已被移动或替换，请重新添加",
+    "protected_path": "系统或受保护的位置不能改名",
+    "duplicate_source": "同一条目重复出现"
+  },
+  "filter": {
+    "label": "显示范围",
+    "all": "全部",
+    "checked": "已选 {{count}}",
+    "issues": "问题 {{count}}",
+    "empty": "当前筛选下没有条目"
+  },
+  "empty": {
+    "title": "添加要翻译名称的文件或文件夹",
+    "description": "拖入或选择后，勾选要改名的条目。文件夹可一键选择其中全部内容，文件夹自身与其中条目可以一起改名。"
+  },
+  "actions": {
+    "stop": "停止",
+    "translate": "翻译 {{count}} 项",
+    "rename": "重命名 {{count}} 项",
+    "number_duplicates": "自动编号",
+    "retranslate": "重新翻译"
+  },
+  "progress": {
+    "translating": "已翻译 {{done}}/{{total}}"
+  },
+  "summary": {
+    "none_checked": "勾选要改名的条目",
+    "checked": "已选 {{count}} 项",
+    "ready": "{{count}} 项就绪",
+    "issues": "{{count}} 项有问题将跳过",
+    "format_invalid": "名称格式有误，请先修正"
+  },
+  "confirm": {
+    "title": "确认重命名 {{count}} 项",
+    "summary": "文件 {{files}} 个 · 文件夹 {{folders}} 个",
+    "skipped": "另有 {{count}} 项已选条目不会改名",
+    "more": "另有 {{count}} 项未在此列出",
+    "changed": "部分条目在核对后发生了变化，已在列表中标出。请关闭后检查再重试。",
+    "undo_hint": "完成后可在本页撤销",
     "cancel": "取消",
-    "confirm": "确认应用"
+    "start": "开始重命名",
+    "applying": "正在重命名…"
   },
-  "messages": {
-    "select_paths_first": "请先选择至少一个文件或文件夹。",
-    "preview_created": "预览已生成，尚未修改任何文件。",
-    "preview_empty": "没有找到符合当前范围和目标类型的项目，请调整配置后重试。",
-    "missing_plan": "请先生成重命名预览。",
-    "validating": "正在校验重命名计划...",
-    "applying": "正在应用重命名...",
-    "done": "重命名已完成。",
-    "validation_failed": "重命名计划校验未通过。",
-    "rename_finished": "重命名执行完成。",
-    "planning_cancelled": "已取消预览生成。",
-    "rolling_back": "正在尝试回滚...",
-    "rollback_done": "回滚请求已完成。",
-    "ipc_unavailable": "Electron IPC 不可用。",
-    "plan_not_found": "未找到重命名计划 {{planId}}，可能已过期或被清理，请重新生成预览。",
-    "plan_loaded_from_agent": "已加载 HomeAgent 中的重命名预览。",
-    "plan_items_incomplete": "当前预览不完整（仅包含 {{count}}/{{total}} 项），无法应用。请重新生成完整预览。"
+  "outcome": {
+    "completed": "已重命名 {{count}} 项",
+    "undone": "已撤销，{{count}} 项已恢复原名",
+    "undo_partial": "撤销未全部完成，以下条目没能恢复原名",
+    "undo": "撤销",
+    "retry_undo": "继续撤销",
+    "dismiss": "关闭",
+    "failed_rolled_back": "重命名失败，已全部恢复原状",
+    "failed_partial": "重命名失败，部分条目没能恢复原名",
+    "failed_at": "出错位置：{{path}}（{{message}}）",
+    "unrecovered_item": "{{current}} 应恢复为 {{expected}}"
   },
-  "tour": {
-    "path_picker_title": "选择文件或文件夹",
-    "path_picker_content": "将需要重命名的文件或文件夹拖拽到此处，或点击按钮选择。支持同时添加多个路径。",
-    "options_title": "翻译选项",
-    "options_content": "配置翻译参数：源语言、目标语言、命名风格、翻译范围等。不同配置会影响重命名的结果。",
-    "preview_title": "预览重命名计划",
-    "preview_content": "生成预览后，所有待重命名的项目会在此展示。你可以逐条编辑、恢复原始建议或跳过某些项。",
-    "apply_title": "应用重命名",
-    "apply_content": "确认计划无误后点击应用。系统会自动记录操作日志，如需撤销可一键回滚。",
-    "trigger": "使用引导"
+  "recovery": {
+    "title": "上次重命名没有完成",
+    "description": "{{time}} 的重命名在进行中被中断，{{count}} 个改名步骤已经发生。",
+    "restore": "恢复原名",
+    "keep": "保留现状"
+  },
+  "model": {
+    "missing_title": "尚未配置任务执行模型",
+    "missing_description": "可以先添加和选择条目；翻译前需要在设置中配置任务执行模型。",
+    "open_settings": "前往设置"
+  },
+  "errors": {
+    "invalid_request": "请求无效",
+    "model_auth": "模型鉴权失败，请检查 API Key",
+    "model_quota": "模型额度不足",
+    "model_not_found": "找不到所配置的模型",
+    "model_failed": "模型请求失败",
+    "cancelled": "已取消",
+    "too_many_entries": "条目过多",
+    "journal_not_found": "找不到重命名记录",
+    "busy": "另一个重命名操作仍在进行",
+    "internal": "操作失败",
+    "bridge_unavailable": "此功能仅在桌面应用中可用"
+  },
+  "notice": {
+    "truncated_title": "条目过多，只加载了一部分",
+    "truncated": "“{{path}}”中的条目超过单次上限，只加载并选择了前一部分。可分批处理其中的子文件夹。"
+  },
+  "agent": {
+    "loaded": "已载入 HomeAgent 的重命名计划，请核对后再重命名",
+    "missing": "HomeAgent 的重命名计划已过期，请重新生成"
   }
 }

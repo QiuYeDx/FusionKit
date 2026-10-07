@@ -1,6 +1,8 @@
 {
   "title": "ツール",
-  "file_drop": { "release": "ファイルをドロップして読み込む" },
+  "file_drop": {
+    "release": "ファイルをドロップして読み込む"
+  },
   "description": "字幕処理、音楽編集、ファイル名変更など、多様な便利なツールを提供しています。効率的にタスクを完了するお手伝いをします。",
   "subtitle": {
     "subtitle_tools": "字幕ツール",
@@ -33,7 +35,7 @@
     "subtitle_formatter": "字幕形式を変換（SRT、ASS など）",
     "subtitle_language_extractor": "バイリンガル字幕から指定言語を抽出",
     "local_subtitle_transcriber": "ローカルモデルで音声や動画を一括処理し、SRT / LRC 字幕に文字起こしします",
-    "name_translator": "ファイルやフォルダ名を一括翻訳し、プレビュー後に安全にリネームします",
+    "name_translator": "ファイルやフォルダー（中身を含む）を選んで AI で名前を翻訳し、確認・編集してから一括で名前を変更。元に戻すこともできます",
     "text_translator": "タスク用モデルで長い TXT / Markdown ファイルを翻訳し、復元可能な作業領域を保持します",
     "audio_transcriber": "グローバル ASR 設定でローカル音声ファイルを文字起こしします",
     "speech_synthesizer": "グローバル TTS 設定で音声を生成して再生します",
@@ -42,8 +44,8 @@
     "subtitle_studio": "音声・動画の文字起こし、AI 字幕翻訳、対訳字幕の一括出力"
   },
   "chips": {
-    "name_translator_files": "ファイル · フォルダ",
-    "name_translator_safe": "プレビュー · Journal",
+    "name_translator_files": "ファイル · フォルダー · 中身",
+    "name_translator_safe": "確認 · 元に戻す",
     "text_translator_txt": "TXT",
     "text_translator_markdown": "Markdown",
     "audio_file": "音声ファイル",

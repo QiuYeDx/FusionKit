@@ -76,42 +76,39 @@ describe("name translation tool schemas", () => {
     });
 
     expect(parsed.scope).toBe("self");
-    expect(parsed.targetKind).toBe("files");
-    expect(parsed.recursive).toBe(false);
+    expect(parsed.targetKind).toBe("both");
+    expect(parsed.includeRoots).toBe(false);
     expect(parsed.includeHidden).toBe(false);
-    expect(parsed.collisionPolicy).toBe("fail");
     expect(parsed.targetLang).toBe("ZH");
-    expect(parsed.outputMode).toBe("target_only");
-    expect(parsed.bilingualSeparator).toBe(" - ");
+    expect(parsed.nameFormat).toBe("translated");
   });
 
-  it("accepts bilingual output mode settings", () => {
+  it("accepts bilingual name formats and instructions", () => {
     const parsed = createNameTranslationPlanSchema.parse({
       roots: ["/tmp/日剧"],
-      outputMode: "bilingual_target_first",
-      bilingualSeparator: "_",
+      nameFormat: "translated_original",
+      instructions: "人名保留罗马音",
     });
 
-    expect(parsed.outputMode).toBe("bilingual_target_first");
-    expect(parsed.bilingualSeparator).toBe("_");
+    expect(parsed.nameFormat).toBe("translated_original");
+    expect(parsed.instructions).toBe("人名保留罗马音");
   });
 
-  it("keeps explicit recursive descendant settings", () => {
+  it("keeps explicit recursive settings and rejects removed scopes", () => {
     const parsed = createNameTranslationPlanSchema.parse({
       roots: ["/tmp/日剧"],
       scope: "descendants",
       targetKind: "files",
-      recursive: true,
-      maxDepth: 6,
+      includeRoots: true,
       targetLang: "EN",
-      collisionPolicy: "append_index",
     });
 
     expect(parsed.scope).toBe("descendants");
-    expect(parsed.recursive).toBe(true);
-    expect(parsed.maxDepth).toBe(6);
+    expect(parsed.includeRoots).toBe(true);
     expect(parsed.targetLang).toBe("EN");
-    expect(parsed.collisionPolicy).toBe("append_index");
+    expect(() =>
+      createNameTranslationPlanSchema.parse({ roots: ["/tmp"], scope: "path_segments" }),
+    ).toThrow();
   });
 
   it("requires a plan id before apply", () => {

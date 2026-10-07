@@ -46,14 +46,6 @@ const CLASSIC_TOOLS: CardItem[] = [
       "tools:chips.local_batch_formats",
     ],
   },
-];
-
-const EXPERIMENTAL_TOOLS: CardItem[] = [
-  {
-    id: "music",
-    titleKey: "tools:coming_soon.title",
-    descKey: "tools:coming_soon.music_desc",
-  },
   {
     id: "nameTranslator",
     titleKey: "tools:fields.name_translator",
@@ -62,6 +54,14 @@ const EXPERIMENTAL_TOOLS: CardItem[] = [
       "tools:chips.name_translator_files",
       "tools:chips.name_translator_safe",
     ],
+  },
+];
+
+const EXPERIMENTAL_TOOLS: CardItem[] = [
+  {
+    id: "music",
+    titleKey: "tools:coming_soon.title",
+    descKey: "tools:coming_soon.music_desc",
   },
   {
     id: "textTranslator",

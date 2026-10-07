@@ -176,7 +176,7 @@ describe("Agent turn ownership and receipts", () => {
       pendingNameTranslationPlan: {
         planId: "rename-current", createdByUserMessageId: "preview-user", createdAt: 1, resolvedAction: null,
         summary: { planId: "rename-current", totalTargets: 100, previewLimit: 30, readyCount: 100, blockedCount: 0, skippedCount: 0, unchangedCount: 0, warnings: [], applyable: true,
-          itemsPreview: Array.from({ length: 30 }, (_, i) => ({ sourcePath: `source-${i}` + "s".repeat(1000), targetPath: `target-${i}` + "t".repeat(1000), status: "ready" })) as never },
+          itemsPreview: Array.from({ length: 30 }, (_, i) => ({ sourcePath: `source-${i}` + "s".repeat(1000), originalName: `name-${i}`, newName: `target-${i}` + "t".repeat(1000), status: "ready" })) as never },
       },
     });
     await handleUserMessage("确认执行刚才的重命名计划");

@@ -169,62 +169,42 @@ export const inspectRenamePathsSchema = z.object({
     .describe("Absolute file or directory paths to inspect for name translation / rename."),
 });
 
-/** create_name_translation_plan — 创建名称翻译 dry-run 计划 */
+/** create_name_translation_plan — 创建名称翻译预览计划（不改动磁盘） */
 export const createNameTranslationPlanSchema = z.object({
   roots: z
     .array(z.string())
     .min(1)
     .describe("Absolute file or directory paths provided by the user."),
   scope: z
-    .enum(["self", "children", "descendants", "path_segments"])
+    .enum(["self", "children", "descendants"])
     .default("self")
     .describe(
-      "Rename scope. Use self for the selected basename, children for direct children, descendants only when the user explicitly requests recursion, path_segments only for explicit path-segment renaming."
+      "What to rename. self = the given paths themselves; children = direct children of the given folders; descendants = everything inside the given folders recursively (only when the user explicitly asks for nested content)."
     ),
   targetKind: z
     .enum(["files", "directories", "both"])
-    .default("files")
-    .describe("Which target kinds to rename."),
-  recursive: z
+    .default("both")
+    .describe("For children/descendants: rename files, folders or both. Ignored for self."),
+  includeRoots: z
     .boolean()
     .default(false)
-    .describe("Whether to include nested descendants. Must be true only when recursion is explicit."),
-  maxDepth: z.number().int().min(0).max(20).default(1),
+    .describe("For children/descendants: also rename the given folders themselves."),
   includeHidden: z.boolean().default(false),
-  includeRoot: z
-    .boolean()
-    .default(true)
-    .describe("Whether to include the root path itself when scope allows it."),
   sourceLang: z
-    .enum(["auto", "ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .enum(["auto", "ZH", "ZH_HANT", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
     .default("auto"),
   targetLang: z
-    .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .enum(["ZH", "ZH_HANT", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
     .default("ZH"),
-  namingStyle: z
-    .enum(["preserve", "space", "kebab", "snake", "title", "lower"])
-    .default("preserve"),
-  outputMode: z
-    .enum(["target_only", "bilingual_target_first", "bilingual_original_first"])
-    .default("target_only")
-    .describe("Output filename mode. target_only replaces the original name; bilingual modes keep both translated and original text."),
-  bilingualSeparator: z
+  nameFormat: z
+    .enum(["translated", "translated_original", "original_translated"])
+    .default("translated")
+    .describe("translated replaces the name; translated_original gives 'Translated (Original)'; original_translated gives 'Original (Translated)'."),
+  instructions: z
     .string()
-    .default(" - ")
-    .describe("Separator between translated and original parts in bilingual mode."),
-  collisionPolicy: z
-    .enum(["fail", "append_index"])
-    .default("fail")
-    .describe("Default fail. Use append_index only when the user explicitly accepts indexed names."),
-  pathSegmentStartPath: z
-    .string()
+    .max(1000)
     .optional()
-    .describe("Required when scope=path_segments: the path segment where translation starts."),
-  pathSegmentEndPath: z
-    .string()
-    .optional()
-    .describe("Required when scope=path_segments: the path segment where translation ends."),
-  includeEndFileName: z.boolean().default(true),
+    .describe("Optional extra translation requirements from the user, e.g. how to handle person names."),
 });
 
 /** apply_name_translation_plan — 应用已确认的名称翻译计划 */

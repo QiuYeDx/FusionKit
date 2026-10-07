@@ -9,7 +9,7 @@ describe("official Agent capability catalog", () => {
     const featured = source.split("const FEATURED_TOOLS =")[1].split("const Tools:")[0];
     const official = [...`${classic}\n${featured}`.matchAll(/id: "([A-Za-z]+)"/g)].map(match => match[1]);
     expect(AGENT_CAPABILITIES.map(item => item.toolKey).sort()).toEqual(official.sort());
-    expect(AGENT_CAPABILITIES).toHaveLength(6);
+    expect(AGENT_CAPABILITIES).toHaveLength(7);
     for (const item of AGENT_CAPABILITIES) {
       expect(item.route).toMatch(/^\/tools\//);
       expect(item.operations.length).toBeGreaterThan(0);

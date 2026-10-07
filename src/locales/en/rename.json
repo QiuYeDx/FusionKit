@@ -1,239 +1,217 @@
 {
   "page": {
-    "title": "File/Folder Name Translator",
-    "description": "Select files or folders, generate a dry-run preview, then safely apply renames after confirmation.",
-    "badge": "dry-run first",
-    "error_title": "Action failed",
-    "loading_plan_title": "Loading HomeAgent plan",
-    "loading_plan_desc": "Restoring the preview, selected paths, and apply state from the plan you just created.",
-    "loaded_from_agent_title": "HomeAgent preview loaded",
-    "loaded_from_agent_desc": "Viewing plan {{planId}} with {{count}} targets. This is still a dry run; no files have been modified."
+    "title": "File & Folder Name Translator",
+    "description": "Add files or folders, tick the entries to rename, translate and review the new names, then rename them together. You can undo afterwards."
   },
-  "risk_reasons": {
-    "directories": "Includes folder renames",
-    "descendants": "Recursive scope",
-    "path_segments": "Path segments",
-    "large_batch": "More than 100 items",
-    "warnings": "Contains warnings"
+  "add": {
+    "title": "Add entries",
+    "drop_title": "Drop files or folders",
+    "drop_hint": "Mix files and folders freely, then choose what to rename in the entry list",
+    "drop_label": "Add to the name translation list",
+    "files": "Add files",
+    "folders": "Add folders",
+    "rejected": {
+      "missing": "Not found: {{path}}",
+      "protected": "System or protected locations cannot be renamed: {{path}}",
+      "temp_proxy": "This is a temporary copy created by Explorer. Use “Add files” instead: {{path}}",
+      "unsupported": "Unsupported entry type: {{path}}",
+      "unreadable": "Cannot read: {{path}}"
+    },
+    "rejected_more": "{{count}} more not added"
   },
-  "warning_details": {
-    "plan_source": "Plan-level warning",
-    "item_source": "{{kind}}: {{name}}",
-    "more": "{{count}} more warnings will be shown in full in the high-risk confirmation dialog."
+  "settings": {
+    "title": "Translation settings",
+    "target_lang": "Target language",
+    "source_lang": "Source language",
+    "format": {
+      "label": "Name format",
+      "hint": "Extensions are always kept and switching formats needs no new translation. In a custom format, {translated} is the translation and {original} the original name; names whose translation equals the original stay unchanged.",
+      "mode_translated": "Translation",
+      "mode_bilingual": "Bilingual",
+      "mode_custom": "Custom",
+      "order": "Order",
+      "order_translated_first": "Translation first",
+      "order_original_first": "Original first",
+      "style": "Separator",
+      "styles": {
+        "paren": "Parentheses ( )",
+        "bracket": "Brackets [ ]",
+        "dash": "Dash -",
+        "underscore": "Underscore _",
+        "space": "Space"
+      },
+      "template": "Custom name format",
+      "insert_translated": "Translation",
+      "insert_original": "Original",
+      "errors": {
+        "missing_translated": "The format must contain {translated}",
+        "illegal_chars": "The format cannot contain \\ / : * ? \" < > |",
+        "too_long": "The format is too long"
+      },
+      "preview": "Example: {{name}}",
+      "sample_original": "第1話.mp4",
+      "sample_translated": "Episode 1"
+    },
+    "include_hidden": "Include hidden items",
+    "include_hidden_hint": "Show dot-files and system hidden files",
+    "instructions": "Extra instructions",
+    "instructions_empty": "None",
+    "instructions_placeholder": "e.g. keep person names in romaji; translate “話” as “Episode”"
   },
-  "path": {
-    "section_title": "Paths",
-    "dialog_title": "Select files or folders whose names should be translated",
-    "dialog_button": "Select",
-    "drop_title": "Drop files or folders here",
-    "drop_hint": "Select files or folders separately, or drop mixed items here. Preview generation does not modify the filesystem.",
-    "select_files": "Files",
-    "select_dirs": "Folders only",
-    "empty": "Selected paths will show type, child counts, and risk labels.",
-    "file_unit": "file",
-    "directory_unit": "folder",
-    "counts": "{{files}} files · {{directories}} folders",
-    "remove_tooltip": "Remove path",
-    "reset_tooltip": "Clear current selection",
-    "create_preview": "Generate Preview"
+  "languages": {
+    "auto": "Auto detect",
+    "ZH": "Simplified Chinese",
+    "ZH_HANT": "Traditional Chinese",
+    "JA": "Japanese",
+    "EN": "English",
+    "KO": "Korean",
+    "FR": "French",
+    "DE": "German",
+    "ES": "Spanish",
+    "RU": "Russian",
+    "PT": "Portuguese"
   },
-  "options": {
-    "section_title": "Options",
-    "scope_label": "Scope",
-    "scope": {
-      "self": { "label": "Selected name", "hint": "Translate only the selected file or folder itself" },
-      "children": { "label": "Direct children", "hint": "Translate only the first level inside folders" },
-      "descendants": { "label": "Recursive children", "hint": "Include nested subfolders" },
-      "path_segments": { "label": "Path segments", "hint": "Requires explicit start and end levels later" }
-    },
-    "target_kind_label": "Target type",
-    "target_kind": {
-      "files": "Files",
-      "directories": "Folders",
-      "both": "All"
-    },
-    "max_depth_label": "Recursive depth",
-    "max_depth_hint": "Only used for recursive children. 20 is effectively unlimited.",
-    "language_label": "Language",
-    "source_auto": "Auto detect",
-    "languages": {
-      "ZH": "Chinese",
-      "EN": "English",
-      "JA": "Japanese",
-      "KO": "Korean",
-      "FR": "French",
-      "DE": "German",
-      "ES": "Spanish",
-      "RU": "Russian",
-      "PT": "Portuguese"
-    },
-    "naming_style_label": "Naming style",
-    "naming_styles": {
-      "preserve": "Preserve style",
-      "space": "Space separated",
-      "kebab": "Kebab case",
-      "snake": "Snake case",
-      "title": "Title Case",
-      "lower": "lowercase"
-    },
-    "output_mode_label": "Output mode",
-    "output_mode": {
-      "target_only": "Translation only",
-      "bilingual_target_first": "Translation + Original",
-      "bilingual_original_first": "Original + Translation"
-    },
-    "separator_label": "Separator",
-    "skip_hidden_label": "Skip hidden items",
-    "skip_hidden_hint": "Hidden paths such as .env and hidden folders are skipped by default",
-    "preserve_extension_label": "Preserve extensions",
-    "preserve_extension_hint": "Only translate the file stem; keep extensions such as .srt or .mp4",
-    "preserve_tokens_label": "Preserve numbers and technical tags",
-    "preserve_tokens_hint": "Try to keep tokens such as S01E02, 1080p, and release group tags",
-    "collision_label": "Collision handling",
-    "collision_fail": "Block",
-    "collision_append_index": "Auto index"
+  "list": {
+    "title": "Entries",
+    "select": "Select",
+    "clear": "Clear list",
+    "column_name": "Name",
+    "column_new_name": "New name",
+    "column_status": "Status",
+    "edit_name": "Edit new name",
+    "edit_name_for": "Edit the new name of “{{name}}”",
+    "edited": "Edited manually",
+    "unchanged": "No change",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "check_entry": "Rename “{{name}}”",
+    "inside_count": "{{checked}}/{{total}} inside selected",
+    "select_inside": "Select all inside",
+    "row_menu": "More actions for “{{name}}”"
   },
-  "preview": {
-    "title": "Preview",
-    "empty_title": "No rename preview yet",
-    "empty_desc": "After selecting paths and generating a preview, you can review, edit, skip, and apply changes here.",
-    "no_targets_title": "No matching items found",
-    "no_targets_desc": "No translatable items matched scope “{{scope}}” and target type “{{targetKind}}”. Confirm that the selected path is a folder, or adjust the target type or recursive depth and regenerate the preview.",
-    "revalidate": "Revalidate",
-    "planning": {
-      "title": "Generating preview",
-      "cancel": "Cancel",
-      "preparing": "Preparing",
-      "detail_targets": "{{translated}}/{{total}} targets",
-      "detail_batches": "{{translated}}/{{total}} targets · {{completed}}/{{batches}} batches",
-      "phase": {
-        "idle": "idle",
-        "scanning": "scanning",
-        "classifying": "classifying",
-        "translating": "translating",
-        "checking_targets": "checking",
-        "validating": "validating",
-        "storing": "storing",
-        "done": "done",
-        "failed": "failed",
-        "cancelled": "cancelled"
-      }
-    },
-    "summary": {
-      "ready": "ready",
-      "blocked": "blocked",
-      "skipped": "skipped",
-      "unchanged": "unchanged",
-      "warnings": "warnings"
-    },
-    "incomplete_warning_title": "Incomplete preview",
-    "incomplete_warning_desc": "Only {{count}}/{{total}} targets are shown. Items beyond the preview limit were not loaded. Regenerate the preview for a full plan before applying.",
-    "clarification_title": "More scope detail required",
-    "columns": {
-      "status": "Status",
-      "type": "Type",
-      "original_name": "Original name",
-      "new_name": "New name",
-      "path": "Path",
-      "reason": "Reason/Warnings",
-      "actions": "Actions"
-    },
-    "kind": {
-      "file": "File",
-      "directory": "Folder"
-    },
-    "actions": {
-      "skip": "Skip",
-      "restore": "Restore AI suggestion",
-      "auto_index": "Use auto index for conflicts",
-      "open_folder": "Open containing folder"
-    },
-    "pagination_hint": "{{count}} items per page to avoid rendering huge previews at once.",
-    "previous": "Previous",
-    "next": "Next",
-    "status": {
-      "ready": "ready",
-      "unchanged": "unchanged",
-      "skipped": "skipped",
-      "blocked": "blocked",
-      "applied": "applied",
-      "failed": "failed",
-      "rolled_back": "rolled back"
-    }
+  "select_inside": {
+    "all": "Select everything inside (incl. subfolders)",
+    "files": "Select files inside only",
+    "folders": "Select folders inside only",
+    "children": "Select direct children only",
+    "none": "Clear selection inside"
   },
-  "apply": {
-    "title": "Apply",
-    "metrics": {
-      "ready": "Ready",
-      "blocked": "Blocked",
-      "skipped": "Skipped",
-      "unchanged": "Unchanged",
-      "success": "Success",
-      "failed": "Failed"
-    },
-    "warnings_title": "Plan contains warnings",
-    "validation_failed_title": "Validation failed",
-    "result_title": "Apply result",
-    "rollback": "Try rollback",
-    "rollback_summary": "Rollback journal {{journalId}}: {{success}} succeeded, {{failed}} failed",
-    "apply_button": "Apply Renames",
-    "no_plan_hint": "Every real rename writes a journal first. This flow never bypasses the dry-run preview.",
-    "incomplete_hint": "Preview is incomplete ({{count}}/{{total}}). Cannot apply. Please regenerate the preview.",
-    "blocked_hint": "Apply is enabled only when blocked is 0 and ready is greater than 0.",
-    "confirm_hint": "High-risk rules are checked before applying.",
-    "phase": {
-      "validating": "validating",
-      "applying": "applying",
-      "rolling_back": "rolling back",
-      "done": "done",
-      "failed": "failed"
-    }
+  "select_all": {
+    "everything": "Select all (incl. subfolder contents)",
+    "files": "Select files only",
+    "folders": "Select folders only",
+    "roots": "Select added entries only",
+    "none": "Clear selection"
   },
-  "risk": {
-    "title": "Confirm high-risk rename",
-    "description": "This plan contains operations that need extra confirmation. Review the risk reasons and warning details before applying it.",
-    "metrics": {
-      "impacted": "Impacted",
-      "files": "Files",
-      "directories": "Folders",
-      "warnings": "Warnings"
-    },
-    "reasons_title": "Risk reasons",
-    "warnings_title": "Warning details",
-    "warnings_desc": "These details include plan-level diagnostics and naming warnings for specific files or folders. Apply only after reviewing them.",
-    "scope": "Scope: {{scope}}",
-    "journal_hint": "A journal is written under app data and can help with best-effort rollback, but it is not a transaction guarantee.",
-    "apply_hint": "apply-rename-plan is called only after confirmation.",
+  "row": {
+    "edit": "Edit new name",
+    "retranslate": "Translate this again",
+    "reset": "Restore translation",
+    "remove": "Remove from list"
+  },
+  "status": {
+    "pending": "Waiting for translation",
+    "translating": "Translating",
+    "stale": "Settings changed. Translate again",
+    "failed": "Translation failed. Try again",
+    "unchanged": "Same as the current name. Will not be renamed",
+    "issue": "Has a problem. Will be skipped",
+    "ready": "Ready"
+  },
+  "issues": {
+    "empty_name": "The name cannot be empty",
+    "illegal_chars": "The name contains characters that cannot be used: \\ / : * ? \" < > |",
+    "reserved_name": "This is a reserved system name (such as CON or NUL)",
+    "trailing_dot_space": "The name cannot end with a dot or space",
+    "too_long": "The name is too long (over 255 characters or bytes)",
+    "duplicate_target": "Same as another new name in this folder. Try “Auto-number”",
+    "target_exists": "An entry with this name already exists in the folder",
+    "source_missing": "The original entry no longer exists",
+    "source_changed": "The original entry was moved or replaced. Add it again",
+    "protected_path": "System or protected locations cannot be renamed",
+    "duplicate_source": "The same entry appears more than once"
+  },
+  "filter": {
+    "label": "Show",
+    "all": "All",
+    "checked": "Selected {{count}}",
+    "issues": "Problems {{count}}",
+    "empty": "No entries match this view"
+  },
+  "empty": {
+    "title": "Add files or folders whose names you want to translate",
+    "description": "After adding, tick the entries to rename. Folders can select everything inside in one click, and a folder can be renamed together with its contents."
+  },
+  "actions": {
+    "stop": "Stop",
+    "translate": "Translate ({{count}})",
+    "rename": "Rename ({{count}})",
+    "number_duplicates": "Auto-number",
+    "retranslate": "Translate again"
+  },
+  "progress": {
+    "translating": "Translated {{done}}/{{total}}"
+  },
+  "summary": {
+    "none_checked": "Tick the entries you want to rename",
+    "checked": "Selected: {{count}}",
+    "ready": "Ready: {{count}}",
+    "issues": "Problems (skipped): {{count}}",
+    "format_invalid": "Fix the name format first"
+  },
+  "confirm": {
+    "title": "Rename {{count}} entries?",
+    "summary": "Files: {{files}} · Folders: {{folders}}",
+    "skipped": "{{count}} other selected entries will keep their names",
+    "more": "{{count}} more not listed here",
+    "changed": "Some entries changed after review and are marked in the list. Close this dialog, check them and try again.",
+    "undo_hint": "You can undo on this page afterwards",
     "cancel": "Cancel",
-    "confirm": "Confirm Apply"
+    "start": "Rename",
+    "applying": "Renaming…"
   },
-  "messages": {
-    "select_paths_first": "Select at least one file or folder first.",
-    "preview_created": "Preview generated. No files have been modified.",
-    "preview_empty": "No items matched the current scope and target type. Adjust the options and try again.",
-    "missing_plan": "Generate a rename preview first.",
-    "validating": "Validating rename plan...",
-    "applying": "Applying renames...",
-    "done": "Renames completed.",
-    "validation_failed": "Rename plan validation failed.",
-    "rename_finished": "Rename execution finished.",
-    "planning_cancelled": "Preview generation cancelled.",
-    "rolling_back": "Trying rollback...",
-    "rollback_done": "Rollback request completed.",
-    "ipc_unavailable": "Electron IPC is not available.",
-    "plan_not_found": "Rename plan {{planId}} was not found. It may have expired or been cleared; please generate a new preview.",
-    "plan_loaded_from_agent": "Loaded the rename preview from HomeAgent.",
-    "plan_items_incomplete": "Preview is incomplete (only {{count}}/{{total}} items). Cannot apply. Please regenerate a full preview."
+  "outcome": {
+    "completed": "Renamed {{count}} entries",
+    "undone": "Undone. {{count}} entries got their original names back",
+    "undo_partial": "Undo did not finish. These entries could not be restored",
+    "undo": "Undo",
+    "retry_undo": "Continue undo",
+    "dismiss": "Dismiss",
+    "failed_rolled_back": "Renaming failed. Everything was restored",
+    "failed_partial": "Renaming failed. Some entries could not be restored",
+    "failed_at": "Failed at: {{path}} ({{message}})",
+    "unrecovered_item": "{{current}} should be restored to {{expected}}"
   },
-  "tour": {
-    "path_picker_title": "Select files or folders",
-    "path_picker_content": "Drag the files or folders you want to rename here, or click the button to choose them. You can add multiple paths at once.",
-    "options_title": "Translation options",
-    "options_content": "Configure translation parameters such as source language, target language, naming style, and translation scope. Different settings affect the rename results.",
-    "preview_title": "Preview rename plan",
-    "preview_content": "After generating a preview, all items to be renamed appear here. You can edit each item, restore the original suggestion, or skip selected items.",
-    "apply_title": "Apply rename",
-    "apply_content": "Once you have confirmed the plan, click Apply. An operation log is recorded automatically so you can roll it back if needed.",
-    "trigger": "Show guide"
+  "recovery": {
+    "title": "The last rename did not finish",
+    "description": "A rename started at {{time}} was interrupted after {{count}} rename steps.",
+    "restore": "Restore original names",
+    "keep": "Keep as is"
+  },
+  "model": {
+    "missing_title": "No task execution model configured",
+    "missing_description": "You can add and select entries now. Configure a task execution model in Settings before translating.",
+    "open_settings": "Open Settings"
+  },
+  "errors": {
+    "invalid_request": "Invalid request",
+    "model_auth": "Model authentication failed. Check the API key",
+    "model_quota": "The model quota is exhausted",
+    "model_not_found": "The configured model was not found",
+    "model_failed": "The model request failed",
+    "cancelled": "Cancelled",
+    "too_many_entries": "Too many entries",
+    "journal_not_found": "Rename record not found",
+    "busy": "Another rename is still running",
+    "internal": "The operation failed",
+    "bridge_unavailable": "This feature is only available in the desktop app"
+  },
+  "notice": {
+    "truncated_title": "Too many entries, only part was loaded",
+    "truncated": "“{{path}}” has more entries than one load allows. Only the first part was loaded and selected. Process its subfolders in batches."
+  },
+  "agent": {
+    "loaded": "Loaded the HomeAgent rename plan. Review it before renaming",
+    "missing": "The HomeAgent rename plan has expired. Create it again"
   }
 }

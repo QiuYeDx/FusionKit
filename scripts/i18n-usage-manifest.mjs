@@ -152,24 +152,6 @@ export const I18N_USAGE_MANIFEST = [
     keys: SUBTITLE_LANGUAGE_KEYS,
   },
   {
-    selector:
-      "src/pages/Tools/Rename/NameTranslator/components/OptionsPanel.tsx#scope.labelKey",
-    keys: [
-      "rename:options.scope.self.label",
-      "rename:options.scope.children.label",
-      "rename:options.scope.descendants.label",
-    ],
-  },
-  {
-    selector:
-      "src/pages/Tools/Rename/NameTranslator/components/OptionsPanel.tsx#SCOPE_OPTIONS.find((scope)=>scope.value===options.scope)?.hintKey??SCOPE_OPTIONS[0].hintKey",
-    keys: [
-      "rename:options.scope.self.hint",
-      "rename:options.scope.children.hint",
-      "rename:options.scope.descendants.hint",
-    ],
-  },
-  {
     selector: "src/pages/Tools/Audio/shared/AudioToolShell.tsx#titleKey",
     keys: [
       "audio:pages.transcriber.title",

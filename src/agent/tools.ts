@@ -81,9 +81,9 @@ export const agentTools = {
 
   create_name_translation_plan: tool({
     description:
-      "Create a dry-run plan for translating file or folder names without changing file contents. " +
+      "Create a dry-run plan for translating file or folder names without changing file contents or the filesystem. " +
       "Use this for 文件名/文件夹名/重命名/改名/name translation requests. " +
-      "Always call this before any rename apply. It returns a planId, preview, counts, warnings, and confirmation requirement.",
+      "Always call this before any rename apply. It returns a planId, the proposed names, counts and warnings; items with problems are skipped, not blocking.",
     inputSchema: createNameTranslationPlanSchema,
     execute: async (args, options) => executeCreateNameTranslationPlan(args, options.abortSignal),
   }),

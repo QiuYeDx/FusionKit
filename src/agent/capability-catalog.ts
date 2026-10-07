@@ -1,6 +1,6 @@
 import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
 
-export type AgentCapabilityKey = "subtitleStudio" | "translationKnowledge" | "translator" | "converter" | "extractor" | "localSubtitleTranscriber";
+export type AgentCapabilityKey = "subtitleStudio" | "translationKnowledge" | "translator" | "converter" | "extractor" | "localSubtitleTranscriber" | "nameTranslator";
 export interface AgentCapability {
   readonly toolKey: AgentCapabilityKey;
   readonly titleKey: string;
@@ -18,4 +18,5 @@ export const AGENT_CAPABILITIES = [
   { toolKey: "converter", titleKey: "tools:fields.subtitle_formatter", descriptionKey: "tools:field_desc.subtitle_formatter", route: "/tools/subtitle/converter", operations: ["scan_subtitle_files", "queue_subtitle_convert", "get_classic_subtitle_tasks"] },
   { toolKey: "extractor", titleKey: "tools:fields.subtitle_language_extractor", descriptionKey: "tools:field_desc.subtitle_language_extractor", route: "/tools/subtitle/extractor", operations: ["scan_subtitle_files", "queue_subtitle_extract", "get_classic_subtitle_tasks"] },
   { toolKey: "localSubtitleTranscriber", titleKey: "tools:fields.local_subtitle_transcriber", descriptionKey: "tools:field_desc.local_subtitle_transcriber", route: LOCAL_SUBTITLE_TRANSCRIBER_ROUTE, operations: ["get_local_transcription_status", "configure_local_transcription"] },
+  { toolKey: "nameTranslator", titleKey: "tools:fields.name_translator", descriptionKey: "tools:field_desc.name_translator", route: "/tools/rename/name-translator", operations: ["inspect_rename_paths", "create_name_translation_plan", "apply_name_translation_plan"] },
 ] as const satisfies readonly AgentCapability[];

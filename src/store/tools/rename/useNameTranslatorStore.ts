@@ -1,1070 +1,780 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
-import {
-  getNameTranslationPlan,
-  rememberNameTranslationPlan,
-  summarizeNameTranslationPlan,
-  updateNameTranslationPlan,
-} from "@/services/rename/namePlanStore";
-import {
-  joinPath,
-  pathBasename,
-  pathDirname,
-  pathStem,
-  samePath,
-} from "@/services/rename/namePath";
-import {
-  checkRenameTargetsExist,
-  checkRenameTargetExists,
-} from "@/services/rename/nameTargetResolver";
-import { createNameTranslationPlan } from "@/services/rename/nameTranslationPlanner";
-import { sanitizeTranslatedName } from "@/services/rename/nameSanitize";
-import { validatePlanItems } from "@/services/rename/nameConflict";
-import {
-  applyNameTranslationPlan,
-  rollbackNameTranslationJournal,
-  validateNameTranslationPlan,
-} from "@/services/rename/nameApplyService";
-import i18n from "@/i18n";
-import { showToast } from "@/utils/toast";
 import type {
-  ApplyProgress,
-  InspectedRenamePath,
-  NameTranslationApplyResult,
-  NameTranslationOptions,
-  NameTranslationPlanningProgress,
-  NameTranslationPlan,
-  NameTranslationPlanItem,
-  NameTranslationPlanSummary,
-  NameTranslationTarget,
-  RollbackRenameJournalResult,
-  SelectedPath,
-  ValidateRenamePlanResult,
-} from "@/services/rename/nameTypes";
+  NameDirectoryListing,
+  NameEntry,
+  NameInspectRejection,
+  NameJournalSummary,
+  NamePreflightResult,
+  NameRenameItem,
+  NameRenamedEntry,
+  NameTranslationError,
+  NameUnrecoveredEntry,
+} from "@/name-translation/contract";
+import { getNameTranslationApi, rendererPlatform, toRuntimeModel, unwrap } from "@/services/name-translation/api";
+import { translateTargets } from "@/services/name-translation/translate";
+import { getTemplateError } from "@/name-translation/naming-rules";
 import {
-  DEFAULT_NAME_TRANSLATION_OPTIONS,
-  normalizeNameTranslationOptions,
-} from "@/services/rename/nameTypes";
-import {
-  NAME_TRANSLATOR_STORAGE_KEY,
-  NAME_TRANSLATOR_STORE_VERSION,
-  sanitizeNameTranslatorPreferences,
-} from "./nameTranslatorConfig";
+  computeRowStates,
+  remapPath,
+  settingsKeyOf,
+  suggestNumberedNames,
+  type DirectoryState,
+  type Proposal,
+  type RowFilter,
+  type ServerIssue,
+  type WorkspaceData,
+} from "@/services/name-translation/workspace";
+import useModelStore from "@/store/useModelStore";
+import useNameTranslatorConfigStore, { resolveNameTemplate } from "./nameTranslatorConfig";
 
-type OriginalSuggestion = Pick<
-  NameTranslationPlanItem,
-  "newName" | "targetPath" | "translatedStem"
->;
+export type SelectInsideMode = "all" | "files" | "folders" | "children" | "none";
+export type SelectAllMode = "everything" | "files" | "folders" | "roots" | "none";
 
-interface InspectRenamePathsResult {
-  paths: InspectedRenamePath[];
+export interface TranslationRun {
+  readonly requestId: string;
+  readonly total: number;
+  readonly done: number;
 }
 
-interface NameTranslatorStore {
-  selectedPaths: SelectedPath[];
-  options: NameTranslationOptions;
-  currentPlan: NameTranslationPlan | null;
-  isPlanning: boolean;
-  planningProgress: NameTranslationPlanningProgress | null;
-  isApplying: boolean;
-  applyProgress: ApplyProgress | null;
-  lastApplyResult: NameTranslationApplyResult | null;
-  lastRollbackResult: RollbackRenameJournalResult | null;
-  lastValidation: ValidateRenamePlanResult | null;
-  lastError: string | null;
-  history: NameTranslationPlanSummary[];
-  originalSuggestions: Record<string, OriginalSuggestion>;
-
-  addPaths: (paths: string[]) => Promise<void>;
-  removePath: (path: string) => void;
-  updateOptions: (patch: Partial<NameTranslationOptions>) => void;
-  loadPlanFromCache: (planId: string) => Promise<boolean>;
-  createPreview: () => Promise<void>;
-  cancelPlanning: () => void;
-  updatePlanItem: (
-    itemId: string,
-    patch: Partial<NameTranslationPlanItem>
-  ) => void;
-  revalidateCurrentPlan: () => Promise<void>;
-  applyCurrentPlan: () => Promise<void>;
-  rollback: (journalId: string) => Promise<void>;
-  clearSelection: () => void;
-  reset: () => void;
+export interface ConfirmState {
+  readonly items: readonly NameRenameItem[];
+  readonly names: Readonly<Record<string, string>>;
+  readonly skippedCount: number;
+  readonly error?: string;
 }
 
-const VALIDATION_WARNING_CODES = new Set([
-  "auto_index_added",
-  "case_only",
-  "duplicate_target",
-  "invalid_name",
-  "path_too_long",
-  "swap",
-  "target_exists",
-]);
-
-const REVALIDATABLE_BLOCK_REASONS = new Set([
-  "duplicate_target",
-  "target_exists",
-]);
-
-const pendingPlanLoads = new Map<string, Promise<boolean>>();
-let planningRequestSeq = 0;
-let activePlanningController: AbortController | null = null;
-
-const useNameTranslatorStore = create<NameTranslatorStore>()(
-  persist(
-    (set, get) => ({
-  selectedPaths: [],
-  options: {
-    ...DEFAULT_NAME_TRANSLATION_OPTIONS,
-    roots: [],
-  },
-  currentPlan: null,
-  isPlanning: false,
-  planningProgress: null,
-  isApplying: false,
-  applyProgress: null,
-  lastApplyResult: null,
-  lastRollbackResult: null,
-  lastValidation: null,
-  lastError: null,
-  history: [],
-  originalSuggestions: {},
-
-  addPaths: async (paths) => {
-    const uniquePaths = [...new Set(paths.filter(Boolean))];
-    if (uniquePaths.length === 0) return;
-
-    set({ isPlanning: true, lastError: null });
-    try {
-      const inspected = await inspectRenamePaths(uniquePaths);
-      const existing = get().selectedPaths;
-      const existingKeys = new Set(existing.map((item) => item.path));
-      const nextSelected = [
-        ...existing,
-        ...inspected.filter((item) => !existingKeys.has(item.path)),
-      ];
-      const nextOptions = normalizeOptionsAfterPathChange(
-        get().options,
-        existing,
-        nextSelected
-      );
-
-      set({
-        selectedPaths: nextSelected,
-        options: nextOptions,
-        currentPlan: null,
-        lastValidation: null,
-      });
-    } catch (error) {
-      const message = getErrorMessage(error);
-      set({ lastError: message });
-      showToast(message, "error");
-    } finally {
-      set({ isPlanning: false, planningProgress: null });
+export type RenameOutcome =
+  | {
+      readonly kind: "completed";
+      readonly journalId: string;
+      readonly renamed: readonly NameRenamedEntry[];
+      readonly undoState?: "running" | "done" | "partial";
+      readonly undoFailures?: readonly NameUnrecoveredEntry[];
     }
-  },
+  | {
+      readonly kind: "failed";
+      readonly message: string;
+      readonly failedPath: string;
+      readonly rollback: "complete" | "partial";
+      readonly unrecovered: readonly NameUnrecoveredEntry[];
+      readonly journalId?: string;
+    };
 
-  removePath: (path) => {
-    const previousSelected = get().selectedPaths;
-    const nextSelected = previousSelected.filter((item) => item.path !== path);
-    set({
-      selectedPaths: nextSelected,
-      options: normalizeOptionsAfterPathChange(
-        get().options,
-        previousSelected,
-        nextSelected
-      ),
-      currentPlan: null,
-      lastValidation: null,
-    });
-  },
+export interface NameTranslatorState extends WorkspaceData {
+  expanded: Record<string, true>;
+  filter: RowFilter;
+  rejected: NameInspectRejection[];
+  notice: { kind: "truncated"; path: string } | null;
+  adding: boolean;
+  collecting: Record<string, true>;
+  run: TranslationRun | null;
+  translationError: NameTranslationError | null;
+  preparing: boolean;
+  confirm: ConfirmState | null;
+  applying: boolean;
+  outcome: RenameOutcome | null;
+  recovery: NameJournalSummary[];
+  recoveryBusy: string | null;
 
-  updateOptions: (patch) => {
-    const state = get();
-    const requestedScope = patch.scope ?? state.options.scope;
-    const shouldInferTargetKind =
-      patch.targetKind === undefined &&
-      patch.scope !== undefined &&
-      shouldInferTargetKindForScopeChange(state.options.scope, requestedScope);
-    const options = normalizeNameTranslationOptions({
-      ...state.options,
-      ...patch,
-      ...(shouldInferTargetKind
-        ? {
-            targetKind: inferTargetKindForScope(
-              requestedScope,
-              state.selectedPaths
-            ),
-          }
-        : {}),
-      roots: state.selectedPaths.map((item) => item.path),
-    });
+  addPaths: (paths: readonly string[], source: "picker" | "drop" | "agent") => Promise<void>;
+  removeRoot: (path: string) => void;
+  clearWorkspace: () => void;
+  setFilter: (filter: RowFilter) => void;
+  toggleExpanded: (path: string) => void;
+  reloadDirectories: () => Promise<void>;
+  toggleChecked: (path: string) => void;
+  setChecked: (paths: readonly string[], checked: boolean) => void;
+  selectInside: (path: string, mode: SelectInsideMode) => Promise<void>;
+  selectAll: (mode: SelectAllMode) => Promise<void>;
+  translate: (scope: "needed" | "all" | readonly string[]) => Promise<void>;
+  stopTranslation: () => void;
+  editName: (path: string, name: string) => void;
+  resetName: (path: string) => void;
+  applyNumbering: () => void;
+  prepareRename: () => Promise<void>;
+  cancelConfirm: () => void;
+  confirmRename: () => Promise<void>;
+  undoLast: () => Promise<void>;
+  dismissOutcome: () => void;
+  loadRecovery: () => Promise<void>;
+  resolveRecovery: (journalId: string, action: "undo" | "dismiss") => Promise<void>;
+  loadSession: (session: {
+    entries: readonly NameEntry[];
+    roots: readonly string[];
+    listings: readonly NameDirectoryListing[];
+    checked: readonly string[];
+    proposals: Readonly<Record<string, Proposal>>;
+  }) => void;
+}
 
-    if (state.currentPlan && isPlanLocalOptionPatch(patch)) {
-      const mergedOptions = { ...state.currentPlan.options, ...patch };
-      const needsNameRecomposition =
-        patch.outputMode !== undefined || patch.bilingualSeparator !== undefined;
-      const nextItems = needsNameRecomposition
-        ? recomposeItemNames(state.currentPlan.items, mergedOptions)
-        : state.currentPlan.items;
-      const nextPlan = rebuildPlan(
-        { ...state.currentPlan, options: mergedOptions },
-        nextItems
-      );
-      commitPlan(set, nextPlan, { options, lastValidation: null });
-      void get().revalidateCurrentPlan();
-      return;
-    }
+const EMPTY_WORKSPACE = {
+  roots: [] as string[],
+  entries: {} as Record<string, NameEntry>,
+  dirs: {} as Record<string, DirectoryState>,
+  checked: {} as Record<string, true>,
+  proposals: {} as Record<string, Proposal>,
+  serverIssues: {} as Record<string, ServerIssue>,
+  expanded: {} as Record<string, true>,
+};
 
-    set({
-      options,
-      currentPlan: null,
-      lastValidation: null,
-    });
-  },
+function normalizeKey(value: string, platform: string): string {
+  const slashed = value.replace(/\\/g, "/").replace(/\/+$/, "");
+  return platform === "win32" || platform === "darwin" ? slashed.toLowerCase() : slashed;
+}
 
-  loadPlanFromCache: async (planId) => {
-    const normalizedPlanId = planId.trim();
-    if (!normalizedPlanId) return false;
+function isInside(candidate: string, parent: string, platform: string): boolean {
+  const child = normalizeKey(candidate, platform);
+  const base = normalizeKey(parent, platform);
+  return child !== base && child.startsWith(`${base}/`);
+}
 
-    const current = get().currentPlan;
-    if (
-      current?.planId === normalizedPlanId &&
-      hasSelectedRoots(get().selectedPaths, getPlanRoots(current))
-    ) {
-      set({ lastError: null });
-      return true;
-    }
+function samePath(left: string, right: string, platform: string): boolean {
+  return normalizeKey(left, platform) === normalizeKey(right, platform);
+}
 
-    const pendingLoad = pendingPlanLoads.get(normalizedPlanId);
-    if (pendingLoad) return pendingLoad;
+function parentOf(target: string): string {
+  const trimmed = target.replace(/[\\/]+$/, "");
+  const index = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (index <= 0) return trimmed;
+  const parent = trimmed.slice(0, index);
+  // Keep drive roots such as "C:\" intact.
+  return /^[A-Za-z]:$/.test(parent) ? `${parent}${trimmed[index]}` : parent;
+}
 
-    const loadPromise = (async () => {
-      const plan = getNameTranslationPlan(normalizedPlanId);
-      if (!plan) {
-        const message = i18n.t("rename:messages.plan_not_found", {
-          planId: shortPlanId(normalizedPlanId),
-        });
-        set({ lastError: message });
-        showToast(message, "error");
-        return false;
-      }
+/** Folders from `root` down to the parent of `target`, outermost first. */
+function ancestorsBetween(root: string, target: string, platform: string): string[] {
+  const chain: string[] = [];
+  let current = parentOf(target);
+  for (let guard = 0; guard < 512; guard += 1) {
+    const isRoot = samePath(current, root, platform);
+    if (!isRoot && !isInside(current, root, platform)) break;
+    chain.unshift(current);
+    if (isRoot) break;
+    const next = parentOf(current);
+    if (next === current) break;
+    current = next;
+  }
+  return chain;
+}
 
-      set({
-        isPlanning: true,
-        planningProgress: null,
-        lastError: null,
-        lastApplyResult: null,
-        lastRollbackResult: null,
-        lastValidation: null,
-      });
+function newRequestId(): string {
+  return `nt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
-      try {
-        const roots = getPlanRoots(plan);
-        const selectedPaths = await restoreSelectedPaths(plan, roots);
-        const options = normalizeNameTranslationOptions({
-          ...plan.options,
-          roots,
-        });
-        const originalSuggestions = collectOriginalSuggestions(plan.items);
-        const summary = summarizeNameTranslationPlan(plan);
+function currentSettings() {
+  const config = useNameTranslatorConfigStore.getState().config;
+  return {
+    config,
+    settingsKey: settingsKeyOf(config),
+    template: resolveNameTemplate(config),
+    platform: rendererPlatform(),
+  };
+}
 
-        set((state) => ({
-          selectedPaths,
-          options,
-          currentPlan: plan,
-          originalSuggestions,
-          history: [
-            summary,
-            ...state.history.filter((item) => item.planId !== plan.planId),
-          ].slice(0, 10),
-        }));
+export function selectRowStates(state: WorkspaceData) {
+  const settings = currentSettings();
+  return computeRowStates(state, settings);
+}
 
-        showToast(i18n.t("rename:messages.plan_loaded_from_agent"), "success");
-        return true;
-      } catch (error) {
-        const message = getErrorMessage(error);
-        set({ lastError: message });
-        showToast(message, "error");
-        return false;
-      } finally {
-        set({ isPlanning: false, planningProgress: null });
-      }
-    })();
-
-    pendingPlanLoads.set(normalizedPlanId, loadPromise);
-    return loadPromise.finally(() => {
-      pendingPlanLoads.delete(normalizedPlanId);
-    });
-  },
-
-  createPreview: async () => {
-    const roots = get().selectedPaths.map((item) => item.path);
-    if (roots.length === 0) {
-      showToast(i18n.t("rename:messages.select_paths_first"), "error");
-      return;
-    }
-
-    const requestId = ++planningRequestSeq;
-    const controller = new AbortController();
-    activePlanningController?.abort();
-    activePlanningController = controller;
-
-    set({
-      isPlanning: true,
-      planningProgress: null,
-      lastError: null,
-      lastApplyResult: null,
-      lastRollbackResult: null,
-      lastValidation: null,
-    });
-
-    try {
-      const options = normalizeNameTranslationOptions({
-        ...get().options,
-        roots,
-      });
-      const summary = await createNameTranslationPlan(options, {
-        signal: controller.signal,
-        progress: (progress) => {
-          if (
-            requestId !== planningRequestSeq ||
-            controller.signal.aborted
-          ) {
-            return;
-          }
-          set({ planningProgress: progress });
+const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
+  const mergeListing = (listing: NameDirectoryListing) => {
+    set((state) => {
+      const entries = { ...state.entries };
+      for (const entry of listing.entries) entries[entry.path] = entry;
+      return {
+        entries,
+        dirs: {
+          ...state.dirs,
+          [listing.path]: listing.error
+            ? { status: "error", children: [], truncated: false, error: listing.error }
+            : { status: "loaded", children: listing.entries.map((entry) => entry.path), truncated: listing.truncated },
         },
-      });
-      if (requestId !== planningRequestSeq || controller.signal.aborted) return;
+      };
+    });
+  };
 
-      const fullPlan = getNameTranslationPlan(summary.planId);
-      const plan = fullPlan ?? createPlanFromSummary(summary, options);
-      const originalSuggestions = collectOriginalSuggestions(plan.items);
-      if (requestId !== planningRequestSeq || controller.signal.aborted) return;
-
-      set((state) => ({
-        options,
-        currentPlan: plan,
-        planningProgress: null,
-        originalSuggestions,
-        history: [
-          summarizeNameTranslationPlan(plan),
-          ...state.history.filter((item) => item.planId !== plan.planId),
-        ].slice(0, 10),
-      }));
-
-      if (plan.clarificationRequired) {
-        showToast(plan.clarificationRequired.message, "error");
-      } else if (plan.items.length === 0) {
-        showToast(i18n.t("rename:messages.preview_empty"), "error");
-      } else {
-        showToast(i18n.t("rename:messages.preview_created"), "success");
-      }
+  const loadDirectory = async (path: string) => {
+    set((state) => ({
+      dirs: { ...state.dirs, [path]: { status: "loading", children: state.dirs[path]?.children ?? [], truncated: false } },
+    }));
+    try {
+      const listing = await unwrap(
+        getNameTranslationApi().listDirectory({
+          path,
+          includeHidden: useNameTranslatorConfigStore.getState().config.includeHidden,
+        }),
+      );
+      mergeListing({ ...listing, path });
     } catch (error) {
-      if (isPlanningCancelled(error) || controller.signal.aborted) {
-        if (requestId === planningRequestSeq) {
-          set({
-            planningProgress: createCancelledPlanningProgress(),
-            lastError: null,
-          });
-        }
+      set((state) => ({
+        dirs: {
+          ...state.dirs,
+          [path]: { status: "error", children: [], truncated: false, error: error instanceof Error ? error.message : String(error) },
+        },
+      }));
+    }
+  };
+
+  const collect = async (path: string) => {
+    set((state) => ({ collecting: { ...state.collecting, [path]: true } }));
+    try {
+      const result = await unwrap(
+        getNameTranslationApi().collectDescendants({
+          path,
+          includeHidden: useNameTranslatorConfigStore.getState().config.includeHidden,
+        }),
+      );
+      result.directories.forEach(mergeListing);
+      if (result.truncated) set({ notice: { kind: "truncated", path } });
+      return result.directories.flatMap((listing) => listing.entries.map((entry) => entry.path));
+    } finally {
+      set((state) => {
+        const collecting = { ...state.collecting };
+        delete collecting[path];
+        return { collecting };
+      });
+    }
+  };
+
+  /** Reload roots and expanded folders after paths changed on disk. */
+  const rebuild = async (
+    roots: readonly string[],
+    expanded: readonly string[],
+  ) => {
+    set({ ...EMPTY_WORKSPACE, filter: "all", confirm: null });
+    if (roots.length === 0) return;
+    const inspected = await unwrap(getNameTranslationApi().inspectPaths({ paths: roots, source: "picker" })).catch(
+      () => ({ entries: [], rejected: [] }),
+    );
+    const entries: Record<string, NameEntry> = {};
+    inspected.entries.forEach((entry) => (entries[entry.path] = entry));
+    const nextExpanded: Record<string, true> = {};
+    expanded.forEach((path) => (nextExpanded[path] = true));
+    set({ roots: inspected.entries.map((entry) => entry.path), entries, expanded: nextExpanded });
+    // Parents first so children land in already-loaded folders.
+    const ordered = [...expanded].sort((left, right) => left.length - right.length);
+    await Promise.all(ordered.map((path) => loadDirectory(path)));
+  };
+
+  const remapAndRebuild = async (
+    renamed: readonly { from: string; to: string }[],
+    keepUnrenamed = false,
+  ) => {
+    const platform = rendererPlatform();
+    const state = get();
+    const roots = [...new Set(state.roots.map((root) => remapPath(root, renamed, platform)))];
+    const expanded = Object.keys(state.expanded).map((path) => remapPath(path, renamed, platform));
+    // Entries that were selected but skipped (problems, untranslated) keep their
+    // selection and proposal at their new location so they can be fixed next.
+    const done = new Set(renamed.map((entry) => entry.from));
+    const carry = <T,>(record: Record<string, T>) =>
+      keepUnrenamed
+        ? Object.fromEntries(
+            Object.entries(record)
+              .filter(([path]) => !done.has(path))
+              .map(([path, value]) => [remapPath(path, renamed, platform), value]),
+          )
+        : {};
+    const checked = carry(state.checked) as Record<string, true>;
+    const proposals = carry(state.proposals);
+    await rebuild(roots, expanded);
+    set({ checked, proposals });
+    const loaded = get().dirs;
+    const parents = [...new Set(Object.keys(checked).map(parentOf))].filter(
+      (parent) => !loaded[parent] && roots.some((root) => isInside(parent, root, platform) || samePath(parent, root, platform)),
+    );
+    await Promise.all(parents.sort((left, right) => left.length - right.length).map((parent) => loadDirectory(parent)));
+  };
+
+  return {
+    ...EMPTY_WORKSPACE,
+    filter: "all",
+    rejected: [],
+    notice: null,
+    adding: false,
+    collecting: {},
+    run: null,
+    translationError: null,
+    preparing: false,
+    confirm: null,
+    applying: false,
+    outcome: null,
+    recovery: [],
+    recoveryBusy: null,
+
+    addPaths: async (paths, source) => {
+      if (paths.length === 0) return;
+      set({ adding: true });
+      try {
+        const result = await unwrap(getNameTranslationApi().inspectPaths({ paths, source }));
+        const platform = rendererPlatform();
+        const toLoad: string[] = [];
+        set((state) => {
+          let roots = [...state.roots];
+          const entries = { ...state.entries };
+          const checked = { ...state.checked };
+          const expanded = { ...state.expanded };
+          for (const entry of result.entries) {
+            entries[entry.path] = entry;
+            checked[entry.path] = true;
+            const containingRoot = roots.find((root) => isInside(entry.path, root, platform));
+            if (containingRoot) {
+              for (const dir of ancestorsBetween(containingRoot, entry.path, platform)) {
+                if (!expanded[dir]) {
+                  expanded[dir] = true;
+                  toLoad.push(dir);
+                }
+              }
+              continue;
+            }
+            if (roots.some((root) => root === entry.path)) continue;
+            roots = roots.filter((root) => !isInside(root, entry.path, platform));
+            roots.push(entry.path);
+            if (entry.kind === "directory" && !entry.symlink) {
+              expanded[entry.path] = true;
+              toLoad.push(entry.path);
+            }
+          }
+          return { roots, entries, checked, expanded, rejected: [...result.rejected], outcome: state.outcome };
+        });
+        await Promise.all(
+          [...new Set(toLoad)]
+            .filter((path) => get().dirs[path]?.status !== "loaded")
+            .sort((left, right) => left.length - right.length)
+            .map((path) => loadDirectory(path)),
+        );
+      } catch (error) {
+        set({
+          rejected: paths.map((path) => ({ path, reason: "unreadable" as const })),
+          translationError: error instanceof Error ? { code: "internal", message: error.message } : null,
+        });
+      } finally {
+        set({ adding: false });
+      }
+    },
+
+    removeRoot: (path) =>
+      set((state) => {
+        const platform = rendererPlatform();
+        const drop = (key: string) => key === path || isInside(key, path, platform);
+        const filterRecord = <T,>(record: Record<string, T>) =>
+          Object.fromEntries(Object.entries(record).filter(([key]) => !drop(key))) as Record<string, T>;
+        return {
+          roots: state.roots.filter((root) => root !== path),
+          checked: filterRecord(state.checked),
+          proposals: filterRecord(state.proposals),
+          serverIssues: filterRecord(state.serverIssues),
+          expanded: filterRecord(state.expanded),
+        };
+      }),
+
+    clearWorkspace: () => {
+      get().stopTranslation();
+      set({ ...EMPTY_WORKSPACE, rejected: [], notice: null, filter: "all", confirm: null, translationError: null });
+    },
+
+    setFilter: (filter) => set({ filter }),
+
+    toggleExpanded: (path) => {
+      const state = get();
+      if (state.expanded[path]) {
+        const expanded = { ...state.expanded };
+        delete expanded[path];
+        set({ expanded });
         return;
       }
-      const message = getErrorMessage(error);
-      set({
-        lastError: message,
-        currentPlan: null,
-        planningProgress: {
-          phase: "failed",
-          message,
-        },
-      });
-      showToast(message, "error");
-    } finally {
-      if (requestId === planningRequestSeq) {
-        activePlanningController = null;
-        set({ isPlanning: false });
-      }
-    }
-  },
-
-  cancelPlanning: () => {
-    if (!activePlanningController) return;
-    activePlanningController.abort();
-    activePlanningController = null;
-    planningRequestSeq++;
-    set({
-      isPlanning: false,
-      planningProgress: createCancelledPlanningProgress(),
-      lastError: null,
-    });
-  },
-
-  updatePlanItem: (itemId, patch) => {
-    const plan = get().currentPlan;
-    if (!plan) return;
-
-    const nextItems = plan.items.map((item) =>
-      item.id === itemId ? patchPlanItem(item, patch) : item
-    );
-    commitPlan(set, rebuildPlan(plan, nextItems), { lastValidation: null });
-    void get().revalidateCurrentPlan();
-  },
-
-  revalidateCurrentPlan: async () => {
-    const plan = get().currentPlan;
-    if (!plan) return;
-
-    set({ isPlanning: true, lastError: null });
-    try {
-      const locallyValidated = await revalidatePlanConflicts(plan);
-      commitPlan(set, locallyValidated, { lastValidation: null });
-
-      if (!locallyValidated.applyable) return;
-
-      const validation = await validateNameTranslationPlan(locallyValidated.planId);
-      const nextPlan = validation.valid
-        ? locallyValidated
-        : markValidationErrors(locallyValidated, validation);
-      commitPlan(set, nextPlan, { lastValidation: validation });
-    } catch (error) {
-      const message = getErrorMessage(error);
-      set({ lastError: message });
-      showToast(message, "error");
-    } finally {
-      set({ isPlanning: false });
-    }
-  },
-
-  applyCurrentPlan: async () => {
-    const plan = get().currentPlan;
-    if (!plan) {
-      showToast(i18n.t("rename:messages.missing_plan"), "error");
-      return;
-    }
-
-    if (isPlanIncomplete(plan)) {
-      showToast(
-        i18n.t("rename:messages.plan_items_incomplete", {
-          count: plan.items.length,
-          total: plan.totalTargets,
-        }),
-        "error"
-      );
-      return;
-    }
-
-    set({
-      isApplying: true,
-      applyProgress: {
-        phase: "validating",
-        message: i18n.t("rename:messages.validating"),
-      },
-      lastError: null,
-      lastApplyResult: null,
-      lastRollbackResult: null,
-    });
-
-    try {
-      const validation = await validateNameTranslationPlan(plan.planId);
-      if (!validation.valid) {
-        const nextPlan = markValidationErrors(plan, validation);
-        commitPlan(set, nextPlan, { lastValidation: validation });
-        throw new Error(
-          validation.errors[0]?.message ??
-            i18n.t("rename:messages.validation_failed")
-        );
-      }
-
-      set({
-        lastValidation: validation,
-        applyProgress: {
-          phase: "applying",
-          message: i18n.t("rename:messages.applying"),
-        },
-      });
-
-      const result = await applyNameTranslationPlan(plan.planId);
-      const latestPlan = get().currentPlan ?? plan;
-      const nextPlan = markApplyResult(latestPlan, result);
-      commitPlan(set, nextPlan, {
-        lastApplyResult: result,
-        applyProgress: {
-          phase: "done",
-          message: i18n.t("rename:messages.done"),
-        },
-      });
-      showToast(
-        i18n.t("rename:messages.rename_finished"),
-        result.failedCount > 0 ? "error" : "success"
-      );
-    } catch (error) {
-      const message = getErrorMessage(error);
-      set({
-        lastError: message,
-        applyProgress: { phase: "failed", message },
-      });
-      showToast(message, "error");
-    } finally {
-      set({ isApplying: false });
-    }
-  },
-
-  rollback: async (journalId) => {
-    if (!journalId.trim()) return;
-
-    set({
-      isApplying: true,
-      applyProgress: {
-        phase: "rolling_back",
-        message: i18n.t("rename:messages.rolling_back"),
-      },
-      lastError: null,
-      lastRollbackResult: null,
-    });
-
-    try {
-      const result = await rollbackNameTranslationJournal(journalId);
-      set({
-        lastRollbackResult: result,
-        applyProgress: {
-          phase: "done",
-          message: i18n.t("rename:messages.rollback_done"),
-        },
-      });
-      showToast(
-        i18n.t("rename:messages.rollback_done"),
-        result.failedCount > 0 ? "error" : "success"
-      );
-    } catch (error) {
-      const message = getErrorMessage(error);
-      set({
-        lastError: message,
-        applyProgress: { phase: "failed", message },
-      });
-      showToast(message, "error");
-    } finally {
-      set({ isApplying: false });
-    }
-  },
-
-  clearSelection: () => {
-    activePlanningController?.abort();
-    activePlanningController = null;
-    planningRequestSeq++;
-    set((state) => ({
-      selectedPaths: [],
-      options: normalizeNameTranslationOptions({
-        ...state.options,
-        roots: [],
-      }),
-      currentPlan: null,
-      isPlanning: false,
-      planningProgress: null,
-      isApplying: false,
-      applyProgress: null,
-      lastApplyResult: null,
-      lastRollbackResult: null,
-      lastValidation: null,
-      lastError: null,
-      originalSuggestions: {},
-    }));
-  },
-
-  reset: () => {
-    activePlanningController?.abort();
-    activePlanningController = null;
-    planningRequestSeq++;
-    set({
-      selectedPaths: [],
-      options: {
-        ...DEFAULT_NAME_TRANSLATION_OPTIONS,
-        roots: [],
-      },
-      currentPlan: null,
-      isPlanning: false,
-      planningProgress: null,
-      isApplying: false,
-      applyProgress: null,
-      lastApplyResult: null,
-      lastRollbackResult: null,
-      lastValidation: null,
-      lastError: null,
-      originalSuggestions: {},
-    });
-  },
-    }),
-    {
-      name: NAME_TRANSLATOR_STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
-      version: NAME_TRANSLATOR_STORE_VERSION,
-      partialize: (state) => ({
-        options: sanitizeNameTranslatorPreferences(state.options),
-      }),
-      migrate: (persisted) => ({
-        options: sanitizeNameTranslatorPreferences(
-          isRecord(persisted) ? persisted.options : undefined,
-        ),
-      }),
-      merge: (persisted, current) => ({
-        ...current,
-        options: sanitizeNameTranslatorPreferences(
-          isRecord(persisted) ? persisted.options : undefined,
-        ),
-        selectedPaths: [],
-        currentPlan: null,
-        isPlanning: false,
-        planningProgress: null,
-        isApplying: false,
-        applyProgress: null,
-        lastApplyResult: null,
-        lastRollbackResult: null,
-        lastValidation: null,
-        lastError: null,
-        originalSuggestions: {},
-      }),
+      set({ expanded: { ...state.expanded, [path]: true } });
+      if (state.dirs[path]?.status !== "loaded") void loadDirectory(path);
     },
-  ),
-);
 
-async function inspectRenamePaths(
-  paths: string[]
-): Promise<InspectedRenamePath[]> {
-  const result = (await getIpcRenderer().invoke("inspect-rename-paths", {
-    paths,
-  })) as InspectRenamePathsResult;
-  return result.paths ?? [];
-}
+    reloadDirectories: async () => {
+      const loaded = Object.entries(get().dirs)
+        .filter(([, dir]) => dir.status !== "loading")
+        .map(([path]) => path)
+        .sort((left, right) => left.length - right.length);
+      await Promise.all(loaded.map((path) => loadDirectory(path)));
+    },
 
-function normalizeOptionsAfterPathChange(
-  options: NameTranslationOptions,
-  previousSelectedPaths: SelectedPath[],
-  selectedPaths: SelectedPath[]
-): NameTranslationOptions {
-  const previousInferredTargetKind = inferTargetKindForScope(
-    options.scope,
-    previousSelectedPaths
-  );
-  const shouldInferTargetKind =
-    previousSelectedPaths.length === 0 ||
-    options.targetKind === previousInferredTargetKind;
-  const inferredTargetKind = shouldInferTargetKind
-    ? inferTargetKindForScope(options.scope, selectedPaths)
-    : options.targetKind;
+    toggleChecked: (path) =>
+      set((state) => {
+        const checked = { ...state.checked };
+        if (checked[path]) delete checked[path];
+        else checked[path] = true;
+        return { checked };
+      }),
 
-  return normalizeNameTranslationOptions({
-    ...options,
-    targetKind: inferredTargetKind,
-    roots: selectedPaths.map((item) => item.path),
-  });
-}
+    setChecked: (paths, value) =>
+      set((state) => {
+        const checked = { ...state.checked };
+        for (const path of paths) {
+          if (value) checked[path] = true;
+          else delete checked[path];
+        }
+        return { checked };
+      }),
 
-function inferTargetKindForScope(
-  scope: NameTranslationOptions["scope"],
-  selectedPaths: SelectedPath[]
-): NameTranslationOptions["targetKind"] {
-  if (scope === "children" || scope === "descendants") {
-    return "files";
-  }
-  if (scope === "path_segments") {
-    return "both";
-  }
-
-  const hasFiles = selectedPaths.some((item) => item.kind === "file");
-  const hasDirectories = selectedPaths.some((item) => item.kind === "directory");
-
-  if (hasFiles && hasDirectories) return "both";
-  if (hasDirectories) return "directories";
-  return "files";
-}
-
-function shouldInferTargetKindForScopeChange(
-  previousScope: NameTranslationOptions["scope"],
-  nextScope: NameTranslationOptions["scope"]
-): boolean {
-  if (previousScope === nextScope) return false;
-  const previousIsCollectionScope =
-    previousScope === "children" || previousScope === "descendants";
-  const nextIsCollectionScope =
-    nextScope === "children" || nextScope === "descendants";
-  return !(previousIsCollectionScope && nextIsCollectionScope);
-}
-
-const LOCAL_REBUILD_KEYS = new Set([
-  "collisionPolicy",
-  "outputMode",
-  "bilingualSeparator",
-]);
-
-function isPlanLocalOptionPatch(
-  patch: Partial<NameTranslationOptions>
-): boolean {
-  const keys = Object.keys(patch);
-  return keys.length > 0 && keys.every((key) => LOCAL_REBUILD_KEYS.has(key));
-}
-
-function patchPlanItem(
-  item: NameTranslationPlanItem,
-  patch: Partial<NameTranslationPlanItem>
-): NameTranslationPlanItem {
-  const next: NameTranslationPlanItem = {
-    ...item,
-    ...patch,
-    warnings: patch.warnings ?? stripValidationWarnings(item.warnings),
-  };
-
-  if (patch.status === "skipped") {
-    return {
-      ...next,
-      status: "skipped",
-      reason: patch.reason ?? "manual_skip",
-    };
-  }
-
-  if (patch.newName !== undefined) {
-    next.newName = patch.newName.trim();
-    next.translatedStem = patch.translatedStem ?? pathStem(next.newName);
-    next.targetPath = joinPath(next.sourceParentPath, next.newName);
-    next.status = patch.status ?? "ready";
-    next.reason = patch.reason;
-  }
-
-  if (patch.status === "ready") {
-    next.reason = patch.reason;
-  }
-
-  return next;
-}
-
-function stripValidationWarnings(warnings: string[]): string[] {
-  return warnings.filter((warning) => !VALIDATION_WARNING_CODES.has(warning));
-}
-
-async function revalidatePlanConflicts(
-  plan: NameTranslationPlan
-): Promise<NameTranslationPlan> {
-  const itemsForValidation = prepareItemsForConflictValidation(plan.items);
-  const existingTargetPaths = await collectExistingTargetPaths(itemsForValidation);
-  const nextItems = validatePlanItems(itemsForValidation, plan.options, {
-    existingTargetPaths,
-  });
-  return rebuildPlan(plan, nextItems);
-}
-
-function prepareItemsForConflictValidation(
-  items: NameTranslationPlanItem[]
-): NameTranslationPlanItem[] {
-  return items.map((item) => {
-    if (
-      item.status !== "blocked" ||
-      !item.reason ||
-      !REVALIDATABLE_BLOCK_REASONS.has(item.reason)
-    ) {
-      return item;
-    }
-
-    return {
-      ...item,
-      status: "ready",
-      reason: undefined,
-      warnings: stripValidationWarnings(item.warnings),
-    };
-  });
-}
-
-async function collectExistingTargetPaths(
-  items: NameTranslationPlanItem[]
-): Promise<string[]> {
-  const candidates = new Map<string, string>();
-  for (const item of items) {
-    if (item.status === "blocked" || item.status === "skipped") continue;
-    if (item.sourcePath === item.targetPath) continue;
-    candidates.set(item.targetPath, item.targetPath);
-  }
-  const targetPaths = [...candidates.values()];
-  if (targetPaths.length === 0) return [];
-
-  try {
-    const batchResult = await checkRenameTargetsExist(targetPaths);
-    return [...batchResult.existingPaths].filter((targetPath) =>
-      candidates.has(targetPath)
-    );
-  } catch {
-    // Older app shells may not have the batch IPC; keep the single-path fallback.
-  }
-
-  const existing: string[] = [];
-  await Promise.all(
-    targetPaths.map(async (targetPath) => {
-      try {
-        if (await checkRenameTargetExists(targetPath)) existing.push(targetPath);
-      } catch {
-        // Full filesystem validation is run through validate-rename-plan.
+    selectInside: async (path, mode) => {
+      const state = get();
+      const platform = rendererPlatform();
+      if (mode === "none") {
+        get().setChecked(
+          Object.keys(state.checked).filter((key) => isInside(key, path, platform)),
+          false,
+        );
+        return;
       }
-    })
-  );
-  return existing;
-}
+      if (!state.expanded[path]) set({ expanded: { ...get().expanded, [path]: true } });
+      if (mode === "children") {
+        if (get().dirs[path]?.status !== "loaded") await loadDirectory(path);
+        get().setChecked(get().dirs[path]?.children ?? [], true);
+        return;
+      }
+      try {
+        const paths = await collect(path);
+        const entries = get().entries;
+        get().setChecked(
+          paths.filter((key) => {
+            const kind = entries[key]?.kind;
+            return mode === "all" || (mode === "files" ? kind === "file" : kind === "directory");
+          }),
+          true,
+        );
+      } catch (error) {
+        set({ translationError: { code: "internal", message: error instanceof Error ? error.message : String(error) } });
+      }
+    },
 
-function markValidationErrors(
-  plan: NameTranslationPlan,
-  validation: ValidateRenamePlanResult
-): NameTranslationPlan {
-  const errorsByItemId = new Map(
-    validation.errors
-      .filter((error) => error.itemId)
-      .map((error) => [error.itemId as string, error])
-  );
-
-  const nextItems = plan.items.map((item) => {
-    const error = errorsByItemId.get(item.id);
-    if (!error) return item;
-    return {
-      ...item,
-      status: "blocked" as const,
-      reason: error.code,
-      warnings: addUniqueWarning(item.warnings, error.code),
-    };
-  });
-
-  return rebuildPlan(plan, nextItems);
-}
-
-function markApplyResult(
-  plan: NameTranslationPlan,
-  result: NameTranslationApplyResult
-): NameTranslationPlan {
-  const failures = new Map(result.failures.map((failure) => [failure.itemId, failure]));
-
-  const nextItems = plan.items.map((item) => {
-    if (item.status !== "ready") return item;
-    const failure = failures.get(item.id);
-    if (failure) {
-      return {
-        ...item,
-        status: "failed" as const,
-        reason: failure.error,
-        warnings: addUniqueWarning(item.warnings, "apply_failed"),
+    selectAll: async (mode) => {
+      const state = get();
+      if (mode === "none") {
+        set({ checked: {} });
+        return;
+      }
+      if (mode === "roots") {
+        set({ checked: Object.fromEntries(state.roots.map((root) => [root, true as const])) });
+        return;
+      }
+      const directories = state.roots.filter((root) => {
+        const entry = state.entries[root];
+        return entry?.kind === "directory" && !entry.symlink;
+      });
+      try {
+        await Promise.all(directories.map((root) => collect(root)));
+      } catch (error) {
+        set({ translationError: { code: "internal", message: error instanceof Error ? error.message : String(error) } });
+        return;
+      }
+      const latest = get();
+      const all = new Set<string>(latest.roots);
+      const visit = (path: string) => {
+        for (const child of latest.dirs[path]?.children ?? []) {
+          all.add(child);
+          visit(child);
+        }
       };
-    }
-    return {
-      ...item,
-      status: "applied" as const,
-    };
-  });
+      latest.roots.forEach(visit);
+      const checked: Record<string, true> = {};
+      for (const path of all) {
+        const kind = latest.entries[path]?.kind;
+        if (mode === "everything" || (mode === "files" ? kind === "file" : kind === "directory")) checked[path] = true;
+      }
+      const expanded = { ...latest.expanded };
+      directories.forEach((root) => (expanded[root] = true));
+      set({ checked, expanded });
+    },
 
-  return rebuildPlan(plan, nextItems, false);
-}
+    translate: async (scope) => {
+      if (get().run) return;
+      const model = toRuntimeModel(useModelStore.getState().getTaskProfile());
+      if (!model) {
+        set({ translationError: { code: "model_auth", message: "missing_task_model" } });
+        return;
+      }
+      const { config, settingsKey } = currentSettings();
+      const states = selectRowStates(get());
+      const state = get();
+      let keys: string[];
+      if (Array.isArray(scope)) keys = [...scope];
+      else if (scope === "all") {
+        keys = Object.keys(state.checked).filter((key) => state.proposals[key]?.edited === undefined);
+      } else {
+        keys = Object.keys(state.checked).filter((key) => {
+          const status = states.get(key)?.status;
+          return status === "pending" || status === "stale" || status === "failed";
+        });
+      }
+      keys = keys.filter((key) => state.entries[key]);
+      if (keys.length === 0) return;
 
-function rebuildPlan(
-  plan: NameTranslationPlan,
-  items: NameTranslationPlanItem[],
-  applyableOverride?: boolean
-): NameTranslationPlan {
-  const readyCount = items.filter((item) => item.status === "ready").length;
-  const blockedCount = items.filter((item) => item.status === "blocked").length;
-  const skippedCount = items.filter((item) => item.status === "skipped").length;
-  const unchangedCount = items.filter((item) => item.status === "unchanged").length;
-  const applyable =
-    applyableOverride ??
-    (!plan.clarificationRequired &&
-      readyCount > 0 &&
-      blockedCount === 0 &&
-      items.length > 0);
+      const requestId = newRequestId();
+      set((current) => {
+        const proposals = { ...current.proposals };
+        for (const key of keys) {
+          const previous = Array.isArray(scope) ? {} : (proposals[key] ?? {});
+          proposals[key] = { ...previous, edited: undefined, translating: true, failed: false };
+        }
+        return { proposals, run: { requestId, total: keys.length, done: 0 }, translationError: null };
+      });
 
-  return {
-    ...plan,
-    items,
-    itemsPreview: items.slice(0, plan.previewLimit),
-    itemsStored: items.length > plan.previewLimit,
-    totalTargets: Math.max(plan.totalTargets, items.length),
-    readyCount,
-    blockedCount,
-    skippedCount,
-    unchangedCount,
-    applyable,
+      const api = getNameTranslationApi();
+      const outcome = await translateTargets({
+        targets: keys.map((key) => {
+          const entry = state.entries[key]!;
+          return { key, name: entry.name, kind: entry.kind, parentPath: entry.parentPath };
+        }),
+        settings: {
+          model,
+          sourceLang: config.sourceLang,
+          targetLang: config.targetLang,
+          instructions: config.instructions,
+        },
+        requestId,
+        translateBatch: (request) => api.translate(request),
+        isCancelled: () => get().run?.requestId !== requestId,
+        onResult: (key, stem) => {
+          if (get().run?.requestId !== requestId) return;
+          set((current) => ({
+            proposals: {
+              ...current.proposals,
+              [key]:
+                stem === null
+                  ? { ...current.proposals[key], translating: false, failed: true }
+                  : { stem, settingsKey, translating: false, failed: false },
+            },
+            run: current.run ? { ...current.run, done: current.run.done + 1 } : current.run,
+          }));
+        },
+      });
+
+      if (get().run?.requestId !== requestId && !outcome.fatal) return;
+      set((current) => {
+        const proposals = { ...current.proposals };
+        for (const key of keys) {
+          if (proposals[key]?.translating) proposals[key] = { ...proposals[key], translating: false };
+        }
+        return {
+          proposals,
+          run: current.run?.requestId === requestId ? null : current.run,
+          translationError: outcome.fatal ?? current.translationError,
+        };
+      });
+    },
+
+    stopTranslation: () => {
+      const run = get().run;
+      if (!run) return;
+      void getNameTranslationApi().cancelTranslate({ requestId: run.requestId }).catch(() => undefined);
+      set((state) => {
+        const proposals = { ...state.proposals };
+        for (const [key, proposal] of Object.entries(proposals)) {
+          if (proposal.translating) proposals[key] = { ...proposal, translating: false };
+        }
+        return { proposals, run: null };
+      });
+    },
+
+    editName: (path, name) =>
+      set((state) => ({
+        proposals: { ...state.proposals, [path]: { ...state.proposals[path], edited: name, failed: false } },
+        checked: { ...state.checked, [path]: true },
+      })),
+
+    resetName: (path) =>
+      set((state) => {
+        const proposal = state.proposals[path];
+        if (!proposal) return {};
+        const next = { ...proposal };
+        delete (next as { edited?: string }).edited;
+        return { proposals: { ...state.proposals, [path]: next } };
+      }),
+
+    applyNumbering: () => {
+      const state = get();
+      const suggestions = suggestNumberedNames(state, selectRowStates(state), rendererPlatform());
+      set((current) => {
+        const proposals = { ...current.proposals };
+        for (const [path, name] of suggestions) {
+          proposals[path] = { ...proposals[path], edited: name };
+        }
+        return { proposals };
+      });
+    },
+
+    prepareRename: async () => {
+      const state = get();
+      if (state.preparing || state.applying) return;
+      if (getTemplateError(currentSettings().template)) return;
+      const states = selectRowStates(state);
+      const ready = Object.keys(state.checked).filter((key) => states.get(key)?.status === "ready");
+      const checkedCount = Object.keys(state.checked).length;
+      if (ready.length === 0) return;
+      const items: NameRenameItem[] = ready.map((key) => {
+        const entry = state.entries[key]!;
+        return { path: entry.path, kind: entry.kind, identity: entry.identity, newName: states.get(key)!.proposedName! };
+      });
+      set({ preparing: true });
+      try {
+        const preflight = await unwrap(getNameTranslationApi().preflight({ items }));
+        applyServerIssues(items, preflight);
+        const accepted = items.filter((_item, index) => preflight.items[index]?.status === "ready");
+        if (accepted.length === 0) return;
+        set({
+          confirm: {
+            items: accepted,
+            names: Object.fromEntries(accepted.map((item) => [item.path, item.newName])),
+            skippedCount: checkedCount - accepted.length,
+          },
+        });
+      } catch (error) {
+        set({ translationError: { code: "internal", message: error instanceof Error ? error.message : String(error) } });
+      } finally {
+        set({ preparing: false });
+      }
+    },
+
+    cancelConfirm: () => {
+      if (get().applying) return;
+      set({ confirm: null });
+    },
+
+    confirmRename: async () => {
+      const confirm = get().confirm;
+      if (!confirm || get().applying) return;
+      set({ applying: true, confirm: { ...confirm, error: undefined } });
+      try {
+        const result = await unwrap(getNameTranslationApi().apply({ items: confirm.items }));
+        if (result.status === "rejected") {
+          applyServerIssues(confirm.items, result.preflight);
+          set({ confirm: { ...confirm, error: "changed" } });
+          return;
+        }
+        if (result.status === "failed") {
+          set({
+            confirm: null,
+            outcome: {
+              kind: "failed",
+              message: result.message,
+              failedPath: result.failedPath,
+              rollback: result.rollback,
+              unrecovered: result.unrecovered,
+              journalId: result.journalId,
+            },
+          });
+          await get().reloadDirectories();
+          return;
+        }
+        set({ confirm: null, outcome: { kind: "completed", journalId: result.journalId, renamed: result.renamed } });
+        await remapAndRebuild(result.renamed, true);
+      } catch (error) {
+        set({ confirm: { ...confirm, error: error instanceof Error ? error.message : String(error) } });
+      } finally {
+        set({ applying: false });
+      }
+    },
+
+    undoLast: async () => {
+      const outcome = get().outcome;
+      if (!outcome || outcome.kind !== "completed" || outcome.undoState === "running") return;
+      set({ outcome: { ...outcome, undoState: "running" } });
+      try {
+        const result = await unwrap(getNameTranslationApi().undo({ journalId: outcome.journalId }));
+        set({
+          outcome: {
+            ...outcome,
+            undoState: result.status === "completed" ? "done" : "partial",
+            undoFailures: result.failures,
+          },
+        });
+        await remapAndRebuild(outcome.renamed.map((entry) => ({ from: entry.to, to: entry.from })));
+      } catch (error) {
+        set({
+          outcome: {
+            ...outcome,
+            undoState: "partial",
+            undoFailures: [{ currentPath: "", expectedPath: "", message: error instanceof Error ? error.message : String(error) }],
+          },
+        });
+      }
+    },
+
+    dismissOutcome: () => set({ outcome: null }),
+
+    loadRecovery: async () => {
+      try {
+        const { journals } = await unwrap(getNameTranslationApi().listJournals());
+        set({
+          recovery: journals.filter(
+            (journal) =>
+              (journal.status === "running" || journal.status === "failed" || journal.status === "undo_partial") &&
+              journal.stepCount > journal.undoneCount,
+          ),
+        });
+      } catch {
+        set({ recovery: [] });
+      }
+    },
+
+    resolveRecovery: async (journalId, action) => {
+      if (get().recoveryBusy) return;
+      set({ recoveryBusy: journalId });
+      try {
+        const api = getNameTranslationApi();
+        if (action === "dismiss") await unwrap(api.dismissJournal({ journalId }));
+        else await unwrap(api.undo({ journalId }));
+        await get().loadRecovery();
+        const state = get();
+        await rebuild(state.roots, Object.keys(state.expanded));
+      } catch (error) {
+        set({ translationError: { code: "internal", message: error instanceof Error ? error.message : String(error) } });
+        await get().loadRecovery();
+      } finally {
+        set({ recoveryBusy: null });
+      }
+    },
+
+    loadSession: (session) => {
+      get().stopTranslation();
+      const entries: Record<string, NameEntry> = {};
+      session.entries.forEach((entry) => (entries[entry.path] = entry));
+      const dirs: Record<string, DirectoryState> = {};
+      const expanded: Record<string, true> = {};
+      for (const listing of session.listings) {
+        listing.entries.forEach((entry) => (entries[entry.path] = entry));
+        dirs[listing.path] = { status: "loaded", children: listing.entries.map((entry) => entry.path), truncated: listing.truncated };
+        expanded[listing.path] = true;
+      }
+      set({
+        ...EMPTY_WORKSPACE,
+        roots: [...session.roots],
+        entries,
+        dirs,
+        expanded,
+        checked: Object.fromEntries(session.checked.map((path) => [path, true as const])),
+        proposals: { ...session.proposals },
+        filter: "all",
+        confirm: null,
+        outcome: null,
+        rejected: [],
+        notice: null,
+        translationError: null,
+      });
+    },
   };
-}
 
-function commitPlan(
-  set: (partial: Partial<NameTranslatorStore>) => void,
-  plan: NameTranslationPlan,
-  extraState: Partial<NameTranslatorStore> = {}
-) {
-  if (getNameTranslationPlan(plan.planId)) {
-    updateNameTranslationPlan(plan);
-  } else {
-    rememberNameTranslationPlan(plan);
+  function applyServerIssues(items: readonly NameRenameItem[], preflight: NamePreflightResult) {
+    set((state) => {
+      const serverIssues = { ...state.serverIssues };
+      items.forEach((item, index) => {
+        const result = preflight.items[index];
+        if (result?.status === "issue" && result.issue) {
+          serverIssues[item.path] = { issue: result.issue, name: item.newName };
+        } else {
+          delete serverIssues[item.path];
+        }
+      });
+      return { serverIssues };
+    });
   }
-  set({
-    currentPlan: plan,
-    ...extraState,
-  });
-}
+});
 
-function createPlanFromSummary(
-  summary: NameTranslationPlanSummary,
-  options: NameTranslationOptions
-): NameTranslationPlan {
-  const incomplete = summary.itemsPreview.length < summary.totalTargets;
-  return {
-    ...summary,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + 30 * 60 * 1000,
-    options,
-    roots: options.roots,
-    items: summary.itemsPreview,
-    itemsStored: false,
-    applyable: incomplete ? false : summary.applyable,
-  };
-}
-
-function isPlanIncomplete(plan: NameTranslationPlan): boolean {
-  return !plan.itemsStored && plan.items.length < plan.totalTargets;
-}
-
-function collectOriginalSuggestions(
-  items: NameTranslationPlanItem[]
-): Record<string, OriginalSuggestion> {
-  return Object.fromEntries(
-    items.map((item) => [
-      item.id,
-      {
-        newName: item.newName,
-        targetPath: item.targetPath,
-        translatedStem: item.translatedStem,
-      },
-    ])
-  );
-}
-
-async function restoreSelectedPaths(
-  plan: NameTranslationPlan,
-  roots: string[]
-): Promise<SelectedPath[]> {
-  if (roots.length === 0) return [];
-
-  let inspected: InspectedRenamePath[] = [];
-  try {
-    inspected = await inspectRenamePaths(roots);
-  } catch {
-    inspected = [];
-  }
-
-  const inspectedByPath = new Map(
-    inspected.map((item) => [item.path, item])
-  );
-
-  return roots.map(
-    (root) => inspectedByPath.get(root) ?? createFallbackSelectedPath(plan, root)
-  );
-}
-
-function createFallbackSelectedPath(
-  plan: NameTranslationPlan,
-  root: string
-): SelectedPath {
-  const matchingItem = plan.items.find((item) => samePath(item.sourcePath, root));
-  return {
-    path: root,
-    exists: true,
-    kind: matchingItem?.kind ?? "other",
-    basename: pathBasename(root),
-    parentPath: pathDirname(root),
-    riskLevel: "warning",
-    warnings: ["path_not_reinspected"],
-  };
-}
-
-function getPlanRoots(plan: NameTranslationPlan): string[] {
-  const roots = plan.roots.length > 0 ? plan.roots : plan.options.roots;
-  return [...new Set(roots.filter(Boolean))];
-}
-
-function hasSelectedRoots(selectedPaths: SelectedPath[], roots: string[]): boolean {
-  if (selectedPaths.length !== roots.length) return false;
-  return roots.every((root) => selectedPaths.some((item) => samePath(item.path, root)));
-}
-
-function shortPlanId(planId: string): string {
-  return planId.length > 18 ? `...${planId.slice(-12)}` : planId;
-}
-
-function addUniqueWarning(warnings: string[], warning: string): string[] {
-  return warnings.includes(warning) ? warnings : [...warnings, warning];
-}
-
-function createCancelledPlanningProgress(): NameTranslationPlanningProgress {
-  return {
-    phase: "cancelled",
-    message: i18n.t("rename:messages.planning_cancelled"),
-  };
-}
-
-function isPlanningCancelled(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "code" in error &&
-    error.code === "planning_cancelled"
-  );
-}
-
-function recomposeItemNames(
-  items: NameTranslationPlanItem[],
-  options: NameTranslationOptions
-): NameTranslationPlanItem[] {
-  return items.map((item) => {
-    if (item.status === "skipped" || item.status === "blocked") return item;
-
-    const originalStem = pathStem(item.originalName);
-    const extension =
-      item.kind === "file" ? item.originalName.slice(originalStem.length) : "";
-
-    const fakeTarget: NameTranslationTarget = {
-      id: item.targetId,
-      kind: item.kind,
-      absolutePath: item.sourcePath,
-      parentPath: item.sourceParentPath,
-      originalName: item.originalName,
-      stem: originalStem,
-      extension,
-      depthFromRoot: 0,
-      anchorRoot: "",
-    };
-
-    const sanitized = sanitizeTranslatedName(
-      fakeTarget,
-      item.translatedStem,
-      options
-    );
-    if (!sanitized.valid) return item;
-
-    const newTargetPath = joinPath(item.sourceParentPath, sanitized.newName);
-    return {
-      ...item,
-      newName: sanitized.newName,
-      targetPath: newTargetPath,
-      status: samePath(item.sourcePath, newTargetPath) ? "unchanged" : "ready",
-    };
-  });
-}
-
-function getIpcRenderer(): Window["ipcRenderer"] {
-  if (typeof window === "undefined" || !window.ipcRenderer) {
-    throw new Error(i18n.t("rename:messages.ipc_unavailable"));
-  }
-  return window.ipcRenderer;
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export { isPlanIncomplete };
 export default useNameTranslatorStore;

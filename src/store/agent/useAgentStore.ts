@@ -19,12 +19,11 @@ import type {
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
-import { getNameTranslationPlan } from "@/services/rename/namePlanStore";
 import {
-  applyNameTranslationPlan,
-  validateNameTranslationPlan,
-} from "@/services/rename/nameApplyService";
-import type { NameTranslationApplyResult } from "@/services/rename/nameTypes";
+  applyAgentNamePlan,
+  getAgentNamePlan,
+  type NameTranslationApplyResult,
+} from "@/services/name-translation/agentPlan";
 import { createAgentPlan, type AgentPlanInput } from "@/agent/plan";
 
 // ---------------------------------------------------------------------------
@@ -320,24 +319,18 @@ const useAgentStore = create<AgentStore>()(
         const isCurrent = () => get().session.id === session.id && get().pendingNameTranslationPlan === claimed;
         let submitted = false;
         try {
-          const plan = getNameTranslationPlan(planId);
+          const plan = getAgentNamePlan(planId);
           if (!plan) {
             throw new Error("重命名计划已过期或不存在，请重新生成预览。");
           }
-          if (!plan.applyable || plan.blockedCount > 0) {
-            throw new Error("当前重命名计划不可应用，请先处理冲突或重新生成预览。");
+          if (!plan.summary.applyable) {
+            throw new Error("当前重命名计划没有可重命名的条目。");
           }
-          const validation = await validateNameTranslationPlan(planId);
           signal?.throwIfAborted();
           if (!isCurrent()) return;
-          if (!validation.valid) {
-            throw new Error(
-              validation.errors[0]?.message ?? "重命名计划校验失败。"
-            );
-          }
 
           submitted = true;
-          const result = await applyNameTranslationPlan(planId);
+          const result = await applyAgentNamePlan(planId);
           if (!isCurrent()) return result;
           set({
             pendingNameTranslationPlan: {

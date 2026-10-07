@@ -23,7 +23,7 @@ function collectCheckboxConsumers(directory: string): string[] {
 describe("tool boolean controls", () => {
   it("uses the shared switch row for boolean configuration", () => {
     const expectedCounts = new Map([
-      ["Rename/NameTranslator/components/OptionsPanel.tsx", 3],
+      ["Rename/NameTranslator/components/SidePanels.tsx", 1],
       ["Subtitle/SubtitleConverter/index.tsx", 1],
       ["Subtitle/SubtitleTranslator/index.tsx", 5],
       ["Audio/SpeechSynthesizer/index.tsx", 1],
@@ -39,6 +39,8 @@ describe("tool boolean controls", () => {
   it("keeps checkboxes for selections and explicit staged confirmations", () => {
     expect(collectCheckboxConsumers(toolsRoot).sort()).toEqual([
       "Audio/AudioTranscriber/index.tsx",
+      // Name translator rows select which entries are renamed.
+      "Rename/NameTranslator/components/EntryRow.tsx",
       "Subtitle/LocalSubtitleTranscriber/index.tsx",
       // Studio stages file interpretations and export choices before a separate confirmation.
       "Subtitle/SubtitleStudio/StudioBilingual.tsx",

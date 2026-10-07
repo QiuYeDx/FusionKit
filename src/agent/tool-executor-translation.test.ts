@@ -3,7 +3,7 @@ import { Model } from "@/type/model";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
-import * as namePlanner from "@/services/rename/nameTranslationPlanner";
+import * as agentNamePlan from "@/services/name-translation/agentPlan";
 import {
   executeQueueRecoveredSubtitleTranslate,
   executeQueueTranslate,
@@ -13,8 +13,8 @@ import {
 
 it("passes cancellation into name planning and leaves no pending preview after cancellation", async () => {
   const controller = new AbortController();
-  const planner = vi.spyOn(namePlanner, "createNameTranslationPlan").mockImplementation(async (_options, deps) => {
-    expect(deps?.signal).toBe(controller.signal);
+  const planner = vi.spyOn(agentNamePlan, "createAgentNamePlan").mockImplementation(async (_args, signal) => {
+    expect(signal).toBe(controller.signal);
     controller.abort();
     throw new DOMException("Aborted", "AbortError");
   });

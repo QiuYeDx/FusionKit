@@ -1,7 +1,7 @@
 import type {
   NameTranslationApplyResult,
   NameTranslationPlanSummary,
-} from "@/services/rename/nameTypes";
+} from "@/services/name-translation/agentPlan";
 
 // ---------------------------------------------------------------------------
 // Agent 会话与消息类型
