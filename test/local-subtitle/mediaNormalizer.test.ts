@@ -13,6 +13,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { truncateSparse } from "../support/sparseFile";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LOCAL_SUBTITLE_LIMITS } from "../../src/type/localSubtitle";
@@ -1999,7 +2000,7 @@ async function overwriteWithSparseRf64(
   const handle = await open(filePath, "r+");
   try {
     await handle.write(header, 0, header.length, 0);
-    await handle.truncate(fileSize);
+    await truncateSparse(handle, filePath, fileSize);
   } finally {
     await handle.close();
   }

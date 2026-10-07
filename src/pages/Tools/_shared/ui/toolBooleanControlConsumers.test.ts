@@ -42,11 +42,13 @@ describe("tool boolean controls", () => {
       // Name translator rows select which entries are renamed.
       "Rename/NameTranslator/components/EntryRow.tsx",
       "Subtitle/LocalSubtitleTranscriber/index.tsx",
-      // Studio stages file interpretations and export choices before a separate confirmation.
-      "Subtitle/SubtitleStudio/StudioBilingual.tsx",
+      // Studio stages export choices before a separate confirmation and selects
+      // documents, trial cues and recoverable documents.
       "Subtitle/SubtitleStudio/StudioExport.tsx",
+      "Subtitle/SubtitleStudio/StudioKnowledgeTrial.tsx",
       "Subtitle/SubtitleStudio/StudioLibrary.tsx",
       "Subtitle/SubtitleStudio/StudioMaterialsFields.tsx",
+      "Subtitle/SubtitleStudio/StudioRecovery.tsx",
       "Subtitle/SubtitleTranslator/components/RecoveryDialog.tsx",
       // Shared selection-card variant; boolean settings still default to Switch.
       "_shared/ui/ToolSwitchRow.tsx",

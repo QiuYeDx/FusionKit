@@ -9,6 +9,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import { truncateSparse } from "../support/sparseFile";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -470,7 +471,7 @@ async function writeSparseRf64(
   const handle = await open(filePath, "wx", 0o600);
   try {
     await handle.write(createRf64Prefix(fileSize, dataSize, sampleCount), 0, 80, 0);
-    await handle.truncate(fileSize);
+    await truncateSparse(handle, filePath, fileSize);
   } finally {
     await handle.close();
   }

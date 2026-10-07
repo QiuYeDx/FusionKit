@@ -72,6 +72,7 @@
     "src/hooks/use-reduced-motion.ts",
     "src/constants/router.ts",
     "src/pages/Tools/_shared/",
+    "src/services/row-selection.ts",
     "electron/main/ai/model-runtime-client.ts",
     "electron/main/ai/model-runtime-errors.ts",
     "electron/main/ai/provider-error-classification.ts",

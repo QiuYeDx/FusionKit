@@ -6,6 +6,11 @@ import { describe, expect, it } from "vitest";
 const toolsRoot = fileURLToPath(new URL("../..", import.meta.url));
 const settingRoot = fileURLToPath(new URL("../../../Setting", import.meta.url));
 
+/** Repository-style relative path, independent of the host path separator. */
+function relativePath(root: string, file: string): string {
+  return path.relative(root, file).split(path.sep).join("/");
+}
+
 function collectTsxSources(directory: string): Array<[string, string]> {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolutePath = path.join(directory, entry.name);
@@ -30,7 +35,7 @@ describe("segmented control consumers", () => {
           source,
         ),
     );
-    expect(legacySelectedButtons.map(([file]) => path.relative(toolsRoot, file))).toEqual([
+    expect(legacySelectedButtons.map(([file]) => relativePath(toolsRoot, file))).toEqual([
       "Audio/SpeechSynthesizer/index.tsx",
     ]);
     expect(legacySelectedButtons[0]?.[1]).toContain("OPENAI_VOICE_HINTS.map");
@@ -46,12 +51,12 @@ describe("segmented control consumers", () => {
 
     const consumers = collectTsxSources(settingRoot)
       .filter(([, source]) => source.includes("<SegmentedControl"))
-      .map(([file]) => path.relative(settingRoot, file))
+      .map(([file]) => relativePath(settingRoot, file))
       .sort();
     expect(consumers).toEqual(expectedConsumers);
 
     for (const [file, source] of collectTsxSources(settingRoot)) {
-      expect(source, path.relative(settingRoot, file)).not.toMatch(
+      expect(source, relativePath(settingRoot, file)).not.toMatch(
         /variant=\{[\s\S]{0,180}\?\s*["']default["']\s*:\s*["']outline["']/,
       );
     }

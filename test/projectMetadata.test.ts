@@ -20,12 +20,14 @@ const manifest = JSON.parse(
 describe("project build metadata", () => {
   it("keeps current release documentation synchronized with package.json", () => {
     const appVersion = manifest.version;
+    const changelog = readProjectFile("CHANGELOG.md");
 
+    expect(changelog).toContain(`## [${appVersion}] -`);
+    // While the changelog marks the version as in development, the README
+    // labels its highlights as development highlights; a release drops that.
+    const inDevelopment = changelog.includes(`## [${appVersion}] - 开发中`);
     expect(readProjectFile("README.md")).toContain(
-      `## ${appVersion} 版本亮点`,
-    );
-    expect(readProjectFile("CHANGELOG.md")).toContain(
-      `## [${appVersion}] -`,
+      `## ${appVersion} ${inDevelopment ? "开发版本亮点" : "版本亮点"}`,
     );
   });
 
