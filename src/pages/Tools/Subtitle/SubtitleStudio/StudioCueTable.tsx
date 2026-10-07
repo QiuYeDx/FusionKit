@@ -215,7 +215,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
               onSave={(value, move) => void save(cue, target, value, move)} onCancel={() => { setEditing(null); setEditError(undefined); focusList(); }} />;
           };
           return <tr key={cue.id} data-cue-id={cue.id} aria-selected={isSelected} data-selected={isSelected || undefined}
-            data-selected-first={isSelected && !selection.keys.has(order[index - 1]) || undefined} data-selected-last={isSelected && !selection.keys.has(order[index + 1]) || undefined}
+            data-selected-last={isSelected && !selection.keys.has(order[index + 1]) || undefined}
             data-lead={lead || undefined} data-editing={editingField ? true : undefined} data-warning={flaggedNodes.has('nodeId' in cue ? cue.nodeId : undefined) || undefined}>
             <td className="studio-cue-number">{page.offset + index + 1}</td>
             <td className="studio-cue-time"><div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div></td>

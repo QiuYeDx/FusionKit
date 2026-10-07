@@ -1,4 +1,5 @@
-.studio-plan-documents-body { padding: 4px; min-width: 0; }
+/* The list's scrollbar gutter forms the right inset, matching the left and vertical ones. */
+.studio-plan-documents-body { padding: 6px 0 6px 6px; min-width: 0; }
 .studio-plan-documents-body .studio-document-row { background: transparent; }
 .studio-plan-documents-body .studio-document-row:hover, .studio-plan-documents-body .studio-document-row:focus-within { background: var(--muted); }
 .studio-plan-document-track { width: 140px; max-width: 100%; min-width: 0; }

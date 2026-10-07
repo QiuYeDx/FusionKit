@@ -1,4 +1,6 @@
-.studio-task-list { list-style: none; display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; padding: 8px 12px; }
+/* Rows are inset equally from the panel edges: the 8px gap matches the 16px panel radius around 8px rows. */
+.studio-task-list { list-style: none; display: flex; flex-direction: column; gap: 4px; min-width: 0; margin: 0; padding: 8px; }
+.studio-scroll-fade .studio-task-list { padding-right: calc(8px - var(--studio-scroll-gutter)); }
 .studio-task-row { min-width: 0; padding: 8px; border-radius: 8px; }
 .studio-task-row:hover { background: var(--muted); }
 .studio-task-heading { display: flex; gap: 8px; align-items: center; }

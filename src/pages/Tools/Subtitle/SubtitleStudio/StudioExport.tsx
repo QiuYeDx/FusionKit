@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ArrowDownToLine, CheckCheck, ClipboardCheck, FolderOpen, LoaderCircle } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, CheckCheck, ClipboardCheck, FolderOpen, Info, ListChecks, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import { subtitleExportFileName } from '@/subtitle-studio/export-filename';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { STUDIO_BATCH_LIMIT, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult } from '@/subtitle-studio/batch-contract';
 import { StudioPlanDocuments } from './StudioPlanDocuments';
+import { StudioDocumentDisclosureHeading } from './StudioDocumentDisclosureHeading';
 import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioIconButton } from './StudioControls';
 import { StudioOperationResult, STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, type StudioOperationResultItem } from './StudioOperationResult';
@@ -457,48 +458,61 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
               </>;
             }} />}
           {step === 'review' && reviewedOptions && <section className="studio-export-plan studio-export-review" data-testid={batch ? 'studio-batch-plan' : 'studio-export-review'} data-revision={currentPlan?.revision} data-partial={currentPlan?.partial}>
-            <p className="studio-export-note">{t('studio:export.review_description')}</p>
-            <div className="studio-export-summary"><h3>{t('studio:batch.ready_count', { count: readyCount, total: sourceDocuments.length })}</h3>
-              <span>{t('studio:export.output_cues', { count: outputCueCount })}</span>
-            </div>
-            <section className="studio-export-review-output" aria-label={t('studio:export.review_output')}>
-              <h3>{t('studio:export.review_output')}</h3>
-              <dl>
-                <div><dt>{t('studio:export.mode')}</dt><dd>{t(modeKeys[reviewedOptions.mode])} · {reviewedOptions.format.toUpperCase()}</dd></div>
-                <div><dt>{t('studio:export.conflict_policy')}</dt><dd>{t(reviewedOptions.conflictPolicy === 'overwrite' ? 'studio:export.conflict_overwrite' : 'studio:export.conflict_indexed')}</dd></div>
-                <div><dt>{t('studio:export.destination')}</dt><dd>{t(destination === 'source-directory' ? 'studio:export.destination_source' : 'studio:export.destination_choose')}</dd></div>
-                {reviewedOptions.mode === 'bilingual' && <div><dt>{t('studio:export.order')}</dt><dd>{t(reviewedOptions.order === 'source-first' ? 'studio:export.source_first' : 'studio:export.target_first')}</dd></div>}
+            <section className="studio-export-card" data-state={readyCount === sourceDocuments.length ? 'ready' : readyCount ? 'partial' : 'blocked'} aria-label={t('studio:export.review_output')}>
+              <div className="studio-export-card-header studio-export-summary">
+                <span className="studio-export-card-icon" aria-hidden="true">{readyCount === sourceDocuments.length ? <CheckCheck /> : <AlertCircle />}</span>
+                <h3>{t('studio:batch.ready_count', { count: readyCount, total: sourceDocuments.length })}</h3>
+                <span className="studio-export-card-aside">{t('studio:export.output_cues', { count: outputCueCount })}</span>
+              </div>
+              <dl className="studio-export-settings">
+                <div><dt>{t('studio:export.mode')}</dt><dd>{t(modeKeys[reviewedOptions.mode])} · {reviewedOptions.format.toUpperCase()}{reviewedOptions.mode === 'bilingual' ? ` · ${t(reviewedOptions.order === 'source-first' ? 'studio:export.source_first' : 'studio:export.target_first')}` : ''}</dd></div>
                 {reviewedOptions.mode !== 'source' && <div><dt>{t('studio:export.incomplete')}</dt><dd>{t(reviewedOptions.incomplete === 'block' ? 'studio:export.incomplete_block' : reviewedOptions.incomplete === 'skip' ? 'studio:export.incomplete_skip' : 'studio:export.incomplete_fallback')}</dd></div>}
+                <div><dt>{t('studio:export.destination')}</dt><dd>{t(destination === 'source-directory' ? 'studio:export.destination_source' : 'studio:export.destination_choose')}</dd></div>
+                <div><dt>{t('studio:export.conflict_policy')}</dt><dd>{t(reviewedOptions.conflictPolicy === 'overwrite' ? 'studio:export.conflict_overwrite' : 'studio:export.conflict_indexed')}</dd></div>
                 <div><dt>{t('studio:encoding')}</dt><dd>{reviewedOptions.encoding.toUpperCase()}{reviewedOptions.bom ? ' · BOM' : ''} · {reviewedOptions.newline.toUpperCase()}</dd></div>
                 <div><dt>{t('studio:export.suffix')}</dt><dd>{reviewedOptions.fileNameSuffix?.mode === 'custom' ? reviewedOptions.fileNameSuffix.value : t(reviewedOptions.fileNameSuffix?.mode !== 'preset' ? 'studio:export.suffix_none' : reviewedOptions.fileNameSuffix.preset === 'content-mode' ? 'studio:export.suffix_content_mode' : 'studio:export.suffix_target_language')}</dd></div>
               </dl>
             </section>
-            {newerRevision && <p className="studio-export-note studio-export-frozen">{t('studio:export.frozen_revision')}</p>}
-            {!!mergedIssues.length ? <section className="studio-export-review-changes" aria-label={t('studio:export.review_changes')}>
-              <h3>{t('studio:export.review_changes')}</h3>
+            {(newerRevision || readyCount < sourceDocuments.length) && <div className="studio-export-review-notes">
+              {newerRevision && <p className="studio-export-note studio-export-frozen"><Info aria-hidden="true" />{t('studio:export.frozen_revision')}</p>}
+              {readyCount < sourceDocuments.length && <p className="studio-export-note" role="status"><Info aria-hidden="true" />{t('studio:export.review_not_ready')}</p>}
+            </div>}
+            {!!mergedIssues.length ? <section className="studio-export-card studio-export-review-changes" aria-label={t('studio:export.review_changes')}>
+              <div className="studio-export-card-header">
+                <span className="studio-export-card-icon" aria-hidden="true"><ListChecks /></span>
+                <h3>{t('studio:export.review_changes')}</h3>
+                {needsAcceptance && <span className="studio-export-card-aside">{t('studio:export.review_accept')}</span>}
+              </div>
               <ul className="studio-export-change-types">{mergedIssues.map(issue => <li key={issue.code} data-blocking={issue.blocking} data-issue={issue.code}>
-                <Tooltip delayDuration={350}><TooltipTrigger asChild><span tabIndex={0}>{t(changeKeys[issue.code])}<span className="studio-export-change-count">{number(issue.count)}</span></span></TooltipTrigger>
+                <Tooltip delayDuration={350}><TooltipTrigger asChild><span tabIndex={0} className="studio-export-change">
+                  {issue.blocking ? <AlertCircle aria-hidden="true" /> : <Info aria-hidden="true" />}
+                  <span className="studio-export-change-label">{t(changeKeys[issue.code])}</span>
+                  <span className="studio-export-change-count">{number(issue.count)}</span>
+                </span></TooltipTrigger>
                   <TooltipContent className="max-w-72" sideOffset={6}>{t(issueKeys[issue.code], { count: issue.count })}</TooltipContent></Tooltip>
+                {issue.blocking && <p className="studio-export-change-detail">{t(issueKeys[issue.code], { count: issue.count })}</p>}
               </li>)}</ul>
             </section> : readyCount > 0 && <p className="studio-export-ready"><CheckCheck className="size-3.5" />{t('studio:export.ready')}</p>}
-            {readyCount < sourceDocuments.length && <p className="studio-export-note" role="status">{t('studio:export.review_not_ready')}</p>}
-            {needsAcceptance && <p className="studio-export-note">{t('studio:export.review_accept')}</p>}
-            <StudioDisclosure lazyMount className="studio-export-review-details" data-testid="studio-export-review-details" open={reviewDetailsOpen} onOpenChange={setReviewDetailsOpen} contentClassName="px-3" title={t('studio:export.review_details')}>
-              <StudioDocumentList label={t('studio:export.review_details')} maxHeight="min(280px, 42vh)">
+            <StudioDisclosure lazyMount className="studio-selected-documents studio-export-review-details" data-testid="studio-export-review-details" open={reviewDetailsOpen} onOpenChange={setReviewDetailsOpen}
+              triggerClassName="studio-selected-documents-header" title={<StudioDocumentDisclosureHeading title={t('studio:export.review_details')} count={sourceDocuments.length} />}>
+              <div className="studio-plan-documents-body"><StudioDocumentList label={t('studio:export.review_details')} maxHeight="min(280px, 42vh)">
                 {sourceDocuments.map((document, index) => {
                   const batchItem = batchPlan?.items.find(item => item.documentId === document.id);
                   const checked = batch ? batchItem?.ok ? batchItem.plan : undefined : currentPlan ?? undefined;
                   const ready = batch ? batchReady.some(item => item.documentId === document.id) : readyCount > 0;
                   const locationUnavailable = destination === 'source-directory' && checked?.sourceLocation?.status !== 'ready';
                   return <StudioDocumentRow key={document.id} index={index + 1} name={document.origin.displayName} data-document-id={document.id} data-state={ready ? 'ready' : 'failed'}
-                    status={batchItem && !batchItem.ok ? t(errorKeys[batchItem.error]) : locationUnavailable ? t(checked?.sourceLocation?.status === 'missing' ? 'studio:export.source_missing' : 'studio:export.source_unavailable') : t(ready ? 'studio:batch.ready' : 'studio:batch.blocked')}>
-                    {checked && <><p className="studio-export-note">{checked.fileName} · {number(checked.byteLength)} B</p>
+                    status={batchItem && !batchItem.ok ? t(errorKeys[batchItem.error]) : locationUnavailable ? t(checked?.sourceLocation?.status === 'missing' ? 'studio:export.source_missing' : 'studio:export.source_unavailable') : t(ready ? 'studio:batch.ready' : 'studio:batch.blocked')}
+                    metadata={checked && !checked.preview ? <><span className="studio-export-output-name">{checked.fileName}</span><span>{number(checked.byteLength)} B</span></> : undefined}>
+                    {checked && (!!checked.issues.length || checked.preview) && <>
+                      {/* The output line itself opens the preview, so a row stays two lines high. */}
+                      {checked.preview && <StudioDisclosure className="studio-export-preview" triggerLabel={`${t('studio:export.preview')} · ${checked.fileName}`} triggerClassName="studio-export-preview-trigger"
+                        title={<span className="studio-export-preview-title"><span className="studio-export-output-name">{checked.fileName}</span><span>{number(checked.byteLength)} B</span></span>}><pre>{checked.preview}</pre></StudioDisclosure>}
                       {!!checked.issues.length && <ul className="studio-export-issues">{checked.issues.map(issue => <li key={issue.code} data-blocking={issue.blocking}><span>{t(issueKeys[issue.code], { count: issue.count })}</span></li>)}</ul>}
-                      {checked.preview && <StudioDisclosure className="studio-export-preview" title={t('studio:export.preview')} triggerClassName="min-h-8 px-2 py-1 text-xs text-muted-foreground"><pre>{checked.preview}</pre></StudioDisclosure>}
                     </>}
                   </StudioDocumentRow>;
                 })}
-              </StudioDocumentList>
+              </StudioDocumentList></div>
             </StudioDisclosure>
           </section>}
         </div>

@@ -17,14 +17,10 @@
 .studio-cue-list .studio-cue-text { user-select: none; cursor: default; }
 .studio-cue-list tbody tr { scroll-margin-top: 36px; scroll-margin-bottom: 8px; }
 
-/* Adjacent selected rows read as one block with outer rounded corners. */
+/* Rows run edge to edge with square ends; adjacent selected rows read as one block. */
 .studio-cue-list tbody tr[data-selected] > td { background: var(--studio-cue-selected); }
 .studio-cue-list tbody tr[data-selected]:hover > td { background: var(--studio-cue-selected-hover); }
 .studio-cue-list tbody tr[data-selected]:not([data-selected-last]) > td { border-bottom-color: transparent; }
-.studio-cue-list tbody tr[data-selected-first] > td:first-child { border-top-left-radius: 8px; }
-.studio-cue-list tbody tr[data-selected-first] > td:last-child { border-top-right-radius: 8px; }
-.studio-cue-list tbody tr[data-selected-last] > td:first-child { border-bottom-left-radius: 8px; }
-.studio-cue-list tbody tr[data-selected-last] > td:last-child { border-bottom-right-radius: 8px; }
 .studio-cue-list tbody tr[data-editing] > td { background: color-mix(in oklab, var(--muted) 45%, var(--card)); }
 
 .studio-cue-field { position: relative; min-width: 0; min-height: 20px; border-radius: 4px; }

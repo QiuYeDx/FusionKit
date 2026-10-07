@@ -17,7 +17,7 @@
 .studio-bilingual-summary dt { color: var(--muted-foreground); font-size: 11px; }
 .studio-bilingual-summary dd { font-size: 12px; font-variant-numeric: tabular-nums; }
 .studio-bilingual-list { border-top: 1px solid var(--border); }
-.studio-bilingual-candidates { min-width: 0; padding-inline: 4px; }
+.studio-bilingual-candidates { min-width: 0; padding-left: var(--studio-scroll-gutter, 6px); }
 .studio-bilingual-candidates > li { display: grid; grid-template-columns: 72px minmax(0, 1fr) 132px; align-items: start; gap: 10px; padding-block: 8px; border-bottom: 1px solid var(--border); }
 .studio-bilingual-candidates > li:last-child { border-bottom: 0; }
 .studio-bilingual-candidate-heading { display: grid; align-content: start; gap: 2px; min-width: 0; padding-top: 1px; }

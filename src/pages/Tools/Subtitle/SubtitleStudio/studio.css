@@ -35,7 +35,8 @@
 .studio-library-selection-scope { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding-left: 6px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .studio-library-selection-notice { display: flex; align-items: flex-start; gap: 6px; margin: 0 var(--studio-library-inset) 6px; padding: 8px; border-radius: 8px; background: var(--muted); font-size: 11px; line-height: 18px; }
 .studio-library-selection-notice > span { flex: 1; }
-.studio-library-items { padding: 4px var(--studio-library-inset) var(--studio-library-inset); }
+/* The scroll gutter is part of the right inset, so rows keep equal side insets whether or not the list scrolls. */
+.studio-library-items { padding: 4px calc(var(--studio-library-inset) - 8px) var(--studio-library-inset) var(--studio-library-inset); }
 .studio-library-selection [data-state=indeterminate] [data-slot=checkbox-indicator] > svg { display: none; }
 .studio-library-selection [data-state=indeterminate] [data-slot=checkbox-indicator]::after { content: ''; width: 8px; height: 2px; border-radius: 1px; background: currentColor; }
 .studio-library-selection button:not([role=checkbox]), .studio-library-filter-summary button { height: 28px; padding: 0 6px; font-size: 11px; }
@@ -44,7 +45,7 @@
 .studio-library-selected-count:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 2px; }
 .studio-library-batch-actions { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
 .studio-library-batch-actions > span { display: flex; }
-.studio-library-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.studio-library-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .studio-library-row { display: grid; grid-template-columns: calc(var(--studio-row-inset) + 16px) minmax(0, 1fr); align-items: start; border-radius: 8px; transition: background-color 150ms ease-out; }
 .studio-library-row:hover { background: var(--muted); }
 .studio-library-row:is([data-selected], [data-current]) { background: var(--accent); }

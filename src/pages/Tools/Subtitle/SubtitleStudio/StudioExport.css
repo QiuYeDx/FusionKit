@@ -16,36 +16,59 @@
 .studio-export-note { color: var(--muted-foreground); font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
 .studio-export-error { display: flex; align-items: flex-start; gap: 6px; color: var(--destructive); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
 .studio-export-error svg { flex-shrink: 0; }
-.studio-export-plan { display: grid; gap: 10px; min-width: 0; margin-inline: -12px; border-top: 1px solid var(--border); padding: 12px 12px 0; }
-.studio-export-summary { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; line-height: 18px; }
-.studio-export-summary h3 { font-weight: 500; }
-.studio-export-summary > span { color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
-.studio-export-plan[data-partial="true"] .studio-export-summary h3 { color: var(--foreground); }
-.studio-export-issues { display: grid; gap: 5px; padding: 0; list-style: none; }
-.studio-export-issues li { display: flex; align-items: flex-start; gap: 6px; color: var(--muted-foreground); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
-.studio-export-issues li[data-blocking="true"] { color: var(--destructive); }
-.studio-export-issues li svg { flex-shrink: 0; margin-top: 2px; }
-.studio-export-issue-dot { flex-shrink: 0; width: 4px; height: 4px; margin: 7px 5px; border-radius: 50%; background: currentColor; }
-.studio-export-preview { min-width: 0; }
-.studio-export-preview pre { margin-top: 6px; padding: 8px 10px; border-radius: 6px; background: var(--muted); color: var(--muted-foreground); font-family: var(--font-mono); font-size: 11px; line-height: 17px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.studio-export-ready { display: flex; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
 .studio-export-footer button { flex-shrink: 0; }
 .studio-export-step-title:focus { outline: none; }
-.studio-export-review { margin-inline: 0; border-top: 0; padding: 0; gap: 12px; }
-.studio-export-review-output, .studio-export-review-changes { display: grid; gap: 6px; min-width: 0; }
-.studio-export-review-output > h3, .studio-export-review-changes > h3 { font-size: 12px; font-weight: 500; line-height: 18px; }
-.studio-export-review-output dl { display: grid; gap: 6px; font-size: 12px; line-height: 18px; }
-.studio-export-review-output dl > div { display: grid; grid-template-columns: minmax(90px, .7fr) minmax(0, 1.6fr); gap: 12px; }
-.studio-export-review-output dt { color: var(--muted-foreground); }
-.studio-export-review-output dd { min-width: 0; overflow-wrap: anywhere; }
-.studio-export-change-types { display: flex; flex-wrap: wrap; gap: 6px 12px; list-style: none; padding: 0; }
-.studio-export-change-types li { min-width: 0; color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
-.studio-export-change-types li[data-blocking="true"] { color: var(--destructive); }
-.studio-export-change-types li > span { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; }
-.studio-export-change-types li > span:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 3px; }
-.studio-export-change-count { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--foreground); }
-.studio-export-review-details { min-width: 0; margin-inline: -12px; border-top: 1px solid var(--border); }
-.studio-export-review-details .studio-document-row-details { display: grid; gap: 6px; }
+
+/* Review step: a few cards that share the selected-documents surface of the settings step. */
+.studio-export-review { display: grid; gap: 12px; min-width: 0; }
+.studio-export-card { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background); font-size: 12px; line-height: 18px; }
+.studio-export-card-header { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px; border-bottom: 1px solid var(--border); border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0; background: color-mix(in srgb, var(--muted) 45%, transparent); }
+.studio-export-card-header h3 { flex: 1; min-width: 0; font-weight: 500; overflow-wrap: anywhere; }
+.studio-export-card-icon { display: grid; place-items: center; width: 20px; flex-shrink: 0; color: var(--muted-foreground); }
+.studio-export-card-icon > svg { width: 14px; height: 14px; }
+.studio-export-card[data-state="ready"] .studio-export-card-icon { color: var(--color-emerald-600); }
+.studio-export-card[data-state="partial"] .studio-export-card-icon { color: var(--color-amber-600); }
+.studio-export-card[data-state="blocked"] .studio-export-card-icon { color: var(--destructive); }
+.dark .studio-export-card[data-state="ready"] .studio-export-card-icon { color: var(--color-emerald-400); }
+.dark .studio-export-card[data-state="partial"] .studio-export-card-icon { color: var(--color-amber-400); }
+.studio-export-card-aside { flex-shrink: 0; max-width: 50%; color: var(--muted-foreground); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.studio-export-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0; padding: 10px 12px 12px 40px; }
+.studio-export-settings > div { display: grid; gap: 1px; min-width: 0; }
+.studio-export-settings dt { color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
+.studio-export-settings dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+
+.studio-export-review-notes { display: grid; gap: 4px; }
+.studio-export-review-notes .studio-export-note { display: flex; align-items: flex-start; gap: 6px; }
+.studio-export-review-notes .studio-export-note > svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 2px; }
+
+.studio-export-change-types { display: grid; margin: 0; padding: 4px; list-style: none; }
+.studio-export-change-types > li { min-width: 0; }
+.studio-export-change { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 6px 8px; border-radius: 6px; outline: none; }
+.studio-export-change:hover { background: var(--muted); }
+.studio-export-change:focus-visible { box-shadow: inset 0 0 0 2px var(--ring); }
+/* Icons share the card header's 20px icon column; labels start where header titles do. */
+.studio-export-change > svg { width: 14px; height: 14px; flex-shrink: 0; margin-inline: 3px; color: var(--muted-foreground); }
+.studio-export-change-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.studio-export-change-count { flex-shrink: 0; color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
+.studio-export-change-types li[data-blocking="true"] :is(.studio-export-change, .studio-export-change > svg, .studio-export-change-count) { color: var(--destructive); }
+.studio-export-change-detail { padding: 0 8px 6px 36px; color: var(--destructive); font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
+.studio-export-ready { display: flex; align-items: center; gap: 6px; color: var(--muted-foreground); font-size: 12px; line-height: 18px; }
+
+.studio-export-review-details .studio-document-row-details { display: grid; gap: 4px; }
+.studio-export-output-name { min-width: 0; overflow-wrap: anywhere; }
+.studio-export-issues { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.studio-export-issues li { color: var(--muted-foreground); font-size: 11px; line-height: 17px; overflow-wrap: anywhere; }
+.studio-export-issues li[data-blocking="true"] { color: var(--destructive); }
+.studio-export-preview { min-width: 0; }
+.studio-export-review-details .studio-document-row-details { margin-top: 2px; }
+.studio-export-preview .studio-export-preview-trigger { flex: 0 1 auto; justify-content: flex-start; gap: 4px; min-height: 22px; padding: 2px 0; font-size: 11px; line-height: 18px; font-weight: 400; color: var(--muted-foreground); }
+.studio-export-preview .studio-export-preview-trigger:hover { background: transparent; }
+.studio-export-preview .studio-export-preview-trigger > svg { width: 13px; height: 13px; }
+.studio-export-preview-title { display: inline-flex; flex-wrap: wrap; gap: 0 12px; min-width: 0; }
+.studio-export-preview .studio-export-preview-trigger:hover { color: var(--foreground); text-decoration: none; }
+.studio-export-preview pre { margin-top: 4px; padding: 8px 10px; border-radius: 6px; background: var(--muted); color: var(--muted-foreground); font-family: var(--font-mono); font-size: 11px; line-height: 17px; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .studio-export-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .studio-export-settings { grid-template-columns: minmax(0, 1fr); }
 }

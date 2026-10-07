@@ -21,7 +21,7 @@
 .studio-transcription-start-meta { display: flex; flex-direction: column; gap: 3px; min-width: 160px; flex: 1; font-size: 12px; }
 .studio-transcription-start-meta > :last-child { color: var(--muted-foreground); font-size: 11px; line-height: 16px; }
 .studio-transcription-start-bar > button { flex-shrink: 0; }
-.studio-transcription-media-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 8px 12px; list-style: none; }
+.studio-transcription-media-list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 8px calc(8px - var(--studio-scroll-gutter, 0px)) 8px 8px; list-style: none; }
 .studio-transcription-media-list > li { display: flex; align-items: flex-start; gap: 8px; padding: 8px; min-width: 0; border-radius: 8px; }
 .studio-transcription-media-list > li:hover { background: var(--muted); }
 .studio-transcription-row-icon { width: 15px; height: 15px; flex-shrink: 0; margin-top: 3px; color: var(--muted-foreground); }
