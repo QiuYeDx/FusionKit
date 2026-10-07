@@ -208,6 +208,7 @@
     "model_quota": "The model quota is exhausted",
     "model_not_found": "The configured model was not found",
     "model_failed": "The model request failed",
+    "model_incomplete": "The model returned no translation for some names, even one at a time",
     "cancelled": "Cancelled",
     "too_many_entries": "Too many entries",
     "journal_not_found": "Rename record not found",

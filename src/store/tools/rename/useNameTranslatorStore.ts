@@ -70,6 +70,8 @@ export interface NameTranslatorState extends WorkspaceData {
   collecting: Record<string, true>;
   run: TranslationRun | null;
   translationError: NameTranslationError | null;
+  /** Why the last batch failed, kept so the footer can explain failed rows. */
+  translationWarning: NameTranslationError | null;
   preparing: boolean;
   confirm: ConfirmState | null;
   applying: boolean;
@@ -299,6 +301,7 @@ const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
     collecting: {},
     run: null,
     translationError: null,
+    translationWarning: null,
     preparing: false,
     confirm: null,
     applying: false,
@@ -374,7 +377,7 @@ const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
 
     clearWorkspace: () => {
       get().stopTranslation();
-      set({ ...EMPTY_WORKSPACE, rejected: [], notice: null, filter: "all", confirm: null, translationError: null });
+      set({ ...EMPTY_WORKSPACE, rejected: [], notice: null, filter: "all", confirm: null, translationError: null, translationWarning: null });
     },
 
     setFilter: (filter) => set({ filter }),
@@ -543,7 +546,7 @@ const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
           const previous = Array.isArray(scope) ? {} : (proposals[key] ?? {});
           proposals[key] = { ...previous, edited: undefined, translating: true, failed: false };
         }
-        return { proposals, run: { requestId, total: keys.length, done: 0 }, translationError: null };
+        return { proposals, run: { requestId, total: keys.length, done: 0 }, translationError: null, translationWarning: null };
       });
 
       const api = getNameTranslationApi();
@@ -561,6 +564,9 @@ const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
         requestId,
         translateBatch: (request) => api.translate(request),
         isCancelled: () => get().run?.requestId !== requestId,
+        onBatchError: (error) => {
+          if (get().run?.requestId === requestId) set({ translationWarning: error });
+        },
         onResult: (key, stem) => {
           if (get().run?.requestId !== requestId) return;
           set((current) => ({
@@ -795,6 +801,7 @@ const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
         rejected: [],
         notice: null,
         translationError: null,
+    translationWarning: null,
       });
     },
   };

@@ -23,6 +23,7 @@ import {
   parseTranslationOutput,
   translateNames,
 } from "../../electron/main/name-translation/translator";
+import { ModelRuntimeClientError } from "../../electron/main/ai/model-runtime-errors";
 import { setupNameTranslationIPC } from "../../electron/main/name-translation/ipc";
 import { ModelRuntimeClientError } from "../../electron/main/ai/model-runtime-errors";
 
@@ -176,5 +177,58 @@ describe("name translation IPC", () => {
     await startedPromise;
     await expect(handlers.get(NAME_TRANSLATION_CHANNELS.cancelTranslate)!({}, { requestId: "r2" })).resolves.toMatchObject({ ok: true, data: { cancelled: true } });
     await expect(pending).resolves.toMatchObject({ ok: false, error: { code: "cancelled" } });
+  });
+});
+
+describe("name translation robustness", () => {
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  const model = { apiKey: "k", modelKey: "m", endpoint: "https://example.invalid" };
+  const request = (names: string[]) => ({
+    requestId: "r",
+    model,
+    sourceLang: "auto" as const,
+    targetLang: "ZH" as const,
+    items: names.map((name, index) => ({ id: String(index + 1), name, kind: "file" as const })),
+  });
+
+  it("salvages items from truncated, map-shaped and oddly keyed output", () => {
+    const truncated = '```json\n{"items":[{"id":"1","name":"一"},{"id":2,"translation":"二"},{"id":"3","name":"三';
+    expect(parseTranslationOutput(truncated, ["1", "2", "3"])).toEqual({
+      items: [{ id: "1", name: "一" }, { id: "2", name: "二" }],
+      failedIds: ["3"],
+    });
+    expect(parseTranslationOutput('{"1":"一","2":"二"}', ["1", "2"]).items).toHaveLength(2);
+    expect(parseTranslationOutput('{"results":[{"id":"item_1","translated":"一"}]}', ["1"]).items).toEqual([{ id: "1", name: "一" }]);
+    expect(parseTranslationOutput('{"items":[{"id":"1","name":"一"},{"id":"1","name":"壱"}]}', ["1"]).failedIds).toEqual(["1"]);
+    expect(parseTranslationOutput('{"items":[{"id":"1","name":"  "}]}', ["1"]).failedIds).toEqual(["1"]);
+  });
+
+  it("requests JSON mode and falls back to plain text when the endpoint rejects it", async () => {
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(new ModelRuntimeClientError("http_non_retryable", "bad response_format", false, { status: 400 }))
+      .mockResolvedValueOnce({ content: '{"items":[{"id":"1","name":"一"}]}', apiFormat: "chat_completions" as const });
+    const result = await translateNames(request(["一つ"]), new AbortController().signal, send);
+    expect(result.items).toEqual([{ id: "1", name: "一" }]);
+    expect(send.mock.calls[0]![0].responseFormat).toBe("json_object");
+    expect(send.mock.calls[1]![0].responseFormat).toBeUndefined();
+    expect(send.mock.calls[0]![0].maxOutputTokens).toBeGreaterThanOrEqual(4096);
+    expect(send.mock.calls[0]![0].messages[1].content).toContain('"count":1');
+  });
+
+  it("keeps complete items when the output was cut off by the token limit", async () => {
+    const send = vi.fn().mockRejectedValue(
+      new ModelRuntimeClientError("length_truncated", "cut", false, {
+        partialContent: '{"items":[{"id":"1","name":"一"},{"id":"2","name":"二',
+      }),
+    );
+    const result = await translateNames(request(["一つ", "二つ"]), new AbortController().signal, send);
+    expect(result).toEqual({ items: [{ id: "1", name: "一" }], failedIds: ["2"] });
+  });
+
+  it("still surfaces other model errors", async () => {
+    const send = vi.fn().mockRejectedValue(new ModelRuntimeClientError("http_retryable", "500", true, { status: 500 }));
+    await expect(translateNames(request(["一つ"]), new AbortController().signal, send)).rejects.toBeInstanceOf(ModelRuntimeClientError);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

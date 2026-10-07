@@ -139,17 +139,17 @@ function parseChatCompletionResponse(
 
   const finishReason =
     typeof choice.finish_reason === "string" ? choice.finish_reason : undefined;
+  const message = isRecord(choice.message) ? choice.message : undefined;
+  const content = cleanThinkTags(extractMessageContent(message?.content));
   if (finishReason === "length") {
     throw new ModelRuntimeClientError(
       "length_truncated",
       "Model response was truncated by the output-token limit. Consider reducing the slice token limit or using a model with a larger context window.",
       false,
-      { attempt, usage },
+      { attempt, usage, partialContent: content },
     );
   }
 
-  const message = isRecord(choice.message) ? choice.message : undefined;
-  const content = cleanThinkTags(extractMessageContent(message?.content));
   if (!content.trim()) {
     throw new ModelRuntimeClientError(
       "empty_response",

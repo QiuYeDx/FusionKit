@@ -24,6 +24,8 @@ export interface ModelRuntimeErrorDetails {
   usage?: ModelRuntimeUsage;
   providerCode?: string;
   providerType?: string;
+  /** Text produced before a length cut-off, so callers can salvage partial output. */
+  partialContent?: string;
 }
 
 export class ModelRuntimeClientError extends Error {

@@ -230,6 +230,7 @@ export type NameTranslationErrorCode =
   | "model_quota"
   | "model_not_found"
   | "model_failed"
+  | "model_incomplete"
   | "cancelled"
   | "too_many_entries"
   | "journal_not_found"

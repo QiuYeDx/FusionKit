@@ -208,6 +208,7 @@
     "model_quota": "モデルの利用枠が不足しています",
     "model_not_found": "設定されたモデルが見つかりません",
     "model_failed": "モデルへのリクエストに失敗しました",
+    "model_incomplete": "モデルが一部の名前の訳を返しませんでした（1件ずつ再試行済み）",
     "cancelled": "キャンセルしました",
     "too_many_entries": "項目が多すぎます",
     "journal_not_found": "名前変更の記録が見つかりません",

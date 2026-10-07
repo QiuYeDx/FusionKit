@@ -182,8 +182,9 @@ describe("translation orchestration", () => {
     expect(createBatches(targets, 2, 100).map((batch) => batch.map((item) => item.name))).toEqual([["a", "b"], ["c"], ["d"]]);
   });
 
-  it("skips names without letters, retries missing ids once and reports failures", async () => {
+  it("skips names without letters, retries missing ids in smaller batches and reports failures", async () => {
     const results = new Map<string, string | null>();
+    const errors: string[] = [];
     const translateBatch = vi.fn(async (request: { items: { id: string; name: string }[] }) => ({
       ok: true as const,
       data: {
@@ -202,12 +203,63 @@ describe("translation orchestration", () => {
       translateBatch,
       isCancelled: () => false,
       onResult: (key, stem) => results.set(key, stem),
+      onBatchError: (error) => errors.push(error.code),
     });
     expect(outcome).toEqual({ cancelled: false });
     expect(results.get("1")).toBe("2024-01-01");
     expect(results.get("2")).toBe("T_名前");
     expect(results.get("3")).toBeNull();
-    expect(translateBatch).toHaveBeenCalledTimes(2);
+    // Full batch, then a smaller batch, then the name alone: three attempts before giving up.
+    expect(translateBatch).toHaveBeenCalledTimes(3);
+    expect(errors).toEqual(["model_incomplete"]);
+  });
+
+  it("shrinks batches on retry so a name the model drops succeeds alone", async () => {
+    const results = new Map<string, string | null>();
+    const errors: string[] = [];
+    const translateBatch = vi.fn(async (request: { items: { id: string; name: string }[] }) => ({
+      ok: true as const,
+      data: {
+        // The model drops "気まぐれ" unless it is the only name in the request.
+        items: request.items
+          .filter((item) => item.name !== "気まぐれ" || request.items.length === 1)
+          .map((item) => ({ id: item.id, name: `T_${item.name}` })),
+        failedIds: [],
+      },
+    }));
+    await translateTargets({
+      targets: ["一", "二", "気まぐれ"].map((name) => ({ key: name, name, kind: "file" as const, parentPath: "/a" })),
+      settings: { model, sourceLang: "auto", targetLang: "EN" },
+      requestId: "r",
+      translateBatch,
+      isCancelled: () => false,
+      onResult: (key, stem) => results.set(key, stem),
+      onBatchError: (error) => errors.push(error.code),
+    });
+    expect(results.get("気まぐれ")).toBe("T_気まぐれ");
+    expect(errors).toEqual([]);
+    expect(translateBatch.mock.calls.map((call) => call[0].items.length)).toEqual([3, 1]);
+  });
+
+  it("retries a batch that failed with a non-fatal error and reports the reason", async () => {
+    const results = new Map<string, string | null>();
+    const errors: string[] = [];
+    const translateBatch = vi.fn(async () => ({
+      ok: false as const,
+      error: { code: "model_failed" as const, message: "HTTP 500" },
+    }));
+    await translateTargets({
+      targets: [{ key: "1", name: "名前", kind: "file", parentPath: "/a" }],
+      settings: { model, sourceLang: "auto", targetLang: "EN" },
+      requestId: "r",
+      translateBatch,
+      isCancelled: () => false,
+      onResult: (key, stem) => results.set(key, stem),
+      onBatchError: (error) => errors.push(error.message),
+    });
+    expect(results.get("1")).toBeNull();
+    expect(translateBatch).toHaveBeenCalledTimes(3);
+    expect(errors).toEqual(["HTTP 500"]);
   });
 
   it("stops on fatal model errors", async () => {

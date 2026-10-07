@@ -80,6 +80,7 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
   const collecting = useNameTranslatorStore((state) => state.collecting);
   const filter = useNameTranslatorStore((state) => state.filter);
   const run = useNameTranslatorStore((state) => state.run);
+  const translationWarning = useNameTranslatorStore((state) => state.translationWarning);
   const preparing = useNameTranslatorStore((state) => state.preparing);
   const applying = useNameTranslatorStore((state) => state.applying);
   const adding = useNameTranslatorStore((state) => state.adding);
@@ -260,7 +261,12 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
               : t("summary.checked", { count: summary.checked })}
             {summary.checked > 0 && summary.ready > 0 ? ` · ${t("summary.ready", { count: summary.ready })}` : ""}
             {summary.failed > 0 ? (
-              <span className="text-destructive"> · {t("summary.failed", { count: summary.failed })}</span>
+              <span className="text-destructive" title={translationWarning?.message}>
+                {" "}· {t("summary.failed", { count: summary.failed })}
+                {translationWarning
+                  ? `: ${t(`errors.${translationWarning.code}`, { defaultValue: t("errors.internal") })}`
+                  : ""}
+              </span>
             ) : null}
             {summary.issues > 0 ? (
               <span className="text-destructive"> · {t("summary.issues", { count: summary.issues })}</span>

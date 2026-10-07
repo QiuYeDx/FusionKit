@@ -208,6 +208,7 @@
     "model_quota": "模型額度不足",
     "model_not_found": "找不到所設定的模型",
     "model_failed": "模型請求失敗",
+    "model_incomplete": "模型未回傳部分條目的譯名（已逐項重試）",
     "cancelled": "已取消",
     "too_many_entries": "項目過多",
     "journal_not_found": "找不到重新命名紀錄",

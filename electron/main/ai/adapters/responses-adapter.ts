@@ -164,7 +164,7 @@ function parseResponsesResponse(
         "length_truncated",
         "Model response was truncated by the output-token limit. Consider reducing the slice token limit or using a model with a larger context window.",
         false,
-        { attempt, usage },
+        { attempt, usage, partialContent: cleanThinkTags(extractResponseText(data)) },
       );
     }
   }
