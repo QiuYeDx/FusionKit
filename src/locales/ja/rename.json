@@ -84,6 +84,8 @@
     "unchanged": "変更なし",
     "collapse": "折りたたむ",
     "expand": "展開",
+    "expand_all": "すべて展開",
+    "collapse_all": "すべて折りたたむ",
     "check_entry": "「{{name}}」の名前を変更",
     "inside_count": "内部 {{checked}}/{{total}} 選択",
     "select_inside": "内部をすべて選択",

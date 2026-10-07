@@ -84,6 +84,8 @@
     "unchanged": "無需變更",
     "collapse": "收合",
     "expand": "展開",
+    "expand_all": "全部展開",
+    "collapse_all": "全部收合",
     "check_entry": "重新命名「{{name}}」",
     "inside_count": "內含 {{checked}}/{{total}} 已選",
     "select_inside": "選擇內部全部",

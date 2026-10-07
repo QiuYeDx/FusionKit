@@ -82,6 +82,9 @@ export interface NameTranslatorState extends WorkspaceData {
   clearWorkspace: () => void;
   setFilter: (filter: RowFilter) => void;
   toggleExpanded: (path: string) => void;
+  /** Loads every folder under the roots (bounded) and expands them all. */
+  expandAll: () => Promise<void>;
+  collapseAll: () => void;
   reloadDirectories: () => Promise<void>;
   toggleChecked: (path: string) => void;
   setChecked: (paths: readonly string[], checked: boolean) => void;
@@ -387,6 +390,32 @@ const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
       set({ expanded: { ...state.expanded, [path]: true } });
       if (state.dirs[path]?.status !== "loaded") void loadDirectory(path);
     },
+
+    expandAll: async () => {
+      const state = get();
+      const directories = state.roots.filter((root) => {
+        const entry = state.entries[root];
+        return entry?.kind === "directory" && !entry.symlink;
+      });
+      try {
+        await Promise.all(directories.map((root) => collect(root)));
+      } catch (error) {
+        set({ translationError: { code: "internal", message: error instanceof Error ? error.message : String(error) } });
+        return;
+      }
+      const latest = get();
+      const expanded: Record<string, true> = {};
+      const visit = (path: string) => {
+        const entry = latest.entries[path];
+        if (entry?.kind !== "directory" || entry.symlink) return;
+        expanded[path] = true;
+        for (const child of latest.dirs[path]?.children ?? []) visit(child);
+      };
+      latest.roots.forEach(visit);
+      set({ expanded });
+    },
+
+    collapseAll: () => set({ expanded: {} }),
 
     reloadDirectories: async () => {
       const loaded = Object.entries(get().dirs)

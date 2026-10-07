@@ -84,6 +84,8 @@
     "unchanged": "No change",
     "collapse": "Collapse",
     "expand": "Expand",
+    "expand_all": "Expand all",
+    "collapse_all": "Collapse all",
     "check_entry": "Rename “{{name}}”",
     "inside_count": "{{checked}}/{{total}} inside selected",
     "select_inside": "Select all inside",

@@ -180,6 +180,17 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
     await folderRow.getByRole("button", { name: "选择内部全部" }).click();
     await page.getByText("内含 8/8 已选").waitFor();
 
+    // Expand all / collapse all from the column header.
+    const toggleAll = page.getByTestId("name-translator-toggle-all");
+    await toggleAll.click();
+    await page.locator("[role=row][data-path$='第1話.mp4']").waitFor();
+    expect(await toggleAll.getAttribute("aria-label")).toBe("全部折叠");
+    await toggleAll.click();
+    await page.locator("[role=row][data-path$='第1話.mp4']").waitFor({ state: "detached" });
+    expect(await page.locator("[role=row][data-path]").count()).toBe(2);
+    await toggleAll.click();
+    await page.locator("[role=row][data-path$='第1話.mp4']").waitFor();
+
     await page.getByRole("button", { name: /翻译 \d+ 项/ }).click();
     const renameButton = page.getByTestId("name-translator-rename");
     await renameButton.waitFor();
@@ -283,6 +294,13 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
     await page.getByTestId("name-translator-outcome").evaluate((element) => element.scrollIntoView({ block: "start" }));
     await page.waitForTimeout(200);
     await page.screenshot({ path: path.join(artifacts, "05b-renamed-786-light.png") });
+    // Middle ellipsis: the end of a long name is fully visible, never clipped twice.
+    const longName = page.locator("[role=row][data-path$='rendering.txt'] [role=gridcell]").first().locator("span.flex").first();
+    const tailFits = await longName.evaluate((element) => {
+      const tail = element.querySelector<HTMLElement>("[dir=rtl]")!;
+      return tail.scrollWidth <= tail.clientWidth + 1 && tail.getBoundingClientRect().right <= element.getBoundingClientRect().right + 1;
+    });
+    expect(tailFits).toBe(true);
     expect(
       await page
         .locator("[data-slot=tool-detail-layout], [data-slot=tool-detail-layout] main, [data-slot=tool-panel]")

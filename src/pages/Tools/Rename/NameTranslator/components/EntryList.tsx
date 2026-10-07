@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, FileStack, FilePlus2, FolderPlus, Languages, ListChecks, Loader2, Square, Trash2, Wand2 } from "lucide-react";
+import { ChevronDown, ChevronsDownUp, ChevronsUpDown, FileStack, FilePlus2, FolderPlus, Languages, ListChecks, Loader2, Square, Trash2, Wand2 } from "lucide-react";
 import { ToolPanel } from "@/pages/Tools/_shared/ui";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import { Button } from "@/components/ui/button";
@@ -141,6 +141,10 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
 
   const store = useCallback(() => useNameTranslatorStore.getState(), []);
   const totalEntries = roots.length;
+  // Every folder that is listed is expanded (unloaded subfolders count as collapsed).
+  const expandableRows = rows.filter((row) => row.expandable);
+  const hasFolders = expandableRows.length > 0;
+  const allExpanded = hasFolders && expandableRows.every((row) => row.expanded);
   const issueTotal = useMemo(
     () => [...states.values()].filter((state) => state.status === "issue" || state.status === "failed").length,
     [states],
@@ -340,7 +344,30 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
             role="row"
             className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_56px] gap-2 border-b px-5 py-1.5 text-[11px] font-medium text-muted-foreground"
           >
-            <span role="columnheader" className="pl-[46px]">{t("list.column_name")}</span>
+            <span role="columnheader" className="flex min-w-0 items-center">
+              <Tooltip delayDuration={350}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    data-testid="name-translator-toggle-all"
+                    disabled={busy || anyCollecting || !hasFolders}
+                    aria-label={allExpanded ? t("list.collapse_all") : t("list.expand_all")}
+                    onClick={() => (allExpanded ? store().collapseAll() : void store().expandAll())}
+                    className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    {anyCollecting ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : allExpanded ? (
+                      <ChevronsDownUp className="size-3.5" />
+                    ) : (
+                      <ChevronsUpDown className="size-3.5" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent sideOffset={6}>{allExpanded ? t("list.collapse_all") : t("list.expand_all")}</TooltipContent>
+              </Tooltip>
+              <span className="ml-[26px] truncate">{t("list.column_name")}</span>
+            </span>
             <span role="columnheader" className="pl-2">{t("list.column_new_name")}</span>
             <span role="columnheader" className="text-right">{t("list.column_status")}</span>
           </div>

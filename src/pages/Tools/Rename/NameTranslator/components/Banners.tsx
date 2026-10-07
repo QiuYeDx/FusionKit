@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle2, History, Info, Loader2, RotateCcw, Settings, X, XCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
+import { cn } from "@/lib/utils";
 import type { NameUnrecoveredEntry } from "@/name-translation/contract";
 import useNameTranslatorStore from "@/store/tools/rename/useNameTranslatorStore";
 
@@ -84,20 +86,33 @@ export function NameTranslatorBanners({ modelReady }: { modelReady: boolean }) {
       ))}
 
       {outcome?.kind === "completed" ? (
-        <Alert data-testid="name-translator-outcome" className="border-emerald-500/30">
-          {outcome.undoState === "done" ? <RotateCcw className="size-4" /> : <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />}
-          <AlertTitle className="flex items-center justify-between gap-2">
-            <span>
+        <SmoothCorners
+          radius={16}
+          smoothing={0.72}
+          role="status"
+          data-testid="name-translator-outcome"
+          className={cn(
+            "border bg-card text-card-foreground shadow-sm",
+            outcome.undoState === "partial" ? "border-destructive/40" : "border-emerald-500/30",
+          )}
+        >
+          {/* One row: equal 8px top/right/bottom inset around the corner buttons. */}
+          <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 py-2 pl-3 pr-2">
+            {outcome.undoState === "done" ? (
+              <RotateCcw className="size-4 shrink-0 text-muted-foreground" />
+            ) : outcome.undoState === "partial" ? (
+              <XCircle className="size-4 shrink-0 text-destructive" />
+            ) : (
+              <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            )}
+            <span className="min-w-0 flex-1 text-sm font-medium">
               {outcome.undoState === "done"
                 ? t("outcome.undone", { count: outcome.renamed.length })
                 : outcome.undoState === "partial"
                   ? t("outcome.undo_partial")
                   : t("outcome.completed", { count: outcome.renamed.length })}
             </span>
-          </AlertTitle>
-          <AlertDescription>
-            {outcome.undoState === "partial" ? <UnrecoveredList items={outcome.undoFailures ?? []} /> : null}
-            <div className="mt-1 flex flex-wrap gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
               {outcome.undoState !== "done" ? (
                 <Button
                   type="button"
@@ -114,8 +129,13 @@ export function NameTranslatorBanners({ modelReady }: { modelReady: boolean }) {
                 {t("outcome.dismiss")}
               </Button>
             </div>
-          </AlertDescription>
-        </Alert>
+          </div>
+          {outcome.undoState === "partial" && (outcome.undoFailures?.length ?? 0) > 0 ? (
+            <div className="border-t px-3 pb-2.5 pt-1 text-destructive">
+              <UnrecoveredList items={outcome.undoFailures ?? []} />
+            </div>
+          ) : null}
+        </SmoothCorners>
       ) : null}
 
       {outcome?.kind === "failed" ? (
