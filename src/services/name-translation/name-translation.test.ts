@@ -13,6 +13,16 @@ import {
 } from "@/name-translation/naming-rules";
 import { createBatches, translateTargets } from "./translate";
 import {
+  EMPTY_SELECTION,
+  actionTargets,
+  clickSelection,
+  marqueeSelection,
+  moveSelection,
+  pruneSelection,
+  rangeKeys,
+  rowsInBand,
+} from "./selection";
+import {
   computeRowStates,
   computeVisibleRows,
   remapPath,
@@ -291,5 +301,55 @@ describe("name translator config", () => {
       nameMode: "translated",
       instructions: "",
     });
+  });
+});
+
+describe("row selection", () => {
+  const order = ["a", "b", "c", "d", "e"];
+  const keys = (selection: { keys: ReadonlySet<string> }) => [...selection.keys].sort();
+
+  it("selects one row, toggles with Ctrl and extends ranges with Shift", () => {
+    const one = clickSelection(EMPTY_SELECTION, order, "b", { toggle: false, range: false });
+    expect(keys(one)).toEqual(["b"]);
+    const toggled = clickSelection(one, order, "d", { toggle: true, range: false });
+    expect(keys(toggled)).toEqual(["b", "d"]);
+    expect(keys(clickSelection(toggled, order, "b", { toggle: true, range: false }))).toEqual(["d"]);
+    // The range starts at the last clicked row and replaces the selection.
+    const range = clickSelection(toggled, order, "a", { toggle: false, range: true });
+    expect(keys(range)).toEqual(["a", "b", "c", "d"]);
+    expect(range.anchor).toBe("d");
+    // Ctrl+Shift adds the range to the existing selection.
+    const added = clickSelection(clickSelection(one, order, "e", { toggle: true, range: false }), order, "d", { toggle: true, range: true });
+    expect(keys(added)).toEqual(["b", "d", "e"]);
+    expect(rangeKeys(order, "d", "b")).toEqual(["b", "c", "d"]);
+    expect(rangeKeys(order, "x", "b")).toEqual([]);
+  });
+
+  it("maps a marquee band to rows, including rows outside the rendered window", () => {
+    expect(rowsInBand(40, 10, 34, 5)).toEqual([0, 1]);
+    expect(rowsInBand(-50, 500, 34, 5)).toEqual([0, 4]);
+    expect(rowsInBand(200, 260, 34, 5)).toBeNull();
+    const base = new Set(["a", "c"]);
+    expect(keys(marqueeSelection(base, order, [1, 2], "replace"))).toEqual(["b", "c"]);
+    expect(keys(marqueeSelection(base, order, [1, 2], "add"))).toEqual(["a", "b", "c"]);
+    expect(keys(marqueeSelection(base, order, [1, 2], "toggle"))).toEqual(["a", "b"]);
+    expect(keys(marqueeSelection(base, order, null, "replace"))).toEqual([]);
+  });
+
+  it("moves with the keyboard, prunes hidden rows and resolves action targets", () => {
+    const start = moveSelection(EMPTY_SELECTION, order, 1, false);
+    expect(keys(start)).toEqual(["a"]);
+    const extended = moveSelection(moveSelection(start, order, 1, true), order, 1, true);
+    expect(keys(extended)).toEqual(["a", "b", "c"]);
+    expect(moveSelection(extended, order, "last", false).lead).toBe("e");
+    expect(moveSelection(extended, order, 99, false).lead).toBe("e");
+
+    const pruned = pruneSelection(extended, ["a", "c", "d"]);
+    expect(keys(pruned)).toEqual(["a", "c"]);
+    expect(pruned.lead).toBe("c");
+    expect(pruneSelection(pruned, ["a", "c", "d"])).toBe(pruned);
+
+    expect(actionTargets(extended, order, "b")).toEqual(["a", "b", "c"]);
+    expect(actionTargets(extended, order, "e")).toEqual(["e"]);
   });
 });

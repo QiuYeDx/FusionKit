@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -20,31 +20,32 @@ import type { NameEntry } from "@/name-translation/contract";
 import type { RowState, VisibleRow } from "@/services/name-translation/workspace";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { SelectInsideMode } from "@/store/tools/rename/useNameTranslatorStore";
+import { EntryMenuContent } from "./EntryMenu";
 import { NameText } from "./NameText";
 
 export const ROW_HEIGHT = 34;
 const INDENT = 18;
 
+/** Marks controls that keep their own click behaviour (no row selection or marquee). */
+export const ROW_CONTROL_ATTR = "data-row-control";
+const control = { [ROW_CONTROL_ATTR]: "" };
+
 export interface EntryRowActions {
   toggleExpanded: (path: string) => void;
-  toggleChecked: (path: string) => void;
+  /** Checkbox click; Shift checks a range, a multi-row selection is checked together. */
+  clickCheckbox: (path: string, range: boolean) => void;
   selectInside: (path: string, mode: SelectInsideMode) => void;
   startEdit: (path: string) => void;
   commitEdit: (path: string, value: string) => void;
   cancelEdit: () => void;
-  resetName: (path: string) => void;
-  retranslate: (path: string) => void;
-  removeRoot: (path: string) => void;
+  /** Rows a menu opened on `path` applies to (the selection when the row is in it). */
+  menuTargets: (path: string) => string[];
+  /** Selects the row before its menu opens unless it is already selected. */
+  prepareMenu: (path: string) => void;
 }
 
 interface EntryRowProps {
@@ -52,13 +53,28 @@ interface EntryRowProps {
   entry: NameEntry;
   state: RowState | undefined;
   checked: boolean;
-  isRoot: boolean;
+  selected: boolean;
+  /** The previous / next row is selected too: square the shared edge. */
+  joinTop: boolean;
+  joinBottom: boolean;
+  /** Keyboard focus row of the list. */
+  lead: boolean;
   editing: boolean;
   collecting: boolean;
   loading: boolean;
   busy: boolean;
+  modelReady: boolean;
   actions: EntryRowActions;
 }
+
+function parentPath(path: string): string {
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
+  if (index < 0) return "";
+  // Keep the separator of a drive or filesystem root (C:\ or /).
+  return index === 0 || path[index - 1] === ":" ? path.slice(0, index + 1) : path.slice(0, index);
+}
+
+const hasModifier = (event: MouseEvent) => event.ctrlKey || event.metaKey || event.shiftKey;
 
 function StatusIcon({ state, checked }: { state: RowState | undefined; checked: boolean }) {
   const { t } = useTranslation("rename");
@@ -146,6 +162,7 @@ function NameEditor({
   return (
     <input
       ref={inputRef}
+      {...control}
       value={value}
       aria-label={t("list.edit_name")}
       spellCheck={false}
@@ -162,11 +179,15 @@ function EntryRowComponent({
   entry,
   state,
   checked,
-  isRoot,
+  selected,
+  joinTop,
+  joinBottom,
+  lead,
   editing,
   collecting,
   loading,
   busy,
+  modelReady,
   actions,
 }: EntryRowProps) {
   const { t } = useTranslation("rename");
@@ -206,13 +227,16 @@ function EntryRowComponent({
     } else {
       content = null;
     }
+    // A plain click edits; with Ctrl/Shift the click only changes the row selection.
     return (
       <button
         type="button"
         disabled={busy}
-        onClick={() => actions.startEdit(entry.path)}
+        onClick={(event) => {
+          if (!hasModifier(event)) actions.startEdit(entry.path);
+        }}
         className={cn(
-          "group/name flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-[13px] outline-none transition-colors hover:bg-background focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none",
+          "group/name flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-[13px] outline-none transition-shadow hover:shadow-[inset_0_0_0_1px_var(--border)] focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none",
           dimmed && "opacity-55",
         )}
         aria-label={t("list.edit_name_for", { name: entry.name })}
@@ -229,14 +253,35 @@ function EntryRowComponent({
     <div
       role="row"
       data-path={entry.path}
-      aria-selected={checked}
-      style={{ "--nt-row-hover": "color-mix(in oklch, var(--muted) 60%, var(--card))" } as CSSProperties}
-      className="group/row grid h-[34px] grid-cols-[minmax(0,1fr)_minmax(0,1fr)_56px] items-center gap-2 rounded-md px-2 transition-colors hover:bg-[var(--nt-row-hover)] focus-within:bg-[var(--nt-row-hover)]"
+      data-selected={selected}
+      data-lead={lead}
+      aria-selected={selected}
+      className={cn(
+        // One surface owns hover and selection (FK-PIT-0129); the select-inside
+        // overlay reuses --nt-row-hover so it always matches the row behind it.
+        "group/row grid h-[34px] grid-cols-[var(--nt-cols)] items-center gap-2 rounded-md px-2 transition-[background-color,grid-template-columns] duration-200 ease-out",
+        "bg-[var(--nt-row-bg)] [--nt-row-bg:transparent] [--nt-row-hover:color-mix(in_oklch,var(--muted)_60%,var(--card))] hover:bg-[var(--nt-row-hover)] focus-within:bg-[var(--nt-row-hover)]",
+        "data-[selected=true]:[--nt-row-bg:color-mix(in_oklab,oklch(68.5%_0.169_237.3)_13%,var(--card))] data-[selected=true]:[--nt-row-hover:color-mix(in_oklab,oklch(68.5%_0.169_237.3)_19%,var(--card))]",
+        "dark:data-[selected=true]:[--nt-row-bg:color-mix(in_oklab,oklch(74.6%_0.16_232.7)_17%,var(--card))] dark:data-[selected=true]:[--nt-row-hover:color-mix(in_oklab,oklch(74.6%_0.16_232.7)_24%,var(--card))]",
+        "group-focus/grid:data-[lead=true]:shadow-[inset_0_0_0_1px_var(--ring)]",
+        joinTop && "rounded-t-none",
+        joinBottom && "rounded-b-none",
+      )}
     >
-      <div role="gridcell" className="relative flex min-w-0 items-center gap-1.5" style={{ paddingLeft: row.depth * INDENT }}>
+      <div
+        role="gridcell"
+        className="relative flex min-w-0 items-center gap-1.5"
+        style={{ paddingLeft: row.depth * INDENT }}
+        onDoubleClick={(event) => {
+          if (row.expandable && !hasModifier(event) && !(event.target as Element).closest(`[${ROW_CONTROL_ATTR}]`)) {
+            actions.toggleExpanded(entry.path);
+          }
+        }}
+      >
         {row.expandable ? (
           <button
             type="button"
+            {...control}
             onClick={() => actions.toggleExpanded(entry.path)}
             aria-label={row.expanded ? t("list.collapse") : t("list.expand")}
             aria-expanded={row.expanded}
@@ -252,13 +297,18 @@ function EntryRowComponent({
           <span className="size-5 shrink-0" />
         )}
         <Checkbox
+          {...control}
           checked={checked}
           disabled={busy}
-          onCheckedChange={() => actions.toggleChecked(entry.path)}
+          onClick={(event) => {
+            // Handled here (not onCheckedChange) to read Shift for range checks.
+            event.preventDefault();
+            actions.clickCheckbox(entry.path, event.shiftKey);
+          }}
           aria-label={t("list.check_entry", { name: entry.name })}
         />
         <KindIcon className={cn("size-3.5 shrink-0", isDirectory ? "text-sky-600 dark:text-sky-400" : "text-muted-foreground")} />
-        <NameText name={entry.name} tooltip={entry.path} className={cn("text-[13px]", dimmed && !checked && "text-foreground/80")} />
+        <NameText name={entry.name} detail={parentPath(entry.path)} className={cn("text-[13px]", dimmed && !checked && "text-foreground/80")} />
         {canSelectInside && row.loadedInside > 0 ? (
           <span className="min-w-0 shrink-[2] truncate rounded-full bg-muted px-1.5 text-[11px] leading-4 tabular-nums text-muted-foreground">
             {t("list.inside_count", { checked: row.checkedInside, total: row.loadedInside })}
@@ -276,6 +326,7 @@ function EntryRowComponent({
           >
             <button
               type="button"
+              {...control}
               disabled={busy || collecting}
               onClick={() => actions.selectInside(entry.path, "all")}
               className={cn(
@@ -293,10 +344,11 @@ function EntryRowComponent({
       </div>
       <div role="gridcell" className="flex items-center justify-end gap-0.5">
         <StatusIcon state={state} checked={checked} />
-        <DropdownMenu>
+        <DropdownMenu onOpenChange={(open) => open && actions.prepareMenu(entry.path)}>
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
+              {...control}
               variant="ghost"
               size="icon-xs"
               disabled={busy}
@@ -306,29 +358,13 @@ function EntryRowComponent({
               <MoreHorizontal />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-48">
-            {canSelectInside ? (
-              <>
-                <DropdownMenuItem onSelect={() => actions.selectInside(entry.path, "all")}>{t("select_inside.all")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => actions.selectInside(entry.path, "files")}>{t("select_inside.files")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => actions.selectInside(entry.path, "folders")}>{t("select_inside.folders")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => actions.selectInside(entry.path, "children")}>{t("select_inside.children")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => actions.selectInside(entry.path, "none")}>{t("select_inside.none")}</DropdownMenuItem>
-                <DropdownMenuSeparator />
-              </>
-            ) : null}
-            <DropdownMenuItem onSelect={() => actions.startEdit(entry.path)}>{t("row.edit")}</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => actions.retranslate(entry.path)}>{t("row.retranslate")}</DropdownMenuItem>
-            {state?.edited ? (
-              <DropdownMenuItem onSelect={() => actions.resetName(entry.path)}>{t("row.reset")}</DropdownMenuItem>
-            ) : null}
-            {isRoot ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => actions.removeRoot(entry.path)}>{t("row.remove")}</DropdownMenuItem>
-              </>
-            ) : null}
-          </DropdownMenuContent>
+          <EntryMenuContent
+            align="end"
+            className="min-w-52"
+            getTargets={() => actions.menuTargets(entry.path)}
+            modelReady={modelReady}
+            onEdit={actions.startEdit}
+          />
         </DropdownMenu>
       </div>
     </div>

@@ -177,8 +177,8 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
 
     // Select everything inside (recursive) with one click.
     await folderRow.hover();
-    await folderRow.getByRole("button", { name: "选择内部全部" }).click();
-    await page.getByText("内含 8/8 已选").waitFor();
+    await folderRow.getByRole("button", { name: "勾选内部全部" }).click();
+    await page.getByText("内含 8/8 已勾选").waitFor();
 
     // Expand all / collapse all from the column header.
     const toggleAll = page.getByTestId("name-translator-toggle-all");
@@ -191,12 +191,102 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
     await toggleAll.click();
     await page.locator("[role=row][data-path$='第1話.mp4']").waitFor();
 
+    // Before translation the name column takes most of the width.
+    const rows = page.locator("[role=row][data-path]");
+    const columnRatio = () =>
+      rows.nth(3).locator("[role=gridcell]").evaluateAll((cells) => cells[0]!.getBoundingClientRect().width / cells[1]!.getBoundingClientRect().width);
+    expect(await columnRatio()).toBeGreaterThan(1.8);
+
+    // Row selection: click, Ctrl+click, Shift+click, Space, right-click, marquee, keyboard.
+    expect(await rows.count()).toBe(10);
+    const at = { position: { x: 150, y: 17 } };
+    const nameCell = (index: number) => rows.nth(index).locator("[role=gridcell]").first();
+    const selectedIndexes = () =>
+      rows.evaluateAll((elements) => elements.flatMap((element, index) => (element.getAttribute("data-selected") === "true" ? [index] : [])));
+    const checkedIndexes = () =>
+      rows.evaluateAll((elements) =>
+        elements.flatMap((element, index) => (element.querySelector("[role=checkbox]")?.getAttribute("aria-checked") === "true" ? [index] : [])),
+      );
+    const allRows = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    expect(await checkedIndexes()).toEqual(allRows);
+    await nameCell(2).click(at);
+    expect(await selectedIndexes()).toEqual([2]);
+    await nameCell(4).click({ ...at, modifiers: ["Control"] });
+    expect(await selectedIndexes()).toEqual([2, 4]);
+    await nameCell(6).click({ ...at, modifiers: ["Shift"] });
+    expect(await selectedIndexes()).toEqual([4, 5, 6]);
+    await page.keyboard.press("Space");
+    expect(await checkedIndexes()).toEqual([0, 1, 2, 3, 7, 8, 9]);
+    await page.keyboard.press("Space");
+    expect(await checkedIndexes()).toEqual(allRows);
+
+    await nameCell(5).click({ ...at, button: "right" });
+    const contextMenu = page.getByTestId("name-translator-context-menu");
+    await contextMenu.getByText("已选中 3 项").waitFor();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: path.join(artifacts, "01c-context-menu-light.png") });
+    await contextMenu.getByRole("menuitem", { name: "取消勾选" }).click();
+    await contextMenu.waitFor({ state: "detached" });
+    expect(await checkedIndexes()).toEqual([0, 1, 2, 3, 7, 8, 9]);
+    expect(await selectedIndexes()).toEqual([4, 5, 6]);
+    // A checkbox inside a multi-row selection checks the whole selection.
+    await rows.nth(5).getByRole("checkbox").click();
+    expect(await checkedIndexes()).toEqual(allRows);
+
+    // Marquee from the new-name column: selects rows 1-3 and does not start editing.
+    const from = (await rows.nth(1).locator("[role=gridcell]").nth(1).boundingBox())!;
+    const to = (await rows.nth(3).locator("[role=gridcell]").nth(1).boundingBox())!;
+    await page.mouse.move(from.x + 30, from.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 80, from.y + 30, { steps: 4 });
+    await page.mouse.move(to.x + 120, to.y + 20, { steps: 6 });
+    await page.getByTestId("name-translator-marquee").waitFor();
+    await page.screenshot({ path: path.join(artifacts, "01d-marquee-light.png") });
+    await page.mouse.up();
+    expect(await selectedIndexes()).toEqual([1, 2, 3]);
+    expect(await page.getByRole("textbox", { name: "编辑新名称" }).count()).toBe(0);
+    await page.getByTestId("name-translator-selected-rows").waitFor();
+    // The footer stays one row: short status + help icon on the left, actions on the right.
+    const help = page.getByTestId("name-translator-help");
+    const helpBox = (await help.boundingBox())!;
+    const actionBox = (await page.getByRole("button", { name: /翻译 \d+ 项/ }).boundingBox())!;
+    expect(Math.abs(helpBox.y + helpBox.height / 2 - (actionBox.y + actionBox.height / 2))).toBeLessThan(3);
+    await help.hover();
+    await page.getByText("列表操作提示").first().waitFor();
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: path.join(artifacts, "01f-footer-help-light.png") });
+    await page.mouse.move(5, 5);
+    await page.evaluate(() => document.documentElement.classList.add("dark"));
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: path.join(artifacts, "01e-selection-dark.png") });
+    await page.evaluate(() => document.documentElement.classList.remove("dark"));
+    // Keyboard: Escape clears, Shift+ArrowDown extends from the focus row.
+    await page.keyboard.press("Escape");
+    expect(await selectedIndexes()).toEqual([]);
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+ArrowDown");
+    await page.keyboard.press("Shift+ArrowDown");
+    expect(await selectedIndexes()).toEqual([0, 1, 2]);
+    await page.keyboard.press("Escape");
+
+    // Shift+click on checkboxes changes a whole range.
+    await rows.nth(7).getByRole("checkbox").click();
+    await rows.nth(9).getByRole("checkbox").click({ modifiers: ["Shift"] });
+    expect(await checkedIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    await rows.nth(7).getByRole("checkbox").click();
+    await rows.nth(9).getByRole("checkbox").click({ modifiers: ["Shift"] });
+    expect(await checkedIndexes()).toEqual(allRows);
+    await page.getByText("内含 8/8 已勾选").waitFor();
+
     await page.getByRole("button", { name: /翻译 \d+ 项/ }).click();
     const renameButton = page.getByTestId("name-translator-rename");
     await renameButton.waitFor();
     await page.waitForFunction(() => !document.querySelector('[data-status="translating"]'));
     await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(artifacts, "02-translated-1280-light.png") });
+    // With new names the two name columns share the width again.
+    await page.waitForTimeout(250);
+    expect(Math.abs((await columnRatio()) - 1)).toBeLessThan(0.1);
 
     // Hover overlay of "select all inside" in both themes.
     await folderRow.hover();
@@ -239,7 +329,11 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
     // Long names keep their tail visible and show the full name in a tooltip.
     const longRow = page.locator("[role=row][data-path$='確認するためのもの.txt']");
     await longRow.locator("[role=gridcell]").first().locator("span.flex").first().hover();
-    await page.getByRole("tooltip").first().waitFor();
+    const tooltip = page.getByTestId("name-tooltip").first();
+    await tooltip.waitFor();
+    // The tooltip leads with the file name and shows the folder in a small second line.
+    expect(await tooltip.locator("div").first().innerText()).toBe("とても長いファイル名のサンプルでツールチップと中間省略を確認するためのもの.txt");
+    expect(await tooltip.locator("div").nth(1).innerText()).toBe(folder);
     await page.waitForTimeout(250);
     await page.screenshot({ path: path.join(artifacts, "03-long-name-tooltip.png") });
     await page.mouse.move(5, 5);
@@ -288,7 +382,7 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
     await page.locator(`[role=row][data-path="${path.join(data, "Anime Materials").replace(/\\/g, "\\\\")}"]`).waitFor();
     const skipped = page.locator("[role=row][data-path$='表紙.jpg']");
     await skipped.locator("[data-status=issue]").waitFor();
-    expect(await skipped.getAttribute("aria-selected")).toBe("true");
+    expect(await skipped.getByRole("checkbox").getAttribute("aria-checked")).toBe("true");
     await window.evaluate((win) => win.setSize(786, 660));
     await page.waitForTimeout(400);
     await page.getByTestId("name-translator-outcome").evaluate((element) => element.scrollIntoView({ block: "start" }));

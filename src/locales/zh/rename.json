@@ -6,7 +6,7 @@
   "add": {
     "title": "添加条目",
     "drop_title": "拖入文件或文件夹",
-    "drop_hint": "可混合添加；添加后在条目列表中选择要改名的项",
+    "drop_hint": "可混合添加；添加后在条目列表中勾选要改名的项",
     "drop_label": "添加到文件名翻译列表",
     "files": "添加文件",
     "folders": "添加文件夹",
@@ -73,7 +73,7 @@
   },
   "list": {
     "title": "条目",
-    "select": "选择",
+    "select": "勾选",
     "clear": "清空列表",
     "column_name": "名称",
     "column_new_name": "新名称",
@@ -87,29 +87,59 @@
     "expand_all": "全部展开",
     "collapse_all": "全部折叠",
     "check_entry": "重命名“{{name}}”",
-    "inside_count": "内含 {{checked}}/{{total}} 已选",
-    "select_inside": "选择内部全部",
-    "row_menu": "“{{name}}”的更多操作"
+    "inside_count": "内含 {{checked}}/{{total}} 已勾选",
+    "select_inside": "勾选内部全部",
+    "row_menu": "“{{name}}”的更多操作",
+    "selected_rows": "已选中 {{count}} 行",
+    "help": {
+      "label": "列表操作提示",
+      "select": {
+        "keys": "单击 / Ctrl / Shift",
+        "desc": "选中、加选、连选"
+      },
+      "marquee": {
+        "keys": "拖拽",
+        "desc": "框选多行"
+      },
+      "space": {
+        "keys": "空格",
+        "desc": "切换所选行的勾选"
+      },
+      "range": {
+        "keys": "Shift + 复选框",
+        "desc": "勾选一段范围"
+      },
+      "menu": {
+        "keys": "右键",
+        "desc": "更多操作"
+      },
+      "edit": {
+        "keys": "F2 / Enter",
+        "desc": "编辑新名称"
+      },
+      "arrows": {
+        "keys": "↑ ↓ ← →",
+        "desc": "移动、展开或折叠"
+      },
+      "escape": {
+        "keys": "Esc",
+        "desc": "取消选中"
+      }
+    }
   },
   "select_inside": {
-    "all": "选择内部全部（含子文件夹）",
-    "files": "仅选择内部文件",
-    "folders": "仅选择内部文件夹",
-    "children": "仅选择直接子项",
-    "none": "取消选择内部"
+    "all": "勾选内部全部（含子文件夹）",
+    "files": "仅勾选内部文件",
+    "folders": "仅勾选内部文件夹",
+    "children": "仅勾选直接子项",
+    "none": "取消勾选内部"
   },
   "select_all": {
-    "everything": "全选（含所有子文件夹内容）",
-    "files": "仅选择文件",
-    "folders": "仅选择文件夹",
-    "roots": "仅选择添加的条目",
-    "none": "取消全选"
-  },
-  "row": {
-    "edit": "编辑新名称",
-    "retranslate": "重新翻译此项",
-    "reset": "恢复为翻译结果",
-    "remove": "从列表移除"
+    "everything": "全部勾选（含所有子文件夹内容）",
+    "files": "仅勾选文件",
+    "folders": "仅勾选文件夹",
+    "roots": "仅勾选添加的条目",
+    "none": "取消全部勾选"
   },
   "status": {
     "pending": "待翻译",
@@ -136,13 +166,13 @@
   "filter": {
     "label": "显示范围",
     "all": "全部",
-    "checked": "已选 {{count}}",
+    "checked": "已勾选 {{count}}",
     "issues": "问题 {{count}}",
     "empty": "当前筛选下没有条目"
   },
   "empty": {
     "title": "添加要翻译名称的文件或文件夹",
-    "description": "拖入或选择后，勾选要改名的条目。文件夹可一键选择其中全部内容，文件夹自身与其中条目可以一起改名。"
+    "description": "拖入或选择后，勾选要改名的条目。文件夹可一键勾选其中全部内容，文件夹自身与其中条目可以一起改名。"
   },
   "actions": {
     "stop": "停止",
@@ -156,8 +186,8 @@
     "translating": "已翻译 {{done}}/{{total}}"
   },
   "summary": {
-    "none_checked": "勾选要改名的条目",
-    "checked": "已选 {{count}} 项",
+    "none_checked": "尚未勾选条目",
+    "checked": "已勾选 {{count}} 项",
     "ready": "{{count}} 项就绪",
     "failed": "{{count}} 项翻译失败",
     "issues": "{{count}} 项有问题将跳过",
@@ -199,7 +229,7 @@
   },
   "model": {
     "missing_title": "尚未配置任务执行模型",
-    "missing_description": "可以先添加和选择条目；翻译前需要在设置中配置任务执行模型。",
+    "missing_description": "可以先添加和勾选条目；翻译前需要在设置中配置任务执行模型。",
     "open_settings": "前往设置"
   },
   "errors": {
@@ -218,10 +248,24 @@
   },
   "notice": {
     "truncated_title": "条目过多，只加载了一部分",
-    "truncated": "“{{path}}”中的条目超过单次上限，只加载并选择了前一部分。可分批处理其中的子文件夹。"
+    "truncated": "“{{path}}”中的条目超过单次上限，只加载并勾选了前一部分。可分批处理其中的子文件夹。"
   },
   "agent": {
     "loaded": "已载入 HomeAgent 的重命名计划，请核对后再重命名",
     "missing": "HomeAgent 的重命名计划已过期，请重新生成"
+  },
+  "menu": {
+    "selected": "已选中 {{count}} 项",
+    "check": "勾选",
+    "uncheck": "取消勾选",
+    "translate": "翻译",
+    "retranslate": "重新翻译",
+    "edit": "编辑新名称",
+    "reset": "恢复为翻译结果",
+    "check_inside": "勾选内部",
+    "reveal": "在文件夹中显示",
+    "copy_name": "复制名称",
+    "copy_path": "复制路径",
+    "remove": "从列表移除"
   }
 }

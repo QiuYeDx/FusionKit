@@ -6,7 +6,7 @@
   "add": {
     "title": "Add entries",
     "drop_title": "Drop files or folders",
-    "drop_hint": "Mix files and folders freely, then choose what to rename in the entry list",
+    "drop_hint": "Mix files and folders freely, then tick what to rename in the entry list",
     "drop_label": "Add to the name translation list",
     "files": "Add files",
     "folders": "Add folders",
@@ -73,7 +73,7 @@
   },
   "list": {
     "title": "Entries",
-    "select": "Select",
+    "select": "Check",
     "clear": "Clear list",
     "column_name": "Name",
     "column_new_name": "New name",
@@ -87,29 +87,59 @@
     "expand_all": "Expand all",
     "collapse_all": "Collapse all",
     "check_entry": "Rename “{{name}}”",
-    "inside_count": "{{checked}}/{{total}} inside selected",
-    "select_inside": "Select all inside",
-    "row_menu": "More actions for “{{name}}”"
+    "inside_count": "{{checked}}/{{total}} inside checked",
+    "select_inside": "Check all inside",
+    "row_menu": "More actions for “{{name}}”",
+    "selected_rows": "{{count}} rows selected",
+    "help": {
+      "label": "List shortcuts",
+      "select": {
+        "keys": "Click / Ctrl / Shift",
+        "desc": "Select, add, select a range"
+      },
+      "marquee": {
+        "keys": "Drag",
+        "desc": "Select rows with a box"
+      },
+      "space": {
+        "keys": "Space",
+        "desc": "Toggle the check of selected rows"
+      },
+      "range": {
+        "keys": "Shift + checkbox",
+        "desc": "Check a range"
+      },
+      "menu": {
+        "keys": "Right-click",
+        "desc": "More actions"
+      },
+      "edit": {
+        "keys": "F2 / Enter",
+        "desc": "Edit the new name"
+      },
+      "arrows": {
+        "keys": "↑ ↓ ← →",
+        "desc": "Move, expand or collapse"
+      },
+      "escape": {
+        "keys": "Esc",
+        "desc": "Clear the selection"
+      }
+    }
   },
   "select_inside": {
-    "all": "Select everything inside (incl. subfolders)",
-    "files": "Select files inside only",
-    "folders": "Select folders inside only",
-    "children": "Select direct children only",
-    "none": "Clear selection inside"
+    "all": "Check everything inside (incl. subfolders)",
+    "files": "Check files inside only",
+    "folders": "Check folders inside only",
+    "children": "Check direct children only",
+    "none": "Uncheck everything inside"
   },
   "select_all": {
-    "everything": "Select all (incl. subfolder contents)",
-    "files": "Select files only",
-    "folders": "Select folders only",
-    "roots": "Select added entries only",
-    "none": "Clear selection"
-  },
-  "row": {
-    "edit": "Edit new name",
-    "retranslate": "Translate this again",
-    "reset": "Restore translation",
-    "remove": "Remove from list"
+    "everything": "Check all (incl. subfolder contents)",
+    "files": "Check files only",
+    "folders": "Check folders only",
+    "roots": "Check added entries only",
+    "none": "Uncheck all"
   },
   "status": {
     "pending": "Waiting for translation",
@@ -136,13 +166,13 @@
   "filter": {
     "label": "Show",
     "all": "All",
-    "checked": "Selected {{count}}",
+    "checked": "Checked {{count}}",
     "issues": "Problems {{count}}",
     "empty": "No entries match this view"
   },
   "empty": {
     "title": "Add files or folders whose names you want to translate",
-    "description": "After adding, tick the entries to rename. Folders can select everything inside in one click, and a folder can be renamed together with its contents."
+    "description": "After adding, tick the entries to rename. Folders can check everything inside in one click, and a folder can be renamed together with its contents."
   },
   "actions": {
     "stop": "Stop",
@@ -156,8 +186,8 @@
     "translating": "Translated {{done}}/{{total}}"
   },
   "summary": {
-    "none_checked": "Tick the entries you want to rename",
-    "checked": "Selected: {{count}}",
+    "none_checked": "Nothing checked",
+    "checked": "Checked: {{count}}",
     "ready": "Ready: {{count}}",
     "failed": "Failed: {{count}}",
     "issues": "Problems (skipped): {{count}}",
@@ -199,7 +229,7 @@
   },
   "model": {
     "missing_title": "No task execution model configured",
-    "missing_description": "You can add and select entries now. Configure a task execution model in Settings before translating.",
+    "missing_description": "You can add and check entries now. Configure a task execution model in Settings before translating.",
     "open_settings": "Open Settings"
   },
   "errors": {
@@ -218,10 +248,24 @@
   },
   "notice": {
     "truncated_title": "Too many entries, only part was loaded",
-    "truncated": "“{{path}}” has more entries than one load allows. Only the first part was loaded and selected. Process its subfolders in batches."
+    "truncated": "“{{path}}” has more entries than one load allows. Only the first part was loaded and checked. Process its subfolders in batches."
   },
   "agent": {
     "loaded": "Loaded the HomeAgent rename plan. Review it before renaming",
     "missing": "The HomeAgent rename plan has expired. Create it again"
+  },
+  "menu": {
+    "selected": "{{count}} items selected",
+    "check": "Check",
+    "uncheck": "Uncheck",
+    "translate": "Translate",
+    "retranslate": "Translate again",
+    "edit": "Edit new name",
+    "reset": "Restore translation",
+    "check_inside": "Check inside",
+    "reveal": "Show in folder",
+    "copy_name": "Copy name",
+    "copy_path": "Copy path",
+    "remove": "Remove from list"
   }
 }

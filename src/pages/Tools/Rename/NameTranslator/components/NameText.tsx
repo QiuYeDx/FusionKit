@@ -4,16 +4,18 @@ import { cn } from "@/lib/utils";
 /**
  * Middle-ellipsis name. Only the start shrinks (ellipsis at its end); the
  * tail is clipped from its left side only when it alone exceeds the width, so
- * the end of the name and the extension always stay visible. The full value is
- * available through the tooltip and to assistive technology.
+ * the end of the name and the extension always stay visible. The tooltip shows
+ * the full name, with an optional small detail line such as the containing
+ * folder; assistive technology reads the full name.
  */
 export function NameText({
   name,
-  tooltip,
+  detail,
   className,
 }: {
   name: string;
-  tooltip?: string;
+  /** Secondary line under the name in the tooltip (e.g. the folder path). */
+  detail?: string;
   className?: string;
 }) {
   const characters = Array.from(name);
@@ -36,9 +38,13 @@ export function NameText({
       </TooltipTrigger>
       <TooltipContent
         sideOffset={6}
-        className="w-max max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal break-normal text-wrap [overflow-wrap:anywhere]"
+        data-testid="name-tooltip"
+        className="w-max max-w-[min(24rem,calc(100vw-2rem))] whitespace-normal px-2.5 py-1.5 text-left [overflow-wrap:anywhere] [text-wrap:wrap]"
       >
-        {tooltip ?? name}
+        <div className="text-[12.5px] font-medium leading-[18px]">{name}</div>
+        {detail ? (
+          <div className="mt-0.5 text-[10.5px] leading-[14px] text-background/60">{detail}</div>
+        ) : null}
       </TooltipContent>
     </Tooltip>
   );

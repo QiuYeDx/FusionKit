@@ -6,7 +6,7 @@
   "add": {
     "title": "項目を追加",
     "drop_title": "ファイルやフォルダーをドロップ",
-    "drop_hint": "ファイルとフォルダーを混在して追加できます。追加後、項目一覧で変更する項目を選びます",
+    "drop_hint": "ファイルとフォルダーを混在して追加できます。追加後、項目一覧で変更する項目にチェックを入れます",
     "drop_label": "名前翻訳の一覧に追加",
     "files": "ファイルを追加",
     "folders": "フォルダーを追加",
@@ -73,7 +73,7 @@
   },
   "list": {
     "title": "項目",
-    "select": "選択",
+    "select": "チェック",
     "clear": "一覧をクリア",
     "column_name": "名前",
     "column_new_name": "新しい名前",
@@ -87,29 +87,59 @@
     "expand_all": "すべて展開",
     "collapse_all": "すべて折りたたむ",
     "check_entry": "「{{name}}」の名前を変更",
-    "inside_count": "内部 {{checked}}/{{total}} 選択",
-    "select_inside": "内部をすべて選択",
-    "row_menu": "「{{name}}」のその他の操作"
+    "inside_count": "内部 {{checked}}/{{total}} チェック済み",
+    "select_inside": "内部をすべてチェック",
+    "row_menu": "「{{name}}」のその他の操作",
+    "selected_rows": "{{count}} 行を選択中",
+    "help": {
+      "label": "一覧の操作",
+      "select": {
+        "keys": "クリック / Ctrl / Shift",
+        "desc": "選択・追加選択・範囲選択"
+      },
+      "marquee": {
+        "keys": "ドラッグ",
+        "desc": "複数行を範囲選択"
+      },
+      "space": {
+        "keys": "Space",
+        "desc": "選択行のチェックを切り替え"
+      },
+      "range": {
+        "keys": "Shift + チェックボックス",
+        "desc": "範囲をまとめてチェック"
+      },
+      "menu": {
+        "keys": "右クリック",
+        "desc": "その他の操作"
+      },
+      "edit": {
+        "keys": "F2 / Enter",
+        "desc": "新しい名前を編集"
+      },
+      "arrows": {
+        "keys": "↑ ↓ ← →",
+        "desc": "移動・展開・折りたたみ"
+      },
+      "escape": {
+        "keys": "Esc",
+        "desc": "選択を解除"
+      }
+    }
   },
   "select_inside": {
-    "all": "内部をすべて選択（サブフォルダーを含む）",
-    "files": "内部のファイルのみ選択",
-    "folders": "内部のフォルダーのみ選択",
-    "children": "直下の項目のみ選択",
-    "none": "内部の選択を解除"
+    "all": "内部をすべてチェック（サブフォルダーを含む）",
+    "files": "内部のファイルのみチェック",
+    "folders": "内部のフォルダーのみチェック",
+    "children": "直下の項目のみチェック",
+    "none": "内部のチェックを外す"
   },
   "select_all": {
-    "everything": "すべて選択（サブフォルダーの中身を含む）",
-    "files": "ファイルのみ選択",
-    "folders": "フォルダーのみ選択",
-    "roots": "追加した項目のみ選択",
-    "none": "選択をすべて解除"
-  },
-  "row": {
-    "edit": "新しい名前を編集",
-    "retranslate": "この項目を再翻訳",
-    "reset": "翻訳結果に戻す",
-    "remove": "一覧から削除"
+    "everything": "すべてチェック（サブフォルダーの中身を含む）",
+    "files": "ファイルのみチェック",
+    "folders": "フォルダーのみチェック",
+    "roots": "追加した項目のみチェック",
+    "none": "チェックをすべて外す"
   },
   "status": {
     "pending": "翻訳待ち",
@@ -136,13 +166,13 @@
   "filter": {
     "label": "表示",
     "all": "すべて",
-    "checked": "選択中 {{count}}",
+    "checked": "チェック済み {{count}}",
     "issues": "問題 {{count}}",
     "empty": "この表示に該当する項目はありません"
   },
   "empty": {
     "title": "名前を翻訳するファイルやフォルダーを追加",
-    "description": "追加したら、名前を変える項目にチェックを入れます。フォルダーの中身はワンクリックで選択でき、フォルダー自体と中身を一緒に変更できます。"
+    "description": "追加したら、名前を変える項目にチェックを入れます。フォルダーの中身はワンクリックでチェックでき、フォルダー自体と中身を一緒に変更できます。"
   },
   "actions": {
     "stop": "停止",
@@ -156,8 +186,8 @@
     "translating": "翻訳済み {{done}}/{{total}}"
   },
   "summary": {
-    "none_checked": "名前を変更する項目にチェックを入れてください",
-    "checked": "{{count}} 件選択",
+    "none_checked": "チェックされた項目はありません",
+    "checked": "{{count}} 件チェック",
     "ready": "{{count}} 件準備完了",
     "failed": "{{count}} 件の翻訳に失敗",
     "issues": "{{count}} 件は問題がありスキップ",
@@ -199,7 +229,7 @@
   },
   "model": {
     "missing_title": "タスク実行モデルが設定されていません",
-    "missing_description": "項目の追加と選択は先に行えます。翻訳の前に設定でタスク実行モデルを設定してください。",
+    "missing_description": "項目の追加とチェックは先に行えます。翻訳の前に設定でタスク実行モデルを設定してください。",
     "open_settings": "設定を開く"
   },
   "errors": {
@@ -218,10 +248,24 @@
   },
   "notice": {
     "truncated_title": "項目が多すぎるため一部のみ読み込みました",
-    "truncated": "「{{path}}」の項目が一度に扱える上限を超えたため、先頭の一部のみ読み込んで選択しました。サブフォルダーごとに分けて処理してください。"
+    "truncated": "「{{path}}」の項目が一度に扱える上限を超えたため、先頭の一部のみ読み込んでチェックしました。サブフォルダーごとに分けて処理してください。"
   },
   "agent": {
     "loaded": "HomeAgent の名前変更プランを読み込みました。確認してから変更してください",
     "missing": "HomeAgent の名前変更プランは期限切れです。もう一度作成してください"
+  },
+  "menu": {
+    "selected": "{{count}} 件を選択中",
+    "check": "チェックを入れる",
+    "uncheck": "チェックを外す",
+    "translate": "翻訳",
+    "retranslate": "再翻訳",
+    "edit": "新しい名前を編集",
+    "reset": "翻訳結果に戻す",
+    "check_inside": "内部をチェック",
+    "reveal": "フォルダーで表示",
+    "copy_name": "名前をコピー",
+    "copy_path": "パスをコピー",
+    "remove": "一覧から削除"
   }
 }

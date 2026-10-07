@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronsDownUp, ChevronsUpDown, FileStack, FilePlus2, FolderPlus, Languages, ListChecks, Loader2, Square, Trash2, Wand2 } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronsDownUp, ChevronsUpDown, CircleHelp, FileStack, FilePlus2, FolderPlus, Languages, ListChecks, Loader2, Square, Trash2, Wand2 } from "lucide-react";
 import { ToolPanel } from "@/pages/Tools/_shared/ui";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { RowFilter, RowState, VisibleRow } from "@/services/name-translation/workspace";
+import { actionTargets, clickSelection, rangeKeys } from "@/services/name-translation/selection";
 import useNameTranslatorStore from "@/store/tools/rename/useNameTranslatorStore";
+import { EntryMenuContent } from "./EntryMenu";
 import { EntryRow, ROW_HEIGHT, type EntryRowActions } from "./EntryRow";
+import { useRowSelection } from "./useRowSelection";
 
 const OVERSCAN = 8;
+/** Name / new name / status. The name column gets most of the width until there are new names to show. */
+const COLUMNS_WITH_NEW_NAMES = "minmax(0,1fr) minmax(0,1fr) 56px";
+const COLUMNS_NAMES_ONLY = "minmax(0,2.4fr) minmax(0,1fr) 56px";
 
 export interface EntrySummary {
   checked: number;
@@ -60,6 +67,38 @@ export function summarize(checked: Record<string, true>, states: ReadonlyMap<str
   return summary;
 }
 
+const HELP_ITEMS = ["select", "marquee", "space", "range", "menu", "edit", "arrows", "escape"] as const;
+
+/** Help icon at the end of the footer summary: the list's mouse and keyboard shortcuts. */
+function ListHelp() {
+  const { t } = useTranslation("rename");
+  return (
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={t("list.help.label")}
+          data-testid="name-translator-help"
+          className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground/70 outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <CircleHelp className="size-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" align="start" sideOffset={6} className="max-w-[min(22rem,calc(100vw-2rem))] px-3 py-2.5 text-left [text-wrap:wrap]">
+        <div className="mb-1.5 text-[12px] font-medium">{t("list.help.label")}</div>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 text-[11.5px] leading-4">
+          {HELP_ITEMS.map((item) => (
+            <div key={item} className="contents">
+              <dt className="whitespace-nowrap text-[11px] text-background/65">{t(`list.help.${item}.keys`)}</dt>
+              <dd>{t(`list.help.${item}.desc`)}</dd>
+            </div>
+          ))}
+        </dl>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 interface EntryListProps {
   rows: readonly VisibleRow[];
   states: ReadonlyMap<string, RowState>;
@@ -88,20 +127,65 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
 
   const busy = applying || preparing;
   const translating = Boolean(run);
-  const rootSet = useMemo(() => new Set(roots), [roots]);
   const anyCollecting = Object.keys(collecting).length > 0;
 
   const statesRef = useRef(states);
   statesRef.current = states;
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ targets: string[]; x: number; y: number; serial: number } | null>(null);
+  const lastMenu = useRef(menu);
+  if (menu) lastMenu.current = menu;
+
+  const focusList = useCallback(() => {
+    // After an inline edit or a menu closes, keyboard selection continues in the list.
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body) viewportRef.current?.focus({ preventScroll: true });
+    });
+  }, []);
+
+  const rowSelection = useRowSelection({
+    rows,
+    rowHeight: ROW_HEIGHT,
+    viewportRef,
+    contentRef,
+    toggleChecked: (keys) => {
+      const store = useNameTranslatorStore.getState();
+      if (store.applying || store.preparing) return;
+      store.setChecked(keys, !keys.every((key) => store.checked[key]));
+    },
+    edit: (key) => setEditingKey(key),
+    setExpanded: (key, expanded) => {
+      if (Boolean(useNameTranslatorStore.getState().expanded[key]) !== expanded) useNameTranslatorStore.getState().toggleExpanded(key);
+    },
+    openMenu: (targets, point) => setMenu((current) => ({ targets, ...point, serial: (current?.serial ?? lastMenu.current?.serial ?? 0) + 1 })),
+  });
+  const { selection, selectionRef, orderRef, commit: commitSelection } = rowSelection;
+
   const actions = useMemo<EntryRowActions>(() => {
     const store = () => useNameTranslatorStore.getState();
     return {
       toggleExpanded: (path) => store().toggleExpanded(path),
-      toggleChecked: (path) => store().toggleChecked(path),
+      clickCheckbox: (path, range) => {
+        const current = selectionRef.current;
+        const order = orderRef.current;
+        const next = !store().checked[path];
+        if (range && current.anchor && order.includes(current.anchor)) {
+          store().setChecked(rangeKeys(order, current.anchor, path), next);
+        } else if (current.keys.has(path) && current.keys.size > 1) {
+          // A checkbox inside a multi-row selection checks the whole selection.
+          store().setChecked(actionTargets(current, order, path), next);
+        } else {
+          store().toggleChecked(path);
+        }
+        commitSelection({ ...current, anchor: path, lead: path });
+      },
       selectInside: (path, mode) => void store().selectInside(path, mode),
       startEdit: (path) => setEditingKey(path),
       commitEdit: (path, value) => {
         setEditingKey(null);
+        focusList();
         const entry = store().entries[path];
         const current = statesRef.current.get(path)?.proposedName;
         const next = value.trim() ? value : (entry?.name ?? value);
@@ -109,18 +193,20 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
         if (entry && next === entry.name && !current) return;
         store().editName(path, next);
       },
-      cancelEdit: () => setEditingKey(null),
-      resetName: (path) => store().resetName(path),
-      retranslate: (path) => {
-        store().setChecked([path], true);
-        void store().translate([path]);
+      cancelEdit: () => {
+        setEditingKey(null);
+        focusList();
       },
-      removeRoot: (path) => store().removeRoot(path),
+      menuTargets: (path) => actionTargets(selectionRef.current, orderRef.current, path),
+      prepareMenu: (path) => {
+        if (!selectionRef.current.keys.has(path)) {
+          commitSelection(clickSelection(selectionRef.current, orderRef.current, path, { toggle: false, range: false }));
+        }
+      },
     };
-  }, []);
+  }, [commitSelection, focusList, orderRef, selectionRef]);
 
   // --- windowed rendering -------------------------------------------------
-  const viewportRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(480);
   useEffect(() => {
@@ -146,6 +232,14 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
   const expandableRows = rows.filter((row) => row.expandable);
   const hasFolders = expandableRows.length > 0;
   const allExpanded = hasFolders && expandableRows.every((row) => row.expanded);
+  // Widen the name column while there are no new names yet, so more of each
+  // original name is visible while choosing what to rename.
+  const hasNewNames = useMemo(
+    () => [...states.values()].some((state) => state.proposedName !== undefined || state.status === "translating"),
+    [states],
+  );
+  const columns = hasNewNames || editingKey ? COLUMNS_WITH_NEW_NAMES : COLUMNS_NAMES_ONLY;
+  const selectedCount = selection.keys.size;
   const issueTotal = useMemo(
     () => [...states.values()].filter((state) => state.status === "issue" || state.status === "failed").length,
     [states],
@@ -255,26 +349,49 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
             </span>
           </div>
         ) : (
-          <p className="min-w-0 text-xs text-muted-foreground" aria-live="polite">
-            {summary.checked === 0
-              ? t("summary.none_checked")
-              : t("summary.checked", { count: summary.checked })}
-            {summary.checked > 0 && summary.ready > 0 ? ` · ${t("summary.ready", { count: summary.ready })}` : ""}
-            {summary.failed > 0 ? (
-              <span className="text-destructive" title={translationWarning?.message}>
-                {" "}· {t("summary.failed", { count: summary.failed })}
-                {translationWarning
-                  ? `: ${t(`errors.${translationWarning.code}`, { defaultValue: t("errors.internal") })}`
-                  : ""}
-              </span>
+          // Short status on the left, actions on the right; details live in tooltips.
+          <div className="flex min-w-[10rem] flex-1 items-center gap-1">
+            <p className="min-w-0 truncate text-xs text-muted-foreground" aria-live="polite">
+              {summary.checked === 0
+                ? t("summary.none_checked")
+                : t("summary.checked", { count: summary.checked })}
+              {summary.checked > 0 && summary.ready > 0 ? ` · ${t("summary.ready", { count: summary.ready })}` : ""}
+              {summary.failed > 0 ? (
+                <span className="text-destructive"> · {t("summary.failed", { count: summary.failed })}</span>
+              ) : null}
+              {summary.issues > 0 ? (
+                <span className="text-destructive"> · {t("summary.issues", { count: summary.issues })}</span>
+              ) : null}
+              {formatInvalid ? <span className="text-destructive"> · {t("summary.format_invalid")}</span> : null}
+              {selectedCount > 1 ? (
+                <span className="text-sky-700 dark:text-sky-300" data-testid="name-translator-selected-rows">
+                  {" "}· {t("list.selected_rows", { count: selectedCount })}
+                </span>
+              ) : null}
+            </p>
+            {summary.failed > 0 && translationWarning ? (
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t(`errors.${translationWarning.code}`, { defaultValue: t("errors.internal") })}
+                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-full text-destructive/80 outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50"
+                  >
+                    <AlertCircle className="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className="max-w-[min(22rem,calc(100vw-2rem))] text-left [text-wrap:wrap]">
+                  <div className="font-medium">{t(`errors.${translationWarning.code}`, { defaultValue: t("errors.internal") })}</div>
+                  {translationWarning.message ? (
+                    <div className="mt-0.5 text-[11px] text-background/65 [overflow-wrap:anywhere]">{translationWarning.message}</div>
+                  ) : null}
+                </TooltipContent>
+              </Tooltip>
             ) : null}
-            {summary.issues > 0 ? (
-              <span className="text-destructive"> · {t("summary.issues", { count: summary.issues })}</span>
-            ) : null}
-            {formatInvalid ? <span className="text-destructive"> · {t("summary.format_invalid")}</span> : null}
-          </p>
+            <ListHelp />
+          </div>
         )}
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {summary.duplicates > 0 && !translating ? (
             <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => store().applyNumbering()}>
               <Wand2 />
@@ -328,7 +445,7 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
           </div>
         </div>
       ) : (
-        <>
+        <div className="contents" style={{ "--nt-cols": columns } as CSSProperties}>
           <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
             <ClipPathTabs
               value={filter}
@@ -348,7 +465,7 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
           </div>
           <div
             role="row"
-            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_56px] gap-2 border-b px-5 py-1.5 text-[11px] font-medium text-muted-foreground"
+            className="grid grid-cols-[var(--nt-cols)] gap-2 border-b px-5 py-1.5 text-[11px] font-medium text-muted-foreground transition-[grid-template-columns] duration-200 ease-out"
           >
             <span role="columnheader" className="flex min-w-0 items-center">
               <Tooltip delayDuration={350}>
@@ -380,19 +497,28 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
           <div
             ref={viewportRef}
             role="grid"
+            tabIndex={0}
             aria-label={t("list.title")}
             aria-rowcount={rows.length}
-            onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-            className="max-h-[min(36rem,calc(100dvh-22rem))] min-h-[12rem] overflow-y-auto px-3 py-1.5"
+            aria-multiselectable="true"
+            data-keyboard={rowSelection.keyboardNav}
+            {...rowSelection.viewportProps}
+            onScroll={(event) => {
+              setScrollTop(event.currentTarget.scrollTop);
+              rowSelection.viewportProps.onScroll();
+            }}
+            className="group/grid max-h-[min(36rem,calc(100dvh-22rem))] min-h-[12rem] select-none overflow-y-auto px-3 py-1.5 outline-none"
           >
             {rows.length === 0 ? (
               <p className="px-2 py-10 text-center text-xs text-muted-foreground">{t("filter.empty")}</p>
             ) : (
-              <div style={{ height: rows.length * ROW_HEIGHT, position: "relative" }}>
+              <div ref={contentRef} style={{ height: rows.length * ROW_HEIGHT, position: "relative" }}>
                 <div style={{ transform: `translateY(${start * ROW_HEIGHT}px)` }}>
-                  {visible.map((row) => {
+                  {visible.map((row, offset) => {
                     const entry = entries[row.key];
                     if (!entry) return null;
+                    const index = start + offset;
+                    const selected = selection.keys.has(row.key);
                     return (
                       <EntryRow
                         key={row.key}
@@ -400,20 +526,69 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
                         entry={entry}
                         state={states.get(row.key)}
                         checked={Boolean(checked[row.key])}
-                        isRoot={rootSet.has(row.key)}
+                        selected={selected}
+                        joinTop={selected && index > 0 && selection.keys.has(rows[index - 1]!.key)}
+                        joinBottom={selected && index < rows.length - 1 && selection.keys.has(rows[index + 1]!.key)}
+                        lead={rowSelection.keyboardNav && selection.lead === row.key}
                         editing={editingKey === row.key}
                         collecting={Boolean(collecting[row.key])}
                         loading={dirs[row.key]?.status === "loading"}
                         busy={busy}
+                        modelReady={modelReady}
                         actions={actions}
                       />
                     );
                   })}
                 </div>
+                {rowSelection.marquee ? (
+                  <div
+                    aria-hidden="true"
+                    data-testid="name-translator-marquee"
+                    className="pointer-events-none absolute z-10 rounded-[3px] border border-sky-500/60 bg-sky-500/10 dark:border-sky-400/60 dark:bg-sky-400/10"
+                    style={rowSelection.marquee}
+                  />
+                ) : null}
               </div>
             )}
           </div>
-        </>
+          <DropdownMenu
+            key={menu?.serial ?? lastMenu.current?.serial ?? 0}
+            open={Boolean(menu)}
+            modal={false}
+            onOpenChange={(open) => {
+              if (!open) setMenu(null);
+            }}
+          >
+            {createPortal(
+              <DropdownMenuTrigger
+                tabIndex={-1}
+                aria-hidden="true"
+                style={{
+                  position: "fixed",
+                  left: (menu ?? lastMenu.current)?.x ?? 0,
+                  top: (menu ?? lastMenu.current)?.y ?? 0,
+                  width: 1,
+                  height: 1,
+                  opacity: 0,
+                  pointerEvents: "none",
+                }}
+              />,
+              document.body,
+            )}
+            <EntryMenuContent
+              align="start"
+              side="bottom"
+              sideOffset={2}
+              collisionPadding={8}
+              className="min-w-52"
+              data-testid="name-translator-context-menu"
+              getTargets={() => (menu ?? lastMenu.current)?.targets ?? []}
+              modelReady={modelReady}
+              onEdit={(path) => setEditingKey(path)}
+              restoreFocus={() => viewportRef.current?.focus({ preventScroll: true })}
+            />
+          </DropdownMenu>
+        </div>
       )}
     </ToolPanel>
   );

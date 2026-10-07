@@ -6,7 +6,7 @@
   "add": {
     "title": "加入項目",
     "drop_title": "拖入檔案或資料夾",
-    "drop_hint": "可混合加入；加入後在項目清單中選擇要改名的項目",
+    "drop_hint": "可混合加入；加入後在項目清單中勾選要改名的項目",
     "drop_label": "加入檔名翻譯清單",
     "files": "加入檔案",
     "folders": "加入資料夾",
@@ -73,7 +73,7 @@
   },
   "list": {
     "title": "項目",
-    "select": "選擇",
+    "select": "勾選",
     "clear": "清空清單",
     "column_name": "名稱",
     "column_new_name": "新名稱",
@@ -87,29 +87,59 @@
     "expand_all": "全部展開",
     "collapse_all": "全部收合",
     "check_entry": "重新命名「{{name}}」",
-    "inside_count": "內含 {{checked}}/{{total}} 已選",
-    "select_inside": "選擇內部全部",
-    "row_menu": "「{{name}}」的更多操作"
+    "inside_count": "內含 {{checked}}/{{total}} 已勾選",
+    "select_inside": "勾選內部全部",
+    "row_menu": "「{{name}}」的更多操作",
+    "selected_rows": "已選取 {{count}} 列",
+    "help": {
+      "label": "清單操作提示",
+      "select": {
+        "keys": "按一下 / Ctrl / Shift",
+        "desc": "選取、加選、連選"
+      },
+      "marquee": {
+        "keys": "拖曳",
+        "desc": "框選多列"
+      },
+      "space": {
+        "keys": "空白鍵",
+        "desc": "切換所選列的勾選"
+      },
+      "range": {
+        "keys": "Shift + 核取方塊",
+        "desc": "勾選一段範圍"
+      },
+      "menu": {
+        "keys": "右鍵",
+        "desc": "更多操作"
+      },
+      "edit": {
+        "keys": "F2 / Enter",
+        "desc": "編輯新名稱"
+      },
+      "arrows": {
+        "keys": "↑ ↓ ← →",
+        "desc": "移動、展開或折疊"
+      },
+      "escape": {
+        "keys": "Esc",
+        "desc": "取消選取"
+      }
+    }
   },
   "select_inside": {
-    "all": "選擇內部全部（含子資料夾）",
-    "files": "僅選擇內部檔案",
-    "folders": "僅選擇內部資料夾",
-    "children": "僅選擇直接子項",
-    "none": "取消選擇內部"
+    "all": "勾選內部全部（含子資料夾）",
+    "files": "僅勾選內部檔案",
+    "folders": "僅勾選內部資料夾",
+    "children": "僅勾選直接子項",
+    "none": "取消勾選內部"
   },
   "select_all": {
-    "everything": "全選（含所有子資料夾內容）",
-    "files": "僅選擇檔案",
-    "folders": "僅選擇資料夾",
-    "roots": "僅選擇加入的項目",
-    "none": "取消全選"
-  },
-  "row": {
-    "edit": "編輯新名稱",
-    "retranslate": "重新翻譯此項",
-    "reset": "恢復為翻譯結果",
-    "remove": "從清單移除"
+    "everything": "全部勾選（含所有子資料夾內容）",
+    "files": "僅勾選檔案",
+    "folders": "僅勾選資料夾",
+    "roots": "僅勾選加入的項目",
+    "none": "取消全部勾選"
   },
   "status": {
     "pending": "待翻譯",
@@ -136,13 +166,13 @@
   "filter": {
     "label": "顯示範圍",
     "all": "全部",
-    "checked": "已選 {{count}}",
+    "checked": "已勾選 {{count}}",
     "issues": "問題 {{count}}",
     "empty": "目前篩選下沒有項目"
   },
   "empty": {
     "title": "加入要翻譯名稱的檔案或資料夾",
-    "description": "拖入或選擇後，勾選要改名的項目。資料夾可一鍵選擇其中全部內容，資料夾本身與其中項目可以一起改名。"
+    "description": "拖入或選擇後，勾選要改名的項目。資料夾可一鍵勾選其中全部內容，資料夾本身與其中項目可以一起改名。"
   },
   "actions": {
     "stop": "停止",
@@ -156,8 +186,8 @@
     "translating": "已翻譯 {{done}}/{{total}}"
   },
   "summary": {
-    "none_checked": "勾選要改名的項目",
-    "checked": "已選 {{count}} 項",
+    "none_checked": "尚未勾選項目",
+    "checked": "已勾選 {{count}} 項",
     "ready": "{{count}} 項就緒",
     "failed": "{{count}} 項翻譯失敗",
     "issues": "{{count}} 項有問題將略過",
@@ -199,7 +229,7 @@
   },
   "model": {
     "missing_title": "尚未設定任務執行模型",
-    "missing_description": "可以先加入和選擇項目；翻譯前需要在設定中設定任務執行模型。",
+    "missing_description": "可以先加入和勾選項目；翻譯前需要在設定中設定任務執行模型。",
     "open_settings": "前往設定"
   },
   "errors": {
@@ -218,10 +248,24 @@
   },
   "notice": {
     "truncated_title": "項目過多，只載入了一部分",
-    "truncated": "「{{path}}」中的項目超過單次上限，只載入並選擇了前一部分。可分批處理其中的子資料夾。"
+    "truncated": "「{{path}}」中的項目超過單次上限，只載入並勾選了前一部分。可分批處理其中的子資料夾。"
   },
   "agent": {
     "loaded": "已載入 HomeAgent 的重新命名計畫，請核對後再重新命名",
     "missing": "HomeAgent 的重新命名計畫已過期，請重新產生"
+  },
+  "menu": {
+    "selected": "已選取 {{count}} 項",
+    "check": "勾選",
+    "uncheck": "取消勾選",
+    "translate": "翻譯",
+    "retranslate": "重新翻譯",
+    "edit": "編輯新名稱",
+    "reset": "恢復為翻譯結果",
+    "check_inside": "勾選內部",
+    "reveal": "在資料夾中顯示",
+    "copy_name": "複製名稱",
+    "copy_path": "複製路徑",
+    "remove": "從清單移除"
   }
 }
