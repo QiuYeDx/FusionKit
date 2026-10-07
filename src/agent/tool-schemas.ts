@@ -14,9 +14,9 @@ export const scanSubtitleFilesSchema = z.object({
     .describe("Absolute directory paths to scan"),
   extensions: z
     .array(z.string())
-    .default(["LRC", "SRT", "VTT"])
+    .default(["LRC", "SRT", "VTT", "ASS", "SSA", "SBV"])
     .describe(
-      "File extensions to include (uppercase). Default: LRC/SRT/VTT; add ASS/SSA/SBV when scanning inputs for format conversion"
+      "File extensions to include (uppercase). Default: all supported subtitle formats"
     ),
   recursive: z.boolean().default(true).describe("Scan subdirectories"),
 });

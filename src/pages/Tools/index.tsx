@@ -35,7 +35,7 @@ const CLASSIC_TOOLS: CardItem[] = [
     id: "extractor",
     titleKey: "tools:fields.subtitle_language_extractor",
     descKey: "tools:field_desc.subtitle_language_extractor",
-    chips: ["LRC · SRT"],
+    chips: ["SRT · VTT · LRC", "ASS · SSA · SBV"],
   },
   {
     id: "localSubtitleTranscriber",

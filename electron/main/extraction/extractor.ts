@@ -1,7 +1,8 @@
 /**
  * 字幕语言提取器
  *
- * 从双语字幕文件（LRC / SRT）中识别并提取指定语言的文本行。
+ * 从双语字幕文件（LRC / SRT / VTT / ASS / SSA / SBV）中识别并提取指定语言的文本行，
+ * 输出与输入格式相同。
  * 核心流程：逐行 Unicode Script 检测 → 按时间/区块聚合 → 保留目标语言行 → 重组输出。
  *
  * 支持的语言：ZH / JA / EN / KO / FR / DE / ES / RU / PT
@@ -31,7 +32,7 @@ export type ExtractKeepLanguage =
 export interface ExtractParams {
   fileName: string;
   fileContent: string;
-  fileType: "LRC" | "SRT";
+  fileType: "LRC" | "SRT" | "VTT" | "ASS" | "SSA" | "SBV";
   /** 指定要保留哪种语言 */
   keep: ExtractKeepLanguage;
 }
@@ -174,8 +175,16 @@ function isZhLine(text: string): boolean {
   return reCnPunct.test(text) || reCnFunc.test(text) || SIMP_ONLY.test(text);
 }
 
+/** 语言检测前去掉 HTML 风格标签与 ASS 覆盖标签，避免标签里的拉丁字母干扰判定 */
+function stripMarkup(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, "")
+    .replace(/\{[^}]*\}/g, "")
+    .replace(/\\h/g, " ");
+}
+
 /**
- * 从同一时间点/区块的多行文本中，筛选出目标语言的行。
+ * 从同一时间点/区块的多行文本中，筛选出目标语言的行，返回保留行的下标（保持原顺序）。
  *
  * 通用策略：
  * 1. 检测每行的 ScriptCategory
@@ -183,10 +192,12 @@ function isZhLine(text: string): boolean {
  * 3. ZH/JA 特殊处理：两者都可能含 CJK，需二次区分
  * 4. 兜底策略：排除已确定的非目标行
  */
-function chooseLinesForKeep(
-  lines: string[],
+function chooseIndexesForKeep(
+  rawLines: string[],
   keep: ExtractKeepLanguage
-): string[] {
+): number[] {
+  const lines = rawLines.map(stripMarkup);
+  const all = lines.map((_, i) => i);
   const targetScript = getScriptForLanguage(keep);
   const scripts = lines.map((l) => detectLineScript(l));
 
@@ -194,14 +205,14 @@ function chooseLinesForKeep(
   // 中日双语字幕中，两种语言都可能含 CJK 汉字
   if (keep === "ZH") {
     // 目标是中文：优先选 CJK_ZH 行，同时排除 KANA_JA 行
-    const zhLines = lines.filter(
-      (l, i) => scripts[i] === "CJK_ZH" || (scripts[i] !== "KANA_JA" && isZhLine(l))
+    const zhLines = all.filter(
+      (i) => scripts[i] === "CJK_ZH" || (scripts[i] !== "KANA_JA" && isZhLine(lines[i]))
     );
     if (zhLines.length > 0) return zhLines;
 
     // 兜底：如果有 KANA_JA 行，排除它们后剩余的可能是中文
     if (scripts.includes("KANA_JA")) {
-      const nonJa = lines.filter((_, i) => scripts[i] !== "KANA_JA");
+      const nonJa = all.filter((i) => scripts[i] !== "KANA_JA");
       if (nonJa.length > 0) return nonJa;
     }
     return [];
@@ -209,24 +220,23 @@ function chooseLinesForKeep(
 
   if (keep === "JA") {
     // 目标是日文：优先选 KANA_JA 行
-    const jaLines = lines.filter((_, i) => scripts[i] === "KANA_JA");
+    const jaLines = all.filter((i) => scripts[i] === "KANA_JA");
     if (jaLines.length > 0) return jaLines;
 
     // 兜底策略 1：双行中排除中文行
     if (lines.length === 2) {
-      const zhIdx = scripts.findIndex(
-        (s, i) => s === "CJK_ZH" || isZhLine(lines[i])
+      const zhIdx = all.findIndex(
+        (i) => scripts[i] === "CJK_ZH" || isZhLine(lines[i])
       );
       if (zhIdx !== -1) {
-        const otherIdx = zhIdx === 0 ? 1 : 0;
-        return [lines[otherIdx]];
+        return [zhIdx === 0 ? 1 : 0];
       }
     }
     // 兜底策略 2：多行中排除中文行
-    const hasZh = scripts.some((s, i) => s === "CJK_ZH" || isZhLine(lines[i]));
+    const hasZh = all.some((i) => scripts[i] === "CJK_ZH" || isZhLine(lines[i]));
     if (hasZh) {
-      const nonZh = lines.filter(
-        (l, i) => scripts[i] !== "CJK_ZH" && !isZhLine(l)
+      const nonZh = all.filter(
+        (i) => scripts[i] !== "CJK_ZH" && !isZhLine(lines[i])
       );
       if (nonZh.length > 0) return nonZh;
     }
@@ -235,20 +245,28 @@ function chooseLinesForKeep(
 
   // ---- 通用处理 ----
   // 直接按 script 类别匹配
-  const matched = lines.filter((_, i) => scripts[i] === targetScript);
+  const matched = all.filter((i) => scripts[i] === targetScript);
   if (matched.length > 0) return matched;
 
   // 兜底：排除已确定的其他 script 行
-  const knownOther = lines.filter(
-    (_, i) => scripts[i] !== "UNKNOWN" && scripts[i] !== targetScript
+  const knownOther = all.filter(
+    (i) => scripts[i] !== "UNKNOWN" && scripts[i] !== targetScript
   );
   if (knownOther.length > 0 && knownOther.length < lines.length) {
-    return lines.filter(
-      (_, i) => scripts[i] === "UNKNOWN" || scripts[i] === targetScript
+    return all.filter(
+      (i) => scripts[i] === "UNKNOWN" || scripts[i] === targetScript
     );
   }
 
   return [];
+}
+
+/** chooseIndexesForKeep 的取值版本：直接返回保留的原始行 */
+function chooseLinesForKeep(
+  lines: string[],
+  keep: ExtractKeepLanguage
+): string[] {
+  return chooseIndexesForKeep(lines, keep).map((i) => lines[i]);
 }
 
 /** 判断是否为 SRT 时间轴行，格式：00:01:23,456 --> 00:01:25,789 */
@@ -399,9 +417,191 @@ function extractFromSRT(content: string, keep: ExtractKeepLanguage): string {
   return resultBlocks.join("\n\n");
 }
 
+/** 统一换行符并去掉 BOM */
+function normalizeContent(content: string): string {
+  return content.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+}
+
+/** VTT 时间轴行：[HH:]MM:SS.mmm --> [HH:]MM:SS.mmm，后面可跟 cue settings */
+const reVttTiming =
+  /^(?:\d+:)?\d{2}:\d{2}\.\d{3}\s+-->\s+(?:\d+:)?\d{2}:\d{2}\.\d{3}/;
+
+/**
+ * 从 VTT 字幕中提取目标语言。
+ *
+ * 字幕块结构为"可选标识行 + 时间轴行 + 文本行"，与 SRT 相同地逐块筛选文本行；
+ * WEBVTT 头、NOTE / STYLE / REGION 等非字幕块原样保留，没有目标语言的字幕块整块移除。
+ */
+function extractFromVTT(content: string, keep: ExtractKeepLanguage): string {
+  const normalized = normalizeContent(content).trim();
+  if (!normalized) return "";
+
+  const resultBlocks: string[] = [];
+  for (const block of normalized.split(/\n\s*\n+/)) {
+    const lines = block
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    const tsLineIdx = lines.findIndex((l) => reVttTiming.test(l));
+    // 时间轴行只可能在第 0 行或标识行之后；其余块不是字幕，原样保留
+    if (tsLineIdx === -1 || tsLineIdx > 1) {
+      resultBlocks.push(block.trim());
+      continue;
+    }
+
+    const textLines = lines.slice(tsLineIdx + 1);
+    if (textLines.length === 0) continue;
+    const kept = chooseLinesForKeep(textLines, keep);
+    if (kept.length === 0) continue;
+
+    resultBlocks.push([...lines.slice(0, tsLineIdx + 1), ...kept].join("\n"));
+  }
+
+  return resultBlocks.join("\n\n");
+}
+
+/** SBV 时间轴行：H:MM:SS.mmm,H:MM:SS.mmm */
+const reSbvTiming = /^\d+:\d{2}:\d{2}\.\d{3},\d+:\d{2}:\d{2}\.\d{3}$/;
+
+/**
+ * 从 SBV（YouTube）字幕中提取目标语言。
+ *
+ * 字幕块为"时间轴行 + 文本行"；部分导出工具用 [br] 表示换行，筛选前按 [br] 拆成多行。
+ */
+function extractFromSBV(content: string, keep: ExtractKeepLanguage): string {
+  const normalized = normalizeContent(content).trim();
+  if (!normalized) return "";
+
+  const resultBlocks: string[] = [];
+  for (const block of normalized.split(/\n\s*\n+/)) {
+    const lines = block
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    if (lines.length === 0 || !reSbvTiming.test(lines[0])) continue;
+
+    const textLines = lines
+      .slice(1)
+      .flatMap((l) => l.split(/\[br\]/i))
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    if (textLines.length === 0) continue;
+    const kept = chooseLinesForKeep(textLines, keep);
+    if (kept.length === 0) continue;
+
+    resultBlocks.push(`${lines[0]}\n${kept.join("\n")}`);
+  }
+
+  return resultBlocks.join("\n\n");
+}
+
+/** ASS 与 SSA 的 [Events] 默认字段顺序（缺少 Format 行时使用；SSA 首字段为 Marked） */
+const DEFAULT_ASS_EVENT_FORMAT = ["layer", "start", "end", "style", "name", "marginl", "marginr", "marginv", "effect", "text"];
+
+/**
+ * 从 ASS / SSA 字幕中提取目标语言。
+ *
+ * 双语 ASS 常见两种写法，两者都按"同一开始/结束时间"分组后统一判定：
+ *  - 同一条 Dialogue 内用 \N 分隔两种语言，如 "中文\N{\fs30}日本語"
+ *  - 同一时间的两条 Dialogue，分别使用中文、日文样式
+ *
+ * 只改写 Dialogue 的 Text 字段：保留目标语言片段并用 \N 重新连接；被移除片段里的
+ * 覆盖标签（如 {\an8}）挪到下一个保留片段前，避免丢失定位与样式。整条都不含目标
+ * 语言的 Dialogue 被移除；脚本信息、样式、注释、绘图（\p1）等其他内容原样保留。
+ */
+function extractFromASS(content: string, keep: ExtractKeepLanguage): string {
+  const lines = normalizeContent(content).split("\n");
+  type DialogueEvent = { lineIndex: number; prefix: string; segments: string[]; key: string };
+  const events: DialogueEvent[] = [];
+  let section = "";
+  let format: string[] | undefined;
+
+  lines.forEach((raw, lineIndex) => {
+    const trimmed = raw.trim();
+    const heading = /^\[(.+)\]$/.exec(trimmed);
+    if (heading) {
+      section = heading[1].trim().toLowerCase();
+      format = undefined;
+      return;
+    }
+    if (section !== "events") return;
+    const declaration = /^Format\s*:\s*(.*)$/i.exec(trimmed);
+    if (declaration) {
+      format = declaration[1].split(",").map((f) => f.trim().toLowerCase());
+      return;
+    }
+    const dialogue = /^\s*Dialogue\s*:(.*)$/i.exec(raw);
+    if (!dialogue) return;
+
+    const order = format ?? DEFAULT_ASS_EVENT_FORMAT;
+    const values: string[] = [];
+    let rest = dialogue[1];
+    for (let i = 0; i < order.length - 1; i++) {
+      const comma = rest.indexOf(",");
+      if (comma < 0) return;
+      values.push(rest.slice(0, comma).trim());
+      rest = rest.slice(comma + 1);
+    }
+    // 绘图指令不是文本，保持原样
+    if (/\\p[1-9]/.test(rest)) return;
+
+    events.push({
+      lineIndex,
+      prefix: raw.slice(0, raw.length - rest.length),
+      segments: rest.split("\\N"),
+      key: `${values[order.indexOf("start")]}|${values[order.indexOf("end")]}`,
+    });
+  });
+
+  const groups = new Map<string, DialogueEvent[]>();
+  for (const event of events) {
+    const group = groups.get(event.key) ?? [];
+    group.push(event);
+    groups.set(event.key, group);
+  }
+
+  const replacements = new Map<number, string | null>();
+  for (const group of groups.values()) {
+    const candidates: { event: number; segment: number; text: string }[] = [];
+    group.forEach((event, e) =>
+      event.segments.forEach((segment, s) => {
+        if (stripMarkup(segment).trim()) candidates.push({ event: e, segment: s, text: segment });
+      })
+    );
+    if (candidates.length === 0) continue;
+
+    const kept = new Set(
+      chooseIndexesForKeep(candidates.map((c) => c.text), keep).map(
+        (i) => `${candidates[i].event}:${candidates[i].segment}`
+      )
+    );
+    group.forEach((event, e) => {
+      const parts: string[] = [];
+      let pendingTags = "";
+      event.segments.forEach((segment, s) => {
+        if (kept.has(`${e}:${s}`)) {
+          parts.push(pendingTags + segment);
+          pendingTags = "";
+        } else {
+          pendingTags += (segment.match(/\{[^}]*\}/g) ?? []).join("");
+        }
+      });
+      replacements.set(event.lineIndex, parts.length ? event.prefix + parts.join("\\N") : null);
+    });
+  }
+
+  return lines
+    .flatMap((line, index) => {
+      if (!replacements.has(index)) return [line];
+      const replacement = replacements.get(index);
+      return replacement === null || replacement === undefined ? [] : [replacement];
+    })
+    .join("\n");
+}
+
 /**
  * 字幕提取入口函数。
- * 根据文件类型分发到 LRC / SRT 处理器，返回提取后的文件名和内容。
+ * 根据文件类型分发到对应格式的处理器，返回提取后的文件名和内容（输出格式与输入相同）。
  */
 export function extractSubtitle(params: ExtractParams): ExtractResult {
   const { fileName, fileContent, fileType, keep } = params;
@@ -412,6 +612,12 @@ export function extractSubtitle(params: ExtractParams): ExtractResult {
     outputContent = extractFromLRC(fileContent, keep);
   } else if (fileType === "SRT") {
     outputContent = extractFromSRT(fileContent, keep);
+  } else if (fileType === "VTT") {
+    outputContent = extractFromVTT(fileContent, keep);
+  } else if (fileType === "SBV") {
+    outputContent = extractFromSBV(fileContent, keep);
+  } else if (fileType === "ASS" || fileType === "SSA") {
+    outputContent = extractFromASS(fileContent, keep);
   } else {
     throw new Error(`Unsupported file type: ${fileType}`);
   }

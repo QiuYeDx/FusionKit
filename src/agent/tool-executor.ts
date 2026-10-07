@@ -455,8 +455,9 @@ export async function executeQueueExtract(
       if (fileContent === null) { errors.push(`Cannot read: ${filePath}`); continue; }
       const fileName = extractFileName(filePath);
       const ext = extractExtension(filePath);
+      if (!isSubtitleConvertFormat(ext)) { errors.push(`Unsupported format: ${fileName}`); continue; }
       const task: SubtitleExtractorTask & { agentTaskId: string } = {
-        agentTaskId: crypto.randomUUID(), fileName, fileContent, fileType: ext as any, keep: args.keep,
+        agentTaskId: crypto.randomUUID(), fileName, fileContent, fileType: ext, keep: args.keep,
         originFileURL: filePath, targetFileURL: resolveOutputDir(args.outputMode, args.outputDir, filePath),
         status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: args.conflictPolicy ?? "index",
       };

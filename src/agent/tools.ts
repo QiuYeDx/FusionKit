@@ -33,7 +33,7 @@ export const agentTools = {
   ...modernAgentTools,
   scan_subtitle_files: tool({
     description:
-      "Scan one or more directories for subtitle conversion or language extraction inputs (LRC/SRT/VTT; conversion also accepts ASS/SSA/SBV). " +
+      "Scan one or more directories for subtitle conversion or language extraction inputs (LRC/SRT/VTT/ASS/SSA/SBV). " +
       "Returns a list of discovered file paths with metadata. " +
       "Do not use this scan result to authorize subtitle translation; queue_subtitle_translate opens a fixed native picker.",
     inputSchema: scanSubtitleFilesSchema,
@@ -64,7 +64,7 @@ export const agentTools = {
   queue_subtitle_extract: tool({
     description:
       "Add subtitle files to the LANGUAGE EXTRACTION queue. " +
-      "Extracts one language (Chinese or Japanese) from bilingual subtitles. " +
+      "Extracts one language (Chinese or Japanese) from bilingual LRC/SRT/VTT/ASS/SSA/SBV subtitles, keeping the input format. " +
       "Use filePaths for small explicit lists, or use scanId + batchStart + batchSize from a previous scan result for large batch queueing.",
     inputSchema: queueExtractSchema,
     execute: async (args, options) => executeQueueExtract(args, options.abortSignal),

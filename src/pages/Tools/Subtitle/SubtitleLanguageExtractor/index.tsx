@@ -31,8 +31,9 @@ import {
   ExtractKeepLanguage,
   OutputConflictPolicy,
   SubtitleExtractorTask,
-  SubtitleFileType,
+  SUBTITLE_CONVERT_FORMATS,
   TaskStatus,
+  isSubtitleConvertFormat,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
 import { resolveSelectedNativeFiles } from "@/utils/filePath";
@@ -155,7 +156,7 @@ function SubtitleLanguageExtractor() {
         title: t("subtitle:extractor.tour.upload_title", "添加字幕文件"),
         content: t(
           "subtitle:extractor.tour.upload_content",
-          "将 .lrc 或 .srt 双语字幕文件拖拽到此处，或点击选择文件。支持批量添加。"
+          "将 .lrc、.srt、.vtt、.ass、.ssa 或 .sbv 双语字幕文件拖拽到此处，或点击选择文件。支持批量添加。"
         ),
         placement: "bottom" as const,
       },
@@ -289,10 +290,7 @@ function SubtitleLanguageExtractor() {
       if (i > 0) await new Promise((r) => setTimeout(r, 0));
 
       const ext = fileName.split(".").pop()?.toUpperCase();
-      if (
-        !ext ||
-        ![SubtitleFileType.LRC, SubtitleFileType.SRT].includes(ext as any)
-      ) {
+      if (!isSubtitleConvertFormat(ext)) {
         showToast(
           t("subtitle:extractor.errors.invalid_file_type").replace(
             "{types}",
@@ -325,7 +323,7 @@ function SubtitleLanguageExtractor() {
 
       try {
         const fileContent = await file.text();
-        const fileType = ext as SubtitleFileType;
+        const fileType = ext;
         const newTask: SubtitleExtractorTask = {
           fileName,
           fileContent,
@@ -474,7 +472,7 @@ function SubtitleLanguageExtractor() {
     >
       <ToolFileDropZone
         id="ext-tour-upload"
-        accept=".lrc,.srt"
+        accept={SUBTITLE_CONVERT_FORMATS.map((fmt) => `.${fmt.toLowerCase()}`).join(",")}
         multiple
         dragging={isDragging}
         onDraggingChange={setIsDragging}

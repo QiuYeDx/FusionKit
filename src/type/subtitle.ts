@@ -14,7 +14,10 @@ export enum SubtitleFileType {
   VTT = "VTT",
 }
 
-/** Formats the classic subtitle converter reads and writes (any pair converts). */
+/**
+ * Formats the classic subtitle converter (any pair converts) and the language
+ * extractor (output keeps the input format) read and write.
+ */
 export enum SubtitleConvertFormat {
   LRC = "LRC",
   SRT = "SRT",
@@ -211,7 +214,7 @@ export type SubtitleConverterTask = {
 export type SubtitleExtractorTask = {
   fileName: string;
   fileContent: string;
-  fileType: SubtitleFileType;
+  fileType: SubtitleConvertFormat;
   originFileURL: string;
   targetFileURL: string;
   keep: ExtractKeepLanguage;
