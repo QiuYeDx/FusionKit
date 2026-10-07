@@ -79,7 +79,10 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
         return {
           body: createChatCompletionBody({
             content: JSON.stringify({
-              items: input.items.map((item) => ({ id: item.id, name: DICTIONARY[item.name] ?? item.name })),
+              // "メモ" is never returned, so it fails even after the retry.
+              items: input.items
+                .filter((item) => item.name !== "メモ")
+                .map((item) => ({ id: item.id, name: DICTIONARY[item.name] ?? item.name })),
             }),
           }),
         };
@@ -198,18 +201,18 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
     // Name formats: bilingual presets and a custom template update names without translating again.
     const requestsBefore = server.requests.length;
     await page.getByRole("radio", { name: "双语" }).click();
-    await page.locator("[role=row][data-path$='メモ.txt']").getByText("Notes (メモ).txt").waitFor();
+    await page.locator("[role=row][data-path$='表紙.jpg']").getByText("Cover (表紙).jpg").waitFor();
     await page.getByRole("radio", { name: "自定义" }).click();
     const template = page.getByRole("textbox", { name: "自定义名称格式" });
     await template.fill("{original}");
     await page.getByText("格式中需要包含 {translated}").waitFor();
     expect(await renameButton.isDisabled()).toBe(true);
     await template.fill("[{original}] {translated}");
-    await page.locator("[role=row][data-path$='メモ.txt']").getByText("[メモ] Notes.txt").waitFor();
+    await page.locator("[role=row][data-path$='表紙.jpg']").getByText("[表紙] Cover.jpg").waitFor();
     await page.getByText("示例：[第1話] 第1集.mp4").waitFor();
     await page.locator("aside").screenshot({ path: path.join(artifacts, "02d-custom-format.png") });
     await page.getByRole("radio", { name: "仅译名" }).click();
-    await page.locator("[role=row][data-path$='メモ.txt']").getByText("Notes.txt").waitFor();
+    await page.locator("[role=row][data-path$='表紙.jpg']").getByText("Cover.jpg").waitFor();
     expect(server.requests.length).toBe(requestsBefore);
 
     const statuses = await page.locator("[role=row][data-path] [data-status]").evaluateAll((elements) =>
@@ -217,6 +220,10 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
     );
     expect(statuses).toContain("issue"); // 表紙.jpg -> Cover.jpg collides with the existing Cover.jpg
     expect(statuses).toContain("unchanged"); // 2024-01-01.log and Cover.jpg keep their names
+    expect(statuses).toContain("failed"); // メモ.txt failed translation
+    // Ready entries can be renamed without retrying or unticking the failed one.
+    await page.getByRole("button", { name: "重试失败的 1 项" }).waitFor();
+    await page.getByText("1 项翻译失败").waitFor();
 
     // Long names keep their tail visible and show the full name in a tooltip.
     const longRow = page.locator("[role=row][data-path$='確認するためのもの.txt']");
@@ -231,6 +238,22 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
     await dialog.waitFor();
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(artifacts, "04-confirm-1280-light.png") });
+    await dialog.getByText(/未翻译或翻译失败 1 项/).waitFor();
+    expect(
+      await dialog
+        .locator("[data-slot=scroll-area-viewport]")
+        .evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+    ).toBe(true);
+    await window.evaluate((win) => win.setSize(786, 660));
+    await page.waitForTimeout(400);
+    expect(
+      await dialog
+        .locator("[data-slot=scroll-area-viewport]")
+        .evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+    ).toBe(true);
+    await page.screenshot({ path: path.join(artifacts, "04b-confirm-786-light.png") });
+    await window.evaluate((win) => win.setSize(1280, 860));
+    await page.waitForTimeout(300);
     await page.getByTestId("name-translator-confirm").click();
     await page.getByTestId("name-translator-outcome").waitFor();
     await page.waitForTimeout(400);
@@ -242,7 +265,7 @@ describe.runIf(process.env.FUSIONKIT_NAME_TRANSLATOR_E2E === "1")("Name translat
         "Anime Materials/2024-01-01.log",
         "Anime Materials/A very long sample file name used to check tooltips and middle ellipsis rendering.txt",
         "Anime Materials/Cover.jpg",
-        "Anime Materials/Notes.txt",
+        "Anime Materials/メモ.txt",
         "Anime Materials/Season 1/",
         "Anime Materials/Season 1/Episode 1.mp4",
         "Anime Materials/Season 1/Episode 2.mp4",

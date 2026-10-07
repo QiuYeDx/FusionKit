@@ -24,12 +24,13 @@ export interface EntrySummary {
   ready: number;
   needsTranslation: number;
   issues: number;
+  failed: number;
   translating: number;
   duplicates: number;
 }
 
 export function summarize(checked: Record<string, true>, states: ReadonlyMap<string, RowState>): EntrySummary {
-  const summary: EntrySummary = { checked: 0, ready: 0, needsTranslation: 0, issues: 0, translating: 0, duplicates: 0 };
+  const summary: EntrySummary = { checked: 0, ready: 0, needsTranslation: 0, issues: 0, failed: 0, translating: 0, duplicates: 0 };
   for (const key of Object.keys(checked)) {
     const state = states.get(key);
     // Selections whose entry is not loaded (e.g. removed from disk) are ignored.
@@ -44,7 +45,7 @@ export function summarize(checked: Record<string, true>, states: ReadonlyMap<str
         if (state.issue === "duplicate_target") summary.duplicates += 1;
         break;
       case "failed":
-        summary.issues += 1;
+        summary.failed += 1;
         summary.needsTranslation += 1;
         break;
       case "translating":
@@ -192,18 +193,11 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
         </Button>
       );
     }
-    if (summary.needsTranslation > 0) {
-      return (
-        <Button type="button" size="sm" disabled={busy || !modelReady} onClick={() => void store().translate("needed")}>
-          <Languages />
-          {t("actions.translate", { count: summary.needsTranslation })}
-        </Button>
-      );
-    }
-    return (
+    const renameButton = (variant: "default" | "outline") => (
       <Button
         type="button"
         size="sm"
+        variant={variant}
         data-testid="name-translator-rename"
         disabled={busy || summary.ready === 0 || formatInvalid}
         onClick={() => void store().prepareRename()}
@@ -211,6 +205,37 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
         {preparing ? <Loader2 className="animate-spin" /> : <FileStack />}
         {t("actions.rename", { count: summary.ready })}
       </Button>
+    );
+    if (summary.needsTranslation === 0) return renameButton("default");
+    // Some entries still need translation (never translated, settings changed
+    // or failed). Translating stays available, but ready entries can already
+    // be renamed on their own; when only failures remain, renaming leads.
+    const onlyFailures = summary.failed === summary.needsTranslation;
+    const translateButton = (
+      <Button
+        type="button"
+        size="sm"
+        variant={onlyFailures && summary.ready > 0 ? "outline" : "default"}
+        disabled={busy || !modelReady}
+        onClick={() => void store().translate("needed")}
+      >
+        <Languages />
+        {onlyFailures
+          ? t("actions.retry_failed", { count: summary.needsTranslation })
+          : t("actions.translate", { count: summary.needsTranslation })}
+      </Button>
+    );
+    if (summary.ready === 0) return translateButton;
+    return onlyFailures ? (
+      <>
+        {translateButton}
+        {renameButton("default")}
+      </>
+    ) : (
+      <>
+        {renameButton("outline")}
+        {translateButton}
+      </>
     );
   })();
 
@@ -230,6 +255,9 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
               ? t("summary.none_checked")
               : t("summary.checked", { count: summary.checked })}
             {summary.checked > 0 && summary.ready > 0 ? ` · ${t("summary.ready", { count: summary.ready })}` : ""}
+            {summary.failed > 0 ? (
+              <span className="text-destructive"> · {t("summary.failed", { count: summary.failed })}</span>
+            ) : null}
             {summary.issues > 0 ? (
               <span className="text-destructive"> · {t("summary.issues", { count: summary.issues })}</span>
             ) : null}

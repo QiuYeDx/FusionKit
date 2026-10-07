@@ -147,7 +147,8 @@
     "translate": "{{count}} 件を翻訳",
     "rename": "{{count}} 件の名前を変更",
     "number_duplicates": "自動で番号付け",
-    "retranslate": "再翻訳"
+    "retranslate": "再翻訳",
+    "retry_failed": "失敗した {{count}} 件を再試行"
   },
   "progress": {
     "translating": "翻訳済み {{done}}/{{total}}"
@@ -156,13 +157,19 @@
     "none_checked": "名前を変更する項目にチェックを入れてください",
     "checked": "{{count}} 件選択",
     "ready": "{{count}} 件準備完了",
+    "failed": "{{count}} 件の翻訳に失敗",
     "issues": "{{count}} 件は問題がありスキップ",
     "format_invalid": "名前の形式を修正してください"
   },
   "confirm": {
     "title": "{{count}} 件の名前を変更しますか",
     "summary": "ファイル {{files}} 件 · フォルダー {{folders}} 件",
-    "skipped": "ほかの選択中の {{count}} 件は名前を変更しません",
+    "skipped": "変更しない項目：{{details}}",
+    "separator": "、",
+    "skipped_untranslated": "未翻訳・翻訳失敗 {{count}} 件",
+    "skipped_issues": "問題あり {{count}} 件",
+    "skipped_unchanged": "変更なし {{count}} 件",
+    "becomes": "変更後",
     "more": "ほか {{count}} 件はここに表示されていません",
     "changed": "確認後に一部の項目が変更され、一覧に表示しました。閉じて確認してから再試行してください。",
     "undo_hint": "完了後、このページで元に戻せます",

@@ -11,7 +11,6 @@ import {
 } from "@/components/qiuye-ui/scrollable-dialog";
 import { Button } from "@/components/ui/button";
 import useNameTranslatorStore from "@/store/tools/rename/useNameTranslatorStore";
-import { NameText } from "./NameText";
 
 const MAX_LISTED = 400;
 
@@ -39,6 +38,12 @@ export function ConfirmRenameDialog() {
     return [...result.entries()];
   }, [confirm]);
 
+  const skipped = confirm?.skipped;
+  const skippedParts = [
+    skipped?.untranslated ? t("confirm.skipped_untranslated", { count: skipped.untranslated }) : null,
+    skipped?.issues ? t("confirm.skipped_issues", { count: skipped.issues }) : null,
+    skipped?.unchanged ? t("confirm.skipped_unchanged", { count: skipped.unchanged }) : null,
+  ].filter((part): part is string => Boolean(part));
   const files = confirm?.items.filter((item) => item.kind === "file").length ?? 0;
   const folders = (confirm?.items.length ?? 0) - files;
 
@@ -62,31 +67,37 @@ export function ConfirmRenameDialog() {
         </DialogTitle>
         <DialogDescription className="text-xs leading-5">
           {t("confirm.summary", { files, folders })}
-          {confirm && confirm.skippedCount > 0 ? ` · ${t("confirm.skipped", { count: confirm.skippedCount })}` : ""}
+          {skippedParts.length > 0 ? ` · ${t("confirm.skipped", { details: skippedParts.join(t("confirm.separator")) })}` : ""}
         </DialogDescription>
       </ScrollableDialogHeader>
-      <ScrollableDialogContent className="px-3 py-2">
-        <div className="space-y-3" data-testid="name-translator-confirm-list">
+      {/* Radix ScrollArea wraps content in a table-sized div; keep it block-sized
+          so long paths and names wrap instead of overflowing sideways. */}
+      <ScrollableDialogContent className="px-3 py-2 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!min-w-0">
+        <div className="min-w-0 space-y-3" data-testid="name-translator-confirm-list">
           {groups.map(([parent, items]) => (
             <section key={parent} className="min-w-0">
-              <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-                <Folder className="size-3 shrink-0" />
-                <NameText name={parent} />
+              <div className="mb-1 flex min-w-0 items-start gap-1.5 px-2 text-[11px] leading-4 text-muted-foreground">
+                <Folder className="mt-0.5 size-3 shrink-0" />
+                <span className="min-w-0 [overflow-wrap:anywhere]">{parent}</span>
               </div>
               <ul className="space-y-0.5">
                 {items.map((item) => (
                   <li
                     key={item.path}
-                    className="grid grid-cols-[14px_minmax(0,1fr)_14px_minmax(0,1fr)] items-center gap-2 rounded-md px-2 py-1 text-[13px] hover:bg-muted/50"
+                    className="grid min-w-0 grid-cols-[14px_minmax(0,1fr)] gap-x-2 rounded-md px-2 py-1.5 text-[13px] leading-5 hover:bg-muted/50"
                   >
                     {item.kind === "directory" ? (
-                      <Folder className="size-3.5 text-sky-600 dark:text-sky-400" />
+                      <Folder className="mt-[3px] size-3.5 text-sky-600 dark:text-sky-400" />
                     ) : (
-                      <File className="size-3.5 text-muted-foreground" />
+                      <File className="mt-[3px] size-3.5 text-muted-foreground" />
                     )}
-                    <NameText name={baseName(item.path)} className="text-muted-foreground" />
-                    <ArrowRight className="size-3.5 text-muted-foreground" />
-                    <NameText name={item.newName} className="font-medium" />
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground [overflow-wrap:anywhere]">{baseName(item.path)}</div>
+                      <div className="flex min-w-0 items-start gap-1.5 font-medium">
+                        <ArrowRight className="mt-[3px] size-3.5 shrink-0 text-muted-foreground" aria-label={t("confirm.becomes")} />
+                        <span className="min-w-0 [overflow-wrap:anywhere]">{item.newName}</span>
+                      </div>
+                    </div>
                   </li>
                 ))}
               </ul>

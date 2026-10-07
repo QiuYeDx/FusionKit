@@ -39,7 +39,8 @@ export interface TranslationRun {
 export interface ConfirmState {
   readonly items: readonly NameRenameItem[];
   readonly names: Readonly<Record<string, string>>;
-  readonly skippedCount: number;
+  /** Selected entries that will keep their names, by reason. */
+  readonly skipped: { readonly untranslated: number; readonly issues: number; readonly unchanged: number };
   readonly error?: string;
 }
 
@@ -605,9 +606,17 @@ const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
       if (state.preparing || state.applying) return;
       if (getTemplateError(currentSettings().template)) return;
       const states = selectRowStates(state);
+      // Only entries that are ready are renamed; untranslated, failed or
+      // problematic selections simply keep their names.
       const ready = Object.keys(state.checked).filter((key) => states.get(key)?.status === "ready");
-      const checkedCount = Object.keys(state.checked).length;
       if (ready.length === 0) return;
+      const skipped = { untranslated: 0, issues: 0, unchanged: 0 };
+      for (const key of Object.keys(state.checked)) {
+        const status = states.get(key)?.status;
+        if (status === "issue") skipped.issues += 1;
+        else if (status === "unchanged") skipped.unchanged += 1;
+        else if (status && status !== "ready" && status !== "idle") skipped.untranslated += 1;
+      }
       const items: NameRenameItem[] = ready.map((key) => {
         const entry = state.entries[key]!;
         return { path: entry.path, kind: entry.kind, identity: entry.identity, newName: states.get(key)!.proposedName! };
@@ -622,7 +631,7 @@ const useNameTranslatorStore = create<NameTranslatorState>()((set, get) => {
           confirm: {
             items: accepted,
             names: Object.fromEntries(accepted.map((item) => [item.path, item.newName])),
-            skippedCount: checkedCount - accepted.length,
+            skipped: { ...skipped, issues: skipped.issues + ready.length - accepted.length },
           },
         });
       } catch (error) {

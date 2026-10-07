@@ -147,7 +147,8 @@
     "translate": "Translate ({{count}})",
     "rename": "Rename ({{count}})",
     "number_duplicates": "Auto-number",
-    "retranslate": "Translate again"
+    "retranslate": "Translate again",
+    "retry_failed": "Retry failed ({{count}})"
   },
   "progress": {
     "translating": "Translated {{done}}/{{total}}"
@@ -156,13 +157,19 @@
     "none_checked": "Tick the entries you want to rename",
     "checked": "Selected: {{count}}",
     "ready": "Ready: {{count}}",
+    "failed": "Failed: {{count}}",
     "issues": "Problems (skipped): {{count}}",
     "format_invalid": "Fix the name format first"
   },
   "confirm": {
     "title": "Rename {{count}} entries?",
     "summary": "Files: {{files}} · Folders: {{folders}}",
-    "skipped": "{{count}} other selected entries will keep their names",
+    "skipped": "Kept as is: {{details}}",
+    "separator": ", ",
+    "skipped_untranslated": "not translated or failed: {{count}}",
+    "skipped_issues": "problems: {{count}}",
+    "skipped_unchanged": "no change: {{count}}",
+    "becomes": "becomes",
     "more": "{{count}} more not listed here",
     "changed": "Some entries changed after review and are marked in the list. Close this dialog, check them and try again.",
     "undo_hint": "You can undo on this page afterwards",

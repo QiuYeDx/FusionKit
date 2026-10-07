@@ -147,7 +147,8 @@
     "translate": "翻译 {{count}} 项",
     "rename": "重命名 {{count}} 项",
     "number_duplicates": "自动编号",
-    "retranslate": "重新翻译"
+    "retranslate": "重新翻译",
+    "retry_failed": "重试失败的 {{count}} 项"
   },
   "progress": {
     "translating": "已翻译 {{done}}/{{total}}"
@@ -156,13 +157,19 @@
     "none_checked": "勾选要改名的条目",
     "checked": "已选 {{count}} 项",
     "ready": "{{count}} 项就绪",
+    "failed": "{{count}} 项翻译失败",
     "issues": "{{count}} 项有问题将跳过",
     "format_invalid": "名称格式有误，请先修正"
   },
   "confirm": {
     "title": "确认重命名 {{count}} 项",
     "summary": "文件 {{files}} 个 · 文件夹 {{folders}} 个",
-    "skipped": "另有 {{count}} 项已选条目不会改名",
+    "skipped": "不改名：{{details}}",
+    "separator": "、",
+    "skipped_untranslated": "未翻译或翻译失败 {{count}} 项",
+    "skipped_issues": "有问题 {{count}} 项",
+    "skipped_unchanged": "无需更改 {{count}} 项",
+    "becomes": "改为",
     "more": "另有 {{count}} 项未在此列出",
     "changed": "部分条目在核对后发生了变化，已在列表中标出。请关闭后检查再重试。",
     "undo_hint": "完成后可在本页撤销",
