@@ -32,7 +32,7 @@
   },
   "field_desc": {
     "subtitle_translator": "使用AI模型翻譯字幕檔案",
-    "subtitle_formatter": "轉換字幕格式（SRT、ASS等）",
+    "subtitle_formatter": "在 SRT、VTT、ASS、SSA、SBV、LRC 之間任意互轉",
     "subtitle_language_extractor": "從雙語字幕中擷取指定語言",
     "local_subtitle_transcriber": "使用本機模型批次將音訊或影片轉寫為 SRT / LRC 字幕",
     "name_translator": "勾選檔案和資料夾（含子項），AI 翻譯名稱，核對修改後一鍵重新命名，支援復原",
@@ -60,7 +60,7 @@
     "local_batch_formats": "批次 · SRT/LRC",
     "studio_transcription": "本機轉寫",
     "studio_translation": "AI 翻譯",
-    "studio_formats": "SRT · LRC · VTT · ASS"
+    "studio_formats": "SRT · VTT · ASS · SSA · SBV · LRC"
   },
   "coming_soon": {
     "title": "敬請期待",
@@ -78,7 +78,7 @@
     "workflow_label": "轉寫與翻譯",
     "workflow_value": "一站完成",
     "formats_label": "字幕格式",
-    "formats_value": "4 種格式",
+    "formats_value": "6 種格式",
     "output_label": "檔案匯出",
     "output_value": "支援批次",
     "organize_label": "術語與譯文",

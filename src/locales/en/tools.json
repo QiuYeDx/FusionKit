@@ -32,7 +32,7 @@
   },
   "field_desc": {
     "subtitle_translator": "Translate subtitle files with AI models",
-    "subtitle_formatter": "Convert subtitle formats (SRT, ASS, etc.)",
+    "subtitle_formatter": "Convert between SRT, VTT, ASS, SSA, SBV and LRC",
     "subtitle_language_extractor": "Extract a specific language from bilingual subtitles",
     "local_subtitle_transcriber": "Batch transcribe audio or video into SRT / LRC subtitles with an on-device model",
     "name_translator": "Tick files and folders (including nested items), translate their names with AI, review and edit, then rename in one go with undo",
@@ -60,7 +60,7 @@
     "local_batch_formats": "Batch · SRT/LRC",
     "studio_transcription": "Local transcription",
     "studio_translation": "AI translation",
-    "studio_formats": "SRT · LRC · VTT · ASS"
+    "studio_formats": "SRT · VTT · ASS · SSA · SBV · LRC"
   },
   "coming_soon": {
     "title": "Coming Soon",
@@ -78,7 +78,7 @@
     "workflow_label": "Workflow",
     "workflow_value": "Transcribe & translate",
     "formats_label": "Subtitle formats",
-    "formats_value": "4 formats",
+    "formats_value": "6 formats",
     "output_label": "Export",
     "output_value": "Batch ready",
     "organize_label": "Terms & references",

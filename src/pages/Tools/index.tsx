@@ -29,7 +29,7 @@ const CLASSIC_TOOLS: CardItem[] = [
     id: "converter",
     titleKey: "tools:fields.subtitle_formatter",
     descKey: "tools:field_desc.subtitle_formatter",
-    chips: ["SRT · VTT · ASS · LRC"],
+    chips: ["SRT · VTT · LRC", "ASS · SSA · SBV"],
   },
   {
     id: "extractor",
