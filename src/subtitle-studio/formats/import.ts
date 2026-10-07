@@ -1,5 +1,5 @@
 import { LIMITS, StudioError, validateDocument, type TextSubtitleDocument, type SubtitleText } from '../domain';
-import { preservedStructure } from './structure';
+import { isPreservedFormat, preservedStructure } from './structure';
 
 function parseText(raw: string): { text: SubtitleText; supported: boolean } {
   const spans: SubtitleText['spans'] = [];
@@ -18,6 +18,14 @@ function parseText(raw: string): { text: SubtitleText; supported: boolean } {
   }
   if (stack.length) supported = false;
   return supported ? { text: { plain: spans.map(span => span.text).join(''), spans }, supported } : { text: { plain: raw, spans: [{ text: raw, marks: [] }] }, supported };
+}
+
+function sbvTime(raw: string): number {
+  const match = /^(\d+):([0-5]\d):([0-5]\d)\.(\d{3})$/.exec(raw);
+  if (!match) throw new StudioError('invalid_input');
+  const ms = Number(match[1]) * 3600000 + Number(match[2]) * 60000 + Number(match[3]) * 1000 + Number(match[4]);
+  if (!Number.isSafeInteger(ms)) throw new StudioError('invalid_input');
+  return ms;
 }
 
 function srtTime(raw: string): number {
@@ -46,9 +54,9 @@ export function importSubtitleText(rawText: string, origin: TextSubtitleDocument
     if (startMs < 0) doc.diagnostics.push({ code: 'negative_time', nodeId: node.id });
     if (endMs === startMs) doc.diagnostics.push({ code: 'zero_duration', nodeId: node.id });
     const id = newId(); node.cueIds.push(id);
-    doc.cues.push({ id, sourceRevision: 1, timingRevision: 1, timing: { startMs, endMs, provenance: origin.format === 'srt' ? 'srt' : 'lrc_offset' }, source: parsed.text, nodeId: node.id, ...(sourceLabel === undefined ? {} : { sourceLabel }) });
+    doc.cues.push({ id, sourceRevision: 1, timingRevision: 1, timing: { startMs, endMs, provenance: origin.format === 'srt' || origin.format === 'sbv' ? origin.format : 'lrc_offset' }, source: parsed.text, nodeId: node.id, ...(sourceLabel === undefined ? {} : { sourceLabel }) });
   };
-  if (origin.format === 'vtt' || origin.format === 'ass') {
+  if (isPreservedFormat(origin.format)) {
     const structure = preservedStructure(origin.format, rawText);
     for (const parsed of structure.nodes) {
       const node = { id: newId(), start: parsed.start, end: parsed.end, cueIds: [] as string[] };
@@ -65,7 +73,7 @@ export function importSubtitleText(rawText: string, origin: TextSubtitleDocument
         ...(body.label === undefined ? {} : { sourceLabel: body.label }) });
     }
     if (structure.nodes.some(node => node.opaque)) doc.diagnostics.push({ code: 'opaque_structure' });
-  } else if (origin.format === 'srt') {
+  } else if (origin.format === 'srt' || origin.format === 'sbv') {
     // Ranges cover every original character, including separators and line endings.
     const blocks = /[\s\S]*?(?:(?:\r?\n)[ \t]*(?:\r?\n)+|$)/g;
     for (const match of rawText.matchAll(blocks)) {
@@ -76,6 +84,13 @@ export function importSubtitleText(rawText: string, origin: TextSubtitleDocument
       const body = match[0].replace(/(?:\r?\n[ \t]*)+$/, '');
       if (!body.trim()) continue;
       const lines = body.split(/\r?\n/);
+      if (origin.format === 'sbv') {
+        // SBV (YouTube) blocks are one "start,end" line followed by the text.
+        const timing = /^(\d+:[0-5]\d:[0-5]\d\.\d{3}),(\d+:[0-5]\d:[0-5]\d\.\d{3})[ \t]*$/.exec(lines[0]);
+        if (!timing) throw new StudioError('invalid_input');
+        add(node, lines.slice(1).join('\n'), sbvTime(timing[1]), sbvTime(timing[2]));
+        continue;
+      }
       if (!/^\d{1,100}$/.test(lines[0]) || lines.length < 2) throw new StudioError('invalid_input');
       const timing = /^(\d{2,}:[0-5]\d:[0-5]\d,\d{3})[ \t]+-->[ \t]+(\d{2,}:[0-5]\d:[0-5]\d,\d{3})[ \t]*$/.exec(lines[1]);
       if (!timing) throw new StudioError('invalid_input');

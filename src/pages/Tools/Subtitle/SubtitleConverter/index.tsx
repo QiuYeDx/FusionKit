@@ -30,8 +30,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   OutputConflictPolicy,
   SubtitleConverterTask,
-  SubtitleFileType,
+  SubtitleConvertFormat,
+  SUBTITLE_CONVERT_FORMATS,
   TaskStatus,
+  isSubtitleConvertFormat,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
 import { resolveSelectedNativeFiles } from "@/utils/filePath";
@@ -114,7 +116,7 @@ function SubtitleConverter() {
   // 编辑任务配置弹窗
   const [editTaskOpen, setEditTaskOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<SubtitleConverterTask | null>(null);
-  const [editToFormat, setEditToFormat] = useState<SubtitleFileType>(SubtitleFileType.SRT);
+  const [editToFormat, setEditToFormat] = useState<SubtitleConvertFormat>(SubtitleConvertFormat.SRT);
   const [editConflictPolicy, setEditConflictPolicy] = useState<OutputConflictPolicy>("index");
 
   // Tour 引导状态（延迟到入场动画结束后再自动打开）
@@ -140,7 +142,7 @@ function SubtitleConverter() {
         title: t("subtitle:converter.tour.format_title", "目标格式"),
         content: t(
           "subtitle:converter.tour.format_content",
-          "选择要转换的目标字幕格式：LRC（歌词）、SRT（通用字幕）或 VTT（Web 字幕）。"
+          "选择要转换的目标字幕格式：LRC（歌词）、SRT（通用字幕）、VTT（Web 字幕）、ASS / SSA（特效字幕）或 SBV（YouTube 字幕）。"
         ),
         placement: "right" as const,
       },
@@ -158,7 +160,7 @@ function SubtitleConverter() {
         title: t("subtitle:converter.tour.upload_title", "添加字幕文件"),
         content: t(
           "subtitle:converter.tour.upload_content",
-          "将 .lrc、.srt 或 .vtt 字幕文件拖拽到此处，或点击选择文件。支持批量添加。"
+          "将 .lrc、.srt、.vtt、.ass、.ssa 或 .sbv 字幕文件拖拽到此处，或点击选择文件。支持批量添加。"
         ),
         placement: "bottom" as const,
       },
@@ -286,14 +288,7 @@ function SubtitleConverter() {
       if (i > 0) await new Promise((r) => setTimeout(r, 0));
 
       const ext = fileName.split(".").pop()?.toUpperCase();
-      if (
-        !ext ||
-        ![
-          SubtitleFileType.LRC,
-          SubtitleFileType.SRT,
-          SubtitleFileType.VTT,
-        ].includes(ext as any)
-      ) {
+      if (!isSubtitleConvertFormat(ext)) {
         showToast(
           t("subtitle:converter.errors.invalid_file_type").replace(
             "{types}",
@@ -326,7 +321,7 @@ function SubtitleConverter() {
 
       try {
         const fileContent = await file.text();
-        const from = ext as SubtitleFileType;
+        const from = ext;
 
         const newTask: SubtitleConverterTask = {
           fileName,
@@ -409,17 +404,16 @@ function SubtitleConverter() {
               <ToolRadioButtonGroup
                 value={toFormat}
                 ariaLabel={t("subtitle:converter.fields.target_format")}
-                options={([
-                  SubtitleFileType.LRC,
-                  SubtitleFileType.SRT,
-                  SubtitleFileType.VTT,
-                ] as const).map((fmt) => ({ value: fmt, label: fmt }))}
+                options={SUBTITLE_CONVERT_FORMATS.map((fmt) => ({
+                  value: fmt,
+                  label: fmt,
+                }))}
                 onValueChange={setToFormat}
               />
             </ToolField>
 
             {/* Default duration */}
-            {toFormat !== SubtitleFileType.LRC && (
+            {toFormat !== SubtitleConvertFormat.LRC && (
               <ToolField
                 label={t("subtitle:converter.fields.default_duration_label")}
               >
@@ -500,7 +494,7 @@ function SubtitleConverter() {
     >
       <ToolFileDropZone
         id="cvt-tour-upload"
-        accept=".lrc,.srt,.vtt"
+        accept={SUBTITLE_CONVERT_FORMATS.map((fmt) => `.${fmt.toLowerCase()}`).join(",")}
         multiple
         dragging={isDragging}
         onDraggingChange={setIsDragging}
@@ -517,7 +511,7 @@ function SubtitleConverter() {
             {t("subtitle:converter.fields.target_format")}:{" "}
             <span className="font-mono text-foreground/80">{toFormat}</span>
           </span>,
-          toFormat !== SubtitleFileType.LRC ? (
+          toFormat !== SubtitleConvertFormat.LRC ? (
             <span>
               {t("subtitle:converter.summary.default_duration")}:{" "}
               <span className="font-mono text-foreground/80">
@@ -797,15 +791,21 @@ function SubtitleConverter() {
               <Label>{t("subtitle:converter.fields.target_format")}</Label>
               <Select
                 value={editToFormat}
-                onValueChange={(v) => setEditToFormat(v as SubtitleFileType)}
+                onValueChange={(v) => setEditToFormat(v as SubtitleConvertFormat)}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={SubtitleFileType.LRC}>LRC</SelectItem>
-                  <SelectItem value={SubtitleFileType.SRT}>SRT</SelectItem>
-                  <SelectItem value={SubtitleFileType.VTT}>VTT</SelectItem>
+                  {SUBTITLE_CONVERT_FORMATS.map((fmt) => (
+                    <SelectItem
+                      key={fmt}
+                      value={fmt}
+                      disabled={fmt === editingTask?.from}
+                    >
+                      {fmt}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

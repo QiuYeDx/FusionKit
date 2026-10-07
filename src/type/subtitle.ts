@@ -14,6 +14,22 @@ export enum SubtitleFileType {
   VTT = "VTT",
 }
 
+/** Formats the classic subtitle converter reads and writes (any pair converts). */
+export enum SubtitleConvertFormat {
+  LRC = "LRC",
+  SRT = "SRT",
+  VTT = "VTT",
+  ASS = "ASS",
+  SSA = "SSA",
+  SBV = "SBV",
+}
+
+export const SUBTITLE_CONVERT_FORMATS = Object.values(SubtitleConvertFormat);
+
+export function isSubtitleConvertFormat(value: unknown): value is SubtitleConvertFormat {
+  return SUBTITLE_CONVERT_FORMATS.includes(value as SubtitleConvertFormat);
+}
+
 export enum SubtitleSliceType {
   NORMAL = "NORMAL",
   SENSITIVE = "SENSITIVE",
@@ -180,8 +196,8 @@ export type RecoveredSubtitleTaskDraft = SubtitleTranslationPreparedRecoveredTas
 export type SubtitleConverterTask = {
   fileName: string;
   fileContent: string;
-  from: SubtitleFileType;
-  to: SubtitleFileType;
+  from: SubtitleConvertFormat;
+  to: SubtitleConvertFormat;
   originFileURL: string;
   targetFileURL: string;
   status: TaskStatus;

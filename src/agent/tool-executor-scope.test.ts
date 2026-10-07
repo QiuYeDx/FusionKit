@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import useAgentStore, { executeTasksInStores } from "@/store/agent/useAgentStore";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import { executeQueueConvert, executeApplyNameTranslationPlan, executeScan } from "./tool-executor";
-import { TaskStatus, SubtitleFileType } from "@/type/subtitle";
+import { TaskStatus, SubtitleConvertFormat } from "@/type/subtitle";
 import { planningAgentTools } from "./planning-tools";
 
 vi.mock("@/utils/toast", () => ({ showToast: vi.fn() }));
 const invoke = vi.fn();
 const args = { filePaths: ["C:/new.srt"], to: "LRC", outputMode: "source", conflictPolicy: "index", batchStart: 0, batchSize: 100 } as const;
-const task = (name: string) => ({ fileName: name, fileContent: "test", from: SubtitleFileType.SRT, to: SubtitleFileType.LRC, originFileURL: `C:/${name}`, targetFileURL: "C:/", status: TaskStatus.NOT_STARTED, progress: 0 });
+const task = (name: string) => ({ fileName: name, fileContent: "test", from: SubtitleConvertFormat.SRT, to: SubtitleConvertFormat.LRC, originFileURL: `C:/${name}`, targetFileURL: "C:/", status: TaskStatus.NOT_STARTED, progress: 0 });
 beforeEach(() => {
   vi.restoreAllMocks(); invoke.mockReset().mockResolvedValue("1\n00:00:00,000 --> 00:00:01,000\nhello");
   vi.stubGlobal("window", { ipcRenderer: { invoke } });

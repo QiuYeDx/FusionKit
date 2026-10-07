@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ToolField } from '../../_shared/ui/ToolField';
 import type { DocumentSummary } from '@/subtitle-studio/ipc-contract';
+import { SUBTITLE_TEXT_FORMATS, type SubtitleTextFormat } from '@/subtitle-studio/domain';
 import { STUDIO_BATCH_LIMIT } from '@/subtitle-studio/batch-contract';
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import { StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
@@ -19,7 +20,7 @@ import { StudioLibraryContextMenu, type LibraryContextAction, type LibraryContex
 export const LIBRARY_PAGE_SIZE = 20;
 export type LibraryQuery = {
   query: string;
-  format: 'all' | 'srt' | 'lrc' | 'vtt' | 'ass' | 'media';
+  format: 'all' | SubtitleTextFormat | 'media';
   status: 'all' | 'untranslated' | 'translated' | 'active' | 'attention';
   sort: 'recent' | 'oldest' | 'name-asc' | 'name-desc' | 'cue-count-asc' | 'cue-count-desc';
 };
@@ -69,7 +70,7 @@ export function StudioLibrary(props: Props) {
         <PopoverTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={t('studio:library.options')} className={filtered ? 'text-primary bg-accent' : ''}><ListFilter /></Button></PopoverTrigger>
         <PopoverContent align="end" className="w-[280px] space-y-4 p-3">
           <ToolField label={t('studio:library.sort')}><Select value={query.sort} onValueChange={sort => props.onQuery({ ...query, sort: sort as LibraryQuery['sort'] })}><SelectTrigger aria-label={t('studio:library.sort')} className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(sortKeys).map(([value, key]) => <SelectItem key={value} value={value}>{t(key)}</SelectItem>)}</SelectContent></Select></ToolField>
-          <ToolField label={t('studio:library.format')}><Select value={query.format} onValueChange={format => props.onQuery({ ...query, format: format as LibraryQuery['format'] })}><SelectTrigger aria-label={t('studio:library.format')} className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t('studio:library.all_formats')}</SelectItem><SelectItem value="srt">SRT</SelectItem><SelectItem value="lrc">LRC</SelectItem><SelectItem value="vtt">VTT</SelectItem><SelectItem value="ass">ASS</SelectItem><SelectItem value="media">{t('studio:workspace_transcription')}</SelectItem></SelectContent></Select></ToolField>
+          <ToolField label={t('studio:library.format')}><Select value={query.format} onValueChange={format => props.onQuery({ ...query, format: format as LibraryQuery['format'] })}><SelectTrigger aria-label={t('studio:library.format')} className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t('studio:library.all_formats')}</SelectItem>{SUBTITLE_TEXT_FORMATS.map(format => <SelectItem key={format} value={format}>{format.toUpperCase()}</SelectItem>)}<SelectItem value="media">{t('studio:workspace_transcription')}</SelectItem></SelectContent></Select></ToolField>
           <ToolField label={t('studio:status')}><Select value={query.status} onValueChange={status => props.onQuery({ ...query, status: status as LibraryQuery['status'] })}><SelectTrigger aria-label={t('studio:status')} className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(filterKeys).map(([value, key]) => <SelectItem key={value} value={value}>{t(key)}</SelectItem>)}</SelectContent></Select></ToolField>
           <p className="text-[11px] leading-5 text-muted-foreground">{t('studio:library.selection_rule')}</p>
         </PopoverContent>

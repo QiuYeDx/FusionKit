@@ -71,7 +71,8 @@ function assPayload(raw: string, start: number, end: number, wrapStyle: number, 
     prefix: raw.slice(start, bodyStart), suffix: '', styled, positioning, effects, sawDrawing, karaoke, initialMarks };
 }
 
-export function parseAssStructure(raw: string): PreservedStructure {
+/** SSA (v4.00) shares the ASS event grammar; only its script type and style section name differ. */
+export function parseAssStructure(raw: string, variant: 'ass' | 'ssa' = 'ass'): PreservedStructure {
   const lines = rawLines(raw);
   // Styles are a separate section and may follow Events. Resolve the inherited basic
   // marks before projecting body spans, so translation cannot turn inherited italics off.
@@ -79,7 +80,7 @@ export function parseAssStructure(raw: string): PreservedStructure {
   let styleSection = false; let styleFields: string[] | undefined;
   for (const line of lines) {
     const heading = /^\s*\[([^\]]+)\]\s*$/.exec(line.text);
-    if (heading) { styleSection = heading[1].toLowerCase() === 'v4+ styles'; styleFields = undefined; continue; }
+    if (heading) { styleSection = ['v4+ styles', 'v4 styles'].includes(heading[1].toLowerCase()); styleFields = undefined; continue; }
     if (!styleSection) continue;
     const declaration = /^\s*Format\s*:\s*(.*)$/i.exec(line.text);
     if (declaration) { styleFields = declaration[1].split(',').map(field => field.trim().toLowerCase()); continue; }
@@ -102,7 +103,7 @@ export function parseAssStructure(raw: string): PreservedStructure {
     if (heading) { section = heading[1].toLowerCase(); format = undefined; if (section === 'events') sawEvents = true; node.opaque = true; continue; }
     if (!trimmed || trimmed.startsWith(';')) { if (trimmed) node.opaque = true; continue; }
     if (section === 'script info') {
-      if (/^ScriptType\s*:/i.test(trimmed)) { if (!/^ScriptType\s*:\s*v4\.00\+\s*$/i.test(trimmed)) throw new StudioError('unsupported_feature'); sawScriptType = true; }
+      if (/^ScriptType\s*:/i.test(trimmed)) { if (!(variant === 'ssa' ? /^ScriptType\s*:\s*v4\.00\+?\s*$/i : /^ScriptType\s*:\s*v4\.00\+\s*$/i).test(trimmed)) throw new StudioError('unsupported_feature'); sawScriptType = true; }
       const wrap = /^WrapStyle\s*:\s*([0-3])\s*$/i.exec(trimmed); if (wrap) wrapStyle = Number(wrap[1]);
       node.opaque = true; continue;
     }
@@ -159,3 +160,5 @@ export function serializeAssText(text: SubtitleText, initialMarks: readonly ('b'
 }
 
 export const ASS_HEADER = '[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,20,20,20,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';
+
+export const SSA_HEADER = '[Script Info]\nScriptType: v4.00\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\n\n[V4 Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, TertiaryColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, AlphaLevel, Encoding\nStyle: Default,Arial,48,16777215,255,0,0,0,0,1,2,0,2,20,20,20,0,1\n\n[Events]\nFormat: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n';

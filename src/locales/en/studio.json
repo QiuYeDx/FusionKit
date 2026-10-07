@@ -278,7 +278,7 @@
   },
   "library": {
     "batch_actions": "Batch actions",
-    "import_hint": "Drop subtitle files or click to select · SRT / LRC / VTT / ASS",
+    "import_hint": "Drop subtitle files or click to select · SRT / LRC / VTT / ASS / SSA / SBV",
     "search": "Search documents",
     "clear_search": "Clear search",
     "open": "Open document library",

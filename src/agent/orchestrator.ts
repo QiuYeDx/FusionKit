@@ -79,7 +79,7 @@ function buildSystemPrompt(): string {
 Use registered tool descriptions as the authoritative capability catalog. Registered tools: ${Object.keys(agentTools).join(", ")}.
 The classic file operations include:
 1. **Translate** (翻译): Translate subtitle text from one language to another. Supports multiple language pairs (default: Japanese→Chinese). Output can be bilingual (source+target) or target-only. Supported languages: ZH(Chinese), JA(Japanese), EN(English), KO(Korean), FR(French), DE(German), ES(Spanish), RU(Russian), PT(Portuguese).
-2. **Convert** (转换): Change file format (SRT ↔ LRC ↔ VTT)
+2. **Convert** (转换): Change file format (any of LRC / SRT / VTT / ASS / SSA / SBV)
 3. **Extract** (提取): Keep one language from bilingual subtitles (Chinese or Japanese)
 4. **Name Translation / Rename** (文件名/文件夹名翻译、批量重命名): Translate names of files or folders without translating file contents.
 5. **Subtitle Translation Recovery** (恢复字幕翻译): Scan FusionKit recovery manifests (*.fusionkit.resume.json) and resume unfinished subtitle translation tasks.

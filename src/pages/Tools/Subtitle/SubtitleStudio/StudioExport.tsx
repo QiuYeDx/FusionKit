@@ -14,7 +14,7 @@ import { ToolField } from '../../_shared/ui/ToolField';
 import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
 import { StudioDisclosure } from './StudioDisclosure';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
-import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
+import { StudioError, SUBTITLE_TEXT_FORMATS, type ErrorCode } from '@/subtitle-studio/domain';
 import { exportOptionsSchema, fileNameSuffixSchema, type ExportDestination, type SourceLocationSummary, type ExportIssue, type ExportIssueCode, type ExportOptions, type ExportPlanSummary } from '@/subtitle-studio/export-contract';
 import { subtitleExportFileName } from '@/subtitle-studio/export-filename';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
@@ -371,7 +371,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
             </ToolField><ToolField label={t('studio:export.format')} htmlFor={`${controlId}-format`}>
               <Select value={format} onValueChange={value => setFormat(value as ExportOptions['format'])} disabled={pending}>
                 <SelectTrigger id={`${controlId}-format`} className="h-8 w-full text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>{(['srt', 'lrc', 'vtt', 'ass'] as const).map(value => <SelectItem key={value} value={value}>{value.toUpperCase()}</SelectItem>)}</SelectContent>
+                <SelectContent>{SUBTITLE_TEXT_FORMATS.map(value => <SelectItem key={value} value={value}>{value.toUpperCase()}</SelectItem>)}</SelectContent>
               </Select>
             </ToolField></>}
               <ToolField label={t('studio:export.destination')} htmlFor={`${controlId}-destination`}>

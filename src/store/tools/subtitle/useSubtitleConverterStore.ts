@@ -4,8 +4,9 @@ import {
   OutputConflictPolicy,
   OutputPathMode,
   SubtitleConverterTask,
-  SubtitleFileType,
+  SubtitleConvertFormat,
   TaskStatus,
+  isSubtitleConvertFormat,
 } from "@/type/subtitle";
 import { showToast } from "@/utils/toast";
 import { showSystemNotification } from "@/utils/notification";
@@ -21,7 +22,7 @@ const LEGACY_KEYS = {
 export const SUBTITLE_CONVERTER_STORE_VERSION = 1;
 
 export interface SubtitleConverterPreferences {
-  toFormat: SubtitleFileType;
+  toFormat: SubtitleConvertFormat;
   defaultDurationSec: string;
   stripMediaExt: boolean;
   outputURL: string;
@@ -30,7 +31,7 @@ export interface SubtitleConverterPreferences {
 }
 
 export const DEFAULT_SUBTITLE_CONVERTER_PREFERENCES = {
-  toFormat: SubtitleFileType.SRT,
+  toFormat: SubtitleConvertFormat.SRT,
   defaultDurationSec: "2",
   stripMediaExt: true,
   outputURL: "",
@@ -49,10 +50,8 @@ export function sanitizeSubtitleConverterPreferences(
       : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.defaultDurationSec;
   const durationNumber = Number(duration);
   return {
-    toFormat: Object.values(SubtitleFileType).includes(
-      saved.toFormat as SubtitleFileType,
-    )
-      ? (saved.toFormat as SubtitleFileType)
+    toFormat: isSubtitleConvertFormat(saved.toFormat)
+      ? saved.toFormat
       : DEFAULT_SUBTITLE_CONVERTER_PREFERENCES.toFormat,
     defaultDurationSec:
       Number.isFinite(durationNumber) &&
@@ -85,7 +84,7 @@ export function sanitizeSubtitleConverterPreferences(
 
 interface SubtitleConverterStore {
   // 配置
-  toFormat: SubtitleFileType;
+  toFormat: SubtitleConvertFormat;
   defaultDurationSec: string;
   stripMediaExt: boolean;
   outputURL: string;
@@ -99,7 +98,7 @@ interface SubtitleConverterStore {
   failedTasks: SubtitleConverterTask[];
 
   // 配置方法
-  setToFormat: (format: SubtitleFileType) => void;
+  setToFormat: (format: SubtitleConvertFormat) => void;
   setDefaultDurationSec: (sec: string) => void;
   setStripMediaExt: (val: boolean) => void;
   setOutputURL: (url: string) => void;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { encodingSchema, idSchema, LIMITS, translationTrackNameSchema, type ErrorCode, type SubtitleDocument } from './domain';
+import { encodingSchema, idSchema, LIMITS, SUBTITLE_TEXT_FORMATS, translationTrackNameSchema, type ErrorCode, type SubtitleDocument } from './domain';
 import { translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from './translation-contract';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
@@ -114,7 +114,7 @@ export const requestSchemas = {
   revealUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   deleteUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   ...batchRequestSchemas,
-  listDocuments: z.object({ offset: z.number().int().min(0).max(LIMITS.cues), query: z.string().max(500).optional(), format: z.enum(['all', 'srt', 'lrc', 'vtt', 'ass', 'media']).optional(), status: z.enum(['all', 'untranslated', 'translated', 'active', 'attention']).optional(), sort: z.enum(['default', 'name-asc', 'name-desc', 'cue-count-asc', 'cue-count-desc', 'recent', 'oldest']).optional(), pageSize: z.number().int().min(1).max(LIMITS.pageSize).optional() }).strict(),
+  listDocuments: z.object({ offset: z.number().int().min(0).max(LIMITS.cues), query: z.string().max(500).optional(), format: z.enum(['all', ...SUBTITLE_TEXT_FORMATS, 'media']).optional(), status: z.enum(['all', 'untranslated', 'translated', 'active', 'attention']).optional(), sort: z.enum(['default', 'name-asc', 'name-desc', 'cue-count-asc', 'cue-count-desc', 'recent', 'oldest']).optional(), pageSize: z.number().int().min(1).max(LIMITS.pageSize).optional() }).strict(),
   readDocumentPage: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), offset: z.number().int().min(0).max(LIMITS.cues), nodeOffset: z.number().int().min(0).max(LIMITS.nodes).optional() }).strict(),
   exportSource: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), destination: exportDestinationSchema.optional() }).strict(),
   planExport: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: exportOptionsSchema }).strict(),

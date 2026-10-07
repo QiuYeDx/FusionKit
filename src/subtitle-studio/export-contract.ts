@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { encodingSchema, idSchema } from './domain';
+import { SUBTITLE_TEXT_FORMATS, encodingSchema, idSchema } from './domain';
 
 export const exportDestinationSchema = z.enum(['choose-location', 'source-directory']);
 export type ExportDestination = z.infer<typeof exportDestinationSchema>;
@@ -14,7 +14,7 @@ export const fileNameSuffixSchema = z.discriminatedUnion('mode', [
 ]);
 export const exportOptionsSchema = z.object({
   mode: z.enum(['source', 'target', 'bilingual']),
-  format: z.enum(['srt', 'lrc', 'vtt', 'ass']),
+  format: z.enum(SUBTITLE_TEXT_FORMATS),
   fileNameSuffix: fileNameSuffixSchema.optional(),
   stripMediaExt: z.boolean().optional(),
   conflictPolicy: exportConflictPolicySchema.optional(),

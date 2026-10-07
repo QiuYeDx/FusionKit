@@ -16,7 +16,7 @@ export const scanSubtitleFilesSchema = z.object({
     .array(z.string())
     .default(["LRC", "SRT", "VTT"])
     .describe(
-      "File extensions to include (uppercase). Default: all subtitle formats"
+      "File extensions to include (uppercase). Default: LRC/SRT/VTT; add ASS/SSA/SBV when scanning inputs for format conversion"
     ),
   recursive: z.boolean().default(true).describe("Scan subdirectories"),
 });
@@ -97,7 +97,7 @@ export const queueConvertSchema = z.object({
     .default(DEFAULT_QUEUE_BATCH_SIZE)
     .describe(`Number of files to queue from scanId. Default ${DEFAULT_QUEUE_BATCH_SIZE}; max ${MAX_QUEUE_BATCH_SIZE}.`),
   to: z
-    .enum(["LRC", "SRT", "VTT"])
+    .enum(["LRC", "SRT", "VTT", "ASS", "SSA", "SBV"])
     .describe("Target subtitle format"),
   outputMode: z
     .enum(["source", "custom"])

@@ -282,6 +282,11 @@ function mapRawBody(doc: TextSubtitleDocument, node: TextSubtitleDocument['prese
     if (firstBreak < 0 || secondBreak < 0) throw new StudioError('invalid_input');
     bodyStart = secondBreak + 1;
     bodyEnd = raw.replace(/(?:\r?\n[ \t]*)+$/, '').length;
+  } else if (doc.origin.format === 'sbv') {
+    const firstBreak = raw.indexOf('\n');
+    if (firstBreak < 0) throw new StudioError('invalid_input');
+    bodyStart = firstBreak + 1;
+    bodyEnd = raw.replace(/(?:\r?\n[ \t]*)+$/, '').length;
   } else if (doc.origin.format === 'lrc') {
     bodyEnd = raw.replace(/\r?\n$/, '').length;
     while (true) {

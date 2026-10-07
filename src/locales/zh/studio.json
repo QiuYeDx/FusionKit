@@ -278,7 +278,7 @@
   },
   "library": {
     "batch_actions": "批量操作",
-    "import_hint": "拖入字幕文件，或点击选择；支持 SRT / LRC / VTT / ASS",
+    "import_hint": "拖入字幕文件，或点击选择；支持 SRT / LRC / VTT / ASS / SSA / SBV",
     "search": "搜索文档",
     "clear_search": "清空搜索",
     "open": "打开文档库",

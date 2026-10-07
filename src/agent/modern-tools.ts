@@ -70,7 +70,7 @@ async function exposePrepared(action: PreparedAction, ctx: Context): Promise<Pre
 }
 
 export const listStudioDocumentsSchema = z.object({ ...page, query: z.string().max(200).default(""),
-  format: z.enum(["all", "srt", "lrc", "vtt", "ass", "media"]).default("all"),
+  format: z.enum(["all", "srt", "lrc", "vtt", "ass", "ssa", "sbv", "media"]).default("all"),
   status: z.enum(["all", "untranslated", "translated", "active", "attention"]).default("all") }).strict();
 export const studioTasksSchema = z.object({ ...page, kind: z.enum(["translation", "transcription"]).default("translation") }).strict();
 export const importStudioSchema = z.object({ encoding: encodingSchema.default("utf-8") }).strict();

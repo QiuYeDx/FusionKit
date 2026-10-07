@@ -2,7 +2,7 @@ import { open } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import iconv from 'iconv-lite';
-import { LIMITS, StudioError, type Encoding } from '../../../src/subtitle-studio/domain';
+import { LIMITS, StudioError, SUBTITLE_TEXT_FORMATS, type Encoding, type SubtitleTextFormat } from '../../../src/subtitle-studio/domain';
 import { importSubtitleText } from '../../../src/subtitle-studio/formats/import';
 import { captureSourceInput, verifySourceLocation } from './source-location-service';
 
@@ -19,7 +19,7 @@ export function decodeSubtitle(bytes: Buffer, encoding: Encoding): { text: strin
 
 export async function readSubtitle(filePath: string, encoding: Encoding) {
   const format = path.extname(filePath).slice(1).toLowerCase();
-  if (!['srt', 'lrc', 'vtt', 'ass'].includes(format)) throw new StudioError('unsupported_feature');
+  if (!(SUBTITLE_TEXT_FORMATS as readonly string[]).includes(format)) throw new StudioError('unsupported_feature');
   const file = await open(filePath, 'r');
   try {
     const stat = await file.stat();
@@ -36,7 +36,7 @@ export async function readSubtitle(filePath: string, encoding: Encoding) {
     if (size > stat.size) throw new StudioError('invalid_input');
     const content = bytes.subarray(0, size);
     const { text, bom } = decodeSubtitle(content, encoding);
-    return importSubtitleText(text, { format: format as 'srt' | 'lrc' | 'vtt' | 'ass', displayName: path.basename(filePath), encoding, digest: createHash('sha256').update(content).digest('hex') }, randomUUID, bom);
+    return importSubtitleText(text, { format: format as SubtitleTextFormat, displayName: path.basename(filePath), encoding, digest: createHash('sha256').update(content).digest('hex') }, randomUUID, bom);
   } finally { await file.close(); }
 }
 

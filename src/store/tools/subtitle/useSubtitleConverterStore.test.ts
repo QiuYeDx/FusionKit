@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SubtitleFileType } from "@/type/subtitle";
+import { SubtitleConvertFormat } from "@/type/subtitle";
 
 const storage = vi.hoisted(() => {
   const values = new Map<string, string>();
@@ -33,7 +33,7 @@ describe("subtitle converter configuration persistence", () => {
   it("persists every reusable field and excludes task payloads", async () => {
     const { default: store } = await import("./useSubtitleConverterStore");
 
-    store.getState().setToFormat(SubtitleFileType.VTT);
+    store.getState().setToFormat(SubtitleConvertFormat.VTT);
     store.getState().setDefaultDurationSec("6.5");
     store.getState().setStripMediaExt(false);
     store.getState().setOutputMode("source");
@@ -80,7 +80,7 @@ describe("subtitle converter configuration persistence", () => {
 
     const { default: store } = await import("./useSubtitleConverterStore");
     expect(store.getState()).toMatchObject({
-      toFormat: SubtitleFileType.LRC,
+      toFormat: SubtitleConvertFormat.LRC,
       defaultDurationSec: "4",
       stripMediaExt: false,
       outputURL: "D:\\Exports",

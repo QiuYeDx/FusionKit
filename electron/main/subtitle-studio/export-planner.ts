@@ -3,9 +3,9 @@ import iconv from 'iconv-lite';
 import { LIMITS, StudioError, validateDocument, type SubtitleCue, type SubtitleDocument, type SubtitleText } from '../../../src/subtitle-studio/domain';
 import { exportOptionsSchema, type ExportIssue, type ExportIssueCode, type ExportOptions, type ExportPlanSummary } from '../../../src/subtitle-studio/export-contract';
 import { subtitleExportFileName } from '../../../src/subtitle-studio/export-filename';
-import { preservedBodies, preservedStructure } from '../../../src/subtitle-studio/formats/structure';
+import { preservedBodies, preservedStructure, type PreservedFormat } from '../../../src/subtitle-studio/formats/structure';
 import { serializeVttText } from '../../../src/subtitle-studio/formats/vtt';
-import { ASS_HEADER, serializeAssText } from '../../../src/subtitle-studio/formats/ass';
+import { ASS_HEADER, SSA_HEADER, serializeAssText } from '../../../src/subtitle-studio/formats/ass';
 
 export type SubtitleExportPlan = Omit<ExportPlanSummary, 'planId'> & { bytes: Buffer | null };
 const sourceHash = (cue: SubtitleCue) => createHash('sha256').update(JSON.stringify(cue.source)).digest('hex');
@@ -15,6 +15,9 @@ const srtTime = (value: number) => `${pad(Math.floor(value / 3600000))}:${pad(Ma
 const lrcTime = (value: number) => `[${pad(Math.floor(value / 60000))}:${pad(Math.floor(value / 1000) % 60)}.${pad(value % 1000, 3)}]`;
 const vttTime = (value: number) => srtTime(value).replace(',', '.');
 const assTime = (value: number) => `${Math.floor(value / 3600000)}:${pad(Math.floor(value / 60000) % 60)}:${pad(Math.floor(value / 1000) % 60)}.${pad(Math.floor(value % 1000 / 10))}`;
+const sbvTime = (value: number) => `${Math.floor(value / 3600000)}:${pad(Math.floor(value / 60000) % 60)}:${pad(Math.floor(value / 1000) % 60)}.${pad(value % 1000, 3)}`;
+/** SSA (v4.00) shares ASS event text, override tags and timing precision. */
+const isAssFamily = (format: string) => format === 'ass' || format === 'ssa';
 
 class BoundedText {
   private parts: string[] = [];
@@ -29,8 +32,8 @@ class BoundedText {
 
 function unsupportedText(text: string, format: ExportOptions['format']): boolean {
   if (/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/.test(text)) return true;
-  if ((format === 'srt' || format === 'lrc') && /[<>]|\{\\/.test(text)) return true;
-  if (format === 'ass' && /[{}]|\\[Nnh]/.test(text)) return true;
+  if ((format === 'srt' || format === 'lrc' || format === 'sbv') && /[<>]|\{\\/.test(text)) return true;
+  if (isAssFamily(format) && /[{}]|\\[Nnh]/.test(text)) return true;
   for (let index = 0; index < text.length; index++) {
     const code = text.charCodeAt(index);
     if (code >= 0xd800 && code <= 0xdbff) {
@@ -39,8 +42,8 @@ function unsupportedText(text: string, format: ExportOptions['format']): boolean
     } else if (code >= 0xdc00 && code <= 0xdfff) return true;
   }
   if (format === 'lrc') return /\[\d+:[0-5]\d(?:\.\d{1,3})?\]/.test(text);
-  if (format === 'ass') return false;
-  // Blank body lines are SRT block delimiters, including leading/trailing blank lines.
+  if (isAssFamily(format)) return false;
+  // Blank body lines are SRT/SBV block delimiters, including leading/trailing blank lines.
   return text.trim().length > 0 && text.split(/\r\n|\r|\n/).some(line => !line.trim());
 }
 
@@ -86,7 +89,7 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
   const bodies = doc.schemaVersion === 1 ? preservedBodies(doc) : undefined;
   const preserve = !!bodies && options.format === doc.origin.format;
   if (options.format === 'vtt' && options.encoding !== 'utf-8') issue('encoding_not_supported', 1, true);
-  if (options.format === 'ass' && !preserve && options.encoding !== 'utf-8') issue('encoding_not_supported', 1, true);
+  if (isAssFamily(options.format) && !preserve && options.encoding !== 'utf-8') issue('encoding_not_supported', 1, true);
   if (doc.schemaVersion === 2) issue('transcription_evidence_omitted', 1, false, true);
   else if (!preserve) {
     const omitted = doc.preservation.nodes.filter(node => {
@@ -95,11 +98,11 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
     }).length;
     issue('metadata_omitted', omitted, false, true);
     if (bodies) {
-      const structure = preservedStructure(doc.origin.format as 'vtt' | 'ass', doc.preservation.rawText);
+      const structure = preservedStructure(doc.origin.format as PreservedFormat, doc.preservation.rawText);
       issue('opaque_omitted', structure.nodes.filter(node => node.opaque).length, false, true);
       issue('positioning_omitted', [...bodies.values()].filter(body => body.positioning).length, false, true);
       issue('effects_omitted', structure.nodes.filter(node => node.body?.effects || node.diagnostics.includes('ass_drawing')).length, false, true);
-      if (doc.origin.format === 'ass') issue('styles_removed', /^\s*Style\s*:/im.test(doc.preservation.rawText) || [...bodies.values()].some(body => body.styled) ? 1 : 0, false, true);
+      if (isAssFamily(doc.origin.format)) issue('styles_removed', /^\s*Style\s*:/im.test(doc.preservation.rawText) || [...bodies.values()].some(body => body.styled) ? 1 : 0, false, true);
       else issue('styles_removed', [...bodies.values()].filter(body => body.prefix || !body.safe).length, false, true);
     }
   }
@@ -109,7 +112,7 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
   const replacements = new Map<string, string | null>();
   const nodeMap = doc.schemaVersion === 1 ? new Map(doc.preservation.nodes.map(node => [node.id, node])) : undefined;
   if (!preserve && options.format === 'vtt') output.add('WEBVTT\n\n');
-  if (!preserve && options.format === 'ass') output.add(ASS_HEADER);
+  if (!preserve && isAssFamily(options.format)) output.add(options.format === 'ssa' ? SSA_HEADER : ASS_HEADER);
   let cueCount = 0; let missingCount = 0; let staleCount = 0;
   const exportCues = options.format === 'vtt' && !preserve ? [...doc.cues].sort((a, b) => a.timing.startMs - b.timing.startMs) : doc.cues;
   for (const cue of exportCues) {
@@ -147,7 +150,7 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
       else {
         if (!body.safe || texts.some(text => unsupportedText(text.plain, options.format))) { issue('unsupported_text', 1, true); continue; }
         const newline = doc.preservation.rawText.slice(node.start, node.end).includes('\r\n') ? '\r\n' : doc.preservation.rawText.slice(node.start, node.end).includes('\r') ? '\r' : '\n';
-        const serialized = texts.filter(text => text.plain.trim()).map((text, index) => options.format === 'vtt' ? serializeVttText(text) : serializeAssText(text, index === 0 ? body.initialMarks : [])).join(options.format === 'ass' ? '\\N' : '\n');
+        const serialized = texts.filter(text => text.plain.trim()).map((text, index) => options.format === 'vtt' ? serializeVttText(text) : serializeAssText(text, index === 0 ? body.initialMarks : [])).join(isAssFamily(options.format) ? '\\N' : '\n');
         replacements.set(cue.nodeId, doc.preservation.rawText.slice(node.start, body.bodyStart)
           + (options.format === 'vtt' && body.bodyStart === body.bodyEnd && serialized && !/[\r\n]$/.test(doc.preservation.rawText.slice(node.start, body.bodyStart)) ? newline : '')
           + (options.format === 'vtt' ? serialized.replace(/\n/g, newline) : serialized)
@@ -168,11 +171,15 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
       output.add('\n\n');
     } else if (options.format === 'vtt') {
       output.add(`${vttTime(cue.timing.startMs)} --> ${vttTime(end!)}\n${texts.filter(text => text.plain.trim()).map(serializeVttText).join('\n')}\n\n`);
+    } else if (options.format === 'sbv') {
+      // SBV carries plain text only.
+      if (texts.some(text => text.spans.some(span => span.text && span.marks.length))) issue('styles_removed', 1, false, true);
+      output.add(`${sbvTime(cue.timing.startMs)},${sbvTime(end!)}\n${texts.filter(text => text.plain.trim()).map(text => text.plain.replace(/\r\n|\r/g, '\n')).join('\n')}\n\n`);
     } else {
       if (cue.timing.startMs % 10 || end! % 10) issue('timing_precision_changed', 1, false, true);
       const start = Math.round(cue.timing.startMs / 10) * 10; const roundedEnd = Math.round(end! / 10) * 10;
       if (!validTime(start) || !validTime(roundedEnd) || (end! > cue.timing.startMs && roundedEnd <= start)) { issue('invalid_time', 1, true); continue; }
-      output.add(`Dialogue: 0,${assTime(start)},${assTime(roundedEnd)},Default,,0,0,0,,${texts.filter(text => text.plain.trim()).map(text => serializeAssText(text)).join('\\N')}\n`);
+      output.add(`Dialogue: ${options.format === 'ssa' ? 'Marked=0' : '0'},${assTime(start)},${assTime(roundedEnd)},Default,,0,0,0,,${texts.filter(text => text.plain.trim()).map(text => serializeAssText(text)).join('\\N')}\n`);
     }
     cueCount++;
   }

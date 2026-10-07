@@ -12,6 +12,8 @@ import type {
 import type { TaskStoreType, AgentTaskReference } from "./types";
 import {
   TaskStatus,
+  isSubtitleConvertFormat,
+  type SubtitleConvertFormat,
   type SubtitleConverterTask,
   type SubtitleExtractorTask,
   type SubtitleTranslatorTask,
@@ -407,8 +409,10 @@ export async function executeQueueConvert(
       if (fileContent === null) { errors.push(`Cannot read: ${filePath}`); continue; }
       const fileName = extractFileName(filePath);
       const ext = extractExtension(filePath);
+      if (!isSubtitleConvertFormat(ext)) { errors.push(`Unsupported format: ${fileName}`); continue; }
+      if (ext === args.to) { errors.push(`Already ${args.to}: ${fileName}`); continue; }
       const task: SubtitleConverterTask & { agentTaskId: string } = {
-        agentTaskId: crypto.randomUUID(), fileName, fileContent, from: ext as any, to: args.to as any,
+        agentTaskId: crypto.randomUUID(), fileName, fileContent, from: ext, to: args.to as SubtitleConvertFormat,
         originFileURL: filePath, targetFileURL: resolveOutputDir(args.outputMode, args.outputDir, filePath),
         status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: args.conflictPolicy ?? "index",
       };

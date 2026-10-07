@@ -278,7 +278,7 @@
   },
   "library": {
     "batch_actions": "一括操作",
-    "import_hint": "字幕ファイルをドロップ、またはクリックして選択 · SRT / LRC / VTT / ASS",
+    "import_hint": "字幕ファイルをドロップ、またはクリックして選択 · SRT / LRC / VTT / ASS / SSA / SBV",
     "search": "ドキュメントを検索",
     "clear_search": "検索をクリア",
     "open": "ドキュメントライブラリを開く",

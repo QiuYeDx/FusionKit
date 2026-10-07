@@ -7,6 +7,9 @@ export const translationTrackNameSchema = z.string().trim().max(100).refine(valu
 /** Public provenance is an opaque reference; execution inputs stay in the private snapshot. */
 export const executionRefSchema = z.object({ version: z.literal(1), id: idSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export type ExecutionRef = z.infer<typeof executionRefSchema>;
+/** Text subtitle formats the studio imports and exports, in display order. */
+export const SUBTITLE_TEXT_FORMATS = ['srt', 'lrc', 'vtt', 'ass', 'ssa', 'sbv'] as const;
+export type SubtitleTextFormat = typeof SUBTITLE_TEXT_FORMATS[number];
 export const encodingSchema = z.enum(['utf-8', 'gb18030', 'shift_jis', 'utf-16le']);
 export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'knowledge_check_failed', 'translation_protocol_invalid', 'translation_record_unavailable', 'translation_output_limit', 'translation_failed', 'transcription_failed', 'interrupted', 'resource_busy']);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
@@ -25,13 +28,13 @@ export const textSchema = z.object({ plain: z.string().max(LIMITS.cueBytes), spa
 const importedRangeSchema = z.object({ nodeId: idSchema, start: integer.nonnegative(), end: integer.nonnegative() }).strict().refine(value => value.end > value.start);
 export const textCueSchema = z.object({
   id: idSchema, sourceRevision: revision, timingRevision: revision,
-  timing: z.object({ startMs: integer, endMs: integer.nullable(), provenance: z.enum(['srt', 'lrc_offset', 'vtt', 'ass']) }).strict(),
+  timing: z.object({ startMs: integer, endMs: integer.nullable(), provenance: z.enum(['srt', 'lrc_offset', 'vtt', 'ass', 'ssa', 'sbv']) }).strict(),
   source: textSchema, sourceLabel: z.string().max(LIMITS.cueBytes).optional(), nodeId: idSchema,
   importedPair: z.object({ source: importedRangeSchema, target: importedRangeSchema }).strict().optional(),
 }).strict().refine(cue => cue.timing.endMs === null || cue.timing.endMs >= cue.timing.startMs);
 const textDocumentSchema = z.object({
   schemaVersion: z.literal(1), id: idSchema, revision,
-  origin: z.object({ format: z.enum(['srt', 'lrc', 'vtt', 'ass']), displayName: z.string().min(1).max(255), encoding: encodingSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+  origin: z.object({ format: z.enum(SUBTITLE_TEXT_FORMATS), displayName: z.string().min(1).max(255), encoding: encodingSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   cues: z.array(textCueSchema).max(LIMITS.cues),
   translationTracks: z.array(z.object({
     id: idSchema, language: z.string().max(100), name: translationTrackNameSchema.optional(), revision,

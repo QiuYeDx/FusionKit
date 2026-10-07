@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
-import { LIMITS, StudioError } from '../../../src/subtitle-studio/domain';
+import { LIMITS, StudioError, SUBTITLE_TEXT_FORMATS } from '../../../src/subtitle-studio/domain';
 import { STUDIO_CHANNELS, requestSchemas, droppedSubtitlesRequestSchema, droppedTranscriptionMediaRequestSchema, transcriptionRequestSchemas, summarizeDocument, summarizeTask, type StudioResult } from '../../../src/subtitle-studio/ipc-contract';
 import { DocumentRepository } from './document-repository';
 import { readSubtitleWithSource } from './input-service';
@@ -266,7 +266,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
         if (method === 'importSubtitles' || method === 'importSubtitle') {
           const window = BrowserWindow.fromWebContents(event.sender);
           if (!window) throw new StudioError('access_denied');
-          const selection = await dialog.showOpenDialog(window, { properties: method === 'importSubtitles' ? ['openFile', 'multiSelections'] : ['openFile'], filters: [{ name: 'SRT / LRC / VTT / ASS', extensions: ['srt', 'lrc', 'vtt', 'ass'] }] }); alive();
+          const selection = await dialog.showOpenDialog(window, { properties: method === 'importSubtitles' ? ['openFile', 'multiSelections'] : ['openFile'], filters: [{ name: SUBTITLE_TEXT_FORMATS.map(format => format.toUpperCase()).join(' / '), extensions: [...SUBTITLE_TEXT_FORMATS] }] }); alive();
           if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
           const value = await importSelections(selection.filePaths.map(file => ({ path: file, fileName: path.basename(file) })), requestSchemas.importSubtitles.parse(payload).encoding, owner, alive);
           if (method === 'importSubtitles') return { ok: true, value };
