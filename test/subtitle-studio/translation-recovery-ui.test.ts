@@ -130,14 +130,52 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     expect((await trace(page, 1)).batch.request?.httpBody).toBe(requests[1].raw);
     expect((await trace(page, 2)).batch.request).toBeNull();
     await page.getByRole('button', { name: '执行记录', exact: true }).click();
+    const taskUsage = (page: Page) => page.getByRole('dialog', { name: '翻译任务', exact: true }).getByTestId('studio-task-usage');
     const executionDialog = (page: Page) => page.getByRole('dialog', { name: '翻译执行记录', exact: true });
+    // Screenshots must not catch a batch mid-transition or a height still settling.
+    const settled = async (page: Page) => {
+      await uiExpect(executionDialog(page).locator('[data-dialog-exiting="true"], [data-flow-animating="true"]')).toHaveCount(0);
+    };
     await uiExpect(executionDialog(page)).toContainText('Restart-proof scene 1.');
+    await uiExpect(executionDialog(page).getByTestId('studio-execution-summary')).toContainText('deepseek-v4-flash');
+    await settled(page);
+    await page.screenshot({ path: path.join(artifacts, 'execution-first-batch-light.png'), animations: 'disabled' });
     await executionDialog(page).getByRole('button', { name: '下一页', exact: true }).click();
     await uiExpect(executionDialog(page)).toContainText('译文：Restart-proof scene 1.');
+    // Settings stay put while batches change; only the batch area transitions.
+    await uiExpect(executionDialog(page).getByTestId('studio-execution-summary')).toHaveCount(1);
+    await settled(page);
     await page.screenshot({ path: path.join(artifacts, 'execution-context-light.png'), animations: 'disabled' });
+    await executionDialog(page).locator('[data-testid="studio-execution-technical"]:not([data-dialog-exiting="true"] *) [data-slot="accordion-trigger"]').click();
+    await executionDialog(page).locator('pre').scrollIntoViewIfNeeded();
+    await settled(page);
+    await page.screenshot({ path: path.join(artifacts, 'execution-technical-light.png'), animations: 'disabled' });
     await executionDialog(page).getByRole('button', { name: '下一页', exact: true }).click();
     await uiExpect(executionDialog(page)).toContainText('尚未发送');
+    await settled(page);
+    await page.screenshot({ path: path.join(artifacts, 'execution-not-sent-light.png'), animations: 'disabled' });
+    const batchHeading = (page: Page) => executionDialog(page).locator('[data-testid="studio-execution-batch"]:not([data-dialog-exiting="true"] *) .studio-execution-batch-header h3');
+    await uiExpect(batchHeading(page)).toHaveText('第 3 / 3 批');
+    await page.evaluate(() => document.documentElement.classList.add('dark'));
+    await window.evaluate(win => win.setSize(786, 540));
+    await uiExpect(batchHeading(page)).toHaveText('第 3 / 3 批');
+    await settled(page);
+    expect(await executionDialog(page).evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    await page.screenshot({ path: path.join(artifacts, 'execution-dark-narrow.png'), animations: 'disabled' });
+    await page.evaluate(() => document.documentElement.classList.remove('dark'));
+    await window.evaluate(win => win.setSize(1280, 860));
     await executionDialog(page).getByRole('button', { name: '关闭', exact: true }).click();
+    // The task dialog reports each task's own API usage, not only the global total.
+    await page.getByTestId('studio-translation-overview-details').click();
+    await uiExpect(taskUsage(page)).toHaveText('180 tokens');
+    await taskUsage(page).hover();
+    await uiExpect(page.getByRole('tooltip')).toContainText('输入 120 · 输出 60');
+    await page.screenshot({ path: path.join(artifacts, 'task-usage-light.png'), animations: 'disabled' });
+    // Escape dismisses the hovered tooltip first, then the dialog; stop as soon as the dialog is gone.
+    await uiExpect(async () => {
+      await page.keyboard.press('Escape');
+      await uiExpect(page.getByRole('dialog')).toHaveCount(0, { timeout: 500 });
+    }).toPass({ timeout: 5000 });
     await page.screenshot({ path: path.join(artifacts, 'running-before-restart.png'), animations: 'disabled' });
     const crashedProcess = app!.process();
     const crashed = new Promise<void>((resolve, reject) => {
@@ -187,6 +225,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await recoveryDialog(page).getByRole('button', { name: '继续翻译', exact: true }).click();
     await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 15000 });
     await uiExpect(page.locator('.studio-target-text').filter({ hasText: '译文：' })).toHaveCount(6);
+    // An attempt lost in the crash has unknown cost, so this task's usage is honestly unknown rather than understated.
+    await page.getByTestId('studio-translation-overview-details').click();
+    await uiExpect(taskUsage(page)).toHaveText('实际 tokens 未提供');
+    await page.screenshot({ path: path.join(artifacts, 'task-usage-unknown-dark-narrow.png'), animations: 'disabled' });
+    await page.keyboard.press('Escape');
+    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
     expect(requests).toHaveLength(4);
     expect(requests[2].raw).toBe(requests[1].raw);
     expect((await trace(page, 1)).batch.request?.httpBody).toBe(requests[2].raw);

@@ -30,6 +30,7 @@ export function selectTranslationTasks(snapshot: Awaited<ReturnType<DocumentRepo
         language: progress?.config.language ?? document.translationTracks.find(track => track.id === task.trackId)?.language ?? '',
         modelKey: progress?.config.model.modelKey ?? '', completedBatches: completed, totalBatches: total,
         ...(progress?.notBefore !== undefined ? { notBefore: progress.notBefore } : {}),
+        usage: { inputTokens: progress?.usage.inputTokens ?? null, outputTokens: progress?.usage.outputTokens ?? null, totalTokens: progress?.usage.totalTokens ?? null },
         canResume: Boolean(progress?.checkpoint) && !hasActive && ['failed', 'interrupted', 'needs_configuration'].includes(task.status),
         ...(progress?.error ? { error: progress.error } : {}) });
     }

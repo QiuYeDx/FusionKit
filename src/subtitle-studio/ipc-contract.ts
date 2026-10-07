@@ -148,6 +148,8 @@ export type TranslationTaskSummary = {
   documentId: string; revision: number; taskId: string; trackId: string;
   displayName: string; status: TranslationTaskStatus; language: string; modelKey: string;
   completedBatches: number; totalBatches: number; notBefore?: number; canResume: boolean;
+  /** API-reported usage for this task only; null when the provider did not report a field. */
+  usage: { inputTokens: number | null; outputTokens: number | null; totalTokens: number | null };
   error?: NonNullable<StoredTask['translation']>['error'];
 };
 export type TranslationTasksSnapshot = {

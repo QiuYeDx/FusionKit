@@ -27,6 +27,11 @@ describe('global translation overview', () => {
     expect(selectTranslationTasks(snapshot, { offset: 0, pageSize: 1 }).usage).toEqual(result.usage);
     const id = snapshot.records[0].snapshot.tasks[0].id;
     expect(selectTranslationTasks(snapshot, { offset: 0, pageSize: 10, taskIds: [id] }).usage).toEqual({ inputTokens: 100, outputTokens: 0, totalTokens: 0, unknownInput: 0, unknownOutput: 1, unknownTotal: 1 });
+    // Each row carries its own reported usage; unreported fields stay null instead of becoming zero.
+    const rows = selectTranslationTasks(snapshot, { offset: 0, pageSize: 10 }).items;
+    expect(rows.find(item => item.taskId === id)!.usage).toEqual({ inputTokens: 100, outputTokens: null, totalTokens: null });
+    expect(rows.find(item => item.taskId === snapshot.records[1].snapshot.tasks[0].id)!.usage).toEqual({ inputTokens: null, outputTokens: null, totalTokens: null });
+    expect(rows.find(item => item.taskId === snapshot.records[2].snapshot.tasks[0].id)!.usage).toEqual({ inputTokens: 1, outputTokens: 1, totalTokens: 2 });
     snapshot.records[0].snapshot.tasks[0].translation!.usage.inputTokens = Number.MAX_SAFE_INTEGER;
     const overflow = selectTranslationTasks(snapshot, { offset: 0, pageSize: 1 }).usage;
     expect(Number.isSafeInteger(overflow.inputTokens)).toBe(true);

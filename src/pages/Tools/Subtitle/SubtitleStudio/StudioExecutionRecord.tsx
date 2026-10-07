@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, FileClock, LoaderCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, FileClock, FileText, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import {
   ScrollableDialog,
@@ -20,8 +21,10 @@ import {
   StudioIconButton,
   StudioPagination,
 } from "./StudioControls";
+import './StudioExecutionRecord.css';
 
 type TranslationTrack = DocumentPage["translationTracks"][number];
+type AvailableRecord = Extract<ExecutionRecordPage, { state: "available" }>;
 /** This also recognizes tracks written before the explicit origin field existed. */
 export function hasExecutionRecordEntry(track: TranslationTrack) {
   return (
@@ -31,34 +34,31 @@ export function hasExecutionRecordEntry(track: TranslationTrack) {
   );
 }
 
-function TextContext({
-  title,
-  texts,
-}: {
-  title: string;
+/** One labelled part of what the model received; context groups stay visually secondary. */
+function InputGroup({ kind, label, note, texts }: {
+  kind: "context" | "source" | "ai";
+  label: string;
+  note?: string;
   texts: readonly string[];
 }) {
-  const { t } = useTranslation();
   return (
-    <section className="min-w-0 space-y-2">
-      <h3 className="text-xs font-medium">{title}</h3>
-      {texts.length ? (
-        <ol className="space-y-1">
-          {texts.map((text, index) => (
-            <li
-              key={index}
-              className="rounded-md bg-muted/35 p-2 text-xs leading-5 whitespace-pre-wrap [overflow-wrap:anywhere]"
-            >
-              {text}
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          {t("studio:execution.no_context")}
-        </p>
-      )}
-    </section>
+    <div className="studio-execution-group" data-kind={kind}>
+      <div className="studio-execution-group-label">
+        <span>{label}</span>
+        <span className="studio-execution-count">{texts.length}</span>
+        {note && <span className="studio-execution-group-note">{note}</span>}
+      </div>
+      <ol>
+        {texts.map((text, index) => (
+          <li key={index}>
+            <span className="studio-execution-line-number" aria-hidden={kind !== "source"}>
+              {kind === "source" ? index + 1 : ""}
+            </span>
+            <span className="studio-execution-line-text">{text}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -97,10 +97,12 @@ export function StudioExecutionRecord({
       ? result.value
       : null;
   const available = current?.state === "available" ? current : null;
-  const knownBatches =
+  // Record-level settings are identical for every batch; keep them steady while the next batch loads.
+  const record: AvailableRecord | null =
     result?.identity === identity && result.value.state === "available"
-      ? result.value.totalBatches
-      : 0;
+      ? result.value
+      : null;
+  const knownBatches = record?.totalBatches ?? 0;
   const hasError = failed || current?.state === "unavailable";
   const formatDate = (value: string) => {
     const date = new Date(value);
@@ -214,6 +216,15 @@ export function StudioExecutionRecord({
       ?.closest<HTMLElement>("[data-slot=scroll-area-viewport]")
       ?.scrollTo({ top: 0 });
   };
+  const instructions = record?.knowledge?.compiled.instructions || record?.config.instructions;
+  const request = available?.batch.request ?? null;
+  const batchKey = pending && !current
+    ? "loading"
+    : hasError
+      ? "error"
+      : available
+        ? `${available.recordId}:${available.batchOffset}`
+        : current?.state ?? "empty";
   return (
     <>
       <Button
@@ -232,168 +243,152 @@ export function StudioExecutionRecord({
         onOpenChange={(next) => {
           if (!next) close();
         }}
-        maxWidth="sm:max-w-3xl"
-        contentClassName="grid-rows-[auto_minmax(0,1fr)_auto] [&>button]:hidden"
+        maxWidth="sm:max-w-[720px]"
+        contentClassName="studio-execution-dialog grid-rows-[auto_minmax(0,1fr)_auto] [&>button]:hidden"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           if (trigger.current?.isConnected)
             trigger.current.focus({ preventScroll: true });
         }}
       >
-        <ScrollableDialogHeader className="p-3">
+        <ScrollableDialogHeader className="studio-execution-header">
           <DialogTitle className="text-base">
             {t("studio:execution.title")}
           </DialogTitle>
-          <DialogDescription className="text-xs">
+          <DialogDescription className="sr-only">
             {t("studio:execution.description")}
           </DialogDescription>
-          <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <div className="studio-execution-file">
+            <FileText aria-hidden="true" />
             <StudioFileName name={page.summary.origin.displayName} />
           </div>
         </ScrollableDialogHeader>
-        <ScrollableDialogContent
-          fadeMaskHeight={16}
-          className="min-h-0 min-w-0 [&>[data-slot=scroll-area-viewport]>div>div]:p-3"
-        >
+        <ScrollableDialogContent fadeMaskHeight={16} className="studio-execution-body">
           <div
             ref={contentRoot}
             data-testid="studio-execution-record-content"
             aria-busy={pending}
-            className="min-w-0 space-y-4 [overflow-wrap:anywhere]"
+            className="studio-execution-content"
           >
-            <DialogTransition transitionKey={pending && !current ? 'loading' : hasError ? 'error' : available ? `${available.recordId}:${available.batchOffset}` : current?.state ?? 'empty'} stageClassName="min-w-0 space-y-4">
-            {pending && (
-              <p
-                role="status"
-                className="flex items-center gap-2 text-xs text-muted-foreground"
-              >
-                <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
-                {t("studio:loading")}
-              </p>
-            )}
-            {hasError && (
-              <div
-                role="alert"
-                className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/5 p-3 text-xs text-destructive"
-              >
-                <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-                <p>{t(current?.state === "unavailable" ? "studio:errors.translation_record_unavailable" : "studio:execution.load_error")}</p>
-              </div>
-            )}
-            {current?.state === "legacy" && (
-              <p className="rounded-md border bg-muted/25 p-3 text-sm leading-6">
-                {t("studio:execution.legacy")}
-              </p>
-            )}
-            {available && (
-              <>
-                <dl className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
-                  <div className="min-w-0">
-                    <dt className="text-muted-foreground">
-                      {t("studio:execution.model")}
-                    </dt>
-                    <dd className="mt-1 font-medium">
-                      {available.config.model.modelKey}
-                    </dd>
+            {/* The gap lives inside the stage so mounting the summary never jumps the batch below. */}
+            <DialogTransition transitionKey="summary" stageClassName="pb-4">
+              {record && !hasError && (
+                <dl className="studio-execution-summary" data-testid="studio-execution-summary">
+                  <div>
+                    <dt>{t("studio:execution.model")}</dt>
+                    <dd>{record.config.model.modelKey}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">
-                      {t("studio:execution.language")}
-                    </dt>
-                    <dd className="mt-1 font-medium">
-                      {language(available.config.language)}
-                    </dd>
+                    <dt>{t("studio:execution.language")}</dt>
+                    <dd>{language(record.config.language)}</dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground">
-                      {t("studio:execution.saved_at")}
-                    </dt>
-                    <dd className="mt-1">{formatDate(available.createdAt)}</dd>
+                    <dt>{t("studio:execution.saved_at")}</dt>
+                    <dd>{formatDate(record.createdAt)}</dd>
+                  </div>
+                  <div className="studio-execution-summary-wide">
+                    <dt>{t("studio:execution.instructions")}</dt>
+                    <dd data-empty={!instructions || undefined}>
+                      {instructions || t("studio:execution.no_instructions")}
+                    </dd>
                   </div>
                 </dl>
-                <section className="space-y-2">
-                  <h3 className="text-xs font-medium">
-                    {t("studio:execution.instructions")}
-                  </h3>
-                  <p className="whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
-                    {available.knowledge?.compiled.instructions || available.config.instructions ||
-                      t("studio:execution.no_instructions")}
-                  </p>
-                </section>
-                <section className="space-y-2 border-t pt-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold">
+              )}
+            </DialogTransition>
+            <DialogTransition transitionKey={batchKey} stageClassName="studio-execution-stage">
+              {pending && !current && (
+                <p role="status" className="studio-execution-loading">
+                  <LoaderCircle className="studio-spin" />
+                  {t("studio:loading")}
+                </p>
+              )}
+              {hasError && (
+                <div role="alert" className="studio-execution-error">
+                  <AlertCircle />
+                  <p>{t(current?.state === "unavailable" ? "studio:errors.translation_record_unavailable" : "studio:execution.load_error")}</p>
+                </div>
+              )}
+              {current?.state === "legacy" && (
+                <p className="studio-execution-legacy">
+                  <FileClock />
+                  <span>{t("studio:execution.legacy")}</span>
+                </p>
+              )}
+              {available && (
+                <section className="studio-execution-batch" data-testid="studio-execution-batch">
+                  <header className="studio-execution-batch-header">
+                    <h3>
                       {t("studio:execution.batch", {
                         current: available.batchOffset + 1,
                         total: available.totalBatches,
                       })}
                     </h3>
-                    <span className="rounded-md border px-2 py-0.5 text-[11px] text-muted-foreground">
-                      {t(
-                        available.batch.request
-                          ? "studio:execution.request_saved"
-                          : "studio:execution.not_sent",
-                      )}
-                    </span>
-                  </div>
-                  <p className="text-xs leading-5 text-muted-foreground">
-                    {t(
-                      available.batch.request
-                        ? "studio:execution.request_saved_help"
-                        : "studio:execution.not_sent_help",
+                    <Tooltip delayDuration={250}>
+                      <TooltipTrigger asChild>
+                        <span tabIndex={0} className="studio-execution-state" data-state={request ? "saved" : "pending"}>
+                          {t(request ? "studio:execution.request_saved" : "studio:execution.not_sent")}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        {t(request ? "studio:execution.request_saved_help" : "studio:execution.not_sent_help")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </header>
+                  <div className="studio-execution-input" data-testid="studio-execution-input">
+                    {available.batch.before.length > 0 && (
+                      <InputGroup kind="context" label={t("studio:execution.before")} note={t("studio:execution.context_note")} texts={available.batch.before} />
                     )}
-                  </p>
+                    <InputGroup
+                      kind="source"
+                      label={t("studio:execution.source")}
+                      texts={available.batch.items.map((item) => item.text.replace(/<\/?m[1-9]\d{0,2}>/g, ""))}
+                    />
+                    {available.batch.after.length > 0 && (
+                      <InputGroup kind="context" label={t("studio:execution.after")} note={t("studio:execution.context_note")} texts={available.batch.after} />
+                    )}
+                    {!!request?.priorModelTranslations.length && (
+                      <InputGroup kind="ai" label={t("studio:execution.prior_ai")} note={t("studio:execution.prior_ai_note")} texts={request.priorModelTranslations} />
+                    )}
+                  </div>
+                  {available.knowledge && <StudioExecutionKnowledge key={`${available.recordId}-${available.batchOffset}`} knowledge={available.knowledge} />}
+                  <KnowledgeDisclosure
+                    key={`${available.recordId}-${available.batchOffset}`}
+                    data-testid="studio-execution-technical"
+                    title={t("studio:execution.technical")}
+                    contentClassName="studio-execution-technical"
+                  >
+                    <dl className="studio-execution-facts">
+                      <div>
+                        <dt>{t("studio:execution.policy_version")}</dt>
+                        <dd>{available.policyVersion}</dd>
+                      </div>
+                      {request && (
+                        <div>
+                          <dt>{t("studio:execution.request_saved_at")}</dt>
+                          <dd>{formatDate(request.createdAt)}</dd>
+                        </div>
+                      )}
+                      {available.knowledge && (
+                        <div>
+                          <dt>{t("studio:execution.knowledge_digest")}</dt>
+                          <dd>{available.knowledge.digest}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    {request && (
+                      <div className="studio-execution-http">
+                        <h4>{t("studio:execution.http_body")}</h4>
+                        <pre>{request.httpBody}</pre>
+                      </div>
+                    )}
+                  </KnowledgeDisclosure>
                 </section>
-                <TextContext
-                  title={t("studio:execution.source")}
-                  texts={available.batch.items.map((item) => item.text.replace(/<\/?m[1-9]\d{0,2}>/g, ""))}
-                />
-                {available.knowledge && <StudioExecutionKnowledge key={`${available.recordId}-${available.batchOffset}`} knowledge={available.knowledge} />}
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <TextContext
-                    title={t("studio:execution.before")}
-                    texts={available.batch.before}
-                  />
-                  <TextContext
-                    title={t("studio:execution.after")}
-                    texts={available.batch.after}
-                  />
-                </div>
-                <TextContext
-                  title={t("studio:execution.prior_ai")}
-                  texts={available.batch.request?.priorModelTranslations ?? []}
-                />
-                <KnowledgeDisclosure
-                  key={`${available.recordId}-${available.batchOffset}`}
-                  data-testid="studio-execution-technical"
-                  title={t("studio:execution.technical")}
-                >
-                  <p className="text-xs text-muted-foreground">
-                    {t("studio:execution.policy_version")}:{" "}
-                    {available.policyVersion}
-                  </p>
-                  {available.batch.request && (
-                    <>
-                      <p className="text-xs text-muted-foreground">
-                        {t("studio:execution.request_saved_at")}:{" "}
-                        {formatDate(available.batch.request.createdAt)}
-                      </p>
-                      <h3 className="text-xs font-medium">
-                        {t("studio:execution.http_body")}
-                      </h3>
-                      <pre className="whitespace-pre-wrap break-all rounded-md bg-muted/35 p-2 text-[11px] leading-5">
-                        {available.batch.request.httpBody}
-                      </pre>
-                    </>
-                  )}
-                </KnowledgeDisclosure>
-              </>
-            )}
+              )}
             </DialogTransition>
           </div>
         </ScrollableDialogContent>
-        <ScrollableDialogFooter className="flex flex-wrap items-center justify-between gap-3 p-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <ScrollableDialogFooter className="studio-execution-footer">
+          <div className="studio-execution-footer-start">
             {knownBatches > 0 && (
               <StudioPagination
                 compact
@@ -413,9 +408,7 @@ export function StudioExecutionRecord({
               disabled={pending}
               onClick={() => setRefresh((value) => value + 1)}
             >
-              <RefreshCw
-                className={pending ? "size-3.5 animate-spin" : "size-3.5"}
-              />
+              <RefreshCw className={pending ? "studio-spin" : undefined} />
             </StudioIconButton>
           </div>
           <Button size="sm" variant="outline" onClick={close}>

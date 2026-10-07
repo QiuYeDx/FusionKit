@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { getStudioTranslationOverviewController, getTranslationRoundProgress } from '@/services/subtitle-studio/translation-overview-controller';
-import type { TranslationTasksSnapshot, TranslationTaskStatus } from '@/subtitle-studio/ipc-contract';
+import type { TranslationTasksSnapshot, TranslationTaskStatus, TranslationTaskSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioTaskQueue, StudioTaskQueueRow } from './StudioTaskQueue';
 import { ToolPanel } from '../../_shared/ui/ToolPanel';
@@ -36,6 +36,18 @@ function UsageSummary({ snapshot }: { snapshot: TranslationTasksSnapshot }) {
       <TooltipContent side="bottom"><div>{t('studio:overview.input_tokens')} {value(usage.inputTokens, usage.unknownInput)} · {t('studio:overview.output_tokens')} {value(usage.outputTokens, usage.unknownOutput)}</div><div>{t(incomplete ? 'studio:overview.usage_partial' : 'studio:overview.usage_scope', { count: snapshot.total })}</div></TooltipContent>
     </Tooltip>
   </div>;
+}
+
+/** Per-task API usage; the total falls back to input + output when the provider omits it. */
+function TaskUsage({ usage }: { usage: TranslationTaskSummary['usage'] }) {
+  const { t, i18n } = useTranslation();
+  const format = (value: number | null) => value === null ? t('studio:overview.usage_unknown') : value.toLocaleString(i18n.language);
+  const total = usage.totalTokens ?? (usage.inputTokens !== null && usage.outputTokens !== null ? usage.inputTokens + usage.outputTokens : null);
+  return <Tooltip><TooltipTrigger asChild><span tabIndex={0} className="studio-task-usage" data-testid="studio-task-usage">
+    {total === null ? `${t('studio:overview.actual_tokens')} ${format(null)}` : t('studio:overview.task_tokens', { value: format(total) })}
+  </span></TooltipTrigger>
+    <TooltipContent side="bottom">{t('studio:overview.actual_tokens')} · {t('studio:overview.input_tokens')} {format(usage.inputTokens)} · {t('studio:overview.output_tokens')} {format(usage.outputTokens)}</TooltipContent>
+  </Tooltip>;
 }
 
 export function StudioTranslationOverview({ onOpenDocument, compact = false }: { onOpenDocument: (documentId: string, trackId?: string) => void | Promise<void>; compact?: boolean }) {
@@ -100,7 +112,7 @@ export function StudioTranslationOverview({ onOpenDocument, compact = false }: {
         {snapshot?.items.length ? <StudioTaskQueue className="studio-translation-overview-list" data-testid="studio-translation-overview-list">{snapshot.items.map(task => <StudioTaskQueueRow key={task.taskId} data-task-id={task.taskId} data-state={task.status} name={task.displayName}
           icon={task.status === 'completed' ? <Check className="text-emerald-600 dark:text-emerald-400" /> : attention(task.status) ? <AlertCircle className="text-destructive" /> : task.status === 'cancelled' ? <Square className="text-muted-foreground" /> : <LoaderCircle className={task.status === 'running' ? 'studio-spin text-muted-foreground' : 'text-muted-foreground'} />}
           actions={<StudioIconButton label={t('studio:overview.open_document')} disabled={opening !== null} onClick={() => void open(task.documentId, task.trackId)}>{opening === task.documentId ? <LoaderCircle className="studio-spin" /> : <Subtitles />}</StudioIconButton>}
-          metadata={<><span className={attention(task.status) ? 'text-destructive' : undefined}>{t(statusKeys[task.status])}</span><Tooltip><TooltipTrigger asChild><span tabIndex={0} className="studio-task-model">{task.language} · {task.modelKey}</span></TooltipTrigger><TooltipContent className="max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal text-wrap [overflow-wrap:anywhere]">{task.language} · {task.modelKey}</TooltipContent></Tooltip><span className="studio-task-percentage">{t('studio:translation.batch_progress', { completed: task.completedBatches, total: task.totalBatches })}</span></>}
+          metadata={<><span className={attention(task.status) ? 'text-destructive' : undefined}>{t(statusKeys[task.status])}</span><Tooltip><TooltipTrigger asChild><span tabIndex={0} className="studio-task-model">{task.language} · {task.modelKey}</span></TooltipTrigger><TooltipContent className="max-w-[min(20rem,calc(100vw-2rem))] whitespace-normal text-wrap [overflow-wrap:anywhere]">{task.language} · {task.modelKey}</TooltipContent></Tooltip><TaskUsage usage={task.usage} /><span className="studio-task-percentage">{t('studio:translation.batch_progress', { completed: task.completedBatches, total: task.totalBatches })}</span></>}
           progress={task.status === 'queued' || task.status === 'running' ? { max: Math.max(1, task.totalBatches), value: task.completedBatches, label: `${t('studio:overview.confirmed_progress')} · ${task.displayName}` } : undefined}>
           {task.canResume && <p className="studio-translation-overview-task-note">{t('studio:overview.can_resume')}</p>}
           {(task.status === 'queued' || task.status === 'running' || task.canResume) && (task.notBefore ?? 0) > now && <p className="studio-translation-overview-task-note"><Clock3 className="size-3" />{t('studio:translation.provider_wait', { seconds: Math.max(0, Math.ceil((task.notBefore! - now) / 1000)) })}</p>}
