@@ -8,6 +8,9 @@ const artifacts = path.resolve('test-results/home-agent/i2');
 const runRoot = path.join(artifacts, `run-${Date.now()}`);
 await mkdir(runRoot, { recursive: true });
 const locales = Object.fromEntries(await Promise.all(['zh', 'en', 'ja', 'zh-Hant'].map(async language => [language, JSON.parse(await readFile(`src/locales/${language}/home.json`, 'utf8'))])));
+// The capability list must render every catalog entry; read the count instead of hard-coding it.
+const capabilityCount = ((await readFile('src/agent/capability-catalog.ts', 'utf8')).match(/^\s*\{ toolKey: "/gm) ?? []).length;
+if (capabilityCount === 0) throw new Error('No capabilities found in src/agent/capability-catalog.ts');
 const now = Date.now();
 const emptyStats = { totalPromptTokens: 0, totalCompletionTokens: 0, totalTokens: 0, totalCost: 0, stepCount: 0, lastPromptTokens: 0, interactions: [] };
 const call = (toolCallId, toolName) => ({ toolCallId, toolName, args: { query: 'Episode-12-幕后制作手记-and-a-long-production-filename.srt' } });
@@ -202,7 +205,7 @@ try {
     await page.locator('[data-tool-call-id="failed-call"]').evaluate(element => element.scrollIntoView({ block: 'center' }));
     await capture(`receipts-${language}-${width}`);
     await page.getByTestId('agent-capabilities-trigger').click();
-    await expect(page.getByTestId('agent-capabilities-list').locator('h3')).toHaveCount(6);
+    await expect(page.getByTestId('agent-capabilities-list').locator('h3')).toHaveCount(capabilityCount);
     await capture(`capabilities-${language}-${width}`);
     const metrics = await page.evaluate(() => [...document.querySelectorAll('[data-testid="agent-plan"], [data-testid="agent-capabilities-list"], [data-testid="agent-tool-result"]')]
       .filter(element => element.getBoundingClientRect().width > 0)
