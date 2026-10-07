@@ -28,7 +28,8 @@ export function StudioDisclosure({
       onOpenChange?.(nextOpen);
     }} className={cn('min-w-0', className)}>
     <AccordionItem value="content" className="border-0">
-      <AccordionTrigger data-testid={triggerTestId} aria-label={triggerLabel} className={cn('min-h-10 cursor-pointer gap-2 px-3 py-2 text-xs', triggerClassName)}>
+      {/* Square by default: most disclosures are edge-to-edge bands. Card headers set their own radius. */}
+      <AccordionTrigger data-testid={triggerTestId} aria-label={triggerLabel} className={cn('min-h-10 cursor-pointer gap-2 rounded-none px-3 py-2 text-xs', triggerClassName)}>
         {title}
       </AccordionTrigger>
       <AccordionContent forceMount motionOpen={expanded} aria-hidden={!expanded} inert={!expanded} className={cn('p-0', contentClassName)}>

@@ -65,15 +65,15 @@ export default function AgentPreparedActions({ sessionId, busy }: { sessionId: s
       <h2 className="text-xs font-medium text-muted-foreground">{t("home:actions_current", { count: active.length })}</h2>
       {active.map(action => <ActionCard key={action.id} action={action} busy={busy} />)}
     </section>}
-    {history.length > 0 && <div className="min-w-0 rounded-xl border bg-card/40 px-3" data-testid="agent-action-history">
+    {history.length > 0 && <div className="min-w-0 rounded-xl border bg-card/40" data-testid="agent-action-history">
       <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded}>
         <AccordionItem value="history" className="border-0">
-          <AccordionTrigger className="py-3 text-xs" data-testid="action-history-toggle">{t("home:actions_history", { count: history.length, failed: failedCount })}</AccordionTrigger>
-          {!expanded && <div className="space-y-1 pb-3 text-xs leading-5">
+          <AccordionTrigger className="rounded-t-[11px] rounded-b-none px-3 py-3 text-xs" data-testid="action-history-toggle">{t("home:actions_history", { count: history.length, failed: failedCount })}</AccordionTrigger>
+          {!expanded && <div className="space-y-1 px-3 pb-3 text-xs leading-5">
             <p className="text-muted-foreground">{t("home:actions_latest", { status: latest.status === "completed" && objectValue(latest.result).executionStatus === "queued" ? t("home:result_submitted") : t(actionStatusKeys[latest.status]) })}</p>
             {latestFailure && <p className="text-destructive [overflow-wrap:anywhere]" data-testid="action-latest-failure">{t("home:actions_latest_failure")}: {failureItem ? `${failureItem.name} · ${actionErrorMessage(failureItem.error ?? "prepared_action_failed", t)}` : actionErrorMessage(latestFailure.error ?? "prepared_action_failed", t)}</p>}
           </div>}
-          <AccordionContent className="space-y-3 pb-3">{history.map(action => <ActionCard key={action.id} action={action} busy={busy} />)}</AccordionContent>
+          <AccordionContent className="space-y-3 px-3 pb-3">{history.map(action => <ActionCard key={action.id} action={action} busy={busy} />)}</AccordionContent>
         </AccordionItem>
       </Accordion>
     </div>}

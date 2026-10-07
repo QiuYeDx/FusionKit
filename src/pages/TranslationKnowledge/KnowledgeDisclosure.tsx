@@ -32,7 +32,7 @@ export function KnowledgeDisclosure({
     className={cn("min-w-0", variant === "panel" ? "rounded-[12px] border bg-card" : variant === "inline" ? "rounded-[8px]" : "rounded-none", className)}
   >
     <AccordionItem value="content" className="border-0">
-      <AccordionTrigger className={cn("w-full cursor-pointer px-3", variant === "panel" ? "min-h-11 rounded-[11px]" : variant === "inline" ? "min-h-9 rounded-[8px] px-2 py-2 text-xs" : "min-h-10 rounded-none py-2 text-xs")}>
+      <AccordionTrigger className={cn("w-full cursor-pointer px-3", variant === "panel" ? "min-h-11 rounded-[11px] data-[state=open]:rounded-b-none" : variant === "inline" ? "min-h-9 rounded-[8px] px-2 py-2 text-xs" : "min-h-10 rounded-none py-2 text-xs")}>
         <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5 [overflow-wrap:anywhere]">
           <span className="leading-5">{title}</span>
           {description && <span className="text-xs font-normal leading-5 text-muted-foreground">{description}</span>}

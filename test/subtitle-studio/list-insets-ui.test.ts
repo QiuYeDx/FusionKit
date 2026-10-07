@@ -70,6 +70,16 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('subtitle studio list i
       await rows.nth(1).locator('.studio-cue-number').click();
       expect(await rows.nth(1).locator('td').first().evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('0px');
 
+      // Edge-to-edge disclosure bands keep square hover surfaces.
+      await page.locator('.studio-preview-panel').getByRole('button', { name: '翻译', exact: true }).click();
+      const advanced = page.getByRole('dialog').getByTestId('studio-translation-advanced');
+      await advanced.hover();
+      await page.waitForTimeout(250);
+      await page.screenshot({ path: path.join(artifacts, '00-advanced-hover.png') });
+      expect(await advanced.evaluate(element => getComputedStyle(element).borderTopLeftRadius)).toBe('0px');
+      await page.keyboard.press('Escape');
+      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
+
       // Library rows keep equal side insets, with the scroll gutter counted on the right.
       const library = await insets(page.locator('.studio-library-row').first(), page.locator('.studio-library-panel'));
       expect(Math.abs(library.left - library.right)).toBeLessThanOrEqual(1);

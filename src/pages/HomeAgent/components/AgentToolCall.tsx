@@ -36,7 +36,7 @@ export default function AgentToolCall({ call, result, running = false }: { call:
   const titleKey = toolNameKeys[call.toolName as keyof typeof toolNameKeys] ?? "home:tool_execution_fallback";
   return <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded} className="min-w-0 rounded-xl border bg-card/50" data-tool-call-id={call.toolCallId} data-tool-call-status={state}>
     <AccordionItem value="detail" className="border-0">
-      <AccordionTrigger className="gap-2 px-3 py-2 text-xs">
+      <AccordionTrigger className="gap-2 rounded-[11px] px-3 py-2 text-xs data-[state=open]:rounded-b-none">
         <Icon aria-hidden className={`size-3.5 shrink-0 ${state === "failed" ? "text-destructive" : "text-muted-foreground"} ${running ? "animate-spin motion-reduce:animate-none" : ""}`} />
         <span className="min-w-0 flex-1 text-left [overflow-wrap:anywhere]">{t(titleKey)}</span>
         <span className="shrink-0 font-normal text-muted-foreground">{t(label[state])}</span>

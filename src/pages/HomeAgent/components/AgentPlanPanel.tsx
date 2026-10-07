@@ -16,10 +16,10 @@ export default function AgentPlanPanel({ plan, onCheckProgress, busy }: { plan: 
   const { t, i18n } = useTranslation();
   const [expanded, setExpanded] = useState("plan");
   const completed = plan.steps.filter(step => step.status === "completed").length;
-  return <SmoothCorners radius={16} smoothing={0.72} className="min-w-0 border bg-card" data-testid="agent-plan">
+  return <SmoothCorners radius={16} smoothing={0.72} className="min-w-0 overflow-hidden border bg-card" data-testid="agent-plan">
     <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded}>
       <AccordionItem value="plan" className="border-0">
-        <AccordionTrigger className="gap-3 p-3 hover:bg-muted/30" data-testid="plan-toggle">
+        <AccordionTrigger className="gap-3 rounded-none p-3 hover:bg-muted/30" data-testid="plan-toggle">
           <ListChecks className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 text-left">
             <span className="block text-xs font-medium">{t("home:plan_last_snapshot")}</span>
