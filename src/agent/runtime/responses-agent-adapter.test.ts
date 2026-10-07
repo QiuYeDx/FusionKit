@@ -6,6 +6,7 @@ import {
   buildResponsesInput,
   resolveResponsesAgentUrl,
 } from "./responses-agent-adapter";
+import { resetOptionalParameterCompatibility } from "./optional-parameters";
 import type { AgentRuntimeStreamPart } from "./types";
 import type { AgentMessage } from "../types";
 
@@ -17,6 +18,7 @@ const profile = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  resetOptionalParameterCompatibility();
 });
 
 describe("ResponsesAgentAdapter endpoint normalization", () => {
@@ -83,7 +85,6 @@ describe("ResponsesAgentAdapter conversation mapping", () => {
       { role: "assistant", content: "I will scan it." },
       {
         type: "function_call",
-        id: "fc_1",
         call_id: "call_1",
         name: "scan_subtitle_files",
         arguments: "{\"directories\":[\"/tmp\"]}",
@@ -415,12 +416,58 @@ describe("Responses terminal safety", () => {
     expect(requests[1].input.slice(1, 6)).toEqual(output);
     expect(requests[1].input.slice(6).map((item: any) => item.call_id)).toEqual(["first", "second"]);
     expect(requests[0]).toMatchObject({ store: false });
-    expect(requests[0]).not.toHaveProperty("include");
+    expect(requests[0]).toMatchObject({ include: ["reasoning.encrypted_content"] });
     expect(JSON.stringify(events)).not.toContain("opaque-");
     expect(JSON.stringify(events)).not.toContain('"type":"reasoning"');
     expect(execute).toHaveBeenCalledTimes(2);
     await collectParts(create(execute).fullStream);
     expect(requests[2].input).toEqual([{ role: "user", content: "run" }]);
+  });
+
+  it("drops ID-only reasoning and replays the step without server item IDs", async () => {
+    const output = [
+      { type: "reasoning", id: "rs_1", summary: [] },
+      { type: "message", id: "msg_1", role: "assistant", status: "completed", content: [{ type: "output_text", text: "Checking", annotations: [] }] },
+      call("first").item,
+    ];
+    const requests: any[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+      requests.push(JSON.parse(String(init?.body)));
+      return sseResponse([requests.length > 1 ? completed : { type: "response.completed", response: { status: "completed", output } }]);
+    }));
+    await collectParts(create(vi.fn(async () => ({ success: true }))).fullStream);
+    expect(requests[1].input.slice(1, 3)).toEqual([
+      { role: "assistant", content: "Checking" },
+      { type: "function_call", call_id: "first", name: "run", arguments: "{}" },
+    ]);
+    expect(JSON.stringify(requests[1].input)).not.toContain("rs_1");
+  });
+
+  it.each([
+    { field: "temperature", error: { message: "Unsupported parameter: 'temperature' is not supported with this model.", param: "temperature" } },
+    { field: "include", error: { message: "Unknown parameter: 'include'." } },
+  ])("retries once without a rejected optional $field and remembers it for the model", async ({ field, error }) => {
+    const requests: any[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      requests.push(body);
+      if (field in body) return new Response(JSON.stringify({ error }), { status: 400 });
+      return sseResponse([completed]);
+    }));
+    await collectParts(create(vi.fn()).fullStream);
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toHaveProperty(field);
+    expect(requests[1]).not.toHaveProperty(field);
+    await collectParts(create(vi.fn()).fullStream);
+    expect(requests).toHaveLength(3);
+    expect(requests[2]).not.toHaveProperty(field);
+  });
+
+  it("surfaces other HTTP errors without retrying and redacts the key", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: { message: "bad key test-key" } }), { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(collectParts(create(vi.fn()).fullStream)).rejects.toThrow("bad key [redacted]");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("counts encrypted reasoning toward the next-request budget", async () => {

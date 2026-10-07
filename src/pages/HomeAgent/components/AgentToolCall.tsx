@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { CheckCircle2, CircleDashed, Loader2, XCircle } from "lucide-react";
 import type { AgentToolCall as ToolCall, AgentToolResult } from "@/agent/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { actionErrorMessage } from "./action-error";
 
 const toolNameKeys = {
   scan_subtitle_files: "home:tool_name_scan",
@@ -45,7 +46,7 @@ export default function AgentToolCall({ call, result, running = false }: { call:
         <p className="mb-2 text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{t("home:tool_identifier")}: <code>{call.toolName}</code></p>
         <p className="mb-1 text-[11px] text-muted-foreground">{t("home:tool_parameters")}</p>
         <pre className="whitespace-pre-wrap text-[11px] leading-5 [overflow-wrap:anywhere]">{JSON.stringify(call.args, null, 2)}</pre>
-        {result?.error && <p className="mt-2 text-xs text-destructive [overflow-wrap:anywhere]">{result.error}</p>}
+        {result?.error && <p className="mt-2 text-xs text-destructive [overflow-wrap:anywhere]">{actionErrorMessage(result.error, t)}</p>}
       </AccordionContent>
     </AccordionItem>
   </Accordion>;

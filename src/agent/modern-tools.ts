@@ -47,7 +47,21 @@ async function run<S extends z.ZodType>(schema: S, input: unknown, options: { ab
   if (!parsed.success) return failed("invalid_tool_arguments");
   const ctx = context(options?.abortSignal);
   try { ctx.check(); return await execute(parsed.data, ctx); }
-  catch (error) { return failed(error instanceof ToolFailure ? error.message : "tool_request_failed"); }
+  catch (error) {
+    if (error instanceof ToolFailure) return failed(error.message);
+    if (options?.abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) return failed("agent_cancelled");
+    // Keep the stable code for the UI, but retain a bounded, redacted cause for diagnosis.
+    const reason = redactSecrets(error instanceof Error ? error.message : String(error)).slice(0, 600);
+    if (ctx.sessionId === useAgentStore.getState().session.id) {
+      useAgentStore.getState().appendLog("error", `tool_request_failed: ${reason}`, { source: "modern_tool", reason });
+    }
+    return failed("tool_request_failed", { reason });
+  }
+}
+function redactSecrets(text: string): string {
+  const { getAgentProfile, getTaskProfile } = useModelStore.getState();
+  return [getAgentProfile()?.apiKey, getTaskProfile()?.apiKey].reduce<string>(
+    (value, key) => key && key.trim() ? value.split(key).join("[redacted]") : value, text);
 }
 function documentSummary(document: DocumentSummary) {
   return { documentId: document.id, revision: document.revision, name: safeText(document.origin.displayName),

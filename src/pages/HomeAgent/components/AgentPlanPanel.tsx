@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Circle, ListChecks, Loader2, PauseCircle } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, ListChecks, Loader2, PauseCircle } from "lucide-react";
 import type { AgentPlan } from "@/agent/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
@@ -30,14 +30,16 @@ export default function AgentPlanPanel({ plan, onCheckProgress, busy }: { plan: 
         <AccordionContent className="px-3 pb-3">
           <ol className="space-y-1" aria-label={t("home:plan_title")}>
             {plan.steps.map((step, index) => {
-              const Icon = { pending: Circle, in_progress: Loader2, completed: CheckCircle2, blocked: PauseCircle }[step.status];
+              // Between turns an in-progress step is waiting for the user, not running.
+              const waiting = step.status === "in_progress" && !busy;
+              const Icon = waiting ? CircleDot : { pending: Circle, in_progress: Loader2, completed: CheckCircle2, blocked: PauseCircle }[step.status];
               return <li key={step.id} data-plan-status={step.status} className={cn("flex items-start gap-2 rounded-lg p-2", step.status === "in_progress" && "bg-muted/60")}>
-                <Icon aria-hidden className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground", step.status === "completed" && "text-emerald-600 dark:text-emerald-400", step.status === "blocked" && "text-amber-600 dark:text-amber-400")} />
+                <Icon aria-hidden className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground", step.status === "in_progress" && !waiting && "animate-spin motion-reduce:animate-none", step.status === "completed" && "text-emerald-600 dark:text-emerald-400", step.status === "blocked" && "text-amber-600 dark:text-amber-400")} />
                 <div className="min-w-0 flex-1">
                   <div className="text-xs leading-5 [overflow-wrap:anywhere]"><span className="mr-1.5 text-muted-foreground tabular-nums">{index + 1}.</span>{step.title}</div>
                   {step.detail && <p className="mt-0.5 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{step.detail}</p>}
                 </div>
-                <span className="shrink-0 pt-0.5 text-[11px] text-muted-foreground">{t(statusKeys[step.status])}</span>
+                <span className="shrink-0 pt-0.5 text-[11px] text-muted-foreground">{t(waiting ? "home:plan_waiting" : statusKeys[step.status])}</span>
               </li>;
             })}
           </ol>

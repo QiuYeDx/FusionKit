@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import useAgentStore from "@/store/agent/useAgentStore";
+import { actionErrorMessage } from "./action-error";
 import type {
   NameTranslationApplyResult,
   NameTranslationPlanItem,
@@ -170,7 +171,7 @@ function NameTranslationPlanWidgetComponent({
         {error && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             <XCircle className="h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 [overflow-wrap:anywhere]">{error}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere]">{actionErrorMessage(error, t)}</span>
           </div>
         )}
 

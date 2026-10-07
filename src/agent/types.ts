@@ -87,7 +87,10 @@ export interface PendingNameTranslationPlan {
   /** 用户已做出决策时的操作类型，为 null 表示尚未决策 */
   resolvedAction?: "confirm" | "dismiss" | null;
   applyResult?: NameTranslationApplyResult;
+  /** Stable error code, localized by the UI. */
   error?: string;
+  /** Bounded raw detail when an apply outcome is unknown. */
+  errorDetail?: string;
 }
 
 // ---------------------------------------------------------------------------

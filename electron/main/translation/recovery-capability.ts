@@ -169,6 +169,8 @@ export class SubtitleTranslationRecoveryCapabilityRegistry {
     const references = await args.directoryCapabilities.registerRecoveredTaskBatch({
       owner: args.owner,
       directoryToken: args.directoryToken,
+      // Later batches of this scan reuse the user's single output authorization.
+      retainDirectory: !args.candidateIds?.length && batchStart + selected.length < totalCandidates,
       tasks: prepared.map(({ taskId, manifest }) => ({
         taskId,
         fileName: manifest.fileName,

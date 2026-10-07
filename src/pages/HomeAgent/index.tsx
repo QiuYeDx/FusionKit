@@ -9,6 +9,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
+import { useShallow } from "zustand/react/shallow";
 import {
   Send,
   Loader2,
@@ -40,6 +41,7 @@ import AgentCapabilities from "./components/AgentCapabilities";
 import AgentPreparedActions from "./components/AgentPreparedActions";
 import AgentToolCallView from "./components/AgentToolCall";
 import AgentToolResultView, { isModernToolResult } from "./components/AgentToolResult";
+import { actionErrorMessage } from "./components/action-error";
 import { createWidgetActionHandler, isNamePlanResultFor } from "./widget-actions";
 import { appendProgressPrompt } from "./presentation";
 import type {
@@ -188,6 +190,14 @@ function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string
   const statusMark = isSuccess ? " ✓" : " ✗";
   const raw = message.content;
 
+  if (!isSuccess && result?.error) {
+    const details = Array.isArray(result.data?.errors)
+      ? (result.data.errors as unknown[]).filter((item): item is string => typeof item === "string").slice(0, 5)
+      : [];
+    const list = details.map((item) => `\n- \`${item.replace(/`/g, "'")}\``).join("");
+    return `**${toolName}**${statusMark}\n\n${actionErrorMessage(result.error, t)}${list}`;
+  }
+
   let body: string;
   try {
     const parsed = result?.data ?? JSON.parse(raw);
@@ -266,18 +276,27 @@ function HomeAgent() {
   const [importError, setImportError] = useState<string | null>(null);
   const [sessionFeedback, setSessionFeedback] = useState<string | null>(null);
 
+  // Streaming text and in-flight tool calls are read by StreamingAssistant only, so
+  // token deltas do not re-render the whole page.
   const {
     session,
     isStreaming,
-    streamingText,
     resetSession,
     executionMode,
     setExecutionMode,
     pendingExecution,
     pendingNameTranslationPlan,
-    activeToolCalls,
-    sessionLog,
-  } = useAgentStore();
+    hasSessionLog,
+  } = useAgentStore(useShallow((state) => ({
+    session: state.session,
+    isStreaming: state.isStreaming,
+    resetSession: state.resetSession,
+    executionMode: state.executionMode,
+    setExecutionMode: state.setExecutionMode,
+    pendingExecution: state.pendingExecution,
+    pendingNameTranslationPlan: state.pendingNameTranslationPlan,
+    hasSessionLog: state.sessionLog.length > 0,
+  })));
   const { messages, status } = session;
   const isEmpty = messages.length === 0;
   const toolResults = useMemo(() => new Map(messages.flatMap(message => message.toolResult ? [[message.toolResult.callId, message.toolResult] as const] : [])), [messages]);
@@ -440,7 +459,6 @@ function HomeAgent() {
 
     scheduleScrollToBottom("auto");
   }, [
-    activeToolCalls,
     isEmpty,
     isStreaming,
     messages.length,
@@ -448,7 +466,6 @@ function HomeAgent() {
     scheduleScrollToBottom,
     setBottomState,
     status,
-    streamingText.length,
     updateScrollPosition,
   ]);
 
@@ -482,6 +499,10 @@ function HomeAgent() {
       onWidgetAction: createWidgetActionHandler(session.id, useAgentStore.getState, navigate),
     }),
     [session.id, navigate],
+  );
+  const streamingWidgetContext = useMemo<MarkdownWidgetContext>(
+    () => ({ ...widgetContext, isStreaming: true }),
+    [widgetContext],
   );
   const pendingWidgetContext = useMemo<MarkdownWidgetContext>(
     () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(session.id, useAgentStore.getState, navigate,
@@ -696,7 +717,7 @@ function HomeAgent() {
                 size="sm"
                 onClick={() => setLogOpen(true)}
                 data-testid="agent-logs-trigger"
-                disabled={sessionLog.length === 0}
+                disabled={!hasSessionLog}
                 className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30"
                 title={t("home:session_log_title")}
               >
@@ -1065,38 +1086,7 @@ function HomeAgent() {
                 />
               ))}
 
-              {/* Thinking indicator */}
-              {isStreaming &&
-                status === "thinking" &&
-                !streamingText &&
-                activeToolCalls.length === 0 && (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>{t("home:agent_thinking")}</span>
-                  </div>
-                )}
-
-              {/* Streaming assistant response + in-flight tool calls */}
-              {isStreaming &&
-                (streamingText || activeToolCalls.length > 0) && (
-                  <div className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
-                      <Bot className="h-3.5 w-3.5" />
-                    </div>
-                    <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
-                      <ChatMarkdownRenderer
-                        content={streamingText || ""}
-                        widgetRegistry={homeAgentWidgetRegistry}
-                        widgetContext={{
-                          ...widgetContext,
-                          isStreaming: true,
-                        }}
-                        codeBlock={{ colorTheme: "qiuvision" }}
-                      />
-                      <div className="mt-2 space-y-2">{activeToolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} running />)}</div>
-                    </div>
-                  </div>
-                )}
+              {isStreaming && <StreamingAssistant widgetContext={streamingWidgetContext} />}
 
               <AgentPreparedActions key={session.id} sessionId={session.id} busy={isStreaming} />
               {session.plan && <AgentPlanPanel key={session.plan.id} plan={session.plan} onCheckProgress={handleCheckProgress} busy={isStreaming} />}
@@ -1231,6 +1221,40 @@ function CapsuleModeSelector({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+/** Thinking indicator, streamed reply and in-flight tool calls of the current turn. */
+function StreamingAssistant({ widgetContext }: { widgetContext: MarkdownWidgetContext }) {
+  const { t } = useTranslation();
+  const { streamingText, activeToolCalls, thinking } = useAgentStore(useShallow((state) => ({
+    streamingText: state.streamingText,
+    activeToolCalls: state.activeToolCalls,
+    thinking: state.session.status === "thinking",
+  })));
+  if (!streamingText && activeToolCalls.length === 0) {
+    return thinking ? (
+      <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <span>{t("home:agent_thinking")}</span>
+      </div>
+    ) : null;
+  }
+  return (
+    <div className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
+        <Bot className="h-3.5 w-3.5" />
+      </div>
+      <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
+        <ChatMarkdownRenderer
+          content={streamingText}
+          widgetRegistry={homeAgentWidgetRegistry}
+          widgetContext={widgetContext}
+          codeBlock={{ colorTheme: "qiuvision" }}
+        />
+        <div className="mt-2 space-y-2">{activeToolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} running />)}</div>
+      </div>
+    </div>
   );
 }
 

@@ -51,6 +51,8 @@ import {
 import { createSubtitleTaskExecutionBinding } from "./task-model-config";
 import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
 import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
+import i18n from "@/i18n";
+import { latestUserMessageText, userMentionedDirectory, userRequestedOverwrite } from "./user-intent-authority";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -148,7 +150,8 @@ export async function executeScan(
     } catch (err: any) {
       return {
         success: false,
-        error: `Failed to scan directory "${dir}": ${err?.message || err}`,
+        error: "scan_failed",
+        data: { directory: dir, reason: errorReason(err) },
       };
     }
   }
@@ -195,7 +198,8 @@ export async function executeInspectRenamePaths(
   } catch (err: any) {
     return {
       success: false,
-      error: `Failed to inspect rename paths: ${err?.message || err}`,
+      error: "rename_inspect_failed",
+      data: { reason: errorReason(err) },
     };
   }
 }
@@ -265,7 +269,8 @@ export async function executeCreateNameTranslationPlan(
   } catch (err: any) {
     return {
       success: false,
-      error: `Failed to create name translation plan: ${err?.message || err}`,
+      error: errorReason(err) === "task_model_not_configured" ? "task_model_not_configured" : "rename_plan_failed",
+      data: { reason: errorReason(err) },
     };
   }
 }
@@ -286,11 +291,11 @@ export async function executeApplyNameTranslationPlan(
   if (!pending || pending.planId !== args.planId || pending.resolvedAction || pending.isApplying ||
       !pending.createdByUserMessageId || !latestUser || latestUser.id === pending.createdByUserMessageId ||
       !isExplicitRenameConfirmation(latestUser.content, args.planId)) {
-    return { success: false, error: "请在预览后的新一轮消息中明确确认当前重命名计划，或使用预览中的确认按钮。", data: { planId: args.planId, executionStatus: "confirmation_required" } };
+    return { success: false, error: "rename_confirmation_required", data: { planId: args.planId, executionStatus: "confirmation_required", nextAction: "Ask the user to confirm this rename plan in a new message, or to use the confirm button on the preview." } };
   }
   const result = await store.confirmNameTranslationPlan(args.planId, signal);
   if (result) return { success: true, data: { ...result, executionStatus: "applied" } };
-  return { success: false, error: useAgentStore.getState().pendingNameTranslationPlan?.error ?? "重命名计划未执行。", data: { planId: args.planId, executionStatus: "not_applied" } };
+  return { success: false, error: useAgentStore.getState().pendingNameTranslationPlan?.error ?? "rename_not_applied", data: { planId: args.planId, executionStatus: "not_applied" } };
 }
 
 // ---------------------------------------------------------------------------
@@ -304,11 +309,12 @@ export async function executeQueueTranslate(
   const check = executionFence(signal);
   check();
   if (containsLegacyAgentTranslateAuthority(args)) {
-    return { success: false, error: "字幕翻译不接受 filePaths、scanId 或 outputDir。请通过 FusionKit 文件选择器重新授权。" };
+    return { success: false, error: "translation_requires_picker" };
   }
   const store = useSubtitleTranslatorStore.getState();
   const taskProfile = useModelStore.getState().getTaskProfile();
-  if (!taskProfile?.apiKey) return { success: false, error: "未配置任务执行模型，请在设置页面配置。" };
+  if (!taskProfile?.apiKey) return { success: false, error: "task_model_not_configured" };
+  const conflict = resolveConflictPolicy(args.conflictPolicy);
   const api = getSubtitleTranslationApi();
   const taskIds: string[] = [];
   const errors: string[] = [];
@@ -323,17 +329,17 @@ export async function executeQueueTranslate(
       const directory = await api.selectOutputDirectory();
       if (directory.ok) directoryToken = directory.data.directoryToken;
       check();
-      if (!directory.ok) return { success: false, error: `无法授权字幕输出目录：${directory.error.code}` };
-      if (directory.data.cancelled) return { success: false, error: "已取消字幕输出目录选择，未创建翻译任务。" };
+      if (!directory.ok) return { success: false, error: "translation_output_authorization_failed", data: { reason: directory.error.code } };
+      if (directory.data.cancelled) return { success: false, error: "translation_output_selection_cancelled" };
     }
     const selected = await api.selectAgentInputFiles();
     if (selected.ok && !selected.data.cancelled) selectionRef = selected.data.selectionRef;
     check();
-    if (!selected.ok) return { success: false, error: `无法授权字幕输入文件：${selected.error.code}` };
-    if (selected.data.cancelled) return { success: false, error: "已取消字幕文件选择，未创建翻译任务。" };
+    if (!selected.ok) return { success: false, error: "translation_input_authorization_failed", data: { reason: selected.error.code } };
+    if (selected.data.cancelled) return { success: false, error: "translation_input_selection_cancelled" };
     const selection = selected.data;
     totalFiles = selection.files.length;
-    const sliceConfig = resolveTranslationSliceConfig(args, getLatestUserMessageContent());
+    const sliceConfig = resolveTranslationSliceConfig(args, latestUserMessageText(useAgentStore.getState().session.messages));
     const sourceLang = (args.sourceLang || "JA") as TranslationLanguage;
     const targetLang = (args.targetLang || "ZH") as TranslationLanguage;
     const translationOutputMode = (args.translationOutputMode || "bilingual") as TranslationOutputMode;
@@ -353,7 +359,7 @@ export async function executeQueueTranslate(
         fileName, fileContent, sliceType: sliceConfig.sliceType as any, customSliceLength: sliceConfig.customSliceLength,
         status: TaskStatus.NOT_STARTED, progress: 0, costEstimate: fastEstimate,
         executionBinding: createSubtitleTaskExecutionBinding(taskProfile), sourceLang, targetLang, translationOutputMode,
-        conflictPolicy: args.conflictPolicy ?? "index", concurrentSlices: args.concurrentSlices ?? true,
+        conflictPolicy: conflict.policy, concurrentSlices: args.concurrentSlices ?? true,
       });
       check();
       const registration = await api.registerAgentAuthorizedTask({
@@ -380,8 +386,8 @@ export async function executeQueueTranslate(
   try { check(); } catch { cancelled = true; }
   return handlePostQueue("translate", taskIds, {
     success: taskIds.length > 0 || (!cancelled && errors.length === 0),
-    ...(cancelled && !taskIds.length ? { error: "已停止，未创建翻译任务。" } : {}),
-    data: { queuedCount: taskIds.length, totalFiles, ...(errors.length ? { errors } : {}) },
+    ...(cancelled && !taskIds.length ? { error: "agent_stopped_before_queue" } : {}),
+    data: { queuedCount: taskIds.length, totalFiles, ...(errors.length ? { errors } : {}), ...conflict.receipt },
   }, cancelled || signal?.aborted === true);
 }
 
@@ -398,6 +404,9 @@ export async function executeQueueConvert(
   const store = useSubtitleConverterStore.getState();
   const selection = resolveQueueFileSelection(args);
   if (!selection.ok) return { success: false, error: selection.error };
+  const output = await resolveLegacyOutputDirectory("convert", args, check);
+  if (!output.ok) return { success: false, error: output.error };
+  const conflict = resolveConflictPolicy(args.conflictPolicy);
   const taskIds: string[] = [];
   const errors: string[] = [];
   let cancelled = false;
@@ -413,8 +422,8 @@ export async function executeQueueConvert(
       if (ext === args.to) { errors.push(`Already ${args.to}: ${fileName}`); continue; }
       const task: SubtitleConverterTask & { agentTaskId: string } = {
         agentTaskId: crypto.randomUUID(), fileName, fileContent, from: ext, to: args.to as SubtitleConvertFormat,
-        originFileURL: filePath, targetFileURL: resolveOutputDir(args.outputMode, args.outputDir, filePath),
-        status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: args.conflictPolicy ?? "index",
+        originFileURL: filePath, targetFileURL: output.directory ?? sourceDirectoryOf(filePath),
+        status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: conflict.policy,
       };
       store.addTask(task);
       if (useSubtitleConverterStore.getState().notStartedTasks.includes(task)) taskIds.push(task.agentTaskId);
@@ -426,8 +435,8 @@ export async function executeQueueConvert(
   }
   return handlePostQueue("convert", taskIds, {
     success: taskIds.length > 0 || (!cancelled && errors.length === 0),
-    ...(cancelled && !taskIds.length ? { error: "Agent stopped before creating tasks." } : {}),
-    data: createQueueResultData(selection, taskIds.length, errors),
+    ...(cancelled && !taskIds.length ? { error: "agent_stopped_before_queue" } : {}),
+    data: { ...createQueueResultData(selection, taskIds.length, errors), ...conflict.receipt },
   }, cancelled);
 }
 
@@ -444,6 +453,9 @@ export async function executeQueueExtract(
   const store = useSubtitleExtractorStore.getState();
   const selection = resolveQueueFileSelection(args);
   if (!selection.ok) return { success: false, error: selection.error };
+  const output = await resolveLegacyOutputDirectory("extract", args, check);
+  if (!output.ok) return { success: false, error: output.error };
+  const conflict = resolveConflictPolicy(args.conflictPolicy);
   const taskIds: string[] = [];
   const errors: string[] = [];
   let cancelled = false;
@@ -458,8 +470,8 @@ export async function executeQueueExtract(
       if (!isSubtitleConvertFormat(ext)) { errors.push(`Unsupported format: ${fileName}`); continue; }
       const task: SubtitleExtractorTask & { agentTaskId: string } = {
         agentTaskId: crypto.randomUUID(), fileName, fileContent, fileType: ext, keep: args.keep,
-        originFileURL: filePath, targetFileURL: resolveOutputDir(args.outputMode, args.outputDir, filePath),
-        status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: args.conflictPolicy ?? "index",
+        originFileURL: filePath, targetFileURL: output.directory ?? sourceDirectoryOf(filePath),
+        status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: conflict.policy,
       };
       store.addTask(task);
       if (useSubtitleExtractorStore.getState().notStartedTasks.includes(task)) taskIds.push(task.agentTaskId);
@@ -471,8 +483,8 @@ export async function executeQueueExtract(
   }
   return handlePostQueue("extract", taskIds, {
     success: taskIds.length > 0 || (!cancelled && errors.length === 0),
-    ...(cancelled && !taskIds.length ? { error: "Agent stopped before creating tasks." } : {}),
-    data: createQueueResultData(selection, taskIds.length, errors),
+    ...(cancelled && !taskIds.length ? { error: "agent_stopped_before_queue" } : {}),
+    data: { ...createQueueResultData(selection, taskIds.length, errors), ...conflict.receipt },
   }, cancelled);
 }
 
@@ -504,7 +516,7 @@ export async function executeScanSubtitleRecoveryTasks(
     throw error;
   }
   if (payload.cancelled) {
-    return { success: false, error: "Recovery selection was cancelled." };
+    return { success: false, error: "recovery_selection_cancelled" };
   }
 
   useAgentStore.getState().appendLog(
@@ -538,28 +550,35 @@ export async function executeQueueRecoveredSubtitleTranslate(
   const taskProfile = modelStore.getTaskProfile();
 
   if (!taskProfile || !taskProfile.apiKey) {
-    return {
-      success: false,
-      error: "未配置任务执行模型，请在设置页面配置。",
-    };
+    return { success: false, error: "task_model_not_configured" };
   }
 
   await flushPendingAgentTranslationRevocations();
   check();
   let queuedCount = 0;
   let skippedCount = 0;
-  const directory = await getSubtitleTranslationApi().selectOutputDirectory();
-  if (!directory.ok) { check(); return { success: false, error: directory.error.message }; }
-  try { check(); } catch (error) {
-    if (directory.data.directoryToken) await scheduleAgentOutputDirectoryRevocation(directory.data.directoryToken);
-    throw error;
+  const sessionId = useAgentStore.getState().session.id;
+  const retained = recoveryOutputDirectories.get(args.recoveryScanId);
+  recoveryOutputDirectories.delete(args.recoveryScanId);
+  let recoveryDirectoryToken: string | undefined;
+  if (retained?.sessionId === sessionId) {
+    // A later batch of the same scan reuses the directory the user already chose.
+    recoveryDirectoryToken = retained.directoryToken;
+  } else {
+    if (retained) await scheduleAgentOutputDirectoryRevocation(retained.directoryToken);
+    const directory = await getSubtitleTranslationApi().selectOutputDirectory();
+    if (!directory.ok) { check(); return { success: false, error: directory.error.message }; }
+    try { check(); } catch (error) {
+      if (directory.data.directoryToken) await scheduleAgentOutputDirectoryRevocation(directory.data.directoryToken);
+      throw error;
+    }
+    if (directory.data.cancelled) {
+      return { success: false, error: "recovery_output_selection_cancelled" };
+    }
+    recoveryDirectoryToken = directory.data.directoryToken;
   }
-  if (directory.data.cancelled) {
-    return { success: false, error: "Recovery output selection was cancelled." };
-  }
-  const recoveryDirectoryToken = directory.data.directoryToken;
   if (!recoveryDirectoryToken) {
-    return { success: false, error: "Recovery output authorization is unavailable." };
+    return { success: false, error: "recovery_output_authorization_unavailable" };
   }
   let prepared;
   try {
@@ -579,11 +598,18 @@ export async function executeQueueRecoveredSubtitleTranslate(
       error: error instanceof Error ? error.message : String(error),
     };
   }
-  await scheduleAgentOutputDirectoryRevocation(recoveryDirectoryToken);
+  // Main keeps the directory authority only while the scan has more batches.
+  if (prepared.hasMore && !args.candidateIds?.length && useAgentStore.getState().session.id === sessionId) {
+    recoveryOutputDirectories.set(args.recoveryScanId, { sessionId, directoryToken: recoveryDirectoryToken });
+  } else {
+    await scheduleAgentOutputDirectoryRevocation(recoveryDirectoryToken);
+  }
   try { check(); } catch (error) {
     for (const draft of prepared.tasks) releaseSubtitleTranslationTaskAuthority(draft.taskId);
+    await releaseRecoveryOutputDirectory(args.recoveryScanId);
     throw error;
   }
+  const conflict = resolveConflictPolicy(args.conflictPolicy);
   const tasks: SubtitleTranslatorTask[] = prepared.tasks.map((draft) => ({
     taskId: draft.taskId,
     fileName: draft.fileName,
@@ -603,7 +629,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
     totalFragments: draft.totalFragments,
     progress: draft.progress,
     ...(draft.actualUsage ? { actualUsage: draft.actualUsage } : {}),
-    conflictPolicy: args.conflictPolicy ?? "index",
+    conflictPolicy: conflict.policy,
     concurrentSlices: args.concurrentSlices ?? true,
     recoveryMode: "resume",
     recoveryInputMode: "manifest_fragments",
@@ -637,6 +663,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
   }
 
   const resultData: Record<string, unknown> = {
+    ...conflict.receipt,
     queuedCount,
     skippedCount,
     totalCandidates: prepared.totalCandidates,
@@ -693,6 +720,11 @@ async function readFileContent(absolutePath: string): Promise<string | null> {
   }
 }
 
+/** Bounded raw failure detail kept beside a stable error code. */
+function errorReason(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).slice(0, 600);
+}
+
 function extractFileName(filePath: string): string {
   return filePath.replace(/\\/g, "/").split("/").pop() || filePath;
 }
@@ -702,21 +734,51 @@ function extractExtension(filePath: string): string {
   return (parts.pop() || "").toUpperCase();
 }
 
-function resolveOutputDir(
-  mode: string | undefined,
-  customDir: string | undefined,
-  filePath: string
-): string {
-  if (mode === "custom" && customDir) return customDir;
+function sourceDirectoryOf(filePath: string): string {
   return filePath.replace(/\\/g, "/").split("/").slice(0, -1).join("/");
 }
 
-function getLatestUserMessageContent(): string {
-  const messages = useAgentStore.getState().session.messages;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === "user") return messages[i].content;
+/**
+ * Overwriting replaces user files, so it needs the user's own words in the latest
+ * message; otherwise the safe indexed policy is used and reported to the model.
+ */
+function resolveConflictPolicy(requested: "index" | "overwrite" | undefined) {
+  if (requested !== "overwrite") return { policy: "index" as const, receipt: {} };
+  if (userRequestedOverwrite(latestUserMessageText(useAgentStore.getState().session.messages))) {
+    return { policy: "overwrite" as const, receipt: {} };
   }
-  return "";
+  return { policy: "index" as const, receipt: { conflictPolicy: "index", conflictPolicyAdjusted: "overwrite_requires_explicit_user_request" } };
+}
+
+/** Custom output directories chosen in the picker, reused by later batches of one scan. */
+const legacyOutputDirectories = new Map<string, { sessionId: string; directory: string }>();
+
+/**
+ * A custom output directory must come from the user: either typed in this
+ * conversation or chosen in the native picker. Model-invented paths are ignored.
+ */
+async function resolveLegacyOutputDirectory(
+  kind: "convert" | "extract",
+  args: { outputMode?: string; outputDir?: string; scanId?: string },
+  check: () => void,
+): Promise<{ ok: true; directory?: string } | { ok: false; error: string }> {
+  if (args.outputMode !== "custom") return { ok: true };
+  const { session } = useAgentStore.getState();
+  if (args.outputDir && userMentionedDirectory(session.messages, args.outputDir)) {
+    return { ok: true, directory: args.outputDir.trim() };
+  }
+  const cacheKey = args.scanId ? `${kind}:${args.scanId}` : undefined;
+  const cached = cacheKey ? legacyOutputDirectories.get(cacheKey) : undefined;
+  if (cached?.sessionId === session.id) return { ok: true, directory: cached.directory };
+  const result = await getIpcRenderer().invoke("select-output-directory", {
+    title: i18n.t("subtitle:converter.dialog.select_output_title"),
+    buttonLabel: i18n.t("subtitle:converter.dialog.select_output_confirm"),
+  }) as { canceled?: boolean; filePaths?: string[] } | undefined;
+  check();
+  const directory = result && !result.canceled ? result.filePaths?.[0] : undefined;
+  if (!directory) return { ok: false, error: "output_selection_cancelled" };
+  if (cacheKey) legacyOutputDirectories.set(cacheKey, { sessionId: session.id, directory });
+  return { ok: true, directory };
 }
 
 function deduplicateByPath<T extends { absolutePath: string }>(
@@ -760,6 +822,25 @@ function getIpcRenderer(): Window["ipcRenderer"] {
 
 const pendingAgentSelectionRevocations = new Set<string>();
 const pendingAgentOutputDirectoryRevocations = new Set<string>();
+/** Output authority main retains for the remaining batches of one recovery scan. */
+const recoveryOutputDirectories = new Map<string, { sessionId: string; directoryToken: string }>();
+
+async function releaseRecoveryOutputDirectory(recoveryScanId: string): Promise<void> {
+  const retained = recoveryOutputDirectories.get(recoveryScanId);
+  if (!retained) return;
+  recoveryOutputDirectories.delete(recoveryScanId);
+  await scheduleAgentOutputDirectoryRevocation(retained.directoryToken);
+}
+
+useAgentStore.subscribe((state, previous) => {
+  if (state.session.id === previous.session.id) return;
+  legacyOutputDirectories.clear();
+  for (const [recoveryScanId, retained] of recoveryOutputDirectories) {
+    if (retained.sessionId !== state.session.id) {
+      void releaseRecoveryOutputDirectory(recoveryScanId).catch(() => {});
+    }
+  }
+});
 
 function containsLegacyAgentTranslateAuthority(value: unknown): boolean {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {

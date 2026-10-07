@@ -99,6 +99,7 @@
   "plan_pending": "待处理",
   "plan_in_progress": "进行中",
   "plan_completed": "已完成",
+  "plan_waiting": "等待继续",
   "plan_blocked": "待解决",
   "capabilities_title": "可用工具",
   "capabilities_description": "通过对话规划和调用已接入的工具。需要文件、配置或确认时，Agent 会说明下一步。",
@@ -229,5 +230,19 @@
   "result_more_items": "另有 {{count}} 项，可展开详情查看。",
   "action_error_limit": "待确认操作过多，请先处理当前操作。",
   "action_error_arguments": "操作参数无效，请重新准备。",
-  "action_error_submission_unknown": "提交结果尚未确认，请先在工具页检查任务，避免重复提交。"
+  "action_error_submission_unknown": "提交结果尚未确认，请先在工具页检查任务，避免重复提交。",
+  "action_error_rename_confirmation": "请在新消息中确认重命名计划，或使用预览中的确认按钮。",
+  "action_error_rename_not_applied": "重命名计划未执行。",
+  "action_error_rename_expired": "该重命名计划已过期，请重新生成预览。",
+  "action_error_rename_empty": "该计划没有可重命名的条目。",
+  "action_error_rename_changed": "部分条目在预览后已变化，未进行任何重命名，请重新生成预览。",
+  "action_error_rename_unknown": "重命名结果尚未确认，请先在重命名工具核对，不要重复应用。",
+  "action_error_rename_plan": "无法生成重命名预览。",
+  "action_error_rename_inspect": "无法检查这些路径。",
+  "action_error_picker_required": "字幕翻译只接受通过 FusionKit 文件选择器选择的文件。",
+  "action_error_selection_cancelled": "已取消选择，未创建任务。",
+  "action_error_output_cancelled": "已取消输出目录选择，未创建任务。",
+  "action_error_authorization": "无法授权所选文件或目录，请重新选择。",
+  "action_error_stopped": "已停止，未创建任务。",
+  "action_error_scan": "无法扫描该目录。"
 }

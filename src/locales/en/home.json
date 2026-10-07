@@ -99,6 +99,7 @@
   "plan_pending": "Pending",
   "plan_in_progress": "In progress",
   "plan_completed": "Completed",
+  "plan_waiting": "Waiting",
   "plan_blocked": "Blocked",
   "capabilities_title": "Available tools",
   "capabilities_description": "Plan and use connected tools in this conversation. The Agent will explain when files, configuration or confirmation are needed.",
@@ -229,5 +230,19 @@
   "result_more_items": "{{count}} more items are available in details.",
   "action_error_limit": "Too many actions await confirmation. Resolve the current actions first.",
   "action_error_arguments": "The operation has invalid parameters. Prepare it again.",
-  "action_error_submission_unknown": "Submission is not yet confirmed. Check the tool page before submitting again."
+  "action_error_submission_unknown": "Submission is not yet confirmed. Check the tool page before submitting again.",
+  "action_error_rename_confirmation": "Confirm the rename plan in a new message, or use the confirm button on the preview.",
+  "action_error_rename_not_applied": "The rename plan was not applied.",
+  "action_error_rename_expired": "This rename plan has expired. Generate a new preview.",
+  "action_error_rename_empty": "This rename plan has nothing to rename.",
+  "action_error_rename_changed": "Some items changed after the preview. Nothing was renamed; generate a new preview.",
+  "action_error_rename_unknown": "The rename result is not confirmed. Check the rename tool before applying again.",
+  "action_error_rename_plan": "The rename preview could not be created.",
+  "action_error_rename_inspect": "The paths could not be inspected.",
+  "action_error_picker_required": "Subtitle translation only accepts files chosen in FusionKit's file picker.",
+  "action_error_selection_cancelled": "Selection was cancelled. No task was created.",
+  "action_error_output_cancelled": "Output folder selection was cancelled. No task was created.",
+  "action_error_authorization": "The selected files or folder could not be authorized. Choose them again.",
+  "action_error_stopped": "Stopped before any task was created.",
+  "action_error_scan": "The folder could not be scanned."
 }

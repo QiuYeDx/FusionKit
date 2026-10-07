@@ -4,7 +4,13 @@ import type { ModelProfile } from "@/type/model";
 import { normalizeModelEndpoint } from "@/lib/model-endpoint";
 import type { AgentToolSet } from "../guarded-tools";
 import { AGENT_CONTEXT_CHARACTER_BUDGET } from "../conversation-context";
-import type { AgentRuntimeStreamPart, AgentRuntimeTurnResult } from "./types";
+import {
+  getUnsupportedParameters,
+  markParameterUnsupported,
+  optionalParameterKey,
+  rejectsOptionalParameter,
+} from "./optional-parameters";
+import type { AgentRuntimeStreamPart, AgentRuntimeTurnResult, AgentRuntimeUsage } from "./types";
 
 export interface ChatCompletionsAgentTurnRequest {
   profile: Pick<ModelProfile, "apiKey" | "baseUrl" | "modelKey">;
@@ -19,13 +25,14 @@ export interface ChatCompletionsAgentTurnRequest {
 
 export class ChatCompletionsAgentAdapter {
   streamTurn(request: ChatCompletionsAgentTurnRequest): AgentRuntimeTurnResult {
-    const result = streamText({
+    const key = optionalParameterKey(resolveChatCompletionsAgentBaseUrl(request.profile.baseUrl), request.profile.modelKey);
+    return streamWithTemperatureFallback(key, request.maxSteps, request.abortSignal, (omitTemperature) => streamText({
       model: createChatCompletionsAgentModel(request.profile),
       system: request.system,
       messages: request.messages,
       tools: request.tools,
       stopWhen: stepCountIs(request.maxSteps),
-      temperature: request.temperature,
+      ...(omitTemperature ? {} : { temperature: request.temperature }),
       maxOutputTokens: request.maxOutputTokens,
       abortSignal: request.abortSignal,
       maxRetries: 0,
@@ -35,13 +42,72 @@ export class ChatCompletionsAgentAdapter {
         }
         return {};
       },
-    });
-
-    return {
-      fullStream: normalizeChatStream(result.fullStream, request.maxSteps, request.abortSignal),
-      usage: Promise.resolve(result.usage).catch(() => undefined),
-    };
+    }));
   }
+}
+
+interface ChatStreamAttempt {
+  fullStream: AsyncIterable<unknown>;
+  usage: PromiseLike<AgentRuntimeUsage | undefined>;
+}
+
+/**
+ * Reasoning models reject `temperature`. When the very first event of a turn is a 400
+ * naming it, nothing has streamed or executed, so restart once without it and remember
+ * that for this endpoint and model.
+ */
+export function streamWithTemperatureFallback(
+  key: string,
+  maxSteps: number,
+  signal: AbortSignal,
+  start: (omitTemperature: boolean) => ChatStreamAttempt,
+): AgentRuntimeTurnResult {
+  let resolveAttempt: (attempt: ChatStreamAttempt | undefined) => void = () => {};
+  const finalAttempt = new Promise<ChatStreamAttempt | undefined>((resolve) => { resolveAttempt = resolve; });
+  async function* stream(): AsyncGenerator<AgentRuntimeStreamPart> {
+    let attempt: ChatStreamAttempt | undefined;
+    try {
+      while (true) {
+        const omitTemperature = getUnsupportedParameters(key).has("temperature");
+        attempt = start(omitTemperature);
+        let started = false;
+        let retry = false;
+        for await (const part of normalizeChatStream(attempt.fullStream, maxSteps, signal)) {
+          if (!started && !omitTemperature && part.type === "error"
+            && rejectsOptionalParameter(describeApiCallError(part.error), "temperature")) {
+            markParameterUnsupported(key, "temperature");
+            retry = true;
+            break;
+          }
+          started = true;
+          yield part;
+        }
+        if (!retry) return;
+      }
+    } finally {
+      resolveAttempt(attempt);
+    }
+  }
+  return {
+    fullStream: stream(),
+    usage: finalAttempt.then((attempt) => attempt?.usage).then((usage) => usage, () => undefined),
+  };
+}
+
+function describeApiCallError(error: unknown): { status?: number; message: string; param?: string } {
+  if (!error || typeof error !== "object") return { message: String(error) };
+  const record = error as { statusCode?: unknown; message?: unknown; responseBody?: unknown };
+  const body = typeof record.responseBody === "string" ? record.responseBody : "";
+  let param: string | undefined;
+  try {
+    const parsed = JSON.parse(body);
+    if (typeof parsed?.error?.param === "string") param = parsed.error.param;
+  } catch { /* Non-JSON bodies are matched by text only. */ }
+  return {
+    status: typeof record.statusCode === "number" ? record.statusCode : undefined,
+    message: `${typeof record.message === "string" ? record.message : ""} ${body}`,
+    param,
+  };
 }
 
 export async function* normalizeChatStream(

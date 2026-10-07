@@ -113,7 +113,15 @@ describe("Agent turn ownership and receipts", () => {
     expect(useAgentStore.getState().session.status).toBe("idle");
   });
 
-  it.each(["completed", "step_limit", "incomplete"] as const)("ends remaining plan spinners on %s", async (reason) => {
+  it("keeps a step waiting on the user in progress after a normal turn", async () => {
+    useAgentStore.getState().updatePlan({ goal: "Work", steps: [{ id: "one", title: "Await confirmation", status: "in_progress" }] });
+    mocks.chat.mockReturnValue(turn(parts({ type: "finish", reason: "completed" })));
+    await handleUserMessage("prepare");
+    expect(useAgentStore.getState().session.plan?.steps[0].status).toBe("in_progress");
+    expect(useAgentStore.getState().isStreaming).toBe(false);
+  });
+
+  it.each(["step_limit", "incomplete"] as const)("marks the interrupted step blocked on %s", async (reason) => {
     useAgentStore.getState().updatePlan({ goal: "Work", steps: [{ id: "one", title: "Do work", status: "in_progress" }] });
     mocks.chat.mockReturnValue(turn(parts({ type: "finish", reason })));
     await handleUserMessage("continue");
@@ -133,6 +141,30 @@ describe("Agent turn ownership and receipts", () => {
     expect(prompt).not.toContain("other-private");
     expect(prompt).not.toContain('"execute":"private"');
     expect(prompt).toContain("prepare_studio_translation");
+  });
+
+  it("coalesces streamed deltas into fewer store updates without losing text", async () => {
+    const append = vi.spyOn(useAgentStore.getState(), "appendStreamingText");
+    mocks.chat.mockReturnValue(turn(parts(
+      { type: "text-delta", text: "Hel" }, { type: "text-delta", text: "lo " }, { type: "text-delta", text: "there" },
+      { type: "finish", reason: "completed" },
+    )));
+    await handleUserMessage("hi");
+    expect(useAgentStore.getState().session.messages.at(-1)).toMatchObject({ role: "assistant", content: "Hello there" });
+    expect(append.mock.calls.length).toBeLessThan(3);
+    append.mockRestore();
+  });
+
+  it("keeps the static instructions as a stable prefix across modes and state", async () => {
+    await handleUserMessage("first");
+    useAgentStore.setState({ executionMode: "auto_execute" });
+    useAgentStore.getState().updatePlan({ goal: "Changed", steps: [{ id: "one", title: "Step", status: "pending" }] });
+    await handleUserMessage("second");
+    const [first, second] = mocks.chat.mock.calls.map(([request]) => request.system as string);
+    const prefix = first.slice(0, first.indexOf("## Current Application State"));
+    expect(prefix.length).toBeGreaterThan(5_000);
+    expect(second.startsWith(prefix)).toBe(true);
+    expect(first).not.toBe(second);
   });
 
   it("redacts the model credential from reported errors", async () => {

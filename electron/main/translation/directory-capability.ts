@@ -136,6 +136,8 @@ export interface RegisterGeneratedSubtitleTranslationTaskRequest {
 export interface RegisterRecoveredSubtitleTranslationTaskBatchRequest {
   readonly owner: SubtitleTranslationOwnerKey;
   readonly directoryToken: string;
+  /** Keep the draft for the next batch of the same scan; the owner revokes it or it expires. */
+  readonly retainDirectory?: boolean;
   readonly tasks: readonly {
     readonly taskId: string;
     readonly fileName: string;
@@ -653,7 +655,7 @@ export class SubtitleTranslationDirectoryCapabilityRegistry {
         registeredTaskIds.push(task.taskId);
         return reference;
       });
-      this.drafts.delete(request.directoryToken);
+      if (!request.retainDirectory) this.drafts.delete(request.directoryToken);
       return Object.freeze(references);
     } catch (error) {
       for (const taskId of registeredTaskIds) {

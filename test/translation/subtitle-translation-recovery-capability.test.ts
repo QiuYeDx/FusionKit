@@ -314,6 +314,45 @@ describe("subtitle translation recovery capability", () => {
       directoryCapabilities: directories,
     })).rejects.toMatchObject({ code: "task_reference_conflict" });
   });
+
+  it("reuses one output authorization across batches of a scan and consumes it on the last", async () => {
+    const root = await tempRoot();
+    const recoveryDirectory = path.join(root, "recovery");
+    const outputDirectory = path.join(root, "output");
+    await Promise.all([mkdir(recoveryDirectory), mkdir(outputDirectory)]);
+    for (const name of ["one", "two"]) {
+      await saveManifest(path.join(recoveryDirectory, `${name}.fusionkit.resume.json`), createManifest({
+        taskId: `subtitle-task-${name}`,
+        fileName: `${name}.srt`,
+        fileContent: "fragment",
+        sliceType: SubtitleSliceType.NORMAL,
+        originFileURL: "/private/source.srt",
+        targetFileURL: "/private/output",
+        status: TaskStatus.PENDING,
+        executionBinding: { status: "needs_configuration" },
+      }, ["fragment"]));
+    }
+    const recovery = new SubtitleTranslationRecoveryCapabilityRegistry({
+      tokenFactory: sequence("scan", "checkpoint-1", "candidate-1", "checkpoint-2", "candidate-2", "task-1", "task-2"),
+    });
+    const directories = new SubtitleTranslationDirectoryCapabilityRegistry({
+      tokenFactory: sequence("draft", "target-1", "target-2"),
+    });
+    const scan = await recovery.scanDirectory(OWNER_A, recoveryDirectory);
+    const directory = await directories.authorizeDraft(OWNER_A, outputDirectory);
+    const batch = (batchStart: number) => recovery.prepareRecoveredTasks({
+      owner: OWNER_A,
+      recoveryScanId: scan.recoveryScanId,
+      directoryToken: directory.directoryToken,
+      batchStart,
+      batchSize: 1,
+      directoryCapabilities: directories,
+    });
+
+    await expect(batch(0)).resolves.toMatchObject({ hasMore: true, nextBatchStart: 1, tasks: [{}] });
+    await expect(batch(1)).resolves.toMatchObject({ hasMore: false, tasks: [{}] });
+    expect(directories.revokeDraft(OWNER_A, directory.directoryToken)).toBe(false);
+  });
 });
 
 function v1Manifest(): TranslationCheckpointManifestV1 {

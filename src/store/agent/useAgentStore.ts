@@ -156,6 +156,8 @@ export function executeTasksInStores(stores: TaskStoreType[], taskRefs: AgentTas
 }
 
 const LEGACY_KEY = "agent-execution-mode";
+/** Apply failures raised before any rename happened. */
+const DEFINITE_RENAME_FAILURES = new Set(["rename_plan_expired", "rename_plan_empty", "rename_plan_changed", "task_model_not_configured"]);
 
 const useAgentStore = create<AgentStore>()(
   persist(
@@ -189,7 +191,7 @@ const useAgentStore = create<AgentStore>()(
         })),
 
       setStatus: (status) =>
-        set((state) => ({
+        set((state) => state.session.status === status ? state : ({
           session: { ...state.session, status, updatedAt: Date.now() },
         })),
 
@@ -321,10 +323,10 @@ const useAgentStore = create<AgentStore>()(
         try {
           const plan = getAgentNamePlan(planId);
           if (!plan) {
-            throw new Error("重命名计划已过期或不存在，请重新生成预览。");
+            throw new Error("rename_plan_expired");
           }
           if (!plan.summary.applyable) {
-            throw new Error("当前重命名计划没有可重命名的条目。");
+            throw new Error("rename_plan_empty");
           }
           signal?.throwIfAborted();
           if (!isCurrent()) return;
@@ -350,16 +352,19 @@ const useAgentStore = create<AgentStore>()(
         } catch (error) {
           if (!isCurrent()) return;
           const detail = error instanceof Error ? error.message : String(error);
-          const message = submitted ? `执行结果未确认，请先在重命名工具核对结果，不要重复应用。${detail}` : detail;
+          // A submitted apply may have renamed files; never invite a blind retry unless
+          // the failure proves nothing was renamed.
+          const ambiguous = submitted && !DEFINITE_RENAME_FAILURES.has(detail);
+          const message = ambiguous ? "rename_apply_outcome_unknown" : detail;
           set({
             pendingNameTranslationPlan: {
               ...pendingNameTranslationPlan,
               isApplying: false,
               error: message,
-              ...(submitted ? { resolvedAction: "confirm" as const } : {}),
+              ...(ambiguous ? { errorDetail: detail.slice(0, 600), resolvedAction: "confirm" as const } : {}),
             },
           });
-          get().appendLog("error", message, {
+          get().appendLog("error", ambiguous ? `${message}: ${detail}` : message, {
             planId,
             source: "confirm_name_translation_plan",
           });

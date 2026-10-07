@@ -378,6 +378,58 @@ describe("Agent subtitle translation recovery", () => {
     }
   });
 
+  it("asks for the output directory once across batches of the same scan", async () => {
+    const batch = (index: number, hasMore: boolean) => ({
+      ok: true,
+      data: {
+        tasks: [{
+          taskId: `subtitle-task-batch-${index}`, fileName: `batch-${index}.srt`, sliceType: "NORMAL",
+          sourceLang: "JA", targetLang: "ZH", translationOutputMode: "bilingual",
+          resolvedFragments: 1, totalFragments: 2, progress: 50, checkpointRef: `checkpoint-batch-${index}`,
+          reference: {
+            kind: "generated_task_v1",
+            source: { kind: "generated_content", displayName: `batch-${index}.srt` },
+            target: { kind: "authorized_directory", token: `target-batch-${index}`, displayLabel: "Output" },
+          },
+        }],
+        totalCandidates: 2, batchStart: index, batchEnd: index + 1, hasMore, nextBatchStart: hasMore ? index + 1 : null,
+      },
+    });
+    api.selectOutputDirectory.mockResolvedValueOnce({
+      ok: true,
+      data: { cancelled: false, directoryToken: "shared-recovery-directory", displayLabel: "Output", expiresAt: Date.now() + 60_000 },
+    });
+    api.prepareRecoveredTasks.mockResolvedValueOnce(batch(0, true)).mockResolvedValueOnce(batch(1, false));
+    const queue = (batchStart: number) => executeQueueRecoveredSubtitleTranslate({
+      recoveryScanId: "recovery-scan-batches", batchStart, batchSize: 1, conflictPolicy: "index", concurrentSlices: true,
+    });
+
+    await expect(queue(0)).resolves.toMatchObject({ success: true, data: { batch: { hasMore: true } } });
+    expect(api.revokeOutputDirectory).not.toHaveBeenCalled();
+    await expect(queue(1)).resolves.toMatchObject({ success: true, data: { batch: { hasMore: false } } });
+    expect(api.selectOutputDirectory).toHaveBeenCalledTimes(1);
+    expect(api.prepareRecoveredTasks.mock.calls.map(([request]) => request.directoryToken))
+      .toEqual(["shared-recovery-directory", "shared-recovery-directory"]);
+    expect(api.revokeOutputDirectory).toHaveBeenCalledWith("shared-recovery-directory");
+  });
+
+  it("releases a retained recovery directory when the session changes", async () => {
+    api.selectOutputDirectory.mockResolvedValueOnce({
+      ok: true,
+      data: { cancelled: false, directoryToken: "retained-recovery-directory", displayLabel: "Output", expiresAt: Date.now() + 60_000 },
+    });
+    api.prepareRecoveredTasks.mockResolvedValueOnce({
+      ok: true,
+      data: { tasks: [], totalCandidates: 3, batchStart: 0, batchEnd: 1, hasMore: true, nextBatchStart: 1 },
+    });
+    await executeQueueRecoveredSubtitleTranslate({
+      recoveryScanId: "recovery-scan-retained", batchStart: 0, batchSize: 1, conflictPolicy: "index", concurrentSlices: true,
+    });
+    expect(api.revokeOutputDirectory).not.toHaveBeenCalled();
+    useAgentStore.getState().resetSession();
+    await vi.waitFor(() => expect(api.revokeOutputDirectory).toHaveBeenCalledWith("retained-recovery-directory"));
+  });
+
   it("stops on target cancellation and revokes an unused target after prepare fails", async () => {
     api.selectOutputDirectory.mockResolvedValueOnce({
       ok: true,

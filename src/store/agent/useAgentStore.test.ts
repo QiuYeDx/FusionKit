@@ -38,7 +38,17 @@ describe("Agent state boundaries", () => {
     await useAgentStore.getState().confirmNameTranslationPlan("rename-p");
     await useAgentStore.getState().confirmNameTranslationPlan("rename-p");
     expect(applyNameTranslationPlan).toHaveBeenCalledTimes(1);
-    expect(useAgentStore.getState().pendingNameTranslationPlan?.error).toContain("不要重复应用");
+    expect(useAgentStore.getState().pendingNameTranslationPlan).toMatchObject({
+      error: "rename_apply_outcome_unknown", errorDetail: "IPC lost", resolvedAction: "confirm",
+    });
+  });
+  it("keeps a definite pre-rename rejection retryable instead of ambiguous", async () => {
+    vi.mocked(applyNameTranslationPlan).mockRejectedValue(new Error("rename_plan_changed"));
+    await useAgentStore.getState().confirmNameTranslationPlan("rename-p");
+    const plan = useAgentStore.getState().pendingNameTranslationPlan;
+    expect(plan).toMatchObject({ error: "rename_plan_changed", isApplying: false });
+    expect(plan?.resolvedAction).toBeFalsy();
+    expect(plan).not.toHaveProperty("errorDetail");
   });
   it("imports display history into a new idle session without confirmations", () => {
     const state = useAgentStore.getState();

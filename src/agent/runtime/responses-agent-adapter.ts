@@ -3,7 +3,14 @@ import type { ModelProfile } from "@/type/model";
 import { normalizeModelEndpoint } from "@/lib/model-endpoint";
 import type { AgentMessage } from "../types";
 import { abortError, assertTurnActive } from "../guarded-tools";
-import { AGENT_CONTEXT_CHARACTER_BUDGET, compactToolOutput } from "../conversation-context";
+import { AGENT_CONTEXT_CHARACTER_BUDGET, compactToolOutput, toolFailurePayload } from "../conversation-context";
+import {
+  getUnsupportedParameters,
+  markParameterUnsupported,
+  optionalParameterKey,
+  rejectsOptionalParameter,
+  type OptionalModelParameter,
+} from "./optional-parameters";
 import type {
   AgentRuntimeStreamPart,
   AgentRuntimeTurnResult,
@@ -72,6 +79,8 @@ interface ResponsesStepResult {
   usage?: AgentRuntimeUsage;
 }
 
+const OPTIONAL_RESPONSES_PARAMETERS: OptionalModelParameter[] = ["temperature", "include"];
+
 export class ResponsesAgentAdapter {
   streamTurn(request: ResponsesAgentTurnRequest): AgentRuntimeTurnResult {
     let finalUsage: AgentRuntimeUsage | undefined;
@@ -109,19 +118,7 @@ export class ResponsesAgentAdapter {
           replayItems: [],
         };
 
-        const response = await fetch(resolveResponsesAgentUrl(request.profile.baseUrl), {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${request.profile.apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(await buildResponsesRequestBody(request, input)),
-          signal: request.abortSignal,
-        });
-
-        if (!response.ok) {
-          throw await createResponsesHttpError(response, request.profile.apiKey);
-        }
+        const response = await postResponsesStep(request, input);
 
         if (!response.body) {
           throw new Error("Responses API stream body is empty.");
@@ -180,6 +177,33 @@ export class ResponsesAgentAdapter {
   }
 }
 
+/**
+ * Sends one model step. A 400 naming an optional field is retried without it; nothing
+ * has streamed or executed yet, so the retry cannot duplicate side effects.
+ */
+async function postResponsesStep(request: ResponsesAgentTurnRequest, input: ResponsesInputItem[]): Promise<Response> {
+  const url = resolveResponsesAgentUrl(request.profile.baseUrl);
+  const key = optionalParameterKey(url, request.profile.modelKey);
+  const tools = await buildResponsesTools(request.tools);
+  while (true) {
+    const unsupported = getUnsupportedParameters(key);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${request.profile.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildResponsesRequestBody(request, input, tools, unsupported)),
+      signal: request.abortSignal,
+    });
+    if (response.ok) return response;
+    const error = { status: response.status, ...await readResponsesHttpError(response) };
+    const rejected = OPTIONAL_RESPONSES_PARAMETERS.find((name) => !unsupported.has(name) && rejectsOptionalParameter(error, name));
+    if (!rejected) throw new Error(sanitizeErrorMessage(error.message, request.profile.apiKey));
+    markParameterUnsupported(key, rejected);
+  }
+}
+
 export function resolveResponsesAgentUrl(endpoint: string): string {
   return normalizeModelEndpoint(endpoint).responsesUrl;
 }
@@ -200,9 +224,10 @@ export function buildResponsesInput(messages: AgentMessage[]): ResponsesInputIte
         input.push({ role: "assistant", content: message.content });
       }
       for (const toolCall of message.toolCalls ?? []) {
+        // Earlier turns do not keep their reasoning items, so omit server item IDs
+        // that reasoning models would otherwise require to be paired.
         input.push({
           type: "function_call",
-          id: toolCall.responseItemId,
           call_id: toolCall.toolCallId,
           name: toolCall.toolName,
           arguments: JSON.stringify(toolCall.args ?? {}),
@@ -217,7 +242,7 @@ export function buildResponsesInput(messages: AgentMessage[]): ResponsesInputIte
         call_id: message.toolResult.callId,
         output: stringifyToolOutput(
           message.toolResult.success === false
-            ? { success: false, error: message.toolResult.error }
+            ? toolFailurePayload(message.toolResult)
             : {
                 success: true,
                 data: message.toolResult.data ?? null,
@@ -230,22 +255,24 @@ export function buildResponsesInput(messages: AgentMessage[]): ResponsesInputIte
   return input;
 }
 
-async function buildResponsesRequestBody(
+function buildResponsesRequestBody(
   request: ResponsesAgentTurnRequest,
   input: ResponsesInputItem[],
-): Promise<Record<string, unknown>> {
-  const body: Record<string, unknown> = {
+  tools: Array<Record<string, unknown>>,
+  unsupported: ReadonlySet<OptionalModelParameter>,
+): Record<string, unknown> {
+  return {
     model: request.profile.modelKey,
     instructions: request.system,
     input,
-    tools: await buildResponsesTools(request.tools),
+    tools,
     stream: true,
     store: false,
-    temperature: request.temperature,
+    // Stateless reasoning can only be replayed within a turn through its encrypted content.
+    ...(unsupported.has("include") ? {} : { include: ["reasoning.encrypted_content"] }),
+    ...(unsupported.has("temperature") ? {} : { temperature: request.temperature }),
     max_output_tokens: request.maxOutputTokens,
   };
-
-  return body;
 }
 
 async function buildResponsesTools(
@@ -371,6 +398,7 @@ async function* parseResponsesStream(
   if (!completed) throw new Error("Responses API stream ended before completion; no tools were executed.");
   const announcedCallIds = [...callsByItemId.values()].map(call => call.callId);
   callsByItemId.clear();
+  let droppedReasoning = false;
   for (const item of responseOutput) {
     if (!isRecord(item)) continue;
     if (item.type === "function_call") {
@@ -379,6 +407,11 @@ async function* parseResponsesStream(
       stepResult.replayItems.push(toFunctionCallInputItem(call));
     } else if (item.type === "reasoning") {
       // Opaque reasoning is request-local protocol state, never a runtime/UI event.
+      // With store=false an ID-only reasoning item cannot be resolved by the server.
+      if (typeof item.encrypted_content !== "string" || !item.encrypted_content) {
+        droppedReasoning = true;
+        continue;
+      }
       stepResult.replayItems.push({
         type: "reasoning", id: optionalString(item.id),
         summary: Array.isArray(item.summary) ? item.summary : [],
@@ -391,6 +424,7 @@ async function* parseResponsesStream(
       });
     }
   }
+  if (droppedReasoning) stepResult.replayItems = stepResult.replayItems.map(withoutReasoningPairing);
   const completedCallIds = new Set([...callsByItemId.values()].map(call => call.callId));
   if (announcedCallIds.some(id => !completedCallIds.has(id))) {
     throw new Error("Responses API did not complete its announced function calls; no tools were executed.");
@@ -595,6 +629,21 @@ async function parseToolInput(argumentsText: string): Promise<Record<string, unk
   return parsed;
 }
 
+/** Items whose reasoning was dropped are replayed by content, without server item IDs. */
+function withoutReasoningPairing(item: ResponsesInputItem): ResponsesInputItem {
+  if ("type" in item && item.type === "function_call") {
+    const { id: _id, ...rest } = item;
+    return rest;
+  }
+  if ("type" in item && item.type === "message") {
+    const text = item.content
+      .map((part) => (isRecord(part) && typeof part.text === "string" ? part.text : ""))
+      .join("");
+    return { role: "assistant", content: text };
+  }
+  return item;
+}
+
 function toFunctionCallInputItem(call: PendingFunctionCall): ResponsesInputItem {
   return {
     type: "function_call",
@@ -619,21 +668,16 @@ function parseResponsesUsage(usage: unknown): AgentRuntimeUsage | undefined {
   };
 }
 
-async function createResponsesHttpError(
-  response: Response,
-  apiKey: string,
-): Promise<Error> {
-  let message = `Responses API request failed with HTTP ${response.status}.`;
+async function readResponsesHttpError(response: Response): Promise<{ message: string; param?: string }> {
+  const fallback = `Responses API request failed with HTTP ${response.status}.`;
+  const text = await response.text().catch(() => "");
   try {
-    const body = await response.json();
+    const body = JSON.parse(text);
     const error = isRecord(body?.error) ? body.error : undefined;
-    message = stringValue(error?.message) || message;
+    return { message: stringValue(error?.message) || fallback, param: optionalString(error?.param) };
   } catch {
-    const text = await response.text().catch(() => "");
-    if (text) message = text;
+    return { message: text.trim().slice(0, 2000) || fallback };
   }
-
-  return new Error(sanitizeErrorMessage(message, apiKey));
 }
 
 function sanitizeErrorMessage(message: string, apiKey: string): string {

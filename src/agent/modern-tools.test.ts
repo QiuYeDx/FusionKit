@@ -60,8 +60,11 @@ describe("modern tools fixed API boundaries", () => {
   it("distinguishes fixed API failures and unavailable bridge from an empty library", async () => {
     api.listDocuments.mockResolvedValueOnce({ ok: false, error: "access_denied" });
     expect(await call("list_studio_documents")).toEqual({ success: false, error: "access_denied" });
-    api.listDocuments.mockRejectedValueOnce(new Error("secret-task-key"));
-    expect(await call("list_studio_documents")).toEqual({ success: false, error: "tool_request_failed" });
+    api.listDocuments.mockRejectedValueOnce(new Error("IPC failed for secret-task-key"));
+    const unexpected = await call("list_studio_documents");
+    expect(unexpected).toEqual({ success: false, error: "tool_request_failed", data: { reason: "IPC failed for [redacted]" } });
+    expect(JSON.stringify(useAgentStore.getState().sessionLog)).not.toContain("secret-task-key");
+    expect(useAgentStore.getState().sessionLog.at(-1)).toMatchObject({ type: "error", data: { source: "modern_tool", reason: "IPC failed for [redacted]" } });
     Object.defineProperty(globalThis, "window", { configurable: true, value: {} });
     expect(await call("list_studio_documents")).toMatchObject({ success: false, error: "subtitle_studio_unavailable" });
   });

@@ -102,11 +102,11 @@ export const queueConvertSchema = z.object({
   outputMode: z
     .enum(["source", "custom"])
     .default("source")
-    .describe("'source' = save next to original, 'custom' = use outputDir"),
+    .describe("'source' = save next to original, 'custom' = a user-chosen output directory"),
   outputDir: z
     .string()
     .optional()
-    .describe("Output directory (required when outputMode is 'custom')"),
+    .describe("Only a directory the user typed in this conversation. Otherwise omit it and FusionKit asks the user with a directory picker."),
   conflictPolicy: z
     .enum(["index", "overwrite"])
     .default("index")
@@ -148,11 +148,11 @@ export const queueExtractSchema = z.object({
   outputMode: z
     .enum(["source", "custom"])
     .default("source")
-    .describe("'source' = save next to original, 'custom' = use outputDir"),
+    .describe("'source' = save next to original, 'custom' = a user-chosen output directory"),
   outputDir: z
     .string()
     .optional()
-    .describe("Output directory (required when outputMode is 'custom')"),
+    .describe("Only a directory the user typed in this conversation. Otherwise omit it and FusionKit asks the user with a directory picker."),
   conflictPolicy: z
     .enum(["index", "overwrite"])
     .default("index")

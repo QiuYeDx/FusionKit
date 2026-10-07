@@ -99,6 +99,7 @@
   "plan_pending": "待機中",
   "plan_in_progress": "進行中",
   "plan_completed": "完了",
+  "plan_waiting": "待機中",
   "plan_blocked": "要対応",
   "capabilities_title": "利用可能なツール",
   "capabilities_description": "会話で接続済みのツールを計画・実行できます。ファイル、設定、確認が必要な場合は Agent が案内します。",
@@ -229,5 +230,19 @@
   "result_more_items": "ほか {{count}} 件は詳細で確認できます。",
   "action_error_limit": "確認待ちの操作が多すぎます。先に現在の操作を処理してください。",
   "action_error_arguments": "操作のパラメーターが無効です。もう一度準備してください。",
-  "action_error_submission_unknown": "送信結果を確認できていません。重複送信を避けるため、先にツール画面で確認してください。"
+  "action_error_submission_unknown": "送信結果を確認できていません。重複送信を避けるため、先にツール画面で確認してください。",
+  "action_error_rename_confirmation": "新しいメッセージで名前変更プランを確認するか、プレビューの確認ボタンを使用してください。",
+  "action_error_rename_not_applied": "名前変更プランは適用されていません。",
+  "action_error_rename_expired": "この名前変更プランは期限切れです。プレビューを作り直してください。",
+  "action_error_rename_empty": "このプランには名前変更できる項目がありません。",
+  "action_error_rename_changed": "プレビュー後に一部の項目が変更されました。何も変更されていないため、プレビューを作り直してください。",
+  "action_error_rename_unknown": "名前変更の結果を確認できていません。再適用する前に名前変更ツールで確認してください。",
+  "action_error_rename_plan": "名前変更のプレビューを作成できませんでした。",
+  "action_error_rename_inspect": "パスを確認できませんでした。",
+  "action_error_picker_required": "字幕翻訳は FusionKit のファイル選択で選んだファイルのみ受け付けます。",
+  "action_error_selection_cancelled": "選択がキャンセルされました。タスクは作成されていません。",
+  "action_error_output_cancelled": "出力フォルダーの選択がキャンセルされました。タスクは作成されていません。",
+  "action_error_authorization": "選択したファイルまたはフォルダーを承認できませんでした。もう一度選択してください。",
+  "action_error_stopped": "タスクを作成する前に停止しました。",
+  "action_error_scan": "フォルダーをスキャンできませんでした。"
 }

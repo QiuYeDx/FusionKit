@@ -29,6 +29,14 @@ export function compactToolOutput(output: unknown, budget = AGENT_TOOL_RESULT_CH
   return { ...status, truncated: true, originalCharacters: serialized.length, preview };
 }
 
+/** Failure payload replayed to the model: the stable error plus any structured detail. */
+export function toolFailurePayload(result: { error?: string; data?: unknown }): { success: false; error: string; data?: unknown } {
+  const data = result.data;
+  const redundant = data === undefined || data === null
+    || (typeof data === "object" && !Array.isArray(data) && Object.keys(data).every((key) => key === "success" || key === "error"));
+  return { success: false, error: result.error ?? "Unknown error", ...(redundant ? {} : { data }) };
+}
+
 /** Remove orphan results and incomplete call groups; keep the original session untouched. */
 function completeGroups(messages: AgentMessage[]): AgentMessage[] {
   const result: AgentMessage[] = [];

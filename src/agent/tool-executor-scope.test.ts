@@ -84,3 +84,46 @@ describe("Agent exact queue receipts", () => {
     expect(confirm).not.toHaveBeenCalled();
   });
 });
+
+describe("Agent filesystem authority from user intent", () => {
+  const say = (content: string) => useAgentStore.getState().addMessage({ id: `user-${Math.random()}`, role: "user", content, timestamp: Date.now() });
+  const queued = () => useSubtitleConverterStore.getState().notStartedTasks.at(-1)!;
+
+  it("ignores a model-invented output directory and asks with the picker", async () => {
+    say("把 C:/new.srt 转成 LRC，输出到自定义目录");
+    invoke.mockImplementation(async (channel: string) => channel === "select-output-directory"
+      ? { canceled: false, filePaths: ["E:/chosen"] } : "1\n00:00:00,000 --> 00:00:01,000\nhello");
+    const result = await executeQueueConvert({ ...args, filePaths: [...args.filePaths], outputMode: "custom", outputDir: "C:/Windows/System32" });
+    expect(result.success).toBe(true);
+    expect(invoke).toHaveBeenCalledWith("select-output-directory", expect.any(Object));
+    expect(queued().targetFileURL).toBe("E:/chosen");
+  });
+
+  it("accepts a directory the user typed without opening a picker", async () => {
+    say("把 C:/new.srt 转成 LRC，输出到D:\\Subs\\out目录");
+    const result = await executeQueueConvert({ ...args, filePaths: [...args.filePaths], outputMode: "custom", outputDir: "D:/Subs/out" });
+    expect(result.success).toBe(true);
+    expect(invoke).not.toHaveBeenCalledWith("select-output-directory", expect.anything());
+    expect(queued().targetFileURL).toBe("D:/Subs/out");
+  });
+
+  it("creates no task when the output picker is cancelled", async () => {
+    say("转换到自定义目录");
+    invoke.mockImplementation(async (channel: string) => channel === "select-output-directory" ? { canceled: true, filePaths: [] } : "content");
+    const result = await executeQueueConvert({ ...args, filePaths: [...args.filePaths], outputMode: "custom" });
+    expect(result).toMatchObject({ success: false, error: "output_selection_cancelled" });
+    expect(useSubtitleConverterStore.getState().notStartedTasks).toHaveLength(1);
+  });
+
+  it("downgrades overwrite unless the latest user message asks for it", async () => {
+    say("把 C:/new.srt 转成 LRC");
+    const downgraded = await executeQueueConvert({ ...args, filePaths: [...args.filePaths], conflictPolicy: "overwrite" });
+    expect(downgraded.data).toMatchObject({ conflictPolicy: "index", conflictPolicyAdjusted: "overwrite_requires_explicit_user_request" });
+    expect(queued().conflictPolicy).toBe("index");
+    useSubtitleConverterStore.setState({ notStartedTasks: [] });
+    say("转成 LRC，同名文件直接覆盖");
+    const allowed = await executeQueueConvert({ ...args, filePaths: [...args.filePaths], conflictPolicy: "overwrite" });
+    expect(allowed.data).not.toHaveProperty("conflictPolicyAdjusted");
+    expect(queued().conflictPolicy).toBe("overwrite");
+  });
+});

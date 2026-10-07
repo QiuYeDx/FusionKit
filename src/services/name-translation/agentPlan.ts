@@ -110,7 +110,7 @@ export async function createAgentNamePlan(
 ): Promise<NameTranslationPlanSummary> {
   const api = getNameTranslationApi();
   const model = toRuntimeModel(useModelStore.getState().getTaskProfile());
-  if (!model) throw new Error("未配置任务执行模型，请在设置页面配置。");
+  if (!model) throw new Error("task_model_not_configured");
 
   const inspected = await unwrap(api.inspectPaths({ paths: args.roots, source: "agent" }));
   const warnings = inspected.rejected.map((rejection) => `${rejection.reason}: ${rejection.path}`);
@@ -265,9 +265,9 @@ export function getAgentNamePlan(planId: string): StoredPlan | null {
 
 export async function applyAgentNamePlan(planId: string): Promise<NameTranslationApplyResult> {
   const plan = getAgentNamePlan(planId);
-  if (!plan) throw new Error("重命名计划已过期或不存在，请重新生成预览。");
+  if (!plan) throw new Error("rename_plan_expired");
   const ready = plan.items.filter((item) => item.status === "ready");
-  if (ready.length === 0) throw new Error("当前计划没有可重命名的条目。");
+  if (ready.length === 0) throw new Error("rename_plan_empty");
   const result = await unwrap(
     getNameTranslationApi().apply({
       items: ready.map((item) => ({
@@ -292,7 +292,8 @@ export async function applyAgentNamePlan(planId: string): Promise<NameTranslatio
     };
   }
   if (result.status === "rejected") {
-    throw new Error("部分条目在预览后已发生变化，请重新生成预览。");
+    // Main rejected the whole journal before renaming anything.
+    throw new Error("rename_plan_changed");
   }
   return {
     planId,

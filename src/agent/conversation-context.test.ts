@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentMessage } from "./types";
-import { buildConversationContext, compactToolOutput } from "./conversation-context";
+import { buildConversationContext, compactToolOutput, toolFailurePayload } from "./conversation-context";
 
 const user = (id: string, content = id): AgentMessage => ({ id, content, role: "user", timestamp: 1 });
 const pair = (id: string, data: unknown = { count: 1 }): AgentMessage[] => [
@@ -41,5 +41,15 @@ describe("bounded conversation projection", () => {
     const result = compactToolOutput({ success: false, values: Array(40).fill('"\\'.repeat(4000)) }, 700);
     expect(result).toMatchObject({ success: false, truncated: true });
     expect(JSON.stringify(result).length).toBeLessThanOrEqual(700);
+  });
+});
+
+describe("tool failure replay", () => {
+  it("keeps structured failure detail but drops a redundant receipt copy", () => {
+    expect(toolFailurePayload({ error: "scan_failed", data: { directory: "/a", reason: "EACCES" } }))
+      .toEqual({ success: false, error: "scan_failed", data: { directory: "/a", reason: "EACCES" } });
+    expect(toolFailurePayload({ error: "scan_failed", data: { success: false, error: "scan_failed" } }))
+      .toEqual({ success: false, error: "scan_failed" });
+    expect(toolFailurePayload({})).toEqual({ success: false, error: "Unknown error" });
   });
 });

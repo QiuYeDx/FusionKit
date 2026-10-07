@@ -108,7 +108,7 @@ export const agentTools = {
   queue_recovered_subtitle_translate: tool({
     description:
       "Add recovered subtitle translation candidates to the translation queue. " +
-      "Use only the recoveryScanId from scan_subtitle_recovery_tasks; a fixed native picker reauthorizes the output directory. " +
+      "Use only the recoveryScanId from scan_subtitle_recovery_tasks; a fixed native picker reauthorizes the output directory once per scan, and later batches of that scan reuse it. " +
       "Language and slice strategy are determined by the recovery manifest.",
     inputSchema: queueRecoveredSubtitleTranslateSchema,
     execute: async (args, options) => executeQueueRecoveredSubtitleTranslate(args, options.abortSignal),

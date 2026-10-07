@@ -99,6 +99,7 @@
   "plan_pending": "待處理",
   "plan_in_progress": "進行中",
   "plan_completed": "已完成",
+  "plan_waiting": "等待繼續",
   "plan_blocked": "待解決",
   "capabilities_title": "可用工具",
   "capabilities_description": "透過對話規劃和呼叫已接入的工具。需要檔案、設定或確認時，Agent 會說明下一步。",
@@ -229,5 +230,19 @@
   "result_more_items": "另有 {{count}} 項，可展開詳情查看。",
   "action_error_limit": "待確認操作過多，請先處理目前操作。",
   "action_error_arguments": "操作參數無效，請重新準備。",
-  "action_error_submission_unknown": "提交結果尚未確認，請先在工具頁檢查任務，避免重複提交。"
+  "action_error_submission_unknown": "提交結果尚未確認，請先在工具頁檢查任務，避免重複提交。",
+  "action_error_rename_confirmation": "請在新訊息中確認重新命名計畫，或使用預覽中的確認按鈕。",
+  "action_error_rename_not_applied": "重新命名計畫未執行。",
+  "action_error_rename_expired": "此重新命名計畫已過期，請重新產生預覽。",
+  "action_error_rename_empty": "此計畫沒有可重新命名的項目。",
+  "action_error_rename_changed": "部分項目在預覽後已變更，未進行任何重新命名，請重新產生預覽。",
+  "action_error_rename_unknown": "重新命名結果尚未確認，請先在重新命名工具核對，不要重複套用。",
+  "action_error_rename_plan": "無法產生重新命名預覽。",
+  "action_error_rename_inspect": "無法檢查這些路徑。",
+  "action_error_picker_required": "字幕翻譯只接受透過 FusionKit 檔案選擇器選擇的檔案。",
+  "action_error_selection_cancelled": "已取消選擇，未建立任務。",
+  "action_error_output_cancelled": "已取消輸出資料夾選擇，未建立任務。",
+  "action_error_authorization": "無法授權所選檔案或資料夾，請重新選擇。",
+  "action_error_stopped": "已停止，未建立任務。",
+  "action_error_scan": "無法掃描此資料夾。"
 }
