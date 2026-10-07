@@ -1,0 +1,80 @@
+/* Selection uses a sky tint mixed in oklab: mixing in oklch with the neutral card shifts the hue to pink. */
+.studio-cue-list {
+  --studio-cue-selected: color-mix(in oklab, oklch(68.5% 0.169 237.3) 13%, var(--card));
+  --studio-cue-selected-hover: color-mix(in oklab, oklch(68.5% 0.169 237.3) 19%, var(--card));
+  --studio-cue-focus: color-mix(in oklab, oklch(68.5% 0.169 237.3) 70%, var(--card));
+  position: relative;
+  min-height: 100%;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dark .studio-cue-list {
+  --studio-cue-selected: color-mix(in oklab, oklch(74.6% 0.16 232.7) 17%, var(--card));
+  --studio-cue-selected-hover: color-mix(in oklab, oklch(74.6% 0.16 232.7) 23%, var(--card));
+  --studio-cue-focus: color-mix(in oklab, oklch(74.6% 0.16 232.7) 70%, var(--card));
+}
+.studio-cue-list .studio-cue-text { user-select: none; cursor: default; }
+.studio-cue-list tbody tr { scroll-margin-top: 36px; scroll-margin-bottom: 8px; }
+
+/* Adjacent selected rows read as one block with outer rounded corners. */
+.studio-cue-list tbody tr[data-selected] > td { background: var(--studio-cue-selected); }
+.studio-cue-list tbody tr[data-selected]:hover > td { background: var(--studio-cue-selected-hover); }
+.studio-cue-list tbody tr[data-selected]:not([data-selected-last]) > td { border-bottom-color: transparent; }
+.studio-cue-list tbody tr[data-selected-first] > td:first-child { border-top-left-radius: 8px; }
+.studio-cue-list tbody tr[data-selected-first] > td:last-child { border-top-right-radius: 8px; }
+.studio-cue-list tbody tr[data-selected-last] > td:first-child { border-bottom-left-radius: 8px; }
+.studio-cue-list tbody tr[data-selected-last] > td:last-child { border-bottom-right-radius: 8px; }
+.studio-cue-list tbody tr[data-editing] > td { background: color-mix(in oklab, var(--muted) 45%, var(--card)); }
+
+.studio-cue-field { position: relative; min-width: 0; min-height: 20px; border-radius: 4px; }
+.studio-cue-list:focus-visible .studio-cue-field[data-active] { box-shadow: 0 0 0 1.5px var(--studio-cue-focus); }
+.studio-cue-list:focus-visible tbody tr[data-lead] > td.studio-cue-number { box-shadow: inset 2px 0 var(--studio-cue-focus); }
+.studio-cue-mark { display: inline-flex; vertical-align: -2px; margin-left: 4px; color: rgb(5 150 105); }
+.studio-cue-mark > svg { width: 12px; height: 12px; }
+.dark .studio-cue-mark { color: rgb(52 211 153); }
+
+.studio-cue-marquee { position: absolute; z-index: 2; pointer-events: none; border-radius: 3px; border: 1px solid rgb(14 165 233 / .6); background: rgb(14 165 233 / .1); }
+
+.studio-cue-editor { display: grid; gap: 3px; margin: -3px -5px; }
+.studio-cue-editor textarea {
+  display: block; width: 100%; min-height: 26px; resize: none; overflow: hidden;
+  padding: 2px 5px; border: 1px solid var(--studio-cue-focus, var(--ring)); border-radius: 6px;
+  background: var(--background); color: var(--foreground);
+  font: inherit; line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere;
+  outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent);
+  user-select: text; -webkit-user-select: text;
+}
+.studio-cue-editor[data-saving] textarea { opacity: .7; }
+.studio-cue-editor textarea[aria-invalid=true] { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 18%, transparent); }
+.studio-cue-editor-meta { padding-inline: 5px; font-size: 10.5px; line-height: 15px; color: var(--muted-foreground); white-space: normal; }
+.studio-cue-editor-error { color: var(--destructive); }
+.studio-cue-editor-saving { display: inline-flex; align-items: center; gap: 4px; }
+.studio-cue-editor-saving > svg { width: 11px; height: 11px; }
+
+/* The toolbar sits in the sticky header's last cell and grows leftwards over the column labels. */
+.studio-cue-table th.studio-cue-toolbar-cell { position: sticky; }
+.studio-cue-bar {
+  position: absolute; top: 50%; right: 4px; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 8px; max-width: calc(100cqw - 16px);
+  padding-left: 16px; background: linear-gradient(to right, transparent, var(--card) 16px);
+  font-weight: 400; color: var(--foreground);
+}
+.studio-cue-bar[data-selecting] { left: auto; padding-left: 12px; background: var(--card); box-shadow: -12px 0 12px -4px var(--card); }
+.studio-cue-bar-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 500; color: var(--foreground); font-variant-numeric: tabular-nums; }
+.studio-cue-bar-status:empty { display: none; }
+.studio-cue-bar:not([data-selecting]) .studio-cue-bar-status { font-weight: 400; color: var(--muted-foreground); }
+.studio-cue-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 1px; flex-shrink: 0; }
+.studio-cue-toolbar-divider { width: 1px; height: 16px; margin-inline: 4px; background: var(--border); }
+.studio-cue-help { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: var(--muted-foreground); }
+.studio-cue-help:hover, .studio-cue-help:focus-visible { color: var(--foreground); background: var(--accent); outline: none; }
+.studio-cue-help > svg { width: 15px; height: 15px; }
+.studio-cue-help-content { max-width: min(360px, calc(100vw - 24px)); padding: 10px 12px; }
+.studio-cue-help-content dl { display: grid; gap: 5px; margin: 0; }
+.studio-cue-help-content dl > div { display: grid; grid-template-columns: minmax(96px, auto) 1fr; gap: 10px; font-size: 11.5px; line-height: 16px; }
+.studio-cue-help-content dt { white-space: nowrap; color: color-mix(in oklab, var(--background) 65%, transparent); }
+.studio-cue-help-content dd { margin: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .studio-cue-list tbody tr > td { transition: background-color 120ms ease-out; }
+}

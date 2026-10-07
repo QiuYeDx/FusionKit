@@ -190,8 +190,13 @@ function collectPairs(doc: TextSubtitleDocument, options: BilingualOptions): Pai
   return pairs;
 }
 
+/** Bilingual separation maps cue text back onto the original file, so it needs unedited cues. */
+export function hasStudioEdits(doc: SubtitleDocument): boolean {
+  return doc.cues.some(cue => cue.sourceRevision !== 1) || (doc.schemaVersion === 1 && !!doc.preservation.removedNodeIds?.length);
+}
+
 export function hasBilingualCandidates(doc: SubtitleDocument): boolean {
-  if (doc.schemaVersion === 2 || doc.bilingualImport || doc.translationTracks.length || !doc.capabilities.translate) return false;
+  if (doc.schemaVersion === 2 || doc.bilingualImport || doc.translationTracks.length || !doc.capabilities.translate || hasStudioEdits(doc)) return false;
   for (let index = 0; index < doc.cues.length;) {
     const cue = doc.cues[index];
     let runEnd = index + 1;
@@ -314,6 +319,7 @@ function mapRawBody(doc: TextSubtitleDocument, node: TextSubtitleDocument['prese
 export function applyBilingual(doc: SubtitleDocument, options: BilingualOptions, newId: () => string, sourceDigest: (cue: SubtitleCue) => string): SubtitleDocument {
   const validated = validateDocument(doc);
   if (validated.schemaVersion === 2) throw new StudioError('unsupported_feature');
+  if (hasStudioEdits(validated)) throw new StudioError('invalid_input');
   const analysis = analyzeBilingual(validated, options);
   if (!analysis.pairedCount) throw new StudioError('invalid_input');
   const nodes = new Map(validated.preservation.nodes.map(node => [node.id, node]));

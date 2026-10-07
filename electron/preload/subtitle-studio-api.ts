@@ -82,6 +82,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     applyBilingual: request => invoke(STUDIO_CHANNELS.applyBilingual, request),
     removeTranslationTrack: request => invoke(STUDIO_CHANNELS.removeTranslationTrack, request),
     renameTranslationTrack: request => invoke(STUDIO_CHANNELS.renameTranslationTrack, request),
+    editCues: request => invoke(STUDIO_CHANNELS.editCues, request),
     subscribe: listener => {
       if (typeof capability !== 'string') return () => {};
       const receive = (_event: unknown, input: unknown) => {

@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { StudioError } from '../../../src/subtitle-studio/domain';
 import type { BilingualOptions } from '../../../src/subtitle-studio/bilingual-contract';
-import { applyBilingual, previewBilingual } from '../../../src/subtitle-studio/bilingual';
+import { applyBilingual, hasStudioEdits, previewBilingual } from '../../../src/subtitle-studio/bilingual';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import { DocumentRepository } from './document-repository';
 import { sourceDigest } from './translation-planner';
 
 function assertUninterpreted(snapshot: DocumentSnapshot) {
-  if (snapshot.tasks.length || snapshot.document.translationTracks.length || snapshot.document.bilingualImport) throw new StudioError('revision_conflict');
+  if (snapshot.tasks.length || snapshot.document.translationTracks.length || snapshot.document.bilingualImport || hasStudioEdits(snapshot.document)) throw new StudioError('revision_conflict');
 }
 
 export class BilingualService {

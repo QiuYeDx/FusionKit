@@ -62,15 +62,28 @@ export function restoreTranslationPlan(snapshot: DocumentSnapshot, taskId: strin
       || [...task.completedBatchIds, ...task.uncertainBatchIds, ...(progress.inFlightBatchId ? [progress.inFlightBatchId] : [])].some(id => !record.requests[id])) throw new StudioError('translation_record_unavailable');
     const memberships = plan.batches.flatMap(batch => batch.units);
     const cues = snapshot.document.cues.filter(cue => /\S/u.test(cue.source.plain));
-    if (memberships.length !== cues.length || memberships.some((unit, index) => unit.cueId !== cues[index].id || unit.sourceRevision !== cues[index].sourceRevision || unit.sourceHash !== sourceDigest(cues[index]))) throw new StudioError('revision_conflict');
+    const matches = (unit: TranslationPlan['batches'][number]['units'][number], cue: SubtitleDocument['cues'][number]) =>
+      unit.cueId === cue.id && unit.sourceRevision === cue.sourceRevision && unit.sourceHash === sourceDigest(cue);
+    if (checkpoint.partial) {
+      // A selection keeps document order but may skip cues.
+      let cursor = 0;
+      for (const unit of memberships) {
+        while (cursor < cues.length && cues[cursor].id !== unit.cueId) cursor++;
+        if (cursor >= cues.length || !matches(unit, cues[cursor])) throw new StudioError('revision_conflict');
+        cursor++;
+      }
+    } else if (memberships.length !== cues.length || memberships.some((unit, index) => !matches(unit, cues[index]))) throw new StudioError('revision_conflict');
     const completed = new Set(task.completedBatchIds);
     for (const batch of plan.batches) for (const unit of batch.units) {
       const entry = track.entries[unit.cueId];
-      if (completed.has(batch.id) ? !entry || entry.sourceRevision !== unit.sourceRevision || entry.sourceHash !== unit.sourceHash : !!entry) throw new StudioError('revision_conflict');
+      // Retranslating a selection replaces entries that already exist.
+      if (completed.has(batch.id) ? !entry || entry.sourceRevision !== unit.sourceRevision || entry.sourceHash !== unit.sourceHash : !!entry && !checkpoint.partial) throw new StudioError('revision_conflict');
     }
     // Frozen unit text and marker topology belong to the admitted task, never a new projection.
     return structuredClone(plan);
   }
+  // Selections are always admitted with an execution record (version 2).
+  if (checkpoint.partial) throw new StudioError('invalid_input');
   const projected = projectTranslationUnits(snapshot.document);
   const cues = new Map(snapshot.document.cues.map(cue => [cue.id, cue]));
   const units = new Map(projected.map(unit => [unit.cueId, { ...unit, sourceHash: sourceDigest(cues.get(unit.cueId)!) }]));

@@ -1,6 +1,6 @@
 import type { SubtitleStudioApi } from '@/subtitle-studio/ipc-contract';
 import { StudioError } from '@/subtitle-studio/domain';
-import type { TranslationConfig, TranslationPlanSummary } from '@/subtitle-studio/translation-contract';
+import type { TranslationConfig, TranslationPlanSummary, TranslationScope } from '@/subtitle-studio/translation-contract';
 import type { TranslationBatchPlan, TranslationBatchResult, DocumentReference } from '@/subtitle-studio/batch-contract';
 import type { KnowledgeSelection } from '@/translation-knowledge/execution-contract';
 import type { KnowledgeTranslationPreview } from '@/subtitle-studio/knowledge-translation-contract';
@@ -12,6 +12,8 @@ import { unwrapStudio } from './client';
 export type TranslationSessionInput = {
   documents: DocumentReference[]; batch: boolean; config: TranslationConfig;
   knowledge?: KnowledgeSelection; generation?: number; documentTopicIds: string[]; cueIds: string[];
+  /** Single document only: translate these cues, optionally into an existing track. */
+  scope?: TranslationScope;
 };
 export type TranslationCheck =
   | { kind: 'plain'; value: TranslationPlanSummary }
@@ -87,9 +89,15 @@ export class TranslationSession {
         const { bindings: _bindings, confirmations: _confirmations, ...knowledge } = input.knowledge;
         return { kind: 'knowledge-batch', value: await unwrapStudio(this.api.planKnowledgeTranslationBatch({ ...common, knowledge, documents: input.documents, documentTopicIds: input.documentTopicIds })) };
       }
-      if (input.knowledge) return { kind: 'knowledge', value: await unwrapStudio(this.api.planKnowledgeTranslation({ ...input.documents[0], ...common, documentTopicIds: input.documentTopicIds })) };
+      if (input.knowledge) {
+        // Per-cue material choices outside a selection do not apply to it.
+        const scoped = input.scope && new Set(input.scope.cueIds);
+        const within = <T extends { cueIds: string[] }>(values: T[]) => !scoped ? values : values.flatMap(value => { const cueIds = value.cueIds.filter(id => scoped.has(id)); return cueIds.length ? [{ ...value, cueIds }] : []; });
+        const knowledge = scoped ? { ...common.knowledge, bindings: within(common.knowledge.bindings), confirmations: within(common.knowledge.confirmations) } : common.knowledge;
+        return { kind: 'knowledge', value: await unwrapStudio(this.api.planKnowledgeTranslation({ ...input.documents[0], ...common, knowledge, documentTopicIds: input.documentTopicIds, ...(input.scope ? { scope: input.scope } : {}) })) };
+      }
       if (input.batch) return { kind: 'plain-batch', value: await unwrapStudio(this.api.planTranslationBatch({ documents: input.documents, config: input.config })) };
-      return { kind: 'plain', value: await unwrapStudio(this.api.planTranslation({ ...input.documents[0], config: input.config })) };
+      return { kind: 'plain', value: await unwrapStudio(this.api.planTranslation({ ...input.documents[0], config: input.config, ...(input.scope ? { scope: input.scope } : {}) })) };
     })();
     this.planning = operation;
     try {

@@ -16,6 +16,7 @@ import { createAutomaticTranslationCoordinator } from './automatic-translation';
 import { AutomaticKnowledgeService } from './automatic-knowledge';
 import { BilingualService } from './bilingual-service';
 import { TranslationTrackService } from './translation-track-service';
+import { CueEditService } from './cue-edit-service';
 import { BatchService } from './batch-service';
 import { selectLibrary } from './library-service';
 import { STUDIO_BATCH_LIMIT, type BatchImportResult } from '../../../src/subtitle-studio/batch-contract';
@@ -43,6 +44,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   const automaticKnowledge = new AutomaticKnowledgeService(readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
   const bilingual = new BilingualService(repository);
   const tracks = new TranslationTrackService(repository);
+  const cueEdits = new CueEditService(repository);
   const exports = new ExportService(repository);
   const batches = new BatchService(repository, translation);
   const sources = new SourceLocationService(repository);
@@ -355,9 +357,14 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const value = await tracks.rename(request.documentId, request.revision, trackId, name, alive); alive();
           return { ok: true, value: summarizeDocument(value) };
         }
+        if (method === 'editCues') {
+          const { operation } = requestSchemas.editCues.parse(payload);
+          const { snapshot, undo, changed, stoppedTasks } = await cueEdits.apply(request.documentId, request.revision, operation, alive); alive();
+          return { ok: true, value: { summary: summarizeDocument(snapshot.document, snapshot.tasks), undo, changed, stoppedTasks } };
+        }
         if (method === 'planTranslation') {
-          const { config } = requestSchemas.planTranslation.parse(payload);
-          const value = await translation.plan(event.sender.id, request.documentId, request.revision, config, alive); alive();
+          const { config, scope } = requestSchemas.planTranslation.parse(payload);
+          const value = await translation.plan(event.sender.id, request.documentId, request.revision, config, alive, scope); alive();
           return { ok: true, value };
         }
         if (method === 'createTranslation') {

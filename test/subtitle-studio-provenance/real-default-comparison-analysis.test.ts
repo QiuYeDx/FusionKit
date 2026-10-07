@@ -149,14 +149,15 @@ describe('real default comparison evidence analysis', () => {
   });
 
   it.each([
-    ['sourceRevision', (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].sourceRevision = 2; }],
-    ['timingRevision', (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].timingRevision = 2; }],
-    ['segmentId', (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].segmentId = 'other-segment'; }],
-    ['source/spans/0/marks/0', (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].source.spans[0].marks.push('b'); }],
-  ] as const)('checks the full document cue field %s rather than text/time alone', (field, mutate) => {
+    // A later source revision is a valid studio edit, but never producer output.
+    ['sourceRevision', true, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].sourceRevision = 2; }],
+    ['timingRevision', false, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].timingRevision = 2; }],
+    ['segmentId', false, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].segmentId = 'other-segment'; }],
+    ['source/spans/0/marks/0', false, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].source.spans[0].marks.push('b'); }],
+  ] as const)('checks the full document cue field %s rather than text/time alone', (field, valid, mutate) => {
     const input = transcript(), document = transcriptToDocument(input); mutate(document);
     const result = compare(side(input), { ...side(input), document });
-    expect(result.documents.studio.validDocument).toBe(false);
+    expect(result.documents.studio.validDocument).toBe(valid);
     expect(result.documents.studio.mappingDifferences[0].path).toBe(`/cues/0/${field}`);
     expect(result.reviewReasons).toContain('studio_document_mismatch');
   });

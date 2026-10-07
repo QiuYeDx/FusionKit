@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { encodingSchema, idSchema, LIMITS, SUBTITLE_TEXT_FORMATS, translationTrackNameSchema, type ErrorCode, type SubtitleDocument } from './domain';
-import { translationConfigSchema, translationModelSchema, type TranslationPlanSummary } from './translation-contract';
+import { translationConfigSchema, translationModelSchema, translationScopeSchema, type TranslationPlanSummary } from './translation-contract';
+import { cueEditOperationSchema, type CueEditResult } from './cue-edit-contract';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { hasBilingualCandidates, isBilingualRecommended } from './bilingual';
@@ -59,6 +60,7 @@ export const STUDIO_CHANNELS = {
   applyBilingual: 'subtitle-studio:apply-bilingual',
   removeTranslationTrack: 'subtitle-studio:remove-translation-track',
   renameTranslationTrack: 'subtitle-studio:rename-translation-track',
+  editCues: 'subtitle-studio:edit-cues',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   probeTranscriptionMedia: 'subtitle-studio:probe-transcription-media',
@@ -121,7 +123,7 @@ export const requestSchemas = {
   exportDocument: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), planId: idSchema, acceptedLosses: z.array(exportIssueCodeSchema).max(32), destination: exportDestinationSchema.optional() }).strict(),
   deleteDocument: z.object({ documentId: idSchema, revision: z.number().int().positive().safe() }).strict(),
   removeTask: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), taskId: idSchema }).strict(),
-  planTranslation: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), config: translationConfigSchema }).strict(),
+  planTranslation: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), config: translationConfigSchema, scope: translationScopeSchema.optional() }).strict(),
   createTranslation: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), planId: idSchema, apiKey: z.string().min(1).max(8000) }).strict(),
   cancelTask: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), taskId: idSchema }).strict(),
   resumeTask: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), taskId: idSchema, model: translationModelSchema.nullable(), apiKey: z.string().max(8000) }).strict(),
@@ -129,6 +131,7 @@ export const requestSchemas = {
   applyBilingual: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: bilingualOptionsSchema }).strict(),
   removeTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema }).strict(),
   renameTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema, name: translationTrackNameSchema }).strict(),
+  editCues: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), operation: cueEditOperationSchema }).strict(),
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -220,6 +223,7 @@ export interface SubtitleStudioApi {
   applyBilingual(request: z.infer<typeof requestSchemas.applyBilingual>): Promise<StudioResult<DocumentSummary>>;
   removeTranslationTrack(request: z.infer<typeof requestSchemas.removeTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
   renameTranslationTrack(request: z.infer<typeof requestSchemas.renameTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
+  editCues(request: z.infer<typeof requestSchemas.editCues>): Promise<StudioResult<CueEditResult>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 

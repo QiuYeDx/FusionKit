@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { StudioError } from '../../../src/subtitle-studio/domain';
 import { normalizeTranslationModel, translationConfigSchema } from '../../../src/subtitle-studio/translation-contract';
-import { projectTranslationUnits } from '../../../src/subtitle-studio/translation-protocol';
 import { knowledgeTranslationRequestSchemas, type KnowledgeTranslationPreview, type KnowledgeTranslationRequest } from '../../../src/subtitle-studio/knowledge-translation-contract';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
 import { normalizeKnowledgeSelection, type CompiledKnowledge, type KnowledgeIssue, type KnowledgeSelection } from '../../../src/translation-knowledge/execution-contract';
@@ -11,7 +10,7 @@ import type { KnowledgeTaskGate } from '../../../src/translation-knowledge/task-
 import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
 import type { DocumentRepository } from './document-repository';
 import type { TranslationService } from './translation-service';
-import { sourceDigest, type TranslationPlan } from './translation-planner';
+import { scopedTranslationUnits, type TranslationPlan } from './translation-planner';
 import { documentSourceDigest } from './translation-recovery';
 import { assertKnowledgeExecutionCapacity, createExecutionRecord, freezeExecutionRequest, type PreparedKnowledgeExecution } from './execution-records';
 import { planKnowledgeBatches, type PreparedKnowledgeBatch } from './knowledge-planner';
@@ -24,7 +23,7 @@ export const KNOWLEDGE_TRANSLATION_LIMITS = Object.freeze({
 const PLAN_LIFETIME = 15 * 60 * 1000;
 const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 const yieldWindow = () => new Promise<void>(resolve => setImmediate(resolve));
-type CachedPlan = { owner: number; epoch: number; generation: number; preview: KnowledgeTranslationPreview; prepared?: PreparedKnowledgeExecution; started: boolean; bytes: number };
+type CachedPlan = { owner: number; epoch: number; generation: number; preview: KnowledgeTranslationPreview; prepared?: PreparedKnowledgeExecution; scope?: KnowledgeTranslationRequest['scope']; started: boolean; bytes: number };
 
 function scopedSelection(selection: KnowledgeSelection, documentTopicIds: string[], cueIds: string[]): KnowledgeSelection {
   const current = new Set(cueIds);
@@ -69,13 +68,15 @@ export async function prepareKnowledgeTranslation(repository: DocumentRepository
   const initial = await repository.readSnapshot(request.documentId); alive();
   const document = initial.document;
   if (document.revision !== request.revision) throw new StudioError('revision_conflict');
-  const sourceCount = document.cues.filter(cue => /\S/u.test(cue.source.plain)).length;
+  const scope = request.scope ? new Set(request.scope.cueIds) : undefined;
+  const sourceCount = document.cues.filter(cue => /\S/u.test(cue.source.plain) && (!scope || scope.has(cue.id))).length;
   if (!sourceCount) throw new StudioError('invalid_input');
   budget?.charge('cues', sourceCount);
   if (sourceCount > KNOWLEDGE_TRANSLATION_LIMITS.cues) throw new StudioError('limit_exceeded');
   const originals = new Map(document.cues.map(cue => [cue.id, cue]));
   if ([...request.knowledge.bindings, ...request.knowledge.confirmations].some(binding => binding.cueIds.some(id => !originals.has(id)))) throw new StudioError('invalid_input');
-  const units = projectTranslationUnits(document).map(unit => ({ ...unit, sourceHash: sourceDigest(originals.get(unit.cueId)!) }));
+  if (request.scope?.trackId && !document.translationTracks.some(track => track.id === request.scope!.trackId)) throw new StudioError('invalid_input');
+  const units = scopedTranslationUnits(document, request.scope).units;
   const translatable = new Set(units.map(unit => unit.cueId));
   if ([...request.knowledge.bindings, ...request.knowledge.confirmations].some(binding => binding.cueIds.some(id => !translatable.has(id)))) throw new StudioError('invalid_input');
   if (library.generation !== request.knowledgeGeneration) throw new StudioError('revision_conflict');
@@ -186,7 +187,7 @@ export class KnowledgeTranslationService {
       for (const [id, saved] of this.plans) if (!saved.started && saved.preview.expiresAt <= Date.now()) this.plans.delete(id);
       if (this.plans.size >= KNOWLEDGE_TRANSLATION_LIMITS.plans || [...this.plans.values()].reduce((sum, value) => sum + value.bytes, size) > KNOWLEDGE_TRANSLATION_LIMITS.cachedBytes) throw new StudioError('limit_exceeded');
       alive();
-      this.plans.set(preview.planId, { owner, epoch, generation: library.generation, preview, prepared, started: false, bytes: size });
+      this.plans.set(preview.planId, { owner, epoch, generation: library.generation, preview, prepared, ...(request.scope ? { scope: request.scope } : {}), started: false, bytes: size });
       return structuredClone(preview);
     })());
   }
@@ -204,7 +205,7 @@ export class KnowledgeTranslationService {
       this.alive(owner, plan.epoch, guard);
       const library = await this.readKnowledge(); this.alive(owner, plan.epoch, guard);
       if (library.generation !== plan.generation || library.maintenance?.cleanupPending) throw new StudioError('revision_conflict');
-      const result = await this.translation.startPreparedKnowledge(plan.prepared!, parsed.data.apiKey, () => this.alive(owner, plan.epoch, guard));
+      const result = await this.translation.startPreparedKnowledge(plan.prepared!, parsed.data.apiKey, () => this.alive(owner, plan.epoch, guard), plan.scope);
       this.plans.delete(parsed.data.planId);
       return result;
     }).catch(error => { if (this.plans.get(parsed.data.planId) === plan) plan.started = false; throw error; }));

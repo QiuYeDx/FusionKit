@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { encode } from 'gpt-tokenizer';
 import { StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
-import { normalizeTranslationModel, translationConfigSchema, type TranslationConfig } from '../../../src/subtitle-studio/translation-contract';
+import { normalizeTranslationModel, translationConfigSchema, translationScopeSchema, type TranslationConfig, type TranslationScope } from '../../../src/subtitle-studio/translation-contract';
 import { projectTranslationUnits, sourceFingerprint, type TranslationUnit } from '../../../src/subtitle-studio/translation-protocol';
 import type { ModelRuntimeTextRequest } from '../ai/model-runtime-client';
 import { buildChatCompletionBody } from '../ai/adapters/chat-completions-adapter';
@@ -52,13 +52,32 @@ export function buildTranslationRequest(config: TranslationConfig, batch: Transl
   return request;
 }
 
-export function planTranslation(document: SubtitleDocument, input: TranslationConfig): TranslationPlan {
+/** Translatable units in document order, limited to `scope` when given. */
+export function scopedTranslationUnits(document: SubtitleDocument, scope?: TranslationScope): { all: TranslationUnit[]; units: TranslationUnit[] } {
+  const cues = new Map(document.cues.map(cue => [cue.id, cue]));
+  if (scope && (!translationScopeSchema.safeParse(scope).success || scope.cueIds.some(id => !cues.has(id)))) throw new StudioError('invalid_input');
+  const all = projectTranslationUnits(document).map(unit => ({ ...unit, sourceHash: sourceDigest(cues.get(unit.cueId)!) }));
+  if (!scope) return { all, units: all };
+  const selected = new Set(scope.cueIds);
+  const units = all.filter(unit => selected.has(unit.cueId));
+  // Blank cues are never sent; a selection of only blank cues has nothing to translate.
+  if (!units.length) throw new StudioError('invalid_input');
+  return { all, units };
+}
+
+export function planTranslation(document: SubtitleDocument, input: TranslationConfig, scope?: TranslationScope): TranslationPlan {
   const parsed = translationConfigSchema.safeParse(input);
   if (!parsed.success) throw new StudioError('invalid_input');
   const config = parsed.data;
   config.model = normalizeTranslationModel(config.model);
   const cues = new Map(document.cues.map(cue => [cue.id, cue]));
-  const units = projectTranslationUnits(document).map(unit => ({ ...unit, sourceHash: sourceDigest(cues.get(unit.cueId)!) }));
+  const { all, units } = scopedTranslationUnits(document, scope);
+  const positions = new Map(all.map((unit, index) => [unit.cueId, index]));
+  // Context comes from the neighbouring cues in the document, also for a scattered selection.
+  const neighbours = (first: TranslationUnit, last: TranslationUnit) => {
+    const start = positions.get(first.cueId)!, end = positions.get(last.cueId)!;
+    return { before: all.slice(Math.max(0, start - 2), start), after: all.slice(end + 1, end + 3) };
+  };
   const batches: TranslationBatch[] = [];
   let offset = 0;
   while (offset < units.length) {
@@ -69,8 +88,8 @@ export function planTranslation(document: SubtitleDocument, input: TranslationCo
       if (outputEstimate > config.maxOutputTokens) break;
       const batch: TranslationBatch = {
         id: `b${batches.length + 1}`, units: selected,
-        before: boundedContext(units.slice(Math.max(0, offset - 2), offset).map(unit => cues.get(unit.cueId)!.source.plain), 256),
-        after: boundedContext(units.slice(offset + size, offset + size + 2).map(unit => cues.get(unit.cueId)!.source.plain), 256),
+        before: boundedContext(neighbours(selected[0], selected.at(-1)!).before.map(unit => cues.get(unit.cueId)!.source.plain), 256),
+        after: boundedContext(neighbours(selected[0], selected.at(-1)!).after.map(unit => cues.get(unit.cueId)!.source.plain), 256),
         priorContextReserve: batches.length ? PRIOR_CONTEXT_RESERVE : 0,
         estimatedInputTokens: 0,
       };

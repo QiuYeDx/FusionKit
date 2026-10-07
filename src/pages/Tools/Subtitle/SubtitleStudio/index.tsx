@@ -5,7 +5,7 @@ import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { readStudioNavigationView } from './navigation';
-import { AlertCircle, ArrowRight, AudioLines, CheckCheck, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square } from 'lucide-react';
+import { AlertCircle, AudioLines, CheckCheck, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -23,13 +23,16 @@ import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioObservations } from '@/services/subtitle-studio/observations';
 import { StudioRefreshCoordinator } from '@/services/subtitle-studio/refresh-coordinator';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
-import { encodingSchema, StudioError, type Diagnostic, type ErrorCode } from '@/subtitle-studio/domain';
+import { encodingSchema, LIMITS, StudioError, type Diagnostic, type ErrorCode } from '@/subtitle-studio/domain';
+import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
+import { CueHistory, type CueEditLabel } from '@/services/subtitle-studio/cue-history';
+import { StudioCueTable } from './StudioCueTable';
 import type { DocumentListSnapshot, DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { STUDIO_BATCH_LIMIT, type UnavailableDocument, type BatchImportResult } from '@/subtitle-studio/batch-contract';
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import useModelStore from '@/store/useModelStore';
 import { translationModelSchema, normalizeTranslationModel } from '@/subtitle-studio/translation-contract';
-import { formatStudioTime, formatStudioTrackName, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
+import { formatStudioTrackName, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioTranslation, StudioTranslationStatus, StudioBatchTranslation } from './StudioTranslation';
 import { StudioTranslationTask } from './StudioTranslationTask';
 import type { AutomaticKnowledgeRecheckRequest } from './automatic-knowledge-recheck';
@@ -43,10 +46,11 @@ import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
 import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
 import { StudioRenameTranslation } from './StudioRenameTranslation';
 import { StudioTranscription } from './StudioTranscription';
-import { StudioCueCopy } from './StudioCueCopy';
 import { QuickTermDialog } from '@/pages/TranslationKnowledge/QuickTermDialog';
 import { STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, StudioOperationResult } from './StudioOperationResult';
 import './studio.css';
+
+const focusCueList = () => document.querySelector<HTMLElement>('[data-testid=studio-cue-list]')?.focus({ preventScroll: true });
 
 const errorKeys: Record<ErrorCode, string> = {
   resource_busy: 'studio:errors.resource_busy',
@@ -176,6 +180,13 @@ export default function SubtitleStudio() {
   const [knowledgeRecheck, setKnowledgeRecheck] = useState<AutomaticKnowledgeRecheckRequest | undefined>();
   const [importedId, setImportedId] = useState('');
   const track = page?.translationTracks.find(item => item.id === trackId) ?? page?.translationTracks.at(-1);
+  const cueHistory = useRef(new CueHistory());
+  // Undo only covers edits made at the revision on screen; any other change ends it.
+  // Synced when the page changes, not on every render: an edit records its new
+  // revision before the page reloads, and renders in between still show the old one.
+  useEffect(() => { cueHistory.current.sync(page?.summary.id, page?.summary.revision); }, [page?.summary.id, page?.summary.revision]);
+  const [cueNotice, setCueNotice] = useState<{ deleted: number; stopped: number } | null>(null);
+  const [cueTranslation, setCueTranslation] = useState<{ cueIds: string[]; trackId?: string; request: LibraryDialogRequest } | null>(null);
   const observations = useRef(new StudioObservations());
   const currentPage = useRef<DocumentPage | null>(null);
   const currentOffset = useRef(0);
@@ -554,6 +565,31 @@ export default function SubtitleStudio() {
   </Select>;
   const refresh = <StudioIconButton label={t('studio:refresh')} disabled={busy} onClick={() => void run('load', () => load(listOffset, !page))}><RefreshCw className={activity === 'load' ? 'studio-spin' : ''} /></StudioIconButton>;
   const onBatchChanged = () => { dirty.current = true; refreshPending.current(); };
+  /** Applies a cue edit, records its inverse and reloads the page; resolves whether it was applied. */
+  const applyCueEdit = (operation: CueEditOperation, mode: 'do' | 'undo' | 'redo', label: CueEditLabel = 'source', count = 1) => new Promise<boolean>(resolve => {
+    const current = currentPage.current;
+    if (!current || busy) { resolve(false); return; }
+    let applied = false;
+    void run('select', async () => {
+      const history = cueHistory.current;
+      let result;
+      try { result = await unwrapStudio(window.subtitleStudio.editCues({ documentId: current.summary.id, revision: current.summary.revision, operation })); }
+      catch (failure) { if (mode !== 'do') history.discard(mode); throw failure; }
+      // Record before the page reloads at the new revision, which the history checks against.
+      if (mode === 'do') { if (result.changed) history.record(current.summary.id, current.summary.revision, result.summary.revision, { label, count, operation: result.undo }); }
+      else history.step(mode, current.summary.id, current.summary.revision, result.summary.revision, result.undo);
+      applied = true;
+      setCueNotice(operation.kind === 'delete' || result.stoppedTasks ? { deleted: operation.kind === 'delete' ? result.changed : 0, stopped: result.stoppedTasks } : null);
+      const lastPage = Math.max(0, Math.floor((result.summary.cueCount - 1) / LIMITS.pageSize) * LIMITS.pageSize);
+      await select(result.summary, Math.min(current.offset, lastPage), current.nodeOffset);
+      await load(currentOffset.current);
+    }, false).then(() => resolve(applied));
+  });
+  const stepCueHistory = (direction: 'undo' | 'redo') => {
+    cueHistory.current.sync(currentPage.current?.summary.id, currentPage.current?.summary.revision);
+    const entry = cueHistory.current.peek(direction);
+    if (entry) void applyCueEdit(entry.operation, direction).then(applied => { if (applied) focusCueList(); });
+  };
   const batchActions = <>
     <span ref={setTranslationSlot} />
     <span ref={setExportSlot} />
@@ -609,6 +645,12 @@ export default function SubtitleStudio() {
       {cleanupPending && <div role="status" className="studio-notice"><AlertCircle /><span>{t('studio:cleanup_pending')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCleanupPending(false)}><X /></StudioIconButton></div>}
       <span className="sr-only" role="status">{busy ? t('studio:loading') : copied ? t('studio:copied') : ''}</span>
       {copyFailed && <div role="alert" className="studio-notice text-destructive"><AlertCircle /><span>{t('studio:copy_failed')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCopyFailed(false)}><X /></StudioIconButton></div>}
+      {cueNotice && page && <div role="status" data-testid="studio-cue-notice" className="studio-notice">
+        {cueNotice.deleted ? <Trash2 className="text-muted-foreground" /> : <AlertCircle className="text-amber-600 dark:text-amber-400" />}
+        <span>{[cueNotice.deleted ? t('studio:cue_notice.deleted', { count: cueNotice.deleted }) : '', cueNotice.stopped ? t('studio:cue_notice.stopped', { count: cueNotice.stopped }) : ''].filter(Boolean).join(' ')}</span>
+        {cueNotice.deleted > 0 && cueHistory.current.peek('undo')?.label === 'delete' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setCueNotice(null); stepCueHistory('undo'); }}><Undo2 />{t('studio:cue_history.undo_short')}</Button>}
+        <StudioIconButton label={t('studio:dismiss')} onClick={() => setCueNotice(null)}><X /></StudioIconButton>
+      </div>}
       <div aria-busy={busy || (!!previewRequest && !previewRequest.error)} className="studio-preview-region" data-preview-pending={!!previewRequest || undefined}>
         <div className="studio-preview-surface" inert={!!previewRequest} aria-hidden={previewRequest ? true : undefined}>
         <ToolPanel
@@ -646,12 +688,12 @@ export default function SubtitleStudio() {
               {diagnostics.length > 0 && <StudioDisclosure className="studio-diagnostics border-t bg-muted/30" key={page.summary.id} title={<span className="flex min-w-0 items-center gap-2"><AlertCircle className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" /><span>{t('studio:document_checks')}</span><Badge variant="secondary" className="font-mono text-[10px]">{page.summary.diagnostics.length}</Badge></span>}><ul>{diagnostics.map(([code, count]) => <li key={code}><span>{t(diagnosticKeys[code])}</span><span className="shrink-0 font-mono text-[10px]">{count}</span></li>)}</ul></StudioDisclosure>}
               <div className="studio-reader border-t" ref={reader}>
                 <ClipPathTabsContent value="preview">
-                  {page.cues.length ? <table aria-label={t('studio:preview')} className={track ? 'studio-cue-table studio-translated-table' : 'studio-cue-table'}><thead><tr><th scope="col">#</th><th scope="col">{t('studio:time')}</th><th scope="col">{track ? <div className="studio-parallel-text"><span>{t('studio:source')}</span><span>{t('studio:target')}</span></div> : t('studio:source')}</th><th scope="col"><span className="sr-only">{t('studio:copy')}</span></th></tr></thead><tbody>{page.cues.map((cue, index) => <tr key={cue.id} data-warning={flaggedNodes.has(cue.nodeId) || undefined}>
-                    <td className="studio-cue-number">{page.offset + index + 1}</td>
-                    <td className="studio-cue-time"><div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div></td>
-                    <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}><div>{cue.source.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</div>{track && <div className="studio-target-text">{track.entries[cue.id] ? <>{track.entries[cue.id].sourceRevision !== cue.sourceRevision && <span className="block text-xs text-amber-600">{t('studio:translation_stale')}</span>}{track.entries[cue.id].text.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</> : <span className="text-xs text-muted-foreground">{cue.source.plain.trim() ? t('studio:translation_missing') : ''}</span>}</div>}</div></td>
-                    <td className="studio-cue-action"><StudioCueCopy cue={cue} translation={track?.entries[cue.id]} copied={copied === cue.id} onCopy={text => copyCue(cue.id, text)} onRemember={() => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /></td>
-                  </tr>)}</tbody></table> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
+                  {page.cues.length ? <StudioCueTable page={page} track={track} flaggedNodes={flaggedNodes} busy={busy} copied={copied} scrollRef={reader}
+                    history={{ undo: cueHistory.current.peek('undo'), redo: cueHistory.current.peek('redo') }}
+                    onOperation={(operation, label, count) => applyCueEdit(operation, 'do', label, count)} onUndo={() => stepCueHistory('undo')} onRedo={() => stepCueHistory('redo')}
+                    onTranslate={cueIds => setCueTranslation({ cueIds, ...(track ? { trackId: track.id } : {}), request: { restoreFocus: focusCueList } })}
+                    onCopy={copyCue}
+                    onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
                 </ClipPathTabsContent>
                 <ClipPathTabsContent value="raw" className="studio-raw"><ol start={page.nodeOffset + 1}>{page.rawNodes.map((node, index) => <li key={node.id}><span aria-hidden="true">{page.nodeOffset + index + 1}</span><pre>{node.text}</pre></li>)}</ol>{!page.rawNodes.length && <div className="studio-content-empty"><Code2 /><p>{t('studio:no_source_content')}</p></div>}</ClipPathTabsContent>
               </div>
@@ -674,6 +716,7 @@ export default function SubtitleStudio() {
       {workspaceView === 'transcription' && <StudioTranscription header={null} onOpenDocument={openTranscriptionDocument} />}
     </ClipPathTabsContent>
     </ClipPathTabs>
+    {page && <StudioTranslation page={page} scope={cueTranslation ?? undefined} triggerContainer={null} openRequest={cueTranslation?.request} onRequestClosed={() => setCueTranslation(null)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />}
     <QuickTermDialog open={!!rememberTerm} onOpenChange={open => { if (!open) setRememberTerm(null); }} initialSource={rememberTerm?.source} initialTarget={rememberTerm?.target} initialLanguagePair={rememberTerm?.targetLanguage ? { source: '', target: rememberTerm.targetLanguage } : undefined} />
     <StudioBatchTranslation triggerContainer={translationSlot} documents={contextDialog?.kind === 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog?.kind === 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind === 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />
     <StudioBatchExport triggerContainer={exportSlot} documents={contextDialog && contextDialog.kind !== 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog && contextDialog.kind !== 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind !== 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} />

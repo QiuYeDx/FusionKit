@@ -727,5 +727,106 @@
     "reset": "Use automatic name",
     "save": "Save name",
     "invalid": "Use up to 100 characters without line breaks or control characters."
+  },
+  "cue_edit": {
+    "saving": "Saving…",
+    "keys": "Enter to save · Shift+Enter for a new line · Tab for the next cue · Esc to cancel",
+    "blocked_translation": "A translation is running. Edit after it finishes or is cancelled.",
+    "blocked_busy": "Working, please wait.",
+    "mixed_style": "Parts of this subtitle are styled (such as one bold word). Saving a change removes that styling.",
+    "human": "Edited by hand",
+    "reviewed": "Reviewed",
+    "problem": {
+      "empty": "The text cannot be empty.",
+      "empty_source": "The source cannot be empty. To remove this subtitle, delete it.",
+      "markup": "The text cannot contain < or >; they are read as formatting tags.",
+      "characters": "The text contains control characters that cannot be saved.",
+      "too_long": "The text is too long. A subtitle can hold up to 64 KB."
+    }
+  },
+  "cue_menu": {
+    "selected": "{{count}} subtitles selected",
+    "edit_source": "Edit source",
+    "edit_target": "Edit translation",
+    "translate": "Translate selection",
+    "retranslate": "Retranslate selection",
+    "review": "Mark as reviewed",
+    "unreview": "Clear review mark",
+    "clear_translation": "Clear translation",
+    "delete": "Delete subtitle",
+    "delete_many": "Delete selected subtitles",
+    "keep_one": "A document keeps at least one subtitle."
+  },
+  "cue_toolbar": {
+    "label": "Selected subtitle actions",
+    "list_label": "Subtitle list",
+    "selected": "{{count}} selected",
+    "more": "More actions",
+    "clear_selection": "Clear selection"
+  },
+  "cue_history": {
+    "undo": "Undo: {{action}}",
+    "redo": "Redo: {{action}}",
+    "nothing_to_undo": "Nothing to undo",
+    "nothing_to_redo": "Nothing to redo",
+    "undo_short": "Undo",
+    "labels": {
+      "source": "edit source",
+      "target": "edit translation",
+      "clear": "clear {{count}} translations",
+      "review": "review {{count}} translations",
+      "unreview": "clear {{count}} review marks",
+      "delete": "delete {{count}} subtitles"
+    }
+  },
+  "cue_help": {
+    "label": "List shortcuts",
+    "select": {
+      "keys": "Click / Ctrl / Shift",
+      "desc": "Select, add, select a range"
+    },
+    "marquee": {
+      "keys": "Drag",
+      "desc": "Select with a box (Shift adds, Ctrl toggles)"
+    },
+    "edit": {
+      "keys": "Double-click / Enter / F2",
+      "desc": "Edit source or translation"
+    },
+    "editor": {
+      "keys": "Enter / Shift+Enter / Tab",
+      "desc": "Save / new line / save and edit the next cue"
+    },
+    "field": {
+      "keys": "← / →",
+      "desc": "Switch between source and translation"
+    },
+    "delete": {
+      "keys": "Delete",
+      "desc": "Delete the selected subtitles"
+    },
+    "copy": {
+      "keys": "Ctrl+C / Ctrl+A",
+      "desc": "Copy the selection / select the page"
+    },
+    "undo": {
+      "keys": "Ctrl+Z / Ctrl+Y",
+      "desc": "Undo / redo"
+    },
+    "menu": {
+      "keys": "Right-click / Shift+F10",
+      "desc": "Translate, review, copy and more"
+    }
+  },
+  "cue_notice": {
+    "deleted": "Deleted {{count}} subtitles.",
+    "stopped": "Stopped {{count}} paused translations that could no longer continue. Their finished translations are kept; select untranslated subtitles to translate them."
+  },
+  "cue_translate": {
+    "title": "Translate selected subtitles",
+    "retranslate_title": "Retranslate selected subtitles",
+    "into_track": "Translates the {{count}} selected subtitles and replaces their translations in “{{track}}”.",
+    "new_track": "Translates the {{count}} selected subtitles into a new translation.",
+    "start": "Translate {{count}}"
   }
 }

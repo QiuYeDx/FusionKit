@@ -16,7 +16,7 @@ import useModelStore from '@/store/useModelStore';
 import { getStudioTranslationOverviewController } from '@/services/subtitle-studio/translation-overview-controller';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
-import { StudioFileName, StudioIconButton } from './StudioControls';
+import { formatStudioTrackName, StudioFileName, StudioIconButton } from './StudioControls';
 import { StudioTranslationSettings } from './StudioTranslationSettings';
 import { StudioTranslationReview } from './StudioTranslationReview';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
@@ -80,13 +80,15 @@ type StudioTranslationProps = {
   onError: (error: ErrorCode) => void;
   recheckRequest?: AutomaticKnowledgeRecheckRequest;
   onRecheckClosed?: (requestId: string) => void;
+  /** Translate only these cues, into an existing track when `trackId` is given. */
+  scope?: { cueIds: string[]; trackId?: string };
 };
 
 export function StudioBatchTranslation(props: Omit<StudioTranslationProps, 'page' | 'documents'> & { documents: DocumentSummary[] }) {
   return <StudioTranslation {...props} />;
 }
 
-export function StudioTranslation({ page, documents, triggerContainer, openRequest, onRequestClosed, busy, onStarted, onError, recheckRequest, onRecheckClosed }: StudioTranslationProps) {
+export function StudioTranslation({ page, documents, triggerContainer, openRequest, onRequestClosed, busy, onStarted, onError, recheckRequest, onRecheckClosed, scope }: StudioTranslationProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const controlId = useId();
@@ -115,14 +117,20 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   const session = useMemo(() => new TranslationSession(window.subtitleStudio), []);
   const documentOwner = useRef([page?.summary.id, page?.summary.revision] as const);
   const selected = profiles.find(profile => profile.id === draft.profileId);
+  // Retranslating into an existing track keeps that track's language.
+  const scopeTrack = scope?.trackId ? page?.translationTracks.find(item => item.id === scope.trackId) : undefined;
+  const scopeTrackIndex = scopeTrack && page ? page.translationTracks.indexOf(scopeTrack) : -1;
+  const language = scopeTrack ? (scopeTrack.language === 'zh-Hans' ? 'zh' : scopeTrack.language) : draft.language;
+  const scopeCueIds = scope && page ? scope.cueIds : [];
+  const remember: typeof translationDraftMemory.remember = (...args) => { if (!scope) translationDraftMemory.remember(...args); };
   const model = useMemo(() => translationModelSchema.safeParse(selected ? { profileId: selected.id, modelKey: selected.modelKey, endpoint: selected.baseUrl, apiFormat: selected.apiFormat, outputTokenParameter: selected.outputTokenParameter } : null), [selected]);
   const config = useMemo(() => translationConfigSchema.safeParse({ model: model.success ? model.data : recheckSession?.seed.config.model,
     ...(draft.trackName?.trim() ? { trackName: draft.trackName.trim() } : {}),
-    language: draft.language, instructions: draft.instructions, contextWindow: Number(draft.contextWindow), maxOutputTokens: Number(draft.maxOutputTokens), maxBatchCues: Number(draft.maxBatchCues) }), [draft, model, recheckSession]);
-  const selection = { ...draft.selection, languagePair: { ...draft.selection.languagePair, target: knowledgeTarget(draft.language) } };
+    language, instructions: draft.instructions, contextWindow: Number(draft.contextWindow), maxOutputTokens: Number(draft.maxOutputTokens), maxBatchCues: Number(draft.maxBatchCues) }), [draft, model, recheckSession, language]);
+  const selection = { ...draft.selection, languagePair: { ...draft.selection.languagePair, target: knowledgeTarget(language) } };
   const usingMaterials = hasMaterials(selection);
   const targets = batch ? batchDocuments.map(item => documents?.find(document => document.id === item.id) ?? item) : page ? [page.summary] : [];
-  const identity = JSON.stringify([targets.map(item => [item.id, item.revision]), draft, config.success ? config.data : null, selected?.apiKey, usingMaterials ? library?.generation : null]);
+  const identity = JSON.stringify([targets.map(item => [item.id, item.revision]), draft, config.success ? config.data : null, selected?.apiKey, usingMaterials ? library?.generation : null, scope ?? null]);
   const checkedIdentity = useRef('');
   const currentCheck = checkedIdentity.current === identity ? check : null;
   const currentIdentity = useRef(identity); currentIdentity.current = identity;
@@ -139,7 +147,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   const changeDraft = (next: TranslationDraft) => {
     if (operation.current) return;
     invalidate(); setNotice(''); setDraft(next);
-    translationDraftMemory.remember(documentOwner.current[0], documentOwner.current[1], next, false);
+    remember(documentOwner.current[0], documentOwner.current[1], next, false);
   };
   const patch = (value: Partial<TranslationDraft>) => changeDraft({ ...draft, ...value });
   const changeSelection = (value: TranslationDraft['selection']) => changeDraft({ ...draft, selection: value,
@@ -173,7 +181,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
     }
     if (operation.current) return;
     invalidate(); libraryReadEpoch.current++; opened.current = false; setOpen(false); setQuickTermOpen(false); setReviewOpen(false);
-    translationDraftMemory.remember(documentOwner.current[0], documentOwner.current[1], draft);
+    remember(documentOwner.current[0], documentOwner.current[1], draft);
   };
   const begin = () => {
     if (operation.current) return;
@@ -232,7 +240,9 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
     if (intent !== 'start') showReview(intent === 'check' ? 'check' : 'trial');
     const requestIdentity = identity, token = revision.current;
     const input: TranslationSessionInput = { documents: targets.map(item => ({ documentId: item.id, revision: item.revision })), batch, config: config.data,
-      ...(usingMaterials ? { knowledge: { ...structuredClone(selection), instructions: draft.instructions }, generation: library!.generation } : {}), documentTopicIds: [...draft.documentTopicIds], cueIds: [...(draft.cueIds.length ? draft.cueIds : page?.cues.filter(cue => /\S/u.test(cue.source.plain)).slice(0, 20).map(cue => cue.id) ?? [])] };
+      ...(usingMaterials ? { knowledge: { ...structuredClone(selection), instructions: draft.instructions }, generation: library!.generation } : {}), documentTopicIds: [...draft.documentTopicIds],
+      cueIds: [...(draft.cueIds.length ? draft.cueIds : page?.cues.filter(cue => /\S/u.test(cue.source.plain) && (!scope || scopeCueIds.includes(cue.id))).slice(0, 20).map(cue => cue.id) ?? [])],
+      ...(scope ? { scope: { cueIds: [...scope.cueIds], ...(scope.trackId ? { trackId: scope.trackId } : {}) } } : {}) };
     const isCurrent = () => mounted.current && opened.current && token === revision.current && currentIdentity.current === requestIdentity;
     operation.current = true; setActivity(intent === 'trial' ? 'trial' : 'check'); setError(null); setNotice(''); setTrialResult(null);
     try {
@@ -250,7 +260,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
       // An admitted task belongs to the overview even after a source update/unmount.
       getStudioTranslationOverviewController().trackStarted(result.kind === 'single' ? [result.taskId] : result.value.items.flatMap(item => item.ok ? [item.taskId] : []));
       onStarted();
-      translationDraftMemory.remember(input.batch ? undefined : input.documents[0].documentId, input.batch ? undefined : input.documents[0].revision, draft);
+      remember(input.batch ? undefined : input.documents[0].documentId, input.batch ? undefined : input.documents[0].revision, draft);
       if (mounted.current) {
         setCheck(null); setReviewOpen(false);
         if (result.kind === 'batch') setBatchResult(result.value);
@@ -287,7 +297,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
   const partialReady = !!currentCheck && partialCheck(currentCheck) && readyCount(currentCheck) > 0;
   const triggerControl = <StudioIconButton ref={trigger} label={t(batch ? 'studio:batch.translation' : 'studio:translation.action')} disabled={busy || activeTask || (!batch && !page?.summary.capabilities.translate) || pending} onClick={begin}><Languages /></StudioIconButton>;
   const fixedLanguages = Object.keys(languageKeys);
-  const languageChoice = fixedLanguages.includes(draft.language) ? draft.language : 'custom';
+  const languageChoice = fixedLanguages.includes(language) ? language : 'custom';
 
   return <>
     {triggerContainer === null ? null : triggerContainer ? createPortal(triggerControl, triggerContainer) : triggerControl}
@@ -301,13 +311,14 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
       {batchResult ? <StudioOperationResult operation="translation" testId="studio-batch-result" closeButtonId={`${controlId}-close`} onClose={close} items={batchResult.items.map(item => ({ id: item.documentId, name: item.displayName, state: item.ok ? 'success' : 'failed', detail: item.ok ? t('studio:batch.queued') : t(errorKeys[item.error]) }))} primaryAction={batchResult.items.some(item => item.ok) ? { label: t('studio:overview.view_progress'), onClick: () => { handingOffToOverview.current = true; close(); getStudioTranslationOverviewController().setDetailsOpen(true); } } : undefined} /> : <>
         <ScrollableDialogHeader className="studio-translation-compact-header">
           <div data-testid="studio-translation-header">
-            <DialogTitle className="flex min-h-7 items-center gap-2 text-sm leading-6"><Languages className="size-4 shrink-0" />{t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle>
+            <DialogTitle className="flex min-h-7 items-center gap-2 text-sm leading-6"><Languages className="size-4 shrink-0" />{scope ? t(scopeTrack ? 'studio:cue_translate.retranslate_title' : 'studio:cue_translate.title', { count: scopeCueIds.length }) : t(batch ? 'studio:batch.translation' : 'studio:translation.title')}</DialogTitle>
             <DialogDescription className="sr-only">{batch ? t('studio:batch.document_count', { count: targets.length }) : page?.summary.origin.displayName}</DialogDescription>
           </div>
         </ScrollableDialogHeader>
         <ScrollableDialogContent className="studio-translation-content" fadeMaskHeight={16}><div className="studio-translation-form" data-testid="studio-translation-form">
           <div className="studio-translation-context" data-testid="studio-translation-context">
             <div className="studio-translation-source">{batch ? <><Files aria-hidden="true" /><span>{t('studio:batch.document_count', { count: targets.length })}</span></> : <><FileText aria-hidden="true" /><StudioFileName name={page?.summary.origin.displayName ?? ''} focusable /></>}</div>
+            {scope && <p className="text-xs leading-5 text-muted-foreground" data-testid="studio-cue-translate-scope">{scopeTrack ? t('studio:cue_translate.into_track', { count: scopeCueIds.length, track: formatStudioTrackName(scopeTrack.language, scopeTrackIndex, t('studio:language_unknown'), scopeTrack.name) }) : t('studio:cue_translate.new_track', { count: scopeCueIds.length })}</p>}
             <StudioTranslationSettings previous={lastDraft}
               previousModel={profiles.find(profile => profile.id === lastDraft?.profileId)?.name || profiles.find(profile => profile.id === lastDraft?.profileId)?.modelKey || t('studio:translation.select_model')}
               previousLanguage={lastDraft?.language && lastDraft.language in languageKeys ? t(languageKeys[lastDraft.language as keyof typeof languageKeys]) : lastDraft?.language ?? ''}
@@ -319,10 +330,10 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           {batch && <StudioSelectedDocuments documents={targets} />}
           <div><div className="studio-translation-fields">
             <ToolField label={t('studio:translation.model')} htmlFor={`${controlId}-model`}><Select value={selected?.id ?? ''} disabled={pending || !profiles.length} onValueChange={profileId => { patch({ profileId }); setModelApproved(true); }}><SelectTrigger id={`${controlId}-model`} data-testid="studio-translation-model" className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:translation.select_model')} /></SelectTrigger><SelectContent>{profiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.modelKey}</SelectItem>)}</SelectContent></Select></ToolField>
-            <ToolField label={t('studio:translation.language')} htmlFor={`${controlId}-language`}><Select value={languageChoice} disabled={pending} onValueChange={value => patch({ language: value === 'custom' ? '' : value })}><SelectTrigger id={`${controlId}-language`} data-testid="studio-translation-language" className="h-8 w-full text-xs"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(languageKeys) as (keyof typeof languageKeys)[]).map(value => <SelectItem key={value} value={value}>{t(languageKeys[value])}</SelectItem>)}<SelectItem value="custom">{t('studio:translation.custom_language')}</SelectItem></SelectContent></Select></ToolField>
+            <ToolField label={t('studio:translation.language')} htmlFor={`${controlId}-language`}>{scopeTrack && languageChoice === 'custom' ? <Input id={`${controlId}-language`} data-testid="studio-translation-language" className="h-8 text-xs" value={language} disabled readOnly /> : <Select value={languageChoice} disabled={pending || !!scopeTrack} onValueChange={value => patch({ language: value === 'custom' ? '' : value })}><SelectTrigger id={`${controlId}-language`} data-testid="studio-translation-language" className="h-8 w-full text-xs"><SelectValue /></SelectTrigger><SelectContent>{(Object.keys(languageKeys) as (keyof typeof languageKeys)[]).map(value => <SelectItem key={value} value={value}>{t(languageKeys[value])}</SelectItem>)}<SelectItem value="custom">{t('studio:translation.custom_language')}</SelectItem></SelectContent></Select>}</ToolField>
           </div>
-          <div className="pt-3"><ToolField label={t('studio:track_naming.label')} htmlFor={`${controlId}-track-name`}><Input id={`${controlId}-track-name`} data-testid="studio-translation-name" className="h-8 text-xs" value={draft.trackName ?? ''} maxLength={100} disabled={pending} onChange={event => patch({ trackName: event.target.value })} aria-describedby={`${controlId}-name-help`} /><p id={`${controlId}-name-help`} className="text-xs leading-5 text-muted-foreground">{t(batch ? 'studio:track_naming.batch_hint' : 'studio:track_naming.hint')}</p></ToolField></div>
-          <DialogTransition transitionKey="custom-language" stageClassName="pt-3">{languageChoice === 'custom' && <ToolField label={t('studio:translation.custom_language_name')} htmlFor={`${controlId}-custom-language`}><Input id={`${controlId}-custom-language`} className="h-8 text-xs" value={draft.language} maxLength={100} disabled={pending} onChange={event => patch({ language: event.target.value })} /></ToolField>}</DialogTransition>
+          {!scopeTrack && <div className="pt-3"><ToolField label={t('studio:track_naming.label')} htmlFor={`${controlId}-track-name`}><Input id={`${controlId}-track-name`} data-testid="studio-translation-name" className="h-8 text-xs" value={draft.trackName ?? ''} maxLength={100} disabled={pending} onChange={event => patch({ trackName: event.target.value })} aria-describedby={`${controlId}-name-help`} /><p id={`${controlId}-name-help`} className="text-xs leading-5 text-muted-foreground">{t(batch ? 'studio:track_naming.batch_hint' : 'studio:track_naming.hint')}</p></ToolField></div>}
+          <DialogTransition transitionKey="custom-language" stageClassName="pt-3">{languageChoice === 'custom' && !scopeTrack && <ToolField label={t('studio:translation.custom_language_name')} htmlFor={`${controlId}-custom-language`}><Input id={`${controlId}-custom-language`} className="h-8 text-xs" value={draft.language} maxLength={100} disabled={pending} onChange={event => patch({ language: event.target.value })} /></ToolField>}</DialogTransition>
           <DialogTransition transitionKey="model-required" stageClassName="pt-3">{(!model.success || !selected?.apiKey.trim()) && <div className="studio-translation-configuration"><p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.model_required')}</p><Button variant="outline" size="sm" disabled={pending} onClick={() => { close(); navigate('/setting?tab=model'); }}><Settings />{t('studio:translation.model_settings')}</Button></div>}</DialogTransition>
           <DialogTransition transitionKey="model-changed" stageClassName="pt-3">{!modelMatches && <div className="studio-translation-configuration"><p>{t('knowledge:recovery.model_changed')}</p><Button data-testid="knowledge-recheck-use-current-model" size="sm" variant="outline" disabled={pending || !model.success} onClick={() => setModelApproved(true)}>{t('knowledge:recovery.use_current_model')}</Button></div>}</DialogTransition>
           <DialogTransition transitionKey="recheck-help" stageClassName="pt-3">{recheckSession && <p data-testid="knowledge-recheck-configuration-help" className="text-xs leading-5 text-muted-foreground">{t('knowledge:recovery.form_help')}</p>}</DialogTransition></div>
@@ -349,7 +360,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           {activity === 'trial' ? <Button data-testid="studio-translation-cancel-trial" variant="outline" size="sm" onClick={cancelTrial}><LoaderCircle className="animate-spin" />{t('knowledge:trial.cancel')}</Button> : <>
             <Button data-testid="studio-translation-check" variant="outline" size="sm" disabled={!canAct} onClick={() => void execute('check')}>{activity === 'check' ? <LoaderCircle className="animate-spin" /> : <Calculator />}{t('studio:materials.check')}</Button>
             {usingMaterials && !batch && <Button data-testid="studio-translation-trial" variant="outline" size="sm" disabled={trialResult ? pending : !canAct} onClick={() => { if (trialResult) showReview('trial'); else void execute('trial'); }}>{t(trialResult ? 'studio:materials.review_trial_result' : 'studio:materials.trial')}</Button>}
-            <Button data-testid="studio-translation-start" size="sm" disabled={!canAct} onClick={() => void execute('start', partialReady)}>{pending ? <LoaderCircle className="animate-spin" /> : <Play />}{partialReady ? t('studio:batch.start_ready', { count: readyCount(currentCheck!) }) : t('studio:translation.start')}</Button>
+            <Button data-testid="studio-translation-start" size="sm" disabled={!canAct} onClick={() => void execute('start', partialReady)}>{pending ? <LoaderCircle className="animate-spin" /> : <Play />}{partialReady ? t('studio:batch.start_ready', { count: readyCount(currentCheck!) }) : scope ? t('studio:cue_translate.start', { count: scopeCueIds.length }) : t('studio:translation.start')}</Button>
           </>}
         </ScrollableDialogFooter>
       </>}

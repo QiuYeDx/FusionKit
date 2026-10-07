@@ -25,6 +25,8 @@ export const diagnosticSchema = z.object({
 export type Diagnostic = z.infer<typeof diagnosticSchema>;
 const spanSchema = z.object({ text: z.string(), marks: z.array(z.enum(['b', 'i', 'u'])).max(32) }).strict();
 export const textSchema = z.object({ plain: z.string().max(LIMITS.cueBytes), spans: z.array(spanSchema).max(LIMITS.cueBytes) }).strict();
+export const translationEntrySchema = z.object({ sourceRevision: revision, sourceHash: z.string(), text: textSchema, origin: z.enum(['ai', 'human', 'imported']), reviewStatus: z.enum(['unreviewed', 'reviewed']) }).strict();
+export type TranslationEntry = z.infer<typeof translationEntrySchema>;
 const importedRangeSchema = z.object({ nodeId: idSchema, start: integer.nonnegative(), end: integer.nonnegative() }).strict().refine(value => value.end > value.start);
 export const textCueSchema = z.object({
   id: idSchema, sourceRevision: revision, timingRevision: revision,
@@ -32,6 +34,7 @@ export const textCueSchema = z.object({
   source: textSchema, sourceLabel: z.string().max(LIMITS.cueBytes).optional(), nodeId: idSchema,
   importedPair: z.object({ source: importedRangeSchema, target: importedRangeSchema }).strict().optional(),
 }).strict().refine(cue => cue.timing.endMs === null || cue.timing.endMs >= cue.timing.startMs);
+export const bilingualImportSchema = z.object({ sourceSide: z.enum(['first', 'second']), sourceLanguage: z.enum(['ja', 'zh', 'en', 'ko', 'und']), targetLanguage: z.enum(['ja', 'zh', 'en', 'ko', 'und']) }).strict();
 const textDocumentSchema = z.object({
   schemaVersion: z.literal(1), id: idSchema, revision,
   origin: z.object({ format: z.enum(SUBTITLE_TEXT_FORMATS), displayName: z.string().min(1).max(255), encoding: encodingSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
@@ -40,14 +43,16 @@ const textDocumentSchema = z.object({
     id: idSchema, language: z.string().max(100), name: translationTrackNameSchema.optional(), revision,
     origin: z.enum(['imported', 'ai', 'human']).optional(),
     executionRef: executionRefSchema.optional(),
-    entries: z.record(idSchema, z.object({ sourceRevision: revision, sourceHash: z.string(), text: textSchema, origin: z.enum(['ai', 'human', 'imported']), reviewStatus: z.enum(['unreviewed', 'reviewed']) }).strict()),
+    entries: z.record(idSchema, translationEntrySchema),
   }).strict()).max(100),
-  bilingualImport: z.object({ sourceSide: z.enum(['first', 'second']), sourceLanguage: z.enum(['ja', 'zh', 'en', 'ko', 'und']), targetLanguage: z.enum(['ja', 'zh', 'en', 'ko', 'und']) }).strict().optional(),
+  bilingualImport: bilingualImportSchema.optional(),
   capabilities: z.object({ translate: z.boolean(), preserveSource: z.literal(true) }).strict(),
   diagnostics: z.array(diagnosticSchema).max(LIMITS.cues * 2 + 1),
   preservation: z.object({
     schemaVersion: z.literal(1), rawText: z.string().max(LIMITS.inputBytes), bom: z.boolean(), newline: z.enum(['lf', 'crlf', 'cr', 'mixed']), offsetMs: integer,
     nodes: z.array(z.object({ id: idSchema, start: integer.nonnegative(), end: integer.nonnegative(), cueIds: z.array(idSchema).max(LIMITS.cues) }).strict()).max(LIMITS.nodes),
+    /** Nodes whose cues were deleted in the studio. The raw text keeps them; exports omit them. */
+    removedNodeIds: z.array(idSchema).max(LIMITS.nodes).optional(),
   }).strict(),
 }).strict();
 const mediaCueSchema = z.object({
@@ -87,16 +92,22 @@ export function validateDocument(value: unknown): SubtitleDocument {
   if (doc.schemaVersion === 2) {
     const transcript = doc.preservation.transcript;
     if (doc.origin.displayName !== transcript.source.displayName || doc.origin.durationMs !== transcript.source.durationMs
-      || doc.cues.length !== transcript.segments.length || doc.diagnostics.length) throw new StudioError('invalid_input');
-    doc.cues.forEach((cue, index) => {
+      || doc.cues.length > transcript.segments.length || doc.diagnostics.length) throw new StudioError('invalid_input');
+    // Cues follow the transcript in order. Deleted cues leave gaps; edited cues
+    // (sourceRevision > 1) keep their segment timing but may change their text.
+    const segments = new Map(transcript.segments.map((segment, index) => [segment.id, index]));
+    let previous = -1;
+    for (const cue of doc.cues) {
+      const index = segments.get(cue.segmentId);
+      if (index === undefined || index <= previous) throw new StudioError('invalid_input');
+      previous = index;
       const segment = transcript.segments[index];
-      if (cue.segmentId !== segment.id || cue.source.plain !== segment.text
-        || cue.timing.startMs !== segment.startMs || cue.timing.endMs !== segment.endMs
-        || cue.sourceRevision !== 1 || cue.timingRevision !== 1
-        || cue.source.spans.length !== 1 || cue.source.spans[0].text !== segment.text || cue.source.spans[0].marks.length) {
+      if (cue.timing.startMs !== segment.startMs || cue.timing.endMs !== segment.endMs || cue.timingRevision !== 1) throw new StudioError('invalid_input');
+      if (cue.sourceRevision === 1 && (cue.source.plain !== segment.text
+        || cue.source.spans.length !== 1 || cue.source.spans[0].text !== segment.text || cue.source.spans[0].marks.length)) {
         throw new StudioError('invalid_input');
       }
-    });
+    }
   } else {
     const nodes = new Map(doc.preservation.nodes.map(node => [node.id, node]));
     const mapped = new Set<string>();
@@ -113,6 +124,10 @@ export function validateDocument(value: unknown): SubtitleDocument {
       }
     }
     if (lastEnd !== doc.preservation.rawText.length || mapped.size !== ids.size) throw new StudioError('invalid_input');
+    const removed = new Set(doc.preservation.removedNodeIds);
+    if (removed.size !== (doc.preservation.removedNodeIds?.length ?? 0)) throw new StudioError('invalid_input');
+    for (const id of removed) if (!nodes.get(id) || nodes.get(id)!.cueIds.length) throw new StudioError('invalid_input');
+    if (doc.cues.some(cue => cue.importedPair && removed.has(cue.importedPair.target.nodeId))) throw new StudioError('invalid_input');
     for (const cue of doc.cues) {
       if (cueNodes.get(cue.id) !== cue.nodeId || new TextEncoder().encode(cue.source.plain).length > LIMITS.cueBytes || cue.source.spans.map(span => span.text).join('') !== cue.source.plain) throw new StudioError('invalid_input');
       if (cue.importedPair) {

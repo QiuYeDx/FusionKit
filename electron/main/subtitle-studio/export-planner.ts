@@ -86,6 +86,8 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
   if (options.mode !== 'source' && !track && !untrackedFallback) issue('track_missing', 1, true);
   // Targets preserved only as original evidence after bilingual separation are not metadata.
   const pairedTargets = new Set(doc.cues.flatMap(cue => cue.importedPair ? [cue.importedPair.target.nodeId] : []));
+  // Cues deleted in the studio leave their original nodes behind; exports omit them.
+  const removedNodes = new Set(doc.schemaVersion === 1 ? doc.preservation.removedNodeIds : []);
   const bodies = doc.schemaVersion === 1 ? preservedBodies(doc) : undefined;
   const preserve = !!bodies && options.format === doc.origin.format;
   if (options.format === 'vtt' && options.encoding !== 'utf-8') issue('encoding_not_supported', 1, true);
@@ -94,7 +96,7 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
   else if (!preserve) {
     const omitted = doc.preservation.nodes.filter(node => {
       const raw = doc.preservation.rawText.slice(node.start, node.end).trim();
-      return !node.cueIds.length && !pairedTargets.has(node.id) && raw && !(doc.origin.format === 'vtt' && node.start === 0 && raw === 'WEBVTT');
+      return !node.cueIds.length && !pairedTargets.has(node.id) && !removedNodes.has(node.id) && raw && !(doc.origin.format === 'vtt' && node.start === 0 && raw === 'WEBVTT');
     }).length;
     issue('metadata_omitted', omitted, false, true);
     if (bodies) {
@@ -186,7 +188,7 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
   if (preserve && doc.schemaVersion === 1) {
     for (const node of doc.preservation.nodes) {
       if (replacements.has(node.id)) { const text = replacements.get(node.id); if (text) output.add(text); }
-      else if (!pairedTargets.has(node.id)) output.add(doc.preservation.rawText.slice(node.start, node.end));
+      else if (!pairedTargets.has(node.id) && !removedNodes.has(node.id)) output.add(doc.preservation.rawText.slice(node.start, node.end));
     }
   }
   if (!cueCount) issue('empty_output', 1, true);

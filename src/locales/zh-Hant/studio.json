@@ -727,5 +727,106 @@
     "reset": "恢復自動命名",
     "save": "儲存名稱",
     "invalid": "名稱最多 100 個字元，不能包含換行或控制字元。"
+  },
+  "cue_edit": {
+    "saving": "正在儲存…",
+    "keys": "Enter 儲存 · Shift+Enter 換行 · Tab 下一條 · Esc 取消",
+    "blocked_translation": "翻譯進行中，完成或取消後才能編輯字幕。",
+    "blocked_busy": "正在處理，請稍候。",
+    "mixed_style": "這條字幕有局部格式（如個別詞加粗），修改後會移除這些格式。",
+    "human": "人工修改",
+    "reviewed": "已複核",
+    "problem": {
+      "empty": "內容不能為空。",
+      "empty_source": "原文不能為空；如需移除，請刪除這條字幕。",
+      "markup": "不能包含 < 或 >，它們會被當作格式標籤。",
+      "characters": "包含無法儲存的控制字元。",
+      "too_long": "內容過長，單條字幕最多 64 KB。"
+    }
+  },
+  "cue_menu": {
+    "selected": "已選取 {{count}} 條字幕",
+    "edit_source": "編輯原文",
+    "edit_target": "編輯譯文",
+    "translate": "翻譯所選",
+    "retranslate": "重新翻譯所選",
+    "review": "標記為已複核",
+    "unreview": "取消複核標記",
+    "clear_translation": "清除譯文",
+    "delete": "刪除字幕",
+    "delete_many": "刪除所選字幕",
+    "keep_one": "文件至少要保留一條字幕。"
+  },
+  "cue_toolbar": {
+    "label": "所選字幕操作",
+    "list_label": "字幕清單",
+    "selected": "已選取 {{count}} 條",
+    "more": "更多操作",
+    "clear_selection": "取消選取"
+  },
+  "cue_history": {
+    "undo": "復原：{{action}}",
+    "redo": "重做：{{action}}",
+    "nothing_to_undo": "沒有可復原的操作",
+    "nothing_to_redo": "沒有可重做的操作",
+    "undo_short": "復原",
+    "labels": {
+      "source": "編輯原文",
+      "target": "編輯譯文",
+      "clear": "清除 {{count}} 條譯文",
+      "review": "複核 {{count}} 條譯文",
+      "unreview": "取消複核 {{count}} 條譯文",
+      "delete": "刪除 {{count}} 條字幕"
+    }
+  },
+  "cue_help": {
+    "label": "清單操作提示",
+    "select": {
+      "keys": "按一下 / Ctrl / Shift",
+      "desc": "選取、加選、連選"
+    },
+    "marquee": {
+      "keys": "拖曳",
+      "desc": "框選（Shift 追加，Ctrl 反選）"
+    },
+    "edit": {
+      "keys": "按兩下 / Enter / F2",
+      "desc": "編輯原文或譯文"
+    },
+    "editor": {
+      "keys": "Enter / Shift+Enter / Tab",
+      "desc": "儲存 / 換行 / 儲存並編輯下一條"
+    },
+    "field": {
+      "keys": "← / →",
+      "desc": "切換原文或譯文"
+    },
+    "delete": {
+      "keys": "Delete",
+      "desc": "刪除所選字幕"
+    },
+    "copy": {
+      "keys": "Ctrl+C / Ctrl+A",
+      "desc": "複製所選 / 全選本頁"
+    },
+    "undo": {
+      "keys": "Ctrl+Z / Ctrl+Y",
+      "desc": "復原 / 重做"
+    },
+    "menu": {
+      "keys": "右鍵 / Shift+F10",
+      "desc": "翻譯、複核、複製等更多操作"
+    }
+  },
+  "cue_notice": {
+    "deleted": "已刪除 {{count}} 條字幕。",
+    "stopped": "已停止 {{count}} 個無法繼續的翻譯任務，已完成的譯文都已保留；可選取未翻譯的字幕繼續翻譯。"
+  },
+  "cue_translate": {
+    "title": "翻譯所選字幕",
+    "retranslate_title": "重新翻譯所選字幕",
+    "into_track": "將翻譯所選的 {{count}} 條字幕，並取代「{{track}}」中對應的譯文。",
+    "new_track": "將翻譯所選的 {{count}} 條字幕，產生一份新的譯文。",
+    "start": "翻譯 {{count}} 條"
   }
 }

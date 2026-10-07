@@ -727,5 +727,106 @@
     "reset": "自動命名に戻す",
     "save": "名前を保存",
     "invalid": "名前は100文字以内で、改行や制御文字を含めないでください。"
+  },
+  "cue_edit": {
+    "saving": "保存しています…",
+    "keys": "Enter で保存 · Shift+Enter で改行 · Tab で次の字幕 · Esc でキャンセル",
+    "blocked_translation": "翻訳を実行中です。完了またはキャンセル後に編集できます。",
+    "blocked_busy": "処理中です。しばらくお待ちください。",
+    "mixed_style": "この字幕には部分的な書式（一部の太字など）があります。変更を保存すると書式は削除されます。",
+    "human": "手動で編集",
+    "reviewed": "確認済み",
+    "problem": {
+      "empty": "空にはできません。",
+      "empty_source": "原文は空にできません。この字幕を除く場合は削除してください。",
+      "markup": "< や > は書式タグとして扱われるため使用できません。",
+      "characters": "保存できない制御文字が含まれています。",
+      "too_long": "長すぎます。1 つの字幕は 64 KB までです。"
+    }
+  },
+  "cue_menu": {
+    "selected": "{{count}} 件の字幕を選択中",
+    "edit_source": "原文を編集",
+    "edit_target": "訳文を編集",
+    "translate": "選択範囲を翻訳",
+    "retranslate": "選択範囲を再翻訳",
+    "review": "確認済みにする",
+    "unreview": "確認済みを解除",
+    "clear_translation": "訳文を消去",
+    "delete": "字幕を削除",
+    "delete_many": "選択した字幕を削除",
+    "keep_one": "ドキュメントには少なくとも 1 件の字幕が必要です。"
+  },
+  "cue_toolbar": {
+    "label": "選択した字幕の操作",
+    "list_label": "字幕リスト",
+    "selected": "{{count}} 件を選択中",
+    "more": "その他の操作",
+    "clear_selection": "選択を解除"
+  },
+  "cue_history": {
+    "undo": "元に戻す：{{action}}",
+    "redo": "やり直す：{{action}}",
+    "nothing_to_undo": "元に戻す操作はありません",
+    "nothing_to_redo": "やり直す操作はありません",
+    "undo_short": "元に戻す",
+    "labels": {
+      "source": "原文の編集",
+      "target": "訳文の編集",
+      "clear": "訳文 {{count}} 件の消去",
+      "review": "訳文 {{count}} 件の確認",
+      "unreview": "確認済み {{count}} 件の解除",
+      "delete": "字幕 {{count}} 件の削除"
+    }
+  },
+  "cue_help": {
+    "label": "リストの操作",
+    "select": {
+      "keys": "クリック / Ctrl / Shift",
+      "desc": "選択、追加選択、範囲選択"
+    },
+    "marquee": {
+      "keys": "ドラッグ",
+      "desc": "範囲選択（Shift で追加、Ctrl で反転）"
+    },
+    "edit": {
+      "keys": "ダブルクリック / Enter / F2",
+      "desc": "原文または訳文を編集"
+    },
+    "editor": {
+      "keys": "Enter / Shift+Enter / Tab",
+      "desc": "保存 / 改行 / 保存して次を編集"
+    },
+    "field": {
+      "keys": "← / →",
+      "desc": "原文と訳文を切り替え"
+    },
+    "delete": {
+      "keys": "Delete",
+      "desc": "選択した字幕を削除"
+    },
+    "copy": {
+      "keys": "Ctrl+C / Ctrl+A",
+      "desc": "選択をコピー / ページ全体を選択"
+    },
+    "undo": {
+      "keys": "Ctrl+Z / Ctrl+Y",
+      "desc": "元に戻す / やり直す"
+    },
+    "menu": {
+      "keys": "右クリック / Shift+F10",
+      "desc": "翻訳、確認、コピーなど"
+    }
+  },
+  "cue_notice": {
+    "deleted": "字幕を {{count}} 件削除しました。",
+    "stopped": "続行できなくなった翻訳タスクを {{count}} 件停止しました。完了した訳文は保持されています。未翻訳の字幕を選択して翻訳できます。"
+  },
+  "cue_translate": {
+    "title": "選択した字幕を翻訳",
+    "retranslate_title": "選択した字幕を再翻訳",
+    "into_track": "選択した {{count}} 件の字幕を翻訳し、「{{track}}」の該当する訳文を置き換えます。",
+    "new_track": "選択した {{count}} 件の字幕を翻訳し、新しい訳文を作成します。",
+    "start": "{{count}} 件を翻訳"
   }
 }

@@ -44,6 +44,19 @@ const checkpointFields = {
     estimatedInputTokens: tokenCount,
     priorContextReserve: tokenCount,
   }).strict()).min(1).max(LIMITS.cues),
+  /** The plan covers selected cues only; other cues may already hold translations. */
+  partial: z.literal(true).optional(),
+};
+/** Translate only these cues, optionally into an existing track instead of a new one. */
+export const translationScopeSchema = z.object({
+  cueIds: z.array(idSchema).min(1).max(LIMITS.cues).refine(ids => new Set(ids).size === ids.length),
+  trackId: idSchema.optional(),
+}).strict();
+export type TranslationScope = z.infer<typeof translationScopeSchema>;
+/** Track languages written by the plain and the knowledge paths differ only in the Chinese tag. */
+export const sameTrackLanguage = (a: string, b: string) => {
+  const normalize = (value: string) => (value.trim().toLowerCase() === 'zh' ? 'zh-hans' : value.trim().toLowerCase());
+  return normalize(a) === normalize(b);
 };
 export const translationCheckpointSchema = z.discriminatedUnion('version', [
   z.object({ version: z.literal(1), ...checkpointFields }).strict(),

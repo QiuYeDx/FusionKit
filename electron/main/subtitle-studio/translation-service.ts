@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { StudioError } from '../../../src/subtitle-studio/domain';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import { assertExecutionRecordsSize } from '../../../src/subtitle-studio/execution-record-contract';
-import type { TranslationConfig, TranslationModel, TranslationPlanSummary, TranslationUsage } from '../../../src/subtitle-studio/translation-contract';
+import { sameTrackLanguage, type TranslationConfig, type TranslationModel, type TranslationPlanSummary, type TranslationScope, type TranslationUsage } from '../../../src/subtitle-studio/translation-contract';
 import { validateTranslationResponse } from '../../../src/subtitle-studio/translation-protocol';
 import { sendModelRuntimeText, type ModelRuntimeTextRequest, type ModelRuntimeTextResult, type ModelRuntimeUsage } from '../ai/model-runtime-client';
 import { ModelRuntimeClientError } from '../ai/model-runtime-errors';
@@ -21,6 +21,13 @@ type Task = DocumentSnapshot['tasks'][number];
 type AttemptReceipt = { batchId: string; attempt: number; usage: TranslationUsage; uncertain: boolean };
 type Run = { taskId: string; documentId: string; generation: number; controller: AbortController; done: Promise<void>; receipt?: AttemptReceipt; knowledgeReference?: KnowledgeTaskReference };
 const activeStatus = (task: Task) => ['queued', 'running'].includes(task.status);
+/** A selection translated into an existing track must keep that track's language. */
+function assertScopeTrack(document: DocumentSnapshot['document'], plan: TranslationPlan, scope?: TranslationScope) {
+  if (!scope?.trackId) return undefined;
+  const track = document.translationTracks.find(item => item.id === scope.trackId);
+  if (!track || !sameTrackLanguage(track.language, plan.config.language)) throw new StudioError('invalid_input');
+  return track;
+}
 const canResume = (task: Task) => ['failed', 'interrupted', 'needs_configuration'].includes(task.status);
 
 export function normalizeUsage(usage?: ModelRuntimeUsage): TranslationUsage {
@@ -71,8 +78,41 @@ const wait = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, re
   signal.addEventListener('abort', abort, { once: true });
 });
 
+/** Stops paused tasks that can no longer resume after an edit; their committed batches remain. */
+export function retireResumableTasks(snapshot: DocumentSnapshot, trackId?: string): number {
+  let count = 0;
+  for (const task of snapshot.tasks) {
+    if (!canResume(task) || (trackId && task.trackId !== trackId)) continue;
+    interruptTask(task, 'cancelled');
+    count++;
+  }
+  return count;
+}
+
+/** Drops an execution record that no track or task refers to any more. */
+function releaseExecutionRecord(snapshot: DocumentSnapshot, recordId: string | undefined) {
+  if (!recordId || !snapshot.executionRecords?.[recordId]) return;
+  if (snapshot.document.translationTracks.some(track => track.executionRef?.id === recordId)) return;
+  if (snapshot.tasks.some(task => task.translation?.checkpoint?.version === 2 && task.translation.checkpoint.executionRef.id === recordId)) return;
+  delete snapshot.executionRecords[recordId];
+}
+
+/**
+ * Before a selection is translated into an existing track: paused runs on the
+ * track can no longer resume, earlier finished selection runs are superseded,
+ * and the track's provenance moves to the new run.
+ */
+function supersedeTrackRuns(snapshot: DocumentSnapshot, track: DocumentSnapshot['document']['translationTracks'][number], executionRef: NonNullable<typeof track.executionRef>) {
+  retireResumableTasks(snapshot, track.id);
+  const superseded = snapshot.tasks.filter(task => task.trackId === track.id && task.translation?.checkpoint?.partial && ['completed', 'cancelled'].includes(task.status));
+  snapshot.tasks = snapshot.tasks.filter(task => !superseded.includes(task));
+  const previous = track.executionRef?.id;
+  track.executionRef = executionRef;
+  for (const id of new Set([previous, ...superseded.map(task => task.translation?.checkpoint?.version === 2 ? task.translation.checkpoint.executionRef.id : undefined)])) releaseExecutionRecord(snapshot, id);
+}
+
 export class TranslationService {
-  private plans = new Map<string, { owner: number; created: number; plan: TranslationPlan }>();
+  private plans = new Map<string, { owner: number; created: number; plan: TranslationPlan; scope?: TranslationScope }>();
   private running = new Map<string, Run>();
   private handles = new Set<Run>();
   private initialized?: Promise<void>;
@@ -108,16 +148,17 @@ export class TranslationService {
   private assertOpen() { if (this.closed) throw new StudioError('interrupted'); }
   forgetOwner(owner: number) { for (const [id, entry] of this.plans) if (entry.owner === owner) this.plans.delete(id); }
 
-  async plan(owner: number, documentId: string, revision: number, config: TranslationConfig, guard: () => void = () => {}): Promise<TranslationPlanSummary> {
+  async plan(owner: number, documentId: string, revision: number, config: TranslationConfig, guard: () => void = () => {}, scope?: TranslationScope): Promise<TranslationPlanSummary> {
     this.assertOpen(); await this.initialize(); this.assertOpen();
     const doc = await this.repository.read(documentId);
     guard();
     if (doc.revision !== revision) throw new StudioError('revision_conflict');
-    const plan = planTranslation(doc, config);
+    const plan = planTranslation(doc, config, scope);
+    assertScopeTrack(doc, plan, scope);
     this.forgetOwner(owner);
     for (const [id, entry] of this.plans) if (Date.now() - entry.created > 15 * 60000) this.plans.delete(id);
     const planId = randomUUID();
-    this.plans.set(planId, { owner, created: Date.now(), plan });
+    this.plans.set(planId, { owner, created: Date.now(), plan, ...(scope ? { scope: structuredClone(scope) } : {}) });
     return { planId, documentId, revision, cueCount: plan.batches.reduce((n, batch) => n + batch.units.length, 0), batchCount: plan.batches.length,
       estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * config.maxOutputTokens,
       contextTokenReserve: plan.batches.reduce((n, batch) => n + batch.priorContextReserve, 0) };
@@ -129,7 +170,7 @@ export class TranslationService {
     if (!entry || entry.owner !== owner) throw new StudioError('access_denied');
     const { plan } = entry;
     if (Date.now() - entry.created > 15 * 60000 || plan.documentId !== documentId || plan.revision !== revision) throw new StudioError('revision_conflict');
-    const result = await this.admit(plan, apiKey, guard);
+    const result = await this.admit(plan, apiKey, guard, undefined, entry.scope);
     this.plans.delete(planId);
     return result;
   }
@@ -143,10 +184,10 @@ export class TranslationService {
   }
 
   /** Main-only prepared admission. Its coordinator owns the shared knowledge gate. */
-  async startPreparedKnowledge(input: PreparedKnowledgeExecution, apiKey: string, guard: () => void = () => {}) {
+  async startPreparedKnowledge(input: PreparedKnowledgeExecution, apiKey: string, guard: () => void = () => {}, scope?: TranslationScope) {
     const prepared = structuredClone(input);
     this.assertOpen(); await this.initialize(); this.assertOpen(); guard();
-    return this.admit(prepared.plan, apiKey, guard, prepared);
+    return this.admit(prepared.plan, apiKey, guard, prepared, scope && structuredClone(scope));
   }
 
   private async automaticPlan(snapshot: DocumentSnapshot): Promise<{ plan?: TranslationPlan; knowledge?: PreparedKnowledgeExecution; error?: ReturnType<typeof failureCode>; issues?: KnowledgeIssue[] }> {
@@ -261,18 +302,21 @@ export class TranslationService {
     return operation;
   }
 
-  private async admit(plan: TranslationPlan, apiKey: string, guard: () => void, prepared?: PreparedKnowledgeExecution) {
+  private async admit(plan: TranslationPlan, apiKey: string, guard: () => void, prepared?: PreparedKnowledgeExecution, scope?: TranslationScope) {
     const { documentId, revision } = plan;
     if (!apiKey.trim() || apiKey.length > 8000) throw new StudioError('needs_configuration');
-    const taskId = randomUUID(); const trackId = randomUUID();
+    const taskId = randomUUID(); const trackId = scope?.trackId ?? randomUUID();
     const snapshot = await publishTransaction(this.repository, documentId, revision, value => {
       if (value.tasks.some(activeStatus)) throw new StudioError('revision_conflict');
+      const existing = assertScopeTrack(value.document, plan, scope);
       const execution = createExecutionRecord(plan, documentSourceDigest(value.document), taskId, trackId, prepared);
       (value.executionRecords ??= {})[execution.record.id] = execution.record;
-      value.document.translationTracks.push({ id: trackId, language: plan.config.language, ...(plan.config.trackName ? { name: plan.config.trackName } : {}), revision: 1, origin: 'ai', entries: {}, executionRef: execution.ref });
+      if (existing) supersedeTrackRuns(value, existing, execution.ref);
+      else value.document.translationTracks.push({ id: trackId, language: plan.config.language, ...(plan.config.trackName ? { name: plan.config.trackName } : {}), revision: 1, origin: 'ai', entries: {}, executionRef: execution.ref });
+      const checkpoint = checkpointForPlan(plan, value.document, existing?.revision ?? 1, execution.ref);
       value.tasks.push({ id: taskId, trackId, generation: 1, status: 'queued', completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
         translation: { config: plan.config, totalBatches: plan.batches.length, estimatedInputTokens: plan.batches.reduce((n, batch) => n + batch.estimatedInputTokens, 0), outputTokenReserve: plan.batches.length * plan.config.maxOutputTokens,
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checkpoint: checkpointForPlan(plan, value.document, 1, execution.ref), uncertainAttempts: 0 } });
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checkpoint: scope ? { ...checkpoint, partial: true } : checkpoint, uncertainAttempts: 0 } });
       if (prepared) {
         restoreTranslationPlan(value, taskId);
         assertKnowledgeExecutionCapacity(value, execution.record);

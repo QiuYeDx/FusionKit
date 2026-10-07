@@ -52,12 +52,13 @@ export function safeModelPlain(text: string): boolean {
 export function bindPreservedBodies(doc: TextSubtitleDocument, structure: PreservedStructure): Map<string, PreservedBody> {
   if (structure.nodes.length !== doc.preservation.nodes.length) throw new StudioError('invalid_input');
   const pairedTargets = new Set(doc.cues.flatMap(cue => cue.importedPair ? [cue.importedPair.target.nodeId] : []));
+  const removed = new Set(doc.preservation.removedNodeIds);
   const bodies = new Map<string, PreservedBody>();
   structure.nodes.forEach((parsed, index) => {
     const node = doc.preservation.nodes[index];
     if (parsed.start !== node.start || parsed.end !== node.end || node.cueIds.length > 1) throw new StudioError('invalid_input');
     if (node.cueIds.length && !parsed.body) throw new StudioError('invalid_input');
-    if (parsed.body && !node.cueIds.length && !pairedTargets.has(node.id)) throw new StudioError('invalid_input');
+    if (parsed.body && !node.cueIds.length && !pairedTargets.has(node.id) && !removed.has(node.id)) throw new StudioError('invalid_input');
     if (parsed.body) bodies.set(node.id, parsed.body);
   });
   return bodies;
