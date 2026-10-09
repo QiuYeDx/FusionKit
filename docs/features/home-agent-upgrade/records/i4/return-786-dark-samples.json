@@ -1,0 +1,596 @@
+[
+  {
+    "t": 0,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 8,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 17,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 25,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 33,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 42,
+    "left": 11.0546875,
+    "top": 48,
+    "width": 400.3671875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 58,
+    "left": 11.7578125,
+    "top": 48,
+    "width": 404.5546875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 67,
+    "left": 15.5625,
+    "top": 48,
+    "width": 427.2734375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 75,
+    "left": 17.140625,
+    "top": 48,
+    "width": 436.7109375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 83,
+    "left": 19.390625,
+    "top": 48,
+    "width": 450.1796875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 92,
+    "left": 22.03125,
+    "top": 48,
+    "width": 465.9765625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 100,
+    "left": 25.296875,
+    "top": 48,
+    "width": 485.484375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 108,
+    "left": 26.7578125,
+    "top": 48,
+    "width": 494.234375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 117,
+    "left": 29.328125,
+    "top": 48,
+    "width": 509.609375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 125,
+    "left": 31.5234375,
+    "top": 48,
+    "width": 522.71875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 133,
+    "left": 33.6171875,
+    "top": 48,
+    "width": 535.2109375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 142,
+    "left": 35.5859375,
+    "top": 48,
+    "width": 547.0078125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 150,
+    "left": 37.6640625,
+    "top": 48,
+    "width": 559.4140625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 158,
+    "left": 39.375,
+    "top": 48,
+    "width": 569.6484375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 167,
+    "left": 40.96875,
+    "top": 48,
+    "width": 579.1484375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 175,
+    "left": 42.609375,
+    "top": 48,
+    "width": 588.9765625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 183,
+    "left": 43.9453125,
+    "top": 48,
+    "width": 596.9765625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 192,
+    "left": 45.171875,
+    "top": 48,
+    "width": 604.3125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 200,
+    "left": 46.4296875,
+    "top": 48,
+    "width": 611.8125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 208,
+    "left": 47.4375,
+    "top": 48,
+    "width": 617.859375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 217,
+    "left": 48.46875,
+    "top": 48,
+    "width": 624.015625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 225,
+    "left": 49.5859375,
+    "top": 48,
+    "width": 630.671875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 233,
+    "left": 50.0390625,
+    "top": 48,
+    "width": 633.4140625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 242,
+    "left": 50.875,
+    "top": 48,
+    "width": 638.3984375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 250,
+    "left": 51.3984375,
+    "top": 48,
+    "width": 641.53125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 258,
+    "left": 52.546875,
+    "top": 48,
+    "width": 648.375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 267,
+    "left": 52.765625,
+    "top": 48,
+    "width": 649.6875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 275,
+    "left": 53.21875,
+    "top": 48,
+    "width": 652.390625,
+    "height": 554,
+    "panelOpacity": 0.977779,
+    "homeOpacity": null
+  },
+  {
+    "t": 283,
+    "left": 53.53125,
+    "top": 48,
+    "width": 654.2734375,
+    "height": 554,
+    "panelOpacity": 0.916304,
+    "homeOpacity": null
+  },
+  {
+    "t": 292,
+    "left": 53.8984375,
+    "top": 48,
+    "width": 656.4453125,
+    "height": 554,
+    "panelOpacity": 0.85695,
+    "homeOpacity": null
+  },
+  {
+    "t": 300,
+    "left": 54.0390625,
+    "top": 48,
+    "width": 657.328125,
+    "height": 554,
+    "panelOpacity": 0.799368,
+    "homeOpacity": null
+  },
+  {
+    "t": 308,
+    "left": 54.28125,
+    "top": 48,
+    "width": 658.7578125,
+    "height": 554,
+    "panelOpacity": 0.742757,
+    "homeOpacity": null
+  },
+  {
+    "t": 317,
+    "left": 54.640625,
+    "top": 48,
+    "width": 660.90625,
+    "height": 554,
+    "panelOpacity": 0.688404,
+    "homeOpacity": null
+  },
+  {
+    "t": 325,
+    "left": 54.75,
+    "top": 48,
+    "width": 661.5390625,
+    "height": 554,
+    "panelOpacity": 0.635599,
+    "homeOpacity": null
+  },
+  {
+    "t": 333,
+    "left": 54.96875,
+    "top": 48,
+    "width": 662.8515625,
+    "height": 554,
+    "panelOpacity": 0.584342,
+    "homeOpacity": null
+  },
+  {
+    "t": 342,
+    "left": 55.4453125,
+    "top": 48,
+    "width": 665.7109375,
+    "height": 554,
+    "panelOpacity": 0.534648,
+    "homeOpacity": 0
+  },
+  {
+    "t": 358,
+    "left": 55.546875,
+    "top": 48,
+    "width": 666.34375,
+    "height": 554,
+    "panelOpacity": 0.43897,
+    "homeOpacity": 0.03
+  },
+  {
+    "t": 367,
+    "left": 55.6484375,
+    "top": 48,
+    "width": 666.9140625,
+    "height": 554,
+    "panelOpacity": 0.394216,
+    "homeOpacity": 0.09
+  },
+  {
+    "t": 375,
+    "left": 55.7421875,
+    "top": 48,
+    "width": 667.4921875,
+    "height": 554,
+    "panelOpacity": 0.351204,
+    "homeOpacity": 0.17
+  },
+  {
+    "t": 383,
+    "left": 55.796875,
+    "top": 48,
+    "width": 667.828125,
+    "height": 554,
+    "panelOpacity": 0.309518,
+    "homeOpacity": 0.27
+  },
+  {
+    "t": 392,
+    "left": 55.859375,
+    "top": 48,
+    "width": 668.1875,
+    "height": 554,
+    "panelOpacity": 0.270235,
+    "homeOpacity": 0.36
+  },
+  {
+    "t": 400,
+    "left": 55.9453125,
+    "top": 48,
+    "width": 668.6796875,
+    "height": 554,
+    "panelOpacity": 0.232504,
+    "homeOpacity": 0.45
+  },
+  {
+    "t": 408,
+    "left": 56.0078125,
+    "top": 48,
+    "width": 669.0625,
+    "height": 554,
+    "panelOpacity": 0.197333,
+    "homeOpacity": 0.53
+  },
+  {
+    "t": 417,
+    "left": 56.0625,
+    "top": 48,
+    "width": 669.40625,
+    "height": 554,
+    "panelOpacity": 0.164383,
+    "homeOpacity": 0.6
+  },
+  {
+    "t": 425,
+    "left": 56.1171875,
+    "top": 48,
+    "width": 669.7421875,
+    "height": 554,
+    "panelOpacity": 0.133441,
+    "homeOpacity": 0.67
+  },
+  {
+    "t": 433,
+    "left": 56.1640625,
+    "top": 48,
+    "width": 670.0078125,
+    "height": 554,
+    "panelOpacity": 0.105407,
+    "homeOpacity": 0.72
+  },
+  {
+    "t": 442,
+    "left": 56.203125,
+    "top": 48,
+    "width": 670.234375,
+    "height": 554,
+    "panelOpacity": 0.0800836,
+    "homeOpacity": 0.77
+  },
+  {
+    "t": 450,
+    "left": 56.2421875,
+    "top": 48,
+    "width": 670.46875,
+    "height": 554,
+    "panelOpacity": 0.0574337,
+    "homeOpacity": 0.81
+  },
+  {
+    "t": 458,
+    "left": 56.2734375,
+    "top": 48,
+    "width": 670.6484375,
+    "height": 554,
+    "panelOpacity": 0.0382484,
+    "homeOpacity": 0.84
+  },
+  {
+    "t": 467,
+    "left": 56.296875,
+    "top": 48,
+    "width": 670.8046875,
+    "height": 554,
+    "panelOpacity": 0.0225324,
+    "homeOpacity": 0.87
+  },
+  {
+    "t": 475,
+    "left": 56.3203125,
+    "top": 48,
+    "width": 670.9609375,
+    "height": 554,
+    "panelOpacity": 0.0105129,
+    "homeOpacity": 0.89
+  },
+  {
+    "t": 483,
+    "left": 56.34375,
+    "top": 48,
+    "width": 671.0859375,
+    "height": 554,
+    "panelOpacity": 0.00295865,
+    "homeOpacity": 0.91
+  },
+  {
+    "t": 492,
+    "left": 56.359375,
+    "top": 48,
+    "width": 671.1953125,
+    "height": 554,
+    "panelOpacity": 0.00000623392,
+    "homeOpacity": 0.93
+  },
+  {
+    "t": 500,
+    "left": 56.3828125,
+    "top": 48,
+    "width": 671.296875,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 0.94
+  },
+  {
+    "t": 508,
+    "left": 56.3984375,
+    "top": 48,
+    "width": 671.390625,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 0.95
+  },
+  {
+    "t": 517,
+    "left": 56.4140625,
+    "top": 48,
+    "width": 671.515625,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 0.96
+  },
+  {
+    "t": 525,
+    "left": 56.421875,
+    "top": 48,
+    "width": 671.5390625,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 0.97
+  },
+  {
+    "t": 534,
+    "left": 56.4296875,
+    "top": 48,
+    "width": 671.59375,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 0.98
+  },
+  {
+    "t": 542,
+    "left": 56.4375,
+    "top": 48,
+    "width": 671.6328125,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 0.98
+  },
+  {
+    "t": 550,
+    "left": 56.4453125,
+    "top": 48,
+    "width": 671.6796875,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 0.98
+  },
+  {
+    "t": 558,
+    "left": 56.453125,
+    "top": 48,
+    "width": 671.71875,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 0.99
+  }
+]

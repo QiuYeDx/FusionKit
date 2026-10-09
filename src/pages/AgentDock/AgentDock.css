@@ -1,0 +1,31 @@
+/* The panel is clipped while it grows from the launcher; a drop shadow on the wrapper follows the clipped shape, a box shadow would be cut off. */
+.agent-dock-shadow { filter: drop-shadow(0 10px 28px rgb(0 0 0 / 0.12)) drop-shadow(0 2px 6px rgb(0 0 0 / 0.06)); }
+.dark .agent-dock-shadow { filter: drop-shadow(0 10px 28px rgb(0 0 0 / 0.45)) drop-shadow(0 2px 6px rgb(0 0 0 / 0.3)); }
+.agent-dock-shadow[data-hidden] { visibility: hidden; }
+.agent-dock-panel:not([data-open]) { pointer-events: none; }
+
+/* A slim overlay scrollbar without a track; it fades in while the list is hovered or scrolled. */
+.agent-dock-scroll [data-slot="scroll-area-scrollbar"] { width: 8px; padding: 2px; }
+.agent-dock-scroll [data-slot="scroll-area-thumb"] { background: color-mix(in oklab, var(--muted-foreground) 28%, transparent); transition: background-color 150ms; }
+.agent-dock-scroll [data-slot="scroll-area-thumb"]:hover,
+.agent-dock-scroll [data-slot="scroll-area-thumb"]:active { background: color-mix(in oklab, var(--muted-foreground) 50%, transparent); }
+.agent-dock-scroll [data-slot="scroll-area-scrollbar"][data-state="visible"] { animation: agent-dock-fade-in 150ms ease-out; }
+.agent-dock-scroll [data-slot="scroll-area-scrollbar"][data-state="hidden"] { animation: agent-dock-fade-out 200ms ease-in forwards; }
+@keyframes agent-dock-fade-in { from { opacity: 0; } }
+@keyframes agent-dock-fade-out { to { opacity: 0; } }
+
+/* Launcher states while the panel is closed: a reply is being written, or one arrived unseen. */
+.agent-dock-busy {
+  position: absolute; inset: -3px; border-radius: 999px; pointer-events: none;
+  border: 1.5px solid transparent; border-top-color: var(--primary); border-right-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  animation: agent-dock-spin 1s linear infinite;
+}
+.agent-dock-unread {
+  position: absolute; top: 1px; right: 1px; width: 8px; height: 8px; border-radius: 999px; pointer-events: none;
+  background: var(--primary); box-shadow: 0 0 0 2px var(--background);
+}
+@keyframes agent-dock-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .agent-dock-busy { animation-duration: 3s; }
+  .agent-dock-scroll [data-slot="scroll-area-scrollbar"] { animation: none !important; }
+}

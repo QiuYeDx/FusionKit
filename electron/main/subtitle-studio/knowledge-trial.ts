@@ -46,7 +46,7 @@ function mergeUsage(total: TranslationUsage, next: TranslationUsage): void {
   }
 }
 
-function providerError(error: unknown): StudioError {
+export function providerError(error: unknown): StudioError {
   if (error instanceof StudioError) return error;
   if (error instanceof ModelRuntimeClientError) {
     if (['http_unauthorized', 'http_forbidden', 'http_non_retryable'].includes(error.code)) return new StudioError('needs_configuration');

@@ -244,5 +244,68 @@
   "action_error_output_cancelled": "已取消输出目录选择，未创建任务。",
   "action_error_authorization": "无法授权所选文件或目录，请重新选择。",
   "action_error_stopped": "已停止，未创建任务。",
-  "action_error_scan": "无法扫描该目录。"
+  "action_error_scan": "无法扫描该目录。",
+  "result_revision_ready": "已打开修订预览：检查了 {{checked}} 条，建议修改 {{count}} 条，请在预览中确认后应用。",
+  "result_revision_none": "已打开修订预览：检查了 {{checked}} 条，没有需要修改的地方。",
+  "result_revision_confirm": "需要逐条检查 {{count}} 条字幕，请在修订预览中确认后继续。",
+  "result_read_cues": "已读取 {{count}} 条字幕",
+  "tool_name_read_cues": "读取字幕",
+  "tool_name_find_cues": "查找字幕",
+  "tool_name_prepare_revision": "准备 AI 修订",
+  "action_error_page_unavailable": "页面已关闭或切换，未执行。",
+  "action_error_page_changed": "当前文档已切换，未执行。",
+  "action_error_no_document": "字幕工作台没有打开的文档。",
+  "action_error_edit_blocked": "当前不能编辑字幕（例如翻译进行中）。",
+  "action_error_revision_open": "已有修订预览打开，请先处理它。",
+  "action_error_empty_selection": "没有选中的字幕。",
+  "action_error_no_track": "当前文档没有译文轨，不能修订译文。",
+  "action_error_revision_cancelled": "修订预览已关闭或停止。",
+  "tool_name_open_page": "打开页面",
+  "result_page_opened": "已打开「{{page}}」",
+  "action_error_navigation": "当前无法切换页面。",
+  "tool_name_update_settings": "更新页面设置",
+  "result_settings_updated": "已更新 {{count}} 项页面设置",
+  "dock": {
+    "open": "打开 Agent",
+    "close": "收起 Agent",
+    "panel_label": "FusionKit Agent 对话",
+    "open_home": "在首页打开",
+    "empty_title": "有什么可以帮你？",
+    "empty_hint_page": "Agent 知道你正在使用「{{page}}」，可以直接说出要做的事。",
+    "empty_hint": "可以直接说出要做的事，或随意聊天。",
+    "working": "正在回复",
+    "unread": "有新回复",
+    "suggest": {
+      "translator": {
+        "first": "翻译新字幕",
+        "first_prompt": "帮我选几个字幕文件加入翻译队列。",
+        "second": "查看任务进度",
+        "second_prompt": "现在的翻译任务进行得怎么样了？"
+      },
+      "converter": {
+        "first": "转换一个文件夹",
+        "first_prompt": "把一个文件夹里的字幕都转换格式（我会告诉你路径）。",
+        "second": "查看转换任务",
+        "second_prompt": "转换任务都完成了吗？"
+      },
+      "extractor": {
+        "first": "提取单语字幕",
+        "first_prompt": "把一个文件夹里的双语字幕只保留一种语言（我会告诉你路径）。",
+        "second": "查看提取任务",
+        "second_prompt": "提取任务都完成了吗？"
+      },
+      "transcriber": {
+        "first": "检查转写环境",
+        "first_prompt": "本地转写现在能用吗？缺少什么模型或资源？",
+        "second": "查看转写任务",
+        "second_prompt": "现在的转写任务进行得怎么样了？"
+      },
+      "names": {
+        "first": "翻译文件名",
+        "first_prompt": "帮我翻译一个文件夹里的文件名（我会告诉你路径），先给我看预览。",
+        "second": "改成双语格式",
+        "second_prompt": "把名称格式改成“译名 (原名)”。"
+      }
+    }
+  }
 }

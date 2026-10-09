@@ -244,5 +244,68 @@
   "action_error_output_cancelled": "Output folder selection was cancelled. No task was created.",
   "action_error_authorization": "The selected files or folder could not be authorized. Choose them again.",
   "action_error_stopped": "Stopped before any task was created.",
-  "action_error_scan": "The folder could not be scanned."
+  "action_error_scan": "The folder could not be scanned.",
+  "result_revision_ready": "Revision preview opened: {{checked}} subtitles checked, {{count}} changes proposed. Review and apply them in the preview.",
+  "result_revision_none": "Revision preview opened: {{checked}} subtitles checked, nothing to change.",
+  "result_revision_confirm": "{{count}} subtitles need to be checked one by one. Confirm in the revision preview to continue.",
+  "result_read_cues": "Read {{count}} subtitles",
+  "tool_name_read_cues": "Read subtitles",
+  "tool_name_find_cues": "Find subtitles",
+  "tool_name_prepare_revision": "Prepare AI revision",
+  "action_error_page_unavailable": "The page was closed or changed; nothing was done.",
+  "action_error_page_changed": "Another document was opened; nothing was done.",
+  "action_error_no_document": "No document is open in Subtitle Studio.",
+  "action_error_edit_blocked": "Subtitles cannot be edited right now (for example while translating).",
+  "action_error_revision_open": "A revision preview is already open. Finish it first.",
+  "action_error_empty_selection": "No subtitles are selected.",
+  "action_error_no_track": "This document has no translation track to revise.",
+  "action_error_revision_cancelled": "The revision preview was closed or stopped.",
+  "tool_name_open_page": "Open page",
+  "result_page_opened": "Opened {{page}}",
+  "action_error_navigation": "Pages cannot be switched right now.",
+  "tool_name_update_settings": "Update page settings",
+  "result_settings_updated": "Updated {{count}} page settings",
+  "dock": {
+    "open": "Open Agent",
+    "close": "Close Agent",
+    "panel_label": "FusionKit Agent conversation",
+    "open_home": "Open on the home page",
+    "empty_title": "How can I help?",
+    "empty_hint_page": "The Agent knows you are using {{page}}. Just say what you want to do.",
+    "empty_hint": "Say what you want to do, or just chat.",
+    "working": "Replying",
+    "unread": "New reply",
+    "suggest": {
+      "translator": {
+        "first": "Translate subtitles",
+        "first_prompt": "Help me pick some subtitle files and add them to the translation queue.",
+        "second": "Check progress",
+        "second_prompt": "How are the translation tasks doing?"
+      },
+      "converter": {
+        "first": "Convert a folder",
+        "first_prompt": "Convert the subtitles in a folder to another format (I'll give you the path).",
+        "second": "Check conversions",
+        "second_prompt": "Have the conversion tasks finished?"
+      },
+      "extractor": {
+        "first": "Keep one language",
+        "first_prompt": "Keep only one language of the bilingual subtitles in a folder (I'll give you the path).",
+        "second": "Check extractions",
+        "second_prompt": "Have the extraction tasks finished?"
+      },
+      "transcriber": {
+        "first": "Check the setup",
+        "first_prompt": "Can local transcription run right now? Is any model or resource missing?",
+        "second": "Check transcriptions",
+        "second_prompt": "How are the transcription tasks doing?"
+      },
+      "names": {
+        "first": "Translate file names",
+        "first_prompt": "Translate the file names in a folder (I'll give you the path) and show me a preview first.",
+        "second": "Use bilingual names",
+        "second_prompt": "Change the name format to \"Translated (Original)\"."
+      }
+    }
+  }
 }

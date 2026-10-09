@@ -12,8 +12,12 @@ import { agentToolPath, hasPreparedAction, objectValue, readReceipt, taskRows, t
 import useAgentStore from "@/store/agent/useAgentStore";
 import { usePreparedActionsStore } from "@/agent/prepared-actions";
 
+/** Tools a page lends to the assistant while it is open (see src/agent/page-context.ts). */
+const PAGE_TOOLS = ["open_app_page", "studio_read_cues", "studio_find_cues", "studio_prepare_revision",
+  "subtitle_translator_update_settings", "subtitle_converter_update_settings", "subtitle_extractor_update_settings", "name_translator_update_settings"];
+
 export function isModernToolResult(toolName: string) {
-  return toolName === "list_agent_capabilities" || toolName === "update_agent_plan" || toolName === "get_classic_subtitle_tasks" || AGENT_CAPABILITIES.some(capability => (capability.operations as readonly string[]).includes(toolName) && !["translator", "converter", "extractor"].includes(capability.toolKey));
+  return PAGE_TOOLS.includes(toolName) || toolName === "list_agent_capabilities" || toolName === "update_agent_plan" || toolName === "get_classic_subtitle_tasks" || AGENT_CAPABILITIES.some(capability => (capability.operations as readonly string[]).includes(toolName) && !["translator", "converter", "extractor"].includes(capability.toolKey));
 }
 
 const classicLabels = { translate: "home:capability_translator", convert: "home:capability_converter", extract: "home:capability_extractor" } as const;
@@ -34,6 +38,13 @@ export default function AgentToolResult({ result }: { result: ToolResult }) {
   let summary: string;
   if (!result.success) summary = result.error ? actionErrorMessage(result.error, t) : t("home:action_failed");
   else if (result.toolName === "update_agent_plan") summary = t("home:result_plan_updated");
+  else if (data.status === "awaiting_user_review") summary = Number(data.proposedRevisions) > 0
+    ? t("home:result_revision_ready", { count: Number(data.proposedRevisions), checked: Number(data.checkedCues ?? 0) })
+    : t("home:result_revision_none", { checked: Number(data.checkedCues ?? 0) });
+  else if (data.status === "awaiting_scan_confirmation") summary = t("home:result_revision_confirm", { count: Number(data.cueCount ?? 0) });
+  else if (result.toolName.endsWith("_update_settings")) summary = t("home:result_settings_updated", { count: Object.keys(objectValue(data.changed)).length });
+  else if (result.toolName === "open_app_page") summary = t("home:result_page_opened", { page: typeof data.title === "string" ? data.title : String(data.route ?? "") });
+  else if (result.toolName === "studio_read_cues") summary = t("home:result_read_cues", { count: Array.isArray(data.items) ? data.items.length : 0 });
   else if (data.cancelled) summary = t("home:action_dismissed");
   else if (data.executionStatus === "prepared") summary = t("home:result_preparation_created");
   else if (data.executionStatus === "submitted" || data.executionStatus === "queued") summary = t("home:result_submitted");

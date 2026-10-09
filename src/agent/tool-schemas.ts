@@ -25,9 +25,9 @@ export const scanSubtitleFilesSchema = z.object({
 export const queueTranslateSchema = z.object({
   sliceType: z
     .enum(["NORMAL", "SENSITIVE", "CUSTOM"])
-    .default("NORMAL")
+    .optional()
     .describe(
-      "Translation slice strategy. Use CUSTOM when the user gives an explicit slice length, token/chunk limit, or phrases like 按照1200分词 / 每片1200 / 1200 tokens."
+      "Translation slice strategy. Use CUSTOM when the user gives an explicit slice length, token/chunk limit, or phrases like 按照1200分词 / 每片1200 / 1200 tokens. Omit unless the user asked for it: the tool page's current setting is used."
     ),
   customSliceLength: z
     .number()
@@ -40,33 +40,33 @@ export const queueTranslateSchema = z.object({
     ),
   sourceLang: z
     .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
-    .default("JA")
-    .describe("Source language code. Default: JA (Japanese)"),
+    .optional()
+    .describe("Source language code. Omit unless the user asked for it: the tool page's current setting is used."),
   targetLang: z
     .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
-    .default("ZH")
-    .describe("Target language code. Default: ZH (Chinese)"),
+    .optional()
+    .describe("Target language code. Omit unless the user asked for it: the tool page's current setting is used."),
   translationOutputMode: z
     .enum(["bilingual", "target_only"])
-    .default("bilingual")
-    .describe("'bilingual' = keep source + target lines, 'target_only' = only translated text"),
+    .optional()
+    .describe("'bilingual' = keep source + target lines, 'target_only' = only translated text. Omit unless the user asked for it: the tool page's current setting is used."),
   outputMode: z
     .enum(["source", "custom"])
-    .default("source")
+    .optional()
     .describe(
-      "'source' = save next to each selected input; 'custom' = ask the user to select an output directory with FusionKit's fixed picker",
+      "'source' = save next to each selected input (used when omitted); 'custom' = ask the user to select an output directory with FusionKit's fixed picker. The translator page's saved folder cannot be reused without picking it again.",
     ),
   conflictPolicy: z
     .enum(["index", "overwrite"])
-    .default("index")
+    .optional()
     .describe(
-      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Default: 'index'. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files."
+      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files. Omit unless the user asked for it: the tool page's current setting is used."
     ),
   concurrentSlices: z
     .boolean()
-    .default(true)
+    .optional()
     .describe(
-      "Whether to translate slices concurrently for faster speed. Default: true. Set to false only when the user explicitly requests sequential / non-concurrent / 串行 / 不要并发 / 逐条 processing."
+      "Whether to translate slices concurrently for faster speed. Set to false only when the user explicitly requests sequential / non-concurrent / 串行 / 不要并发 / 逐条 processing. Omit unless the user asked for it: the tool page's current setting is used."
     ),
 }).strict();
 
@@ -98,20 +98,21 @@ export const queueConvertSchema = z.object({
     .describe(`Number of files to queue from scanId. Default ${DEFAULT_QUEUE_BATCH_SIZE}; max ${MAX_QUEUE_BATCH_SIZE}.`),
   to: z
     .enum(["LRC", "SRT", "VTT", "ASS", "SSA", "SBV"])
-    .describe("Target subtitle format"),
+    .optional()
+    .describe("Target subtitle format. Omit unless the user asked for it: the tool page's current setting is used."),
   outputMode: z
     .enum(["source", "custom"])
-    .default("source")
-    .describe("'source' = save next to original, 'custom' = a user-chosen output directory"),
+    .optional()
+    .describe("'source' = save next to original, 'custom' = a user-chosen output directory. Omit unless the user asked for it: the tool page's current setting is used."),
   outputDir: z
     .string()
     .optional()
     .describe("Only a directory the user typed in this conversation. Otherwise omit it and FusionKit asks the user with a directory picker."),
   conflictPolicy: z
     .enum(["index", "overwrite"])
-    .default("index")
+    .optional()
     .describe(
-      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Default: 'index'. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files."
+      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files. Omit unless the user asked for it: the tool page's current setting is used."
     ),
 });
 
@@ -142,22 +143,22 @@ export const queueExtractSchema = z.object({
     .default(DEFAULT_QUEUE_BATCH_SIZE)
     .describe(`Number of files to queue from scanId. Default ${DEFAULT_QUEUE_BATCH_SIZE}; max ${MAX_QUEUE_BATCH_SIZE}.`),
   keep: z
-    .enum(["ZH", "JA"])
-    .default("ZH")
-    .describe("Which language to keep from bilingual subtitles"),
+    .enum(["ZH", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
+    .optional()
+    .describe("Which language to keep from bilingual subtitles. Omit unless the user asked for it: the tool page's current setting is used."),
   outputMode: z
     .enum(["source", "custom"])
-    .default("source")
-    .describe("'source' = save next to original, 'custom' = a user-chosen output directory"),
+    .optional()
+    .describe("'source' = save next to original, 'custom' = a user-chosen output directory. Omit unless the user asked for it: the tool page's current setting is used."),
   outputDir: z
     .string()
     .optional()
     .describe("Only a directory the user typed in this conversation. Otherwise omit it and FusionKit asks the user with a directory picker."),
   conflictPolicy: z
     .enum(["index", "overwrite"])
-    .default("index")
+    .optional()
     .describe(
-      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Default: 'index'. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files."
+      "How to handle filename conflicts. 'index' = append numeric suffix (e.g. file_1.srt), 'overwrite' = replace existing file. Use 'overwrite' only when the user explicitly requests overwriting / replacing existing files. Omit unless the user asked for it: the tool page's current setting is used."
     ),
 });
 
@@ -189,22 +190,24 @@ export const createNameTranslationPlanSchema = z.object({
     .boolean()
     .default(false)
     .describe("For children/descendants: also rename the given folders themselves."),
-  includeHidden: z.boolean().default(false),
+  includeHidden: z.boolean().optional().describe("Include hidden files. Omit unless the user asked for it: the tool page's current setting is used."),
   sourceLang: z
     .enum(["auto", "ZH", "ZH_HANT", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
-    .default("auto"),
+    .optional()
+    .describe("Omit unless the user asked for it: the tool page's current setting is used."),
   targetLang: z
     .enum(["ZH", "ZH_HANT", "JA", "EN", "KO", "FR", "DE", "ES", "RU", "PT"])
-    .default("ZH"),
+    .optional()
+    .describe("Omit unless the user asked for it: the tool page's current setting is used."),
   nameFormat: z
     .enum(["translated", "translated_original", "original_translated"])
-    .default("translated")
-    .describe("translated replaces the name; translated_original gives 'Translated (Original)'; original_translated gives 'Original (Translated)'."),
+    .optional()
+    .describe("translated replaces the name; translated_original gives 'Translated (Original)'; original_translated gives 'Original (Translated)'. Omit unless the user asked for a format: the name translator page's format (including its bracket style or custom template) is used."),
   instructions: z
     .string()
     .max(1000)
     .optional()
-    .describe("Optional extra translation requirements from the user, e.g. how to handle person names."),
+    .describe("Optional extra translation requirements from the user, e.g. how to handle person names. When omitted, the name translator page's requirements are used."),
 });
 
 /** apply_name_translation_plan — 应用已确认的名称翻译计划 */
@@ -244,14 +247,14 @@ export const queueRecoveredSubtitleTranslateSchema = z.object({
     .default(DEFAULT_QUEUE_BATCH_SIZE),
   conflictPolicy: z
     .enum(["index", "overwrite"])
-    .default("index")
+    .optional()
     .describe(
-      "Final output filename conflict policy. Use overwrite only when explicitly requested.",
+      "Final output filename conflict policy. Use overwrite only when explicitly requested. Omit unless the user asked for it: the translator page's current setting is used.",
     ),
   concurrentSlices: z
     .boolean()
-    .default(true)
-    .describe("Whether resumed unfinished slices may run concurrently."),
+    .optional()
+    .describe("Whether resumed unfinished slices may run concurrently. Omit unless the user asked for it: the translator page's current setting is used."),
 }).strict();
 
 // ---------------------------------------------------------------------------

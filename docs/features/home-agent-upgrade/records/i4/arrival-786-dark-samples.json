@@ -1,0 +1,938 @@
+[
+  {
+    "t": 0,
+    "left": 56.5,
+    "top": 48,
+    "width": 672,
+    "height": 554,
+    "panelOpacity": 0,
+    "homeOpacity": 1
+  },
+  {
+    "t": 8,
+    "left": 55.859375,
+    "top": 48,
+    "width": 668.1796875,
+    "height": 554,
+    "panelOpacity": 0.0755621,
+    "homeOpacity": 0.98
+  },
+  {
+    "t": 25,
+    "left": 54.9765625,
+    "top": 48,
+    "width": 662.890625,
+    "height": 554,
+    "panelOpacity": 0.285705,
+    "homeOpacity": 0.85
+  },
+  {
+    "t": 33,
+    "left": 52.4296875,
+    "top": 48,
+    "width": 647.6953125,
+    "height": 554,
+    "panelOpacity": 0.38383,
+    "homeOpacity": 0.76
+  },
+  {
+    "t": 42,
+    "left": 51.421875,
+    "top": 48,
+    "width": 641.65625,
+    "height": 554,
+    "panelOpacity": 0.476603,
+    "homeOpacity": 0.66
+  },
+  {
+    "t": 50,
+    "left": 48.9609375,
+    "top": 48,
+    "width": 626.953125,
+    "height": 554,
+    "panelOpacity": 0.56286,
+    "homeOpacity": 0.58
+  },
+  {
+    "t": 58,
+    "left": 46.640625,
+    "top": 48,
+    "width": 613.0859375,
+    "height": 554,
+    "panelOpacity": 0.643453,
+    "homeOpacity": 0.49
+  },
+  {
+    "t": 67,
+    "left": 43.3828125,
+    "top": 48,
+    "width": 593.5859375,
+    "height": 554,
+    "panelOpacity": 0.717981,
+    "homeOpacity": 0.42
+  },
+  {
+    "t": 75,
+    "left": 41.8984375,
+    "top": 48,
+    "width": 584.75,
+    "height": 554,
+    "panelOpacity": 0.786691,
+    "homeOpacity": 0.35
+  },
+  {
+    "t": 83,
+    "left": 39.578125,
+    "top": 48,
+    "width": 570.859375,
+    "height": 554,
+    "panelOpacity": 0.847264,
+    "homeOpacity": 0.29
+  },
+  {
+    "t": 92,
+    "left": 37.0546875,
+    "top": 48,
+    "width": 555.7578125,
+    "height": 554,
+    "panelOpacity": 0.899692,
+    "homeOpacity": 0.24
+  },
+  {
+    "t": 100,
+    "left": 34.90625,
+    "top": 48,
+    "width": 542.9453125,
+    "height": 554,
+    "panelOpacity": 0.942859,
+    "homeOpacity": 0.2
+  },
+  {
+    "t": 108,
+    "left": 32.6328125,
+    "top": 48,
+    "width": 529.328125,
+    "height": 554,
+    "panelOpacity": 0.975625,
+    "homeOpacity": 0.17
+  },
+  {
+    "t": 117,
+    "left": 30.734375,
+    "top": 48,
+    "width": 517.9765625,
+    "height": 554,
+    "panelOpacity": 0.995379,
+    "homeOpacity": 0.14
+  },
+  {
+    "t": 125,
+    "left": 28.1171875,
+    "top": 48,
+    "width": 502.34375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.11
+  },
+  {
+    "t": 133,
+    "left": 27.3046875,
+    "top": 48,
+    "width": 497.5,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.09
+  },
+  {
+    "t": 142,
+    "left": 25.59375,
+    "top": 48,
+    "width": 487.2734375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.07
+  },
+  {
+    "t": 150,
+    "left": 24.203125,
+    "top": 48,
+    "width": 478.9296875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.06
+  },
+  {
+    "t": 158,
+    "left": 22.3203125,
+    "top": 48,
+    "width": 467.6796875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.05
+  },
+  {
+    "t": 167,
+    "left": 21.7421875,
+    "top": 48,
+    "width": 464.25,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.04
+  },
+  {
+    "t": 175,
+    "left": 20.546875,
+    "top": 48,
+    "width": 457.0859375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.03
+  },
+  {
+    "t": 183,
+    "left": 19.578125,
+    "top": 48,
+    "width": 451.3125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.03
+  },
+  {
+    "t": 192,
+    "left": 18.6015625,
+    "top": 48,
+    "width": 445.453125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.02
+  },
+  {
+    "t": 200,
+    "left": 17.8125,
+    "top": 48,
+    "width": 440.7578125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.02
+  },
+  {
+    "t": 208,
+    "left": 17.0234375,
+    "top": 48,
+    "width": 436.0078125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.01
+  },
+  {
+    "t": 217,
+    "left": 16.234375,
+    "top": 48,
+    "width": 431.328125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.01
+  },
+  {
+    "t": 225,
+    "left": 15.8125,
+    "top": 48,
+    "width": 428.796875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.01
+  },
+  {
+    "t": 233,
+    "left": 15.296875,
+    "top": 48,
+    "width": 425.71875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.01
+  },
+  {
+    "t": 242,
+    "left": 14.8359375,
+    "top": 48,
+    "width": 422.953125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0.01
+  },
+  {
+    "t": 250,
+    "left": 14.1796875,
+    "top": 48,
+    "width": 419.046875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0
+  },
+  {
+    "t": 258,
+    "left": 14,
+    "top": 48,
+    "width": 417.9765625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0
+  },
+  {
+    "t": 267,
+    "left": 13.6328125,
+    "top": 48,
+    "width": 415.7734375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0
+  },
+  {
+    "t": 275,
+    "left": 13.34375,
+    "top": 48,
+    "width": 414.03125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0
+  },
+  {
+    "t": 283,
+    "left": 13.0859375,
+    "top": 48,
+    "width": 412.4765625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0
+  },
+  {
+    "t": 292,
+    "left": 12.8515625,
+    "top": 48,
+    "width": 411.0859375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0
+  },
+  {
+    "t": 300,
+    "left": 12.6171875,
+    "top": 48,
+    "width": 409.703125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0
+  },
+  {
+    "t": 308,
+    "left": 12.4375,
+    "top": 48,
+    "width": 408.609375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": 0
+  },
+  {
+    "t": 317,
+    "left": 12.1796875,
+    "top": 48,
+    "width": 407.0859375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 358,
+    "left": 11.6171875,
+    "top": 48,
+    "width": 403.6875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 367,
+    "left": 11.5390625,
+    "top": 48,
+    "width": 403.2578125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 467,
+    "left": 11.5,
+    "top": 48,
+    "width": 403.015625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 483,
+    "left": 11.09375,
+    "top": 48,
+    "width": 400.59375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 492,
+    "left": 11.078125,
+    "top": 48,
+    "width": 400.4921875,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 500,
+    "left": 11.0703125,
+    "top": 48,
+    "width": 400.4375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 508,
+    "left": 11.0625,
+    "top": 48,
+    "width": 400.3828125,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 517,
+    "left": 11.0546875,
+    "top": 48,
+    "width": 400.3359375,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 525,
+    "left": 11.046875,
+    "top": 48,
+    "width": 400.2890625,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 533,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 542,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 550,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 558,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 567,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 575,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 583,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 592,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 600,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 608,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 617,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 625,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 633,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 642,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 650,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 658,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 667,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 675,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 683,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 692,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 700,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 708,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 717,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 725,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 733,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 742,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 750,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 758,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 767,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 775,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 783,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 792,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 800,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 808,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 817,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 825,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 833,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 842,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 850,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 858,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 867,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 875,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 883,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 892,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 900,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 908,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 917,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 925,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 933,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 942,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 950,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 958,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 967,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 975,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 983,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 992,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  },
+  {
+    "t": 1000,
+    "left": 11,
+    "top": 48,
+    "width": 400,
+    "height": 554,
+    "panelOpacity": 1,
+    "homeOpacity": null
+  }
+]

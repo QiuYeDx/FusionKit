@@ -244,5 +244,68 @@
   "action_error_output_cancelled": "出力フォルダーの選択がキャンセルされました。タスクは作成されていません。",
   "action_error_authorization": "選択したファイルまたはフォルダーを承認できませんでした。もう一度選択してください。",
   "action_error_stopped": "タスクを作成する前に停止しました。",
-  "action_error_scan": "フォルダーをスキャンできませんでした。"
+  "action_error_scan": "フォルダーをスキャンできませんでした。",
+  "result_revision_ready": "修正のプレビューを開きました：{{checked}} 件を確認し、{{count}} 件の修正案があります。プレビューで確認して適用してください。",
+  "result_revision_none": "修正のプレビューを開きました：{{checked}} 件を確認し、修正は不要でした。",
+  "result_revision_confirm": "{{count}} 件の字幕を 1 件ずつ確認する必要があります。修正のプレビューで確認してから続けてください。",
+  "result_read_cues": "字幕 {{count}} 件を読み取りました",
+  "tool_name_read_cues": "字幕を読む",
+  "tool_name_find_cues": "字幕を探す",
+  "tool_name_prepare_revision": "AI 修正を準備",
+  "action_error_page_unavailable": "ページが閉じられたか切り替わったため、実行していません。",
+  "action_error_page_changed": "別のドキュメントに切り替わったため、実行していません。",
+  "action_error_no_document": "字幕ワークスペースでドキュメントが開かれていません。",
+  "action_error_edit_blocked": "現在は字幕を編集できません（翻訳中など）。",
+  "action_error_revision_open": "修正のプレビューがすでに開いています。先にそちらを完了してください。",
+  "action_error_empty_selection": "字幕が選択されていません。",
+  "action_error_no_track": "このドキュメントには修正できる訳文トラックがありません。",
+  "action_error_revision_cancelled": "修正のプレビューが閉じられたか停止されました。",
+  "tool_name_open_page": "ページを開く",
+  "result_page_opened": "「{{page}}」を開きました",
+  "action_error_navigation": "現在ページを切り替えられません。",
+  "tool_name_update_settings": "ページ設定を更新",
+  "result_settings_updated": "ページ設定を {{count}} 項目更新しました",
+  "dock": {
+    "open": "Agent を開く",
+    "close": "Agent を閉じる",
+    "panel_label": "FusionKit Agent との会話",
+    "open_home": "ホームで開く",
+    "empty_title": "何をお手伝いしましょうか？",
+    "empty_hint_page": "Agent は「{{page}}」を使用中であることを把握しています。やりたいことをそのまま伝えてください。",
+    "empty_hint": "やりたいことを伝えるか、気軽に話しかけてください。",
+    "working": "返信中",
+    "unread": "新しい返信",
+    "suggest": {
+      "translator": {
+        "first": "字幕を翻訳",
+        "first_prompt": "字幕ファイルを選んで翻訳キューに追加するのを手伝ってください。",
+        "second": "進行状況を確認",
+        "second_prompt": "翻訳タスクの進み具合はどうですか？"
+      },
+      "converter": {
+        "first": "フォルダーを変換",
+        "first_prompt": "フォルダー内の字幕の形式を変換してください（パスは後で伝えます）。",
+        "second": "変換タスクを確認",
+        "second_prompt": "変換タスクは完了しましたか？"
+      },
+      "extractor": {
+        "first": "一言語を抽出",
+        "first_prompt": "フォルダー内の二言語字幕から一つの言語だけ残してください（パスは後で伝えます）。",
+        "second": "抽出タスクを確認",
+        "second_prompt": "抽出タスクは完了しましたか？"
+      },
+      "transcriber": {
+        "first": "環境を確認",
+        "first_prompt": "ローカル文字起こしは今使えますか？足りないモデルやリソースはありますか？",
+        "second": "文字起こしを確認",
+        "second_prompt": "文字起こしタスクの進み具合はどうですか？"
+      },
+      "names": {
+        "first": "ファイル名を翻訳",
+        "first_prompt": "フォルダー内のファイル名を翻訳して（パスは後で伝えます）、先にプレビューを見せてください。",
+        "second": "二言語の名前にする",
+        "second_prompt": "名前の形式を「訳名 (原名)」に変えてください。"
+      }
+    }
+  }
 }

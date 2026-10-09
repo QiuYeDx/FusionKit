@@ -26,6 +26,14 @@ const toolNameKeys = {
   get_local_transcription_status: "home:tool_name_local_status",
   configure_local_transcription: "home:tool_name_configure_transcription",
   search_translation_knowledge: "home:tool_name_search_knowledge",
+  open_app_page: "home:tool_name_open_page",
+  subtitle_translator_update_settings: "home:tool_name_update_settings",
+  subtitle_converter_update_settings: "home:tool_name_update_settings",
+  subtitle_extractor_update_settings: "home:tool_name_update_settings",
+  name_translator_update_settings: "home:tool_name_update_settings",
+  studio_read_cues: "home:tool_name_read_cues",
+  studio_find_cues: "home:tool_name_find_cues",
+  studio_prepare_revision: "home:tool_name_prepare_revision",
 } as const;
 
 export default function AgentToolCall({ call, result, running = false }: { call: ToolCall; result?: AgentToolResult; running?: boolean }) {

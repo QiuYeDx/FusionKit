@@ -45,6 +45,18 @@ const errorKeys = {
   recovery_output_authorization_unavailable: "home:action_error_authorization",
   agent_stopped_before_queue: "home:action_error_stopped",
   scan_failed: "home:action_error_scan",
+  navigation_unavailable: "home:action_error_navigation",
+  page_unavailable: "home:action_error_page_unavailable",
+  page_changed: "home:action_error_page_changed",
+  no_document: "home:action_error_no_document",
+  edit_blocked: "home:action_error_edit_blocked",
+  revision_already_open: "home:action_error_revision_open",
+  empty_selection: "home:action_error_empty_selection",
+  no_translation_track: "home:action_error_no_track",
+  revision_cancelled: "home:action_error_revision_cancelled",
+  invalid_input: "studio:errors.invalid_input",
+  translation_protocol_invalid: "studio:cue_revision.errors.protocol_invalid",
+  translation_output_limit: "studio:cue_revision.errors.output_limit",
 } as const;
 
 export function actionErrorMessage(error: string, t: TFunction): string {

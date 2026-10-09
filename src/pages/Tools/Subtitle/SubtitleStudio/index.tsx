@@ -27,6 +27,9 @@ import { encodingSchema, LIMITS, StudioError, type Diagnostic, type ErrorCode } 
 import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
 import { CueHistory, type CueEditLabel } from '@/services/subtitle-studio/cue-history';
 import { StudioCueTable } from './StudioCueTable';
+import { StudioCueRevision, type CueRevisionRequestState } from './StudioCueRevision';
+import { useAgentPageContext } from '@/agent/page-context';
+import { createStudioAgentTools, studioPageContext, type StudioAgentDeps } from './agent-context';
 import type { DocumentListSnapshot, DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { STUDIO_BATCH_LIMIT, type UnavailableDocument, type BatchImportResult } from '@/subtitle-studio/batch-contract';
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
@@ -187,6 +190,8 @@ export default function SubtitleStudio() {
   useEffect(() => { cueHistory.current.sync(page?.summary.id, page?.summary.revision); }, [page?.summary.id, page?.summary.revision]);
   const [cueNotice, setCueNotice] = useState<{ deleted: number; stopped: number } | null>(null);
   const [cueTranslation, setCueTranslation] = useState<{ cueIds: string[]; trackId?: string; request: LibraryDialogRequest } | null>(null);
+  const [cueRevision, setCueRevision] = useState<CueRevisionRequestState | null>(null);
+  const cueRevisionSerial = useRef(0);
   const observations = useRef(new StudioObservations());
   const currentPage = useRef<DocumentPage | null>(null);
   const currentOffset = useRef(0);
@@ -201,6 +206,25 @@ export default function SubtitleStudio() {
   const retry = useRef<(() => void) | null>(null);
   const reader = useRef<HTMLDivElement>(null);
   const busy = activity !== null || query !== loadedQuery;
+  // The assistant reads the page through these at call time, so its tools always see the current state.
+  const cueSelection = useRef<string[]>([]);
+  const agentState = useRef({ page, track, busy, cueRevision, t });
+  agentState.current = { page, track, busy, cueRevision, t };
+  const agentDeps = useMemo<StudioAgentDeps>(() => ({
+    page: () => agentState.current.page,
+    track: () => agentState.current.track,
+    selection: () => cueSelection.current,
+    editBlocked: () => {
+      const state = agentState.current;
+      if (state.page?.tasks.some(task => task.status === 'queued' || task.status === 'running')) return state.t('studio:cue_edit.blocked_translation');
+      return state.busy ? state.t('studio:cue_edit.blocked_busy') : undefined;
+    },
+    revisionOpen: () => !!agentState.current.cueRevision,
+    openRevision: (cueIds, preset, onSettled) => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current, preset, onSettled }),
+    api: () => window.subtitleStudio,
+  }), []);
+  const agentTools = useMemo(() => createStudioAgentTools(agentDeps), [agentDeps]);
+  useAgentPageContext(() => typeof window !== 'undefined' && window.subtitleStudio ? studioPageContext(agentDeps, agentTools) : null);
   const requestKnowledgeRecheck = (request: AutomaticKnowledgeRecheckRequest): boolean => {
     if (!mounted.current || busy || operation.current || currentPage.current?.summary.id !== request.documentId || track?.id !== request.trackId
       || !currentPage.current.translationTracks.some(item => item.id === request.trackId)) return false;
@@ -692,6 +716,8 @@ export default function SubtitleStudio() {
                     history={{ undo: cueHistory.current.peek('undo'), redo: cueHistory.current.peek('redo') }}
                     onOperation={(operation, label, count) => applyCueEdit(operation, 'do', label, count)} onUndo={() => stepCueHistory('undo')} onRedo={() => stepCueHistory('redo')}
                     onTranslate={cueIds => setCueTranslation({ cueIds, ...(track ? { trackId: track.id } : {}), request: { restoreFocus: focusCueList } })}
+                    onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })}
+                    onSelectionChange={cueIds => { cueSelection.current = cueIds; }}
                     onCopy={copyCue}
                     onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
                 </ClipPathTabsContent>
@@ -716,6 +742,8 @@ export default function SubtitleStudio() {
       {workspaceView === 'transcription' && <StudioTranscription header={null} onOpenDocument={openTranscriptionDocument} />}
     </ClipPathTabsContent>
     </ClipPathTabs>
+    {page && <StudioCueRevision page={page} track={track} request={cueRevision} editBlocked={page.tasks.some(task => task.status === 'queued' || task.status === 'running') ? t('studio:cue_edit.blocked_translation') : undefined}
+      onClose={() => setCueRevision(null)} onApply={(operation, count) => applyCueEdit(operation, 'do', 'revise', count)} />}
     {page && <StudioTranslation page={page} scope={cueTranslation ?? undefined} triggerContainer={null} openRequest={cueTranslation?.request} onRequestClosed={() => setCueTranslation(null)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />}
     <QuickTermDialog open={!!rememberTerm} onOpenChange={open => { if (!open) setRememberTerm(null); }} initialSource={rememberTerm?.source} initialTarget={rememberTerm?.target} initialLanguagePair={rememberTerm?.targetLanguage ? { source: '', target: rememberTerm.targetLanguage } : undefined} />
     <StudioBatchTranslation triggerContainer={translationSlot} documents={contextDialog?.kind === 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog?.kind === 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind === 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />

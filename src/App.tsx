@@ -6,6 +6,9 @@ import About from "@/pages/About";
 import Setting from "@/pages/Setting";
 import Home from "@/pages/Home";
 import HomeAgent from "@/pages/HomeAgent";
+import useAgentStore from "@/store/agent/useAgentStore";
+import AgentDock from "@/pages/AgentDock";
+import ClassicPageContexts from "@/pages/AgentDock/ClassicPageContexts";
 import Tools from "@/pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
@@ -73,10 +76,14 @@ function App() {
   const prevPathRef = useRef(location.pathname);
   const directionRef = useRef(1);
 
+  // With a conversation, home and the floating panel hand over to each other:
+  // the page only fades so that it does not slide against the panel's flight.
+  const conversationActive = useAgentStore((state) => state.session.messages.length > 0 || state.isStreaming);
   if (prevPathRef.current !== location.pathname) {
     const prevIndex = getRouteIndex(prevPathRef.current);
     const nextIndex = getRouteIndex(location.pathname);
-    directionRef.current = nextIndex > prevIndex ? 1 : -1;
+    const handoff = conversationActive && (prevPathRef.current === "/" || location.pathname === "/");
+    directionRef.current = handoff ? 0 : nextIndex > prevIndex ? 1 : -1;
     prevPathRef.current = location.pathname;
   }
 
@@ -168,6 +175,10 @@ function App() {
 
       {/* 底部导航栏 */}
       <BottomNavigation />
+
+      {/* 各页面的悬浮 Agent（首页本身即完整 Agent） */}
+      <AgentDock />
+      <ClassicPageContexts />
 
       {/* 全局 Toast */}
       <Toaster position="top-right" />

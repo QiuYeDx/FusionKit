@@ -19,11 +19,10 @@ describe("queue translate schema", () => {
     expect(parsed.customSliceLength).toBe(1200);
   });
 
-  it("keeps queue defaults when custom slicing is not requested", () => {
+  it("leaves unrequested settings unset so the translator page's settings apply", () => {
     const parsed = queueTranslateSchema.parse({});
 
-    expect(parsed.sliceType).toBe("NORMAL");
-    expect(parsed.customSliceLength).toBeUndefined();
+    expect(parsed).toEqual({});
   });
 
   it.each([
@@ -78,9 +77,10 @@ describe("name translation tool schemas", () => {
     expect(parsed.scope).toBe("self");
     expect(parsed.targetKind).toBe("both");
     expect(parsed.includeRoots).toBe(false);
-    expect(parsed.includeHidden).toBe(false);
-    expect(parsed.targetLang).toBe("ZH");
-    expect(parsed.nameFormat).toBe("translated");
+    // Languages, format and hidden files follow the name translator page when not requested.
+    expect(parsed.includeHidden).toBeUndefined();
+    expect(parsed.targetLang).toBeUndefined();
+    expect(parsed.nameFormat).toBeUndefined();
   });
 
   it("accepts bilingual name formats and instructions", () => {

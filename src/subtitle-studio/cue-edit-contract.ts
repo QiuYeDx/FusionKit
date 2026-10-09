@@ -6,6 +6,7 @@ import type { DocumentSummary } from './ipc-contract';
 export const CUE_EDIT_LIMIT = 1000;
 const cueIdsSchema = z.array(idSchema).min(1).max(CUE_EDIT_LIMIT).refine(ids => new Set(ids).size === ids.length);
 const entriesSchema = z.record(idSchema, translationEntrySchema.nullable()).refine(entries => Object.keys(entries).length <= CUE_EDIT_LIMIT);
+const textsSchema = z.record(idSchema, textSchema).refine(texts => Object.keys(texts).length <= CUE_EDIT_LIMIT);
 
 /** Everything a deletion removed, so that undo can put it back exactly. */
 export const removedCuesSchema = z.object({
@@ -33,6 +34,13 @@ export const cueEditOperationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('review'), trackId: idSchema, cueIds: cueIdsSchema, reviewed: z.boolean() }).strict(),
   /** Puts exact entries back (undo of target, clear and review). */
   z.object({ kind: z.literal('entries'), trackId: idSchema, entries: entriesSchema }).strict(),
+  /**
+   * Several sources and translations changed together (an accepted AI revision).
+   * `targets` become reviewed AI translations of the new sources, except that an
+   * unchanged text only becomes current again; `entries` puts exact entries back
+   * (its undo). Sources apply first, so translations refer to the new texts.
+   */
+  z.object({ kind: z.literal('revise'), sources: textsSchema, trackId: idSchema.optional(), targets: textsSchema.optional(), entries: entriesSchema.optional() }).strict(),
   z.object({ kind: z.literal('delete'), cueIds: cueIdsSchema }).strict(),
   z.object({ kind: z.literal('restore'), removed: removedCuesSchema }).strict(),
 ]);

@@ -1,5 +1,5 @@
 import { useRef, type ComponentProps } from 'react';
-import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Copy, Eraser, Languages, PencilLine, Trash2 } from 'lucide-react';
+import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Copy, Eraser, Languages, PencilLine, Sparkles, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '@/components/ui/dropdown-menu';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
@@ -16,6 +16,8 @@ export type CueMenuActions = {
   canTranslate: boolean;
   onEdit: (cueId: string, field: CueField) => void;
   onTranslate: (cueIds: string[]) => void;
+  /** Opens the AI revision dialog for the cues. */
+  onRevise: (cueIds: string[]) => void;
   onClear: (cueIds: string[]) => void;
   onReview: (cueIds: string[], reviewed: boolean) => void;
   onDelete: (cueIds: string[]) => void;
@@ -76,6 +78,9 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
     </>}
     <DropdownMenuItem data-testid="studio-cue-translate" disabled={!!editBlocked || !actions.canTranslate || !translatable} onSelect={() => actions.onTranslate(cueIds)}>
       <Languages />{t(track && translated ? 'studio:cue_menu.retranslate' : 'studio:cue_menu.translate')}
+    </DropdownMenuItem>
+    <DropdownMenuItem data-testid="studio-cue-revise" disabled={!!editBlocked} onSelect={() => { onEditing(); actions.onRevise(cueIds); }}>
+      <Sparkles />{t('studio:cue_menu.revise')}
     </DropdownMenuItem>
     {track && <>
       <DropdownMenuItem data-testid="studio-cue-review" disabled={!!editBlocked || !entries.length} onSelect={() => actions.onReview(cueIds, !allReviewed)}>

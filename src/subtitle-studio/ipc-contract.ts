@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { encodingSchema, idSchema, LIMITS, SUBTITLE_TEXT_FORMATS, translationTrackNameSchema, type ErrorCode, type SubtitleDocument } from './domain';
 import { translationConfigSchema, translationModelSchema, translationScopeSchema, type TranslationPlanSummary } from './translation-contract';
 import { cueEditOperationSchema, type CueEditResult } from './cue-edit-contract';
+import { cueRevisionRequestSchemas, type CueFindResult, type CueRevisionLocation, type CueRevisionResult } from './cue-revision-contract';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { hasBilingualCandidates, isBilingualRecommended } from './bilingual';
@@ -61,6 +62,10 @@ export const STUDIO_CHANNELS = {
   removeTranslationTrack: 'subtitle-studio:remove-translation-track',
   renameTranslationTrack: 'subtitle-studio:rename-translation-track',
   editCues: 'subtitle-studio:edit-cues',
+  locateCueRevision: 'subtitle-studio:locate-cue-revision',
+  reviseCues: 'subtitle-studio:revise-cues',
+  cancelCueRevision: 'subtitle-studio:cancel-cue-revision',
+  findCues: 'subtitle-studio:find-cues',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   probeTranscriptionMedia: 'subtitle-studio:probe-transcription-media',
@@ -132,6 +137,7 @@ export const requestSchemas = {
   removeTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema }).strict(),
   renameTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema, name: translationTrackNameSchema }).strict(),
   editCues: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), operation: cueEditOperationSchema }).strict(),
+  ...cueRevisionRequestSchemas,
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -226,6 +232,10 @@ export interface SubtitleStudioApi {
   removeTranslationTrack(request: z.infer<typeof requestSchemas.removeTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
   renameTranslationTrack(request: z.infer<typeof requestSchemas.renameTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
   editCues(request: z.infer<typeof requestSchemas.editCues>): Promise<StudioResult<CueEditResult>>;
+  locateCueRevision(request: z.infer<typeof requestSchemas.locateCueRevision>): Promise<StudioResult<CueRevisionLocation>>;
+  reviseCues(request: z.infer<typeof requestSchemas.reviseCues>): Promise<StudioResult<CueRevisionResult>>;
+  cancelCueRevision(request: z.infer<typeof requestSchemas.cancelCueRevision>): Promise<StudioResult<null>>;
+  findCues(request: z.input<typeof requestSchemas.findCues>): Promise<StudioResult<CueFindResult>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 

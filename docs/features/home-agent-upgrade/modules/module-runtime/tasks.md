@@ -1,5 +1,57 @@
 # HomeAgent 运行可靠性任务
 
+### T-RUNTIME-04 Agent 页面导航工具
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I4 |
+| 需求 | R-RUNTIME-04 |
+| 验收 | AC-RUNTIME-04-1, AC-RUNTIME-04-2, AC-RUNTIME-04-3, AC-RUNTIME-04-4 |
+| 依赖 | - |
+| 写集 | src/agent/navigation-tools.ts, src/agent/navigation-tools.test.ts, src/agent/tools.ts, src/agent/orchestrator.ts, src/pages/AgentDock/index.tsx, src/pages/HomeAgent/components/AgentToolCall.tsx, src/pages/HomeAgent/components/AgentToolResult.tsx, src/pages/HomeAgent/components/action-error.ts, src/locales/zh/home.json, src/locales/en/home.json, src/locales/ja/home.json, src/locales/zh-Hant/home.json, scripts/i18n-usage-manifest.mjs |
+| 负责人 | root |
+| 依赖确认 | I3 已完成；基于本会话未提交改动 |
+| 完成日期 | 2026-10-09 |
+| 实施记录 | records/i4/T-RUNTIME-04.md |
+| 集成版本 | df64e8f + 本会话未提交改动 |
+
+#### 实现要点
+按本模块 I4 设计。
+
+#### 验证计划
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-RUNTIME-04-1 | unit | required | vitest run src/agent：枚举、无导航器、等待注册与超时、已在目标页 | - |
+| V-RUNTIME-04-2 | static | required | tsc、check-i18n、check-i18n-usage | - |
+
+
+### T-RUNTIME-03 页面上下文注册表与每轮注入
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I3 |
+| 需求 | R-RUNTIME-03 |
+| 验收 | AC-RUNTIME-03-1, AC-RUNTIME-03-2, AC-RUNTIME-03-3, AC-RUNTIME-03-4 |
+| 依赖 | - |
+| 写集 | src/agent/page-context.ts, src/agent/page-context.test.ts, src/agent/orchestrator.ts, src/agent/orchestrator.test.ts |
+| 负责人 | root |
+| 依赖确认 | 基线 df64e8f 加本会话未提交的字幕 AI 修订改动；orchestrator 与 guarded-tools 契约不变 |
+| 完成日期 | 2026-10-09 |
+| 实施记录 | records/i3/T-RUNTIME-03.md |
+| 集成版本 | df64e8f + 本会话未提交改动 |
+
+#### 实现要点
+按本模块 I3 设计实现注册表、`useAgentPageContext`、`buildPageContextSection`、`pageTools`，在 orchestrator 第一次 await 前解析页面并合并工具；固定工具同名优先。不持久化，不改变会话导出。
+
+#### 验证计划
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-RUNTIME-03-1 | unit | required | node node_modules/vitest/vitest.mjs run src/agent src/store/agent：注册/注销/替换、路由匹配、快照截断与异常、请求含当前页面段与页面工具、失效注册返回 page_unavailable，既有用例无回归 | - |
+| V-RUNTIME-03-2 | static | required | node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json | - |
+
+
 ### T-RUNTIME-02 修复停止、确认上下文与归档协议
 
 | 字段 | 值 |

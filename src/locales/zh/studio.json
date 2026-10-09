@@ -758,7 +758,8 @@
     "clear_translation": "清除译文",
     "delete": "删除字幕",
     "delete_many": "删除所选字幕",
-    "keep_one": "文档至少要保留一条字幕。"
+    "keep_one": "文档至少要保留一条字幕。",
+    "revise": "AI 修订…"
   },
   "cue_toolbar": {
     "label": "所选字幕操作",
@@ -779,7 +780,8 @@
       "clear": "清除 {{count}} 条译文",
       "review": "复核 {{count}} 条译文",
       "unreview": "取消复核 {{count}} 条译文",
-      "delete": "删除 {{count}} 条字幕"
+      "delete": "删除 {{count}} 条字幕",
+      "revise": "AI 修订 {{count}} 条字幕"
     }
   },
   "cue_help": {
@@ -818,7 +820,7 @@
     },
     "menu": {
       "keys": "右键 / Shift+F10",
-      "desc": "翻译、复核、复制等更多操作"
+      "desc": "翻译、AI 修订、复核、复制等更多操作"
     }
   },
   "cue_notice": {
@@ -831,5 +833,72 @@
     "into_track": "将翻译所选的 {{count}} 条字幕，并替换「{{track}}」中对应的译文。",
     "new_track": "将翻译所选的 {{count}} 条字幕，生成一份新的译文。",
     "start": "翻译 {{count}} 条"
+  },
+  "cue_revision": {
+    "title": "AI 修订",
+    "description": "已选 {{count}} 条字幕。说明要改什么，AI 会给出修订，确认后才会应用。",
+    "instructions": "修改要求",
+    "placeholder": "例如：\n第 2 句应该是“我们明天一早出发”\n“深度求索”被识别成了“深度求锁”，请更正\n人名统一写作“林知远”",
+    "fields_label": "修订范围",
+    "fields": {
+      "source": "原文",
+      "target": "译文",
+      "both": "原文和译文"
+    },
+    "model": "模型",
+    "generate": "生成修订",
+    "regenerate": "重新生成",
+    "generating": "正在生成…",
+    "shortcut": "Ctrl+Enter 生成 · 使用 AI 翻译的模型配置",
+    "apply": "应用 {{count}} 条修订",
+    "result": "修订预览",
+    "summary": "建议修改 {{count}} 条（共 {{total}} 条）",
+    "no_changes": "AI 认为这些字幕无需修改。",
+    "select_all": "全选",
+    "deselect_all": "全不选",
+    "include": "应用第 {{number}} 条的修订",
+    "kept_target": "译文沿用",
+    "target_stale": "译文将标为原文已变更",
+    "source_only_hint": "只修订原文时，对应译文会标为“原文已变更”；如需同时更新译文，可选择“原文和译文”。",
+    "rejected": "有 {{count}} 处修订含 < > 等无法保存的字符，已忽略。",
+    "usage": "本次用量 {{count}} tokens",
+    "errors": {
+      "revision_conflict": "字幕在生成修订后有改动，请重新生成。",
+      "output_limit": "模型输出达到上限。请减少所选字幕，或在翻译设置中提高输出上限。",
+      "protocol_invalid": "模型返回的内容无法识别，请重试或换用其他模型。",
+      "failed": "修订请求失败，请检查模型服务后重试。",
+      "apply_failed": "修订未能应用，请查看页面上方的提示后重试。",
+      "too_many": "需要检查的字幕超过 {{limit}} 条。请写出更具体的错误写法，或先选择范围。"
+    },
+    "scope_label": "修订范围",
+    "scope": {
+      "selection": "所选 {{count}} 条",
+      "document": "整个文档（{{count}} 条）",
+      "no_selection": "所选字幕"
+    },
+    "description_document": "在整个文档（{{count}} 条）中查找相关字幕。说明要改什么，AI 会先找出相关的行再给出修订，确认后才会应用。",
+    "placeholder_document": "例如：\n文中的“法尔童”都应为“法厄同”\n第 12 句应该是“我们明天一早出发”\n人名“林知远”有多处识别错误，请统一更正",
+    "revise_document": "AI 修订整个文档…",
+    "locating": "正在分析修改要求并查找相关字幕…",
+    "revising": "正在检查 {{done}} / {{total}} 条字幕…",
+    "stop": "停止",
+    "continue": "继续检查",
+    "confirm": "需要逐条检查 {{count}} 条字幕，约 {{requests}} 次模型请求。确认后继续。",
+    "nothing_found": "没有找到与要求相关的字幕。可以换一种说法，或写出文中实际出现的错误写法。",
+    "apply_limit": "一次最多应用 {{limit}} 条修订，请取消部分勾选后分次应用。",
+    "plan": {
+      "terms": "查找写法",
+      "found": "找到 {{count}} 条相关字幕",
+      "lines": "定位到第 {{lines}} 句",
+      "all": "逐条检查全部 {{count}} 条字幕"
+    }
+  },
+  "agent": {
+    "suggest_fix": "修正识别错误",
+    "suggest_fix_prompt": "这份字幕里有词被识别错了：“错误写法”应为“正确写法”，请在整个文档中找出并修正。",
+    "suggest_terms": "统一专有名词",
+    "suggest_terms_prompt": "检查这份字幕里人名和专有名词的写法是否前后一致，不一致的地方请准备修订。",
+    "suggest_summary": "概括内容",
+    "suggest_summary_prompt": "概括一下当前字幕文档讲了什么。"
   }
 }

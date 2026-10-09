@@ -6,6 +6,7 @@ import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSub
 import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES } from "@/subtitle-studio/transcription/preferences-contract";
 import { modernAgentTools } from "./modern-tools";
 import { usePreparedActionsStore } from "./prepared-actions";
+import { emptySelection, translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
 
 const mocks = vi.hoisted(() => ({ controller: {} as Record<string, any>, trackStarted: vi.fn(), state: {} as Record<string, any> }));
 vi.mock("@/services/subtitle-studio/transcription-controller", () => ({
@@ -330,5 +331,29 @@ describe("local handoff and knowledge projection", () => {
     expect(result.data.entries).toHaveLength(1); expect(result.data.entries[0].state).toBe("unconfirmed");
     expect(result.data.entries[0].summary.length).toBeLessThanOrEqual(400);
     expect(JSON.stringify(result)).not.toMatch(/PRIVATE RAW EVIDENCE|private-evidence/);
+  });
+});
+
+describe("settings follow the Studio", () => {
+  afterEach(() => { (translationDraftMemory as unknown as { previous?: unknown }).previous = undefined; });
+  it("prepares translation with the last translation dialog settings unless the user named them", async () => {
+    translationDraftMemory.remember(undefined, undefined, { profileId: "task-profile", language: "ja", instructions: "Keep honorifics.",
+      contextWindow: "16384", maxOutputTokens: "2048", maxBatchCues: "20", selection: emptySelection("ja"), documentTopicIds: [], cueIds: [] });
+    const result = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }], maxBatchCues: 10 });
+    expect(api.planTranslationBatch).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({
+      language: "ja", instructions: "Keep honorifics.", contextWindow: 16384, maxOutputTokens: 2048, maxBatchCues: 10 }) }));
+    expect(result.data.appliedSettings).toMatchObject({ model: { source: "tool_page" }, targetLanguage: { value: "ja", source: "tool_page" },
+      maxBatchCues: { value: 10, source: "user" }, contextWindow: { value: 16384, source: "tool_page" } });
+  });
+  it("falls back to the translation dialog defaults without a draft", async () => {
+    const result = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }] });
+    expect(api.planTranslationBatch).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ contextWindow: 32768, maxOutputTokens: 4096, maxBatchCues: 32 }) }));
+    expect(result.data.appliedSettings).toMatchObject({ model: { source: "default" }, maxBatchCues: { source: "default" } });
+  });
+  it("keeps the Studio transcription task mode and prompt when they are omitted", async () => {
+    mocks.state.config = { ...mocks.state.config, taskMode: "translate_to_english", advanced: { ...mocks.state.config.advanced, initialPrompt: "Names: Phaethon." } };
+    await call("prepare_studio_transcription", { language: "ja" });
+    expect(mocks.controller.setConfig).toHaveBeenCalledWith(expect.objectContaining({ language: "ja", taskMode: "translate_to_english",
+      advanced: expect.objectContaining({ initialPrompt: "Names: Phaethon." }) }));
   });
 });

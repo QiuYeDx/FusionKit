@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { planningAgentTools } from "./planning-tools";
 import { modernAgentTools } from "./modern-tools";
+import { navigationAgentTools } from "./navigation-tools";
 import {
   scanSubtitleFilesSchema,
   queueTranslateSchema,
@@ -31,6 +32,7 @@ import {
 export const agentTools = {
   ...planningAgentTools,
   ...modernAgentTools,
+  ...navigationAgentTools,
   scan_subtitle_files: tool({
     description:
       "Scan one or more directories for subtitle conversion or language extraction inputs (LRC/SRT/VTT/ASS/SSA/SBV). " +
@@ -43,7 +45,7 @@ export const agentTools = {
   queue_subtitle_translate: tool({
     description:
       "Add subtitle files to the TRANSLATION queue. " +
-      "Translates subtitle text from one language to another (default: Japanese→Chinese, bilingual output). " +
+      "Translates subtitle text from one language to another; settings the user did not ask for follow the subtitle translator page. " +
       "Supports languages: ZH(Chinese), JA(Japanese), EN(English), KO(Korean), FR(French), DE(German), ES(Spanish), RU(Russian), PT(Portuguese). " +
       "When the user requests an explicit slice length such as 按照1200分词 / every 1200 tokens, set sliceType=CUSTOM and customSliceLength to that number. " +
       "This fixed tool opens FusionKit's native file picker and queues only the files the user selects. " +

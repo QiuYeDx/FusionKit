@@ -11,6 +11,9 @@ import { transcriptionTaskConfigSchema } from "@/subtitle-studio/transcription/t
 import type { DocumentSummary, StudioResult } from "@/subtitle-studio/ipc-contract";
 import { entrySummary } from "@/translation-knowledge/ipc-contract";
 import { AGENT_CAPABILITIES } from "./capability-catalog";
+import { SettingsResolver } from "./tool-page-settings";
+import { translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
+import i18n from "@/i18n";
 import { registerPreparedAction, usePreparedActionsStore, type PreparedAction, type PreparedActionReceipt, type PreparedActionResult } from "./prepared-actions";
 
 interface Context { sessionId: string; signal?: AbortSignal; check: () => void }
@@ -69,17 +72,17 @@ function documentSummary(document: DocumentSummary) {
     canTranslate: document.capabilities.translate,
     task: document.task ? { taskId: document.task.id, status: document.task.status, completedBatches: document.task.completedBatches, totalBatches: document.task.totalBatches } : null };
 }
-async function exposePrepared(action: PreparedAction, ctx: Context): Promise<PreparedActionResult> {
+async function exposePrepared(action: PreparedAction, ctx: Context, extra: Record<string, unknown> = {}): Promise<PreparedActionResult> {
   try { ctx.check(); }
   catch (error) { usePreparedActionsStore.getState().dismissAction(action.id); throw error; }
   if (useAgentStore.getState().executionMode === "auto_execute") {
     await usePreparedActionsStore.getState().confirmAction(action.id);
     const completed = usePreparedActionsStore.getState().actions.find(item => item.id === action.id)!;
-    const data = { actionId: action.id, receipt: action.preparationReceipt, result: completed.result };
+    const data = { actionId: action.id, receipt: action.preparationReceipt, result: completed.result, ...extra };
     return completed.status === "completed" ? succeeded({ ...data, executionStatus: "submitted" })
       : failed(completed.error ?? "prepared_action_not_submitted", data);
   }
-  return succeeded({ actionId: action.id, executionStatus: "prepared", title: action.title, summary: action.summary, receipt: action.preparationReceipt,
+  return succeeded({ ...extra, actionId: action.id, executionStatus: "prepared", title: action.title, summary: action.summary, receipt: action.preparationReceipt,
     nextAction: "Confirm this prepared action in HomeAgent to submit it. No task has started." });
 }
 
@@ -91,14 +94,18 @@ export const importStudioSchema = z.object({ encoding: encodingSchema.default("u
 export const prepareStudioTranslationSchema = z.object({
   documents: z.array(z.object({ documentId: id, revision: z.number().int().positive().safe() }).strict()).min(1).max(50)
     .refine(items => new Set(items.map(item => item.documentId)).size === items.length),
-  targetLanguage: z.string().trim().min(1).max(100).default("zh"), instructions: z.string().max(4000).default(""),
-  contextWindow: z.number().int().min(2048).max(1000000).default(32768),
-  maxOutputTokens: z.number().int().min(256).max(32768).default(4096), maxBatchCues: z.number().int().min(1).max(100).default(32),
-}).strict().refine(value => value.maxOutputTokens < value.contextWindow);
+  // Omitted settings follow the Studio translation dialog's latest settings in this session.
+  targetLanguage: z.string().trim().min(1).max(100).optional(), instructions: z.string().max(4000).optional(),
+  contextWindow: z.number().int().min(2048).max(1000000).optional(),
+  maxOutputTokens: z.number().int().min(256).max(32768).optional(), maxBatchCues: z.number().int().min(1).max(100).optional(),
+}).strict().refine(value => value.maxOutputTokens === undefined || value.contextWindow === undefined || value.maxOutputTokens < value.contextWindow);
+/** The Studio dialog's language default: the interface language when it is a translation target, otherwise Chinese. */
+const dialogLanguage = () => { const value = i18n.resolvedLanguage; return value && ["zh", "en", "ja", "zh-Hant"].includes(value) ? value : "zh"; };
+const draftNumber = (value: string | undefined) => { const number = Number(value); return Number.isInteger(number) && number > 0 ? number : undefined; };
 export const prepareStudioTranscriptionSchema = z.object({ modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional(),
   language: language.optional(), devicePreference: z.enum(["auto", "cpu", "metal", "cuda"]).optional(),
-  taskMode: z.enum(["transcribe", "translate_to_english"]).default("transcribe"),
-  initialPrompt: z.string().max(1000).default("") }).strict();
+  taskMode: z.enum(["transcribe", "translate_to_english"]).optional(),
+  initialPrompt: z.string().max(1000).optional() }).strict();
 export const configureLocalTranscriptionSchema = z.object({ language: language.optional(),
   modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional(),
   devicePreference: z.enum(["auto", "cpu", "metal", "cuda"]).optional(),
@@ -143,11 +150,20 @@ export const modernAgentTools = {
     }) }),
   prepare_studio_translation: tool({ description: "Prepare translation of exact studio documentId/revision pairs from list_studio_documents. Uses the configured task model internally. Auto mode submits; other modes create an explicit HomeAgent confirmation action. Planning is not task completion.",
     inputSchema: prepareStudioTranslationSchema, execute: (args, options) => run(prepareStudioTranslationSchema, args, options, async (input, ctx) => {
-      const profile = useModelStore.getState().getTaskProfile();
+      const draft = translationDraftMemory.last();
+      const settings = new SettingsResolver();
+      const models = useModelStore.getState();
+      const draftProfile = draft?.profileId ? models.profiles.find(item => item.id === draft.profileId && item.apiKey.trim()) : undefined;
+      const profile = draftProfile ?? models.getTaskProfile();
       if (!profile?.apiKey.trim()) throw new ToolFailure("task_model_not_configured");
+      settings.note("model", profile.name || profile.modelKey, draftProfile ? "tool_page" : "default");
+      const targetLanguage = settings.pick("targetLanguage", input.targetLanguage, draft?.language, dialogLanguage());
       const config = translationConfigSchema.safeParse({ model: normalizeTranslationModel({ profileId: profile.id, modelKey: profile.modelKey,
-        endpoint: profile.baseUrl, apiFormat: profile.apiFormat, outputTokenParameter: profile.outputTokenParameter }), language: input.targetLanguage,
-        instructions: input.instructions, contextWindow: input.contextWindow, maxOutputTokens: input.maxOutputTokens, maxBatchCues: input.maxBatchCues });
+        endpoint: profile.baseUrl, apiFormat: profile.apiFormat, outputTokenParameter: profile.outputTokenParameter }), language: targetLanguage,
+        instructions: settings.pick("instructions", input.instructions, draft?.instructions, ""),
+        contextWindow: settings.pick("contextWindow", input.contextWindow, draftNumber(draft?.contextWindow), 32768),
+        maxOutputTokens: settings.pick("maxOutputTokens", input.maxOutputTokens, draftNumber(draft?.maxOutputTokens), 4096),
+        maxBatchCues: settings.pick("maxBatchCues", input.maxBatchCues, draftNumber(draft?.maxBatchCues), 32) });
       if (!config.success) throw new ToolFailure("task_model_configuration_invalid");
       // Ordinary batch plans have no public release operation. Main retains only
       // bounded metadata, replaces the owner's previous plan, and expires it at 15 min.
@@ -166,8 +182,8 @@ export const modernAgentTools = {
       const fileNames = ready.slice(0, 5).map(item => safeText(item.displayName, 120)).join(", ");
       const action = registerPreparedAction({ sessionId, toolKey: "subtitleStudio", title: "Subtitle studio translation",
         preparationReceipt,
-        summary: `${ready.length}/${input.documents.length} documents → ${safeText(input.targetLanguage, 100)}; estimated input tokens: ${plan.totalEstimatedInputTokens}. ${fileNames}`,
-        summaryKey: "home:prepared_translation_summary", summaryValues: { count: ready.length, total: input.documents.length, language: input.targetLanguage, tokens: plan.totalEstimatedInputTokens, files: fileNames },
+        summary: `${ready.length}/${input.documents.length} documents → ${safeText(targetLanguage, 100)}; estimated input tokens: ${plan.totalEstimatedInputTokens}. ${fileNames}`,
+        summaryKey: "home:prepared_translation_summary", summaryValues: { count: ready.length, total: input.documents.length, language: targetLanguage, tokens: plan.totalEstimatedInputTokens, files: fileNames },
         execute: async () => {
           const notSubmitted = (error: string) => failed(error, { receipt: receipt("submission", preparationReceipt.items.map(item => ({
             id: item.id, name: item.name, status: "failed", error: item.error ?? error }))) });
@@ -188,7 +204,7 @@ export const modernAgentTools = {
           return taskIds.length ? succeeded({ ...data, executionStatus: "queued" }) : failed("studio_translation_not_admitted", data);
         },
       });
-      return exposePrepared(action, ctx);
+      return exposePrepared(action, ctx, { appliedSettings: settings.applied });
     }) }),
   prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio with a fixed native media picker. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation. Does not silently enable automatic translation.",
     inputSchema: prepareStudioTranscriptionSchema, execute: (args, options) => run(prepareStudioTranscriptionSchema, args, options, async (input, ctx) => {
@@ -197,8 +213,10 @@ export const modernAgentTools = {
       const before = controller.getState();
       if (before.drafts.length || before.selecting || before.submitting) throw new ToolFailure("studio_transcription_existing_drafts");
       const config = { ...before.config, ...(input.modelId ? { modelId: input.modelId } : {}), ...(input.language ? { language: input.language } : {}),
-        ...(input.devicePreference ? { devicePreference: input.devicePreference } : {}), taskMode: input.taskMode,
-        advanced: { ...before.config.advanced, initialPrompt: input.initialPrompt } };
+        ...(input.devicePreference ? { devicePreference: input.devicePreference } : {}),
+        // Omitted task mode and prompt keep the Studio transcription settings.
+        ...(input.taskMode ? { taskMode: input.taskMode } : {}),
+        advanced: { ...before.config.advanced, ...(input.initialPrompt !== undefined ? { initialPrompt: input.initialPrompt } : {}) } };
       const parsedConfig = transcriptionTaskConfigSchema.safeParse(config);
       if (!parsedConfig.success) throw new ToolFailure("studio_transcription_configuration_invalid");
       ctx.check(); controller.setConfig(parsedConfig.data);

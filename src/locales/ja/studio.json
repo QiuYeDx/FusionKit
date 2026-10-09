@@ -758,7 +758,8 @@
     "clear_translation": "訳文を消去",
     "delete": "字幕を削除",
     "delete_many": "選択した字幕を削除",
-    "keep_one": "ドキュメントには少なくとも 1 件の字幕が必要です。"
+    "keep_one": "ドキュメントには少なくとも 1 件の字幕が必要です。",
+    "revise": "AI で修正…"
   },
   "cue_toolbar": {
     "label": "選択した字幕の操作",
@@ -779,7 +780,8 @@
       "clear": "訳文 {{count}} 件の消去",
       "review": "訳文 {{count}} 件の確認",
       "unreview": "確認済み {{count}} 件の解除",
-      "delete": "字幕 {{count}} 件の削除"
+      "delete": "字幕 {{count}} 件の削除",
+      "revise": "字幕 {{count}} 件の AI 修正"
     }
   },
   "cue_help": {
@@ -818,7 +820,7 @@
     },
     "menu": {
       "keys": "右クリック / Shift+F10",
-      "desc": "翻訳、確認、コピーなど"
+      "desc": "翻訳、AI 修正、確認、コピーなど"
     }
   },
   "cue_notice": {
@@ -831,5 +833,72 @@
     "into_track": "選択した {{count}} 件の字幕を翻訳し、「{{track}}」の該当する訳文を置き換えます。",
     "new_track": "選択した {{count}} 件の字幕を翻訳し、新しい訳文を作成します。",
     "start": "{{count}} 件を翻訳"
+  },
+  "cue_revision": {
+    "title": "AI で修正",
+    "description": "{{count}} 件の字幕を選択中。修正したい内容を書くと AI が修正案を出します。確認するまで適用されません。",
+    "instructions": "修正内容",
+    "placeholder": "例：\n2 行目は「明日の朝一番に出発します」が正しい\n「深層学習」が「新創学習」と認識されているので直して\n人名は「林知遠」に統一",
+    "fields_label": "修正範囲",
+    "fields": {
+      "source": "原文",
+      "target": "訳文",
+      "both": "原文と訳文"
+    },
+    "model": "モデル",
+    "generate": "修正案を作成",
+    "regenerate": "作り直す",
+    "generating": "作成中…",
+    "shortcut": "Ctrl+Enter で作成 · AI 翻訳のモデル設定を使用",
+    "apply": "{{count}} 件の修正を適用",
+    "result": "修正のプレビュー",
+    "summary": "{{total}} 件中 {{count}} 件に修正案",
+    "no_changes": "これらの字幕に修正は不要と判断されました。",
+    "select_all": "すべて選択",
+    "deselect_all": "すべて解除",
+    "include": "{{number}} 行目の修正を適用",
+    "kept_target": "訳文はそのまま",
+    "target_stale": "訳文は「原文変更済み」になります",
+    "source_only_hint": "原文だけを修正すると、対応する訳文は「原文変更済み」になります。訳文も更新するには「原文と訳文」を選んでください。",
+    "rejected": "保存できない文字（< > など）を含む修正 {{count}} 件をスキップしました。",
+    "usage": "使用量 {{count}} tokens",
+    "errors": {
+      "revision_conflict": "修正案の作成後に字幕が変更されました。もう一度作成してください。",
+      "output_limit": "モデルの出力上限に達しました。選択する字幕を減らすか、翻訳設定で出力上限を上げてください。",
+      "protocol_invalid": "モデルの応答を読み取れませんでした。再試行するか別のモデルを使ってください。",
+      "failed": "修正リクエストに失敗しました。モデルサービスを確認して再試行してください。",
+      "apply_failed": "修正を適用できませんでした。ページ上部のメッセージを確認して再試行してください。",
+      "too_many": "確認が必要な字幕が {{limit}} 件を超えます。誤った表記を具体的に書くか、先に範囲を選択してください。"
+    },
+    "scope_label": "修正範囲",
+    "scope": {
+      "selection": "選択中 {{count}} 件",
+      "document": "ドキュメント全体（{{count}} 件）",
+      "no_selection": "選択範囲"
+    },
+    "description_document": "ドキュメント全体（{{count}} 件）から関係する字幕を探します。修正内容を書くと、AI が該当行を見つけてから修正案を出します。確認するまで適用されません。",
+    "placeholder_document": "例：\n文中の「ファートン」はすべて「パエトーン」が正しい\n12 行目は「明日の朝一番に出発します」が正しい\n人名「林知遠」が何か所も誤認識されているので統一して直して",
+    "revise_document": "ドキュメント全体を AI で修正…",
+    "locating": "修正内容を読み取り、該当する字幕を探しています…",
+    "revising": "字幕を確認中 {{done}} / {{total}}…",
+    "stop": "停止",
+    "continue": "確認を続ける",
+    "confirm": "{{count}} 件の字幕を 1 件ずつ確認します（モデルへのリクエスト約 {{requests}} 回）。続けますか？",
+    "nothing_found": "該当する字幕が見つかりませんでした。言い方を変えるか、本文に出てくる誤った表記を書いてください。",
+    "apply_limit": "一度に適用できる修正は {{limit}} 件までです。一部の選択を外して分けて適用してください。",
+    "plan": {
+      "terms": "検索した表記",
+      "found": "該当する字幕 {{count}} 件",
+      "lines": "{{lines}} 行目",
+      "all": "全 {{count}} 件を 1 件ずつ確認"
+    }
+  },
+  "agent": {
+    "suggest_fix": "誤認識を直す",
+    "suggest_fix_prompt": "この字幕に誤認識された語があります：「誤った表記」は「正しい表記」です。ドキュメント全体から探して直してください。",
+    "suggest_terms": "固有名詞をそろえる",
+    "suggest_terms_prompt": "この字幕の人名や固有名詞の表記がそろっているか確認し、ばらつきがあれば修正案を用意してください。",
+    "suggest_summary": "内容を要約",
+    "suggest_summary_prompt": "開いている字幕ドキュメントの内容を要約してください。"
   }
 }

@@ -32,7 +32,8 @@ import {
   resolveQueueFileSelection,
   type QueueFileSelection,
 } from "./queue-batch";
-import { resolveTranslationSliceConfig } from "./translation-slice-config";
+import { detectCustomSliceLengthIntent, resolveTranslationSliceConfig } from "./translation-slice-config";
+import { converterPageSettings, extractorPageSettings, nameTranslatorPageSettings, SettingsResolver, translatorPageSettings } from "./tool-page-settings";
 import type {
   SubtitleSliceType,
   TranslationLanguage,
@@ -215,17 +216,26 @@ export async function executeCreateNameTranslationPlan(
   const check = executionFence(signal);
   check();
   try {
+    const page = nameTranslatorPageSettings();
+    const settings = new SettingsResolver();
+    const pageFormat = page.nameMode ? { nameMode: page.nameMode, bilingualOrder: page.bilingualOrder ?? "translated_first",
+      bilingualStyle: page.bilingualStyle ?? "paren", customTemplate: page.customTemplate ?? "{translated} ({original})" } : undefined;
+    const nameFormat = args.nameFormat ? settings.note("nameFormat", args.nameFormat, "user")
+      : pageFormat ? (settings.note("nameFormat", pageFormat, "tool_page"), "translated" as const) : settings.note("nameFormat", "translated" as const, "default");
+    const instructions = args.instructions ?? (page.instructions?.trim() ? page.instructions : undefined);
+    if (instructions !== undefined) settings.note("instructions", instructions, args.instructions !== undefined ? "user" : "tool_page");
     const summary = await createAgentNamePlan(
       {
         roots: args.roots,
         scope: args.scope,
         targetKind: args.targetKind,
         includeRoots: args.includeRoots,
-        includeHidden: args.includeHidden,
-        sourceLang: args.sourceLang,
-        targetLang: args.targetLang,
-        nameFormat: args.nameFormat,
-        instructions: args.instructions,
+        includeHidden: settings.pick("includeHidden", args.includeHidden, page.includeHidden, false),
+        sourceLang: settings.pick("sourceLang", args.sourceLang, page.sourceLang, "auto"),
+        targetLang: settings.pick("targetLang", args.targetLang, page.targetLang, "ZH"),
+        nameFormat,
+        ...(!args.nameFormat && pageFormat ? { format: pageFormat } : {}),
+        instructions,
       },
       signal,
     );
@@ -264,6 +274,7 @@ export async function executeCreateNameTranslationPlan(
         ...summary,
         requiresConfirmation,
         executionStatus,
+        appliedSettings: settings.applied,
       },
     };
   } catch (err: any) {
@@ -314,7 +325,13 @@ export async function executeQueueTranslate(
   const store = useSubtitleTranslatorStore.getState();
   const taskProfile = useModelStore.getState().getTaskProfile();
   if (!taskProfile?.apiKey) return { success: false, error: "task_model_not_configured" };
-  const conflict = resolveConflictPolicy(args.conflictPolicy);
+  const page = translatorPageSettings();
+  const settings = new SettingsResolver();
+  const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
+  // The translator page's output folder needs a fresh authorization, so an omitted output location stays next to the inputs.
+  const outputMode = settings.pick("outputMode", args.outputMode, undefined, "source" as const);
+  const concurrentSlices = settings.pick("concurrentSlices", args.concurrentSlices, page.concurrentSlices, true);
+  const thinkingEnabled = settings.pick("thinkingEnabled", undefined, page.thinkingEnabled, false);
   const api = getSubtitleTranslationApi();
   const taskIds: string[] = [];
   const errors: string[] = [];
@@ -325,7 +342,7 @@ export async function executeQueueTranslate(
   try {
     await flushPendingAgentTranslationRevocations();
     check();
-    if (args.outputMode === "custom") {
+    if (outputMode === "custom") {
       const directory = await api.selectOutputDirectory();
       if (directory.ok) directoryToken = directory.data.directoryToken;
       check();
@@ -339,10 +356,15 @@ export async function executeQueueTranslate(
     if (selected.data.cancelled) return { success: false, error: "translation_input_selection_cancelled" };
     const selection = selected.data;
     totalFiles = selection.files.length;
-    const sliceConfig = resolveTranslationSliceConfig(args, latestUserMessageText(useAgentStore.getState().session.messages));
-    const sourceLang = (args.sourceLang || "JA") as TranslationLanguage;
-    const targetLang = (args.targetLang || "ZH") as TranslationLanguage;
-    const translationOutputMode = (args.translationOutputMode || "bilingual") as TranslationOutputMode;
+    const userMessage = latestUserMessageText(useAgentStore.getState().session.messages);
+    const requestedSlice = args.sliceType !== undefined || args.customSliceLength !== undefined || detectCustomSliceLengthIntent(userMessage) !== undefined;
+    const sliceConfig = requestedSlice ? resolveTranslationSliceConfig(args, userMessage)
+      : { sliceType: page.sliceType ?? "NORMAL", ...(page.sliceType === "CUSTOM" && page.customSliceLength ? { customSliceLength: page.customSliceLength } : {}) };
+    settings.note("sliceType", sliceConfig.sliceType, requestedSlice ? "user" : page.sliceType ? "tool_page" : "default");
+    if (sliceConfig.customSliceLength) settings.note("customSliceLength", sliceConfig.customSliceLength, requestedSlice ? "user" : "tool_page");
+    const sourceLang = settings.pick("sourceLang", args.sourceLang, page.sourceLang, "JA") as TranslationLanguage;
+    const targetLang = settings.pick("targetLang", args.targetLang, page.targetLang, "ZH") as TranslationLanguage;
+    const translationOutputMode = settings.pick("translationOutputMode", args.translationOutputMode, page.translationOutputMode, "bilingual") as TranslationOutputMode;
     for (const selectedFile of selection.files) {
       check();
       const input = await api.readAgentInputFile({ selectionRef: selection.selectionRef, itemRef: selectedFile.itemRef });
@@ -358,13 +380,13 @@ export async function executeQueueTranslate(
       const task = createSubtitleTranslatorTask({
         fileName, fileContent, sliceType: sliceConfig.sliceType as any, customSliceLength: sliceConfig.customSliceLength,
         status: TaskStatus.NOT_STARTED, progress: 0, costEstimate: fastEstimate,
-        executionBinding: createSubtitleTaskExecutionBinding(taskProfile), sourceLang, targetLang, translationOutputMode,
-        conflictPolicy: conflict.policy, concurrentSlices: args.concurrentSlices ?? true,
+        executionBinding: createSubtitleTaskExecutionBinding(taskProfile, { thinkingEnabled }), sourceLang, targetLang, translationOutputMode,
+        conflictPolicy: conflict.policy, concurrentSlices,
       });
       check();
       const registration = await api.registerAgentAuthorizedTask({
         selectionRef: selection.selectionRef, itemRef: selectedFile.itemRef, taskId: task.taskId,
-        outputMode: args.outputMode, outputFileName: fileName, ...(directoryToken ? { directoryToken } : {}),
+        outputMode, outputFileName: fileName, ...(directoryToken ? { directoryToken } : {}),
       });
       if (!registration.ok) { check(); errors.push(`Cannot authorize ${fileName}: ${registration.error.code}`); continue; }
       try { check(); } catch (error) { releaseSubtitleTranslationTaskAuthority(task.taskId); throw error; }
@@ -387,7 +409,8 @@ export async function executeQueueTranslate(
   return handlePostQueue("translate", taskIds, {
     success: taskIds.length > 0 || (!cancelled && errors.length === 0),
     ...(cancelled && !taskIds.length ? { error: "agent_stopped_before_queue" } : {}),
-    data: { queuedCount: taskIds.length, totalFiles, ...(errors.length ? { errors } : {}), ...conflict.receipt },
+    data: { queuedCount: taskIds.length, totalFiles, ...(errors.length ? { errors } : {}), ...conflict.receipt, appliedSettings: settings.applied,
+      ...(!args.outputMode && page.outputMode === "custom" ? { outputNote: "saved_next_to_inputs_translator_page_folder_needs_picking" } : {}) },
   }, cancelled || signal?.aborted === true);
 }
 
@@ -404,9 +427,12 @@ export async function executeQueueConvert(
   const store = useSubtitleConverterStore.getState();
   const selection = resolveQueueFileSelection(args);
   if (!selection.ok) return { success: false, error: selection.error };
-  const output = await resolveLegacyOutputDirectory("convert", args, check);
+  const page = converterPageSettings();
+  const settings = new SettingsResolver();
+  const to = settings.pick("to", args.to, page.to, "SRT") as SubtitleConvertFormat;
+  const output = await resolvePageOutput("convert", args, page, settings, check);
   if (!output.ok) return { success: false, error: output.error };
-  const conflict = resolveConflictPolicy(args.conflictPolicy);
+  const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
   const taskIds: string[] = [];
   const errors: string[] = [];
   let cancelled = false;
@@ -419,9 +445,9 @@ export async function executeQueueConvert(
       const fileName = extractFileName(filePath);
       const ext = extractExtension(filePath);
       if (!isSubtitleConvertFormat(ext)) { errors.push(`Unsupported format: ${fileName}`); continue; }
-      if (ext === args.to) { errors.push(`Already ${args.to}: ${fileName}`); continue; }
+      if (ext === to) { errors.push(`Already ${to}: ${fileName}`); continue; }
       const task: SubtitleConverterTask & { agentTaskId: string } = {
-        agentTaskId: crypto.randomUUID(), fileName, fileContent, from: ext, to: args.to as SubtitleConvertFormat,
+        agentTaskId: crypto.randomUUID(), fileName, fileContent, from: ext, to,
         originFileURL: filePath, targetFileURL: output.directory ?? sourceDirectoryOf(filePath),
         status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: conflict.policy,
       };
@@ -436,7 +462,7 @@ export async function executeQueueConvert(
   return handlePostQueue("convert", taskIds, {
     success: taskIds.length > 0 || (!cancelled && errors.length === 0),
     ...(cancelled && !taskIds.length ? { error: "agent_stopped_before_queue" } : {}),
-    data: { ...createQueueResultData(selection, taskIds.length, errors), ...conflict.receipt },
+    data: { ...createQueueResultData(selection, taskIds.length, errors), ...conflict.receipt, appliedSettings: settings.applied },
   }, cancelled);
 }
 
@@ -453,9 +479,12 @@ export async function executeQueueExtract(
   const store = useSubtitleExtractorStore.getState();
   const selection = resolveQueueFileSelection(args);
   if (!selection.ok) return { success: false, error: selection.error };
-  const output = await resolveLegacyOutputDirectory("extract", args, check);
+  const page = extractorPageSettings();
+  const settings = new SettingsResolver();
+  const keep = settings.pick("keep", args.keep, page.keep, "ZH") as TranslationLanguage;
+  const output = await resolvePageOutput("extract", args, page, settings, check);
   if (!output.ok) return { success: false, error: output.error };
-  const conflict = resolveConflictPolicy(args.conflictPolicy);
+  const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
   const taskIds: string[] = [];
   const errors: string[] = [];
   let cancelled = false;
@@ -469,7 +498,7 @@ export async function executeQueueExtract(
       const ext = extractExtension(filePath);
       if (!isSubtitleConvertFormat(ext)) { errors.push(`Unsupported format: ${fileName}`); continue; }
       const task: SubtitleExtractorTask & { agentTaskId: string } = {
-        agentTaskId: crypto.randomUUID(), fileName, fileContent, fileType: ext, keep: args.keep,
+        agentTaskId: crypto.randomUUID(), fileName, fileContent, fileType: ext, keep,
         originFileURL: filePath, targetFileURL: output.directory ?? sourceDirectoryOf(filePath),
         status: TaskStatus.NOT_STARTED, progress: 0, conflictPolicy: conflict.policy,
       };
@@ -609,7 +638,10 @@ export async function executeQueueRecoveredSubtitleTranslate(
     await releaseRecoveryOutputDirectory(args.recoveryScanId);
     throw error;
   }
-  const conflict = resolveConflictPolicy(args.conflictPolicy);
+  const page = translatorPageSettings();
+  const settings = new SettingsResolver();
+  const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
+  const concurrentSlices = settings.pick("concurrentSlices", args.concurrentSlices, page.concurrentSlices, true);
   const tasks: SubtitleTranslatorTask[] = prepared.tasks.map((draft) => ({
     taskId: draft.taskId,
     fileName: draft.fileName,
@@ -630,7 +662,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
     progress: draft.progress,
     ...(draft.actualUsage ? { actualUsage: draft.actualUsage } : {}),
     conflictPolicy: conflict.policy,
-    concurrentSlices: args.concurrentSlices ?? true,
+    concurrentSlices,
     recoveryMode: "resume",
     recoveryInputMode: "manifest_fragments",
     checkpointRef: draft.checkpointRef,
@@ -664,6 +696,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
 
   const resultData: Record<string, unknown> = {
     ...conflict.receipt,
+    appliedSettings: settings.applied,
     queuedCount,
     skippedCount,
     totalCandidates: prepared.totalCandidates,
@@ -742,12 +775,35 @@ function sourceDirectoryOf(filePath: string): string {
  * Overwriting replaces user files, so it needs the user's own words in the latest
  * message; otherwise the safe indexed policy is used and reported to the model.
  */
-function resolveConflictPolicy(requested: "index" | "overwrite" | undefined) {
-  if (requested !== "overwrite") return { policy: "index" as const, receipt: {} };
+function resolveConflictPolicy(requested: "index" | "overwrite" | undefined, page?: "index" | "overwrite", settings?: SettingsResolver) {
+  // A policy the user set on the tool page is their own choice; a policy the model sends is checked below.
+  if (requested === undefined) return { policy: settings ? settings.pick("conflictPolicy", undefined, page, "index" as const) : page ?? "index" as const, receipt: {} };
+  if (requested !== "overwrite") return { policy: settings?.note("conflictPolicy", "index" as const, "user") ?? "index" as const, receipt: {} };
   if (userRequestedOverwrite(latestUserMessageText(useAgentStore.getState().session.messages))) {
-    return { policy: "overwrite" as const, receipt: {} };
+    return { policy: settings?.note("conflictPolicy", "overwrite" as const, "user") ?? "overwrite" as const, receipt: {} };
   }
+  settings?.note("conflictPolicy", "index", "default");
   return { policy: "index" as const, receipt: { conflictPolicy: "index", conflictPolicyAdjusted: "overwrite_requires_explicit_user_request" } };
+}
+
+/**
+ * The output location of a converter or extractor task: the request's, the
+ * folder the user chose on the tool page, or next to each input.
+ */
+async function resolvePageOutput(
+  kind: "convert" | "extract",
+  args: { outputMode?: "source" | "custom"; outputDir?: string; scanId?: string },
+  page: { outputMode?: "source" | "custom"; outputDir?: string },
+  settings: SettingsResolver,
+  check: () => void,
+): Promise<{ ok: true; directory?: string } | { ok: false; error: string }> {
+  if (args.outputMode === undefined && page.outputMode === "custom" && page.outputDir) {
+    settings.note("outputMode", "custom", "tool_page");
+    settings.note("outputDir", page.outputDir, "tool_page");
+    return { ok: true, directory: page.outputDir };
+  }
+  const outputMode = settings.pick("outputMode", args.outputMode, undefined, "source" as const);
+  return resolveLegacyOutputDirectory(kind, { ...args, outputMode }, check);
 }
 
 /** Custom output directories chosen in the picker, reused by later batches of one scan. */

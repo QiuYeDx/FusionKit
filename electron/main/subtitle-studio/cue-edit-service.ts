@@ -58,23 +58,70 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
     return { undo, changed, stoppedTasks: retireResumableTasks(snapshot, track.id) };
   };
 
+  const writeSource = (cue: SubtitleCue, text: SubtitleText) => {
+    assertStoredText(text);
+    // Transcripts carry plain text only.
+    if (doc.schemaVersion === 2 && text.spans.some(span => span.marks.length)) throw new StudioError('invalid_input');
+    cue.source = structuredClone(text);
+    cue.sourceRevision++;
+    // A translation made for exactly this text (for example before an undone edit) is current again.
+    const digest = sourceDigest(cue);
+    for (const track of doc.translationTracks) {
+      const entry = track.entries[cue.id];
+      if (entry && entry.sourceHash === digest) entry.sourceRevision = cue.sourceRevision;
+    }
+  };
+
   let applied: AppliedCueEdit;
   switch (operation.kind) {
     case 'source': {
       const cue = cueOf(operation.cueId);
-      assertStoredText(operation.text);
-      // Transcripts carry plain text only.
-      if (doc.schemaVersion === 2 && operation.text.spans.some(span => span.marks.length)) throw new StudioError('invalid_input');
       const undo: CueEditOperation = { kind: 'source', cueId: cue.id, text: structuredClone(cue.source) };
-      cue.source = structuredClone(operation.text);
-      cue.sourceRevision++;
-      // A translation made for exactly this text (for example before an undone edit) is current again.
-      const digest = sourceDigest(cue);
-      for (const track of doc.translationTracks) {
-        const entry = track.entries[cue.id];
-        if (entry && entry.sourceHash === digest) entry.sourceRevision = cue.sourceRevision;
-      }
+      writeSource(cue, operation.text);
       applied = { undo, changed: 1, stoppedTasks: retireResumableTasks(snapshot) };
+      break;
+    }
+    case 'revise': {
+      const track = operation.trackId ? trackOf(operation.trackId) : undefined;
+      if ((operation.targets || operation.entries) && !track) throw new StudioError('invalid_input');
+      const touched = [...new Set([...Object.keys(operation.sources), ...Object.keys(operation.targets ?? {}), ...Object.keys(operation.entries ?? {})])];
+      touched.forEach(cueOf);
+      const before = track ? Object.fromEntries(touched.map(id => [id, structuredClone(track.entries[id] ?? null)])) : {};
+      const sources: Record<string, SubtitleText> = {};
+      for (const [cueId, text] of Object.entries(operation.sources)) {
+        const cue = cueOf(cueId);
+        if (JSON.stringify(cue.source) === JSON.stringify(text)) continue;
+        sources[cueId] = structuredClone(cue.source);
+        writeSource(cue, text);
+      }
+      if (track) {
+        for (const [cueId, text] of Object.entries(operation.targets ?? {})) {
+          const cue = cueOf(cueId);
+          assertStoredText(text);
+          const entry = track.entries[cueId];
+          const current = { sourceRevision: cue.sourceRevision, sourceHash: sourceDigest(cue) };
+          // An unchanged translation was confirmed for the new source and keeps its origin and review mark.
+          if (entry && JSON.stringify(entry.text) === JSON.stringify(text)) Object.assign(entry, current);
+          else track.entries[cueId] = { ...current, text: structuredClone(text), origin: 'ai', reviewStatus: 'reviewed' };
+        }
+        for (const [cueId, value] of Object.entries(operation.entries ?? {})) {
+          const cue = cueOf(cueId);
+          if (!value) { delete track.entries[cueId]; continue; }
+          assertStoredText(value.text);
+          const entry = structuredClone(value);
+          // Undo restores the old source first, which moved its revision on: a translation of exactly that text is current.
+          if (entry.sourceHash === sourceDigest(cue)) entry.sourceRevision = cue.sourceRevision;
+          track.entries[cueId] = entry;
+        }
+      }
+      const entries: Record<string, TranslationEntry | null> = {};
+      if (track) for (const id of touched) if (JSON.stringify(before[id]) !== JSON.stringify(track.entries[id] ?? null)) entries[id] = before[id];
+      const changed = new Set([...Object.keys(sources), ...Object.keys(entries)]).size;
+      // Translation content changes move the track revision, which paused tasks on the track were checked against.
+      if (track && Object.keys(entries).length) track.revision++;
+      const undo: CueEditOperation = { kind: 'revise', sources, ...(track ? { trackId: track.id, entries } : {}) };
+      const stoppedTasks = Object.keys(sources).length ? retireResumableTasks(snapshot) : Object.keys(entries).length ? retireResumableTasks(snapshot, track!.id) : 0;
+      applied = { undo, changed, stoppedTasks };
       break;
     }
     case 'target': {

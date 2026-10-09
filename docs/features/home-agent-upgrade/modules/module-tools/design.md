@@ -1,5 +1,32 @@
 # HomeAgent 正式工具接入设计
 
+## I4 设计：经典页面上下文与设置跟随
+依据 R-TOOLS-04、R-TOOLS-05。
+
+**设置跟随**（`src/agent/tool-page-settings.ts`）：各工具页设置读取器（字幕翻译 `useSubtitleTranslatorConfigStore.preferences`、转换/提取 store 偏好、名称翻译 `nameTranslatorConfig`、工作台 `translationDraftMemory.last()` 与转写控制器配置）及 `resolveSetting(name, user, page, fallback, applied)`。相关 schema 去掉配置字段的 `.default()`，改为可选并在说明中写明“省略即采用工具页当前设置”；执行器按“用户 → 工具页 → 内置默认”解析，结果附 `appliedSettings: { 字段: { value, source } }`。冲突策略：用户未指定时取页面值（含覆盖）并标 tool_page；模型指定覆盖仍走原“本轮用户明确要求”校验。输出位置：字幕翻译页的目录授权不可复用，未指定时为原文件旁并在结果说明；转换/提取页选择了自定义输出且已有目录时沿用该目录。名称翻译在 `createAgentNamePlan` 增加可选 `format`（nameMode/bilingualOrder/bilingualStyle/customTemplate），未指定 `nameFormat` 时由页面配置生成模板与计划设置。
+
+**经典页面上下文**（`src/agent/classic-page-contexts.ts` + `src/pages/AgentDock/ClassicPageContexts.tsx`）：由 App 内与 AgentDock 并列的组件按当前路由注册，所有状态来自全局 store/服务，不改经典页面源文件。每页：快照（设置、各状态任务数与前 10 个任务）、两条建议、页面说明；字幕翻译/转换/提取/名称翻译提供 `*_update_settings`（严格 schema、只写枚举字段、返回前后值）。本地转写快照读取 `useLocalSubtitleTranscriberStore` 偏好与草稿、环境服务与运行服务状态。
+
+
+## I3 字幕工作台页面工具设计
+依据 R-TOOLS-03。工作台页面（`SubtitleStudio/index.tsx`）在有 `subtitleStudio` 桥时注册上下文，构造逻辑放在 `SubtitleStudio/agent-context.ts`，便于单测。
+
+**快照**由当前 `page`、`track`、预览选区（`StudioCueTable` 新增 `onSelectionChange` 回报编号，页面持有）与编辑受阻状态投影；编号统一为文档内 1 起序号（`page.offset + index + 1`），与预览列表一致。
+
+**主进程 `findCues`**（只读，`cue-revision-contract.ts` 新增请求 schema，`CueRevisionService.find`）：`{ documentId, revision, trackId?, terms?: string[≤20] | lines?: number[≤200], limit≤50 }` → `{ revision, total, cueIds(≤5000), matches: [{ cueId, index, source, target? }] }`。使用与定位相同的 `mentionsTerm`；校验 owner 文档授权与 revision；超过 5000 返回 `limit_exceeded`。IPC 白名单与 preload 同步，`electron/main/subtitle-studio/index.ts` 的审计按 FK-PIT-0186 刷新。
+
+**修订预览预设**：`CueRevisionRequestState` 增加 `preset?: { instructions, scope, fields?, search?: { terms } | { lines } }` 与 `onSettled?(outcome)`。预设打开时填入表单并自动生成；`search` 存在时以 `findCues` 结果替代 locate 的模型规划（`plan` 记为 terms/lines，`usage` 为 0）。`outcome` 为 `{ status: 'ready', checked, proposals, notes, plan? } | { status: 'needs_confirmation', count } | { status: 'failed', error } | { status: 'cancelled' }`，每次预设只回调一次；用户之后应用与否由预览自身处理。
+
+**页面工具**（`studio_*`，均先 `check()` 会话与当前文档 id 未变）：
+- `studio_read_cues({ from, count≤50 })`：按需读取所在分页（`readDocumentPage`，每页 100 条），文本各截 300 字。
+- `studio_find_cues({ terms? | lines?, limit≤50 })`：调用 `findCues`。
+- `studio_prepare_revision({ instructions, scope, fields?, terms? | lines? })`：校验无文档/受阻/空选区/预览已打开，再打开预设预览并等待 `onSettled`；`abortSignal` 触发时返回 `agent_cancelled`，预览保留。返回结果附 `nextAction: "The user reviews and applies the revisions in the Subtitle Studio preview. Nothing has been written."`。
+
+页面说明（instructions）告诉模型：用编号指代字幕；修改字幕用 `studio_prepare_revision`，不要声称已经修改；若用户提到具体错误写法，传 `terms`（含可能的近似误写）以省去一次规划；翻译、导出等仍用固定工具。
+
+验证：agent-context 快照/工具单测（mock subtitleStudio 与预览桥）；`findCues` 主进程单测；真实 Electron 链路由 T-WORKSPACE-06 覆盖。
+
+
 ## I2 批量回执和准确范围设计
 依据 ../../records/review-i2-plan.md 与 R-TOOLS-02。`PreparedActionReceipt` 使用 phase(preparation/submission)、total、successCount、failureCount 和最多50条 items；条目为 id/name/status(ready/queued/failed)/error?/taskId?。准备结果放 data.receipt 与 action.preparationReceipt，提交结果放 result.receipt；失败 data 也写入 action.result。失败不自动重试，回执不承载执行权限。
 
@@ -61,6 +88,9 @@
 
 | 需求 | 设计元素 |
 | --- | --- |
+| R-TOOLS-04 | 路由驱动的经典页面上下文注册组件、store 投影快照、页面设置更新工具 |
+| R-TOOLS-05 | 可选参数 + 工具页设置读取器、用户→工具页→默认解析、appliedSettings 回执、覆盖与输出位置例外 |
+| R-TOOLS-03 | 工作台快照投影、主进程只读 findCues、修订预览预设与一次性 onSettled、只作用于当前文档的 studio_* 页面工具、任何模式不应用修订 |
 | R-TOOLS-02 | preparation/submission逐项receipt、失败data保留、expectedDraftIds admission校验、三类独立分页 |
 | R-TOOLS-01 | 正式目录、固定 API 适配、会话绑定动作、controller 复用、有界结果投影 |
 

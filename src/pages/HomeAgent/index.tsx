@@ -7,19 +7,12 @@ import React, {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import {
   Send,
-  Loader2,
-  Bot,
-  User,
   RotateCcw,
   Sparkles,
-  ListPlus,
-  MessageSquareMore,
-  Zap,
   Square,
   Settings,
   AlertTriangle,
@@ -39,26 +32,17 @@ import SessionLogViewer from "./SessionLogViewer";
 import AgentPlanPanel from "./components/AgentPlanPanel";
 import AgentCapabilities from "./components/AgentCapabilities";
 import AgentPreparedActions from "./components/AgentPreparedActions";
-import AgentToolCallView from "./components/AgentToolCall";
-import AgentToolResultView, { isModernToolResult } from "./components/AgentToolResult";
-import { actionErrorMessage } from "./components/action-error";
-import { createWidgetActionHandler, isNamePlanResultFor } from "./widget-actions";
 import { appendProgressPrompt } from "./presentation";
-import type {
-  AgentMessage,
-  AgentToolResult,
-  ExecutionMode,
-  PendingExecution,
-  TaskStoreType,
-} from "@/agent/types";
-import { Button } from "@/components/ui/button";
+import { registerHomeColumn } from "../AgentDock/handoff";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  CapsuleModeSelector,
+  homeAgentWidgetRegistry,
+  MessageBubble,
+  pendingExecutionToFence,
+  StreamingAssistant,
+  useAgentWidgetContexts,
+} from "./conversation";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -69,20 +53,7 @@ import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
 import { getFilePathFromFile } from "@/utils/filePath";
-import {
-  ChatMarkdownRenderer,
-  type MarkdownWidgetRegistry,
-  type MarkdownWidgetContext,
-} from "@/components/qiuye-ui/markdown-renderer";
-import { builtinWidgetRegistry } from "@/components/qiuye-ui/markdown-renderer/widgets/builtin-registry";
-import {
-  pendingExecutionWidget,
-  type PendingExecutionStoreLabelKey,
-} from "@/components/qiuye-ui/markdown-renderer/widgets/PendingExecutionWidget";
-import {
-  nameTranslationApplyResultWidget,
-  nameTranslationPlanWidget,
-} from "./components/NameTranslationPlanWidget";
+import { ChatMarkdownRenderer } from "@/components/qiuye-ui/markdown-renderer";
 
 // ---------------------------------------------------------------------------
 // Persist draft input across in-app navigation (reset on full page reload)
@@ -94,167 +65,12 @@ let draftInputCache = "";
 // Constants
 // ---------------------------------------------------------------------------
 
-const EXECUTION_MODE_OPTIONS: {
-  value: ExecutionMode;
-  labelKey: string;
-  icon: React.ReactNode;
-}[] = [
-  {
-    value: "queue_only",
-    labelKey: "home:execution_mode_queue_only",
-    icon: <ListPlus className="h-3.5 w-3.5" />,
-  },
-  {
-    value: "ask_before_execute",
-    labelKey: "home:execution_mode_ask_before_execute",
-    icon: <MessageSquareMore className="h-3.5 w-3.5" />,
-  },
-  {
-    value: "auto_execute",
-    labelKey: "home:execution_mode_auto_execute",
-    icon: <Zap className="h-3.5 w-3.5" />,
-  },
-];
-
-const STORE_LABEL_KEYS: Record<TaskStoreType, PendingExecutionStoreLabelKey> = {
-  translate: "home:store_label_translate",
-  convert: "home:store_label_convert",
-  extract: "home:store_label_extract",
-};
-
-const STORE_PATH: Record<TaskStoreType, string> = {
-  translate: "/tools/subtitle/translator",
-  convert: "/tools/subtitle/converter",
-  extract: "/tools/subtitle/extractor",
-};
-
 const SCROLL_BOTTOM_THRESHOLD = 8;
 const EMPTY_STATE_LAYOUT_TRANSITION = {
   type: "spring",
   bounce: 0,
   duration: 0.8,
 } as const;
-
-// ---------------------------------------------------------------------------
-// Widget registry (builtin + pending-execution)
-// ---------------------------------------------------------------------------
-
-const homeAgentWidgetRegistry: MarkdownWidgetRegistry = {
-  ...builtinWidgetRegistry,
-  [pendingExecutionWidget.type]: pendingExecutionWidget,
-  [nameTranslationPlanWidget.type]: nameTranslationPlanWidget,
-  [nameTranslationApplyResultWidget.type]: nameTranslationApplyResultWidget,
-};
-
-// ---------------------------------------------------------------------------
-// Structured data → Widget fence converters
-// ---------------------------------------------------------------------------
-
-function pendingExecutionToFence(pe: PendingExecution): string {
-  const payload = JSON.stringify({
-    stores: pe.stores.map((s) => ({
-      name: s,
-      labelKey: STORE_LABEL_KEYS[s],
-      count: pe.taskCounts[s] ?? 0,
-      path: STORE_PATH[s],
-    })),
-    ...(pe.resolvedAction ? { resolvedAction: pe.resolvedAction } : {}),
-  });
-  return "```qv:pending-execution\n" + payload + "\n```";
-}
-
-function nameTranslationPlanToFence(
-  plan: Record<string, unknown>,
-): string {
-  return (
-    "```qv:name-translation-plan\n" +
-    JSON.stringify(plan) +
-    "\n```"
-  );
-}
-
-function nameTranslationApplyResultToFence(
-  result: Record<string, unknown>,
-): string {
-  return (
-    "```qv:name-translation-apply-result\n" +
-    JSON.stringify(result) +
-    "\n```"
-  );
-}
-
-function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string {
-  const result = message.toolResult;
-  const isSuccess = result?.success ?? true;
-  const toolName = result?.toolName ?? t("home:tool_execution_fallback");
-  const statusMark = isSuccess ? " ✓" : " ✗";
-  const raw = message.content;
-
-  if (!isSuccess && result?.error) {
-    const details = Array.isArray(result.data?.errors)
-      ? (result.data.errors as unknown[]).filter((item): item is string => typeof item === "string").slice(0, 5)
-      : [];
-    const list = details.map((item) => `\n- \`${item.replace(/`/g, "'")}\``).join("");
-    return `**${toolName}**${statusMark}\n\n${actionErrorMessage(result.error, t)}${list}`;
-  }
-
-  let body: string;
-  try {
-    const parsed = result?.data ?? JSON.parse(raw);
-    if (isSuccess && result?.toolName === "create_name_translation_plan") {
-      return nameTranslationPlanToFence(parsed);
-    }
-    if (isSuccess && result?.toolName === "apply_name_translation_plan") {
-      return nameTranslationApplyResultToFence(parsed);
-    }
-
-    if (parsed?.files && Array.isArray(parsed.files)) {
-      const count = parsed.totalCount ?? parsed.files.length;
-      const names = parsed.files
-        .slice(0, 10)
-        .map((f: Record<string, unknown>) => `- \`${(f.fileName as string) || f}\``)
-        .join("\n");
-      const more =
-        count > 10
-          ? `\n- *...${t("home:tool_result_more_files", { count })}*`
-          : "";
-      body = `${t("home:tool_result_files_found", { count })}:\n${names}${more}`;
-    } else if (parsed?.queuedCount !== undefined) {
-      if (parsed?.batch) {
-        body = t("home:tool_result_queued_batch_progress", {
-          queuedCount: parsed.queuedCount,
-          batchStart: Number(parsed.batch.batchStart ?? 0) + 1,
-          batchEnd: parsed.batch.batchEnd,
-          queuedThrough: parsed.batch.queuedThrough,
-          totalFiles: parsed.totalFiles,
-          remainingCount: parsed.batch.remainingCount,
-        });
-        if (parsed.batch.hasMore) {
-          body += `\n${t("home:tool_result_queued_batch_more", {
-            nextBatchStart: parsed.batch.nextBatchStart,
-          })}`;
-        }
-      } else {
-        body = t("home:tool_result_queued_progress", {
-          queuedCount: parsed.queuedCount,
-          totalFiles: parsed.totalFiles,
-        });
-      }
-    } else if (typeof parsed === "string") {
-      body = parsed;
-    } else {
-      const jsonStr = JSON.stringify(parsed, null, 2);
-      body =
-        jsonStr.length > 800
-          ? "```json\n" + jsonStr.slice(0, 800) + "\n// …(truncated)\n```"
-          : "```json\n" + jsonStr + "\n```";
-    }
-  } catch {
-    body = raw.length > 500 ? raw.slice(0, 500) + "…" : raw;
-  }
-
-  return `**${toolName}**${statusMark}\n\n${body}`;
-}
 
 // ---------------------------------------------------------------------------
 
@@ -267,6 +83,7 @@ function HomeAgent() {
   const scrollFrameRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const bottomComposerRef = useRef<HTMLDivElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const [bottomComposerHeight, setBottomComposerHeight] = useState(0);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -299,6 +116,17 @@ function HomeAgent() {
   })));
   const { messages, status } = session;
   const isEmpty = messages.length === 0;
+  // Leaving home hands the conversation to the floating panel, which flies from this column.
+  const handoffActive = useRef(false);
+  handoffActive.current = !isEmpty || isStreaming;
+  useEffect(() => registerHomeColumn(() => {
+    const column = columnRef.current?.getBoundingClientRect();
+    if (!handoffActive.current || !column) return null;
+    // The bottom comes from the layout (the composer is fixed 42px above the bottom with 16px padding):
+    // right after the first message the composer may still be moving there.
+    const top = 48, bottom = window.innerHeight - 58;
+    return { left: column.left, top, width: column.width, height: Math.max(120, bottom - top) };
+  }), []);
   const toolResults = useMemo(() => new Map(messages.flatMap(message => message.toolResult ? [[message.toolResult.callId, message.toolResult] as const] : [])), [messages]);
 
   const agentProfile = useModelStore((s) => s.getAgentProfile());
@@ -491,29 +319,8 @@ function HomeAgent() {
 
   const navigate = useNavigate();
 
-  const widgetContext = useMemo<MarkdownWidgetContext>(
-    () => ({
-      conversationId: session.id,
-      role: "assistant",
-      density: "compact",
-      onWidgetAction: createWidgetActionHandler(session.id, useAgentStore.getState, navigate),
-    }),
-    [session.id, navigate],
-  );
-  const streamingWidgetContext = useMemo<MarkdownWidgetContext>(
-    () => ({ ...widgetContext, isStreaming: true }),
-    [widgetContext],
-  );
-  const pendingWidgetContext = useMemo<MarkdownWidgetContext>(
-    () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(session.id, useAgentStore.getState, navigate,
-      pendingExecution ? { kind: "pending-execution", pending: pendingExecution } : { kind: "display" }) }),
-    [widgetContext, session.id, navigate, pendingExecution],
-  );
-  const namePlanWidgetContext = useMemo<MarkdownWidgetContext>(
-    () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(session.id, useAgentStore.getState, navigate,
-      pendingNameTranslationPlan ? { kind: "name-translation-plan", plan: pendingNameTranslationPlan } : { kind: "display" }) }),
-    [widgetContext, session.id, navigate, pendingNameTranslationPlan],
-  );
+  const { widgetContext, streamingWidgetContext, pendingWidgetContext, namePlanWidgetContext } =
+    useAgentWidgetContexts(session.id, pendingExecution, pendingNameTranslationPlan, navigate);
 
   const prevStreamingRef = useRef(false);
   useEffect(() => {
@@ -1073,7 +880,7 @@ function HomeAgent() {
           <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-28 bg-linear-to-t from-background via-background/90 to-transparent" />
 
           <div className="px-4 pt-2 pb-2">
-            <div className="max-w-2xl mx-auto space-y-4 pt-1" style={{ paddingBottom: Math.max(176, bottomComposerHeight + 42 + 16) }}>
+            <div ref={columnRef} className="max-w-2xl mx-auto space-y-4 pt-1" style={{ paddingBottom: Math.max(176, bottomComposerHeight + 42 + 16) }}>
               {messages.map((msg) => (
                 <MessageBubble
                   key={msg.id}
@@ -1178,165 +985,6 @@ function HomeAgent() {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-function CapsuleModeSelector({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: ExecutionMode;
-  onChange: (mode: ExecutionMode) => void;
-  disabled?: boolean;
-}) {
-  const { t } = useTranslation();
-
-  return (
-    <Select
-      value={value}
-      onValueChange={(v) => onChange(v as ExecutionMode)}
-      disabled={disabled}
-    >
-      <SelectTrigger
-        size="sm"
-        aria-label={t("home:execution_mode_label")}
-        data-testid="agent-execution-mode"
-        className={cn(
-          "h-8 rounded-full border-0 shadow-none -translate-x-0.5",
-          "bg-secondary hover:bg-accent/60",
-          "text-foreground/65",
-          "focus-visible:ring-2 focus-visible:ring-ring/50",
-          "cursor-pointer shrink-0",
-        )}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent position="item-aligned">
-        {EXECUTION_MODE_OPTIONS.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
-            <span className="flex items-center gap-1.5">
-              {opt.icon}
-              {t(opt.labelKey)}
-            </span>
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
-/** Thinking indicator, streamed reply and in-flight tool calls of the current turn. */
-function StreamingAssistant({ widgetContext }: { widgetContext: MarkdownWidgetContext }) {
-  const { t } = useTranslation();
-  const { streamingText, activeToolCalls, thinking } = useAgentStore(useShallow((state) => ({
-    streamingText: state.streamingText,
-    activeToolCalls: state.activeToolCalls,
-    thinking: state.session.status === "thinking",
-  })));
-  if (!streamingText && activeToolCalls.length === 0) {
-    return thinking ? (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        <span>{t("home:agent_thinking")}</span>
-      </div>
-    ) : null;
-  }
-  return (
-    <div className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
-        <Bot className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
-        <ChatMarkdownRenderer
-          content={streamingText}
-          widgetRegistry={homeAgentWidgetRegistry}
-          widgetContext={widgetContext}
-          codeBlock={{ colorTheme: "qiuvision" }}
-        />
-        <div className="mt-2 space-y-2">{activeToolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} running />)}</div>
-      </div>
-    </div>
-  );
-}
-
-const MessageBubble = React.memo(
-  function MessageBubble({
-    message,
-    widgetRegistry,
-    widgetContext,
-    namePlanWidgetContext,
-    pendingNamePlanId,
-    toolResults,
-  }: {
-    message: AgentMessage;
-    widgetRegistry: MarkdownWidgetRegistry;
-    widgetContext: MarkdownWidgetContext;
-    namePlanWidgetContext: MarkdownWidgetContext;
-    pendingNamePlanId?: string;
-    toolResults: ReadonlyMap<string, AgentToolResult>;
-  }) {
-    const { t } = useTranslation();
-    const isUser = message.role === "user";
-    const isTool = message.role === "tool";
-
-    if (isUser) {
-      return (
-        <div className="flex items-start gap-2.5 flex-row-reverse">
-          <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-primary text-primary-foreground">
-            <User className="h-3.5 w-3.5" />
-          </div>
-          <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-primary text-primary-foreground chat-bubble-user">
-            <p className="whitespace-pre-wrap wrap-break-word">
-              {message.content}
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    if (isTool) {
-      if (message.toolResult && isModernToolResult(message.toolResult.toolName)) {
-        return <div className="pl-10"><AgentToolResultView result={message.toolResult} /></div>;
-      }
-      return (
-        <div className="pl-10">
-          <ChatMarkdownRenderer
-            content={formatToolResultAsMarkdown(message, t)}
-            widgetRegistry={widgetRegistry}
-            widgetContext={isNamePlanResultFor(message, pendingNamePlanId) ? namePlanWidgetContext : widgetContext}
-            codeBlock={{ colorTheme: "qiuvision" }}
-          />
-        </div>
-      );
-    }
-
-    const content = message.content || "";
-    if (!content.trim() && !message.toolCalls?.length) return null;
-
-    return (
-      <div className="flex items-start gap-2.5">
-        <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
-          <Bot className="h-3.5 w-3.5" />
-        </div>
-        <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
-          <ChatMarkdownRenderer
-            content={content}
-            widgetRegistry={widgetRegistry}
-            widgetContext={widgetContext}
-            codeBlock={{ colorTheme: "qiuvision" }}
-          />
-          {!!message.toolCalls?.length && <div className="mt-2 space-y-2">{message.toolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} result={toolResults.get(call.toolCallId)} />)}</div>}
-        </div>
-      </div>
-    );
-  },
-  (prev, next) =>
-    prev.message === next.message &&
-    prev.widgetRegistry === next.widgetRegistry &&
-    prev.widgetContext === next.widgetContext &&
-    prev.namePlanWidgetContext === next.namePlanWidgetContext &&
-    prev.pendingNamePlanId === next.pendingNamePlanId &&
-    prev.toolResults === next.toolResults,
-);
 
 function SuggestionPill({
   icon,

@@ -7,7 +7,7 @@ import type {
   NameSourceLanguage,
 } from "@/name-translation/contract";
 import { legacyFormatTemplate, type NameFormat } from "@/name-translation/naming-rules";
-import type { NameTranslatorConfig } from "@/store/tools/rename/nameTranslatorConfig";
+import { DEFAULT_NAME_TRANSLATOR_CONFIG, resolveNameTemplate, type NameTranslatorConfig } from "@/store/tools/rename/nameTranslatorConfig";
 import useModelStore from "@/store/useModelStore";
 import { getNameTranslationApi, rendererPlatform, toRuntimeModel, unwrap } from "./api";
 import { translateTargets } from "./translate";
@@ -38,6 +38,8 @@ export interface CreateAgentNamePlanArgs {
   readonly targetLang: NameLanguage;
   readonly nameFormat: NameFormat;
   readonly instructions?: string;
+  /** The name translator page's format, used instead of `nameFormat` when the request named none. */
+  readonly format?: Pick<NameTranslatorConfig, "nameMode" | "bilingualOrder" | "bilingualStyle" | "customTemplate">;
 }
 
 export type NameTranslationPlanItemStatus = "ready" | "unchanged" | "blocked" | "failed";
@@ -179,7 +181,7 @@ export async function createAgentNamePlan(
   const checked = Object.fromEntries(targets.map((entry) => [entry.path, true as const]));
   const states = computeRowStates(
     { roots: inspected.entries.map((entry) => entry.path), entries: entryRecord, dirs, checked, proposals, serverIssues: {} },
-    { template: legacyFormatTemplate(args.nameFormat), settingsKey, platform: rendererPlatform() },
+    { template: args.format ? resolveNameTemplate({ ...DEFAULT_NAME_TRANSLATOR_CONFIG, ...args.format }) : legacyFormatTemplate(args.nameFormat), settingsKey, platform: rendererPlatform() },
   );
 
   const readyPaths = targets.filter((entry) => states.get(entry.path)?.status === "ready").map((entry) => entry.path);
@@ -246,7 +248,7 @@ export async function createAgentNamePlan(
       targetLang: args.targetLang,
       instructions: args.instructions ?? "",
       includeHidden: args.includeHidden,
-      ...(args.nameFormat === "translated"
+      ...(args.format ? { ...args.format } : args.nameFormat === "translated"
         ? { nameMode: "translated" as const }
         : {
             nameMode: "bilingual" as const,

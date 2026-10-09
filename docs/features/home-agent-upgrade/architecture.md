@@ -32,3 +32,23 @@ root：types/store/plan/旧executor/tools.ts/session导入/全部台账；audit_
 
 ## 风险与证据
 不新增依赖。单元mock只证明边界和调度，Electron隔离profile证明渲染与固定bridge；不把未执行的真实供应商计费、长媒体转写、其他OS矩阵当成通过。
+
+## I3 全局悬浮 Agent 与页面上下文
+
+来源 BR-05。三层分工，模块需求见 R-WORKSPACE-03、R-RUNTIME-03、R-TOOLS-03。
+
+| 层 | 契约 | 代码落点 |
+| --- | --- | --- |
+| 悬浮入口与面板 | 除首页 `/` 外全局挂载；与首页共用 `useAgentStore` 会话、`handleUserMessage`/`abortCurrentStream`、准备动作与计划；不新建第二套会话或运行时 | `src/pages/AgentDock/`，`App.tsx` 挂载；从 `HomeAgent/index.tsx` 抽出共享对话部件 |
+| 页面上下文 | 路由跟踪与页面注册表：`{ id, route, titleKey, describe(), tools?, instructions?, suggestions? }`。每轮发送前取当前路由最近注册的页面；快照是有界 JSON 数据，进入系统提示“当前页面”段，不是授权；页面工具与固定工具合并，执行前核对注册仍有效 | `src/agent/page-context.ts`，`orchestrator.ts` |
+| 工作台页面工具 | 快照：当前文档、版本、条数、译文轨、当前页范围、选区编号、编辑是否受阻。工具：`studio_read_cues`（按编号读取）、`studio_find_cues`（按写法/编号定位，不调用模型）、`studio_prepare_revision`（打开预填的 AI 修订预览并等待生成结果） | `SubtitleStudio/agent-context.ts`，`StudioCueRevision` 预设入口，主进程 `findCues` |
+
+关键取舍：
+
+- **写入只经页面确认界面。** `studio_prepare_revision` 只打开并运行修订预览，返回提议数量与摘要；应用由用户在预览中点击，沿用 `editCues` 的 `revise` 操作与撤销。任何执行模式（含自动执行）都不自动应用，与名称翻译“预览后确认”一致。
+- **Agent 能自己给出检索计划。** 工具接受 Agent 已理解的写法或句号；有则跳过修订流程内的规划请求，直接在主进程查找，减少一次模型调用。未给出时沿用修订流程的定位规划。
+- **页面工具随页面存亡。** 注册返回注销函数；页面卸载、切换文档或会话变化后，旧注册的工具返回 `page_unavailable`/`page_changed`，不作用到新页面。快照只在每轮开始取一次，工具读取实时状态。
+- **悬浮面板非模态。** 不锁定页面，用户可一边看页面一边对话；页面自己的模态弹窗（如修订预览）位于面板之上并照常锁定焦点。
+- **复用工作台的修订模型。** 修订生成使用 AI 翻译模型配置（与 AI 修订对话框一致），Agent 模型只负责理解意图与调用工具，二者各自计费并分别显示用量。
+
+不在本批：其他页面的上下文与工具、跨页面导航后继续执行、语音输入、多会话列表。

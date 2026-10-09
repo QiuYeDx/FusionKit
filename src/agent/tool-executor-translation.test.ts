@@ -3,6 +3,8 @@ import { Model } from "@/type/model";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
+import useSubtitleTranslatorConfigStore, { DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES } from "@/store/tools/subtitle/useSubtitleTranslatorConfigStore";
+import useNameTranslatorConfigStore, { DEFAULT_NAME_TRANSLATOR_CONFIG } from "@/store/tools/rename/nameTranslatorConfig";
 import * as agentNamePlan from "@/services/name-translation/agentPlan";
 import {
   executeQueueRecoveredSubtitleTranslate,
@@ -475,5 +477,51 @@ describe("Agent subtitle translation recovery", () => {
     expect(api.revokeOutputDirectory).toHaveBeenCalledWith(
       "unused-recovery-directory",
     );
+  });
+});
+
+describe("settings the request leaves out follow the tool pages", () => {
+  afterEach(() => {
+    useSubtitleTranslatorConfigStore.setState({ preferences: { ...DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES } });
+    useNameTranslatorConfigStore.setState({ config: { ...DEFAULT_NAME_TRANSLATOR_CONFIG } });
+  });
+
+  it("queues translation with the translator page's current settings and reports their sources", async () => {
+    useSubtitleTranslatorConfigStore.setState({ preferences: { ...DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES,
+      sourceLang: "EN", targetLang: "JA", translationOutputMode: "target_only", sliceType: "SENSITIVE", conflictPolicy: "overwrite",
+      concurrentSlices: false, thinkingEnabled: true, outputMode: "custom" } as never });
+    const result = await executeQueueTranslate({ targetLang: "KO" } as never);
+    expect(result.success).toBe(true);
+    const task = useSubtitleTranslatorStore.getState().notStartedTaskQueue.at(-1)!;
+    expect(task).toMatchObject({ sourceLang: "EN", targetLang: "KO", translationOutputMode: "target_only", sliceType: "SENSITIVE", conflictPolicy: "overwrite", concurrentSlices: false });
+    // The page's output folder needs a new authorization: the task is saved next to its input.
+    expect(api.selectOutputDirectory).not.toHaveBeenCalled();
+    expect(api.registerAgentAuthorizedTask).toHaveBeenCalledWith(expect.objectContaining({ outputMode: "source" }));
+    expect(result.data).toMatchObject({
+      appliedSettings: {
+        sourceLang: { value: "EN", source: "tool_page" }, targetLang: { value: "KO", source: "user" },
+        conflictPolicy: { value: "overwrite", source: "tool_page" }, thinkingEnabled: { value: true, source: "tool_page" },
+        outputMode: { value: "source", source: "default" },
+      },
+      outputNote: "saved_next_to_inputs_translator_page_folder_needs_picking",
+    });
+  });
+
+  it("still requires the user's words for an overwrite the model asks for", async () => {
+    const result = await executeQueueTranslate({ conflictPolicy: "overwrite" } as never);
+    expect(useSubtitleTranslatorStore.getState().notStartedTaskQueue.at(-1)!.conflictPolicy).toBe("index");
+    expect(result.data).toMatchObject({ conflictPolicyAdjusted: "overwrite_requires_explicit_user_request" });
+  });
+
+  it("plans name translation with the name translator page's format and languages", async () => {
+    useNameTranslatorConfigStore.setState({ config: { ...DEFAULT_NAME_TRANSLATOR_CONFIG, targetLang: "EN", nameMode: "bilingual",
+      bilingualOrder: "original_first", bilingualStyle: "bracket", includeHidden: true, instructions: "保留人名" } as never });
+    const planner = vi.spyOn(agentNamePlan, "createAgentNamePlan").mockResolvedValue({ planId: "p", totalTargets: 0, previewLimit: 20, itemsPreview: [],
+      readyCount: 0, blockedCount: 0, skippedCount: 0, unchangedCount: 0, warnings: [], applyable: false } as never);
+    const result = await executeCreateNameTranslationPlan({ roots: ["C:/names"], scope: "children", targetKind: "files" } as never);
+    expect(planner.mock.calls[0][0]).toMatchObject({ targetLang: "EN", includeHidden: true, instructions: "保留人名",
+      format: { nameMode: "bilingual", bilingualOrder: "original_first", bilingualStyle: "bracket" } });
+    expect(result.data).toMatchObject({ appliedSettings: { nameFormat: { source: "tool_page" }, targetLang: { value: "EN", source: "tool_page" } } });
+    planner.mockRestore();
   });
 });

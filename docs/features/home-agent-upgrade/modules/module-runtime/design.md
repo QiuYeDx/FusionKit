@@ -1,5 +1,21 @@
 # HomeAgent 运行可靠性设计
 
+## I4 页面导航设计
+依据 R-RUNTIME-04。`src/agent/navigation-tools.ts` 定义 `AGENT_PAGES`（页面键 → 路由）与固定工具 `open_app_page({ page, studioView? })`；`model_settings` 打开 `/setting?tab=model`，`studioView` 生成工作台视图提示。应用壳层（常驻的 AgentDock）通过 `setAgentNavigator` 提供路由跳转；未提供时返回 `navigation_unavailable`。跳转后订阅页面注册表，目标路由注册上下文或 2 秒超时后返回 `{ route, title, subject?, snapshot?, alreadyOpen? }`；已在目标页且无视图提示时不重复跳转。系统提示新增“Opening pages”规则；本轮工具集在轮次开始时固定，新页面的页面工具从下一条消息起可用。`/tools` 与 `/setting` 的页面名加入路由名称表。
+
+
+## I3 页面上下文设计
+依据 R-RUNTIME-03 与 ../../architecture.md 的 I3 段。
+
+`src/agent/page-context.ts` 提供无持久化的 zustand 注册表：`pathname` 由 App 内的路由跟踪写入；`register(entry)` 生成实例 id 并返回注销函数，同一路由后注册者生效；`resolvePageContext(pathname)` 返回最后一个 route 匹配的注册项。`AgentPageContext = { route, titleKey, describe(): unknown, instructions?, tools?, suggestions? }`。页面通过 `useAgentPageContext(factory, deps)` 注册，卸载时注销；工具对象由页面按依赖重建。
+
+`buildPageContextSection(pathname, entry)` 是纯函数：序列化快照，超过 6000 字符截断并加 `truncated: true`；`describe()` 抛错或不可序列化时只给路由与页面名，并把原因交给调用方记录。页面名在没有注册项时从能力目录路由映射推断（`/tools/...`），首页为 HomeAgent。
+
+orchestrator 在第一次 await 前解析一次页面，系统提示在“Current Application State”后追加“Current Page”段：路由、页面名、页面说明、快照（数据，非授权）。`pageTools(entry)` 为每个页面工具加执行前检查：注册仍在表中时执行页面当前的同名工具，否则返回 `{ success: false, error: 'page_unavailable' }`；之后与固定工具合并（固定工具同名优先，记录 `page_tool_conflict` 日志），再统一经 `createGuardedTools` 串行与取消包装。日志追加 `page_context`（路由、页面名、工具名），便于复盘。
+
+验证：page-context 纯函数单测；orchestrator 单测断言请求 system 含当前页面段、tools 含页面工具、注销后工具返回 page_unavailable。
+
+
 ## I2 已审查的修复设计
 依据 ../../records/review-i2-plan.md 与 R-RUNTIME-02。名称 planner 使用同一个 AbortSignal 贯穿 executor、batch 和 SDK/fetch，取消分支必须在 fallback/retry 前退出。系统上下文从真实 store 读出当前 pendingExecution/pendingNameTranslationPlan 的有限摘要，仍由原确认门禁决定执行资格。导出返回 `{success, cancelled?, errorCode?: 'too_large'|'invalid'|'save_failed'}`；先验证待保存 JSON 字节数和 parseSessionJson，再调用保存 IPC。Responses 在完整 response 后收集原序 replayable output，下一请求附上结果；事件只发普通文字与工具事实，reasoning 临时数据不持久化，并计入原有请求预算。不添加新的模型参数。
 
@@ -40,6 +56,8 @@ conversation-context.ts 用纯函数构建请求历史：过滤不完整/孤立�
 
 | 需求 | 设计元素 |
 | --- | --- |
+| R-RUNTIME-04 | 枚举页面键与固定导航工具、壳层注入导航器、等待目标页注册并返回快照、提示词规则 |
+| R-RUNTIME-03 | 无持久化页面注册表与路由跟踪、轮次开始的有界快照段、页面工具注册有效性包装、固定工具同名优先 |
 | R-RUNTIME-02 | 完整取消链、当前pending有限投影、模式真实状态、导出同schema预检、Responses完整输出原序回传 |
 | R-RUNTIME-01 | turn ownership、工具串行包装、ledger 完整提交、上下文预算、adapter 明确终止 |
 

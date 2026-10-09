@@ -758,7 +758,8 @@
     "clear_translation": "清除譯文",
     "delete": "刪除字幕",
     "delete_many": "刪除所選字幕",
-    "keep_one": "文件至少要保留一條字幕。"
+    "keep_one": "文件至少要保留一條字幕。",
+    "revise": "AI 修訂…"
   },
   "cue_toolbar": {
     "label": "所選字幕操作",
@@ -779,7 +780,8 @@
       "clear": "清除 {{count}} 條譯文",
       "review": "複核 {{count}} 條譯文",
       "unreview": "取消複核 {{count}} 條譯文",
-      "delete": "刪除 {{count}} 條字幕"
+      "delete": "刪除 {{count}} 條字幕",
+      "revise": "AI 修訂 {{count}} 條字幕"
     }
   },
   "cue_help": {
@@ -818,7 +820,7 @@
     },
     "menu": {
       "keys": "右鍵 / Shift+F10",
-      "desc": "翻譯、複核、複製等更多操作"
+      "desc": "翻譯、AI 修訂、複核、複製等更多操作"
     }
   },
   "cue_notice": {
@@ -831,5 +833,72 @@
     "into_track": "將翻譯所選的 {{count}} 條字幕，並取代「{{track}}」中對應的譯文。",
     "new_track": "將翻譯所選的 {{count}} 條字幕，產生一份新的譯文。",
     "start": "翻譯 {{count}} 條"
+  },
+  "cue_revision": {
+    "title": "AI 修訂",
+    "description": "已選 {{count}} 條字幕。說明要改什麼，AI 會提出修訂，確認後才會套用。",
+    "instructions": "修改要求",
+    "placeholder": "例如：\n第 2 句應該是「我們明天一早出發」\n「深度求索」被辨識成了「深度求鎖」，請更正\n人名統一寫作「林知遠」",
+    "fields_label": "修訂範圍",
+    "fields": {
+      "source": "原文",
+      "target": "譯文",
+      "both": "原文和譯文"
+    },
+    "model": "模型",
+    "generate": "產生修訂",
+    "regenerate": "重新產生",
+    "generating": "正在產生…",
+    "shortcut": "Ctrl+Enter 產生 · 使用 AI 翻譯的模型設定",
+    "apply": "套用 {{count}} 條修訂",
+    "result": "修訂預覽",
+    "summary": "建議修改 {{count}} 條（共 {{total}} 條）",
+    "no_changes": "AI 認為這些字幕無需修改。",
+    "select_all": "全選",
+    "deselect_all": "全不選",
+    "include": "套用第 {{number}} 條的修訂",
+    "kept_target": "譯文沿用",
+    "target_stale": "譯文將標為原文已變更",
+    "source_only_hint": "只修訂原文時，對應譯文會標為「原文已變更」；如需同時更新譯文，可選擇「原文和譯文」。",
+    "rejected": "有 {{count}} 處修訂含 < > 等無法儲存的字元，已略過。",
+    "usage": "本次用量 {{count}} tokens",
+    "errors": {
+      "revision_conflict": "字幕在產生修訂後有變動，請重新產生。",
+      "output_limit": "模型輸出達到上限。請減少所選字幕，或在翻譯設定中提高輸出上限。",
+      "protocol_invalid": "無法辨識模型傳回的內容，請重試或改用其他模型。",
+      "failed": "修訂請求失敗，請檢查模型服務後重試。",
+      "apply_failed": "修訂未能套用，請查看頁面上方的提示後重試。",
+      "too_many": "需要檢查的字幕超過 {{limit}} 條。請寫出更具體的錯誤寫法，或先選擇範圍。"
+    },
+    "scope_label": "修訂範圍",
+    "scope": {
+      "selection": "所選 {{count}} 條",
+      "document": "整份文件（{{count}} 條）",
+      "no_selection": "所選字幕"
+    },
+    "description_document": "在整份文件（{{count}} 條）中尋找相關字幕。說明要改什麼，AI 會先找出相關的行再提出修訂，確認後才會套用。",
+    "placeholder_document": "例如：\n文中的「法爾童」都應為「法厄同」\n第 12 句應該是「我們明天一早出發」\n人名「林知遠」有多處辨識錯誤，請統一更正",
+    "revise_document": "AI 修訂整份文件…",
+    "locating": "正在分析修改要求並尋找相關字幕…",
+    "revising": "正在檢查 {{done}} / {{total}} 條字幕…",
+    "stop": "停止",
+    "continue": "繼續檢查",
+    "confirm": "需要逐條檢查 {{count}} 條字幕，約 {{requests}} 次模型請求。確認後繼續。",
+    "nothing_found": "沒有找到與要求相關的字幕。可以換個說法，或寫出文中實際出現的錯誤寫法。",
+    "apply_limit": "一次最多套用 {{limit}} 條修訂，請取消部分勾選後分次套用。",
+    "plan": {
+      "terms": "尋找寫法",
+      "found": "找到 {{count}} 條相關字幕",
+      "lines": "定位到第 {{lines}} 句",
+      "all": "逐條檢查全部 {{count}} 條字幕"
+    }
+  },
+  "agent": {
+    "suggest_fix": "修正辨識錯誤",
+    "suggest_fix_prompt": "這份字幕裡有詞被辨識錯了：「錯誤寫法」應為「正確寫法」，請在整份文件中找出並修正。",
+    "suggest_terms": "統一專有名詞",
+    "suggest_terms_prompt": "檢查這份字幕裡人名和專有名詞的寫法是否前後一致，不一致的地方請準備修訂。",
+    "suggest_summary": "概括內容",
+    "suggest_summary_prompt": "概括一下目前字幕文件講了什麼。"
   }
 }

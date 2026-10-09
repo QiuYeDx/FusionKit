@@ -21,6 +21,7 @@ vi.mock("@/i18n", () => ({ default: { t: (key: string, args?: { error?: string }
 
 import useAgentStore from "@/store/agent/useAgentStore";
 import { abortCurrentStream, handleUserMessage } from "./orchestrator";
+import { registerPageContext, usePageContextStore } from "./page-context";
 
 function deferred() {
   let resolve!: () => void;
@@ -232,5 +233,44 @@ describe("Agent turn ownership and receipts", () => {
     useAgentStore.getState().resetSession();
     await handleUserMessage("status");
     expect(mocks.chat.mock.calls[0][0].system).not.toContain("old-task-id");
+  });
+
+  it("sends the current page and its tools, and page tools stop once the page is gone", async () => {
+    const pageExecute = vi.fn(async () => ({ success: true, data: "page" }));
+    const registration = registerPageContext({ route: "/tools/subtitle/studio", titleKey: "studio:title", read: () => ({
+      route: "/tools/subtitle/studio", titleKey: "studio:title", subject: "episode.srt", instructions: "Use studio_echo.",
+      describe: () => ({ document: { cueCount: 250 } }),
+      tools: { studio_echo: { description: "page tool", inputSchema: undefined as never, execute: pageExecute }, echo: { description: "shadow", inputSchema: undefined as never, execute: vi.fn() } },
+    }) });
+    usePageContextStore.getState().setPathname("/tools/subtitle/studio");
+    let outputs: unknown[] = [];
+    mocks.chat.mockImplementation((request: { tools: Record<string, { execute: (input: unknown, options: { toolCallId: string; messages: [] }) => Promise<unknown> }> }) => turn((async function* () {
+      outputs.push(await request.tools.studio_echo.execute({}, { toolCallId: "page-1", messages: [] }));
+      registration.unregister();
+      outputs.push(await request.tools.studio_echo.execute({ again: true }, { toolCallId: "page-2", messages: [] }));
+      yield { type: "finish", reason: "completed" } as const;
+    })()));
+    await handleUserMessage("fix the names in this document");
+    const request = mocks.chat.mock.calls[0][0];
+    expect(request.system).toContain("### Current Page");
+    expect(request.system).toContain('"route":"/tools/subtitle/studio"');
+    expect(request.system).toContain('"subject":"episode.srt"');
+    expect(request.system).toContain('"cueCount":250');
+    expect(request.system).toContain("Page guidance: Use studio_echo.");
+    expect(request.system).toContain('"pageTools":["studio_echo"]');
+    expect(Object.keys(request.tools)).toEqual(expect.arrayContaining(["echo", "studio_echo"]));
+    // Fixed tools win over a page tool of the same name.
+    expect(pageExecute).toHaveBeenCalledTimes(1);
+    expect(outputs).toEqual([{ success: true, data: "page" }, { success: false, error: "page_unavailable" }]);
+    const log = useAgentStore.getState().sessionLog.find((entry) => entry.summary === "page_context");
+    expect(log?.data).toMatchObject({ route: "/tools/subtitle/studio", pageTools: ["studio_echo"], pageToolConflicts: ["echo"] });
+    usePageContextStore.setState({ pathname: "/", pages: [] });
+    outputs = [];
+  });
+
+  it("names the home page when no page context is registered", async () => {
+    usePageContextStore.getState().setPathname("/");
+    await handleUserMessage("hello");
+    expect(mocks.chat.mock.calls[0][0].system).toContain('"route":"/"');
   });
 });

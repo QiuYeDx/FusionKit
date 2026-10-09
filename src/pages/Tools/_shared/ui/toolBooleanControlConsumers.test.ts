@@ -43,7 +43,8 @@ describe("tool boolean controls", () => {
       "Rename/NameTranslator/components/EntryRow.tsx",
       "Subtitle/LocalSubtitleTranscriber/index.tsx",
       // Studio stages export choices before a separate confirmation and selects
-      // documents, trial cues and recoverable documents.
+      // AI revisions to apply, documents, trial cues and recoverable documents.
+      "Subtitle/SubtitleStudio/StudioCueRevision.tsx",
       "Subtitle/SubtitleStudio/StudioExport.tsx",
       "Subtitle/SubtitleStudio/StudioKnowledgeTrial.tsx",
       "Subtitle/SubtitleStudio/StudioLibrary.tsx",

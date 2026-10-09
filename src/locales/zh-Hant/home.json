@@ -244,5 +244,68 @@
   "action_error_output_cancelled": "已取消輸出資料夾選擇，未建立任務。",
   "action_error_authorization": "無法授權所選檔案或資料夾，請重新選擇。",
   "action_error_stopped": "已停止，未建立任務。",
-  "action_error_scan": "無法掃描此資料夾。"
+  "action_error_scan": "無法掃描此資料夾。",
+  "result_revision_ready": "已開啟修訂預覽：檢查了 {{checked}} 條，建議修改 {{count}} 條，請在預覽中確認後套用。",
+  "result_revision_none": "已開啟修訂預覽：檢查了 {{checked}} 條，沒有需要修改的地方。",
+  "result_revision_confirm": "需要逐條檢查 {{count}} 條字幕，請在修訂預覽中確認後繼續。",
+  "result_read_cues": "已讀取 {{count}} 條字幕",
+  "tool_name_read_cues": "讀取字幕",
+  "tool_name_find_cues": "尋找字幕",
+  "tool_name_prepare_revision": "準備 AI 修訂",
+  "action_error_page_unavailable": "頁面已關閉或切換，未執行。",
+  "action_error_page_changed": "目前文件已切換，未執行。",
+  "action_error_no_document": "字幕工作台沒有開啟的文件。",
+  "action_error_edit_blocked": "目前不能編輯字幕（例如翻譯進行中）。",
+  "action_error_revision_open": "已有修訂預覽開啟，請先處理它。",
+  "action_error_empty_selection": "沒有選取的字幕。",
+  "action_error_no_track": "目前文件沒有譯文軌，不能修訂譯文。",
+  "action_error_revision_cancelled": "修訂預覽已關閉或停止。",
+  "tool_name_open_page": "開啟頁面",
+  "result_page_opened": "已開啟「{{page}}」",
+  "action_error_navigation": "目前無法切換頁面。",
+  "tool_name_update_settings": "更新頁面設定",
+  "result_settings_updated": "已更新 {{count}} 項頁面設定",
+  "dock": {
+    "open": "開啟 Agent",
+    "close": "收起 Agent",
+    "panel_label": "FusionKit Agent 對話",
+    "open_home": "在首頁開啟",
+    "empty_title": "有什麼可以幫你？",
+    "empty_hint_page": "Agent 知道你正在使用「{{page}}」，可以直接說出要做的事。",
+    "empty_hint": "可以直接說出要做的事，或隨意聊天。",
+    "working": "正在回覆",
+    "unread": "有新回覆",
+    "suggest": {
+      "translator": {
+        "first": "翻譯新字幕",
+        "first_prompt": "幫我選幾個字幕檔加入翻譯佇列。",
+        "second": "查看任務進度",
+        "second_prompt": "現在的翻譯任務進行得怎麼樣了？"
+      },
+      "converter": {
+        "first": "轉換一個資料夾",
+        "first_prompt": "把一個資料夾裡的字幕都轉換格式（我會告訴你路徑）。",
+        "second": "查看轉換任務",
+        "second_prompt": "轉換任務都完成了嗎？"
+      },
+      "extractor": {
+        "first": "擷取單語字幕",
+        "first_prompt": "把一個資料夾裡的雙語字幕只保留一種語言（我會告訴你路徑）。",
+        "second": "查看擷取任務",
+        "second_prompt": "擷取任務都完成了嗎？"
+      },
+      "transcriber": {
+        "first": "檢查轉寫環境",
+        "first_prompt": "本機轉寫現在能用嗎？缺少什麼模型或資源？",
+        "second": "查看轉寫任務",
+        "second_prompt": "現在的轉寫任務進行得怎麼樣了？"
+      },
+      "names": {
+        "first": "翻譯檔名",
+        "first_prompt": "幫我翻譯一個資料夾裡的檔名（我會告訴你路徑），先給我看預覽。",
+        "second": "改成雙語格式",
+        "second_prompt": "把名稱格式改成「譯名 (原名)」。"
+      }
+    }
+  }
 }

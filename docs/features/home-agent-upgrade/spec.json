@@ -3,7 +3,7 @@
   "feature": "home-agent-upgrade",
   "tier": "L",
   "risk": "medium",
-  "current_increment": "I2",
+  "current_increment": "I4",
   "modules": [
     {
       "slug": "runtime",
@@ -23,6 +23,42 @@
   ],
   "increments": [
     {
+      "id": "I4",
+      "title": "经典页面上下文、设置跟随、页面导航与连贯过渡",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-09 用户在 I3 交付后要求：经典工具页适配页面上下文；未指定配置时按工具页最新设置；Agent 能切换页面；首页与悬浮面板之间连贯过渡。“记录一下上面提到的一些代办点，然后逐条完成吧。”沿用 I3 的自主实现与隔离验证边界，不提交推送、不发布、不调用付费 API。实施中按真实 Electron 截图审查把 AC-WORKSPACE-04-1/04-3 的内容淡入淡出时机由“外框接近落位时淡入/外框淡出后首页淡入”细化为淡出淡入衔接（外框不透明时内容才可见），目的不变且更严格（不出现两份对话叠影），未扩大范围；相应刷新摘要。",
+        "digest": "2a319672a9b74067b16beecb1bd47f770625650b8c8fe9527f5be0b2856da8ff"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I3",
+      "title": "全局悬浮 Agent 与页面上下文",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-09 用户提议把 HomeAgent 悬浮化并让其感知页面上下文，随后确认“可以先写规格，开始做吧”。按本规格自主实现与隔离验证；首个页面为字幕工作台，写入仍由用户在页面确认界面完成。不代签用户验收，不提交推送、不发布，不调用付费 API。",
+        "digest": "b639c0fc1a7b750445d4e773f7034586ead7f11dcf5ce0e298c1af8b603d148f"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
       "id": "I2",
       "title": "真实流程复审与确认结果闭环",
       "status": "verifying",
@@ -32,7 +68,13 @@
         "basis": "2026-10-03 用户要求自行 review 最新实现，从专业产品经理、UI/UX工程师及真实用户视角检查并完善。沿用先记录设计后开发，自主修复有证据的问题，不新增实验工具、付费调用或发布。初始ready通过后仅修正文档约束标题归属、I2 executor单写负责人及BRD的I1/I2路线图说明，未扩大需求；相应刷新摘要。",
         "digest": "980d270b508d304f497c0432cf584bd8898ac6122f1eb227962289832f1178d8"
       },
-      "acceptance": { "state": "pending", "by": "", "basis": "", "digest": "", "record": "" }
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
     },
     {
       "id": "I1",

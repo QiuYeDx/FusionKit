@@ -32,7 +32,41 @@ const AUDIO_TRANSCRIBER_SUBMIT_KEYS = [
   "audio:transcriber.errors.output_dir_required",
 ];
 
+/** Page names the assistant may show or send: the home page, registered pages and catalog routes. */
+const AGENT_PAGE_TITLE_KEYS = [
+  "home:agent_title",
+  "studio:title",
+  "knowledge:title",
+  "tools:fields.subtitle_translator",
+  "tools:fields.subtitle_formatter",
+  "tools:fields.subtitle_language_extractor",
+  "tools:fields.local_subtitle_transcriber",
+  "tools:fields.name_translator",
+  "common:menu.tools",
+  "common:menu.setting",
+];
+
 export const I18N_USAGE_MANIFEST = [
+  {
+    selector: "src/agent/orchestrator.ts#key",
+    keys: AGENT_PAGE_TITLE_KEYS,
+  },
+  {
+    selector: "src/agent/navigation-tools.ts#key",
+    keys: AGENT_PAGE_TITLE_KEYS,
+  },
+  {
+    selector: "src/pages/AgentDock/index.tsx#titleKey",
+    keys: AGENT_PAGE_TITLE_KEYS,
+  },
+  {
+    selector: "src/pages/AgentDock/index.tsx#item.labelKey",
+    keys: ["studio:agent.suggest_fix", "studio:agent.suggest_terms", "studio:agent.suggest_summary", "home:dock.suggest.translator.first", "home:dock.suggest.translator.second", "home:dock.suggest.converter.first", "home:dock.suggest.converter.second", "home:dock.suggest.extractor.first", "home:dock.suggest.extractor.second", "home:dock.suggest.transcriber.first", "home:dock.suggest.transcriber.second", "home:dock.suggest.names.first", "home:dock.suggest.names.second"],
+  },
+  {
+    selector: "src/pages/AgentDock/index.tsx#item.promptKey",
+    keys: ["studio:agent.suggest_fix_prompt", "studio:agent.suggest_terms_prompt", "studio:agent.suggest_summary_prompt", "home:dock.suggest.translator.first_prompt", "home:dock.suggest.translator.second_prompt", "home:dock.suggest.converter.first_prompt", "home:dock.suggest.converter.second_prompt", "home:dock.suggest.extractor.first_prompt", "home:dock.suggest.extractor.second_prompt", "home:dock.suggest.transcriber.first_prompt", "home:dock.suggest.transcriber.second_prompt", "home:dock.suggest.names.first_prompt", "home:dock.suggest.names.second_prompt"],
+  },
   {
     selector:
       "src/pages/Setting/components/AudioApiConfig.tsx#`setting:fields.audio.route.${routeTranslationKey(definition.key)}`",
@@ -62,7 +96,7 @@ export const I18N_USAGE_MANIFEST = [
     ],
   },
   {
-    selector: "src/pages/HomeAgent/index.tsx#opt.labelKey",
+    selector: "src/pages/HomeAgent/conversation.tsx#opt.labelKey",
     keys: [
       "home:execution_mode_queue_only",
       "home:execution_mode_ask_before_execute",

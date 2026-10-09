@@ -758,7 +758,8 @@
     "clear_translation": "Clear translation",
     "delete": "Delete subtitle",
     "delete_many": "Delete selected subtitles",
-    "keep_one": "A document keeps at least one subtitle."
+    "keep_one": "A document keeps at least one subtitle.",
+    "revise": "Revise with AI…"
   },
   "cue_toolbar": {
     "label": "Selected subtitle actions",
@@ -779,7 +780,8 @@
       "clear": "clear {{count}} translations",
       "review": "review {{count}} translations",
       "unreview": "clear {{count}} review marks",
-      "delete": "delete {{count}} subtitles"
+      "delete": "delete {{count}} subtitles",
+      "revise": "AI revision of {{count}} subtitles"
     }
   },
   "cue_help": {
@@ -818,7 +820,7 @@
     },
     "menu": {
       "keys": "Right-click / Shift+F10",
-      "desc": "Translate, review, copy and more"
+      "desc": "Translate, revise with AI, review, copy and more"
     }
   },
   "cue_notice": {
@@ -831,5 +833,72 @@
     "into_track": "Translates the {{count}} selected subtitles and replaces their translations in “{{track}}”.",
     "new_track": "Translates the {{count}} selected subtitles into a new translation.",
     "start": "Translate {{count}}"
+  },
+  "cue_revision": {
+    "title": "Revise with AI",
+    "description": "{{count}} subtitles selected. Describe what to change; AI proposes revisions and nothing is applied until you confirm.",
+    "instructions": "What to change",
+    "placeholder": "For example:\nLine 2 should say \"We leave first thing tomorrow\"\n\"DeepSeek\" was transcribed as \"Deep Sea\", please fix it\nAlways spell the name \"Lin Zhiyuan\"",
+    "fields_label": "Revise",
+    "fields": {
+      "source": "Source",
+      "target": "Translation",
+      "both": "Both"
+    },
+    "model": "Model",
+    "generate": "Propose revisions",
+    "regenerate": "Propose again",
+    "generating": "Proposing…",
+    "shortcut": "Ctrl+Enter to propose · uses the AI translation model settings",
+    "apply": "Apply {{count}} revisions",
+    "result": "Revision preview",
+    "summary": "{{count}} of {{total}} subtitles to change",
+    "no_changes": "AI found nothing to change in these subtitles.",
+    "select_all": "Select all",
+    "deselect_all": "Select none",
+    "include": "Apply the revision of line {{number}}",
+    "kept_target": "Translation kept",
+    "target_stale": "Translation will be marked as outdated",
+    "source_only_hint": "When only the source is revised, its translation is marked as outdated. Choose \"Both\" to update the translation too.",
+    "rejected": "{{count}} revisions contained characters such as < or > that cannot be saved and were skipped.",
+    "usage": "Used {{count}} tokens",
+    "errors": {
+      "revision_conflict": "The subtitles changed after the revisions were proposed. Please propose again.",
+      "output_limit": "The model reached its output limit. Select fewer subtitles or raise the output limit in the translation settings.",
+      "protocol_invalid": "The model response could not be read. Try again or use another model.",
+      "failed": "The revision request failed. Check the model service and try again.",
+      "apply_failed": "The revisions could not be applied. See the message at the top of the page and try again.",
+      "too_many": "More than {{limit}} subtitles would need checking. Name the wrong spelling more precisely, or select a range first."
+    },
+    "scope_label": "Scope",
+    "scope": {
+      "selection": "Selected ({{count}})",
+      "document": "Whole document ({{count}})",
+      "no_selection": "Selection"
+    },
+    "description_document": "Searches the whole document ({{count}} subtitles). Describe what to change; AI first finds the lines concerned, then proposes revisions. Nothing is applied until you confirm.",
+    "placeholder_document": "For example:\n\"Faer Tong\" should be \"Phaethon\" everywhere\nLine 12 should say \"We leave first thing tomorrow\"\nThe name \"Lin Zhiyuan\" is misrecognized in several places, please fix them all",
+    "revise_document": "Revise the whole document with AI…",
+    "locating": "Reading the request and finding the lines…",
+    "revising": "Checking {{done}} / {{total}} subtitles…",
+    "stop": "Stop",
+    "continue": "Check them",
+    "confirm": "{{count}} subtitles need to be checked one by one, about {{requests}} model requests. Continue?",
+    "nothing_found": "No subtitles matched the request. Try rewording it or name the wrong spelling as it appears in the text.",
+    "apply_limit": "Up to {{limit}} revisions can be applied at once. Deselect some and apply them in parts.",
+    "plan": {
+      "terms": "Searched for",
+      "found": "and found {{count}} related subtitles",
+      "lines": "Lines {{lines}}",
+      "all": "Checked all {{count}} subtitles one by one"
+    }
+  },
+  "agent": {
+    "suggest_fix": "Fix a misheard word",
+    "suggest_fix_prompt": "A word in these subtitles was misheard: \"wrong spelling\" should be \"correct spelling\". Find and fix it throughout the document.",
+    "suggest_terms": "Make names consistent",
+    "suggest_terms_prompt": "Check whether names and terms are spelled consistently in these subtitles, and prepare revisions where they are not.",
+    "suggest_summary": "Summarize",
+    "suggest_summary_prompt": "Summarize what the open subtitle document is about."
   }
 }
