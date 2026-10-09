@@ -3,14 +3,15 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { NavigateFunction } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { Loader2, Bot, User, ListPlus, MessageSquareMore, Zap } from "lucide-react";
+import { Loader2, ListPlus, MessageSquareMore, Zap } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import AgentToolCallView from "./components/AgentToolCall";
-import AgentToolResultView, { isModernToolResult } from "./components/AgentToolResult";
+import { isModernToolResult } from "./components/AgentToolResult";
 import { actionErrorMessage } from "./components/action-error";
 import { createWidgetActionHandler, isNamePlanResultFor } from "./widget-actions";
 import type {
   AgentMessage,
+  AgentToolCall,
   AgentToolResult,
   ExecutionMode,
   PendingExecution,
@@ -24,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import {
   ChatMarkdownRenderer,
   type MarkdownWidgetRegistry,
@@ -124,77 +126,45 @@ function nameTranslationApplyResultToFence(
   );
 }
 
-function formatToolResultAsMarkdown(message: AgentMessage, t: TFunction): string {
-  const result = message.toolResult;
-  const isSuccess = result?.success ?? true;
-  const toolName = result?.toolName ?? t("home:tool_execution_fallback");
-  const statusMark = isSuccess ? " ✓" : " ✗";
-  const raw = message.content;
+const NAME_PLAN_TOOLS = ["create_name_translation_plan", "apply_name_translation_plan"];
 
-  if (!isSuccess && result?.error) {
-    const details = Array.isArray(result.data?.errors)
-      ? (result.data.errors as unknown[]).filter((item): item is string => typeof item === "string").slice(0, 5)
-      : [];
-    const list = details.map((item) => `\n- \`${item.replace(/`/g, "'")}\``).join("");
-    return `**${toolName}**${statusMark}\n\n${actionErrorMessage(result.error, t)}${list}`;
+/** Name translation plans render as their own interactive widget below the tool card. */
+function namePlanFence(result: AgentToolResult): string | null {
+  if (!result.success || !result.data || typeof result.data !== "object") return null;
+  if (result.toolName === "create_name_translation_plan") return nameTranslationPlanToFence(result.data);
+  if (result.toolName === "apply_name_translation_plan") return nameTranslationApplyResultToFence(result.data);
+  return null;
+}
+
+/** The body of a classic tool's card: what it found or queued, or why it failed. */
+function ClassicResultBody({ result }: { result: AgentToolResult }) {
+  const { t } = useTranslation();
+  const data = result.data && typeof result.data === "object" ? result.data as Record<string, any> : undefined;
+  if (!result.success) {
+    const details = Array.isArray(data?.errors) ? (data.errors as unknown[]).filter((item): item is string => typeof item === "string").slice(0, 5) : [];
+    return <div className="space-y-1.5 text-xs leading-5 text-destructive">
+      <p className="[overflow-wrap:anywhere]">{result.error ? actionErrorMessage(result.error, t) : t("home:action_failed")}</p>
+      {details.length > 0 && <ul className="space-y-0.5 rounded-lg bg-destructive/5 px-2.5 py-1.5 font-mono text-[11px]">{details.map((item, index) => <li key={index} className="[overflow-wrap:anywhere]">{item}</li>)}</ul>}
+    </div>;
   }
-
-  let body: string;
-  try {
-    const parsed = result?.data ?? JSON.parse(raw);
-    if (isSuccess && result?.toolName === "create_name_translation_plan") {
-      return nameTranslationPlanToFence(parsed);
-    }
-    if (isSuccess && result?.toolName === "apply_name_translation_plan") {
-      return nameTranslationApplyResultToFence(parsed);
-    }
-
-    if (parsed?.files && Array.isArray(parsed.files)) {
-      const count = parsed.totalCount ?? parsed.files.length;
-      const names = parsed.files
-        .slice(0, 10)
-        .map((f: Record<string, unknown>) => `- \`${(f.fileName as string) || f}\``)
-        .join("\n");
-      const more =
-        count > 10
-          ? `\n- *...${t("home:tool_result_more_files", { count })}*`
-          : "";
-      body = `${t("home:tool_result_files_found", { count })}:\n${names}${more}`;
-    } else if (parsed?.queuedCount !== undefined) {
-      if (parsed?.batch) {
-        body = t("home:tool_result_queued_batch_progress", {
-          queuedCount: parsed.queuedCount,
-          batchStart: Number(parsed.batch.batchStart ?? 0) + 1,
-          batchEnd: parsed.batch.batchEnd,
-          queuedThrough: parsed.batch.queuedThrough,
-          totalFiles: parsed.totalFiles,
-          remainingCount: parsed.batch.remainingCount,
-        });
-        if (parsed.batch.hasMore) {
-          body += `\n${t("home:tool_result_queued_batch_more", {
-            nextBatchStart: parsed.batch.nextBatchStart,
-          })}`;
-        }
-      } else {
-        body = t("home:tool_result_queued_progress", {
-          queuedCount: parsed.queuedCount,
-          totalFiles: parsed.totalFiles,
-        });
-      }
-    } else if (typeof parsed === "string") {
-      body = parsed;
-    } else {
-      const jsonStr = JSON.stringify(parsed, null, 2);
-      body =
-        jsonStr.length > 800
-          ? "```json\n" + jsonStr.slice(0, 800) + "\n// …(truncated)\n```"
-          : "```json\n" + jsonStr + "\n```";
-    }
-  } catch {
-    body = raw.length > 500 ? raw.slice(0, 500) + "…" : raw;
+  if (NAME_PLAN_TOOLS.includes(result.toolName) || !data) return null;
+  if (Array.isArray(data.files)) {
+    const count = Number(data.totalCount ?? data.files.length);
+    const names = (data.files as unknown[]).slice(0, 10).map(file => typeof file === "string" ? file : String((file as Record<string, unknown>)?.fileName ?? ""));
+    return <div className="space-y-2 text-xs leading-5">
+      <p>{t("home:tool_result_files_found", { count })}</p>
+      {names.length > 0 && <ul className="divide-y divide-border/60 rounded-lg bg-muted/40 px-2.5">{names.map((name, index) => <li key={index} className="py-1 [overflow-wrap:anywhere]">{name}</li>)}</ul>}
+      {count > 10 && <p className="text-[11px] text-muted-foreground">{t("home:tool_result_more_files", { count })}</p>}
+    </div>;
   }
-
-  return `**${toolName}**${statusMark}\n\n${body}`;
+  if (data.queuedCount !== undefined) {
+    const lines = data.batch ? [t("home:tool_result_queued_batch_progress", { queuedCount: data.queuedCount, batchStart: Number(data.batch.batchStart ?? 0) + 1,
+      batchEnd: data.batch.batchEnd, queuedThrough: data.batch.queuedThrough, totalFiles: data.totalFiles, remainingCount: data.batch.remainingCount }),
+      ...(data.batch.hasMore ? [t("home:tool_result_queued_batch_more", { nextBatchStart: data.batch.nextBatchStart })] : [])]
+      : [t("home:tool_result_queued_progress", { queuedCount: data.queuedCount, totalFiles: data.totalFiles })];
+    return <div className="space-y-1 text-xs leading-5">{lines.map((line, index) => <p key={index} className={index ? "text-muted-foreground" : undefined}>{line}</p>)}</div>;
+  }
+  return null;
 }
 
 type PendingNamePlan = Parameters<typeof createWidgetActionHandler>[3] extends infer Target
@@ -288,28 +258,31 @@ export function StreamingAssistant({ widgetContext }: { widgetContext: MarkdownW
   })));
   if (!streamingText && activeToolCalls.length === 0) {
     return thinking ? (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm pl-10">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
         <Loader2 className="h-3.5 w-3.5 animate-spin" />
         <span>{t("home:agent_thinking")}</span>
       </div>
     ) : null;
   }
   return (
-    <div className="flex items-start gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-      <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
-        <Bot className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
-        <ChatMarkdownRenderer
-          content={streamingText}
-          widgetRegistry={homeAgentWidgetRegistry}
-          widgetContext={widgetContext}
-          codeBlock={{ colorTheme: "qiuvision" }}
-        />
-        <div className="mt-2 space-y-2">{activeToolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} running />)}</div>
-      </div>
+    <div className="min-w-0 space-y-2 text-sm leading-relaxed animate-in fade-in slide-in-from-bottom-2 duration-300">
+      {streamingText && <ChatMarkdownRenderer
+        content={streamingText}
+        widgetRegistry={homeAgentWidgetRegistry}
+        widgetContext={widgetContext}
+        codeBlock={{ colorTheme: "qiuvision" }}
+      />}
+      {activeToolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} running />)}
     </div>
   );
+}
+
+/** Results by call, and the calls that assistant messages show, so result messages do not repeat them. */
+export function useConversationIndex(messages: readonly AgentMessage[]) {
+  return useMemo(() => ({
+    toolResults: new Map(messages.flatMap(message => message.toolResult ? [[message.toolResult.callId, message.toolResult] as const] : [])) as ReadonlyMap<string, AgentToolResult>,
+    toolCallIds: new Set(messages.flatMap(message => message.toolCalls?.map(call => call.toolCallId) ?? [])) as ReadonlySet<string>,
+  }), [messages]);
 }
 
 export const MessageBubble = React.memo(
@@ -320,6 +293,7 @@ export const MessageBubble = React.memo(
     namePlanWidgetContext,
     pendingNamePlanId,
     toolResults,
+    toolCallIds,
   }: {
     message: AgentMessage;
     widgetRegistry: MarkdownWidgetRegistry;
@@ -327,59 +301,43 @@ export const MessageBubble = React.memo(
     namePlanWidgetContext: MarkdownWidgetContext;
     pendingNamePlanId?: string;
     toolResults: ReadonlyMap<string, AgentToolResult>;
+    toolCallIds: ReadonlySet<string>;
   }) {
-    const { t } = useTranslation();
-    const isUser = message.role === "user";
-    const isTool = message.role === "tool";
-
-    if (isUser) {
+    if (message.role === "user") {
       return (
-        <div className="flex items-start gap-2.5 flex-row-reverse">
-          <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-primary text-primary-foreground">
-            <User className="h-3.5 w-3.5" />
-          </div>
-          <div className="relative rounded-sm px-4 py-2.5 max-w-[80%] text-sm leading-relaxed bg-primary text-primary-foreground chat-bubble-user">
-            <p className="whitespace-pre-wrap wrap-break-word">
-              {message.content}
-            </p>
-          </div>
+        <div className="flex justify-end" data-message-role="user">
+          <SmoothCorners radius={18} smoothing={0.72} className="max-w-[85%] bg-secondary px-3.5 py-2 text-sm leading-6 text-secondary-foreground">
+            <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
+          </SmoothCorners>
         </div>
       );
     }
 
-    if (isTool) {
-      if (message.toolResult && isModernToolResult(message.toolResult.toolName)) {
-        return <div className="pl-10"><AgentToolResultView result={message.toolResult} /></div>;
+    if (message.role === "tool") {
+      const result = message.toolResult;
+      if (!result) return null;
+      const fence = namePlanFence(result);
+      if (fence) {
+        return <ChatMarkdownRenderer content={fence} widgetRegistry={widgetRegistry}
+          widgetContext={isNamePlanResultFor(message, pendingNamePlanId) ? namePlanWidgetContext : widgetContext} codeBlock={{ colorTheme: "qiuvision" }} />;
       }
-      return (
-        <div className="pl-10">
-          <ChatMarkdownRenderer
-            content={formatToolResultAsMarkdown(message, t)}
-            widgetRegistry={widgetRegistry}
-            widgetContext={isNamePlanResultFor(message, pendingNamePlanId) ? namePlanWidgetContext : widgetContext}
-            codeBlock={{ colorTheme: "qiuvision" }}
-          />
-        </div>
-      );
+      // The assistant message that made the call already shows this result in its card.
+      if (toolCallIds.has(result.callId)) return null;
+      return <ToolCard call={{ toolCallId: result.callId, toolName: result.toolName, args: {} }} result={result} />;
     }
 
     const content = message.content || "";
     if (!content.trim() && !message.toolCalls?.length) return null;
 
     return (
-      <div className="flex items-start gap-2.5">
-        <div className="flex items-center justify-center rounded-full w-7 h-7 shrink-0 bg-muted text-muted-foreground">
-          <Bot className="h-3.5 w-3.5" />
-        </div>
-        <div className="flex-1 min-w-0 max-w-[80%] text-sm leading-relaxed">
-          <ChatMarkdownRenderer
-            content={content}
-            widgetRegistry={widgetRegistry}
-            widgetContext={widgetContext}
-            codeBlock={{ colorTheme: "qiuvision" }}
-          />
-          {!!message.toolCalls?.length && <div className="mt-2 space-y-2">{message.toolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} result={toolResults.get(call.toolCallId)} />)}</div>}
-        </div>
+      <div className="min-w-0 space-y-2 text-sm leading-relaxed" data-message-role="assistant">
+        {content.trim() && <ChatMarkdownRenderer
+          content={content}
+          widgetRegistry={widgetRegistry}
+          widgetContext={widgetContext}
+          codeBlock={{ colorTheme: "qiuvision" }}
+        />}
+        {message.toolCalls?.map(call => <ToolCard key={call.toolCallId} call={call} result={toolResults.get(call.toolCallId)} />)}
       </div>
     );
   },
@@ -389,5 +347,11 @@ export const MessageBubble = React.memo(
     prev.widgetContext === next.widgetContext &&
     prev.namePlanWidgetContext === next.namePlanWidgetContext &&
     prev.pendingNamePlanId === next.pendingNamePlanId &&
-    prev.toolResults === next.toolResults,
+    prev.toolResults === next.toolResults &&
+    prev.toolCallIds === next.toolCallIds,
 );
+
+function ToolCard({ call, result }: { call: AgentToolCall; result?: AgentToolResult }) {
+  const classic = result && !isModernToolResult(result.toolName);
+  return <AgentToolCallView call={call} result={result} body={classic ? <ClassicResultBody result={result} /> : undefined} />;
+}

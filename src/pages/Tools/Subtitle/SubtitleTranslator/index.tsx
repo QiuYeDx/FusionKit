@@ -200,9 +200,13 @@ function SubtitleTranslator() {
   const setThinkingEnabled = (value: boolean) =>
     updateTranslatorConfig({ thinkingEnabled: value });
 
-  const [customLengthInput, setCustomLengthInput] = useState(
-    String(customSliceLength),
+  // The stored length can change outside this page (the agent's settings tool), so the input
+  // shows it directly; a draft exists only while the user is typing, where the store would
+  // replace an empty or out-of-range value with the default.
+  const [customLengthDraft, setCustomLengthDraft] = useState<string | null>(
+    null,
   );
+  const customLengthInput = customLengthDraft ?? String(customSliceLength);
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -1073,9 +1077,10 @@ function SubtitleTranslator() {
                       min="100"
                       max="2000"
                       onChange={(e) => {
-                        setCustomLengthInput(e.target.value);
+                        setCustomLengthDraft(e.target.value);
                         setCustomSliceLength(Number(e.target.value));
                       }}
+                      onBlur={() => setCustomLengthDraft(null)}
                     />
                     <span className="text-[11px] text-muted-foreground">
                       {t("subtitle:translator.new_task_config.chars_suffix")} /{" "}

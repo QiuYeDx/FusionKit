@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import useAgentStore from "@/store/agent/useAgentStore";
 import { actionErrorMessage } from "./action-error";
 import type {
@@ -122,10 +123,10 @@ function NameTranslationPlanWidgetComponent({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/60 bg-card/50">
-      <div className="flex items-center gap-2 px-3 py-2 bg-muted/30">
+    <SmoothCorners radius={14} smoothing={0.72} className="min-w-0 overflow-hidden border bg-card">
+      <div className="flex items-center gap-2 border-b px-3 py-2">
         <FilePenLine className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-xs font-medium text-foreground">
           {t("home:rename_preview")}
         </span>
         <code className="ml-auto max-w-[11rem] truncate text-[11px] text-muted-foreground">
@@ -219,7 +220,7 @@ function NameTranslationPlanWidgetComponent({
           </p>
         )}
       </div>
-    </div>
+    </SmoothCorners>
   );
 }
 
@@ -230,19 +231,21 @@ function NameTranslationApplyResultWidgetComponent({
   const hasFailures = props.failedCount > 0;
 
   return (
-    <div
+    <SmoothCorners
+      radius={14}
+      smoothing={0.72}
       className={cn(
-        "overflow-hidden rounded-xl border bg-card/50",
-        hasFailures ? "border-destructive/30" : "border-emerald-500/30"
+        "min-w-0 overflow-hidden border bg-card",
+        hasFailures && "border-destructive/30"
       )}
     >
-      <div className="flex items-center gap-2 bg-muted/30 px-3 py-2">
+      <div className="flex items-center gap-2 border-b px-3 py-2">
         {hasFailures ? (
           <XCircle className="h-3.5 w-3.5 text-destructive" />
         ) : (
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
         )}
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-xs font-medium text-foreground">
           {t("home:rename_result")}
         </span>
       </div>
@@ -259,7 +262,7 @@ function NameTranslationApplyResultWidgetComponent({
           </div>
         ) : null}
       </div>
-    </div>
+    </SmoothCorners>
   );
 }
 

@@ -108,13 +108,15 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('home and panel han
       await page.screenshot({ path: path.join(artifacts, '01-arrived-translator.png') });
 
       // 2. On the translator page: the page context, a settings change and a task that follows the page's settings.
-      queue.push(call('subtitle_translator_update_settings', { targetLang: 'EN', translationOutputMode: 'target_only' }));
+      queue.push(call('subtitle_translator_update_settings', { targetLang: 'EN', translationOutputMode: 'target_only', sliceType: 'CUSTOM', customSliceLength: 1200 }));
       queue.push(text('已把目标语言改为英文、仅输出译文。'));
       await page.getByTestId('agent-dock-input').fill('把目标语言改成英文，只要译文');
       await page.getByTestId('agent-dock-input').press('Enter');
       await uiExpect(panel.getByText('已把目标语言改为英文、仅输出译文。')).toBeVisible();
       expect(requests[2].instructions).toContain('"route":"/tools/subtitle/translator"');
       expect(requests[2].tools.map(item => item.name)).toContain('subtitle_translator_update_settings');
+      // The open page reflects what the agent changed without leaving and re-entering it.
+      await uiExpect(page.locator('input[type="number"][max="2000"]')).toHaveValue('1200');
       await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, input);
       queue.push(call('queue_subtitle_translate', {}));
       queue.push(text('已按字幕翻译页的设置加入 1 个任务。'));

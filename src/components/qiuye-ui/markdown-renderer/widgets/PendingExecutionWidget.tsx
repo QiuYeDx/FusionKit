@@ -4,6 +4,7 @@ import React from "react";
 import { Play, ArrowRight, Clock, CheckCircle2, PauseCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { SmoothCorners } from "../../smooth-corners";
 import type {
   MarkdownWidgetComponentProps,
   MarkdownWidgetDefinition,
@@ -41,14 +42,14 @@ function ResolvedBanner({ action }: { action: ResolvedAction }) {
   const isConfirm = action === "confirm";
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
+    <div className="flex items-center gap-2 border-t px-3 py-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
       {isConfirm ? (
-        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
       ) : (
-        <PauseCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+        <PauseCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
       )}
       <span
-        className={`text-sm font-medium ${isConfirm ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
+        className={`text-xs font-medium ${isConfirm ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
       >
         {t(isConfirm ? "home:execution_confirmed" : "home:execution_dismissed")}
       </span>
@@ -91,10 +92,10 @@ function PendingExecutionWidgetComponent({
   };
 
   return (
-    <div className="rounded-xl border border-border/60 bg-card/50 overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 bg-muted/30">
+    <SmoothCorners radius={14} smoothing={0.72} className="min-w-0 overflow-hidden border bg-card">
+      <div className="flex items-center gap-2 border-b px-3 py-2">
         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-xs font-medium text-foreground">
           {t("home:queued_title")}
         </span>
       </div>
@@ -103,9 +104,9 @@ function PendingExecutionWidgetComponent({
         {stores.map((store) => (
           <div
             key={store.name}
-            className="flex items-center justify-between rounded-lg bg-background/60 border border-border/40 px-3 py-1.5"
+            className="flex items-center justify-between rounded-lg bg-muted/40 px-2.5 py-1"
           >
-            <span className="text-sm text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {t(store.labelKey)}{" "}
               <span className="font-medium text-foreground">
                 {store.count}
@@ -151,7 +152,7 @@ function PendingExecutionWidgetComponent({
           </div>
         </div>
       )}
-    </div>
+    </SmoothCorners>
   );
 }
 

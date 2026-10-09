@@ -128,6 +128,7 @@
   "action_dismiss": "取消",
   "tool_incomplete": "未完成",
   "tool_parameters": "调用参数",
+  "tool_result_data": "返回数据",
   "suggestion_studio": "在工作台翻译字幕",
   "suggestion_studio_prompt": "请帮我在字幕工作台准备字幕翻译，先检查可用的翻译资料和配置。",
   "rename_preview": "名称翻译预览",
@@ -268,6 +269,8 @@
   "dock": {
     "open": "打开 Agent",
     "close": "收起 Agent",
+    "pin": "固定面板（点击外部不收起）",
+    "unpin": "取消固定",
     "panel_label": "FusionKit Agent 对话",
     "open_home": "在首页打开",
     "empty_title": "有什么可以帮你？",

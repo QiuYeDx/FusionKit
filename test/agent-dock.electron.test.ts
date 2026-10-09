@@ -105,15 +105,37 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       expect(box.y + box.height).toBeLessThan(nav!.y);
       await shot('01-open-empty-1280-light');
 
-      // Esc closes and returns focus; the page stays interactive while the panel is open.
+      // Esc closes and returns focus without popping the launcher's tooltip; hovering shows it to the right.
       await page.keyboard.press('Escape');
       await uiExpect(launcher).toHaveAttribute('aria-expanded', 'false');
       await uiExpect(launcher).toBeFocused();
       await uiExpect(page).toHaveURL(/subtitle\/studio/);
+      const tooltip = page.locator('[data-slot="tooltip-content"]');
+      await page.waitForTimeout(600);
+      await uiExpect(tooltip).toHaveCount(0);
+      await page.mouse.move(640, 300);
+      await launcher.hover();
+      await uiExpect(tooltip).toContainText('打开 Agent');
+      const launcherBox = (await launcher.boundingBox())!, tipBox = (await tooltip.boundingBox())!;
+      expect(tipBox.x).toBeGreaterThan(launcherBox.x + launcherBox.width);
+      await page.screenshot({ path: path.join(artifacts, '00-launcher-tooltip.png'), clip: { x: 0, y: 760, width: 260, height: 100 } });
+
+      // A press elsewhere on the page closes the panel and still reaches the page.
       await launcher.click();
-      // The panel covers the left part of the page; the rest stays usable.
+      await uiExpect(panel).toBeVisible();
+      await rows.nth(1).locator('.studio-cue-time').click();
+      await uiExpect(launcher).toHaveAttribute('aria-expanded', 'false');
+      await uiExpect(page.getByTestId('studio-cue-selected-count')).toHaveText('已选中 1 条');
+      await page.waitForTimeout(600);
+      await uiExpect(tooltip).toHaveCount(0);
+
+      // Pinned, the panel stays open while the user works in the page.
+      await launcher.click();
+      await page.getByTestId('agent-dock-pin').click();
+      await uiExpect(page.getByTestId('agent-dock-pin')).toHaveAttribute('aria-pressed', 'true');
       await rows.nth(2).locator('.studio-cue-time').click();
       await uiExpect(page.getByTestId('studio-cue-selected-count')).toHaveText('已选中 1 条');
+      await uiExpect(launcher).toHaveAttribute('aria-expanded', 'true');
 
       // The agent prepares a document-wide revision; the preview opens over the panel.
       queue.push(call('studio_prepare_revision', { instructions: '文中的“法尔童”都应为“法厄同”', scope: 'document', fields: 'source', terms: ['法尔童', '法而童'] }));

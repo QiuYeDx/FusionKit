@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, CircleDashed, Loader2, XCircle } from "lucide-react";
 import type { AgentToolCall as ToolCall, AgentToolResult } from "@/agent/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 import { actionErrorMessage } from "./action-error";
+import AgentCard from "./AgentCard";
+import ToolResultBody, { isModernToolResult } from "./AgentToolResult";
 
 const toolNameKeys = {
   scan_subtitle_files: "home:tool_name_scan",
@@ -36,26 +39,37 @@ const toolNameKeys = {
   studio_prepare_revision: "home:tool_name_prepare_revision",
 } as const;
 
-export default function AgentToolCall({ call, result, running = false }: { call: ToolCall; result?: AgentToolResult; running?: boolean }) {
+/**
+ * One card per tool call: its name and state in the header, what it returned in the body and the
+ * raw parameters and data behind the header's disclosure. `body` replaces the default result view,
+ * for results that are not modern tool payloads.
+ */
+export default function AgentToolCall({ call, result, running = false, body }: { call: ToolCall; result?: AgentToolResult; running?: boolean; body?: ReactNode }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState("");
   const state = running ? "running" : result ? result.success ? "completed" : "failed" : "incomplete";
   const Icon = { running: Loader2, completed: CheckCircle2, failed: XCircle, incomplete: CircleDashed }[state];
   const label = { running: "home:action_running", completed: "home:action_completed", failed: "home:action_failed", incomplete: "home:tool_incomplete" } as const;
   const titleKey = toolNameKeys[call.toolName as keyof typeof toolNameKeys] ?? "home:tool_execution_fallback";
-  return <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded} className="min-w-0 rounded-xl border bg-card/50" data-tool-call-id={call.toolCallId} data-tool-call-status={state}>
-    <AccordionItem value="detail" className="border-0">
-      <AccordionTrigger className="gap-2 rounded-[11px] px-3 py-2 text-xs data-[state=open]:rounded-b-none">
-        <Icon aria-hidden className={`size-3.5 shrink-0 ${state === "failed" ? "text-destructive" : "text-muted-foreground"} ${running ? "animate-spin motion-reduce:animate-none" : ""}`} />
-        <span className="min-w-0 flex-1 text-left [overflow-wrap:anywhere]">{t(titleKey)}</span>
-        <span className="shrink-0 font-normal text-muted-foreground">{t(label[state])}</span>
-      </AccordionTrigger>
-      <AccordionContent className="px-3 pb-3">
-        <p className="mb-2 text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{t("home:tool_identifier")}: <code>{call.toolName}</code></p>
-        <p className="mb-1 text-[11px] text-muted-foreground">{t("home:tool_parameters")}</p>
-        <pre className="whitespace-pre-wrap text-[11px] leading-5 [overflow-wrap:anywhere]">{JSON.stringify(call.args, null, 2)}</pre>
-        {result?.error && <p className="mt-2 text-xs text-destructive [overflow-wrap:anywhere]">{actionErrorMessage(result.error, t)}</p>}
-      </AccordionContent>
-    </AccordionItem>
-  </Accordion>;
+  const content = body !== undefined ? body : result && isModernToolResult(result.toolName) ? <ToolResultBody result={result} />
+    : result && !result.success ? <p className="text-xs leading-5 text-destructive [overflow-wrap:anywhere]">{result.error ? actionErrorMessage(result.error, t) : t("home:action_failed")}</p> : null;
+  const hasArgs = Object.keys(call.args ?? {}).length > 0;
+  return <AgentCard data-tool-call-id={call.toolCallId} data-tool-call-status={state}>
+    <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded}>
+      <AccordionItem value="detail" className="border-0">
+        <AccordionTrigger className="items-center gap-2 rounded-none px-3 py-2 text-xs hover:bg-muted/40 hover:no-underline focus-visible:ring-inset [&>svg]:translate-y-0">
+          <Icon aria-hidden className={cn("size-3.5 shrink-0 text-muted-foreground", state === "completed" && "text-emerald-600 dark:text-emerald-400",
+            state === "failed" && "text-destructive", running && "animate-spin motion-reduce:animate-none")} />
+          <span className="min-w-0 flex-1 text-left font-medium [overflow-wrap:anywhere]">{t(titleKey)}</span>
+          <span className="shrink-0 text-[11px] font-normal text-muted-foreground">{t(label[state])}</span>
+        </AccordionTrigger>
+        {content && <div className="border-t px-3 py-2.5">{content}</div>}
+        <AccordionContent className="space-y-2 border-t bg-muted/20 px-3 pt-2.5 pb-3 text-[11px] leading-5 text-muted-foreground">
+          <p className="[overflow-wrap:anywhere]">{t("home:tool_identifier")}: <code className="text-foreground/80">{call.toolName}</code></p>
+          {hasArgs && <div><p className="mb-0.5">{t("home:tool_parameters")}</p><pre className="max-h-48 overflow-y-auto whitespace-pre-wrap text-foreground/80 [overflow-wrap:anywhere]">{JSON.stringify(call.args, null, 2)}</pre></div>}
+          {result?.data !== undefined && <div><p className="mb-0.5">{t("home:tool_result_data")}</p><pre className="max-h-48 overflow-y-auto whitespace-pre-wrap text-foreground/80 [overflow-wrap:anywhere]">{JSON.stringify(result.data, null, 2)}</pre></div>}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  </AgentCard>;
 }

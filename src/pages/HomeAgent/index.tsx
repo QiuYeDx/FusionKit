@@ -38,6 +38,7 @@ import {
   CapsuleModeSelector,
   homeAgentWidgetRegistry,
   MessageBubble,
+  useConversationIndex,
   pendingExecutionToFence,
   StreamingAssistant,
   useAgentWidgetContexts,
@@ -127,7 +128,7 @@ function HomeAgent() {
     const top = 48, bottom = window.innerHeight - 58;
     return { left: column.left, top, width: column.width, height: Math.max(120, bottom - top) };
   }), []);
-  const toolResults = useMemo(() => new Map(messages.flatMap(message => message.toolResult ? [[message.toolResult.callId, message.toolResult] as const] : [])), [messages]);
+  const { toolResults, toolCallIds } = useConversationIndex(messages);
 
   const agentProfile = useModelStore((s) => s.getAgentProfile());
   const hasAgentConfig = !!agentProfile?.apiKey?.trim();
@@ -890,6 +891,7 @@ function HomeAgent() {
                   namePlanWidgetContext={namePlanWidgetContext}
                   pendingNamePlanId={pendingNameTranslationPlan?.planId}
                   toolResults={toolResults}
+                  toolCallIds={toolCallIds}
                 />
               ))}
 
@@ -900,7 +902,7 @@ function HomeAgent() {
 
               {/* Pending execution widget */}
               {pendingExecution && !isStreaming && (
-                <div className="pl-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <ChatMarkdownRenderer
                     content={pendingExecutionToFence(pendingExecution)}
                     widgetRegistry={homeAgentWidgetRegistry}

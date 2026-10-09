@@ -6,7 +6,7 @@
 | 日期 | 2026-10-09 |
 | 验证版本 | df64e8f + 本会话未提交改动（最终代码重新 `vite build --mode=test` 后运行） |
 | 环境 | Windows 11，Electron 41.10.6，隔离 profile；Agent 使用本地受控 Responses 流（合成工具调用），修订使用本地受控 chat completions，不调用付费 API |
-| 任务指纹 | d8169f881924c3d9bd3152ff90b4266ee089280509365cfb2d350cbe791c53a1 |
+| 任务指纹 | 84db1e60092d42ef53a3578cda847d778467f39ca803c33b4a46f4c4c7783c0e |
 
 ## 实际结果
 
@@ -42,3 +42,7 @@
 ## 风险与未执行项
 
 Agent 与修订模型均为合成响应，真实供应商对页面工具的调用质量未验证；仅截取中文界面；macOS 未运行。
+
+## 复核（2026-10-09，体验修复 U1/U5）
+
+AC-WORKSPACE-03-3 按用户反馈修改（见 T-WORKSPACE-05 记录的复核段）。本用例先固定面板再在工作台选择字幕，其余链路不变；重新构建后 agent-dock 与 agent-handoff 用例、`node scripts/home-agent-qa.mjs`（17 项检查）均通过。

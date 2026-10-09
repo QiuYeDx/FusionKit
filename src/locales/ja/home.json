@@ -128,6 +128,7 @@
   "action_dismiss": "キャンセル",
   "tool_incomplete": "未完了",
   "tool_parameters": "呼び出しパラメータ",
+  "tool_result_data": "返された値",
   "suggestion_studio": "ワークスペースで字幕を翻訳",
   "suggestion_studio_prompt": "字幕ワークスペースで翻訳を準備してください。まず利用できる翻訳資料と設定を確認してください。",
   "rename_preview": "名前翻訳のプレビュー",
@@ -268,6 +269,8 @@
   "dock": {
     "open": "Agent を開く",
     "close": "Agent を閉じる",
+    "pin": "パネルを固定（外側をクリックしても閉じない）",
+    "unpin": "固定を解除",
     "panel_label": "FusionKit Agent との会話",
     "open_home": "ホームで開く",
     "empty_title": "何をお手伝いしましょうか？",

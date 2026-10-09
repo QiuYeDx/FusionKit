@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { motion, AnimatePresence } from "motion/react";
-import { AlertTriangle, ArrowDown, ChevronDown, Maximize2, RotateCcw, Send, Settings, Sparkles, Square, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ChevronDown, Maximize2, Pin, RotateCcw, Send, Settings, Sparkles, Square, X } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { abortCurrentStream, handleUserMessage } from "@/agent/orchestrator";
@@ -19,13 +19,15 @@ import { ChatMarkdownRenderer } from "@/components/qiuye-ui/markdown-renderer";
 import { cn } from "@/lib/utils";
 import AgentPlanPanel from "../HomeAgent/components/AgentPlanPanel";
 import AgentPreparedActions from "../HomeAgent/components/AgentPreparedActions";
-import { CapsuleModeSelector, homeAgentWidgetRegistry, MessageBubble, pendingExecutionToFence, StreamingAssistant, useAgentWidgetContexts } from "../HomeAgent/conversation";
+import { CapsuleModeSelector, homeAgentWidgetRegistry, MessageBubble, pendingExecutionToFence, StreamingAssistant, useAgentWidgetContexts, useConversationIndex } from "../HomeAgent/conversation";
 import { dockClipPath, hasUnreadReply, isDockRoute } from "./dock-state";
 import { DOCK_EDGE, DOCK_PANEL_BOTTOM, dockPanelRect, homeColumnTarget, readHomeColumn, type DockRect, type Viewport } from "./handoff";
 import "./AgentDock.css";
 
 /** Draft kept across closing the panel and page changes; cleared on reload like the home page draft. */
 let draftCache = "";
+const PIN_KEY = "fusionkit-agent-dock-pinned";
+const readPinned = () => { try { return localStorage.getItem(PIN_KEY) === "1"; } catch { return false; } };
 const EDGE = DOCK_EDGE;
 const PANEL_BOTTOM = DOCK_PANEL_BOTTOM;
 const SPRING = { type: "spring" as const, duration: 0.42, bounce: 0 };
@@ -34,10 +36,10 @@ const HANDOFF = { type: "spring" as const, duration: 0.52, bounce: 0 };
 const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight });
 const CONTENT_EASE = [0.23, 1, 0.32, 1] as const;
 
-function DockIconButton({ label, onClick, disabled, children, testId, className }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode; testId?: string; className?: string }) {
+function DockIconButton({ label, onClick, disabled, children, testId, className, pressed }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode; testId?: string; className?: string; pressed?: boolean }) {
   return <Tooltip delayDuration={350}>
     <TooltipTrigger asChild>
-      <Button type="button" variant="ghost" size="icon-sm" aria-label={label} data-testid={testId} disabled={disabled} onClick={onClick}
+      <Button type="button" variant="ghost" size="icon-sm" aria-label={label} aria-pressed={pressed} data-testid={testId} disabled={disabled} onClick={onClick}
         className={cn("size-7 rounded-md text-muted-foreground hover:text-foreground", className)}>{children}</Button>
     </TooltipTrigger>
     <TooltipContent side="top" sideOffset={6}>{label}</TooltipContent>
@@ -92,6 +94,10 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   const rest = dockPanelRect(viewport);
   const returningHome = open && !reduceMotion;
   const launcherRef = useRef<HTMLButtonElement>(null);
+  const [launcherTip, setLauncherTip] = useState(false);
+  // Focus returned to the launcher by closing the panel is not a request for its tooltip;
+  // hovering it again or reaching it with Tab still shows the tooltip.
+  const quietLauncherFocus = useRef(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -103,6 +109,27 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => { draftCache = input; }, [input]);
+  // Pinned, the panel stays open while the user works in the page (for example selecting cues to ask about).
+  const [pinned, setPinned] = useState(readPinned);
+  const togglePinned = () => setPinned((current) => {
+    try { localStorage.setItem(PIN_KEY, current ? "0" : "1"); } catch { /* the choice then lasts for this session */ }
+    return !current;
+  });
+  // A pointer press elsewhere on the page closes the panel so it does not keep covering it. Presses in
+  // its own layers (menus, tooltips), in dialogs (such as a revision preview the agent opened) and on
+  // the launcher do not; focus stays where the user pressed.
+  useEffect(() => {
+    if (!open || arriving || pinned) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || panelRef.current?.contains(target) || launcherRef.current?.contains(target)) return;
+      if (target.closest('[data-radix-popper-content-wrapper], [role="dialog"], [role="alertdialog"], [data-slot$="-overlay"], [data-sonner-toast]')) return;
+      closePanel(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+    // closePanel only uses state setters and refs.
+  }, [open, arriving, pinned]);
   useEffect(() => () => clearTimeout(resetTimer.current), []);
 
   const { session, isStreaming, executionMode, setExecutionMode, pendingExecution, pendingNameTranslationPlan, resetSession } = useAgentStore(useShallow((state) => ({
@@ -110,7 +137,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     pendingExecution: state.pendingExecution, pendingNameTranslationPlan: state.pendingNameTranslationPlan, resetSession: state.resetSession,
   })));
   const { messages } = session;
-  const toolResults = useMemo(() => new Map(messages.flatMap((message) => message.toolResult ? [[message.toolResult.callId, message.toolResult] as const] : [])), [messages]);
+  const { toolResults, toolCallIds } = useConversationIndex(messages);
   const { widgetContext, streamingWidgetContext, pendingWidgetContext, namePlanWidgetContext } =
     useAgentWidgetContexts(session.id, pendingExecution, pendingNameTranslationPlan, navigate);
 
@@ -171,7 +198,8 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   const openPanel = () => { setHidden(false); setOpen(true); requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true })); };
   const closePanel = (restoreFocus = true) => {
     setOpen(false);
-    if (restoreFocus) launcherRef.current?.focus({ preventScroll: true });
+    setLauncherTip(false);
+    if (restoreFocus) { quietLauncherFocus.current = true; launcherRef.current?.focus({ preventScroll: true }); }
   };
   const send = async () => {
     const text = input.trim();
@@ -253,6 +281,8 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
               <div className="text-[13px] font-medium leading-5">{t("home:agent_title")}</div>
               {pageLabel && <div className="truncate text-[11px] leading-4 text-muted-foreground" title={pageLabel} data-testid="agent-dock-page">{pageLabel}</div>}
             </div>
+            <DockIconButton label={t(pinned ? "home:dock.unpin" : "home:dock.pin")} testId="agent-dock-pin" pressed={pinned} onClick={togglePinned}
+              className={pinned ? "bg-accent text-foreground" : undefined}><Pin className={cn("size-3.5", pinned && "fill-current")} /></DockIconButton>
             <DockIconButton label={t("home:dock.open_home")} testId="agent-dock-open-home" onClick={() => navigate("/")}><Maximize2 className="size-3.5" /></DockIconButton>
             <DockIconButton label={t(confirmingReset ? "home:confirm_new_conversation" : "home:new_conversation")} testId="agent-dock-reset" disabled={isStreaming || !messages.length} onClick={onReset}
               className={confirmingReset ? "text-destructive hover:text-destructive" : undefined}><RotateCcw className="size-3.5" /></DockIconButton>
@@ -276,12 +306,12 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
                   </div>}
                 </div>}
                 {messages.map((message) => <MessageBubble key={message.id} message={message} widgetRegistry={homeAgentWidgetRegistry} widgetContext={widgetContext}
-                  namePlanWidgetContext={namePlanWidgetContext} pendingNamePlanId={pendingNameTranslationPlan?.planId} toolResults={toolResults} />)}
+                  namePlanWidgetContext={namePlanWidgetContext} pendingNamePlanId={pendingNameTranslationPlan?.planId} toolResults={toolResults} toolCallIds={toolCallIds} />)}
                 {isStreaming && <StreamingAssistant widgetContext={streamingWidgetContext} />}
                 <AgentPreparedActions key={session.id} sessionId={session.id} busy={isStreaming} />
                 {session.plan && <AgentPlanPanel key={session.plan.id} plan={session.plan} busy={isStreaming}
                   onCheckProgress={() => { setInput(current => current || t("home:plan_check_prompt")); requestAnimationFrame(() => inputRef.current?.focus()); }} />}
-                {pendingExecution && !isStreaming && <div className="pl-10">
+                {pendingExecution && !isStreaming && <div>
                   <ChatMarkdownRenderer content={pendingExecutionToFence(pendingExecution)} widgetRegistry={homeAgentWidgetRegistry} widgetContext={pendingWidgetContext} codeBlock={{ colorTheme: "qiuvision" }} />
                 </div>}
               </div>
@@ -321,11 +351,12 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     </motion.div>
 
     <motion.div className="fixed z-[46]" style={{ left: EDGE, bottom: EDGE }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
-      <Tooltip delayDuration={350}>
+      <Tooltip delayDuration={350} open={launcherTip} onOpenChange={(next) => { if (!next || !quietLauncherFocus.current) setLauncherTip(next); }}>
         <TooltipTrigger asChild>
           <Button ref={launcherRef} type="button" variant="outline" size="icon" data-testid="agent-dock-launcher"
             aria-label={t(open ? "home:dock.close" : "home:dock.open")} aria-expanded={open} aria-controls="agent-dock-panel"
             onClick={() => open ? closePanel() : openPanel()}
+            onPointerEnter={() => { quietLauncherFocus.current = false; }} onBlur={() => { quietLauncherFocus.current = false; }}
             className="agent-dock-launcher relative h-9 w-9 rounded-full dark:bg-background dark:hover:bg-accent">
             <span className="relative grid size-5 place-items-center" aria-hidden="true">
               <motion.span className="absolute inset-0 grid place-items-center" initial={false}
@@ -341,7 +372,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
             {unread && !isStreaming && <span className="agent-dock-unread" data-testid="agent-dock-unread" aria-hidden="true" />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={6}>{t(open ? "home:dock.close" : "home:dock.open")}{!open && (isStreaming ? ` · ${t("home:dock.working")}` : unread ? ` · ${t("home:dock.unread")}` : "")}</TooltipContent>
+        <TooltipContent side="right" sideOffset={8}>{t(open ? "home:dock.close" : "home:dock.open")}{!open && (isStreaming ? ` · ${t("home:dock.working")}` : unread ? ` · ${t("home:dock.unread")}` : "")}</TooltipContent>
       </Tooltip>
       <span className="sr-only" role="status" aria-live="polite">{!open && unread ? t("home:dock.unread") : ""}</span>
     </motion.div>

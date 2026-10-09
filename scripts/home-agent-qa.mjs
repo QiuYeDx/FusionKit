@@ -193,7 +193,7 @@ try {
     await expect(page.locator('[data-tool-call-id="success-call"]')).toHaveAttribute('data-tool-call-status', 'completed');
     await expect(page.locator('[data-tool-call-id="failed-call"]')).toHaveAttribute('data-tool-call-status', 'failed');
     await expect(page.locator('[data-tool-call-id="missing-call"]')).toHaveAttribute('data-tool-call-status', 'incomplete');
-    await expect(page.locator('[data-tool-call-id="success-call"]').getByRole('button')).toContainText(locales[language].tool_name_studio_documents);
+    await expect(page.locator('[data-tool-call-id="success-call"]').getByRole('button').first()).toContainText(locales[language].tool_name_studio_documents);
     await page.getByTestId('agent-plan').evaluate(element => element.scrollIntoView({ block: 'center' }));
     await page.waitForTimeout(150);
     await capture(`plan-${language}-${width}`);
