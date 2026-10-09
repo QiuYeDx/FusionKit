@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { smoothCorners } from "@qiuyedx/smooth-corners";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
@@ -13,6 +14,8 @@ import { setAgentNavigator } from "@/agent/navigation-tools";
 import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
+import { useFileDropInput, useInputHistory } from "../HomeAgent/composer";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ChatMarkdownRenderer } from "@/components/qiuye-ui/markdown-renderer";
@@ -31,6 +34,8 @@ const readPinned = () => { try { return localStorage.getItem(PIN_KEY) === "1"; }
 const EDGE = DOCK_EDGE;
 const PANEL_BOTTOM = DOCK_PANEL_BOTTOM;
 const SPRING = { type: "spring" as const, duration: 0.42, bounce: 0 };
+// Smooth corners for the panel; set directly because the panel is a motion element.
+const PANEL_CORNERS = smoothCorners(20, 0.72) as CSSProperties;
 /** The flight between the home page's conversation column and the panel. */
 const HANDOFF = { type: "spring" as const, duration: 0.52, bounce: 0 };
 const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight });
@@ -201,16 +206,21 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     setLauncherTip(false);
     if (restoreFocus) { quietLauncherFocus.current = true; launcherRef.current?.focus({ preventScroll: true }); }
   };
+  // Up/Down recall sent messages and dropped files add their paths, as on the home page.
+  const { remember: rememberInput, onHistoryKey } = useInputHistory(input, setInput, inputRef);
+  const { isDragOver, dropHandlers } = useFileDropInput(setInput, inputRef);
   const send = async () => {
     const text = input.trim();
     if (!text || isStreaming || !configured) return;
+    rememberInput(text);
     setInput("");
     atBottom.current = true;
     await handleUserMessage(text);
   };
   const onInputKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.nativeEvent.isComposing) return;
-    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); }
+    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); return; }
+    onHistoryKey(event);
   };
   const onPanelKey = (event: KeyboardEvent<HTMLDivElement>) => {
     // Inner layers (selects, tooltips) handle their own Escape first.
@@ -255,7 +265,8 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
         role={open ? "dialog" : undefined} aria-modal={open ? false : undefined} aria-label={open ? t("home:dock.panel_label") : undefined}
         aria-hidden={!open} inert={!open || arriving} data-arriving={arriving || undefined}
         onKeyDown={onPanelKey}
-        className="agent-dock-panel flex h-full w-full flex-col overflow-hidden rounded-2xl border bg-background"
+        className="agent-dock-panel smooth-corners flex h-full w-full flex-col overflow-hidden border bg-background"
+        style={PANEL_CORNERS}
         initial={arrival ? { opacity: 0 } : false}
         // A hidden panel leaves without an exit animation, which could never be seen or finish.
         exit={hidden ? undefined : { opacity: 0, transition: returningHome ? { duration: 0.22, delay: 0.24 } : { duration: 0.15 } }}
@@ -331,20 +342,24 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
               <span className="min-w-0 flex-1 text-xs leading-5 text-amber-700 dark:text-amber-400">{t("home:agent_not_configured")}</span>
               <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 rounded-full px-2 text-xs" onClick={() => navigate("/setting")}><Settings className="size-3" />{t("home:go_settings")}</Button>
             </div>}
-            <div className="rounded-xl border bg-background px-1.5 pt-1 pb-1.5 focus-within:border-ring/50 focus-within:shadow-sm">
+            {/* Concentric corners: the controls sit 6px inside the composer, so their radius is 16 - 6. */}
+            <SmoothCorners radius={16} smoothing={0.72} {...dropHandlers} data-testid="agent-dock-composer" data-drag-over={isDragOver || undefined}
+              className={cn("relative border bg-background p-1.5 transition-colors focus-within:border-ring/50 focus-within:shadow-sm",
+                isDragOver && "border-primary/40 bg-primary/5")}>
+              {isDragOver && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-xs font-medium text-primary">{t("home:drop_files_hint")}</div>}
               <Textarea ref={inputRef} rows={1} data-testid="agent-dock-input" aria-label={t("home:agent_input_label")} placeholder={t("home:agent_input_placeholder")}
                 value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={onInputKey} disabled={isStreaming}
-                className="agent-dock-input max-h-32 min-h-0 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-1.5 py-1 text-sm shadow-none focus-visible:border-transparent focus-visible:ring-0 disabled:opacity-50 dark:bg-transparent" />
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <CapsuleModeSelector value={executionMode} onChange={setExecutionMode} disabled={isStreaming} />
-                <Button type="button" data-testid="agent-dock-send" aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
+                className="agent-dock-input max-h-32 min-h-0 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-2 pt-1.5 pb-1 text-sm shadow-none focus-visible:border-transparent focus-visible:ring-0 disabled:opacity-50 dark:bg-transparent" />
+              <div className={cn("flex items-center justify-between gap-2 pt-1.5", isDragOver && "opacity-0")}>
+                <CapsuleModeSelector value={executionMode} onChange={setExecutionMode} disabled={isStreaming} radius={10} />
+                <SmoothCorners asChild radius={10} smoothing={0.72}><Button type="button" data-testid="agent-dock-send" aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
                   onClick={isStreaming ? () => abortCurrentStream() : () => void send()} disabled={!isStreaming && !canSend}
-                  className={cn("size-8 shrink-0 rounded-full transition-all duration-200",
+                  className={cn("size-8 shrink-0 transition-all duration-200",
                     isStreaming ? "shadow-sm hover:bg-destructive" : canSend ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90" : "bg-transparent text-muted-foreground/45")}>
                   {isStreaming ? <Square className="size-3.5 fill-current" /> : <Send className="size-4" />}
-                </Button>
+                </Button></SmoothCorners>
               </div>
-            </div>
+            </SmoothCorners>
           </div>
         </motion.div>
       </motion.div>

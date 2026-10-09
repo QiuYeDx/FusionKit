@@ -150,6 +150,8 @@
   "rename_rolled_back_hint": "Everything was restored.",
   "rename_risk_confirm": "Apply {{count}} rename operations? Confirm that you have reviewed the preview.",
   "copy_details": "Copy details",
+  "copy_message": "Copy message",
+  "message_copied": "Copied",
   "send_message": "Send message",
   "stop_response": "Stop generating",
   "agent_step_limit": "This turn reached the tool execution limit. Completed actions are preserved; you can continue in the next turn.",

@@ -53,7 +53,7 @@ import { inferContextWindowSize } from "@/constants/model";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
-import { getFilePathFromFile } from "@/utils/filePath";
+import { useFileDropInput, useInputHistory } from "./composer";
 import { ChatMarkdownRenderer } from "@/components/qiuye-ui/markdown-renderer";
 
 // ---------------------------------------------------------------------------
@@ -141,8 +141,6 @@ function HomeAgent() {
 
   const [isMultiline, setIsMultiline] = useState(() => draftInputCache.includes("\n"));
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const dragCounterRef = useRef(0);
 
   const setBottomState = useCallback((nextIsAtBottom: boolean) => {
     isAtBottomRef.current = nextIsAtBottom;
@@ -188,27 +186,9 @@ function HomeAgent() {
     [scrollToBottom],
   );
 
-  // Input history navigation (Up/Down arrow), persisted across sessions
-  const INPUT_HISTORY_KEY = "fusionkit-input-history";
-  const INPUT_HISTORY_MAX = 50;
-  const historyIndexRef = useRef(-1);
-  const draftRef = useRef("");
-  const inputHistoryRef = useRef<string[]>(null!);
-  if (inputHistoryRef.current === null) {
-    try {
-      const raw = localStorage.getItem(INPUT_HISTORY_KEY);
-      inputHistoryRef.current = raw ? JSON.parse(raw) : [];
-    } catch {
-      inputHistoryRef.current = [];
-    }
-  }
-  const pushHistory = (text: string) => {
-    const hist = inputHistoryRef.current;
-    if (hist[hist.length - 1] === text) return;
-    hist.push(text);
-    if (hist.length > INPUT_HISTORY_MAX) hist.splice(0, hist.length - INPUT_HISTORY_MAX);
-    localStorage.setItem(INPUT_HISTORY_KEY, JSON.stringify(hist));
-  };
+  // Up/Down recall sent messages and dropped files add their paths, as in the floating panel.
+  const { remember: rememberInput, onHistoryKey } = useInputHistory(input, setInput, textareaRef);
+  const { isDragOver, dropHandlers } = useFileDropInput(setInput, textareaRef);
 
   useEffect(() => {
     draftInputCache = input;
@@ -378,10 +358,8 @@ function HomeAgent() {
     const trimmed = input.trim();
     if (!trimmed || isStreaming || !hasAgentConfig || hasUnsupportedAgentApiFormat) return;
     setSessionFeedback(null);
-    pushHistory(trimmed);
+    rememberInput(trimmed);
     setInput("");
-    historyIndexRef.current = -1;
-    draftRef.current = "";
     await handleUserMessage(trimmed);
   };
 
@@ -393,91 +371,8 @@ function HomeAgent() {
       return;
     }
 
-    const hist = inputHistoryRef.current;
-    if (e.key === "ArrowUp" && hist.length > 0) {
-      const el = textareaRef.current;
-      const isAtStart = !el || el.selectionStart === 0;
-      const isSingleLine = !input.includes("\n");
-      if (isAtStart && isSingleLine) {
-        e.preventDefault();
-        if (historyIndexRef.current === -1) {
-          draftRef.current = input;
-        }
-        const nextIdx = Math.min(
-          historyIndexRef.current + 1,
-          hist.length - 1,
-        );
-        historyIndexRef.current = nextIdx;
-        setInput(hist[hist.length - 1 - nextIdx]);
-      }
-    }
-
-    if (e.key === "ArrowDown" && historyIndexRef.current >= 0) {
-      const el = textareaRef.current;
-      const isAtEnd = !el || el.selectionStart === el.value.length;
-      const isSingleLine = !input.includes("\n");
-      if (isAtEnd && isSingleLine) {
-        e.preventDefault();
-        const nextIdx = historyIndexRef.current - 1;
-        historyIndexRef.current = nextIdx;
-        if (nextIdx < 0) {
-          setInput(draftRef.current);
-        } else {
-          setInput(hist[hist.length - 1 - nextIdx]);
-        }
-      }
-    }
+    onHistoryKey(e);
   };
-
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current += 1;
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragOver(true);
-    }
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current -= 1;
-    if (dragCounterRef.current === 0) {
-      setIsDragOver(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragOver(false);
-      dragCounterRef.current = 0;
-
-      const files = Array.from(e.dataTransfer.files);
-      if (files.length === 0) return;
-
-      const paths = files
-        .map((f) => getFilePathFromFile(f))
-        .filter((p): p is string => !!p);
-
-      if (paths.length === 0) return;
-
-      const pathText = paths.map((p) => `\`${p}\``).join(" ");
-      setInput((prev) => {
-        const trimmed = prev.trimEnd();
-        return trimmed ? `${trimmed} ${pathText}` : pathText;
-      });
-
-      textareaRef.current?.focus();
-    },
-    [],
-  );
 
   const canSend =
     input.trim().length > 0 && !isStreaming && hasAgentConfig && !hasUnsupportedAgentApiFormat;
@@ -594,10 +489,7 @@ function HomeAgent() {
       {sessionFeedback && <p className="max-w-2xl mx-auto mb-2 px-2 text-xs leading-5 text-muted-foreground" role="status" aria-live="polite" data-testid="agent-session-feedback">{sessionFeedback}</p>}
 
       <motion.div
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
+        {...dropHandlers}
         className={cn(
           "shadow-sm relative",
           "bg-background",

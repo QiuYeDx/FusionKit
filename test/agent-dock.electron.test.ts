@@ -191,12 +191,50 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       expect(narrow.y + narrow.height).toBeLessThan(narrowNav!.y);
       await shot('06-open-786-dark');
 
+      // The panel and its composer have smooth corners; the composer's controls sit at equal insets.
+      const corners = await page.getByTestId('agent-dock-panel').evaluate(element => ({ shape: getComputedStyle(element).getPropertyValue('corner-top-left-shape') || getComputedStyle(element).getPropertyValue('corner-shape'), clip: getComputedStyle(element).clipPath }));
+      expect(corners.shape).toContain('superellipse');
+      expect(corners.clip).toContain('-24px');
+      const composerBox = (await page.getByTestId('agent-dock-composer').boundingBox())!;
+      const modeBox = (await panel.getByTestId('agent-execution-mode').boundingBox())!;
+      const sendBox = (await page.getByTestId('agent-dock-send').boundingBox())!;
+      const insets = [modeBox.x - composerBox.x, composerBox.y + composerBox.height - (modeBox.y + modeBox.height), composerBox.x + composerBox.width - (sendBox.x + sendBox.width)];
+      expect(Math.max(...insets) - Math.min(...insets)).toBeLessThanOrEqual(1);
+      await page.screenshot({ path: path.join(artifacts, '06b-composer-786-dark.png'), clip: { x: 0, y: composerBox.y - 20, width: 440, height: composerBox.height + 40 } });
+
+      // Up and Down recall sent messages in the panel as on the home page.
+      const dockInput = page.getByTestId('agent-dock-input');
+      await dockInput.click();
+      await dockInput.press('ArrowUp');
+      await uiExpect(dockInput).toHaveValue('第 5 句现在是什么？');
+      await dockInput.press('ArrowUp');
+      await uiExpect(dockInput).toHaveValue('文中的“法尔童”都应为“法厄同”');
+      await dockInput.press('ArrowDown');
+      await dockInput.press('ArrowDown');
+      await uiExpect(dockInput).toHaveValue('');
+
+      // A sent message offers a copy button while hovered.
+      const sent = panel.locator('[data-message-role=user]').filter({ hasText: '第 5 句现在是什么？' });
+      const copyButton = sent.getByTestId('agent-copy-message');
+      await uiExpect(copyButton).toHaveCSS('opacity', '0');
+      await sent.hover();
+      await uiExpect(copyButton).toHaveCSS('opacity', '1');
+      await page.screenshot({ path: path.join(artifacts, '06c-copy-message-786-dark.png'), clip: { x: 0, y: Math.max(0, ((await sent.boundingBox())!.y) - 30), width: 440, height: 110 } });
+      await copyButton.click();
+      await expect.poll(() => app!.evaluate(({ clipboard }) => clipboard.readText())).toBe('第 5 句现在是什么？');
+
       // The home page is the full assistant: no launcher, same conversation.
       await page.getByTestId('agent-dock-open-home').click();
       await page.getByTestId('home-agent').waitFor();
       await uiExpect(launcher).toHaveCount(0);
       await uiExpect(page.getByTestId('home-agent').getByText('第 5 句现在是什么？')).toBeVisible();
       await shot('07-home-same-conversation');
+      // The home composer shares the input history with the panel.
+      await page.getByTestId('agent-input').click();
+      await page.getByTestId('agent-input').press('ArrowUp');
+      await uiExpect(page.getByTestId('agent-input')).toHaveValue('第 5 句现在是什么？');
+      await page.getByTestId('agent-input').press('ArrowDown');
+      await uiExpect(page.getByTestId('agent-input')).toHaveValue('');
       expect(errors).toEqual([]);
     } finally {
       await app?.close();

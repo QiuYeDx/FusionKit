@@ -150,6 +150,8 @@
   "rename_rolled_back_hint": "すべて元に戻しました。",
   "rename_risk_confirm": "{{count}} 件の名前変更を適用します。プレビューを確認しましたか？",
   "copy_details": "詳細をコピー",
+  "copy_message": "メッセージをコピー",
+  "message_copied": "コピーしました",
   "send_message": "メッセージを送信",
   "stop_response": "生成を停止",
   "agent_step_limit": "このターンのツール実行上限に達しました。完了した操作は保持されています。次のターンで続行できます。",

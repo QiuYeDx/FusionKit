@@ -1,9 +1,9 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { NavigateFunction } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { Loader2, ListPlus, MessageSquareMore, Zap } from "lucide-react";
+import { Check, Copy, Loader2, ListPlus, MessageSquareMore, Zap } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import AgentToolCallView from "./components/AgentToolCall";
 import { isModernToolResult } from "./components/AgentToolResult";
@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import {
   ChatMarkdownRenderer,
@@ -207,25 +209,23 @@ export function CapsuleModeSelector({
   value,
   onChange,
   disabled,
+  radius,
 }: {
   value: ExecutionMode;
   onChange: (mode: ExecutionMode) => void;
   disabled?: boolean;
+  /** A smooth corner radius instead of the capsule, to sit concentrically in a rounded composer. */
+  radius?: number;
 }) {
   const { t } = useTranslation();
-
-  return (
-    <Select
-      value={value}
-      onValueChange={(v) => onChange(v as ExecutionMode)}
-      disabled={disabled}
-    >
+  const trigger = (
       <SelectTrigger
         size="sm"
         aria-label={t("home:execution_mode_label")}
         data-testid="agent-execution-mode"
         className={cn(
-          "h-8 rounded-full border-0 shadow-none -translate-x-0.5",
+          "h-8 rounded-full border-0 shadow-none",
+          radius === undefined && "-translate-x-0.5",
           "bg-secondary hover:bg-accent/60",
           "text-foreground/65",
           "focus-visible:ring-2 focus-visible:ring-ring/50",
@@ -234,6 +234,15 @@ export function CapsuleModeSelector({
       >
         <SelectValue />
       </SelectTrigger>
+  );
+
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => onChange(v as ExecutionMode)}
+      disabled={disabled}
+    >
+      {radius === undefined ? trigger : <SmoothCorners asChild radius={radius} smoothing={0.72}>{trigger}</SmoothCorners>}
       <SelectContent position="item-aligned">
         {EXECUTION_MODE_OPTIONS.map((opt) => (
           <SelectItem key={opt.value} value={opt.value}>
@@ -305,7 +314,8 @@ export const MessageBubble = React.memo(
   }) {
     if (message.role === "user") {
       return (
-        <div className="flex justify-end" data-message-role="user">
+        <div className="group/message flex items-start justify-end gap-1" data-message-role="user">
+          <CopyMessageButton text={message.content} />
           <SmoothCorners radius={18} smoothing={0.72} className="max-w-[85%] bg-secondary px-3.5 py-2 text-sm leading-6 text-secondary-foreground">
             <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
           </SmoothCorners>
@@ -350,6 +360,35 @@ export const MessageBubble = React.memo(
     prev.toolResults === next.toolResults &&
     prev.toolCallIds === next.toolCallIds,
 );
+
+/** Copies a sent message; it appears beside the bubble while the message is hovered or focused. */
+function CopyMessageButton({ text }: { text: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 1500);
+  };
+  const label = t(copied ? "home:message_copied" : "home:copy_message");
+  return <Tooltip delayDuration={350}>
+    <TooltipTrigger asChild>
+      <Button type="button" variant="ghost" size="icon" aria-label={label} data-testid="agent-copy-message" onClick={() => void copy()}
+        className={cn("mt-1 size-7 shrink-0 rounded-lg text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100",
+          "group-hover/message:opacity-100 group-focus-within/message:opacity-100", copied && "opacity-100")}>
+        {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent side="top" sideOffset={6}>{label}</TooltipContent>
+  </Tooltip>;
+}
 
 function ToolCard({ call, result }: { call: AgentToolCall; result?: AgentToolResult }) {
   const classic = result && !isModernToolResult(result.toolName);

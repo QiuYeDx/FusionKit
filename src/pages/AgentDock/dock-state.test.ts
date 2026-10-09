@@ -20,6 +20,6 @@ describe("agent dock state", () => {
 
   it("clips the closed panel to a launcher-sized circle at its bottom-left corner", () => {
     expect(dockClipPath(false, { width: 400, height: 620 })).toBe("inset(584px 364px 0px 0px round 18px)");
-    expect(dockClipPath(true, { width: 400, height: 620 })).toBe("inset(0px 0px 0px 0px round 16px)");
+    expect(dockClipPath(true, { width: 400, height: 620 })).toBe("inset(-24px -24px -24px -24px round 18px)");
   });
 });

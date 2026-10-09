@@ -150,6 +150,8 @@
   "rename_rolled_back_hint": "已全部恢復原狀。",
   "rename_risk_confirm": "將套用 {{count}} 個重新命名操作。請確認已檢查預覽結果。",
   "copy_details": "複製詳情",
+  "copy_message": "複製訊息",
+  "message_copied": "已複製",
   "send_message": "傳送訊息",
   "stop_response": "停止產生",
   "agent_step_limit": "本輪已達到工具執行上限。已完成操作已保留，可繼續下一輪。",

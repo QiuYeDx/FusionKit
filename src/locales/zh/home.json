@@ -150,6 +150,8 @@
   "rename_rolled_back_hint": "已全部恢复原状。",
   "rename_risk_confirm": "将应用 {{count}} 个重命名操作。请确认已经检查预览结果。",
   "copy_details": "复制详情",
+  "copy_message": "复制消息",
+  "message_copied": "已复制",
   "send_message": "发送消息",
   "stop_response": "停止生成",
   "agent_step_limit": "本轮已达到工具执行上限。已完成操作已保留，可继续下一轮。",
