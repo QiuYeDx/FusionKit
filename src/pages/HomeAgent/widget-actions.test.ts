@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentMessage, PendingExecution, PendingNameTranslationPlan } from "@/agent/types";
-import { createWidgetActionHandler, isNamePlanResultFor, type WidgetActionState } from "./widget-actions";
+import { createWidgetActionHandler, isNamePlanResultFor, renamePlanEvent, type WidgetActionState } from "./widget-actions";
 
 function fixture() {
   const pending: PendingExecution = { stores: ["translate"], taskCounts: { translate: 1 }, taskRefs: [{ store: "translate", taskId: "real-task" }], timestamp: 1 };
@@ -60,6 +60,25 @@ describe("HomeAgent widget execution authority", () => {
     expect(isNamePlanResultFor(message, "another-plan")).toBe(false);
     expect(isNamePlanResultFor({ ...message, toolResult: { ...message.toolResult!, success: false } }, "real-plan")).toBe(false);
     expect(isNamePlanResultFor(message, undefined)).toBe(false);
+  });
+  it("reports what the user decided on a trusted card, so the agent can follow up", async () => {
+    const { state, plan, pending, navigate } = fixture();
+    const report = vi.fn();
+    const applied = { planId: "real-plan", journalId: "j", totalCount: 1, successCount: 1, failedCount: 0, skippedCount: 0, rolledBack: false };
+    state.confirmNameTranslationPlan = vi.fn(async () => { state.pendingNameTranslationPlan = { ...plan, resolvedAction: "confirm", applyResult: applied }; return applied; });
+    createWidgetActionHandler("session-a", () => state, navigate, { kind: "name-translation-plan", plan }, report)(action("name-translation-plan"));
+    await vi.waitFor(() => expect(report).toHaveBeenCalledWith({ kind: "rename_applied", values: { planId: "real-plan", success: 1, failed: 0, skipped: 0, rolledBack: false } }));
+    createWidgetActionHandler("session-a", () => state, navigate, { kind: "pending-execution", pending }, report)(action("pending-execution"));
+    expect(report).toHaveBeenLastCalledWith({ kind: "execution_confirmed", values: { count: 1, stores: "translate" } });
+    // Display-only cards decide nothing and report nothing.
+    report.mockClear();
+    createWidgetActionHandler("session-a", () => state, navigate, { kind: "display" }, report)(action("name-translation-plan", "dismiss"));
+    expect(report).not.toHaveBeenCalled();
+  });
+  it("describes a failed apply, and nothing while the outcome is still open", () => {
+    const { plan } = fixture();
+    expect(renamePlanEvent({ ...plan, error: "rename_plan_changed" })).toEqual({ kind: "rename_failed", values: { planId: "real-plan", error: "rename_plan_changed" } });
+    expect(renamePlanEvent(plan)).toBeNull();
   });
   it("limits display-only navigation to known tool routes", () => {
     const { state, navigate } = fixture();

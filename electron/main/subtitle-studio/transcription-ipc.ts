@@ -6,6 +6,7 @@ import { localSubtitleAuthorizedMediaSchema, localSubtitleMediaProbeSummarySchem
 import type { LocalSubtitleOwnerKey } from './transcription/native/authorizations';
 import type { TranscriptionRuntime } from './transcription/runtime';
 import type { NativeInputSelection } from './drop-input-service';
+import { collectTranscriptionMediaPaths, TRANSCRIPTION_MEDIA_EXTENSIONS } from './transcription-paths';
 
 export function transcriptionIpcError(error: unknown): ErrorCode {
   if (error instanceof StudioError) return error.code;
@@ -65,10 +66,18 @@ export async function handleTranscriptionRequest(input: {
     const window = BrowserWindow.fromWebContents(sender);
     if (!window) throw new StudioError('access_denied');
     const selection = await dialog.showOpenDialog(window, { properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Audio / Video', extensions: ['wav', 'mp3', 'm4a', 'aac', 'flac', 'ogg', 'opus', 'mp4', 'mkv', 'mov', 'webm', 'avi'] }] });
+      filters: [{ name: 'Audio / Video', extensions: [...TRANSCRIPTION_MEDIA_EXTENSIONS] }] });
     alive();
     if (selection.canceled || !selection.filePaths.length) return null;
     return authorizeTranscriptionMedia(selection.filePaths.map(filePath => ({ path: filePath, fileName: path.basename(filePath) })), runtime, owner, alive);
+  }
+  if (method === 'authorizeTranscriptionPaths') {
+    const { paths, recursive, offset = 0 } = requestSchemas.authorizeTranscriptionPaths.parse(payload);
+    const found = await collectTranscriptionMediaPaths(paths, { recursive }); alive();
+    // One page at a time: a transcription takes at most 20 media files.
+    const page = found.slice(offset, offset + 20);
+    const value = await authorizeTranscriptionMedia(page, runtime, owner, alive);
+    return { ...value, matched: found.length, ...(offset + page.length < found.length ? { nextOffset: offset + page.length } : {}) };
   }
   if (method === 'probeTranscriptionMedia') {
     const { fileToken } = requestSchemas.probeTranscriptionMedia.parse(payload);

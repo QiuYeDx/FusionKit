@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { smoothCorners } from "@qiuyedx/smooth-corners";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { motion, AnimatePresence } from "motion/react";
-import { AlertTriangle, ArrowDown, ChevronDown, Maximize2, Pin, RotateCcw, Send, Settings, Sparkles, Square, X } from "lucide-react";
+import { motion, AnimatePresence, useMotionValue, useTransform } from "motion/react";
+import { AlertTriangle, ArrowDown, Maximize2, Minus, Pin, RotateCcw, Send, Settings, Sparkles, Square } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { abortCurrentStream, handleUserMessage } from "@/agent/orchestrator";
@@ -18,21 +18,29 @@ import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { useFileDropInput, useInputHistory } from "../HomeAgent/composer";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChatMarkdownRenderer } from "@/components/qiuye-ui/markdown-renderer";
 import { cn } from "@/lib/utils";
-import AgentPlanPanel from "../HomeAgent/components/AgentPlanPanel";
-import AgentPreparedActions from "../HomeAgent/components/AgentPreparedActions";
-import { CapsuleModeSelector, homeAgentWidgetRegistry, MessageBubble, pendingExecutionToFence, StreamingAssistant, useAgentWidgetContexts, useConversationIndex } from "../HomeAgent/conversation";
+import { CapsuleModeSelector, ConversationFeed, useAgentWidgetContexts } from "../HomeAgent/conversation";
 import { dockClipPath, hasUnreadReply, isDockRoute } from "./dock-state";
-import { DOCK_EDGE, DOCK_PANEL_BOTTOM, dockPanelRect, homeColumnTarget, readHomeColumn, type DockRect, type Viewport } from "./handoff";
+import { travel } from "./travel";
+import { clampDockOffset, DOCK_EDGE, DOCK_PANEL_BOTTOM, dockPanelRect, homeColumnTarget, readHomeColumn, type DockOffset, type DockRect, type Viewport } from "./handoff";
 import "./AgentDock.css";
 
 /** Draft kept across closing the panel and page changes; cleared on reload like the home page draft. */
 let draftCache = "";
 const PIN_KEY = "fusionkit-agent-dock-pinned";
 const readPinned = () => { try { return localStorage.getItem(PIN_KEY) === "1"; } catch { return false; } };
+const OFFSET_KEY = "fusionkit-agent-dock-offset";
+const readOffset = (): DockOffset => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(OFFSET_KEY) ?? "null");
+    if (Number.isFinite(stored?.x) && Number.isFinite(stored?.y)) return { x: stored.x, y: stored.y };
+  } catch { /* the panel then opens in its default place */ }
+  return { x: 0, y: 0 };
+};
+/** Presses on the header's controls are not drags. */
+const HEADER_CONTROLS = "button, a, input, textarea, [role=button]";
 const EDGE = DOCK_EDGE;
-const PANEL_BOTTOM = DOCK_PANEL_BOTTOM;
+
 const SPRING = { type: "spring" as const, duration: 0.42, bounce: 0 };
 // Smooth corners for the panel; set directly because the panel is a motion element.
 const PANEL_CORNERS = smoothCorners(20, 0.72) as CSSProperties;
@@ -40,6 +48,17 @@ const PANEL_CORNERS = smoothCorners(20, 0.72) as CSSProperties;
 const HANDOFF = { type: "spring" as const, duration: 0.52, bounce: 0 };
 const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight });
 const CONTENT_EASE = [0.23, 1, 0.32, 1] as const;
+/** Closed, the panel moves down so the circle it shrinks to lands on the launcher. */
+const CLOSED_PLACE: DockOffset = { x: 0, y: DOCK_PANEL_BOTTOM - EDGE };
+const shiftRect = (rect: DockRect, by: DockOffset): DockRect => ({ ...rect, left: rect.left - by.x, top: rect.top - by.y });
+/**
+ * Opening and minimizing carry the panel with momentum: it reaches its place in about TRAVEL seconds,
+ * runs on along the way it came by a few pixels and springs back. Landing on the launcher overshoots a little
+ * more than opening, where the whole panel moves; both stay inside the launcher's edge gap.
+ */
+const TRAVEL = 0.4;
+const OPEN_OVERSHOOT = 6;
+const CLOSE_OVERSHOOT = 8;
 
 function DockIconButton({ label, onClick, disabled, children, testId, className, pressed }: { label: string; onClick: () => void; disabled?: boolean; children: React.ReactNode; testId?: string; className?: string; pressed?: boolean }) {
   return <Tooltip delayDuration={350}>
@@ -53,8 +72,10 @@ function DockIconButton({ label, onClick, disabled, children, testId, className,
 
 /**
  * The assistant on every page but the home page: a launcher at the bottom left,
- * mirroring the theme switch, opens a non-modal panel with the same conversation
- * as the home page. The panel tells the agent which page the user is on.
+ * mirroring the theme switch, turns into a non-modal panel with the same
+ * conversation as the home page, and the panel's minimize button turns it back
+ * into the launcher. The panel can be dragged by its header and tells the agent
+ * which page the user is on.
  *
  * Leaving the home page with a conversation hands it over: the panel's frame
  * flies from the home conversation column to its place, and back when the user
@@ -98,6 +119,64 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   }, []);
   const rest = dockPanelRect(viewport);
   const returningHome = open && !reduceMotion;
+  // Where the user dragged the panel. It is clamped to the window where it is used, so the place comes
+  // back when a window that was made smaller grows again.
+  const preferred = useRef(readOffset());
+  const dragRef = useRef<{ pointer: number; startX: number; startY: number; from: DockOffset } | null>(null);
+  const place = open || reduceMotion ? clampDockOffset(preferred.current, viewport) : CLOSED_PLACE;
+  const x = useMotionValue(place.x);
+  const y = useMotionValue(place.y);
+  // Stops the current move and gives its velocity, which a move that interrupts it carries on.
+  const stopTravel = useRef<(() => DockOffset) | null>(null);
+  const moveTo = useCallback((target: DockOffset, animated: boolean, overshoot = 0) => {
+    const velocity = stopTravel.current?.();
+    stopTravel.current = null;
+    if (!animated) { x.jump(target.x); y.jump(target.y); return; }
+    stopTravel.current = travel(x, y, target, { duration: TRAVEL, overshoot, velocity });
+  }, [x, y]);
+  useEffect(() => () => { stopTravel.current?.(); }, []);
+  // Opening flies the launcher's circle to the panel's place while it grows; minimizing flies it back.
+  // Other moves (a resized window) only follow without the overshoot.
+  const movedOpen = useRef(open);
+  useEffect(() => {
+    const toggled = movedOpen.current !== open;
+    movedOpen.current = open;
+    if (!dragRef.current) moveTo(place, !reduceMotion, toggled ? (open ? OPEN_OVERSHOOT : CLOSE_OVERSHOOT) : 0);
+  }, [open, place.x, place.y, reduceMotion, moveTo]);
+  // The launcher rides with the panel's circle, so that it leaves with the growing panel and lands with the
+  // shrinking one, momentum included; at rest it is where the closed panel's circle is.
+  const launcherX = useTransform(x, (value) => value - CLOSED_PLACE.x);
+  const launcherY = useTransform(y, (value) => value - CLOSED_PLACE.y);
+  const savePlace = (next: DockOffset) => {
+    preferred.current = next;
+    try { localStorage.setItem(OFFSET_KEY, JSON.stringify(next)); } catch { /* the place then lasts while the panel is mounted */ }
+  };
+  const onHeaderPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.button !== 0 || !open || arriving || (event.target as Element).closest(HEADER_CONTROLS)) return;
+    // No text selection or focus change while dragging.
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    stopTravel.current?.(); stopTravel.current = null;
+    dragRef.current = { pointer: event.pointerId, startX: event.clientX, startY: event.clientY, from: { x: x.get(), y: y.get() } };
+  };
+  const onHeaderPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointer !== event.pointerId) return;
+    const next = clampDockOffset({ x: drag.from.x + event.clientX - drag.startX, y: drag.from.y + event.clientY - drag.startY }, readViewport());
+    x.set(next.x); y.set(next.y);
+  };
+  const onHeaderPointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointer !== event.pointerId) return;
+    dragRef.current = null;
+    if (x.get() !== drag.from.x || y.get() !== drag.from.y) savePlace({ x: x.get(), y: y.get() });
+  };
+  // A double click on the header brings the panel back to where it rests by default.
+  const onHeaderDoubleClick = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!open || arriving || (event.target as Element).closest(HEADER_CONTROLS)) return;
+    savePlace({ x: 0, y: 0 });
+    moveTo({ x: 0, y: 0 }, !reduceMotion, OPEN_OVERSHOOT);
+  };
   const launcherRef = useRef<HTMLButtonElement>(null);
   const [launcherTip, setLauncherTip] = useState(false);
   // Focus returned to the launcher by closing the panel is not a request for its tooltip;
@@ -146,9 +225,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     pendingExecution: state.pendingExecution, pendingNameTranslationPlan: state.pendingNameTranslationPlan, resetSession: state.resetSession,
   })));
   const { messages } = session;
-  const { toolResults, toolCallIds } = useConversationIndex(messages);
-  const { widgetContext, streamingWidgetContext, pendingWidgetContext, namePlanWidgetContext } =
-    useAgentWidgetContexts(session.id, pendingExecution, pendingNameTranslationPlan, navigate);
+  const widgetContexts = useAgentWidgetContexts(session.id, pendingExecution, pendingNameTranslationPlan, navigate);
 
   const agentProfile = useModelStore((state) => state.getAgentProfile());
   const configured = !!agentProfile?.apiKey?.trim() && isAgentProfileApiFormatSupported(agentProfile);
@@ -208,7 +285,8 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   const closePanel = (restoreFocus = true) => {
     setOpen(false);
     setLauncherTip(false);
-    if (restoreFocus) { quietLauncherFocus.current = true; launcherRef.current?.focus({ preventScroll: true }); }
+    // The launcher is inert while the panel is open, so it takes focus once the closed state renders.
+    if (restoreFocus) { quietLauncherFocus.current = true; requestAnimationFrame(() => launcherRef.current?.focus({ preventScroll: true })); }
   };
   // Up/Down recall sent messages and dropped files add their paths, as on the home page.
   const { remember: rememberInput, onHistoryKey } = useInputHistory(input, setInput, inputRef);
@@ -225,6 +303,12 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); return; }
     onHistoryKey(event);
+  };
+  // Asks the agent right away; the draft in the composer stays as it is.
+  const checkProgress = () => {
+    if (isStreaming || !configured) return;
+    atBottom.current = true;
+    void handleUserMessage(t("home:plan_check_prompt"));
   };
   const onPanelKey = (event: KeyboardEvent<HTMLDivElement>) => {
     // Inner layers (selects, tooltips) handle their own Escape first.
@@ -255,10 +339,12 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
 
   return <>
     <motion.div className="agent-dock-shadow fixed z-[45]" data-hidden={hidden || undefined} data-testid="agent-dock-frame"
-      initial={arrival && !reduceMotion ? arrival : false}
+      // The frame stays at the default place and the panel inside it carries the drag, so a handover
+      // starts and ends at the home column wherever the panel was dragged.
+      initial={arrival && !reduceMotion ? shiftRect(arrival, place) : false}
       animate={rest}
       transition={arriving ? HANDOFF : { duration: 0 }}
-      exit={returningHome ? { ...homeColumnTarget(viewport), transition: HANDOFF } : undefined}
+      exit={returningHome ? { ...shiftRect(homeColumnTarget(viewport), place), transition: HANDOFF } : undefined}
       onAnimationComplete={() => {
         if (!arriving) return;
         setArriving(false);
@@ -270,16 +356,18 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
         aria-hidden={!open} inert={!open || arriving} data-arriving={arriving || undefined}
         onKeyDown={onPanelKey}
         className="agent-dock-panel smooth-corners flex h-full w-full flex-col overflow-hidden border bg-background"
-        style={PANEL_CORNERS}
+        style={{ ...PANEL_CORNERS, x, y }}
         initial={arrival ? { opacity: 0 } : false}
         // A hidden panel leaves without an exit animation, which could never be seen or finish.
         exit={hidden ? undefined : { opacity: 0, transition: returningHome ? { duration: 0.22, delay: 0.24 } : { duration: 0.15 } }}
         animate={reduceMotion
-          ? { opacity: open ? 1 : 0, clipPath: dockClipPath(true, size), y: 0 }
-          : { opacity: open ? 1 : 0, clipPath: dockClipPath(open, size), y: open ? 0 : PANEL_BOTTOM - EDGE }}
+          ? { opacity: open ? 1 : 0, clipPath: dockClipPath(true, size) }
+          : { opacity: open ? 1 : 0, clipPath: dockClipPath(open, size) }}
         transition={reduceMotion ? { duration: 0.16 } : {
           ...SPRING,
-          opacity: open ? { duration: 0.12 } : { duration: 0.16, delay: 0.18 },
+          // Minimizing, the launcher fades in over the shrinking circle first and the panel fades out under
+          // it afterwards, so the two never show through each other.
+          opacity: open ? { duration: 0.12 } : { duration: 0.1, delay: 0.28 },
         }}
         onAnimationComplete={() => { if (!open) setHidden(true); }}
       >
@@ -290,7 +378,9 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
           // never doubles with the home page's copy at a slightly different offset.
           exit={hidden ? undefined : { opacity: 0, transition: returningHome ? { duration: 0.14, delay: 0.14 } : { duration: 0.12 } }}
           transition={reduceMotion ? { duration: arrival ? 0.2 : 0 } : { duration: open ? (arriving ? 0.16 : 0.22) : 0.12, delay: open ? (arriving ? 0.1 : 0.08) : 0, ease: CONTENT_EASE }}>
-          <header className="relative z-10 flex shrink-0 items-center gap-2 border-b bg-background px-3 py-2">
+          <header className="relative z-10 flex shrink-0 cursor-grab touch-none items-center gap-2 border-b bg-background px-3 py-2 select-none active:cursor-grabbing"
+            data-testid="agent-dock-header" onPointerDown={onHeaderPointerDown} onPointerMove={onHeaderPointerMove}
+            onPointerUp={onHeaderPointerUp} onLostPointerCapture={onHeaderPointerUp} onDoubleClick={onHeaderDoubleClick}>
             <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-medium leading-5">{t("home:agent_title")}</div>
@@ -301,7 +391,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
             <DockIconButton label={t("home:dock.open_home")} testId="agent-dock-open-home" onClick={() => navigate("/")}><Maximize2 className="size-3.5" /></DockIconButton>
             <DockIconButton label={t(confirmingReset ? "home:confirm_new_conversation" : "home:new_conversation")} testId="agent-dock-reset" disabled={isStreaming || !messages.length} onClick={onReset}
               className={confirmingReset ? "text-destructive hover:text-destructive" : undefined}><RotateCcw className="size-3.5" /></DockIconButton>
-            <DockIconButton label={t("home:dock.close")} testId="agent-dock-close" onClick={() => closePanel()}><X className="size-4" /></DockIconButton>
+            <DockIconButton label={t("home:dock.minimize")} testId="agent-dock-minimize" onClick={() => closePanel()}><Minus className="size-4" /></DockIconButton>
           </header>
 
           <div className="relative min-h-0 flex-1">
@@ -320,15 +410,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
                     </Button>)}
                   </div>}
                 </div>}
-                {messages.map((message) => <MessageBubble key={message.id} message={message} widgetRegistry={homeAgentWidgetRegistry} widgetContext={widgetContext}
-                  namePlanWidgetContext={namePlanWidgetContext} pendingNamePlanId={pendingNameTranslationPlan?.planId} toolResults={toolResults} toolCallIds={toolCallIds} />)}
-                {isStreaming && <StreamingAssistant widgetContext={streamingWidgetContext} />}
-                <AgentPreparedActions key={session.id} sessionId={session.id} busy={isStreaming} />
-                {session.plan && <AgentPlanPanel key={session.plan.id} plan={session.plan} busy={isStreaming}
-                  onCheckProgress={() => { setInput(current => current || t("home:plan_check_prompt")); requestAnimationFrame(() => inputRef.current?.focus()); }} />}
-                {pendingExecution && !isStreaming && <div>
-                  <ChatMarkdownRenderer content={pendingExecutionToFence(pendingExecution)} widgetRegistry={homeAgentWidgetRegistry} widgetContext={pendingWidgetContext} codeBlock={{ colorTheme: "qiuvision" }} />
-                </div>}
+                <ConversationFeed contexts={widgetContexts} onCheckProgress={checkProgress} canCheckProgress={configured} />
               </div>
             </ScrollArea>
             <AnimatePresence>
@@ -369,29 +451,24 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
       </motion.div>
     </motion.div>
 
-    <motion.div className="fixed z-[46]" style={{ left: EDGE, bottom: EDGE }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.16 }}>
+    {/* The open panel takes the launcher's place: the launcher hides as the panel grows out of it and returns as the panel shrinks into it. */}
+    <motion.div className={cn("fixed z-[46]", open && "pointer-events-none")} inert={open}
+      style={reduceMotion ? { left: EDGE, bottom: EDGE } : { left: EDGE, bottom: EDGE, x: launcherX, y: launcherY }}
+      initial={{ opacity: 0 }} animate={{ opacity: open ? 0 : 1 }} exit={{ opacity: 0 }}
+      transition={open || reduceMotion ? { duration: open ? 0.1 : 0.16 } : { duration: 0.1, delay: 0.2 }}>
       <Tooltip delayDuration={350} open={launcherTip} onOpenChange={(next) => { if (!next || !quietLauncherFocus.current) setLauncherTip(next); }}>
         <TooltipTrigger asChild>
           <Button ref={launcherRef} type="button" variant="outline" size="icon" data-testid="agent-dock-launcher"
-            aria-label={t(open ? "home:dock.close" : "home:dock.open")} aria-expanded={open} aria-controls="agent-dock-panel"
-            onClick={() => open ? closePanel() : openPanel()}
+            aria-label={t("home:dock.open")} aria-expanded={open} aria-controls="agent-dock-panel"
+            onClick={openPanel}
             onPointerEnter={() => { quietLauncherFocus.current = false; }} onBlur={() => { quietLauncherFocus.current = false; }}
             className="agent-dock-launcher relative h-9 w-9 rounded-full dark:bg-background dark:hover:bg-accent">
-            <span className="relative grid size-5 place-items-center" aria-hidden="true">
-              <motion.span className="absolute inset-0 grid place-items-center" initial={false}
-                animate={{ opacity: open ? 0 : 1, scale: open && !reduceMotion ? 0.6 : 1 }} transition={{ duration: 0.16 }}>
-                <Sparkles className="size-5" />
-              </motion.span>
-              <motion.span className="absolute inset-0 grid place-items-center" initial={false}
-                animate={{ opacity: open ? 1 : 0, scale: open || reduceMotion ? 1 : 0.6 }} transition={{ duration: 0.16 }}>
-                <ChevronDown className="size-5" />
-              </motion.span>
-            </span>
+            <Sparkles className="size-5" aria-hidden="true" />
             {!open && isStreaming && <span className="agent-dock-busy" data-testid="agent-dock-busy" aria-hidden="true" />}
             {unread && !isStreaming && <span className="agent-dock-unread" data-testid="agent-dock-unread" aria-hidden="true" />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={8}>{t(open ? "home:dock.close" : "home:dock.open")}{!open && (isStreaming ? ` · ${t("home:dock.working")}` : unread ? ` · ${t("home:dock.unread")}` : "")}</TooltipContent>
+        <TooltipContent side="right" sideOffset={8}>{t("home:dock.open")}{!open && (isStreaming ? ` · ${t("home:dock.working")}` : unread ? ` · ${t("home:dock.unread")}` : "")}</TooltipContent>
       </Tooltip>
       <span className="sr-only" role="status" aria-live="polite">{!open && unread ? t("home:dock.unread") : ""}</span>
     </motion.div>

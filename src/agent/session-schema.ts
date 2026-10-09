@@ -14,9 +14,14 @@ const message = z.object({
   id, role: z.enum(["user", "assistant", "system", "tool"]), content: text, timestamp: time,
   toolCalls: z.array(z.object({ toolCallId: id, toolName: id, args: data, responseItemId: id.optional() })).max(64).optional(),
   toolResult: z.object({ callId: id, toolName: id, success: z.boolean(), data: z.unknown().optional(), error: text.optional() }).optional(),
+  event: z.object({
+    kind: z.enum(["rename_applied", "rename_failed", "rename_dismissed", "action_completed", "action_failed", "action_dismissed", "execution_confirmed", "execution_dismissed"]),
+    values: z.record(z.string().max(100), z.union([z.string().max(2000), z.number().finite(), z.boolean()])).optional(),
+  }).optional(),
 }).superRefine((value, context) => {
   if (value.role === "tool" && !value.toolResult) context.addIssue({ code: "custom", message: "Tool messages require a result." });
   if (value.toolCalls && value.role !== "assistant") context.addIssue({ code: "custom", message: "Only assistant messages may contain tool calls." });
+  if (value.event && value.role !== "user") context.addIssue({ code: "custom", message: "Only user-turn messages may carry interface events." });
 });
 const plan = z.object({ id, goal: z.string(), steps: z.array(z.unknown()), updatedAt: time }).transform((value, context) => {
   const parsed = agentPlanInputSchema.safeParse({ goal: value.goal, steps: value.steps });

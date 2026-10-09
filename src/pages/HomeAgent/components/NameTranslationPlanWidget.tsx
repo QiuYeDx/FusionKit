@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   FilePenLine,
   Loader2,
   PauseCircle,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import useAgentStore from "@/store/agent/useAgentStore";
@@ -73,24 +75,25 @@ function NameTranslationPlanWidgetComponent({
   const isApplying = pendingPlan?.isApplying ?? props.isApplying ?? false;
   const applyResult = pendingPlan?.applyResult ?? props.applyResult;
   const error = pendingPlan?.error ?? props.error;
-  const canConfirm =
-    isTrustedResult &&
-    !!pendingPlan &&
-    props.requiresConfirmation !== false &&
-    props.applyable &&
-    !resolvedAction &&
-    !isApplying &&
-    !isStreaming;
+  const live = isTrustedResult && !!pendingPlan;
+  // A preview without its live plan is history: a newer preview replaced it, or the session was imported.
+  const historical = !live && props.applyable;
+  const awaiting = live && props.requiresConfirmation !== false && props.applyable && !resolvedAction;
+  const canConfirm = awaiting && !isApplying && !isStreaming;
   const hasRiskPrompt = props.totalTargets > 50 || props.warnings.length > 0;
+  // The items are open while the preview waits for a decision, and folded once it is history.
+  const [itemsChoice, setItemsChoice] = React.useState<boolean | null>(null);
+  const showItems = itemsChoice ?? awaiting;
 
+  // Large or warned plans ask once more, in the app's own dialog.
+  const [riskOpen, setRiskOpen] = React.useState(false);
   const handleConfirm = () => {
     if (!canConfirm) return;
-    if (hasRiskPrompt) {
-      const accepted = window.confirm(
-        t("home:rename_risk_confirm", { count: props.readyCount })
-      );
-      if (!accepted) return;
-    }
+    if (hasRiskPrompt) { setRiskOpen(true); return; }
+    submitConfirm();
+  };
+  const submitConfirm = () => {
+    if (!canConfirm) return;
     context.onWidgetAction?.({
       widgetId: id,
       type: "name-translation-plan",
@@ -100,7 +103,7 @@ function NameTranslationPlanWidgetComponent({
   };
 
   const handleDismiss = () => {
-    if (!isTrustedResult || !pendingPlan || isApplying || isStreaming) return;
+    if (!live || isApplying || isStreaming) return;
     context.onWidgetAction?.({
       widgetId: id,
       type: "name-translation-plan",
@@ -122,41 +125,84 @@ function NameTranslationPlanWidgetComponent({
     });
   };
 
+  const counts = [
+    { key: "ready", value: props.readyCount, label: t("home:rename_ready"), tone: "success" },
+    { key: "blocked", value: props.blockedCount, label: t("home:rename_blocked"), tone: "danger" },
+    { key: "skipped", value: props.skippedCount, label: t("home:rename_skipped") },
+    { key: "unchanged", value: props.unchangedCount, label: t("home:rename_unchanged") },
+  ].filter((item) => item.key === "ready" || item.value > 0);
+
   return (
-    <SmoothCorners radius={14} smoothing={0.72} className="min-w-0 overflow-hidden border bg-card">
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <FilePenLine className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-foreground">
+    <SmoothCorners
+      radius={14}
+      smoothing={0.72}
+      data-testid="agent-name-plan"
+      data-plan-state={awaiting ? "awaiting" : historical ? "historical" : resolvedAction ?? "display"}
+      className={cn(
+        "min-w-0 overflow-hidden border bg-card",
+        awaiting && "border-primary/30 ring-1 ring-primary/10"
+      )}
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2">
+        <FilePenLine className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="shrink-0 text-xs font-medium text-foreground">
           {t("home:rename_preview")}
         </span>
-        <code className="ml-auto max-w-[11rem] truncate text-[11px] text-muted-foreground">
-          {shortPlanId(props.planId)}
-        </code>
+        {awaiting && (
+          <Badge className="h-5 shrink-0 rounded-full px-2 text-[10px]">{t("home:rename_awaiting")}</Badge>
+        )}
+        {historical && (
+          <span className="shrink-0 text-[11px] text-muted-foreground">{t("home:rename_superseded")}</span>
+        )}
+        <span className="ml-auto flex min-w-0 flex-wrap items-baseline justify-end gap-x-2 text-[11px] tabular-nums text-muted-foreground" data-testid="name-plan-counts">
+          <span>{t("home:rename_total_count", { count: props.totalTargets })}</span>
+          {counts.map((item) => (
+            <span key={item.key} className={cn(
+              item.tone === "success" && item.value > 0 && "text-emerald-600 dark:text-emerald-400",
+              item.tone === "danger" && "text-destructive"
+            )}>
+              {item.label} {item.value}
+            </span>
+          ))}
+        </span>
       </div>
 
-      <div className="space-y-3 px-3 py-3">
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-5">
-          <Metric label={t("home:rename_total")} value={props.totalTargets} />
-          <Metric label={t("home:rename_ready")} value={props.readyCount} tone="success" />
-          <Metric label={t("home:rename_blocked")} value={props.blockedCount} tone="danger" />
-          <Metric label={t("home:rename_skipped")} value={props.skippedCount} />
-          <Metric label={t("home:rename_unchanged")} value={props.unchangedCount} />
-        </div>
-
-        {props.itemsPreview.length > 0 && (
-          <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
-            {props.itemsPreview.map((item) => (
-              <PreviewRow key={item.id} item={item} />
-            ))}
-            {props.totalTargets > props.itemsPreview.length && (
-              <div className="px-2 pt-1 text-[11px] text-muted-foreground">
-                {t("home:rename_more", { count: props.totalTargets - props.itemsPreview.length })}
+      <div className="space-y-2.5 border-t px-3 py-2.5">
+        {(props.itemsPreview.length > 0 || historical) && (
+          <div>
+            <div className="flex min-h-6 items-center gap-2">
+              {props.itemsPreview.length > 0 && <button
+                type="button"
+                onClick={() => setItemsChoice(!showItems)}
+                aria-expanded={showItems}
+                className="flex items-center gap-1 rounded text-[11px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <ChevronDown className={cn("h-3 w-3 transition-transform duration-200 motion-reduce:transition-none", !showItems && "-rotate-90")} />
+                {t("home:rename_items", { count: props.totalTargets })}
+              </button>}
+              {/* History has nothing left to decide: the tool page is its only way on. */}
+              {historical && <Button variant="ghost" size="sm" onClick={handleNavigate}
+                className="ml-auto h-6 rounded-full px-2 text-[11px] text-muted-foreground">
+                {t("home:open_tool")}
+                <ArrowRight className="h-3 w-3" />
+              </Button>}
+            </div>
+            {showItems && (
+              <div className="mt-1.5 max-h-52 divide-y divide-border/50 overflow-y-auto rounded-lg bg-muted/30 px-2.5">
+                {props.itemsPreview.map((item) => (
+                  <PreviewRow key={item.id} item={item} />
+                ))}
+                {props.totalTargets > props.itemsPreview.length && (
+                  <div className="py-1.5 text-[11px] text-muted-foreground">
+                    {t("home:rename_more", { count: props.totalTargets - props.itemsPreview.length })}
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {props.warnings.length > 0 && (
+        {props.warnings.length > 0 && !historical && (
           <div className="flex gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div className="min-w-0 space-y-1">
@@ -178,38 +224,43 @@ function NameTranslationPlanWidgetComponent({
 
         {resolvedAction ? (
           <ResolvedState action={resolvedAction} result={applyResult} />
-        ) : (
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Button
-              size="sm"
-              onClick={handleConfirm}
-              disabled={!canConfirm}
-              className="h-7 rounded-full px-3 text-xs"
-            >
-              {isApplying ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-3 w-3" />
-              )}
-              {t("home:rename_confirm")}
-            </Button>
+        ) : !historical && (
+          <div className="flex flex-wrap items-center gap-2">
+            {live && props.applyable && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={handleConfirm}
+                  disabled={!canConfirm}
+                  data-testid="name-plan-confirm"
+                  className="h-7 rounded-full px-3 text-xs"
+                >
+                  {isApplying ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-3 w-3" />
+                  )}
+                  {t("home:rename_confirm_count", { count: props.readyCount })}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDismiss}
+                  disabled={isApplying || isStreaming}
+                  className="h-7 rounded-full px-3 text-xs text-muted-foreground"
+                >
+                  {t("home:rename_cancel")}
+                </Button>
+              </>
+            )}
             <Button
               variant="outline"
               size="sm"
               onClick={handleNavigate}
-              className="h-7 rounded-full px-3 text-xs"
+              className="ml-auto h-7 rounded-full px-3 text-xs"
             >
               {t("home:open_tool")}
               <ArrowRight className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleDismiss}
-              disabled={!isTrustedResult || !pendingPlan || isApplying || isStreaming}
-              className="h-7 rounded-full px-3 text-xs text-muted-foreground"
-            >
-              {t("home:rename_cancel")}
             </Button>
           </div>
         )}
@@ -220,6 +271,19 @@ function NameTranslationPlanWidgetComponent({
           </p>
         )}
       </div>
+      <ConfirmDialog
+        open={riskOpen}
+        onOpenChange={setRiskOpen}
+        variant="default"
+        title={t("home:rename_risk_title")}
+        description={[
+          t("home:rename_risk_confirm", { count: props.readyCount }),
+          ...(props.warnings.length ? [t("home:rename_risk_warnings", { count: props.warnings.length })] : []),
+        ].join(" ")}
+        confirmText={t("home:rename_confirm_count", { count: props.readyCount })}
+        cancelText={t("home:rename_cancel")}
+        onConfirm={submitConfirm}
+      />
     </SmoothCorners>
   );
 }
@@ -239,79 +303,54 @@ function NameTranslationApplyResultWidgetComponent({
         hasFailures && "border-destructive/30"
       )}
     >
-      <div className="flex items-center gap-2 border-b px-3 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-xs">
         {hasFailures ? (
-          <XCircle className="h-3.5 w-3.5 text-destructive" />
+          <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
         ) : (
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
         )}
-        <span className="text-xs font-medium text-foreground">
+        <span className="shrink-0 font-medium text-foreground">
           {t("home:rename_result")}
         </span>
+        <span className="ml-auto flex flex-wrap justify-end gap-x-2 text-[11px] tabular-nums text-muted-foreground">
+          <span>{t("home:rename_total_count", { count: props.totalCount })}</span>
+          <span className="text-emerald-600 dark:text-emerald-400">{t("home:rename_success")} {props.successCount}</span>
+          {props.failedCount > 0 && <span className="text-destructive">{t("home:rename_failed")} {props.failedCount}</span>}
+          {props.skippedCount > 0 && <span>{t("home:rename_skipped")} {props.skippedCount}</span>}
+        </span>
       </div>
-      <div className="space-y-2 px-3 py-3 text-sm">
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-          <Metric label={t("home:rename_total")} value={props.totalCount} />
-          <Metric label={t("home:rename_success")} value={props.successCount} tone="success" />
-          <Metric label={t("home:rename_failed")} value={props.failedCount} tone="danger" />
-          <Metric label={t("home:rename_skipped")} value={props.skippedCount} />
+      {(props.message || props.rolledBack) && (
+        <div className="border-t px-3 py-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+          {props.rolledBack ? t("home:rename_rolled_back_hint") : null} {props.message}
         </div>
-        {props.message ? (
-          <div className="rounded-lg bg-background/60 px-3 py-2 text-xs text-muted-foreground [overflow-wrap:anywhere]">
-            {props.rolledBack ? t("home:rename_rolled_back_hint") : null} {props.message}
-          </div>
-        ) : null}
-      </div>
+      )}
     </SmoothCorners>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: number;
-  tone?: "default" | "success" | "danger";
-}) {
-  return (
-    <div className="rounded-lg border border-border/40 bg-background/60 px-2.5 py-2">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "text-base font-semibold tabular-nums",
-          tone === "success" && "text-emerald-600 dark:text-emerald-400",
-          tone === "danger" && "text-destructive"
-        )}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
 
 function PreviewRow({ item }: { item: NameTranslationPlanItem }) {
   const { t } = useTranslation();
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-lg border border-border/40 bg-background/60 px-2.5 py-2">
-      <div className="min-w-0">
-        <div className="truncate text-xs text-muted-foreground">
+    <div className="flex min-w-0 items-center gap-2 py-1.5">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[11px] text-muted-foreground" title={item.originalName}>
           {item.originalName}
         </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm">
+        <div className="flex min-w-0 items-center gap-1 text-xs">
           <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="truncate font-medium text-foreground">
+          <span className="truncate font-medium text-foreground" title={item.newName}>
             {item.newName}
           </span>
         </div>
       </div>
-      <Badge
-        variant={item.status === "blocked" || item.status === "failed" ? "destructive" : "outline"}
-        className="h-6 rounded-full px-2 text-[10px]"
-      >
-        {statusLabel(item.status, t)}
-      </Badge>
+      {item.status !== "ready" && (
+        <Badge
+          variant={item.status === "blocked" || item.status === "failed" ? "destructive" : "outline"}
+          className="h-5 shrink-0 rounded-full px-2 text-[10px]"
+        >
+          {statusLabel(item.status, t)}
+        </Badge>
+      )}
     </div>
   );
 }
@@ -327,29 +366,27 @@ function ResolvedState({
   const isConfirm = action === "confirm";
 
   return (
-    <div className="rounded-lg border border-border/40 bg-background/60 px-3 py-2">
-      <div className="flex items-center gap-2 text-sm">
-        {isConfirm ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-        ) : (
-          <PauseCircle className="h-4 w-4 text-muted-foreground" />
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+      {isConfirm ? (
+        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+      ) : (
+        <PauseCircle className="h-3.5 w-3.5 text-muted-foreground" />
+      )}
+      <span
+        className={cn(
+          "font-medium",
+          isConfirm
+            ? "text-emerald-600 dark:text-emerald-400"
+            : "text-muted-foreground"
         )}
-        <span
-          className={cn(
-            "font-medium",
-            isConfirm
-              ? "text-emerald-600 dark:text-emerald-400"
-              : "text-muted-foreground"
-          )}
-        >
-          {isConfirm ? t("home:rename_confirmed") : t("home:rename_cancelled")}
-        </span>
-      </div>
+      >
+        {isConfirm ? t("home:rename_confirmed") : t("home:rename_cancelled")}
+      </span>
       {result && (
-        <div className="mt-2 text-xs text-muted-foreground">
+        <span className="text-muted-foreground">
           {t("home:rename_result_summary", { success: result.successCount, failed: result.failedCount })}
           {result.rolledBack ? ` · ${t("home:rename_rolled_back_hint")}` : null}
-        </div>
+        </span>
       )}
     </div>
   );

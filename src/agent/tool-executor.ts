@@ -53,7 +53,7 @@ import { createSubtitleTaskExecutionBinding } from "./task-model-config";
 import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
 import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 import i18n from "@/i18n";
-import { latestUserMessageText, userMentionedDirectory, userRequestedOverwrite } from "./user-intent-authority";
+import { latestUserMessage, latestUserMessageText, userMentionedDirectory, userRequestedOverwrite } from "./user-intent-authority";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -249,7 +249,7 @@ export async function executeCreateNameTranslationPlan(
       store.setPendingNameTranslationPlan({
         planId: summary.planId,
         createdAt: Date.now(),
-        createdByUserMessageId: [...store.session.messages].reverse().find((message) => message.role === "user")?.id,
+        createdByUserMessageId: latestUserMessage(store.session.messages)?.id,
         summary,
         resolvedAction: null,
       });
@@ -298,7 +298,7 @@ export async function executeApplyNameTranslationPlan(
   check();
   const store = useAgentStore.getState();
   const pending = store.pendingNameTranslationPlan;
-  const latestUser = [...store.session.messages].reverse().find((message) => message.role === "user");
+  const latestUser = latestUserMessage(store.session.messages);
   if (!pending || pending.planId !== args.planId || pending.resolvedAction || pending.isApplying ||
       !pending.createdByUserMessageId || !latestUser || latestUser.id === pending.createdByUserMessageId ||
       !isExplicitRenameConfirmation(latestUser.content, args.planId)) {

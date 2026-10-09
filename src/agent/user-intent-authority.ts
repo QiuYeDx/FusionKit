@@ -24,12 +24,33 @@ export function userMentionedDirectory(messages: readonly AgentMessage[], direct
   const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // ASCII path characters must not continue the match on either side; CJK text may.
   const whole = new RegExp(`(?<![\\w.\\-/])${escaped}(?!/?[\\w\\-]|\\.[\\w])`);
-  return messages.some((message) => message.role === "user" && whole.test(normalizePathText(message.content)));
+  return messages.some((message) => isTypedUserMessage(message) && whole.test(normalizePathText(message.content)));
+}
+
+/** True when the user typed this path, or a directory that contains it, in a message of this session. */
+export function userMentionedPath(messages: readonly AgentMessage[], target: string): boolean {
+  let current = normalizePathText(target);
+  while (current.length >= 3 && /[/:]/.test(current)) {
+    if (userMentionedDirectory(messages, current)) return true;
+    const separator = current.lastIndexOf("/");
+    if (separator <= 0) return false;
+    current = current.slice(0, separator);
+  }
+  return false;
+}
+
+/** A message the user typed; interface events written by FusionKit share the user role but are not. */
+export function isTypedUserMessage(message: AgentMessage): boolean {
+  return message.role === "user" && !message.event;
+}
+
+export function latestUserMessage(messages: readonly AgentMessage[]): AgentMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (isTypedUserMessage(messages[index])) return messages[index];
+  }
+  return undefined;
 }
 
 export function latestUserMessageText(messages: readonly AgentMessage[]): string {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (messages[index].role === "user") return messages[index].content;
-  }
-  return "";
+  return latestUserMessage(messages)?.content ?? "";
 }

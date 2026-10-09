@@ -65,7 +65,3 @@ export function agentToolPath(toolKey: string, route: string, operation?: string
   return studioNavigationPath(operation === "prepare_studio_transcription" || operation === "home:prepared_transcription_summary" || kind === "transcription" ? "transcription" : "documents");
 }
 
-export function appendProgressPrompt(draft: string, suggestion: string): string {
-  if (draft.includes(suggestion)) return draft;
-  return draft.trim() ? `${draft}\n\n${suggestion}` : suggestion;
-}

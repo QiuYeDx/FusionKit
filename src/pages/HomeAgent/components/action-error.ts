@@ -7,6 +7,8 @@ const errorKeys = {
   agent_session_changed: "home:action_error_expired",
   studio_transcription_draft_changed: "home:action_error_changed",
   studio_transcription_existing_drafts: "home:action_error_drafts",
+  studio_transcription_path_not_typed: "home:action_error_path_not_typed",
+  studio_transcription_no_media: "home:action_error_no_media",
   studio_translation_plan_has_no_ready_documents: "home:action_error_documents",
   studio_translation_not_admitted: "home:action_error_documents",
   agent_cancelled: "home:action_dismissed",

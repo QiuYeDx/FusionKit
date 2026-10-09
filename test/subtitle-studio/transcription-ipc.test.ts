@@ -174,6 +174,26 @@ describe('Subtitle Studio transcription application IPC', () => {
     expect(JSON.stringify(await client.invoke('inspectTranscriptionRuntime', {}))).not.toContain(adapter.directory);
   });
 
+  it('pages through the media under typed paths, skipping other files and links', async () => {
+    const client = attach();
+    const folder = path.join(adapter.directory, 'typed'); await mkdir(path.join(folder, 'Disc 2'), { recursive: true });
+    for (let index = 1; index <= 21; index++) await writeFile(path.join(folder, `${index}.wav`), '');
+    await writeFile(path.join(folder, 'notes.txt'), ''); await writeFile(path.join(folder, 'Disc 2', 'bonus.mp3'), '');
+    const first = await client.invoke('authorizeTranscriptionPaths', { paths: [folder] }) as { ok: true; value: { items: unknown[]; matched: number; nextOffset?: number } };
+    expect(first).toMatchObject({ ok: true, value: { matched: 21, nextOffset: 20 } });
+    expect(first.value.items).toHaveLength(20);
+    // Name order is numeric, so 2.wav comes before 10.wav.
+    expect(adapter.runtime.media.authorizeInput.mock.calls.slice(0, 3).map((call: unknown[]) => path.basename(call[1] as string))).toEqual(['1.wav', '2.wav', '3.wav']);
+    adapter.runtime.media.authorizeInput.mockClear();
+    const rest = await client.invoke('authorizeTranscriptionPaths', { paths: [folder], recursive: true, offset: 20 });
+    expect(rest).toMatchObject({ ok: true, value: { matched: 22 } });
+    expect(adapter.runtime.media.authorizeInput.mock.calls.map((call: unknown[]) => path.basename(call[1] as string))).toEqual(['21.wav', 'bonus.mp3']);
+    expect(await client.invoke('authorizeTranscriptionPaths', { paths: ['relative/voice.wav', path.join(folder, 'notes.txt')] }))
+      .toMatchObject({ ok: true, value: { matched: 2, items: [{ ok: false, error: 'access_denied' }, { ok: false, error: 'unsupported_feature' }] } });
+    expect(await client.invoke('authorizeTranscriptionPaths', { paths: [folder], filter: '*' })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(adapter.open).not.toHaveBeenCalled();
+  });
+
   it('rejects raw paths, extra options, subframes and stolen capabilities before native work', async () => {
     const client = attach(); const other = attach();
     expect(await client.invoke('selectTranscriptionMedia', { path: '/forged.wav' })).toEqual({ ok: false, error: 'invalid_input' });

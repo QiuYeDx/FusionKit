@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { dockPanelRect, homeColumnTarget, predictHomeColumn, readHomeColumn, registerHomeColumn } from "./handoff";
+import { clampDockOffset, dockPanelRect, homeColumnTarget, predictHomeColumn, readHomeColumn, registerHomeColumn } from "./handoff";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -8,6 +8,17 @@ describe("home ↔ panel handoff geometry", () => {
     expect(dockPanelRect({ width: 1280, height: 860 })).toEqual({ left: 11, top: 860 - 58 - 620, width: 400, height: 620 });
     expect(dockPanelRect({ width: 786, height: 660 })).toEqual({ left: 11, top: 40 + 8, width: 400, height: 660 - 58 - 48 });
     expect(dockPanelRect({ width: 380, height: 660 }).width).toBe(358);
+  });
+
+  it("keeps a dragged panel inside the window, below the title bar", () => {
+    const viewport = { width: 1280, height: 860 };
+    expect(clampDockOffset({ x: 300, y: -100 }, viewport)).toEqual({ x: 300, y: -100 });
+    // Right edge: 1280 - 11 - 400 - 11; top: the title bar plus a gap; bottom: one edge gap from the window.
+    expect(clampDockOffset({ x: 5000, y: -5000 }, viewport)).toEqual({ x: 858, y: 48 - 182 });
+    expect(clampDockOffset({ x: -50, y: 500 }, viewport)).toEqual({ x: 0, y: 47 });
+    expect(clampDockOffset({ x: 10.6, y: 0 }, viewport)).toEqual({ x: 11, y: 0 });
+    // A panel that already fills the window stays where it rests.
+    expect(clampDockOffset({ x: 40, y: 0 }, { width: 380, height: 660 }).x).toBe(0);
   });
 
   it("predicts the home column from the home page layout", () => {

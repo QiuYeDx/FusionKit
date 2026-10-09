@@ -209,6 +209,25 @@ describe("transcription preparation ownership", () => {
     expect(await call("prepare_studio_transcription")).toMatchObject({ success: false, error: "studio_transcription_existing_drafts" });
     expect(mocks.controller.selectMedia).not.toHaveBeenCalled(); expect(mocks.controller.setConfig).not.toHaveBeenCalled();
   });
+  it("takes media from paths the user typed, and from nothing else, without opening the picker", async () => {
+    const folder = "H:\\ASMR\\【RJ01342767】作品\\本編wav";
+    mocks.controller.selectMediaFromPaths = vi.fn(async () => { mocks.state.drafts = [{ id: "typed-draft", displayName: "01.wav", status: "ready", audioStreamId: "a" }]; return { matched: 23, nextOffset: 20 }; });
+    useAgentStore.getState().addMessage({ id: "typed", role: "user", content: `"${folder}"中的音频文件都转写`, timestamp: 1 });
+    // Neither an untyped folder nor one named only by a FusionKit interface event counts.
+    useAgentStore.getState().addMessage({ id: "event", role: "user", content: "D:\\Private", timestamp: 2, event: { kind: "action_completed" } });
+    expect(await call("prepare_studio_transcription", { paths: ["D:\\Private"] })).toMatchObject({ success: false, error: "studio_transcription_path_not_typed" });
+    expect(mocks.controller.selectMediaFromPaths).not.toHaveBeenCalled();
+    // A folder inside the typed one is the user's choice too.
+    const result = await call("prepare_studio_transcription", { paths: [`${folder}\\Disc 2`], recursive: true });
+    expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared", mediaMatched: 23, nextOffset: 20 } });
+    expect(mocks.controller.selectMediaFromPaths).toHaveBeenCalledWith({ paths: [`${folder}\\Disc 2`], recursive: true });
+    expect(mocks.controller.selectMedia).not.toHaveBeenCalled();
+  });
+  it("reports a typed folder without media instead of preparing nothing", async () => {
+    mocks.controller.selectMediaFromPaths = vi.fn(async () => ({ matched: 0 }));
+    useAgentStore.getState().addMessage({ id: "typed", role: "user", content: "转写 C:\\Audio\\empty 里的文件", timestamp: 1 });
+    expect(await call("prepare_studio_transcription", { paths: ["C:\\Audio\\empty"] })).toMatchObject({ success: false, error: "studio_transcription_no_media" });
+  });
   it("uses the prepared media only after confirmation and keeps auto translation off", async () => {
     const result = await call("prepare_studio_transcription", { language: "ja" });
     expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared" } });

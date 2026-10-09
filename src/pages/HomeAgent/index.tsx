@@ -29,18 +29,11 @@ import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
 import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
 import { exportSession, importSession } from "@/agent/session-io";
 import SessionLogViewer from "./SessionLogViewer";
-import AgentPlanPanel from "./components/AgentPlanPanel";
 import AgentCapabilities from "./components/AgentCapabilities";
-import AgentPreparedActions from "./components/AgentPreparedActions";
-import { appendProgressPrompt } from "./presentation";
 import { registerHomeColumn } from "../AgentDock/handoff";
 import {
   CapsuleModeSelector,
-  homeAgentWidgetRegistry,
-  MessageBubble,
-  useConversationIndex,
-  pendingExecutionToFence,
-  StreamingAssistant,
+  ConversationFeed,
   useAgentWidgetContexts,
 } from "./conversation";
 import { Button } from "@/components/ui/button";
@@ -54,7 +47,6 @@ import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
 import { useFileDropInput, useInputHistory } from "./composer";
-import { ChatMarkdownRenderer } from "@/components/qiuye-ui/markdown-renderer";
 
 // ---------------------------------------------------------------------------
 // Persist draft input across in-app navigation (reset on full page reload)
@@ -128,7 +120,6 @@ function HomeAgent() {
     const top = 48, bottom = window.innerHeight - 58;
     return { left: column.left, top, width: column.width, height: Math.max(120, bottom - top) };
   }), []);
-  const { toolResults, toolCallIds } = useConversationIndex(messages);
 
   const agentProfile = useModelStore((s) => s.getAgentProfile());
   const hasAgentConfig = !!agentProfile?.apiKey?.trim();
@@ -300,8 +291,7 @@ function HomeAgent() {
 
   const navigate = useNavigate();
 
-  const { widgetContext, streamingWidgetContext, pendingWidgetContext, namePlanWidgetContext } =
-    useAgentWidgetContexts(session.id, pendingExecution, pendingNameTranslationPlan, navigate);
+  const widgetContexts = useAgentWidgetContexts(session.id, pendingExecution, pendingNameTranslationPlan, navigate);
 
   const prevStreamingRef = useRef(false);
   useEffect(() => {
@@ -348,10 +338,12 @@ function HomeAgent() {
     if (result.success) setSessionFeedback(t("home:session_imported"));
   };
 
+  // Asks the agent right away; the draft in the composer stays as it is.
   const handleCheckProgress = () => {
-    setInput(current => appendProgressPrompt(current, t("home:plan_check_prompt")));
-    setSessionFeedback(t("home:plan_check_draft_added"));
-    requestAnimationFrame(() => textareaRef.current?.focus());
+    if (isStreaming || !hasAgentConfig || hasUnsupportedAgentApiFormat) return;
+    setSessionFeedback(null);
+    setBottomState(true);
+    void handleUserMessage(t("home:plan_check_prompt"));
   };
 
   const handleSend = async () => {
@@ -774,40 +766,8 @@ function HomeAgent() {
 
           <div className="px-4 pt-2 pb-2">
             <div ref={columnRef} className="max-w-2xl mx-auto space-y-4 pt-1" style={{ paddingBottom: Math.max(176, bottomComposerHeight + 42 + 16) }}>
-              {messages.map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  widgetRegistry={homeAgentWidgetRegistry}
-                  widgetContext={widgetContext}
-                  namePlanWidgetContext={namePlanWidgetContext}
-                  pendingNamePlanId={pendingNameTranslationPlan?.planId}
-                  toolResults={toolResults}
-                  toolCallIds={toolCallIds}
-                />
-              ))}
-
-              {isStreaming && <StreamingAssistant widgetContext={streamingWidgetContext} />}
-
-              <AgentPreparedActions key={session.id} sessionId={session.id} busy={isStreaming} />
-              {session.plan && <AgentPlanPanel key={session.plan.id} plan={session.plan} onCheckProgress={handleCheckProgress} busy={isStreaming} />}
-
-              {/* Pending execution widget */}
-              {pendingExecution && !isStreaming && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <ChatMarkdownRenderer
-                    content={pendingExecutionToFence(pendingExecution)}
-                    widgetRegistry={homeAgentWidgetRegistry}
-                    widgetContext={pendingWidgetContext}
-                    codeBlock={{ colorTheme: "qiuvision" }}
-                  />
-                </div>
-              )}
-
-              {/* pendingNameTranslationPlan is NOT rendered here because the
-                 tool result message already contains a NameTranslationPlanWidget
-                 that reads live state from the store. Rendering it again would
-                 cause a duplicate card. */}
+              <ConversationFeed contexts={widgetContexts} onCheckProgress={handleCheckProgress}
+                canCheckProgress={hasAgentConfig && !hasUnsupportedAgentApiFormat} />
             </div>
           </div>
 

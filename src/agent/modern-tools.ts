@@ -14,6 +14,7 @@ import { AGENT_CAPABILITIES } from "./capability-catalog";
 import { SettingsResolver } from "./tool-page-settings";
 import { translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
 import i18n from "@/i18n";
+import { userMentionedPath } from "./user-intent-authority";
 import { registerPreparedAction, usePreparedActionsStore, type PreparedAction, type PreparedActionReceipt, type PreparedActionResult } from "./prepared-actions";
 
 interface Context { sessionId: string; signal?: AbortSignal; check: () => void }
@@ -105,7 +106,10 @@ const draftNumber = (value: string | undefined) => { const number = Number(value
 export const prepareStudioTranscriptionSchema = z.object({ modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional(),
   language: language.optional(), devicePreference: z.enum(["auto", "cpu", "metal", "cuda"]).optional(),
   taskMode: z.enum(["transcribe", "translate_to_english"]).optional(),
-  initialPrompt: z.string().max(1000).optional() }).strict();
+  initialPrompt: z.string().max(1000).optional(),
+  paths: z.array(z.string().min(3).max(4096)).min(1).max(20).optional(),
+  recursive: z.boolean().optional(),
+  offset: z.number().int().min(0).max(100000).optional() }).strict();
 export const configureLocalTranscriptionSchema = z.object({ language: language.optional(),
   modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional(),
   devicePreference: z.enum(["auto", "cpu", "metal", "cuda"]).optional(),
@@ -206,7 +210,7 @@ export const modernAgentTools = {
       });
       return exposePrepared(action, ctx, { appliedSettings: settings.applied });
     }) }),
-  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio with a fixed native media picker. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation. Does not silently enable automatic translation.",
+  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 20 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation. Does not silently enable automatic translation.",
     inputSchema: prepareStudioTranscriptionSchema, execute: (args, options) => run(prepareStudioTranscriptionSchema, args, options, async (input, ctx) => {
       studio(); const controller = getStudioTranscriptionController();
       await controller.refresh(); ctx.check();
@@ -221,7 +225,17 @@ export const modernAgentTools = {
       if (!parsedConfig.success) throw new ToolFailure("studio_transcription_configuration_invalid");
       ctx.check(); controller.setConfig(parsedConfig.data);
       ctx.check(); controller.setAutoTranslation({ ...before.autoTranslation, enabled: false });
-      ctx.check(); await controller.selectMedia();
+      ctx.check();
+      let page: { matched: number; nextOffset?: number } | undefined;
+      if (input.paths) {
+        // A typed path is the user's own choice of input, like a picker selection; anything else is not.
+        const messages = useAgentStore.getState().session.messages;
+        if (!input.paths.every(item => userMentionedPath(messages, item))) throw new ToolFailure("studio_transcription_path_not_typed");
+        page = await controller.selectMediaFromPaths({ paths: input.paths, ...(input.recursive ? { recursive: true } : {}), ...(input.offset ? { offset: input.offset } : {}) });
+        ctx.check();
+        if (page && page.matched === 0) return failed("studio_transcription_no_media");
+      } else await controller.selectMedia();
+      const pathPage = page ? { mediaMatched: page.matched, ...(page.nextOffset !== undefined ? { nextOffset: page.nextOffset } : {}) } : {};
       const selected = controller.getState();
       const ownedIds = selected.drafts.map(item => item.id);
       const release = () => { for (const draft of controller.getState().drafts) if (ownedIds.includes(draft.id) && !["submitting", "submission_unknown"].includes(draft.status)) controller.removeDraft(draft.id); };
@@ -262,7 +276,7 @@ export const modernAgentTools = {
               tasks: admission.tasks.map(item => ({ taskId: item.taskId, name: safeText(item.displayName), status: item.status })) });
           },
         });
-        return await exposePrepared(action, ctx);
+        return await exposePrepared(action, ctx, pathPage);
       } catch (error) { release(); throw error; }
     }) }),
   get_local_transcription_status: tool({ description: "Read classic local subtitle transcriber runtime/resources and existing tasks. Does not install resources, start transcription or expose paths/file capabilities.",

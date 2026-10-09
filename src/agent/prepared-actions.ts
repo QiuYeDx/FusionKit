@@ -74,6 +74,7 @@ export const usePreparedActionsStore = create<PreparedActionsState>((set, get) =
     const entry = callbacks.get(id);
     callbacks.delete(id);
     set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "dismissed", updatedAt: Date.now() } : item) }));
+    if (action.sessionId === useAgentStore.getState().session.id) useAgentStore.getState().appendLog("status_change", "prepared_action_dismissed", { actionId: id });
     void cleanup(entry);
   },
 }));
@@ -90,6 +91,8 @@ export function registerPreparedAction(input: Pick<PreparedAction, "sessionId" |
   const active = current.filter(item => item.status === "ready" || item.status === "running");
   const terminal = current.filter(item => item.status !== "ready" && item.status !== "running").slice(-(MAX_ACTION_HISTORY - active.length - 1));
   usePreparedActionsStore.setState({ actions: [...terminal, ...active, action] });
+  // The session log keeps the action's life, so a card that never appeared can be traced.
+  useAgentStore.getState().appendLog("status_change", "prepared_action_registered", { actionId: action.id, sessionId: action.sessionId, toolKey: action.toolKey });
   return action;
 }
 

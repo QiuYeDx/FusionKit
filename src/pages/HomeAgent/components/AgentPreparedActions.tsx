@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, PauseCircle, Play, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { usePreparedActionsStore, type PreparedAction } from "@/agent/prepared-actions";
+import { reportUiEvent } from "@/agent/orchestrator";
+import { cn } from "@/lib/utils";
 import { AGENT_CAPABILITIES } from "@/agent/capability-catalog";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -13,6 +15,12 @@ import AgentActionReceipt from "./AgentActionReceipt";
 import { actionFailureReceipt, actionReceipt, agentToolPath, groupPreparedActions, objectValue } from "../presentation";
 
 const actionStatusKeys = { ready: "home:action_ready", running: "home:action_running", completed: "home:action_completed", failed: "home:action_failed", dismissed: "home:action_dismissed" } as const;
+
+/** The prepared action a tool result created, shown as a card at the end of that turn. */
+export function AgentPreparedActionCard({ actionId, busy }: { actionId: string; busy: boolean }) {
+  const action = usePreparedActionsStore(state => state.actions.find(item => item.id === actionId));
+  return action ? <ActionCard action={action} busy={busy} /> : null;
+}
 
 /** A prepared action; inside the history card it is a row rather than a card of its own. */
 function ActionCard({ action, busy, flat = false }: { action: PreparedAction; busy: boolean; flat?: boolean }) {
@@ -29,7 +37,19 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
   const submitted = action.status === "completed" && objectValue(action.result).executionStatus === "queued";
   const receipt = actionReceipt(action);
   const Surface = flat ? "div" : AgentCard;
-  return <Surface className={flat ? "border-t p-3" : "p-3"} data-action-id={action.id} data-action-status={action.status}>
+  // What the user decided goes back to the agent, which then follows up on its own.
+  const confirm = async () => {
+    await confirmAction(action.id);
+    const after = usePreparedActionsStore.getState().actions.find(item => item.id === action.id);
+    if (after?.status === "completed") reportUiEvent({ kind: "action_completed", values: { title, actionId: action.id } });
+    else if (after?.status === "failed") reportUiEvent({ kind: "action_failed", values: { title, actionId: action.id, error: after.error ?? "prepared_action_failed" } });
+  };
+  const dismiss = () => {
+    dismissAction(action.id);
+    reportUiEvent({ kind: "action_dismissed", values: { title, actionId: action.id } });
+  };
+  return <Surface className={cn(flat ? "border-t p-3" : "p-3", !flat && action.status === "ready" && "border-primary/30 ring-1 ring-primary/10")}
+    data-testid={flat ? undefined : "agent-prepared-action"} data-action-id={action.id} data-action-status={action.status}>
     <div className="flex items-start gap-2">
       <Icon aria-hidden className={`mt-0.5 size-3.5 shrink-0 ${action.status === "failed" ? "text-destructive" : "text-muted-foreground"} ${action.status === "running" ? "animate-spin motion-reduce:animate-none" : ""}`} />
       <div className="min-w-0 flex-1">
@@ -47,17 +67,22 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
     </div>
     <div className="mt-3 flex flex-wrap items-center gap-2">
       {action.status === "ready" && <>
-        <Button size="sm" className="h-7 rounded-full px-3 text-xs" disabled={busy} onClick={() => void confirmAction(action.id)}>{t("home:action_confirm")}</Button>
-        <Button variant="ghost" size="sm" className="h-7 rounded-full px-3 text-xs text-muted-foreground" disabled={busy} onClick={() => dismissAction(action.id)}>{t("home:action_dismiss")}</Button>
+        <Button size="sm" className="h-7 rounded-full px-3 text-xs" disabled={busy} onClick={() => void confirm()}>{t("home:action_confirm")}</Button>
+        <Button variant="ghost" size="sm" className="h-7 rounded-full px-3 text-xs text-muted-foreground" disabled={busy} onClick={dismiss}>{t("home:action_dismiss")}</Button>
       </>}
       {capability && <Button variant="outline" size="sm" className="ml-auto h-7 rounded-full px-3 text-xs" onClick={() => navigate(agentToolPath(action.toolKey, capability.route, action.summaryKey))}>{t("home:open_tool")}</Button>}
     </div>
   </Surface>;
 }
 
-export default function AgentPreparedActions({ sessionId, busy }: { sessionId: string; busy: boolean }) {
+/**
+ * Prepared actions that no tool result in the conversation shows: the ones in progress, then the
+ * history of the others. Actions created by a tool appear at the end of their turn instead.
+ */
+export default function AgentPreparedActions({ sessionId, busy, anchored }: { sessionId: string; busy: boolean; anchored: ReadonlySet<string> }) {
   const { t } = useTranslation();
-  const actions = usePreparedActionsStore(state => state.actions);
+  const allActions = usePreparedActionsStore(state => state.actions);
+  const actions = useMemo(() => allActions.filter(action => !anchored.has(action.id)), [allActions, anchored]);
   const [expanded, setExpanded] = useState("");
   const { active, history, failedCount, latestFailure } = groupPreparedActions(actions, sessionId);
   if (!active.length && !history.length) return null;

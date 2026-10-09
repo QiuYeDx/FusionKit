@@ -1,17 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
 import type { NavigateFunction } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { Check, Copy, Loader2, ListPlus, MessageSquareMore, Zap } from "lucide-react";
+import { Check, CheckCircle2, Copy, Loader2, ListPlus, MessageSquareMore, PauseCircle, XCircle, Zap } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
-import AgentToolCallView from "./components/AgentToolCall";
-import { isModernToolResult } from "./components/AgentToolResult";
+import { usePreparedActionsStore } from "@/agent/prepared-actions";
+import { reportUiEvent } from "@/agent/orchestrator";
+import { AgentToolGroup } from "./components/AgentToolCall";
+import AgentPlanPanel from "./components/AgentPlanPanel";
+import AgentPreparedActions, { AgentPreparedActionCard } from "./components/AgentPreparedActions";
 import { actionErrorMessage } from "./components/action-error";
 import { createWidgetActionHandler, isNamePlanResultFor } from "./widget-actions";
+import { anchoredActionIds, buildFeed, type FeedItem, type ToolEntry } from "./feed";
 import type {
   AgentMessage,
-  AgentToolCall,
   AgentToolResult,
   ExecutionMode,
   PendingExecution,
@@ -108,65 +110,10 @@ export function pendingExecutionToFence(pe: PendingExecution): string {
   return "```qv:pending-execution\n" + payload + "\n```";
 }
 
-function nameTranslationPlanToFence(
-  plan: Record<string, unknown>,
-): string {
-  return (
-    "```qv:name-translation-plan\n" +
-    JSON.stringify(plan) +
-    "\n```"
-  );
-}
-
-function nameTranslationApplyResultToFence(
-  result: Record<string, unknown>,
-): string {
-  return (
-    "```qv:name-translation-apply-result\n" +
-    JSON.stringify(result) +
-    "\n```"
-  );
-}
-
-const NAME_PLAN_TOOLS = ["create_name_translation_plan", "apply_name_translation_plan"];
-
-/** Name translation plans render as their own interactive widget below the tool card. */
-function namePlanFence(result: AgentToolResult): string | null {
-  if (!result.success || !result.data || typeof result.data !== "object") return null;
-  if (result.toolName === "create_name_translation_plan") return nameTranslationPlanToFence(result.data);
-  if (result.toolName === "apply_name_translation_plan") return nameTranslationApplyResultToFence(result.data);
-  return null;
-}
-
-/** The body of a classic tool's card: what it found or queued, or why it failed. */
-function ClassicResultBody({ result }: { result: AgentToolResult }) {
-  const { t } = useTranslation();
-  const data = result.data && typeof result.data === "object" ? result.data as Record<string, any> : undefined;
-  if (!result.success) {
-    const details = Array.isArray(data?.errors) ? (data.errors as unknown[]).filter((item): item is string => typeof item === "string").slice(0, 5) : [];
-    return <div className="space-y-1.5 text-xs leading-5 text-destructive">
-      <p className="[overflow-wrap:anywhere]">{result.error ? actionErrorMessage(result.error, t) : t("home:action_failed")}</p>
-      {details.length > 0 && <ul className="space-y-0.5 rounded-lg bg-destructive/5 px-2.5 py-1.5 font-mono text-[11px]">{details.map((item, index) => <li key={index} className="[overflow-wrap:anywhere]">{item}</li>)}</ul>}
-    </div>;
-  }
-  if (NAME_PLAN_TOOLS.includes(result.toolName) || !data) return null;
-  if (Array.isArray(data.files)) {
-    const count = Number(data.totalCount ?? data.files.length);
-    const names = (data.files as unknown[]).slice(0, 10).map(file => typeof file === "string" ? file : String((file as Record<string, unknown>)?.fileName ?? ""));
-    return <div className="space-y-2 text-xs leading-5">
-      <p>{t("home:tool_result_files_found", { count })}</p>
-      {names.length > 0 && <ul className="divide-y divide-border/60 rounded-lg bg-muted/40 px-2.5">{names.map((name, index) => <li key={index} className="py-1 [overflow-wrap:anywhere]">{name}</li>)}</ul>}
-      {count > 10 && <p className="text-[11px] text-muted-foreground">{t("home:tool_result_more_files", { count })}</p>}
-    </div>;
-  }
-  if (data.queuedCount !== undefined) {
-    const lines = data.batch ? [t("home:tool_result_queued_batch_progress", { queuedCount: data.queuedCount, batchStart: Number(data.batch.batchStart ?? 0) + 1,
-      batchEnd: data.batch.batchEnd, queuedThrough: data.batch.queuedThrough, totalFiles: data.totalFiles, remainingCount: data.batch.remainingCount }),
-      ...(data.batch.hasMore ? [t("home:tool_result_queued_batch_more", { nextBatchStart: data.batch.nextBatchStart })] : [])]
-      : [t("home:tool_result_queued_progress", { queuedCount: data.queuedCount, totalFiles: data.totalFiles })];
-    return <div className="space-y-1 text-xs leading-5">{lines.map((line, index) => <p key={index} className={index ? "text-muted-foreground" : undefined}>{line}</p>)}</div>;
-  }
-  return null;
+/** Name translation plans render as their own interactive card at the end of their turn. */
+function namePlanFence(result: AgentToolResult): string {
+  const type = result.toolName === "create_name_translation_plan" ? "name-translation-plan" : "name-translation-apply-result";
+  return "```qv:" + type + "\n" + JSON.stringify(result.data) + "\n```";
 }
 
 type PendingNamePlan = Parameters<typeof createWidgetActionHandler>[3] extends infer Target
@@ -192,18 +139,21 @@ export function useAgentWidgetContexts(
     () => ({ ...widgetContext, isStreaming: true }),
     [widgetContext],
   );
+  // Decisions on the trusted cards are reported, so the agent follows up on them by itself.
   const pendingWidgetContext = useMemo<MarkdownWidgetContext>(
     () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(sessionId, useAgentStore.getState, navigate,
-      pendingExecution ? { kind: "pending-execution", pending: pendingExecution } : { kind: "display" }) }),
+      pendingExecution ? { kind: "pending-execution", pending: pendingExecution } : { kind: "display" }, reportUiEvent) }),
     [widgetContext, sessionId, navigate, pendingExecution],
   );
   const namePlanWidgetContext = useMemo<MarkdownWidgetContext>(
     () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(sessionId, useAgentStore.getState, navigate,
-      pendingNameTranslationPlan ? { kind: "name-translation-plan", plan: pendingNameTranslationPlan } : { kind: "display" }) }),
+      pendingNameTranslationPlan ? { kind: "name-translation-plan", plan: pendingNameTranslationPlan } : { kind: "display" }, reportUiEvent) }),
     [widgetContext, sessionId, navigate, pendingNameTranslationPlan],
   );
   return { widgetContext, streamingWidgetContext, pendingWidgetContext, namePlanWidgetContext };
 }
+
+export type AgentWidgetContexts = ReturnType<typeof useAgentWidgetContexts>;
 
 export function CapsuleModeSelector({
   value,
@@ -265,6 +215,7 @@ export function StreamingAssistant({ widgetContext }: { widgetContext: MarkdownW
     activeToolCalls: state.activeToolCalls,
     thinking: state.session.status === "thinking",
   })));
+  const running = useMemo(() => activeToolCalls.map(call => ({ call })), [activeToolCalls]);
   if (!streamingText && activeToolCalls.length === 0) {
     return thinking ? (
       <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -281,85 +232,120 @@ export function StreamingAssistant({ widgetContext }: { widgetContext: MarkdownW
         widgetContext={widgetContext}
         codeBlock={{ colorTheme: "qiuvision" }}
       />}
-      {activeToolCalls.map(call => <AgentToolCallView key={call.toolCallId} call={call} running />)}
+      <AgentToolGroup entries={running} running />
     </div>
   );
 }
 
-/** Results by call, and the calls that assistant messages show, so result messages do not repeat them. */
-export function useConversationIndex(messages: readonly AgentMessage[]) {
-  return useMemo(() => ({
-    toolResults: new Map(messages.flatMap(message => message.toolResult ? [[message.toolResult.callId, message.toolResult] as const] : [])) as ReadonlyMap<string, AgentToolResult>,
-    toolCallIds: new Set(messages.flatMap(message => message.toolCalls?.map(call => call.toolCallId) ?? [])) as ReadonlySet<string>,
-  }), [messages]);
+const DECISION_KINDS = new Set<FeedItem["kind"]>(["name-plan", "prepared-action", "pending-execution"]);
+
+/**
+ * The whole conversation: messages, tool rows and decision cards in turn order, the reply being
+ * written, prepared actions no tool result shows, and the plan as a status bar at the end.
+ */
+export function ConversationFeed({ contexts, onCheckProgress, canCheckProgress }: {
+  contexts: AgentWidgetContexts;
+  onCheckProgress: () => void;
+  canCheckProgress: boolean;
+}) {
+  const { session, isStreaming, pendingExecution, pendingNamePlanId } = useAgentStore(useShallow((state) => ({
+    session: state.session,
+    isStreaming: state.isStreaming,
+    pendingExecution: state.pendingExecution,
+    pendingNamePlanId: state.pendingNameTranslationPlan?.planId,
+  })));
+  const actions = usePreparedActionsStore((state) => state.actions);
+  const { messages } = session;
+  const items = useMemo(() => buildFeed(messages, {
+    hasAction: (id) => actions.some((action) => action.id === id && action.sessionId === session.id),
+    pendingExecutionAt: pendingExecution?.timestamp,
+  }), [messages, actions, session.id, pendingExecution?.timestamp]);
+  const anchored = useMemo(() => anchoredActionIds(messages), [messages]);
+  // While the reply is still being written, the turn's decision cards wait below it.
+  let split = items.length;
+  if (isStreaming) while (split > 0 && DECISION_KINDS.has(items[split - 1].kind)) split--;
+  const render = (item: FeedItem) => <FeedItemView key={item.key} item={item} contexts={contexts} pendingNamePlanId={pendingNamePlanId}
+    pendingExecution={pendingExecution} busy={isStreaming} />;
+  return <>
+    {items.slice(0, split).map(render)}
+    {isStreaming && <StreamingAssistant widgetContext={contexts.streamingWidgetContext} />}
+    {items.slice(split).map(render)}
+    <AgentPreparedActions key={session.id} sessionId={session.id} busy={isStreaming} anchored={anchored} />
+    {session.plan && <AgentPlanPanel key={session.plan.id} plan={session.plan} busy={isStreaming} canCheck={canCheckProgress} onCheckProgress={onCheckProgress} />}
+  </>;
 }
 
-export const MessageBubble = React.memo(
-  function MessageBubble({
-    message,
-    widgetRegistry,
-    widgetContext,
-    namePlanWidgetContext,
-    pendingNamePlanId,
-    toolResults,
-    toolCallIds,
-  }: {
-    message: AgentMessage;
-    widgetRegistry: MarkdownWidgetRegistry;
-    widgetContext: MarkdownWidgetContext;
-    namePlanWidgetContext: MarkdownWidgetContext;
-    pendingNamePlanId?: string;
-    toolResults: ReadonlyMap<string, AgentToolResult>;
-    toolCallIds: ReadonlySet<string>;
-  }) {
-    if (message.role === "user") {
-      return (
-        <div className="group/message flex items-start justify-end gap-1" data-message-role="user">
-          <CopyMessageButton text={message.content} />
-          <SmoothCorners radius={18} smoothing={0.72} className="max-w-[85%] bg-secondary px-3.5 py-2 text-sm leading-6 text-secondary-foreground">
-            <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
-          </SmoothCorners>
-        </div>
-      );
+function FeedItemView({ item, contexts, pendingNamePlanId, pendingExecution, busy }: {
+  item: FeedItem;
+  contexts: AgentWidgetContexts;
+  pendingNamePlanId?: string;
+  pendingExecution: PendingExecution | null;
+  busy: boolean;
+}) {
+  switch (item.kind) {
+    case "user": return <UserMessage message={item.message} />;
+    case "event": return <UiEventLine message={item.message} />;
+    case "text": return <AssistantText message={item.message} widgetContext={contexts.widgetContext} />;
+    case "tools": return <ToolGroup entries={item.entries} />;
+    case "name-plan": {
+      const context = isNamePlanResultFor(item.message, pendingNamePlanId) ? contexts.namePlanWidgetContext : contexts.widgetContext;
+      return <NamePlanCard result={item.message.toolResult!} widgetContext={context} />;
     }
+    case "prepared-action": return <AgentPreparedActionCard actionId={item.actionId} busy={busy} />;
+    case "pending-execution": return pendingExecution ? <ChatMarkdownRenderer content={pendingExecutionToFence(pendingExecution)} widgetRegistry={homeAgentWidgetRegistry}
+      widgetContext={contexts.pendingWidgetContext} codeBlock={{ colorTheme: "qiuvision" }} /> : null;
+  }
+}
 
-    if (message.role === "tool") {
-      const result = message.toolResult;
-      if (!result) return null;
-      const fence = namePlanFence(result);
-      if (fence) {
-        return <ChatMarkdownRenderer content={fence} widgetRegistry={widgetRegistry}
-          widgetContext={isNamePlanResultFor(message, pendingNamePlanId) ? namePlanWidgetContext : widgetContext} codeBlock={{ colorTheme: "qiuvision" }} />;
-      }
-      // The assistant message that made the call already shows this result in its card.
-      if (toolCallIds.has(result.callId)) return null;
-      return <ToolCard call={{ toolCallId: result.callId, toolName: result.toolName, args: {} }} result={result} />;
-    }
+const UserMessage = React.memo(function UserMessage({ message }: { message: AgentMessage }) {
+  return (
+    <div className="group/message flex items-start justify-end gap-1" data-message-role="user">
+      <CopyMessageButton text={message.content} />
+      <SmoothCorners radius={18} smoothing={0.72} className="max-w-[85%] bg-secondary px-3.5 py-2 text-sm leading-6 text-secondary-foreground">
+        <p className="whitespace-pre-wrap wrap-break-word">{message.content}</p>
+      </SmoothCorners>
+    </div>
+  );
+});
 
-    const content = message.content || "";
-    if (!content.trim() && !message.toolCalls?.length) return null;
+const AssistantText = React.memo(function AssistantText({ message, widgetContext }: { message: AgentMessage; widgetContext: MarkdownWidgetContext }) {
+  return (
+    <div className="min-w-0 text-sm leading-relaxed" data-message-role="assistant">
+      <ChatMarkdownRenderer
+        content={message.content}
+        widgetRegistry={homeAgentWidgetRegistry}
+        widgetContext={widgetContext}
+        codeBlock={{ colorTheme: "qiuvision" }}
+      />
+    </div>
+  );
+});
 
-    return (
-      <div className="min-w-0 space-y-2 text-sm leading-relaxed" data-message-role="assistant">
-        {content.trim() && <ChatMarkdownRenderer
-          content={content}
-          widgetRegistry={widgetRegistry}
-          widgetContext={widgetContext}
-          codeBlock={{ colorTheme: "qiuvision" }}
-        />}
-        {message.toolCalls?.map(call => <ToolCard key={call.toolCallId} call={call} result={toolResults.get(call.toolCallId)} />)}
-      </div>
-    );
-  },
-  (prev, next) =>
-    prev.message === next.message &&
-    prev.widgetRegistry === next.widgetRegistry &&
-    prev.widgetContext === next.widgetContext &&
-    prev.namePlanWidgetContext === next.namePlanWidgetContext &&
-    prev.pendingNamePlanId === next.pendingNamePlanId &&
-    prev.toolResults === next.toolResults &&
-    prev.toolCallIds === next.toolCallIds,
-);
+const ToolGroup = React.memo(function ToolGroup({ entries }: { entries: ToolEntry[] }) {
+  return <AgentToolGroup entries={entries} />;
+}, (prev, next) => prev.entries.length === next.entries.length
+  && prev.entries.every((entry, index) => entry.call === next.entries[index].call && entry.result === next.entries[index].result));
+
+const NamePlanCard = React.memo(function NamePlanCard({ result, widgetContext }: { result: AgentToolResult; widgetContext: MarkdownWidgetContext }) {
+  return <ChatMarkdownRenderer content={namePlanFence(result)} widgetRegistry={homeAgentWidgetRegistry} widgetContext={widgetContext} codeBlock={{ colorTheme: "qiuvision" }} />;
+});
+
+/** What the user did on a card, as FusionKit reported it to the agent. */
+const UiEventLine = React.memo(function UiEventLine({ message }: { message: AgentMessage }) {
+  const { t } = useTranslation();
+  const event = message.event!;
+  const values = event.values ?? {};
+  const failed = event.kind.endsWith("_failed");
+  const dismissed = event.kind.endsWith("_dismissed");
+  const Icon = failed ? XCircle : dismissed ? PauseCircle : CheckCircle2;
+  const error = typeof values.error === "string" ? actionErrorMessage(values.error, t) : undefined;
+  return <div className="flex justify-end" data-message-role="event" data-event-kind={event.kind}>
+    <span className={cn("inline-flex max-w-[85%] items-start gap-1.5 rounded-full border px-3 py-1 text-xs leading-5 text-muted-foreground", failed && "border-destructive/30 text-destructive")}>
+      <Icon aria-hidden className={cn("mt-1 size-3 shrink-0", !failed && !dismissed && "text-emerald-600 dark:text-emerald-400")} />
+      <span className="min-w-0 [overflow-wrap:anywhere]">{t(`home:ui_event_${event.kind}`, { ...values, error })}</span>
+    </span>
+  </div>;
+});
 
 /** Copies a sent message; it appears beside the bubble while the message is hovered or focused. */
 function CopyMessageButton({ text }: { text: string }) {
@@ -388,9 +374,4 @@ function CopyMessageButton({ text }: { text: string }) {
     </TooltipTrigger>
     <TooltipContent side="top" sideOffset={6}>{label}</TooltipContent>
   </Tooltip>;
-}
-
-function ToolCard({ call, result }: { call: AgentToolCall; result?: AgentToolResult }) {
-  const classic = result && !isModernToolResult(result.toolName);
-  return <AgentToolCallView call={call} result={result} body={classic ? <ClassicResultBody result={result} /> : undefined} />;
 }

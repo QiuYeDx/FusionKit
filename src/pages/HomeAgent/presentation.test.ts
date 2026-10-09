@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PreparedAction, PreparedActionReceipt } from "@/agent/prepared-actions";
-import { actionFailureReceipt, actionReceipt, agentToolPath, appendProgressPrompt, groupPreparedActions, hasPreparedAction, readReceipt, taskRows } from "./presentation";
+import { actionFailureReceipt, actionReceipt, agentToolPath, groupPreparedActions, hasPreparedAction, readReceipt, taskRows } from "./presentation";
 
 const action = (id: string, status: PreparedAction["status"], extra: Partial<PreparedAction> = {}): PreparedAction => ({ id, status, sessionId: "current", title: id, summary: id, toolKey: "subtitleStudio", ...extra });
 const preparation: PreparedActionReceipt = { phase: "preparation", total: 2, successCount: 1, failureCount: 1, items: [
@@ -88,12 +88,5 @@ describe("HomeAgent handoff and draft progress checks", () => {
     expect(agentToolPath("subtitleStudio", "/tools/subtitle/studio", "get_studio_tasks", "transcription")).toBe("/tools/subtitle/studio?view=transcription");
     expect(agentToolPath("subtitleStudio", "/tools/subtitle/studio", "prepare_studio_translation")).toBe("/tools/subtitle/studio?view=documents");
     expect(agentToolPath("translator", "/tools/subtitle/translator")).toBe("/tools/subtitle/translator");
-  });
-  it("preserves an existing draft and does not duplicate the progress request", () => {
-    const suggestion = "检查实际任务并更新计划。";
-    expect(appendProgressPrompt("", suggestion)).toBe(suggestion);
-    const draft = appendProgressPrompt("先保留这段未发送的话。", suggestion);
-    expect(draft).toBe(`先保留这段未发送的话。\n\n${suggestion}`);
-    expect(appendProgressPrompt(draft, suggestion)).toBe(draft);
   });
 });

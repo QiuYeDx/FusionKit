@@ -46,6 +46,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
       if (!parsed.success) return Promise.resolve({ ok: false, error: 'access_denied' } as const);
       return ipc.invoke(STUDIO_CHANNELS.dropTranscriptionMedia, { capability, payload: parsed.data });
     },
+    authorizeTranscriptionPaths: request => invoke(STUDIO_CHANNELS.authorizeTranscriptionPaths, request),
     probeTranscriptionMedia: request => invoke(STUDIO_CHANNELS.probeTranscriptionMedia, request),
     revokeTranscriptionMedia: request => invoke(STUDIO_CHANNELS.revokeTranscriptionMedia, request),
     inspectTranscriptionRuntime: request => invoke(STUDIO_CHANNELS.inspectTranscriptionRuntime, request),

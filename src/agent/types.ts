@@ -25,6 +25,21 @@ export interface AgentMessage {
   toolResult?: AgentToolResult;
   /** assistant 消息中的 tool calls（用于会话历史回传 API） */
   toolCalls?: AgentToolCall[];
+  /**
+   * A user message written by FusionKit, not typed by the user: it reports what the user did on a card
+   * (confirming a rename, a prepared action...) so the agent can follow up. Never user authorization.
+   */
+  event?: AgentUiEvent;
+}
+
+export type AgentUiEventKind =
+  | "rename_applied" | "rename_failed" | "rename_dismissed"
+  | "action_completed" | "action_failed" | "action_dismissed"
+  | "execution_confirmed" | "execution_dismissed";
+
+export interface AgentUiEvent {
+  kind: AgentUiEventKind;
+  values?: Record<string, string | number | boolean>;
 }
 
 export interface AgentToolResult {

@@ -68,6 +68,7 @@ export const STUDIO_CHANNELS = {
   findCues: 'subtitle-studio:find-cues',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
+  authorizeTranscriptionPaths: 'subtitle-studio:authorize-transcription-paths',
   probeTranscriptionMedia: 'subtitle-studio:probe-transcription-media',
   revokeTranscriptionMedia: 'subtitle-studio:revoke-transcription-media',
   inspectTranscriptionRuntime: 'subtitle-studio:inspect-transcription-runtime',
@@ -84,6 +85,12 @@ export const STUDIO_CHANNELS = {
 const transcriptionRefSchema = z.string().min(1).max(256).regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/).refine(value => value !== '.' && value !== '..');
 export const transcriptionRequestSchemas = {
   selectTranscriptionMedia: z.object({}).strict(),
+  // Paths the user typed to the assistant; the assistant checks that before asking, main reads only media.
+  authorizeTranscriptionPaths: z.object({
+    paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(20),
+    recursive: z.boolean().optional(),
+    offset: z.number().int().min(0).max(100000).optional(),
+  }).strict(),
   probeTranscriptionMedia: z.object({ fileToken: transcriptionRefSchema }).strict(),
   revokeTranscriptionMedia: z.object({ fileToken: transcriptionRefSchema }).strict(),
   inspectTranscriptionRuntime: z.object({}).strict(),
@@ -172,6 +179,8 @@ export type TranscriptionMediaSelection = { items: Array<
   { displayName: string; ok: true; media: LocalSubtitleAuthorizedMedia; probe: LocalSubtitleMediaProbeSummary }
   | { displayName: string; ok: false; error: ErrorCode; media?: LocalSubtitleAuthorizedMedia }
 > };
+/** One page of the media under typed paths: `matched` counts all of it, `nextOffset` starts the next page. */
+export type TranscriptionPathSelection = TranscriptionMediaSelection & { matched: number; nextOffset?: number };
 export type TranscriptionResourceJob = Omit<LocalSubtitleResourceJobSummary, 'error'> & { error?: Pick<NonNullable<LocalSubtitleResourceJobSummary['error']>, 'code'> };
 export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSummary[]; jobs: TranscriptionResourceJob[]; shared?: SpeechResourcesStatus };
 export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneration: string; target: { platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64' } }
@@ -195,6 +204,7 @@ export interface SubtitleStudioApi {
   listTranslationTasks(request: z.infer<typeof requestSchemas.listTranslationTasks>): Promise<StudioResult<TranslationTasksSnapshot>>;
   selectTranscriptionMedia(request: z.infer<typeof requestSchemas.selectTranscriptionMedia>): Promise<StudioResult<TranscriptionMediaSelection | null>>;
   dropTranscriptionMedia(files: readonly File[]): Promise<StudioResult<TranscriptionMediaSelection>>;
+  authorizeTranscriptionPaths(request: z.infer<typeof requestSchemas.authorizeTranscriptionPaths>): Promise<StudioResult<TranscriptionPathSelection>>;
   probeTranscriptionMedia(request: z.infer<typeof requestSchemas.probeTranscriptionMedia>): Promise<StudioResult<LocalSubtitleMediaProbeSummary>>;
   revokeTranscriptionMedia(request: z.infer<typeof requestSchemas.revokeTranscriptionMedia>): Promise<StudioResult<{ revoked: boolean }>>;
   inspectTranscriptionRuntime(request: z.infer<typeof requestSchemas.inspectTranscriptionRuntime>): Promise<StudioResult<TranscriptionRuntimeSummary>>;

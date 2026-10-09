@@ -1,12 +1,15 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, CircleDashed, Loader2, XCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowUpRight, CheckCircle2, CircleDashed, Loader2, XCircle } from "lucide-react";
 import type { AgentToolCall as ToolCall, AgentToolResult } from "@/agent/types";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { actionErrorMessage } from "./action-error";
 import AgentCard from "./AgentCard";
-import ToolResultBody, { isModernToolResult } from "./AgentToolResult";
+import ToolResultDetails, { ToolResultAttention, toolResultPath, toolResultSummary } from "./AgentToolResult";
 
 const toolNameKeys = {
   scan_subtitle_files: "home:tool_name_scan",
@@ -40,36 +43,59 @@ const toolNameKeys = {
 } as const;
 
 /**
- * One card per tool call: its name and state in the header, what it returned in the body and the
- * raw parameters and data behind the header's disclosure. `body` replaces the default result view,
- * for results that are not modern tool payloads.
+ * The tool calls of one stretch of a turn, as rows of one card: each row says in a line what the
+ * call did; its result, parameters and data wait behind the row's disclosure. Failures and receipts
+ * with failures stay visible.
  */
-export default function AgentToolCall({ call, result, running = false, body }: { call: ToolCall; result?: AgentToolResult; running?: boolean; body?: ReactNode }) {
+export function AgentToolGroup({ entries, running = false }: { entries: { call: ToolCall; result?: AgentToolResult }[]; running?: boolean }) {
+  if (!entries.length) return null;
+  return <AgentCard data-testid="agent-tool-group">
+    <ul className="divide-y">{entries.map(({ call, result }) => <AgentToolRow key={call.toolCallId} call={call} result={result} running={running && !result} />)}</ul>
+  </AgentCard>;
+}
+
+function AgentToolRow({ call, result, running }: { call: ToolCall; result?: AgentToolResult; running: boolean }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState("");
   const state = running ? "running" : result ? result.success ? "completed" : "failed" : "incomplete";
   const Icon = { running: Loader2, completed: CheckCircle2, failed: XCircle, incomplete: CircleDashed }[state];
   const label = { running: "home:action_running", completed: "home:action_completed", failed: "home:action_failed", incomplete: "home:tool_incomplete" } as const;
   const titleKey = toolNameKeys[call.toolName as keyof typeof toolNameKeys] ?? "home:tool_execution_fallback";
-  const content = body !== undefined ? body : result && isModernToolResult(result.toolName) ? <ToolResultBody result={result} />
-    : result && !result.success ? <p className="text-xs leading-5 text-destructive [overflow-wrap:anywhere]">{result.error ? actionErrorMessage(result.error, t) : t("home:action_failed")}</p> : null;
+  const summary = result ? toolResultSummary(result, t) : undefined;
+  const path = result ? toolResultPath(result) : undefined;
   const hasArgs = Object.keys(call.args ?? {}).length > 0;
-  return <AgentCard data-tool-call-id={call.toolCallId} data-tool-call-status={state}>
+  return <li data-tool-call-id={call.toolCallId} data-tool-call-status={state}>
     <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded}>
       <AccordionItem value="detail" className="border-0">
-        <AccordionTrigger className="items-center gap-2 rounded-none px-3 py-2 text-xs hover:bg-muted/40 hover:no-underline focus-visible:ring-inset [&>svg]:translate-y-0">
-          <Icon aria-hidden className={cn("size-3.5 shrink-0 text-muted-foreground", state === "completed" && "text-emerald-600 dark:text-emerald-400",
-            state === "failed" && "text-destructive", running && "animate-spin motion-reduce:animate-none")} />
-          <span className="min-w-0 flex-1 text-left font-medium [overflow-wrap:anywhere]">{t(titleKey)}</span>
-          <span className="shrink-0 text-[11px] font-normal text-muted-foreground">{t(label[state])}</span>
-        </AccordionTrigger>
-        {content && <div className="border-t px-3 py-2.5">{content}</div>}
+        <div className="flex min-w-0 items-center [&>h3]:min-w-0 [&>h3]:flex-1">
+          <AccordionTrigger className="min-w-0 gap-2 rounded-none py-2 pr-3 pl-3 text-xs font-normal focus-visible:ring-inset [&>svg]:size-3.5">
+            <Icon aria-hidden className={cn("size-3.5 shrink-0 text-muted-foreground", state === "completed" && "text-emerald-600 dark:text-emerald-400",
+              state === "failed" && "text-destructive", running && "animate-spin motion-reduce:animate-none")} />
+            <span className="flex min-w-0 flex-1 items-baseline gap-2">
+              <span className="shrink-0 font-medium">{t(titleKey)}</span>
+              {summary && <span className="min-w-0 truncate text-muted-foreground" title={summary}>{summary}</span>}
+            </span>
+            {state !== "completed" && <span className={cn("shrink-0 text-[11px] text-muted-foreground", state === "failed" && "text-destructive")}>{t(label[state])}</span>}
+          </AccordionTrigger>
+          {path && <Tooltip delayDuration={350}>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label={t("home:open_tool")} className="mr-1.5 size-7 shrink-0 rounded-lg text-muted-foreground hover:text-foreground" onClick={() => navigate(path)}>
+                <ArrowUpRight className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={6}>{t("home:open_tool")}</TooltipContent>
+          </Tooltip>}
+        </div>
+        {result && !result.success && <p className="px-3 pb-2 pl-8.5 text-xs leading-5 text-destructive [overflow-wrap:anywhere]">{result.error ? actionErrorMessage(result.error, t) : t("home:action_failed")}</p>}
+        {result?.success && <div className="empty:hidden px-3 pb-2 pl-8.5"><ToolResultAttention result={result} /></div>}
         <AccordionContent className="space-y-2 border-t bg-muted/20 px-3 pt-2.5 pb-3 text-[11px] leading-5 text-muted-foreground">
+          {result && <div className="text-foreground"><ToolResultDetails result={result} /></div>}
           <p className="[overflow-wrap:anywhere]">{t("home:tool_identifier")}: <code className="text-foreground/80">{call.toolName}</code></p>
           {hasArgs && <div><p className="mb-0.5">{t("home:tool_parameters")}</p><pre className="max-h-48 overflow-y-auto whitespace-pre-wrap text-foreground/80 [overflow-wrap:anywhere]">{JSON.stringify(call.args, null, 2)}</pre></div>}
           {result?.data !== undefined && <div><p className="mb-0.5">{t("home:tool_result_data")}</p><pre className="max-h-48 overflow-y-auto whitespace-pre-wrap text-foreground/80 [overflow-wrap:anywhere]">{JSON.stringify(result.data, null, 2)}</pre></div>}
         </AccordionContent>
       </AccordionItem>
     </Accordion>
-  </AgentCard>;
+  </li>;
 }

@@ -74,7 +74,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       /** The panel's box once its opening animation has settled. */
       const settledBox = async (locator: ReturnType<Page['getByRole']>) => {
         let previous = '';
-        await expect.poll(async () => { const next = JSON.stringify(await locator.boundingBox()); const same = next === previous; previous = next; return same; }, { intervals: [120] }).toBe(true);
+        await expect.poll(async () => { const next = JSON.stringify(await locator.boundingBox()); const same = next === previous; previous = next; return same; }, { intervals: [120], timeout: 3000 }).toBe(true);
         return (await locator.boundingBox())!;
       };
 
@@ -104,6 +104,41 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       // The panel stays clear of the bottom navigation.
       expect(box.y + box.height).toBeLessThan(nav!.y);
       await shot('01-open-empty-1280-light');
+
+      // The launcher has turned into the panel: while it is open the launcher is gone from the corner.
+      await uiExpect.poll(() => launcher.evaluate(element => !!element.closest('[inert]') && getComputedStyle(element.parentElement!).opacity)).toBe('0');
+      // Dragged by its header, the panel stays where it is dropped, also after minimizing and reopening.
+      const header = page.getByTestId('agent-dock-header');
+      const headerBox = (await header.boundingBox())!;
+      await page.mouse.move(headerBox.x + 120, headerBox.y + headerBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(headerBox.x + 320, headerBox.y + headerBox.height / 2 - 60, { steps: 8 });
+      await page.mouse.move(headerBox.x + 420, headerBox.y + headerBox.height / 2 - 100, { steps: 8 });
+      await page.mouse.up();
+      const dragged = await settledBox(panel);
+      expect(dragged.x).toBe(box.x + 300);
+      expect(dragged.y).toBe(box.y - 100);
+      await uiExpect(launcher).toHaveAttribute('aria-expanded', 'true');
+      await shot('01b-dragged-1280-light');
+      // Minimizing turns the panel back into the launcher at the corner.
+      await page.getByTestId('agent-dock-minimize').click();
+      await uiExpect(launcher).toHaveAttribute('aria-expanded', 'false');
+      await uiExpect(launcher).toBeFocused();
+      await uiExpect.poll(() => launcher.evaluate(element => getComputedStyle(element.parentElement!).opacity)).toBe('1');
+      await uiExpect(page.locator('[role=dialog]')).toHaveCount(0);
+      await launcher.click();
+      expect(await settledBox(panel)).toMatchObject({ x: dragged.x, y: dragged.y });
+      // Dragging cannot take it out of the window or under the title bar.
+      await page.mouse.move(dragged.x + 120, dragged.y + 20);
+      await page.mouse.down();
+      await page.mouse.move(dragged.x + 3000, dragged.y - 3000, { steps: 6 });
+      await page.mouse.up();
+      const clamped = await settledBox(panel);
+      expect(clamped.x + clamped.width).toBe(await page.evaluate(() => innerWidth) - 11);
+      expect(clamped.y).toBe(48);
+      // A double click on the header brings it back to where it rests.
+      await header.dblclick({ position: { x: 120, y: 20 } });
+      expect(await settledBox(panel)).toMatchObject({ x: box.x, y: box.y });
 
       // Esc closes and returns focus without popping the launcher's tooltip; hovering shows it to the right.
       await page.keyboard.press('Escape');
@@ -188,7 +223,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       queue.push(text('第 5 句现在是“法厄同驾着太阳车出发了。”'));
       await page.getByTestId('agent-dock-input').fill('第 5 句现在是什么？');
       await page.getByTestId('agent-dock-input').press('Enter');
-      await page.getByTestId('agent-dock-close').click();
+      await page.getByTestId('agent-dock-minimize').click();
       await uiExpect(page.getByTestId('agent-dock-busy')).toBeVisible();
       await page.screenshot({ path: path.join(artifacts, '04-launcher-busy.png'), clip: { x: 0, y: 760, width: 200, height: 100 } });
       await expect.poll(() => !!hold).toBe(true);

@@ -1,6 +1,6 @@
 import { StudioError, type ErrorCode } from '../../subtitle-studio/domain';
 import { speechResourceIsBusy, type SpeechResourcesNotifications, type SpeechResourcesStatus } from '../../speech-resources/events';
-import type { StudioResult, SubtitleStudioApi, TranscriptionResourceJob, TranscriptionResources,
+import type { StudioResult, SubtitleStudioApi, TranscriptionMediaSelection, TranscriptionPathSelection, TranscriptionResourceJob, TranscriptionResources,
   TranscriptionRuntimeSummary } from '../../subtitle-studio/ipc-contract';
 import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '../../subtitle-studio/transcription/domain';
 import { localSubtitleAuthorizedMediaSchema, localSubtitleMediaProbeSummarySchema, type LocalSubtitleAuthorizedMedia,
@@ -17,7 +17,7 @@ import useModelStore from '../../store/useModelStore';
 export { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG } from '../../subtitle-studio/transcription/preferences-contract';
 
 type Config = EnqueueTranscriptionRequest['config'];
-type Api = Pick<SubtitleStudioApi, 'selectTranscriptionMedia' | 'dropTranscriptionMedia' | 'probeTranscriptionMedia' | 'revokeTranscriptionMedia'
+type Api = Pick<SubtitleStudioApi, 'selectTranscriptionMedia' | 'dropTranscriptionMedia' | 'authorizeTranscriptionPaths' | 'probeTranscriptionMedia' | 'revokeTranscriptionMedia'
   | 'inspectTranscriptionRuntime' | 'listTranscriptionResources' | 'importTranscriptionModel' | 'installTranscriptionResource'
   | 'deleteTranscriptionResource' | 'cancelTranscriptionResourceJob' | 'enqueueTranscription' | 'listTranscriptionTasks' | 'cancelTranscriptionTask' | 'removeTranscriptionTask'>;
 type Timer = () => void;
@@ -401,7 +401,16 @@ export class StudioTranscriptionController {
     if (captured.length > 20) { this.emit({ error: 'limit_exceeded' }); return Promise.resolve(); }
     return this.selectMediaUsing(() => this.api().dropTranscriptionMedia(captured));
   };
-  private selectMediaUsing(select: () => ReturnType<Api['selectTranscriptionMedia']>): Promise<void> {
+  /** Media under paths the user typed to the assistant, one page of at most 20 files at a time. */
+  selectMediaFromPaths = async (request: Parameters<Api['authorizeTranscriptionPaths']>[0]): Promise<{ matched: number; nextOffset?: number } | undefined> => {
+    let page: { matched: number; nextOffset?: number } | undefined;
+    await this.selectMediaUsing(() => this.api().authorizeTranscriptionPaths(request), result => {
+      const { matched, nextOffset } = result as TranscriptionPathSelection;
+      page = { matched, ...(nextOffset !== undefined ? { nextOffset } : {}) };
+    });
+    return page;
+  };
+  private selectMediaUsing(select: () => ReturnType<Api['selectTranscriptionMedia']>, onResult?: (result: TranscriptionMediaSelection) => void): Promise<void> {
     if (this.selection) return this.selection;
     if (this.disposed || this.state.submitting || this.state.selecting) return Promise.resolve();
     let selected!: ReturnType<Api['selectTranscriptionMedia']>;
@@ -409,6 +418,7 @@ export class StudioTranscriptionController {
       const result = await unwrap(selected);
       await this.start();
       if (!result) return;
+      onResult?.(result);
       const drafts = [...this.state.drafts];
       let exceeded = false;
       for (const item of result.items) {

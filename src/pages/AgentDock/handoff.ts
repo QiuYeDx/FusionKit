@@ -54,3 +54,16 @@ export function homeColumnTarget(viewport: Viewport): DockRect {
   const last = lastHomeColumn;
   return last && last.viewport.width === viewport.width && last.viewport.height === viewport.height ? last.rect : predictHomeColumn(viewport);
 }
+
+/** How far the user has dragged the open panel from where it rests. */
+export type DockOffset = { x: number; y: number };
+
+/** Keeps a dragged panel inside the window: an edge gap from its sides and bottom, below the title bar. */
+export function clampDockOffset(offset: DockOffset, viewport: Viewport): DockOffset {
+  const rest = dockPanelRect(viewport);
+  const clamp = (value: number, min: number, max: number) => Math.round(Math.min(Math.max(value, min), Math.max(min, max)));
+  return {
+    x: clamp(offset.x, DOCK_EDGE - rest.left, viewport.width - DOCK_EDGE - rest.width - rest.left),
+    y: clamp(offset.y, TITLE_BAR + 8 - rest.top, viewport.height - DOCK_EDGE - rest.height - rest.top),
+  };
+}

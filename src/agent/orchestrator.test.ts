@@ -20,7 +20,7 @@ vi.mock("@/store/useModelStore", () => ({ default: { getState: () => ({ getAgent
 vi.mock("@/i18n", () => ({ default: { t: (key: string, args?: { error?: string }) => args?.error ? `${key}: ${args.error}` : key } }));
 
 import useAgentStore from "@/store/agent/useAgentStore";
-import { abortCurrentStream, handleUserMessage } from "./orchestrator";
+import { abortCurrentStream, handleUserMessage, reportUiEvent } from "./orchestrator";
 import { registerPageContext, usePageContextStore } from "./page-context";
 
 function deferred() {
@@ -142,6 +142,25 @@ describe("Agent turn ownership and receipts", () => {
     expect(prompt).not.toContain("other-private");
     expect(prompt).not.toContain('"execute":"private"');
     expect(prompt).toContain("prepare_studio_translation");
+  });
+
+  it("returns to thinking between steps so the panel keeps showing progress", async () => {
+    const gate = deferred();
+    mocks.chat.mockReturnValue(turn((async function* () {
+      yield { type: "text-delta", text: "Reading" } as const;
+      yield { type: "tool-call", toolCallId: "read", toolName: "echo", input: {} } as const;
+      yield { type: "tool-result", toolCallId: "read", toolName: "echo", output: { success: true } } as const;
+      yield { type: "finish-step" } as const;
+      await gate.promise;
+      yield { type: "finish", reason: "completed" } as const;
+    })()));
+    const operation = handleUserMessage("check");
+    await vi.waitFor(() => expect(useAgentStore.getState().session.messages.some((m) => m.toolResult)).toBe(true));
+    const state = useAgentStore.getState();
+    expect(state).toMatchObject({ isStreaming: true, streamingText: "", activeToolCalls: [] });
+    expect(state.session.status).toBe("thinking");
+    gate.resolve(); await operation;
+    expect(useAgentStore.getState().session.status).toBe("idle");
   });
 
   it("coalesces streamed deltas into fewer store updates without losing text", async () => {
@@ -266,6 +285,30 @@ describe("Agent turn ownership and receipts", () => {
     expect(log?.data).toMatchObject({ route: "/tools/subtitle/studio", pageTools: ["studio_echo"], pageToolConflicts: ["echo"] });
     usePageContextStore.setState({ pathname: "/", pages: [] });
     outputs = [];
+  });
+
+  it("follows up on a card decision by itself, after the running turn when there is one", async () => {
+    const gate = deferred();
+    mocks.chat.mockReturnValueOnce(turn((async function* () { await gate.promise; yield { type: "finish", reason: "completed" } as const; })()));
+    const running = handleUserMessage("rename these");
+    reportUiEvent({ kind: "rename_applied", values: { planId: "plan-1", success: 3, failed: 0, skipped: 0 } });
+    expect(mocks.chat).toHaveBeenCalledTimes(1);
+    gate.resolve(); await running;
+    await vi.waitFor(() => expect(mocks.chat).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(useAgentStore.getState().isStreaming).toBe(false));
+    const event = useAgentStore.getState().session.messages.find((message) => message.event);
+    expect(event).toMatchObject({ role: "user", event: { kind: "rename_applied" } });
+    expect(event?.content).toMatch(/^\[FusionKit UI event\].*3 renamed.*authorizes nothing new/);
+    expect(mocks.chat.mock.calls[1][0].system).toContain("Interface events");
+  });
+
+  it("lets a dismissal pass quietly unless a plan still has open steps", async () => {
+    reportUiEvent({ kind: "action_dismissed", values: { title: "Translate", actionId: "a" } });
+    expect(mocks.chat).not.toHaveBeenCalled();
+    useAgentStore.getState().updatePlan({ goal: "Work", steps: [{ id: "one", title: "Await confirmation", status: "in_progress" }] });
+    reportUiEvent({ kind: "action_dismissed", values: { title: "Translate", actionId: "a" } });
+    await vi.waitFor(() => expect(useAgentStore.getState().isStreaming).toBe(false));
+    expect(mocks.chat).toHaveBeenCalledTimes(1);
   });
 
   it("names the home page when no page context is registered", async () => {

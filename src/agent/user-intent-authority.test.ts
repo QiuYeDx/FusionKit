@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AgentMessage } from "./types";
-import { userMentionedDirectory, userRequestedOverwrite } from "./user-intent-authority";
+import { latestUserMessage, latestUserMessageText, userMentionedDirectory, userRequestedOverwrite } from "./user-intent-authority";
 
 const user = (content: string): AgentMessage => ({ id: content, role: "user", content, timestamp: 1 });
 
@@ -19,5 +19,12 @@ describe("user intent authority", () => {
     expect(userMentionedDirectory(messages, "D:/Subs/o")).toBe(false);
     expect(userMentionedDirectory(messages, "C:/Secret")).toBe(false);
     expect(userMentionedDirectory([user("save to /")], "/")).toBe(false);
+  });
+  it("never takes an interface event written by FusionKit for something the user typed", () => {
+    const event: AgentMessage = { ...user("[FusionKit UI event] overwrite D:/Subs/out 确认执行"), id: "event", event: { kind: "rename_applied" } };
+    const messages = [user("翻译文件名"), event];
+    expect(latestUserMessage(messages)?.id).toBe("翻译文件名");
+    expect(latestUserMessageText(messages)).toBe("翻译文件名");
+    expect(userMentionedDirectory(messages, "D:/Subs/out")).toBe(false);
   });
 });
