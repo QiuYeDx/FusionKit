@@ -34,6 +34,7 @@ import { KnowledgeTaskSerialGate } from '../translation-knowledge/task-gate';
 import { KnowledgeTrialService } from './knowledge-trial';
 import { readExecutionRecordPage } from './execution-view';
 import { automaticKnowledgeReportTrackIds, readAutomaticKnowledgeReportPage } from './automatic-knowledge-report';
+import { createAutomaticExporter } from './automatic-export';
 
 export function registerSubtitleStudio(sharedResources?: SpeechResourceService, readKnowledge?: () => Promise<LibrarySnapshot>, knowledgeGate: KnowledgeTaskGate = new KnowledgeTaskSerialGate()) {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
@@ -42,6 +43,9 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   const knowledgeBatchTranslation = new KnowledgeBatchTranslationService(repository, translation, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
   const knowledgeTrial = new KnowledgeTrialService(repository, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))));
   const automaticTranslation = createAutomaticTranslationCoordinator({ repository, translation });
+  // Transcribe → translate → export runs here without the renderer: each document exports when its last stage is done.
+  const automaticExport = createAutomaticExporter(repository);
+  translation.onAutomaticCompleted(documentId => { void automaticExport.exportDocument(documentId); });
   const automaticKnowledge = new AutomaticKnowledgeService(readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
   const bilingual = new BilingualService(repository);
   const tracks = new TranslationTrackService(repository);
@@ -61,7 +65,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
     if (closed) throw new StudioError('access_denied');
     runtime ??= createTranscriptionRuntime({ userDataRoot: app.getPath('userData'), environment: app.isPackaged
       ? { mode: 'packaged', resourcesPath: process.resourcesPath }
-      : { mode: 'development', appRoot: app.getAppPath() } }, { sharedResources, automaticTranslation, automaticKnowledge }, repository);
+      : { mode: 'development', appRoot: app.getAppPath() } }, { sharedResources, automaticTranslation, automaticKnowledge, automaticExport }, repository);
     await runtime.initialize();
     if (closed) throw new StudioError('access_denied');
     return runtime;
@@ -407,7 +411,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const nodes = raw?.nodes.slice(nodeOffset, nodeOffset + LIMITS.pageSize) ?? [];
           const cueIds = new Set(cues.map(cue => cue.id));
           const translationTracks = doc.translationTracks.map(track => ({ ...track, entries: Object.fromEntries(Object.entries(track.entries).filter(([id]) => cueIds.has(id))) }));
-          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks), cues, offset, nodeOffset, nodeCount: raw?.nodes.length ?? 0, rawNodes: nodes.map(node => ({ id: node.id, text: raw!.rawText.slice(node.start, node.end) })), translationTracks, automaticKnowledgeReportTrackIds: automaticKnowledgeReportTrackIds(snapshot), tasks: snapshot.tasks.map(summarizeTask) } };
+          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks, undefined, snapshot.automaticExport), cues, offset, nodeOffset, nodeCount: raw?.nodes.length ?? 0, rawNodes: nodes.map(node => ({ id: node.id, text: raw!.rawText.slice(node.start, node.end) })), translationTracks, automaticKnowledgeReportTrackIds: automaticKnowledgeReportTrackIds(snapshot), tasks: snapshot.tasks.map(summarizeTask) } };
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
         if (!doc.capabilities.preserveSource) throw new StudioError('unsupported_feature');
@@ -465,6 +469,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
             ]);
             for (const result of admissions) if (result.status === 'rejected') failures.push(result.reason);
             await translation.dispose();
+            await automaticExport.settled();
           }),
           Promise.resolve().then(() => runtime?.shutdown(reason)),
           ...retirements,

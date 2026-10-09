@@ -35,7 +35,8 @@ export interface AgentMessage {
 export type AgentUiEventKind =
   | "rename_applied" | "rename_failed" | "rename_dismissed"
   | "action_completed" | "action_failed" | "action_dismissed"
-  | "execution_confirmed" | "execution_dismissed";
+  | "execution_confirmed" | "execution_dismissed"
+  | "pipeline_completed";
 
 export interface AgentUiEvent {
   kind: AgentUiEventKind;

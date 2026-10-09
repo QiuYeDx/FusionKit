@@ -12,6 +12,7 @@ import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES,
   automaticKnowledgePreferencesSchema, type AutomaticKnowledgePreferences, type AutomaticTranslationPreferences, type TranscriptionPreferences } from '../../subtitle-studio/transcription/preferences-contract';
 import { batchKnowledgeSelectionSchema, type BatchKnowledgeSelection } from '../../subtitle-studio/knowledge-batch-contract';
 import type { LibrarySnapshot } from '../../translation-knowledge/ipc-contract';
+import type { AutomaticExportSpec } from '../../subtitle-studio/automatic-export-contract';
 import { useStudioPreferences } from '../../store/tools/subtitle-studio/preferences';
 import useModelStore from '../../store/useModelStore';
 export { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG } from '../../subtitle-studio/transcription/preferences-contract';
@@ -470,7 +471,8 @@ export class StudioTranscriptionController {
     this.emit({ drafts: Object.freeze(this.state.drafts.filter(row => row.id !== id)) }); this.armPoll();
   };
   clearDrafts = (): void => { for (const draft of this.state.drafts) this.removeDraft(draft.id); };
-  enqueue = (options?: { expectedDraftIds?: readonly string[] }): Promise<TranscriptionBatchAdmission | null> => {
+  /** `autoExport` writes each result next to its media when it is done; it applies to this batch only. */
+  enqueue = (options?: { expectedDraftIds?: readonly string[]; autoExport?: AutomaticExportSpec }): Promise<TranscriptionBatchAdmission | null> => {
     if (this.enqueueOperation) {
       // A scoped confirmation must never adopt another caller's in-flight batch.
       if (options?.expectedDraftIds) { this.emit({ error: 'resource_busy' }); return Promise.resolve(null); }
@@ -493,7 +495,7 @@ export class StudioTranscriptionController {
     const automatic = this.automaticRequest();
     if (this.state.autoTranslation.enabled && !automatic) { this.emit({ error: 'needs_configuration' }); return Promise.resolve(null); }
     const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: this.state.config,
-      ...(automatic ? { autoTranslation: automatic } : {}) });
+      ...(automatic ? { autoTranslation: automatic } : {}), ...(options?.autoExport ? { autoExport: options.autoExport } : {}) });
     this.taskVersion++; this.emit({ submitting: true, error: null, drafts: Object.freeze(this.state.drafts.map(draft => ids.has(draft.id) ? Object.freeze({ ...draft, status: 'submitting' as const }) : draft)) });
     this.enqueueOperation = Promise.resolve().then(async () => {
       let response: Awaited<ReturnType<Api['enqueueTranscription']>>;

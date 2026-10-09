@@ -6,6 +6,7 @@ import { transcriptToDocument } from './document-adapter';
 import type { LocalSubtitleOwnerKey } from './native/authorizations';
 import { sourceLocationCaptureSchema, type SourceLocationCapture } from '../source-location-service';
 import { automaticTranslationIntentSchema, type AutomaticTranslationIntent } from '../../../../src/subtitle-studio/automatic-translation-contract';
+import { automaticExportSpecSchema, type AutomaticExportSpec } from '../../../../src/subtitle-studio/automatic-export-contract';
 
 export interface TranscriptionDocumentSinkOptions {
   readonly repository: DocumentRepository;
@@ -16,6 +17,7 @@ export interface TranscriptionDocumentSinkOptions {
   readonly sourceLocation?: SourceLocationCapture;
   readonly resolveSourceLocation?: () => Promise<SourceLocationCapture>;
   readonly automaticTranslation?: AutomaticTranslationIntent;
+  readonly automaticExport?: AutomaticExportSpec;
 }
 
 const identityString = z.string().min(1).max(128).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value));
@@ -28,6 +30,7 @@ const optionsSchema = z.object({
   sourceLocation: sourceLocationCaptureSchema.optional(),
   resolveSourceLocation: z.custom<() => Promise<SourceLocationCapture>>(value => typeof value === 'function').optional(),
   automaticTranslation: automaticTranslationIntentSchema.optional(),
+  automaticExport: automaticExportSpecSchema.optional(),
 }).strict().refine(value => (!value.sourceLocation || !value.resolveSourceLocation)
   && (!value.automaticTranslation || (value.automaticTranslation.state === 'pending' && value.automaticTranslation.sourceTaskId === value.taskId && value.automaticTranslation.generation === value.generation)));
 
@@ -35,7 +38,7 @@ const optionsSchema = z.object({
 export function createTranscriptionDocumentSink(options: TranscriptionDocumentSinkOptions) {
   const parsed = optionsSchema.safeParse(options);
   if (!parsed.success) throw new StudioError('invalid_input');
-  const { repository, assertActive, resolveSourceLocation, automaticTranslation } = parsed.data;
+  const { repository, assertActive, resolveSourceLocation, automaticTranslation, automaticExport } = parsed.data;
   let sourceLocation = parsed.data.sourceLocation;
   const identity = Object.freeze({ owner: Object.freeze(parsed.data.owner), taskId: parsed.data.taskId, generation: parsed.data.generation });
   const documentId = randomUUID();
@@ -63,7 +66,8 @@ export function createTranscriptionDocumentSink(options: TranscriptionDocumentSi
       const pending = Promise.resolve().then(async () => {
         sourceLocation ??= await resolveSourceLocation?.();
         guard();
-        return repository.createConfirmed(document!, guard, sourceLocation, automaticTranslation ? { automaticTranslation } : undefined);
+        const initial = { ...(automaticTranslation ? { automaticTranslation } : {}), ...(automaticExport ? { automaticExport: { spec: automaticExport, state: 'pending' as const } } : {}) };
+        return repository.createConfirmed(document!, guard, sourceLocation, Object.keys(initial).length ? initial : undefined);
       }).then(receipt => {
         committed = true;
         // Publication wins over a cancellation or owner release arriving after the final guard.

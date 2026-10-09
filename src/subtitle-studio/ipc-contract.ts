@@ -17,6 +17,7 @@ import { knowledgeBatchRequestSchemas, type KnowledgeBatchTranslationPreview, ty
 import { knowledgeTranslationRequestSchemas, type KnowledgeTranslationPreview } from './knowledge-translation-contract';
 import { readExecutionRecordSchema, type ExecutionRecordPage } from './execution-view-contract';
 import { readAutomaticKnowledgeReportSchema, type AutomaticKnowledgeReportPage } from './automatic-knowledge-report-contract';
+import { summarizeAutomaticExport, type AutomaticExportSummary } from './automatic-export-contract';
 
 export const STUDIO_CHANNELS = {
   readAutomaticKnowledgeReport: 'subtitle-studio:read-automatic-knowledge-report',
@@ -154,6 +155,7 @@ export type DocumentSummary = Pick<SubtitleDocument, 'id' | 'revision' | 'origin
   translationStatus?: 'none' | 'partial' | 'complete';
   translationTracks?: Pick<SubtitleDocument['translationTracks'][number], 'id' | 'language' | 'origin' | 'name'>[];
   task?: { id: string; status: DocumentSnapshot['tasks'][number]['status']; model?: z.infer<typeof translationModelSchema>; completedBatches: number; totalBatches: number } | null;
+  automaticExport?: AutomaticExportSummary;
 };
 type StoredTask = DocumentSnapshot['tasks'][number];
 export type TranslationTaskStatus = StoredTask['status'];
@@ -249,7 +251,8 @@ export interface SubtitleStudioApi {
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 
-export function summarizeDocument(doc: SubtitleDocument, tasks: DocumentSnapshot['tasks'] = [], updatedAt?: number): DocumentSummary {
+export function summarizeDocument(doc: SubtitleDocument, tasks: DocumentSnapshot['tasks'] = [], updatedAt?: number, automaticExport?: DocumentSnapshot['automaticExport']): DocumentSummary {
+  const exported = summarizeAutomaticExport(automaticExport);
   const nonempty = doc.cues.filter(cue => cue.source.plain.trim());
   const translated = Math.max(0, ...doc.translationTracks.map(track => nonempty.filter(cue => {
     const entry = track.entries[cue.id];
@@ -262,6 +265,7 @@ export function summarizeDocument(doc: SubtitleDocument, tasks: DocumentSnapshot
     translationTracks: doc.translationTracks.map(({ id, language, origin, name }) => ({ id, language, ...(origin ? { origin } : {}), ...(name ? { name } : {}) })),
     task: task ? { id: task.id, status: task.status, ...(task.translation ? { model: task.translation.config.model } : {}), completedBatches: task.completedBatchIds.length, totalBatches: task.translation?.totalBatches ?? 0 } : null,
     ...(doc.bilingualImport ? { bilingualImport: doc.bilingualImport } : {}),
+    ...(exported ? { automaticExport: exported } : {}),
     bilingualAvailable: !doc.translationTracks.length && !doc.bilingualImport && hasBilingualCandidates(doc),
     bilingualRecommended: !doc.translationTracks.length && !doc.bilingualImport && isBilingualRecommended(doc) };
 }

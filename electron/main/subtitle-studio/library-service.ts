@@ -5,7 +5,7 @@ import { matchesLibraryQuery } from '../../../src/subtitle-studio/library-query'
 import type { DocumentRepository } from './document-repository';
 
 export function selectLibrary(snapshot: Awaited<ReturnType<DocumentRepository['listSnapshot']>>, request: z.infer<typeof requestSchemas.listDocuments>): DocumentListSnapshot {
-  const documents = snapshot.records.map(({ snapshot: record, updatedAt }) => summarizeDocument(record.document, record.tasks, updatedAt)).filter(doc => matchesLibraryQuery(doc, request));
+  const documents = snapshot.records.map(({ snapshot: record, updatedAt }) => summarizeDocument(record.document, record.tasks, updatedAt, record.automaticExport)).filter(doc => matchesLibraryQuery(doc, request));
   documents.sort((a, b) => {
     let compared = 0;
     switch (request.sort ?? 'name-asc') {

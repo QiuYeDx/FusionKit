@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Loader2, PauseCircle, Play, XCircle } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Loader2, PauseCircle, Play, Workflow, XCircle } from "lucide-react";
+import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 import { usePreparedActionsStore, type PreparedAction } from "@/agent/prepared-actions";
 import { reportUiEvent } from "@/agent/orchestrator";
 import { cn } from "@/lib/utils";
 import { AGENT_CAPABILITIES } from "@/agent/capability-catalog";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import AgentCard from "./AgentCard";
 import { capabilityLabels } from "./AgentCapabilities";
@@ -22,20 +24,43 @@ export function AgentPreparedActionCard({ actionId, busy }: { actionId: string; 
   return action ? <ActionCard action={action} busy={busy} /> : null;
 }
 
+/** A language code as the interface language names it ("ja" → "日语"); anything else stays as written. */
+function languageName(value: unknown, locale: string): string {
+  const text = String(value ?? "");
+  if (!/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(text)) return text;
+  try { return new Intl.DisplayNames([locale], { type: "language" }).of(text) ?? text; } catch { return text; }
+}
+
+/** What runs after transcription without the assistant: translation, export, or both. */
+function pipelineLines(values: PreparedAction["summaryValues"], t: TFunction, locale: string): string[] {
+  if (!values || (values.translateTo === undefined && values.exportFormat === undefined)) return [];
+  const target = values.translateTo !== undefined ? languageName(values.translateTo, locale) : "";
+  const lines = [values.translateTo !== undefined && values.exportFormat !== undefined ? t("home:prepared_pipeline", { target })
+    : values.translateTo !== undefined ? t("home:prepared_pipeline_translate", { target }) : t("home:prepared_pipeline_export")];
+  if (values.exportFormat !== undefined) lines.push(t("home:prepared_pipeline_detail", {
+    format: values.exportFormat === "auto" ? t("home:pipeline_format_auto") : String(values.exportFormat).toUpperCase(),
+    content: t(`home:pipeline_content_${values.exportContent}`), conflict: t(`home:pipeline_conflict_${values.exportConflict}`) }));
+  return lines;
+}
+
 /** A prepared action; inside the history card it is a row rather than a card of its own. */
 function ActionCard({ action, busy, flat = false }: { action: PreparedAction; busy: boolean; flat?: boolean }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { confirmAction, dismissAction } = usePreparedActionsStore();
   const capability = AGENT_CAPABILITIES.find(item => item.toolKey === action.toolKey);
   const labels = capabilityLabels[action.toolKey as keyof typeof capabilityLabels];
   const title = action.summaryKey === "home:prepared_translation_summary" ? t("home:prepared_translation_title")
     : action.summaryKey === "home:prepared_transcription_summary" ? t("home:prepared_transcription_title") : labels ? t(labels.title) : action.title;
-  const summary = action.summaryKey === "home:prepared_translation_summary" ? t("home:prepared_translation_summary", action.summaryValues)
-    : action.summaryKey === "home:prepared_transcription_summary" ? t("home:prepared_transcription_summary", action.summaryValues) : action.summary;
+  // The files are the receipt's items; the summary keeps to one line of what will happen.
+  const values = action.summaryValues ? { ...action.summaryValues, language: languageName(action.summaryValues.language, i18n.resolvedLanguage || i18n.language) } : undefined;
+  const summary = action.summaryKey ? t(action.summaryKey, values) : action.summary;
+  const pipeline = pipelineLines(action.summaryValues, t, i18n.resolvedLanguage || i18n.language);
   const Icon = { ready: Play, running: Loader2, completed: CheckCircle2, failed: XCircle, dismissed: PauseCircle }[action.status];
   const submitted = action.status === "completed" && objectValue(action.result).executionStatus === "queued";
   const receipt = actionReceipt(action);
+  // Only the latest receipt; the preparation stays in view when the submission came after a partial one.
+  const preparationFailures = action.preparationReceipt && receipt?.phase === "submission" && action.preparationReceipt.failureCount > 0 ? action.preparationReceipt : undefined;
   const Surface = flat ? "div" : AgentCard;
   // What the user decided goes back to the agent, which then follows up on its own.
   const confirm = async () => {
@@ -48,29 +73,36 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
     dismissAction(action.id);
     reportUiEvent({ kind: "action_dismissed", values: { title, actionId: action.id } });
   };
-  return <Surface className={cn(flat ? "border-t p-3" : "p-3", !flat && action.status === "ready" && "border-primary/30 ring-1 ring-primary/10")}
+  const status = submitted ? t("home:result_submitted") : t(actionStatusKeys[action.status]);
+  return <Surface className={cn(flat ? "border-t px-3 py-2.5" : "px-3 py-2.5", !flat && action.status === "ready" && "border-primary/30 ring-1 ring-primary/10")}
     data-testid={flat ? undefined : "agent-prepared-action"} data-action-id={action.id} data-action-status={action.status}>
-    <div className="flex items-start gap-2">
-      <Icon aria-hidden className={`mt-0.5 size-3.5 shrink-0 ${action.status === "failed" ? "text-destructive" : "text-muted-foreground"} ${action.status === "running" ? "animate-spin motion-reduce:animate-none" : ""}`} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h3 className="text-xs font-medium leading-5 [overflow-wrap:anywhere]">{title}</h3>
-          <span className="text-[11px] text-muted-foreground">{submitted ? t("home:result_submitted") : t(actionStatusKeys[action.status])}</span>
-        </div>
-        <p className="mt-1 whitespace-pre-line text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{summary}</p>
-        {action.error && <p className="mt-2 text-xs leading-5 text-destructive [overflow-wrap:anywhere]">{actionErrorMessage(action.error, t)}</p>}
-        {(receipt || action.preparationReceipt) && <div className="mt-2 space-y-2">
-          {action.preparationReceipt && receipt?.phase === "submission" && <AgentActionReceipt receipt={action.preparationReceipt} />}
-          {receipt && <AgentActionReceipt receipt={receipt} />}
-        </div>}
-      </div>
+    <div className="flex min-w-0 items-center gap-2">
+      <Icon aria-hidden className={cn("size-3.5 shrink-0 text-muted-foreground", action.status === "failed" && "text-destructive",
+        action.status === "completed" && "text-emerald-600 dark:text-emerald-400", action.status === "running" && "animate-spin motion-reduce:animate-none")} />
+      <h3 className="min-w-0 flex-1 truncate text-xs font-medium leading-5" title={title}>{title}</h3>
+      <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] leading-4", action.status === "ready" ? "bg-primary text-primary-foreground"
+        : action.status === "failed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{status}</span>
+      {capability && <Tooltip delayDuration={350}>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" aria-label={t("home:open_tool")} className="-mr-1.5 size-7 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+            onClick={() => navigate(agentToolPath(action.toolKey, capability.route, action.summaryKey))}><ArrowUpRight className="size-3.5" /></Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={6}>{t("home:open_tool")}</TooltipContent>
+      </Tooltip>}
     </div>
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      {action.status === "ready" && <>
+    <div className="mt-1 space-y-1.5 pl-5.5">
+      <p className="text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{summary}</p>
+      {pipeline.length > 0 && <div className="flex items-start gap-1.5 text-xs leading-5 text-foreground/80" data-testid="prepared-pipeline">
+        <Workflow aria-hidden className="mt-1 size-3 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 [overflow-wrap:anywhere]">{pipeline.map((line, index) => <p key={index} className={index ? "text-muted-foreground" : undefined}>{line}</p>)}</div>
+      </div>}
+      {action.error && <p className="text-xs leading-5 text-destructive [overflow-wrap:anywhere]">{actionErrorMessage(action.error, t)}</p>}
+      {preparationFailures && <AgentActionReceipt receipt={preparationFailures} />}
+      {receipt && <AgentActionReceipt receipt={receipt} />}
+      {action.status === "ready" && <div className="flex flex-wrap items-center gap-2 pt-1">
         <Button size="sm" className="h-7 rounded-full px-3 text-xs" disabled={busy} onClick={() => void confirm()}>{t("home:action_confirm")}</Button>
         <Button variant="ghost" size="sm" className="h-7 rounded-full px-3 text-xs text-muted-foreground" disabled={busy} onClick={dismiss}>{t("home:action_dismiss")}</Button>
-      </>}
-      {capability && <Button variant="outline" size="sm" className="ml-auto h-7 rounded-full px-3 text-xs" onClick={() => navigate(agentToolPath(action.toolKey, capability.route, action.summaryKey))}>{t("home:open_tool")}</Button>}
+      </div>}
     </div>
   </Surface>;
 }

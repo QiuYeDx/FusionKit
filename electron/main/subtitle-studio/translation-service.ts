@@ -119,8 +119,19 @@ export class TranslationService {
   private shutdown?: Promise<void>;
   private closed = false;
   private automaticAdmissions = new Map<string, Promise<{ taskId: string }>>();
+  private automaticCompleted?: (documentId: string) => void;
   constructor(private repository: DocumentRepository, private send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = sendModelRuntimeText,
     private scheduler: TranslationScheduler = translationScheduler, private knowledgeGate?: KnowledgeTaskGate) {}
+
+  /** Called when the translation an automatic intent admitted completes, so its pipeline can go on. */
+  onAutomaticCompleted(listener: (documentId: string) => void) { this.automaticCompleted = listener; }
+  private async afterRun(documentId: string, taskId: string) {
+    if (!this.automaticCompleted) return;
+    try {
+      const current = await this.repository.readSnapshot(documentId);
+      if (current.automaticTranslation?.translationTaskId === taskId && current.tasks.find(task => task.id === taskId)?.status === 'completed') this.automaticCompleted(documentId);
+    } catch { /* A deleted document has nothing left to continue. */ }
+  }
 
   /** Physical provider ownership outlives cancellation and retained task deletion. */
   activeKnowledgeReferences(): KnowledgeTaskReference[] {
@@ -378,7 +389,7 @@ export class TranslationService {
     }
     this.running.set(taskId, run); this.handles.add(run);
     if (this.closed) controller.abort();
-    run.done = this.execute(plan, snapshot, run, apiKey).finally(() => {
+    run.done = this.execute(plan, snapshot, run, apiKey).then(() => this.afterRun(plan.documentId, taskId)).finally(() => {
       unregister(); this.handles.delete(run);
       if (this.running.get(taskId) === run) this.running.delete(taskId);
     });

@@ -15,6 +15,8 @@ import { SettingsResolver } from "./tool-page-settings";
 import { translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
 import i18n from "@/i18n";
 import { userMentionedPath } from "./user-intent-authority";
+import { watchStudioPipeline } from "./pipeline-watch";
+import type { AutomaticExportSpec } from "@/subtitle-studio/automatic-export-contract";
 import { registerPreparedAction, usePreparedActionsStore, type PreparedAction, type PreparedActionReceipt, type PreparedActionResult } from "./prepared-actions";
 
 interface Context { sessionId: string; signal?: AbortSignal; check: () => void }
@@ -71,7 +73,9 @@ function documentSummary(document: DocumentSummary) {
   return { documentId: document.id, revision: document.revision, name: safeText(document.origin.displayName),
     format: document.origin.format, cueCount: document.cueCount, translationStatus: document.translationStatus,
     canTranslate: document.capabilities.translate,
-    task: document.task ? { taskId: document.task.id, status: document.task.status, completedBatches: document.task.completedBatches, totalBatches: document.task.totalBatches } : null };
+    task: document.task ? { taskId: document.task.id, status: document.task.status, completedBatches: document.task.completedBatches, totalBatches: document.task.totalBatches } : null,
+    ...(document.automaticExport ? { automaticExport: { state: document.automaticExport.state, ...(document.automaticExport.fileName ? { fileName: safeText(document.automaticExport.fileName) } : {}),
+      ...(document.automaticExport.error ? { error: document.automaticExport.error } : {}) } } : {}) };
 }
 async function exposePrepared(action: PreparedAction, ctx: Context, extra: Record<string, unknown> = {}): Promise<PreparedActionResult> {
   try { ctx.check(); }
@@ -109,7 +113,13 @@ export const prepareStudioTranscriptionSchema = z.object({ modelId: z.string().m
   initialPrompt: z.string().max(1000).optional(),
   paths: z.array(z.string().min(3).max(4096)).min(1).max(20).optional(),
   recursive: z.boolean().optional(),
-  offset: z.number().int().min(0).max(100000).optional() }).strict();
+  offset: z.number().int().min(0).max(100000).optional(),
+  // Each file is translated as soon as it is transcribed, then written next to its media, without the assistant.
+  translation: z.object({ language: z.string().trim().min(2).max(32), instructions: z.string().max(4000).optional(),
+    knowledge: z.object({ collectionIds: z.array(z.string().min(1).max(200)).max(50), recipeId: z.string().min(1).max(200).optional(),
+      sourceLanguage: z.string().min(2).max(16).optional() }).strict().optional() }).strict().optional(),
+  export: z.object({ format: z.enum(["auto", "srt", "lrc", "vtt", "ass", "ssa", "sbv"]).optional(), content: z.enum(["bilingual", "target", "source"]).optional(),
+    order: z.enum(["source-first", "target-first"]).optional(), conflictPolicy: z.enum(["indexed", "overwrite"]).optional() }).strict().optional() }).strict();
 export const configureLocalTranscriptionSchema = z.object({ language: language.optional(),
   modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional(),
   devicePreference: z.enum(["auto", "cpu", "metal", "cuda"]).optional(),
@@ -210,7 +220,7 @@ export const modernAgentTools = {
       });
       return exposePrepared(action, ctx, { appliedSettings: settings.applied });
     }) }),
-  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 20 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation. Does not silently enable automatic translation.",
+  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 20 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. To finish the whole job without stopping, pass translation (target language such as 'zh', optional instructions and knowledge collection/recipe IDs from search_translation_knowledge) and export (format 'auto' = LRC for audio, SRT for video; content bilingual/target/source; order source-first/target-first; conflictPolicy indexed = add a number, overwrite = replace a same-name file): each file is then translated as soon as it is transcribed and written next to its media, and you are told when the batch is done. Pass them only for what the user asked for, after asking what you need to know. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation.",
     inputSchema: prepareStudioTranscriptionSchema, execute: (args, options) => run(prepareStudioTranscriptionSchema, args, options, async (input, ctx) => {
       studio(); const controller = getStudioTranscriptionController();
       await controller.refresh(); ctx.check();
@@ -224,7 +234,25 @@ export const modernAgentTools = {
       const parsedConfig = transcriptionTaskConfigSchema.safeParse(config);
       if (!parsedConfig.success) throw new ToolFailure("studio_transcription_configuration_invalid");
       ctx.check(); controller.setConfig(parsedConfig.data);
-      ctx.check(); controller.setAutoTranslation({ ...before.autoTranslation, enabled: false });
+      // Translation for this batch only: the user's saved Studio choice comes back once it is submitted or dropped.
+      const savedAutomatic = before.autoTranslation;
+      const restoreAutomatic = () => controller.setAutoTranslation(savedAutomatic);
+      const exportSpec: AutomaticExportSpec | undefined = input.export ? { format: input.export.format ?? "auto",
+        mode: input.export.content ?? (input.translation ? "bilingual" : "source"), order: input.export.order ?? "source-first",
+        conflictPolicy: input.export.conflictPolicy ?? "indexed" } : undefined;
+      if (exportSpec && exportSpec.mode !== "source" && !input.translation) throw new ToolFailure("studio_export_needs_translation");
+      ctx.check();
+      controller.setAutoTranslation(input.translation
+        ? { ...before.autoTranslation, enabled: true, language: input.translation.language, instructions: input.translation.instructions ?? before.autoTranslation.instructions,
+          ...(before.autoTranslation.knowledge ? { knowledge: { ...before.autoTranslation.knowledge, enabled: false } } : {}) }
+        : { ...before.autoTranslation, enabled: false });
+      if (input.translation?.knowledge) {
+        const library = await controller.refreshAutomaticKnowledge(); ctx.check();
+        const accepted = !!library && controller.setAutomaticKnowledge({ enabled: true, collectionIds: input.translation.knowledge.collectionIds,
+          disabledEntryIds: [], documentTopicIds: [], ...(input.translation.knowledge.recipeId ? { recipeId: input.translation.knowledge.recipeId } : {}),
+          sourceLanguage: (input.translation.knowledge.sourceLanguage ?? (parsedConfig.data.language === "auto" ? "" : parsedConfig.data.language)) as never }, library.generation);
+        if (!accepted) { restoreAutomatic(); throw new ToolFailure("studio_translation_knowledge_invalid"); }
+      }
       ctx.check();
       let page: { matched: number; nextOffset?: number } | undefined;
       if (input.paths) {
@@ -238,7 +266,10 @@ export const modernAgentTools = {
       const pathPage = page ? { mediaMatched: page.matched, ...(page.nextOffset !== undefined ? { nextOffset: page.nextOffset } : {}) } : {};
       const selected = controller.getState();
       const ownedIds = selected.drafts.map(item => item.id);
-      const release = () => { for (const draft of controller.getState().drafts) if (ownedIds.includes(draft.id) && !["submitting", "submission_unknown"].includes(draft.status)) controller.removeDraft(draft.id); };
+      const release = () => {
+        for (const draft of controller.getState().drafts) if (ownedIds.includes(draft.id) && !["submitting", "submission_unknown"].includes(draft.status)) controller.removeDraft(draft.id);
+        restoreAutomatic();
+      };
       try {
         ctx.check();
         if (!ownedIds.length) return selected.error ? failed(selected.error) : succeeded({ cancelled: true });
@@ -256,7 +287,9 @@ export const modernAgentTools = {
         const action = registerPreparedAction({ sessionId, toolKey: "subtitleStudio", title: "Subtitle studio transcription",
           preparationReceipt,
           summary: `${ownedIds.length} media files; ${safeText(selected.config.modelId, 128)}; ${selected.config.language}. ${fileNames}`, cleanup: release,
-          summaryKey: "home:prepared_transcription_summary", summaryValues: { count: ownedIds.length, model: selected.config.modelId, language: selected.config.language, files: fileNames },
+          summaryKey: "home:prepared_transcription_summary", summaryValues: { count: ownedIds.length, model: selected.config.modelId, language: selected.config.language, files: fileNames,
+            ...(input.translation ? { translateTo: input.translation.language } : {}),
+            ...(exportSpec ? { exportFormat: exportSpec.format, exportContent: exportSpec.mode, exportConflict: exportSpec.conflictPolicy } : {}) },
           execute: async () => {
             const notAdmitted = (error: string) => failed(error, { receipt: receipt("submission", preparationReceipt.items.map((item, index) => ({
               id: item.id, name: item.name, status: "failed",
@@ -266,17 +299,22 @@ export const modernAgentTools = {
             if (signature !== JSON.stringify({ config: current.config, automatic: current.autoTranslation, drafts: current.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) })) return notAdmitted("studio_transcription_draft_changed");
             const currentReadiness = getTranscriptionReadiness(current);
             if (!currentReadiness.canEnqueue || currentReadiness.readyCount !== ownedIds.length) return notAdmitted("studio_transcription_not_ready");
-            const admission = await controller.enqueue({ expectedDraftIds: ownedIds });
+            const admission = await controller.enqueue({ expectedDraftIds: ownedIds, ...(exportSpec ? { autoExport: exportSpec } : {}) });
+            restoreAutomatic();
+            if (admission && (input.translation || exportSpec)) watchStudioPipeline({ sessionId, taskIds: admission.tasks.map(item => item.taskId),
+              translate: !!input.translation, exportFiles: !!exportSpec });
             if (!admission) {
               if (controller.getState().drafts.some(item => item.status === "submission_unknown")) return failed("studio_transcription_submission_unknown");
               return notAdmitted(controller.getState().error ?? "studio_transcription_not_admitted");
             }
             return succeeded({ executionStatus: "queued", batchId: admission.batchId,
               receipt: receipt("submission", admission.tasks.map(item => ({ id: item.taskId, name: item.displayName, taskId: item.taskId, status: "queued" }))),
-              tasks: admission.tasks.map(item => ({ taskId: item.taskId, name: safeText(item.displayName), status: item.status })) });
+              tasks: admission.tasks.map(item => ({ taskId: item.taskId, name: safeText(item.displayName), status: item.status })),
+              ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null,
+                note: "Runs per file without you; you will get an interface event when the whole batch is done." } } : {}) });
           },
         });
-        return await exposePrepared(action, ctx, pathPage);
+        return await exposePrepared(action, ctx, { ...pathPage, ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null } } : {}) });
       } catch (error) { release(); throw error; }
     }) }),
   get_local_transcription_status: tool({ description: "Read classic local subtitle transcriber runtime/resources and existing tasks. Does not install resources, start transcription or expose paths/file capabilities.",

@@ -26,6 +26,7 @@ import { StudioIconButton } from './StudioControls';
 import { StudioOperationResult, STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, type StudioOperationResultItem } from './StudioOperationResult';
 import './StudioExport.css';
 import './StudioBatch.css';
+import { defaultBatchExportFormat, defaultExportFormat } from '@/subtitle-studio/export-defaults';
 
 const modeKeys = { source: 'studio:export.source', target: 'studio:export.target', bilingual: 'studio:export.bilingual' } as const;
 const hasTranslation = (document: DocumentSummary) => document.translationStatus
@@ -130,7 +131,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   const hasTranslations = sourceDocuments.some(hasTranslation);
   const [selectedMode, setMode] = useState<ExportOptions['mode']>('bilingual');
   const mode = hasTranslations ? selectedMode : 'source';
-  const [format, setFormat] = useState<ExportOptions['format']>(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
+  const [format, setFormat] = useState<ExportOptions['format']>(page ? defaultExportFormat(page.summary.origin) : 'srt');
   const [selectedTrackId, setSelectedTrackId] = useState(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
   const [order, setOrder] = useState<ExportOptions['order']>('source-first');
   const [incomplete, setIncomplete] = useState<ExportOptions['incomplete']>('source-fallback');
@@ -197,7 +198,7 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
   }, [step, open]);
   useEffect(() => {
     if (batch) return;
-    setOpen(false); setMode(page && hasTranslation(page.summary) ? 'bilingual' : 'source'); setDestination('source-directory'); setFormat(page?.summary.origin.format && page.summary.origin.format !== 'media' ? page.summary.origin.format : 'srt');
+    setOpen(false); setMode(page && hasTranslation(page.summary) ? 'bilingual' : 'source'); setDestination('source-directory'); setFormat(page ? defaultExportFormat(page.summary.origin) : 'srt');
     setSelectedTrackId(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
     setEstimateEnd(false); setIncomplete('source-fallback');
     // Reset only on document selection, never for a background revision change.
@@ -268,7 +269,10 @@ export function StudioExport({ page, documents, triggerContainer, openRequest, o
     if (pending) return;
     dialogOpen.current = value;
     if (value) {
-      setSourceMode(false); setMode((documents ?? (page ? [page.summary] : [])).some(hasTranslation) ? 'bilingual' : 'source'); setDestination('source-directory'); setIncomplete('source-fallback');
+      setSourceMode(false); setMode((documents ?? (page ? [page.summary] : [])).some(hasTranslation) ? 'bilingual' : 'source');
+      // Audio transcripts default to LRC, video to SRT; a subtitle keeps its own format.
+      if (documents?.length) setFormat(defaultBatchExportFormat(documents.map(item => item.origin)));
+      setDestination('source-directory'); setIncomplete('source-fallback');
       setSelectedTrackId(trackId ?? page?.translationTracks.at(-1)?.id ?? '');
       setBatchDocuments(documents ? [...documents] : []);
       setBatchTracks(Object.fromEntries((documents ?? []).map(item => [item.id, item.translationTracks?.at(-1)?.id ?? ''])));

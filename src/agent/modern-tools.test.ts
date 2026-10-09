@@ -8,7 +8,8 @@ import { modernAgentTools } from "./modern-tools";
 import { usePreparedActionsStore } from "./prepared-actions";
 import { emptySelection, translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
 
-const mocks = vi.hoisted(() => ({ controller: {} as Record<string, any>, trackStarted: vi.fn(), state: {} as Record<string, any> }));
+const mocks = vi.hoisted(() => ({ controller: {} as Record<string, any>, trackStarted: vi.fn(), state: {} as Record<string, any>, watch: vi.fn() }));
+vi.mock("./pipeline-watch", () => ({ watchStudioPipeline: mocks.watch }));
 vi.mock("@/services/subtitle-studio/transcription-controller", () => ({
   getStudioTranscriptionController: () => mocks.controller,
   getTranscriptionReadiness: (state: any) => ({ canEnqueue: state.drafts.length > 0 && state.drafts.every((draft: any) => draft.status === "ready"), readyCount: state.drafts.filter((draft: any) => draft.status === "ready").length, reason: null }),
@@ -227,6 +228,27 @@ describe("transcription preparation ownership", () => {
     mocks.controller.selectMediaFromPaths = vi.fn(async () => ({ matched: 0 }));
     useAgentStore.getState().addMessage({ id: "typed", role: "user", content: "转写 C:\\Audio\\empty 里的文件", timestamp: 1 });
     expect(await call("prepare_studio_transcription", { paths: ["C:\\Audio\\empty"] })).toMatchObject({ success: false, error: "studio_transcription_no_media" });
+  });
+  it("hands the whole transcribe, translate and export job to Studio for this batch only", async () => {
+    const saved = structuredClone(mocks.state.autoTranslation);
+    const result = await call("prepare_studio_transcription", { language: "ja", translation: { language: "zh" }, export: { content: "bilingual", conflictPolicy: "overwrite" } });
+    expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared", pipeline: { translateTo: "zh", export: { format: "auto", mode: "bilingual", order: "source-first", conflictPolicy: "overwrite" } } } });
+    expect(mocks.state.autoTranslation).toMatchObject({ enabled: true, language: "zh" });
+    expect(usePreparedActionsStore.getState().actions[0].summaryValues).toMatchObject({ translateTo: "zh", exportFormat: "auto", exportContent: "bilingual", exportConflict: "overwrite" });
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: { format: "auto", mode: "bilingual", order: "source-first", conflictPolicy: "overwrite" } });
+    // The user's own Studio choice is back, and the batch is followed until it is done.
+    expect(mocks.state.autoTranslation).toEqual(saved);
+    expect(mocks.watch).toHaveBeenCalledWith({ sessionId: "modern-test", taskIds: ["transcription-task"], translate: true, exportFiles: true });
+  });
+  it("refuses translated output without a translation, and restores the choice when the user drops the card", async () => {
+    expect(await call("prepare_studio_transcription", { export: { content: "target" } })).toMatchObject({ success: false, error: "studio_export_needs_translation" });
+    const saved = structuredClone(mocks.state.autoTranslation);
+    const result = await call("prepare_studio_transcription", { translation: { language: "en" } });
+    expect(mocks.state.autoTranslation.enabled).toBe(true);
+    usePreparedActionsStore.getState().dismissAction(result.data.actionId);
+    await vi.waitFor(() => expect(mocks.state.autoTranslation).toEqual(saved));
+    expect(mocks.controller.enqueue).not.toHaveBeenCalled();
   });
   it("uses the prepared media only after confirmation and keeps auto translation off", async () => {
     const result = await call("prepare_studio_transcription", { language: "ja" });

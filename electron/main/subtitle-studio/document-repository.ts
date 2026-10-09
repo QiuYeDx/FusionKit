@@ -7,6 +7,7 @@ import { idSchema, LIMITS, StudioError, type SubtitleDocument } from '../../../s
 import { validateSnapshot, type DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import { assertExecutionRecordsSize, recordBaseDigest, validateExecutionRecord } from '../../../src/subtitle-studio/execution-record-contract';
 import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/automatic-translation-contract';
+import type { AutomaticExportState } from '../../../src/subtitle-studio/automatic-export-contract';
 import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
 import { bindSourceLocation, validateSourceLocationRecord, SOURCE_LOCATION_FILE, type SourceLocationCapture, type SourceLocationRecord } from './source-location-service';
 import { knowledgeResourceReferences, validateFrozenKnowledgeSnapshot } from '../../../src/translation-knowledge/snapshot-contract';
@@ -211,11 +212,12 @@ export class DocumentRepository {
   }
   /** Confirm one creation identity. A published document is never rolled back after a sync failure. */
   createConfirmed(value: SubtitleDocument, guard: () => void = () => {}, sourceLocation?: SourceLocationCapture,
-    initial?: { automaticTranslation?: AutomaticTranslationIntent }): Promise<DocumentCreationReceipt> {
+    initial?: { automaticTranslation?: AutomaticTranslationIntent; automaticExport?: AutomaticExportState }): Promise<DocumentCreationReceipt> {
     let snapshot: DocumentSnapshot;
-    try { snapshot = validateRepositorySnapshot({ schemaVersion: 1, document: value, tasks: [], ...(initial?.automaticTranslation ? { automaticTranslation: initial.automaticTranslation } : {}) }); }
+    try { snapshot = validateRepositorySnapshot({ schemaVersion: 1, document: value, tasks: [], ...(initial?.automaticTranslation ? { automaticTranslation: initial.automaticTranslation } : {}),
+      ...(initial?.automaticExport ? { automaticExport: initial.automaticExport } : {}) }); }
     catch (error) { return Promise.reject(error); }
-    if (snapshot.automaticTranslation?.preparationReport !== undefined) return Promise.reject(new StudioError('invalid_input'));
+    if (snapshot.automaticTranslation?.preparationReport !== undefined || (snapshot.automaticExport && snapshot.automaticExport.state !== 'pending')) return Promise.reject(new StudioError('invalid_input'));
     const identity = { digest: digest(JSON.stringify(snapshot)), revision: snapshot.document.revision };
     return this.serial(async () => {
       guard();

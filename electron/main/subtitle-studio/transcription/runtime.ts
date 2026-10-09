@@ -38,6 +38,7 @@ import { createLocalSubtitleServerSession } from './native/server-session';
 import { cleanupSpeechResourceSessionStartupOrphans } from '../../speech-resources/engine/resource-startup-cleaner';
 import type { AutomaticTranslationCoordinator } from '../automatic-translation';
 import type { AutomaticKnowledgeCapture } from '../automatic-knowledge';
+import type { AutomaticExporter } from '../automatic-export';
 
 export interface TranscriptionRuntimeOptions {
   readonly userDataRoot: string;
@@ -49,6 +50,7 @@ export interface TranscriptionRuntimeDependencies {
   readonly sharedResources?: SpeechResourceService;
   readonly automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'>;
   readonly automaticKnowledge?: AutomaticKnowledgeCapture;
+  readonly automaticExport?: Pick<AutomaticExporter, 'exportDocument'>;
   readonly signatureVerifier?: LocalSubtitleSignatureVerifier;
   readonly media?: Pick<LocalSubtitleMediaNormalizerOptions, 'processRunner' | 'availableBytes' | 'sourceEnvironment'>;
   readonly server?: Omit<LocalSubtitleServerSupervisorOptions, 'managedResourceRoot'>;
@@ -158,7 +160,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     if (repository) {
       const executor = new TranscriptionExecutor({ media, supervisor: server, runtimeEnvironment: environment, resolveCudaAccelerator });
       tasks = createTranscriptionTaskService({ repository, inputs, leases, media, modelResolver: models, backendResolver, executor,
-        automaticTranslation: dependencies.automaticTranslation, automaticKnowledge: dependencies.automaticKnowledge });
+        automaticTranslation: dependencies.automaticTranslation, automaticKnowledge: dependencies.automaticKnowledge, automaticExport: dependencies.automaticExport });
     } else {
       // Retain the resource-only T03 host contract; no legacy job API is exposed.
       const exporter = new LocalSubtitleExporter(artifacts);

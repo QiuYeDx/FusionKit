@@ -30,6 +30,8 @@ function describe(event: AgentUiEvent): string {
       return `The user confirmed starting ${Number(v.count ?? 0)} queued classic task(s) (${text(v.stores)}). Starting is not completion.`;
     case "execution_dismissed":
       return "The user chose to keep the queued classic tasks in their queues without starting them.";
+    case "pipeline_completed":
+      return `The transcription batch you submitted has gone as far as it will: ${Number(v.finished ?? 0)} of ${Number(v.total ?? 0)} files finished${v.files ? `; written next to their media: ${text(v.files, 1200)}` : ""}${Number(v.failed ?? 0) ? `; not finished: ${text(v.problems, 1200)}` : ""}. Nothing confirmed this; it is a status report.`;
   }
 }
 

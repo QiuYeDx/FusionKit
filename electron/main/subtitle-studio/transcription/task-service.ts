@@ -22,6 +22,8 @@ import type { LocalSubtitleJobBackendResolver, LocalSubtitleJobModelResolver, Lo
 import type { LocalSubtitleMediaNormalizer } from './native/media-normalizer';
 import type { LocalSubtitleServerManagedResourceIdentity } from './native/server-process-contract';
 import { LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION } from './native/accelerator-manager';
+import type { AutomaticExporter } from '../automatic-export';
+import type { AutomaticExportSpec } from '../../../../src/subtitle-studio/automatic-export-contract';
 
 type Managed = LocalSubtitleServerManagedResourceIdentity<'managed'>;
 type Execution = Omit<TranscriptionBatchExecutionContext, 'signal'>;
@@ -33,6 +35,7 @@ interface Record {
   summary: TranscriptionTaskSummary; running: boolean; leased: boolean; selectionBound: boolean; cleanupPending: boolean;
   leaseFailure?: unknown;
   automatic?: { intent: AutomaticTranslationIntent; apiKey?: string };
+  autoExport?: AutomaticExportSpec;
   releaseAutomaticKnowledge?: () => void;
 }
 interface Admission {
@@ -57,6 +60,7 @@ export interface TranscriptionTaskServiceOptions {
   readonly scheduleLeaseRenewal?: (operation: () => void, delayMs: number) => () => void;
   readonly automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'>;
   readonly automaticKnowledge?: AutomaticKnowledgeCapture;
+  readonly automaticExport?: Pick<AutomaticExporter, 'exportDocument'>;
 }
 
 const ownerSchema = z.object({ webContentsId: z.number().int().positive().safe(),
@@ -233,6 +237,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       const sink = createTranscriptionDocumentSink({ repository: options.repository, owner: record.owner,
         taskId: record.taskId, generation: 1, assertActive: () => assertActive(record),
         ...(record.automatic ? { automaticTranslation: record.automatic.intent } : {}),
+        ...(record.autoExport ? { automaticExport: record.autoExport } : {}),
         async resolveSourceLocation() {
           const input = await options.inputs.resolveTaskLease(record.owner, record.taskId, 'transcribe', record.fileToken);
           const directory = await options.inputs.resolveTaskSourceOutputDirectory(record.owner, record.taskId, record.fileToken);
@@ -252,6 +257,8 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       if (result.status === 'committed') {
         const intentId = record.automatic?.intent.intentId, apiKey = record.automatic?.apiKey ?? '';
         finish(record, { status: 'completed', progress: 100, documentId: result.documentId, documentDurability: result.durability, ...duration });
+        // Without a translation the transcript is the final result; with one, its completion exports.
+        if (record.autoExport && !intentId) void options.automaticExport?.exportDocument(result.documentId);
         if (intentId) {
           try {
             // Publication transferred ownership to the durable document. A late ASR
@@ -288,6 +295,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     if (!parsed.success) return Promise.reject(new StudioError('invalid_input'));
     if (parsed.data.autoTranslation?.knowledge && !options.automaticKnowledge) return Promise.reject(new StudioError('unsupported_feature'));
     if (parsed.data.autoTranslation && !options.automaticTranslation) return Promise.reject(new StudioError('needs_configuration'));
+    if (parsed.data.autoExport && !options.automaticExport) return Promise.reject(new StudioError('unsupported_feature'));
     if (signal?.aborted) return Promise.reject(new StudioError('interrupted'));
     if (records.size + [...admissions].reduce((sum, admission) => sum + admission.count, 0) + parsed.data.files.length > LOCAL_SUBTITLE_LIMITS.maxSessionTasks)
       return Promise.reject(new StudioError('limit_exceeded'));
@@ -357,6 +365,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
             intent: { intentId: randomUUID(), sourceTaskId: taskId, generation: 1 as const, config: structuredClone(request.autoTranslation.config), state: 'pending' as const,
               ...(knowledge ? { knowledge: knowledge.snapshot } : {}) } } } : {}),
           ...(knowledge ? { releaseAutomaticKnowledge: () => { if (--knowledgeRemaining === 0) releaseKnowledge(); } } : {}),
+          ...(request.autoExport ? { autoExport: structuredClone(request.autoExport) } : {}),
           summary: publicSummary({ taskId, batchId, generation: 1, displayName: input.displayName, status: 'queued', progress: 0,
             createdAt: now, updatedAt: now, modelId: managedModel.id, resolvedBackend: backendResolution.resolvedBackend,
             ...(request.autoTranslation ? { automaticTranslation: { status: 'pending' as const } } : {}) }) });
