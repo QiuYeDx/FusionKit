@@ -123,6 +123,22 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       // A press elsewhere on the page closes the panel and still reaches the page.
       await launcher.click();
       await uiExpect(panel).toBeVisible();
+      // Choosing an execution mode from the panel's own list keeps the panel open.
+      const modeSelect = page.getByTestId('agent-dock-panel').getByTestId('agent-execution-mode');
+      await modeSelect.click();
+      await page.getByRole('option', { name: '询问执行' }).click();
+      await uiExpect(modeSelect).toContainText('询问执行');
+      await uiExpect(launcher).toHaveAttribute('aria-expanded', 'true');
+      // With the list open, a press elsewhere only dismisses the list.
+      await modeSelect.click();
+      await uiExpect(page.getByRole('option', { name: '仅添加' })).toBeVisible();
+      await page.mouse.click(1000, 620);
+      await uiExpect(page.getByRole('option')).toHaveCount(0);
+      await uiExpect(launcher).toHaveAttribute('aria-expanded', 'true');
+      await modeSelect.click();
+      await page.getByRole('option', { name: '仅添加' }).click();
+      await uiExpect(modeSelect).toContainText('仅添加');
+      await uiExpect(launcher).toHaveAttribute('aria-expanded', 'true');
       await rows.nth(1).locator('.studio-cue-time').click();
       await uiExpect(launcher).toHaveAttribute('aria-expanded', 'false');
       await uiExpect(page.getByTestId('studio-cue-selected-count')).toHaveText('已选中 1 条');

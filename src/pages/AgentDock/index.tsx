@@ -128,6 +128,10 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target || panelRef.current?.contains(target) || launcherRef.current?.contains(target)) return;
+      // Portalled layers (the execution mode list, menus, dialogs, toasts) live outside the app root.
+      if (!document.getElementById("root")?.contains(target)) return;
+      // While one of the panel's own popups is open, a press elsewhere only dismisses that popup.
+      if (panelRef.current?.querySelector('[role="combobox"][aria-expanded="true"], [aria-haspopup][aria-expanded="true"]')) return;
       if (target.closest('[data-radix-popper-content-wrapper], [role="dialog"], [role="alertdialog"], [data-slot$="-overlay"], [data-sonner-toast]')) return;
       closePanel(false);
     };
