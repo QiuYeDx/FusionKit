@@ -444,7 +444,7 @@ export class KnowledgeService {
       data.subjects = clone(state.data.subjects.filter(item => subjectIds.has(item.id)));
       data.sources = clone(state.data.sources.filter(item => sourceIds.has(item.id)));
     }
-    data.package = { id: randomUUID(), revision: 1, name: input.purpose === 'backup' ? 'Translation knowledge backup' : data.collections.map(item => item.name).join(', ').slice(0, 300), description: '', purpose: input.purpose, createdAt: new Date().toISOString(), generator: { name: 'FusionKit', version: '0.3.1' } };
+    data.package = { id: randomUUID(), revision: 1, name: input.purpose === 'backup' ? 'Translation knowledge backup' : data.collections.map(item => item.name).join(', ').slice(0, 300), description: '', purpose: input.purpose, createdAt: new Date().toISOString(), generator: { name: 'FusionKit', version: '0.4.0' } };
     if (!data.package.name.trim()) data.package.name = 'Translation knowledge';
     const privateContent = privacyDiagnostics(data);
     if (privateContent.length) throw new KnowledgeServiceError('invalid_input', privateContent);

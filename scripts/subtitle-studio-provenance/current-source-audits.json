@@ -89,8 +89,8 @@
     {
       "sourcePath": "package.json",
       "frozenBlobOid": "f4796e097b5a65d616db065ae00d96592486982b",
-      "currentBlobOid": "33c40335a5e711c2c2d738230b0ed76faebde151",
-      "reason": "Current bytes keep the composition-audited scripts.build change and the 0.3.0 -> 0.3.1 version (see current-composition-audits.json) and add 6f84227's knowledge:artifacts / knowledge:check scripts. Dependencies, the build script and packaging composition are otherwise unchanged."
+      "currentBlobOid": "1744fdbde64e14936460f17c3165fb0fffd8deef",
+      "reason": "Current bytes keep the composition-audited scripts.build change and the 0.3.0 -> 0.3.1 version (see current-composition-audits.json) and add 6f84227's knowledge:artifacts / knowledge:check scripts. Dependencies, the build script and packaging composition are otherwise unchanged. 2026-10-09: the user renamed the unreleased development version 0.3.1 to 0.4.0 because of the scope of changes since 0.3.0; that version string is the only difference from the previously approved bytes."
     }
   ]
 }

@@ -25,7 +25,7 @@ export class KnowledgeExportPlans {
     if (snapshot.maintenance?.cleanupPending) throw new KnowledgeServiceError('storage_unavailable');
     const result = buildExportSelection(snapshot, request, {
       id: randomUUID(), revision: 1, name: request.purpose === 'backup' ? 'Translation knowledge backup' : 'Translation knowledge selection',
-      description: '', purpose: request.purpose, createdAt: new Date(this.now()).toISOString(), generator: { name: 'FusionKit', version: '0.3.1' },
+      description: '', purpose: request.purpose, createdAt: new Date(this.now()).toISOString(), generator: { name: 'FusionKit', version: '0.4.0' },
     });
     const text = result.data && !result.preview.errors.length ? `${JSON.stringify(result.data, null, 2)}\n` : '';
     const preview: ExportPreview = { ...result.preview, planId: randomUUID(), generation: snapshot.generation, purpose: request.purpose,

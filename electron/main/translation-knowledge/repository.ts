@@ -40,7 +40,7 @@ const byteDigest = (text: string | Uint8Array) => createHash('sha256').update(te
 const isMissing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === 'ENOENT';
 
 export function emptyPackage(): KnowledgePackage {
-  return { format: 'fusionkit.translation-knowledge', schemaVersion: 1, package: { id: randomUUID(), revision: 1, name: 'Translation knowledge', description: '', purpose: 'backup', createdAt: new Date().toISOString(), generator: { name: 'FusionKit', version: '0.3.1' } }, subjects: [], collections: [], sources: [], entries: [], styles: [], recipes: [], preferenceTemplates: [] };
+  return { format: 'fusionkit.translation-knowledge', schemaVersion: 1, package: { id: randomUUID(), revision: 1, name: 'Translation knowledge', description: '', purpose: 'backup', createdAt: new Date().toISOString(), generator: { name: 'FusionKit', version: '0.4.0' } }, subjects: [], collections: [], sources: [], entries: [], styles: [], recipes: [], preferenceTemplates: [] };
 }
 
 function validateStored(input: unknown): StoredLibrary {
