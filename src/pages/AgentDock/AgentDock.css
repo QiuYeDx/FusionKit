@@ -14,6 +14,16 @@
 @keyframes agent-dock-fade-in { from { opacity: 0; } }
 @keyframes agent-dock-fade-out { to { opacity: 0; } }
 
+/* A textarea scrolls itself, so it cannot sit in a ScrollArea: its native scrollbar matches the list's
+   thumb, without a track, and shows only while the input is hovered or focused. */
+.agent-dock-input::-webkit-scrollbar { width: 8px; }
+.agent-dock-input::-webkit-scrollbar-track { background: transparent; }
+.agent-dock-input::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background-clip: padding-box; background-color: transparent; }
+.agent-dock-input:hover::-webkit-scrollbar-thumb,
+.agent-dock-input:focus::-webkit-scrollbar-thumb { background-color: color-mix(in oklab, var(--muted-foreground) 28%, transparent); }
+.agent-dock-input::-webkit-scrollbar-thumb:hover,
+.agent-dock-input::-webkit-scrollbar-thumb:active { background-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent); }
+
 /* Launcher states while the panel is closed: a reply is being written, or one arrived unseen. */
 .agent-dock-busy {
   position: absolute; inset: -3px; border-radius: 999px; pointer-events: none;

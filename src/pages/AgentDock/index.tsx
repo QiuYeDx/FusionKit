@@ -304,7 +304,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
             <div className="rounded-xl border bg-background px-1.5 pt-1 pb-1.5 focus-within:border-ring/50 focus-within:shadow-sm">
               <Textarea ref={inputRef} rows={1} data-testid="agent-dock-input" aria-label={t("home:agent_input_label")} placeholder={t("home:agent_input_placeholder")}
                 value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={onInputKey} disabled={isStreaming}
-                className="max-h-32 min-h-0 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-1.5 py-1 text-sm shadow-none focus-visible:border-transparent focus-visible:ring-0 disabled:opacity-50 dark:bg-transparent" />
+                className="agent-dock-input max-h-32 min-h-0 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-1.5 py-1 text-sm shadow-none focus-visible:border-transparent focus-visible:ring-0 disabled:opacity-50 dark:bg-transparent" />
               <div className="flex items-center justify-between gap-2 pt-1">
                 <CapsuleModeSelector value={executionMode} onChange={setExecutionMode} disabled={isStreaming} />
                 <Button type="button" data-testid="agent-dock-send" aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}

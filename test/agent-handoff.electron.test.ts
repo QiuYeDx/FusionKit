@@ -133,6 +133,13 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('home and panel han
       expect(await list.evaluate(element => element.scrollHeight > element.clientHeight && element.scrollWidth <= element.clientWidth)).toBe(true);
       await page.waitForTimeout(250);
       await page.screenshot({ path: path.join(artifacts, '02b-panel-scrollbar.png') });
+      // The input's own scrollbar follows the same look once a long draft overflows it.
+      const draft = page.getByTestId('agent-dock-input');
+      await draft.fill(Array.from({ length: 12 }, (_, index) => `第 ${index + 1} 行草稿`).join('\n'));
+      await draft.hover();
+      expect(await draft.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true);
+      await page.screenshot({ path: path.join(artifacts, '02c-input-scrollbar.png') });
+      await draft.fill('');
 
       // 3. Back to home: the panel flies to the home column and the home conversation takes over.
       await startSampling(page);
