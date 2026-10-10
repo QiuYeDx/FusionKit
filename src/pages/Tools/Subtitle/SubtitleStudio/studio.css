@@ -101,6 +101,32 @@
 .studio-preview-loading strong { max-width: 100%; font-weight: 500; color: var(--foreground); }
 @media (prefers-reduced-motion: reduce) { .studio-preview-surface, .studio-preview-loading { transition: none; } }
 .studio-preview-panel { height: 100%; min-height: 0; }
+/* Expanded preview: the main column covers the window in place, below the
+   title bar and above the bottom navigation, so its state and tools stay.
+   The bottom band keeps the floating assistant button clear of the footer. */
+.studio-main.studio-main-expanded { position: fixed; inset: 0; z-index: 41; padding: 44px max(16px, calc((100vw - 1680px) / 2)) 60px; background: var(--background); }
+.studio-main-expanded > .studio-import { display: none; }
+/* Expanding and collapsing morph the preview with a view transition: the
+   card frame grows or shrinks between the two places while its content fades
+   through (old out, then new in), so rows of different sizes never overlap.
+   Snapshots keep their natural size, anchored top-left and clipped by the
+   frame, so text never stretches. */
+.studio-preview-transition .studio-preview-region { view-transition-name: studio-preview; }
+.studio-preview-transition::view-transition-group(studio-preview) { animation-duration: 360ms; animation-timing-function: cubic-bezier(.22, 1, .36, 1); }
+.studio-preview-transition::view-transition-image-pair(studio-preview) { overflow: clip; border-radius: 16px; background: var(--card); box-shadow: inset 0 0 0 1px var(--border); }
+.studio-preview-transition::view-transition-old(studio-preview),
+.studio-preview-transition::view-transition-new(studio-preview) { width: auto; height: auto; object-fit: none; object-position: left top; mix-blend-mode: normal; animation-duration: 360ms; animation-timing-function: linear; animation-fill-mode: both; }
+.studio-preview-transition::view-transition-old(studio-preview) { animation-name: studio-preview-fade-out; }
+.studio-preview-transition::view-transition-new(studio-preview) { animation-name: studio-preview-fade-in; }
+@keyframes studio-preview-fade-out { 0% { opacity: 1; } 35%, 100% { opacity: 0; } }
+@keyframes studio-preview-fade-in { 0%, 30% { opacity: 0; } 100% { opacity: 1; } }
+.studio-preview-transition::view-transition-old(root),
+.studio-preview-transition::view-transition-new(root) { animation-duration: 280ms; animation-timing-function: ease-out; }
+.studio-preview-expand-divider { width: 1px; height: 16px; margin-inline: 2px; background: var(--border); }
+.studio-preview-region[data-reader-size="1"] { --studio-cue-font: 15px; --studio-cue-line: 24px; }
+.studio-preview-region[data-reader-size="2"] { --studio-cue-font: 17px; --studio-cue-line: 27px; }
+.studio-preview-region[data-reader-size="3"] { --studio-cue-font: 19px; --studio-cue-line: 30px; }
+.studio-preview-region[data-reader-size] :is(.studio-cue-text, .studio-cue-editor textarea) { font-size: var(--studio-cue-font, 13px); line-height: var(--studio-cue-line, 20px); }
 .studio-preview-panel > :is([data-slot=tool-panel-header], [data-slot=tool-panel-footer]) { flex-shrink: 0; }
 .studio-preview-panel > [data-slot=tool-panel-body] { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
 .studio-preview-panel > [data-slot=tool-panel-body] > .studio-content-empty { height: 100%; min-height: 0; }

@@ -2,6 +2,7 @@ import { BrowserWindow, dialog, type WebContents } from 'electron';
 import path from 'node:path';
 import { StudioError, type ErrorCode } from '../../../src/subtitle-studio/domain';
 import { requestSchemas, type TranscriptionMediaSelection, type TranscriptionResourceJob } from '../../../src/subtitle-studio/ipc-contract';
+import { STUDIO_TRANSCRIPTION_MAX_FILES } from '../../../src/subtitle-studio/transcription/task-contract';
 import { localSubtitleAuthorizedMediaSchema, localSubtitleMediaProbeSummarySchema, localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
 import type { LocalSubtitleOwnerKey } from './transcription/native/authorizations';
 import type { TranscriptionRuntime } from './transcription/runtime';
@@ -30,7 +31,7 @@ function resourceJob(value: unknown): TranscriptionResourceJob {
 
 /** Both native selection surfaces share authorization, probing and partial results. */
 export async function authorizeTranscriptionMedia(selections: readonly NativeInputSelection[], runtime: TranscriptionRuntime, owner: LocalSubtitleOwnerKey, alive: () => void): Promise<TranscriptionMediaSelection> {
-  if (selections.length > 20) throw new StudioError('limit_exceeded');
+  if (selections.length > STUDIO_TRANSCRIPTION_MAX_FILES) throw new StudioError('limit_exceeded');
   const result: TranscriptionMediaSelection = { items: [] };
   const seen = new Set<string>();
   for (const selection of selections) {
@@ -74,8 +75,8 @@ export async function handleTranscriptionRequest(input: {
   if (method === 'authorizeTranscriptionPaths') {
     const { paths, recursive, offset = 0 } = requestSchemas.authorizeTranscriptionPaths.parse(payload);
     const found = await collectTranscriptionMediaPaths(paths, { recursive }); alive();
-    // One page at a time: a transcription takes at most 20 media files.
-    const page = found.slice(offset, offset + 20);
+    // One page at a time: a transcription batch takes a bounded number of media files.
+    const page = found.slice(offset, offset + STUDIO_TRANSCRIPTION_MAX_FILES);
     const value = await authorizeTranscriptionMedia(page, runtime, owner, alive);
     return { ...value, matched: found.length, ...(offset + page.length < found.length ? { nextOffset: offset + page.length } : {}) };
   }

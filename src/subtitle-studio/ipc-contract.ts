@@ -9,7 +9,7 @@ import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contr
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
 import { exportOptionsSchema, exportIssueCodeSchema, exportDestinationSchema, type SourceLocationSummary, type ExportPlanSummary, type ExportResult } from './export-contract';
 import { batchRequestSchemas, type BatchImportResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
-import { enqueueTranscriptionRequestSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
+import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
 import type { SpeechResourcesStatus } from '../speech-resources/events';
@@ -116,7 +116,7 @@ export const droppedSubtitlesRequestSchema = z.object({
   paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(100),
 }).strict();
 export const droppedTranscriptionMediaRequestSchema = z.object({
-  paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(20),
+  paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(STUDIO_TRANSCRIPTION_MAX_FILES),
 }).strict();
 export const requestSchemas = {
   readAutomaticKnowledgeReport: readAutomaticKnowledgeReportSchema,

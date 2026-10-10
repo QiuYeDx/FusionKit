@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createStudioTranscriptionController, getAutomaticKnowledgeProblem, getTranscriptionReadiness, type StudioTranscriptionController } from '../../src/services/subtitle-studio/transcription-controller';
 import type { SubtitleStudioApi, StudioResult, TranscriptionMediaSelection, TranscriptionResources } from '../../src/subtitle-studio/ipc-contract';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary } from '../../src/subtitle-studio/transcription/ipc-contract';
-import type { TranscriptionTaskSummary } from '../../src/subtitle-studio/transcription/task-contract';
+import { STUDIO_TRANSCRIPTION_MAX_FILES, type TranscriptionTaskSummary } from '../../src/subtitle-studio/transcription/task-contract';
 import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '../../src/subtitle-studio/transcription/domain';
 import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES, DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES } from '../../src/subtitle-studio/transcription/config';
 import { DEFAULT_AUTOMATIC_KNOWLEDGE, DEFAULT_TRANSCRIPTION_PREFERENCES } from '../../src/subtitle-studio/transcription/preferences-contract';
@@ -75,7 +75,7 @@ it('captures native dropped Files synchronously before initialization and shares
   expect(f.controller.selectMedia()).toBe(dropped); expect(f.api.selectTranscriptionMedia).not.toHaveBeenCalled();
   pending.resolve(ok(selected(media()))); await dropped;
   expect(f.controller.getState().drafts[0].status).toBe('ready');
-  await f.controller.dropMedia(Array.from({ length: 21 }, () => files[0]));
+  await f.controller.dropMedia(Array.from({ length: STUDIO_TRANSCRIPTION_MAX_FILES + 1 }, () => files[0]));
   expect(f.api.dropTranscriptionMedia).toHaveBeenCalledOnce(); expect(f.controller.getState().error).toBe('limit_exceeded');
 });
 it('hydrates transcription config before the first snapshot and saves no transient authority', async () => {
@@ -285,11 +285,11 @@ it('stops polling no-content results and clears them with completed records with
 });
 
 it('deduplicates appended source selections while preserving existing audio choices and bounds draft count', async () => {
-  const f = fixture(); await f.choose(...Array.from({ length: 20 }, (_, index) => media(String(index))));
+  const f = fixture(); await f.choose(...Array.from({ length: STUDIO_TRANSCRIPTION_MAX_FILES }, (_, index) => media(String(index))));
   f.controller.setAudioStream('ls-input-0', 'stream-2');
   const duplicate = { ...media('new'), sourceKey: 'ls-source-0' };
   await f.choose(duplicate, media('excess')); await tick();
-  expect(f.controller.getState().drafts).toHaveLength(20); expect(f.controller.getState().drafts[0]!.audioStreamId).toBe('stream-2');
+  expect(f.controller.getState().drafts).toHaveLength(STUDIO_TRANSCRIPTION_MAX_FILES); expect(f.controller.getState().drafts[0]!.audioStreamId).toBe('stream-2');
   expect(f.controller.getState().error).toBe('limit_exceeded');
   expect(f.api.revokeTranscriptionMedia.mock.calls.map(([request]) => request.fileToken)).toEqual(['ls-input-new', 'ls-input-excess']);
 });

@@ -1,4 +1,5 @@
 import { STUDIO_CHANNELS, studioEventSchema, requestSchemas, droppedSubtitlesRequestSchema, droppedTranscriptionMediaRequestSchema, type SubtitleStudioApi } from '../../src/subtitle-studio/ipc-contract';
+import { STUDIO_TRANSCRIPTION_MAX_FILES } from '../../src/subtitle-studio/transcription/task-contract';
 import { isPublicStudioChannel } from './subtitle-studio-channel-policy';
 
 export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload: unknown): unknown; invoke(channel: string, payload: unknown): Promise<any>; on(channel: string, listener: (event: unknown, input: any) => void): unknown; removeListener(channel: string, listener: (event: unknown, input: any) => void): unknown }, webUtils?: { getPathForFile(file: File): string }): SubtitleStudioApi {
@@ -37,7 +38,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     selectTranscriptionMedia: request => invoke(STUDIO_CHANNELS.selectTranscriptionMedia, request),
     dropTranscriptionMedia: files => {
       if (typeof capability !== 'string' || !webUtils) return Promise.resolve({ ok: false, error: 'access_denied' } as const);
-      if (!Array.isArray(files) || !files.length || files.length > 20) return Promise.resolve({ ok: false, error: files?.length > 20 ? 'limit_exceeded' : 'invalid_input' } as const);
+      if (!Array.isArray(files) || !files.length || files.length > STUDIO_TRANSCRIPTION_MAX_FILES) return Promise.resolve({ ok: false, error: files?.length > STUDIO_TRANSCRIPTION_MAX_FILES ? 'limit_exceeded' : 'invalid_input' } as const);
       let paths: string[];
       // File objects belong to this drop; consume every native handle before awaiting.
       try { paths = files.map(file => webUtils.getPathForFile(file)); }

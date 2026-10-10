@@ -6,6 +6,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { STUDIO_CHANNELS, transcriptionRequestSchemas } from '../../src/subtitle-studio/ipc-contract';
+import { STUDIO_TRANSCRIPTION_MAX_FILES } from '../../src/subtitle-studio/transcription/task-contract';
 import { createSubtitleStudioApi } from '../../electron/preload/subtitle-studio-api';
 import { assertLegacyStudioChannelAllowed, isPublicStudioChannel } from '../../electron/preload/subtitle-studio-channel-policy';
 
@@ -127,7 +128,7 @@ describe('Subtitle Studio transcription application IPC', () => {
     const payload = { paths: [path.join(adapter.directory, 'voice.wav')] };
     expect(await client.invoke('dropTranscriptionMedia', payload, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
     expect(await client.invoke('dropTranscriptionMedia', { ...payload, source: 'picker' })).toEqual({ ok: false, error: 'invalid_input' });
-    expect(await client.invoke('dropTranscriptionMedia', { paths: Array(21).fill(payload.paths[0]) })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await client.invoke('dropTranscriptionMedia', { paths: Array(STUDIO_TRANSCRIPTION_MAX_FILES + 1).fill(payload.paths[0]) })).toEqual({ ok: false, error: 'invalid_input' });
     expect(adapter.create).not.toHaveBeenCalled(); expect(dropResolver).not.toHaveBeenCalled();
   });
 
@@ -193,17 +194,17 @@ describe('Subtitle Studio transcription application IPC', () => {
   it('pages through the media under typed paths, skipping other files and links', async () => {
     const client = attach();
     const folder = path.join(adapter.directory, 'typed'); await mkdir(path.join(folder, 'Disc 2'), { recursive: true });
-    for (let index = 1; index <= 21; index++) await writeFile(path.join(folder, `${index}.wav`), '');
+    for (let index = 1; index <= STUDIO_TRANSCRIPTION_MAX_FILES + 1; index++) await writeFile(path.join(folder, `${index}.wav`), '');
     await writeFile(path.join(folder, 'notes.txt'), ''); await writeFile(path.join(folder, 'Disc 2', 'bonus.mp3'), '');
     const first = await client.invoke('authorizeTranscriptionPaths', { paths: [folder] }) as { ok: true; value: { items: unknown[]; matched: number; nextOffset?: number } };
-    expect(first).toMatchObject({ ok: true, value: { matched: 21, nextOffset: 20 } });
-    expect(first.value.items).toHaveLength(20);
+    expect(first).toMatchObject({ ok: true, value: { matched: STUDIO_TRANSCRIPTION_MAX_FILES + 1, nextOffset: STUDIO_TRANSCRIPTION_MAX_FILES } });
+    expect(first.value.items).toHaveLength(STUDIO_TRANSCRIPTION_MAX_FILES);
     // Name order is numeric, so 2.wav comes before 10.wav.
     expect(adapter.runtime.media.authorizeInput.mock.calls.slice(0, 3).map((call: unknown[]) => path.basename(call[1] as string))).toEqual(['1.wav', '2.wav', '3.wav']);
     adapter.runtime.media.authorizeInput.mockClear();
-    const rest = await client.invoke('authorizeTranscriptionPaths', { paths: [folder], recursive: true, offset: 20 });
-    expect(rest).toMatchObject({ ok: true, value: { matched: 22 } });
-    expect(adapter.runtime.media.authorizeInput.mock.calls.map((call: unknown[]) => path.basename(call[1] as string))).toEqual(['21.wav', 'bonus.mp3']);
+    const rest = await client.invoke('authorizeTranscriptionPaths', { paths: [folder], recursive: true, offset: STUDIO_TRANSCRIPTION_MAX_FILES });
+    expect(rest).toMatchObject({ ok: true, value: { matched: STUDIO_TRANSCRIPTION_MAX_FILES + 2 } });
+    expect(adapter.runtime.media.authorizeInput.mock.calls.map((call: unknown[]) => path.basename(call[1] as string))).toEqual([`${STUDIO_TRANSCRIPTION_MAX_FILES + 1}.wav`, 'bonus.mp3']);
     expect(await client.invoke('authorizeTranscriptionPaths', { paths: ['relative/voice.wav', path.join(folder, 'notes.txt')] }))
       .toMatchObject({ ok: true, value: { matched: 2, items: [{ ok: false, error: 'access_denied' }, { ok: false, error: 'unsupported_feature' }] } });
     expect(await client.invoke('authorizeTranscriptionPaths', { paths: [folder], filter: '*' })).toEqual({ ok: false, error: 'invalid_input' });
@@ -269,7 +270,7 @@ describe('Subtitle Studio transcription application IPC', () => {
 
   it('bounds picker admission and redacts resource job diagnostics to a stable error code', async () => {
     const client = attach();
-    adapter.open.mockResolvedValue({ canceled: false, filePaths: Array.from({ length: 21 }, (_, i) => path.join(adapter.directory, `${i}.wav`)) });
+    adapter.open.mockResolvedValue({ canceled: false, filePaths: Array.from({ length: STUDIO_TRANSCRIPTION_MAX_FILES + 1 }, (_, i) => path.join(adapter.directory, `${i}.wav`)) });
     expect(await client.invoke('selectTranscriptionMedia', {})).toEqual({ ok: false, error: 'limit_exceeded' });
     expect(adapter.runtime.media.authorizeInput).not.toHaveBeenCalled();
     const job = { jobId: 'job-model', resourceId: 'fixture-model', resourceType: 'model', status: 'failed', progress: 0,

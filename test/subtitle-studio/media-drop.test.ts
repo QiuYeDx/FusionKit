@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { createSubtitleStudioApi } from '../../electron/preload/subtitle-studio-api';
 import { assertLegacyStudioChannelAllowed, isPublicStudioChannel } from '../../electron/preload/subtitle-studio-channel-policy';
 import { droppedTranscriptionMediaRequestSchema, STUDIO_CHANNELS } from '../../src/subtitle-studio/ipc-contract';
+import { STUDIO_TRANSCRIPTION_MAX_FILES } from '../../src/subtitle-studio/transcription/task-contract';
 
 describe('native transcription media drop capability', () => {
   it('consumes the native File batch before yielding without exposing a raw-path invoke', async () => {
@@ -22,15 +23,15 @@ describe('native transcription media drop capability', () => {
     expect(Object.keys(api)).not.toContain('invoke');
   });
 
-  it('rejects synthetic/forged inputs, expired bridge and more than twenty files before native IPC', async () => {
+  it('rejects synthetic/forged inputs, expired bridge and more than the batch limit of files before native IPC', async () => {
     const ipc = { sendSync: () => randomUUID(), invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn() };
     const api = createSubtitleStudioApi(ipc, { getPathForFile: () => { throw new TypeError('No OS backing.'); } });
     expect(await api.dropTranscriptionMedia([{ path: 'C:\\forged.wav' } as unknown as File])).toEqual({ ok: false, error: 'access_denied' });
     expect(await api.dropTranscriptionMedia([])).toEqual({ ok: false, error: 'invalid_input' });
-    expect(await api.dropTranscriptionMedia(Array(21).fill({}))).toEqual({ ok: false, error: 'limit_exceeded' });
+    expect(await api.dropTranscriptionMedia(Array(STUDIO_TRANSCRIPTION_MAX_FILES + 1).fill({}))).toEqual({ ok: false, error: 'limit_exceeded' });
     expect(await createSubtitleStudioApi(ipc, { getPathForFile: () => '' }).dropTranscriptionMedia([{} as File])).toEqual({ ok: false, error: 'access_denied' });
     expect(await createSubtitleStudioApi({ ...ipc, sendSync: () => null }, { getPathForFile: () => 'C:\\x.wav' }).dropTranscriptionMedia([{} as File])).toEqual({ ok: false, error: 'access_denied' });
-    for (const value of [{ paths: ['x\0y'] }, { paths: ['C:\\x.wav'], source: 'picker' }, { paths: Array(21).fill('C:\\x.wav') }]) expect(droppedTranscriptionMediaRequestSchema.safeParse(value).success).toBe(false);
+    for (const value of [{ paths: ['x\0y'] }, { paths: ['C:\\x.wav'], source: 'picker' }, { paths: Array(STUDIO_TRANSCRIPTION_MAX_FILES + 1).fill('C:\\x.wav') }]) expect(droppedTranscriptionMediaRequestSchema.safeParse(value).success).toBe(false);
     expect(ipc.invoke).not.toHaveBeenCalled();
   });
 });

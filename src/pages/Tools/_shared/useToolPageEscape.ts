@@ -9,6 +9,19 @@ const escapeLayerSelector = [
   '[data-slot="tooltip-content"]',
 ].join(",");
 
+/**
+ * Whether an Escape belongs to local editing or an open layer. Call it in the
+ * capture phase, before Radix or a local handler closes/unmounts its layer.
+ */
+export function isLocalEscape(event: KeyboardEvent) {
+  const editing = event.composedPath().some(target => target instanceof HTMLElement && (
+    target.matches("input, textarea, select") || target.isContentEditable
+  ));
+  const layerOpen = Array.from(document.querySelectorAll(escapeLayerSelector))
+    .some(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+  return editing || layerOpen;
+}
+
 /** Page navigation is the last Escape action, after local editing and layers. */
 export function useToolPageEscape(pathname: string, onBack: () => void) {
   useEffect(() => {
@@ -18,13 +31,7 @@ export function useToolPageEscape(pathname: string, onBack: () => void) {
     let pending: ReturnType<typeof setTimeout> | undefined;
     const capture = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      // Snapshot before Radix or a local handler closes/unmounts its layer.
-      const editing = event.composedPath().some(target => target instanceof HTMLElement && (
-        target.matches("input, textarea, select") || target.isContentEditable
-      ));
-      const layerOpen = Array.from(document.querySelectorAll(escapeLayerSelector))
-        .some(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
-      if (editing || layerOpen) localEvents.add(event);
+      if (isLocalEscape(event)) localEvents.add(event);
     };
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.repeat || event.isComposing ||

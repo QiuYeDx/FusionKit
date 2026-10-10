@@ -5,7 +5,7 @@ import type { StudioResult, SubtitleStudioApi, TranscriptionMediaSelection, Tran
 import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '../../subtitle-studio/transcription/domain';
 import { localSubtitleAuthorizedMediaSchema, localSubtitleMediaProbeSummarySchema, type LocalSubtitleAuthorizedMedia,
   type LocalSubtitleMediaProbeSummary, type LocalSubtitleManagedResourceSummary } from '../../subtitle-studio/transcription/ipc-contract';
-import { enqueueTranscriptionRequestSchema, transcriptionTaskConfigSchema, transcriptionTaskSummarySchema,
+import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, transcriptionTaskConfigSchema, transcriptionTaskSummarySchema,
   type EnqueueTranscriptionRequest, type TranscriptionBatchAdmission, type TranscriptionTaskSummary } from '../../subtitle-studio/transcription/task-contract';
 import { automaticTranslationRequestSchema, type AutomaticTranslationRequest } from '../../subtitle-studio/automatic-translation-contract';
 import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES, automaticTranslationPreferencesSchema, readTranscriptionPreferences,
@@ -411,10 +411,10 @@ export class StudioTranscriptionController {
   dropMedia = (files: readonly File[]): Promise<void> => {
     const captured = [...files];
     if (!captured.length) return Promise.resolve();
-    if (captured.length > 20) { this.emit({ error: 'limit_exceeded' }); return Promise.resolve(); }
+    if (captured.length > STUDIO_TRANSCRIPTION_MAX_FILES) { this.emit({ error: 'limit_exceeded' }); return Promise.resolve(); }
     return this.selectMediaUsing(() => this.api().dropTranscriptionMedia(captured));
   };
-  /** Media under paths the user typed to the assistant, one page of at most 20 files at a time. */
+  /** Media under paths the user typed to the assistant, one batch-sized page at a time. */
   selectMediaFromPaths = async (request: Parameters<Api['authorizeTranscriptionPaths']>[0]): Promise<{ matched: number; nextOffset?: number } | undefined> => {
     let page: { matched: number; nextOffset?: number } | undefined;
     await this.selectMediaUsing(() => this.api().authorizeTranscriptionPaths(request), result => {
@@ -440,7 +440,7 @@ export class StudioTranscriptionController {
         // A repeated token is the existing authority; revoking it would invalidate the retained row.
         if (media && drafts.some(draft => draft.media?.fileToken === media.fileToken)) continue;
         if (media && drafts.some(draft => draft.media?.sourceKey === media.sourceKey)) { this.queueRevoke(media); continue; }
-        if (drafts.length >= 20) { exceeded = true; if (media) this.queueRevoke(media); continue; }
+        if (drafts.length >= STUDIO_TRANSCRIPTION_MAX_FILES) { exceeded = true; if (media) this.queueRevoke(media); continue; }
         const probe = item.ok ? localSubtitleMediaProbeSummarySchema.parse(item.probe) : undefined;
         if (probe && probe.fileToken !== media?.fileToken) { if (media) this.queueRevoke(media); throw new StudioError('invalid_input'); }
         drafts.push(Object.freeze({ id: media?.fileToken ?? `selection-error-${++this.draftSequence}`, displayName: item.displayName,

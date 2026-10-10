@@ -5,6 +5,9 @@ import { automaticExportSpecSchema } from '../automatic-export-contract';
 import { LOCAL_SUBTITLE_DEVICE_PREFERENCES, LOCAL_SUBTITLE_ERROR_CODES, LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT, LOCAL_SUBTITLE_WINDOW_STRATEGIES } from './domain';
 
+/** One transcription batch takes at most this many media files (the native batch limit). */
+export const STUDIO_TRANSCRIPTION_MAX_FILES = LOCAL_SUBTITLE_LIMITS.maxBatchFiles;
+
 const opaqueId = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
 const language = z.string().min(2).max(32).refine(value => value === 'auto' || /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value));
 export const transcriptionTaskConfigSchema = z.object({
@@ -28,7 +31,7 @@ export const transcriptionTaskConfigSchema = z.object({
 
 /** Public requests contain ephemeral capabilities and choices, never native paths or proofs. */
 export const enqueueTranscriptionRequestSchema = z.object({
-  files: z.array(z.object({ fileToken: opaqueId, audioStreamId: opaqueId.optional() }).strict()).min(1).max(20),
+  files: z.array(z.object({ fileToken: opaqueId, audioStreamId: opaqueId.optional() }).strict()).min(1).max(STUDIO_TRANSCRIPTION_MAX_FILES),
   config: transcriptionTaskConfigSchema,
   autoTranslation: automaticTranslationRequestSchema.optional(),
   autoExport: automaticExportSpecSchema.optional(),

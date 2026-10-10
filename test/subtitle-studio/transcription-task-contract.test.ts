@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { enqueueTranscriptionRequestSchema, transcriptionTaskSummarySchema } from '../../src/subtitle-studio/transcription/task-contract';
+import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, transcriptionTaskSummarySchema } from '../../src/subtitle-studio/transcription/task-contract';
 const request = () => ({ files: [{ fileToken: 'ls-input-opaque' }], config: { modelId: 'large-v3-q5_0', devicePreference: 'cpu',
   language: 'auto', taskMode: 'transcribe', vadEnabled: true, advanced: { beamSize: 5, temperature: 0,
     vadMinSilenceMs: 500, maxCueDurationMs: 7000, maxCueChars: 80, maxLineChars: 40 } } });
@@ -11,7 +11,7 @@ it('accepts capability-only requests and rejects paths, output settings, identit
     { ...valid, files: [{ fileToken: 'C:\\private\\audio.wav' }] },
     { ...valid, files: [{ fileToken: 'ls-input-opaque', filePath: '/private/audio.wav' }] },
     { ...valid, files: [valid.files[0], valid.files[0]] },
-    { ...valid, files: Array.from({ length: 21 }, (_, index) => ({ fileToken: `input-${index}` })) },
+    { ...valid, files: Array.from({ length: STUDIO_TRANSCRIPTION_MAX_FILES + 1 }, (_, index) => ({ fileToken: `input-${index}` })) },
     { ...valid, config: { ...valid.config, output: { mode: 'source' } } },
     { ...valid, config: { ...valid.config, backendResolution: {} } },
     { ...valid, config: { ...valid.config, windowStrategy: 'acoustic_quiet_v1', vadEnabled: false } },

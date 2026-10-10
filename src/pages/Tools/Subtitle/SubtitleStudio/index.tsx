@@ -27,6 +27,7 @@ import { encodingSchema, LIMITS, StudioError, type Diagnostic, type ErrorCode } 
 import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
 import { CueHistory, type CueEditLabel } from '@/services/subtitle-studio/cue-history';
 import { StudioCueTable } from './StudioCueTable';
+import { StudioPreviewExpandControls, useStudioPreviewExpansion } from './StudioPreviewExpansion';
 import { StudioCueRevision, type CueRevisionRequestState } from './StudioCueRevision';
 import { useAgentPageContext } from '@/agent/page-context';
 import { createStudioAgentTools, studioPageContext, type StudioAgentDeps } from './agent-context';
@@ -604,6 +605,10 @@ export default function SubtitleStudio() {
     <SelectContent>{encodingSchema.options.map(value => <SelectItem key={value} value={value}>{value.toUpperCase()}</SelectItem>)}</SelectContent>
   </Select>;
   const activeDocument = previewRequest?.document ?? page?.summary;
+  const expansion = useStudioPreviewExpansion(workspaceRoot, '.studio-main', !!page && workspaceView === 'documents');
+  const activeIndex = documents.findIndex(doc => doc.id === activeDocument?.id);
+  const previousDocument = activeIndex > 0 && !busy ? documents[activeIndex - 1] : undefined;
+  const nextDocument = activeIndex >= 0 && !busy ? documents[activeIndex + 1] : undefined;
   const documentPicker = <Select value={documents.some(doc => doc.id === activeDocument?.id) ? activeDocument?.id : ''} onValueChange={id => { const doc = documents.find(item => item.id === id); if (doc) chooseDocument(doc); }} disabled={busy || !documents.length}>
     <SelectTrigger aria-label={t('studio:select_document')} className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:select_document')}>{activeDocument && documents.some(doc => doc.id === activeDocument.id) ? <StudioFileName name={activeDocument.origin.displayName} /> : undefined}</SelectValue></SelectTrigger>
     <SelectContent className="max-w-[calc(100vw-2rem)]">{documents.map(doc => <SelectItem key={doc.id} value={doc.id} className="whitespace-normal break-all">{doc.origin.displayName}</SelectItem>)}</SelectContent>
@@ -719,7 +724,7 @@ export default function SubtitleStudio() {
       className="studio-layout"
       header={null}
       asideClassName="hidden lg:block"
-      mainClassName="studio-main"
+      mainClassName={expansion.expanded ? 'studio-main studio-main-expanded' : 'studio-main'}
       aside={wide ? <div className="studio-library">{workspaceView === 'documents' && <StudioTranslationOverview onOpenDocument={openTranscriptionDocument} />}<ToolPanel className="studio-library-panel" title={t('studio:documents')} icon={Library} badge={<Badge variant="secondary" className="font-mono text-[11px]">{allTotal}</Badge>} actions={refresh}>{recoveryButton}{library}</ToolPanel></div> : undefined}
     >
       <ToolFilePickerSurface title={t('studio:import')} description={t('studio:library.import_hint')} dragging={dragging && !busy} actionLabel={t('studio:open_file')} disabled={busy} onSelect={importDocument} icon={activity === 'import' ? <LoaderCircle className="h-5 w-5 studio-spin" /> : undefined} className="studio-import" />
@@ -759,13 +764,13 @@ export default function SubtitleStudio() {
         <Button size="sm" variant="ghost" data-testid="studio-knowledge-offer-open" onClick={() => setCaptureOpen(true)}>{t('studio:knowledge_offer.action')}</Button>
         <StudioIconButton label={t('studio:dismiss')} onClick={() => setKnowledgeOffer(null)}><X /></StudioIconButton>
       </div>}
-      <div aria-busy={busy || (!!previewRequest && !previewRequest.error)} className="studio-preview-region" data-preview-pending={!!previewRequest || undefined}>
+      <div aria-busy={busy || (!!previewRequest && !previewRequest.error)} className="studio-preview-region" data-preview-pending={!!previewRequest || undefined} data-reader-size={expansion.expanded ? expansion.readerSize : undefined}>
         <div className="studio-preview-surface" inert={!!previewRequest} aria-hidden={previewRequest ? true : undefined}>
         <ToolPanel
           title={t('studio:preview')}
           icon={Subtitles}
           badge={page ? <Badge variant="secondary" className="font-mono text-[11px]">{page.summary.cueCount}</Badge> : undefined}
-          actions={page ? <><StudioBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioRevertBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setBilingualNotice(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} recheckRequest={knowledgeRecheck} onRecheckClosed={requestId => setKnowledgeRecheck(current => current?.requestId === requestId ? undefined : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioRevealSource key={page.summary.id} kind="document" id={page.summary.id} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton></> : undefined}
+          actions={page ? <><StudioBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioRevertBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setBilingualNotice(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} recheckRequest={knowledgeRecheck} onRecheckClosed={requestId => setKnowledgeRecheck(current => current?.requestId === requestId ? undefined : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioRevealSource key={page.summary.id} kind="document" id={page.summary.id} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton><StudioPreviewExpandControls expansion={expansion} onPreviousDocument={previousDocument && (() => chooseDocument(previousDocument))} onNextDocument={nextDocument && (() => chooseDocument(nextDocument))} /></> : undefined}
           className="studio-preview-panel"
           footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t(page.summary.capabilities.preserveSource ? 'studio:source_preserved' : 'studio:transcription_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
