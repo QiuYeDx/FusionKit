@@ -48,8 +48,8 @@ export const agentTools = {
       "Translates subtitle text from one language to another; settings the user did not ask for follow the subtitle translator page. " +
       "Supports languages: ZH(Chinese), JA(Japanese), EN(English), KO(Korean), FR(French), DE(German), ES(Spanish), RU(Russian), PT(Portuguese). " +
       "When the user requests an explicit slice length such as 按照1200分词 / every 1200 tokens, set sliceType=CUSTOM and customSliceLength to that number. " +
-      "This fixed tool opens FusionKit's native file picker and queues only the files the user selects. " +
-      "Never pass file paths, scan ids, or a raw custom output directory.",
+      "When the user typed subtitle file or folder paths, pass them in paths (and a typed output folder in outputDirectory); otherwise FusionKit's native file picker opens and only the selected files are queued. " +
+      "Only paths the user typed are accepted. Never pass filePaths, scan ids or outputDir.",
     inputSchema: queueTranslateSchema,
     execute: async (args, options) => executeQueueTranslate(args, options.abortSignal),
   }),
@@ -102,6 +102,7 @@ export const agentTools = {
     description:
       "Scan for FusionKit recovery manifests (*.fusionkit.resume.json) to find unfinished subtitle translation tasks. " +
       "Use this when the user wants to resume/recover/continue previous failed or interrupted subtitle translations. " +
+      "Pass a folder or manifest path the user typed in path; otherwise a picker opens. " +
       "Returns a recoveryScanId and candidate preview. Do NOT use scan_subtitle_files for recovery manifests.",
     inputSchema: scanSubtitleRecoveryTasksSchema,
     execute: async (args, options) => executeScanSubtitleRecoveryTasks(args, options.abortSignal),

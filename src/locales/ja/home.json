@@ -343,5 +343,7 @@
   "action_error_export_needs_translation": "訳文や二言語の字幕は、翻訳と一緒の場合にのみ書き出せます。",
   "action_error_knowledge_invalid": "選んだ翻訳資料が言語に合わないか、利用できません。選び直してください。",
   "action_error_automatic_translation": "自動翻訳を開始できません。タスクモデルの設定か選んだ資料を確認してください。",
-  "pipeline_remove_document": "書き出し成功後にワークスペースの字幕文書を削除"
+  "pipeline_remove_document": "書き出し成功後にワークスペースの字幕文書を削除",
+  "action_error_no_subtitles": "そのパスに使える字幕ファイルが見つかりません。",
+  "action_error_recovery_path": "その復元フォルダーまたはマニフェストが見つかりません。パスを確認してください（マニフェストは *.fusionkit.resume.json）。"
 }

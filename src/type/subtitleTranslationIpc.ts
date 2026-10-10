@@ -14,6 +14,8 @@ export const SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS = {
     "subtitle-translation:internal:revoke-input-file",
   selectAgentInputFiles:
     "subtitle-translation:internal:select-agent-input-files",
+  authorizeAgentInputPaths:
+    "subtitle-translation:internal:authorize-agent-input-paths",
   readAgentInputFile:
     "subtitle-translation:internal:read-agent-input-file",
   revokeAgentInputSelection:
@@ -26,6 +28,8 @@ export const SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS = {
     "subtitle-translation:internal:reveal-task-source",
   selectOutputDirectory:
     "subtitle-translation:internal:select-output-directory",
+  authorizeOutputDirectoryPath:
+    "subtitle-translation:internal:authorize-output-directory-path",
   revokeOutputDirectory:
     "subtitle-translation:internal:revoke-output-directory",
   reauthorizeTaskTarget:
@@ -46,6 +50,8 @@ export const SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS = {
     "subtitle-translation:internal:select-recovery-directory",
   selectRecoveryManifest:
     "subtitle-translation:internal:select-recovery-manifest",
+  scanRecoveryPath:
+    "subtitle-translation:internal:scan-recovery-path",
   prepareRecoveredTasks:
     "subtitle-translation:internal:prepare-recovered-tasks",
   revokeRecoveryScan:
@@ -357,6 +363,10 @@ export interface SubtitleTranslationRendererApi {
   selectAgentInputFiles(): Promise<
     SubtitleTranslationIpcResult<SubtitleTranslationAgentInputSelection>
   >;
+  authorizeAgentInputPaths(request: {
+    readonly paths: readonly string[];
+    readonly recursive?: boolean;
+  }): Promise<SubtitleTranslationIpcResult<SubtitleTranslationAgentInputSelection>>;
   readAgentInputFile(
     request: SubtitleTranslationAgentInputSelectionRequest,
   ): Promise<SubtitleTranslationIpcResult<SubtitleTranslationInputFileContent>>;
@@ -375,6 +385,9 @@ export interface SubtitleTranslationRendererApi {
   selectOutputDirectory(): Promise<
     SubtitleTranslationIpcResult<SubtitleTranslationDirectorySelection>
   >;
+  authorizeOutputDirectoryPath(request: {
+    readonly directoryPath: string;
+  }): Promise<SubtitleTranslationIpcResult<SubtitleTranslationDirectorySelection>>;
   revokeOutputDirectory(
     directoryToken: string,
   ): Promise<SubtitleTranslationIpcResult<SubtitleTranslationDirectoryRevocation>>;
@@ -409,6 +422,10 @@ export interface SubtitleTranslationRendererApi {
   selectRecoveryManifest(): Promise<
     SubtitleTranslationIpcResult<SubtitleTranslationRecoveryScanSelection>
   >;
+  scanRecoveryPath(request: {
+    readonly path: string;
+    readonly includeCompleted?: boolean;
+  }): Promise<SubtitleTranslationIpcResult<SubtitleTranslationRecoveryScanSelection>>;
   prepareRecoveredTasks(request: {
     readonly recoveryScanId: string;
     readonly directoryToken: string;
@@ -533,6 +550,19 @@ export const subtitleTranslationReadInputFileRequestSchema = z
   .strict();
 export const subtitleTranslationSelectAgentInputFilesRequestSchema = z
   .object({})
+  .strict();
+/** Paths the user typed to the assistant; the assistant checks that before asking. */
+export const subtitleTranslationAuthorizeAgentInputPathsRequestSchema = z
+  .object({
+    paths: z.array(legacyPathSchema).min(1).max(20),
+    recursive: z.boolean().optional(),
+  })
+  .strict();
+export const subtitleTranslationAuthorizeOutputDirectoryPathRequestSchema = z
+  .object({ directoryPath: legacyPathSchema })
+  .strict();
+export const subtitleTranslationScanRecoveryPathRequestSchema = z
+  .object({ path: legacyPathSchema, includeCompleted: z.boolean().optional() })
   .strict();
 export const subtitleTranslationAgentInputSelectionRequestSchema = z
   .object({
@@ -712,9 +742,11 @@ export const subtitleTranslationInputFileContentSchema = z
 
 export const subtitleTranslationAgentInputSelectionSchema =
   z.discriminatedUnion("cancelled", [
-    z.object({ cancelled: z.literal(true) }).strict(),
+    // Typed paths report how many subtitle files they held (0 here: nothing to translate).
+    z.object({ cancelled: z.literal(true), matched: z.number().int().min(0).optional() }).strict(),
     z.object({
       cancelled: z.literal(false),
+      matched: z.number().int().min(0).optional(),
       selectionRef: subtitleTranslationOpaqueRefSchema,
       files: z.array(z.object({
         itemRef: subtitleTranslationOpaqueRefSchema,
@@ -925,6 +957,12 @@ export const SUBTITLE_TRANSLATION_INTERNAL_OPERATION_CONTRACTS = {
       subtitleTranslationAgentInputSelectionSchema,
     ),
   },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeAgentInputPaths]: {
+    requestSchema: subtitleTranslationAuthorizeAgentInputPathsRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationAgentInputSelectionSchema,
+    ),
+  },
   [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile]: {
     requestSchema: subtitleTranslationAgentInputSelectionRequestSchema,
     resultSchema: subtitleTranslationIpcResultSchema(
@@ -957,6 +995,12 @@ export const SUBTITLE_TRANSLATION_INTERNAL_OPERATION_CONTRACTS = {
   },
   [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectOutputDirectory]: {
     requestSchema: subtitleTranslationSelectDirectoryRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationDirectorySelectionSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeOutputDirectoryPath]: {
+    requestSchema: subtitleTranslationAuthorizeOutputDirectoryPathRequestSchema,
     resultSchema: subtitleTranslationIpcResultSchema(
       subtitleTranslationDirectorySelectionSchema,
     ),
@@ -1017,6 +1061,12 @@ export const SUBTITLE_TRANSLATION_INTERNAL_OPERATION_CONTRACTS = {
   },
   [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryManifest]: {
     requestSchema: subtitleTranslationSelectRecoveryManifestRequestSchema,
+    resultSchema: subtitleTranslationIpcResultSchema(
+      subtitleTranslationRecoveryScanSelectionSchema,
+    ),
+  },
+  [SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.scanRecoveryPath]: {
+    requestSchema: subtitleTranslationScanRecoveryPathRequestSchema,
     resultSchema: subtitleTranslationIpcResultSchema(
       subtitleTranslationRecoveryScanSelectionSchema,
     ),

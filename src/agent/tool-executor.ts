@@ -46,6 +46,7 @@ import { isExplicitRenameConfirmation } from "./name-plan-confirmation";
 import {
   prepareRecoveredSubtitleTasks,
   revokeTranslationRecoveryScan,
+  scanTranslationRecoveryPath,
   selectTranslationRecoveryDirectory,
   selectTranslationRecoveryManifest,
 } from "@/services/subtitle/translatorRecoveryService";
@@ -53,7 +54,7 @@ import { createSubtitleTaskExecutionBinding } from "./task-model-config";
 import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTranslatorTaskFactory";
 import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 import i18n from "@/i18n";
-import { latestUserMessage, latestUserMessageText, userMentionedDirectory, userRequestedOverwrite } from "./user-intent-authority";
+import { latestUserMessage, latestUserMessageText, userMentionedDirectory, userMentionedPath, userRequestedOverwrite } from "./user-intent-authority";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -329,7 +330,12 @@ export async function executeQueueTranslate(
   const settings = new SettingsResolver();
   const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
   // The translator page's output folder needs a fresh authorization, so an omitted output location stays next to the inputs.
-  const outputMode = settings.pick("outputMode", args.outputMode, undefined, "source" as const);
+  // A typed path is the user's own choice of input or output, like a picker selection; nothing else is.
+  const messages = useAgentStore.getState().session.messages;
+  if ([...(args.paths ?? []), ...(args.outputDirectory ? [args.outputDirectory] : [])].some((item) => !userMentionedPath(messages, item))) {
+    return { success: false, error: "translation_path_not_typed" };
+  }
+  const outputMode = settings.pick("outputMode", args.outputMode ?? (args.outputDirectory ? "custom" : undefined), undefined, "source" as const);
   const concurrentSlices = settings.pick("concurrentSlices", args.concurrentSlices, page.concurrentSlices, true);
   const thinkingEnabled = settings.pick("thinkingEnabled", undefined, page.thinkingEnabled, false);
   const api = getSubtitleTranslationApi();
@@ -343,17 +349,21 @@ export async function executeQueueTranslate(
     await flushPendingAgentTranslationRevocations();
     check();
     if (outputMode === "custom") {
-      const directory = await api.selectOutputDirectory();
+      const directory = args.outputDirectory
+        ? await api.authorizeOutputDirectoryPath({ directoryPath: args.outputDirectory })
+        : await api.selectOutputDirectory();
       if (directory.ok) directoryToken = directory.data.directoryToken;
       check();
       if (!directory.ok) return { success: false, error: "translation_output_authorization_failed", data: { reason: directory.error.code } };
       if (directory.data.cancelled) return { success: false, error: "translation_output_selection_cancelled" };
     }
-    const selected = await api.selectAgentInputFiles();
+    const selected = args.paths
+      ? await api.authorizeAgentInputPaths({ paths: args.paths, ...(args.recursive ? { recursive: true } : {}) })
+      : await api.selectAgentInputFiles();
     if (selected.ok && !selected.data.cancelled) selectionRef = selected.data.selectionRef;
     check();
     if (!selected.ok) return { success: false, error: "translation_input_authorization_failed", data: { reason: selected.error.code } };
-    if (selected.data.cancelled) return { success: false, error: "translation_input_selection_cancelled" };
+    if (selected.data.cancelled) return { success: false, error: args.paths ? "translation_no_subtitles_found" : "translation_input_selection_cancelled" };
     const selection = selected.data;
     totalFiles = selection.files.length;
     const userMessage = latestUserMessageText(useAgentStore.getState().session.messages);
@@ -528,8 +538,12 @@ export async function executeScanSubtitleRecoveryTasks(
   const check = executionFence(signal);
   check();
   let payload;
+  if (args.path && !userMentionedPath(useAgentStore.getState().session.messages, args.path)) {
+    return { success: false, error: "recovery_path_not_typed" };
+  }
   try {
-    payload = args.selectionMode === "manifest"
+    payload = args.path ? await scanTranslationRecoveryPath(args.path, args.includeCompleted)
+      : args.selectionMode === "manifest"
       ? await selectTranslationRecoveryManifest()
       : await selectTranslationRecoveryDirectory(args.includeCompleted);
   } catch (error) {

@@ -95,7 +95,8 @@ export const listStudioDocumentsSchema = z.object({ ...page, query: z.string().m
   format: z.enum(["all", "srt", "lrc", "vtt", "ass", "ssa", "sbv", "media"]).default("all"),
   status: z.enum(["all", "untranslated", "translated", "active", "attention"]).default("all") }).strict();
 export const studioTasksSchema = z.object({ ...page, kind: z.enum(["translation", "transcription"]).default("translation") }).strict();
-export const importStudioSchema = z.object({ encoding: encodingSchema.default("utf-8") }).strict();
+export const importStudioSchema = z.object({ encoding: encodingSchema.default("utf-8"),
+  paths: z.array(z.string().min(3).max(4096)).min(1).max(20).optional(), recursive: z.boolean().optional() }).strict();
 export const prepareStudioTranslationSchema = z.object({
   documents: z.array(z.object({ documentId: id, revision: z.number().int().positive().safe() }).strict()).min(1).max(50)
     .refine(items => new Set(items.map(item => item.documentId)).size === items.length),
@@ -154,9 +155,14 @@ export const modernAgentTools = {
         taskId: item.taskId, batchId: item.batchId, name: safeText(item.displayName), status: item.status, progress: item.progress,
         documentId: item.documentId, automaticTranslation: item.automaticTranslation, error: item.error?.code })) });
     }) }),
-  import_studio_subtitles: tool({ description: "Open FusionKit's fixed native subtitle picker and import selected subtitles into the studio. Does not start translation. The user selects files; never provide raw paths or capabilities.",
+  import_studio_subtitles: tool({ description: "Import subtitles into the studio. When the user typed subtitle file or folder paths, pass them exactly as typed in paths (folders give their SRT/LRC/VTT/ASS/SSA/SBV files in name order, up to 100; subfolders only with recursive=true when asked). Paths the user did not type are refused. Without paths, FusionKit's fixed native subtitle picker opens. Does not start translation.",
     inputSchema: importStudioSchema, execute: (args, options) => run(importStudioSchema, args, options, async (input, ctx) => {
-      ctx.check(); const result = unwrap(await studio().importSubtitles(input));
+      ctx.check();
+      if (input.paths && !input.paths.every(item => userMentionedPath(useAgentStore.getState().session.messages, item))) throw new ToolFailure("studio_import_path_not_typed");
+      const result = input.paths
+        ? unwrap(await studio().importSubtitlePaths({ encoding: input.encoding, paths: input.paths, ...(input.recursive ? { recursive: true } : {}) }))
+        : unwrap(await studio().importSubtitles({ encoding: input.encoding }));
+      if (input.paths && result && !result.items.length) return failed("studio_import_no_subtitles");
       // Import is already committed by this fixed API; preserve its receipt if the chat stopped.
       if (!result) return succeeded({ cancelled: true, importedCount: 0 });
       return succeeded({ importedCount: result.items.filter(item => item.ok).length, total: result.items.length,

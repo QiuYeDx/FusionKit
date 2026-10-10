@@ -6,6 +6,8 @@
  * fixed subtitle-translation preload namespace.
  */
 
+import { lstat } from "node:fs/promises";
+import path from "node:path";
 import {
   dialog,
   ipcMain,
@@ -16,6 +18,7 @@ import {
 import {
   SUBTITLE_TRANSLATION_INTERNAL_OPERATION_CONTRACTS,
   SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS,
+  SUBTITLE_TRANSLATION_LIMITS,
   parseSubtitleTranslationTaskReference,
   subtitleTranslationIpcFailure,
   subtitleTranslationIpcSuccess,
@@ -52,6 +55,10 @@ import { GeneratedSubtitleImportCandidateService } from "./generated-import-cand
 import { SubtitleTranslationRecoveryCapabilityRegistry } from "./recovery-capability";
 import { buildCheckpointPaths } from "./checkpoint";
 import { cleanupOnTaskDeletion } from "./recovery-artifacts";
+import { collectTypedPaths } from "../fs/typed-paths";
+
+/** What the agent's translation picker offers. */
+const AGENT_INPUT_EXTENSIONS = ["lrc", "srt", "vtt"] as const;
 
 type DirectoryDialogResult = {
   readonly canceled: boolean;
@@ -419,6 +426,27 @@ export class SubtitleTranslationIpcService {
         case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.selectRecoveryManifest:
           response = await this.selectRecoveryManifest(owner, authorization.data);
           break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.scanRecoveryPath:
+          response = await this.scanRecoveryPath(
+            owner,
+            authorization.data,
+            request.data as { readonly path: string; readonly includeCompleted?: boolean },
+          );
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeAgentInputPaths:
+          response = await this.authorizeAgentInputPaths(
+            owner,
+            authorization.data,
+            request.data as { readonly paths: readonly string[]; readonly recursive?: boolean },
+          );
+          break;
+        case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeOutputDirectoryPath:
+          response = await this.authorizeDirectoryPath(
+            owner,
+            authorization.data,
+            (request.data as { readonly directoryPath: string }).directoryPath,
+          );
+          break;
         case SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.prepareRecoveredTasks:
           response = subtitleTranslationIpcSuccess(
             await this.recoveryCapabilities.prepareRecoveredTasks({
@@ -661,6 +689,74 @@ export class SubtitleTranslationIpcService {
       directoryPath,
       includeCompleted,
     );
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) {
+      this.recoveryCapabilities.revokeScan(owner, result.recoveryScanId);
+      return ownerReleasedFailure();
+    }
+    return subtitleTranslationIpcSuccess(result);
+  }
+
+  // The three below take paths the user typed to the assistant, which checks that before asking. Each
+  // hands them to the same authorization as the matching picker, so file and directory checks stay one.
+
+  /** Subtitle files under typed paths, as one agent selection like the picker's. */
+  private async authorizeAgentInputPaths(
+    owner: SubtitleTranslationOwnerKey,
+    ownerIdentity: Parameters<LocalSubtitleOwnerSessionRegistry["isCurrent"]>[0],
+    request: { readonly paths: readonly string[]; readonly recursive?: boolean },
+  ): Promise<SubtitleTranslationIpcResult<unknown>> {
+    const limit = SUBTITLE_TRANSLATION_LIMITS.maxAgentSelectionFiles;
+    const found = await collectTypedPaths(request.paths, {
+      extensions: AGENT_INPUT_EXTENSIONS,
+      recursive: request.recursive,
+      limit: limit + 1,
+    });
+    const files = found.flatMap((entry) => (entry.path ? [entry.path] : []));
+    if (!files.length) return subtitleTranslationIpcSuccess({ cancelled: true, matched: 0 });
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) return ownerReleasedFailure();
+    const selection = await this.directoryCapabilities
+      .authorizeAgentInputSelection(owner, files.slice(0, limit));
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) {
+      this.directoryCapabilities.revokeAgentInputSelection(owner, selection.selectionRef);
+      return ownerReleasedFailure();
+    }
+    // More than the limit reads as limit + 1: "at least this many".
+    return subtitleTranslationIpcSuccess({ ...selection, matched: files.length });
+  }
+
+  /** A typed output directory, authorized like one chosen in the picker. */
+  private async authorizeDirectoryPath(
+    owner: SubtitleTranslationOwnerKey,
+    ownerIdentity: Parameters<LocalSubtitleOwnerSessionRegistry["isCurrent"]>[0],
+    directoryPath: string,
+  ): Promise<SubtitleTranslationIpcResult<unknown>> {
+    if (!path.isAbsolute(directoryPath)) return invalidRequestFailure();
+    const authorization = await this.directoryCapabilities.authorizeDraft(owner, directoryPath);
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) {
+      this.directoryCapabilities.revokeDraft(owner, authorization.directoryToken);
+      return ownerReleasedFailure();
+    }
+    return subtitleTranslationIpcSuccess({ cancelled: false, ...authorization });
+  }
+
+  /** A typed recovery directory or *.fusionkit.resume.json manifest, scanned like a picked one. */
+  private async scanRecoveryPath(
+    owner: SubtitleTranslationOwnerKey,
+    ownerIdentity: Parameters<LocalSubtitleOwnerSessionRegistry["isCurrent"]>[0],
+    request: { readonly path: string; readonly includeCompleted?: boolean },
+  ): Promise<SubtitleTranslationIpcResult<unknown>> {
+    if (!path.isAbsolute(request.path)) return invalidRequestFailure();
+    let kind: "directory" | "file";
+    try {
+      const stat = await lstat(request.path);
+      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) return invalidRequestFailure();
+      kind = stat.isDirectory() ? "directory" : "file";
+    } catch { return invalidRequestFailure(); }
+    if (kind === "file" && !request.path.toLowerCase().endsWith(".json")) return invalidRequestFailure();
+    if (!this.ownerSessions.isCurrent(ownerIdentity)) return ownerReleasedFailure();
+    const result = kind === "directory"
+      ? await this.recoveryCapabilities.scanDirectory(owner, request.path, request.includeCompleted ?? false)
+      : await this.recoveryCapabilities.inspectManifest(owner, request.path);
     if (!this.ownerSessions.isCurrent(ownerIdentity)) {
       this.recoveryCapabilities.revokeScan(owner, result.recoveryScanId);
       return ownerReleasedFailure();

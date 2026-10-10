@@ -16,7 +16,7 @@ vi.mock("@/services/subtitle-studio/transcription-controller", () => ({
   getTranscriptionReadiness: (state: any) => ({ canEnqueue: state.drafts.length > 0 && state.drafts.every((draft: any) => draft.status === "ready"), readyCount: state.drafts.filter((draft: any) => draft.status === "ready").length, reason: null }),
 }));
 vi.mock("@/services/subtitle-studio/translation-overview-controller", () => ({ getStudioTranslationOverviewController: () => ({ trackStarted: mocks.trackStarted }) }));
-const api = { listDocuments: vi.fn(), importSubtitles: vi.fn(), listTranslationTasks: vi.fn(), listTranscriptionTasks: vi.fn(), planTranslationBatch: vi.fn(), createTranslationBatch: vi.fn() };
+const api = { listDocuments: vi.fn(), importSubtitles: vi.fn(), importSubtitlePaths: vi.fn(), listTranslationTasks: vi.fn(), listTranscriptionTasks: vi.fn(), planTranslationBatch: vi.fn(), createTranslationBatch: vi.fn() };
 const knowledge = { read: vi.fn() };
 const originalWindow = globalThis.window;
 const documentId = "00000000-0000-4000-8000-000000000001";
@@ -55,6 +55,16 @@ describe("modern tools fixed API boundaries", () => {
     expect(await call("import_studio_subtitles")).toEqual({ success: true, data: { cancelled: true, importedCount: 0 } });
     expect(api.importSubtitles).toHaveBeenCalledWith({ encoding: "utf-8" });
     expect(api.createTranslationBatch).not.toHaveBeenCalled();
+  });
+  it("imports subtitles from a folder the user typed, and from no other", async () => {
+    useAgentStore.getState().addMessage({ id: "typed", role: "user", content: "把 D:/字幕/第一季 里的字幕导入工作台", timestamp: 1 });
+    expect(await call("import_studio_subtitles", { paths: ["D:/私人"] })).toMatchObject({ success: false, error: "studio_import_path_not_typed" });
+    api.importSubtitlePaths.mockResolvedValueOnce({ ok: true, value: { items: [{ fileName: "01.srt", ok: true, document: doc }] } });
+    expect(await call("import_studio_subtitles", { paths: ["D:/字幕/第一季"] })).toMatchObject({ success: true, data: { importedCount: 1, total: 1 } });
+    expect(api.importSubtitlePaths).toHaveBeenCalledWith({ encoding: "utf-8", paths: ["D:/字幕/第一季"] });
+    api.importSubtitlePaths.mockResolvedValueOnce({ ok: true, value: { items: [] } });
+    expect(await call("import_studio_subtitles", { paths: ["D:/字幕/第一季"] })).toMatchObject({ success: false, error: "studio_import_no_subtitles" });
+    expect(api.importSubtitles).not.toHaveBeenCalled();
   });
   it.each(["filePaths", "apiKey", "endpoint", "fileToken"])("rejects forbidden %s before opening a picker", async field => {
     expect(await call("import_studio_subtitles", { [field]: "private" })).toMatchObject({ success: false, error: "invalid_tool_arguments" });

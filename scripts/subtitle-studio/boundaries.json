@@ -80,6 +80,7 @@
     "electron/main/ai/adapters/chat-completions-adapter.ts",
     "electron/main/ai/adapters/responses-adapter.ts",
     "electron/main/proxy.ts",
+    "electron/main/fs/typed-paths.ts",
     "src/type/model.ts",
     "src/type/audio.ts",
     "src/constants/model.ts",

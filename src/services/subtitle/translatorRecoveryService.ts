@@ -13,6 +13,16 @@ export async function selectTranslationRecoveryDirectory(
   return result.data;
 }
 
+/** A recovery directory or manifest the user typed to the assistant, scanned like a picked one. */
+export async function scanTranslationRecoveryPath(
+  path: string,
+  includeCompleted = false,
+): Promise<SubtitleTranslationRecoveryScanSelection> {
+  const result = await window.subtitleTranslationApi.scanRecoveryPath({ path, includeCompleted });
+  if (!result.ok) throw new Error(result.error.code === "invalid_ipc_request" ? "recovery_path_unavailable" : result.error.message);
+  return result.data;
+}
+
 export async function selectTranslationRecoveryManifest(): Promise<
   SubtitleTranslationRecoveryScanSelection
 > {

@@ -246,6 +246,36 @@ describe("subtitle translation IPC service", () => {
     await expect(access(path.join(output, "cleanup.srt"))).resolves.toBeUndefined();
   });
 
+  it("authorizes the subtitles under a typed folder like a picked selection, in name order and path-free", async () => {
+    const folder = await outputDirectory("typed-source");
+    await mkdir(path.join(folder, "Disc 2"));
+    await writeFile(path.join(folder, "10.srt"), "1\n00:00:00,000 --> 00:00:01,000\nTen\n");
+    await writeFile(path.join(folder, "2.lrc"), "[00:00.00]Two\n");
+    await writeFile(path.join(folder, "notes.txt"), "not a subtitle");
+    await writeFile(path.join(folder, "Disc 2", "3.vtt"), "WEBVTT\n\n00:00.000 --> 00:01.000\nThree\n");
+    const capabilities = new SubtitleTranslationDirectoryCapabilityRegistry({
+      tokenFactory: sequence("selection", "item-a", "item-b", "item-c", "directory"),
+    });
+    const { SubtitleTranslationIpcService } = await import("../../electron/main/translation/ipc");
+    const service = new SubtitleTranslationIpcService({ ownerSessions: fakeOwnerSessions() as never, directoryCapabilities: capabilities });
+    const flat = await service.handleInternal(SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeAgentInputPaths,
+      fakeEvent(29) as never, envelope(OWNER_SESSION_A, { paths: [folder] }));
+    expect(flat).toMatchObject({ ok: true, data: { cancelled: false, matched: 2, files: [{ displayName: "2.lrc" }, { displayName: "10.srt" }] } });
+    expect(JSON.stringify(flat)).not.toContain(folder);
+    const deep = await service.handleInternal(SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeAgentInputPaths,
+      fakeEvent(29) as never, envelope(OWNER_SESSION_A, { paths: [folder], recursive: true }));
+    expect(deep).toMatchObject({ ok: true, data: { matched: 3 } });
+    const empty = await service.handleInternal(SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeAgentInputPaths,
+      fakeEvent(29) as never, envelope(OWNER_SESSION_A, { paths: [path.join(folder, "notes.txt")] }));
+    expect(empty).toEqual({ ok: true, data: { cancelled: true, matched: 0 } });
+    const output = await service.handleInternal(SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeOutputDirectoryPath,
+      fakeEvent(29) as never, envelope(OWNER_SESSION_A, { directoryPath: folder }));
+    expect(output).toMatchObject({ ok: true, data: { cancelled: false, directoryToken: expect.any(String) } });
+    const relative = await service.handleInternal(SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.scanRecoveryPath,
+      fakeEvent(29) as never, envelope(OWNER_SESSION_A, { path: "relative/folder" }));
+    expect(relative).toMatchObject({ ok: false, error: { code: "invalid_ipc_request" } });
+  });
+
   it("turns the fixed Agent picker into an owner-bound path-free selection receipt", async () => {
     const sourceDirectory = await outputDirectory("agent-source");
     const sourcePath = path.join(sourceDirectory, "agent-selected.srt");

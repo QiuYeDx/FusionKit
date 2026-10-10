@@ -174,6 +174,22 @@ describe('Subtitle Studio transcription application IPC', () => {
     expect(JSON.stringify(await client.invoke('inspectTranscriptionRuntime', {}))).not.toContain(adapter.directory);
   });
 
+  it('imports the subtitles under typed paths for this owner, without a picker', async () => {
+    const client = attach();
+    const folder = path.join(adapter.directory, 'typed-subtitles'); await mkdir(path.join(folder, 'extra'), { recursive: true });
+    await writeFile(path.join(folder, '2.srt'), '1\n00:00:01,000 --> 00:00:02,000\nTwo.\n');
+    await writeFile(path.join(folder, '10.lrc'), '[00:01.00]Ten.\n');
+    await writeFile(path.join(folder, 'cover.jpg'), 'image');
+    await writeFile(path.join(folder, 'extra', 'bonus.vtt'), 'WEBVTT\n\n00:01.000 --> 00:02.000\nBonus.\n');
+    const result = await client.invoke('importSubtitlePaths', { encoding: 'utf-8', paths: [folder] }) as { ok: true; value: { items: { ok: boolean; fileName: string }[] } };
+    expect(result.ok).toBe(true);
+    expect(result.value.items.map(item => [item.fileName, item.ok])).toEqual([['2.srt', true], ['10.lrc', true]]);
+    const deep = await client.invoke('importSubtitlePaths', { encoding: 'utf-8', paths: [path.join(folder, 'extra')], recursive: true }) as { ok: true; value: { items: { ok: boolean }[] } };
+    expect(deep.value.items).toHaveLength(1);
+    expect(await client.invoke('importSubtitlePaths', { encoding: 'utf-8', paths: [folder], filter: '*' })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(adapter.open).not.toHaveBeenCalled();
+  });
+
   it('pages through the media under typed paths, skipping other files and links', async () => {
     const client = attach();
     const folder = path.join(adapter.directory, 'typed'); await mkdir(path.join(folder, 'Disc 2'), { recursive: true });

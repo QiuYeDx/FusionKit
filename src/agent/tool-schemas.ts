@@ -23,6 +23,19 @@ export const scanSubtitleFilesSchema = z.object({
 
 /** queue_subtitle_translate_tasks — 将文件加入翻译队列 */
 export const queueTranslateSchema = z.object({
+  paths: z
+    .array(z.string().min(3).max(4096))
+    .min(1)
+    .max(20)
+    .optional()
+    .describe("Subtitle files or folders exactly as the user typed them (folders give their LRC/SRT/VTT files in name order, up to 100). Paths the user did not type are refused. Omit to open FusionKit's file picker."),
+  recursive: z.boolean().optional().describe("With folder paths: include subfolders. Only when the user asked for them."),
+  outputDirectory: z
+    .string()
+    .min(3)
+    .max(4096)
+    .optional()
+    .describe("An output folder exactly as the user typed it. Omit to save next to each input, or set outputMode='custom' to let the user pick one."),
   sliceType: z
     .enum(["NORMAL", "SENSITIVE", "CUSTOM"])
     .optional()
@@ -221,10 +234,16 @@ export const applyNameTranslationPlanSchema = z.object({
 
 /** scan_subtitle_recovery_tasks — 扫描恢复清单 */
 export const scanSubtitleRecoveryTasksSchema = z.object({
+  path: z
+    .string()
+    .min(3)
+    .max(4096)
+    .optional()
+    .describe("A folder to scan, or one *.fusionkit.resume.json manifest, exactly as the user typed it. Paths the user did not type are refused. Omit to use the picker."),
   selectionMode: z
     .enum(["directory", "manifest"])
     .default("directory")
-    .describe("Open a fixed native directory or manifest picker."),
+    .describe("Without path: open a fixed native directory or manifest picker."),
   includeCompleted: z.boolean().default(false),
 }).strict();
 

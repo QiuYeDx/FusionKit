@@ -234,6 +234,24 @@ export function createSubtitleTranslationRendererApi({
         {},
       );
     },
+    authorizeAgentInputPaths(request) {
+      return invoke<SubtitleTranslationAgentInputSelection>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeAgentInputPaths,
+        request,
+      );
+    },
+    authorizeOutputDirectoryPath(request) {
+      return invoke<SubtitleTranslationDirectorySelection>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.authorizeOutputDirectoryPath,
+        request,
+      );
+    },
+    scanRecoveryPath(request) {
+      return invoke<SubtitleTranslationRecoveryScanSelection>(
+        SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.scanRecoveryPath,
+        request,
+      );
+    },
     readAgentInputFile(request: SubtitleTranslationAgentInputSelectionRequest) {
       return invoke<SubtitleTranslationInputFileContent>(
         SUBTITLE_TRANSLATION_PRELOAD_INTERNAL_CHANNELS.readAgentInputFile,

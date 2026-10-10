@@ -35,6 +35,7 @@ import { KnowledgeTrialService } from './knowledge-trial';
 import { readExecutionRecordPage } from './execution-view';
 import { automaticKnowledgeReportTrackIds, readAutomaticKnowledgeReportPage } from './automatic-knowledge-report';
 import { createAutomaticExporter } from './automatic-export';
+import { collectTypedPaths } from '../fs/typed-paths';
 
 export function registerSubtitleStudio(sharedResources?: SpeechResourceService, readKnowledge?: () => Promise<LibrarySnapshot>, knowledgeGate: KnowledgeTaskGate = new KnowledgeTaskSerialGate()) {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
@@ -295,6 +296,11 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const item = value.items[0];
           if (!item?.ok) throw new StudioError(item?.error ?? 'invalid_input');
           return { ok: true, value: item.document };
+        }
+        if (method === 'importSubtitlePaths') {
+          const request = requestSchemas.importSubtitlePaths.parse(payload);
+          const found = await collectTypedPaths(request.paths, { extensions: SUBTITLE_TEXT_FORMATS, recursive: request.recursive, limit: STUDIO_BATCH_LIMIT }); alive();
+          return { ok: true, value: await importSelections(found, request.encoding, owner, alive) };
         }
         if (method === 'planTranslationBatch' || method === 'planExportBatch' || method === 'exportSources') {
           const input = requestSchemas[method].parse(payload);

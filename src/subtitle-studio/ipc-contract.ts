@@ -40,6 +40,7 @@ export const STUDIO_CHANNELS = {
   selectSourceDirectory: 'subtitle-studio:select-source-directory',
   importSubtitle: 'subtitle-studio:import',
   importSubtitles: 'subtitle-studio:import-many',
+  importSubtitlePaths: 'subtitle-studio:import-paths',
   revealUnavailable: 'subtitle-studio:reveal-unavailable',
   deleteUnavailable: 'subtitle-studio:delete-unavailable',
   planTranslationBatch: 'subtitle-studio:plan-translation-batch',
@@ -126,6 +127,8 @@ export const requestSchemas = {
   selectSourceDirectory: z.object({ documentId: idSchema }).strict(),
   importSubtitle: z.object({ encoding: encodingSchema }).strict(),
   importSubtitles: z.object({ encoding: encodingSchema }).strict(),
+  // Paths the user typed to the assistant; the assistant checks that before asking, main reads only subtitle files.
+  importSubtitlePaths: z.object({ encoding: encodingSchema, paths: z.array(z.string().min(1).max(32768).refine(value => !value.includes('\0'))).min(1).max(20), recursive: z.boolean().optional() }).strict(),
   revealUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   deleteUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   ...batchRequestSchemas,
@@ -221,6 +224,7 @@ export interface SubtitleStudioApi {
   removeTranscriptionTask(request: z.infer<typeof requestSchemas.removeTranscriptionTask>): Promise<StudioResult<null>>;
   importSubtitle(request: z.infer<typeof requestSchemas.importSubtitle>): Promise<StudioResult<DocumentSummary | null>>;
   importSubtitles(request: z.infer<typeof requestSchemas.importSubtitles>): Promise<StudioResult<BatchImportResult | null>>;
+  importSubtitlePaths(request: z.infer<typeof requestSchemas.importSubtitlePaths>): Promise<StudioResult<BatchImportResult>>;
   revealUnavailable(request: z.infer<typeof requestSchemas.revealUnavailable>): Promise<StudioResult<null>>;
   deleteUnavailable(request: z.infer<typeof requestSchemas.deleteUnavailable>): Promise<StudioResult<{ cleanupPending: boolean }>>;
   planTranslationBatch(request: z.infer<typeof requestSchemas.planTranslationBatch>): Promise<StudioResult<TranslationBatchPlan>>;

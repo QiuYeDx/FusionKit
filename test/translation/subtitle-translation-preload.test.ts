@@ -167,8 +167,10 @@ describe("subtitle translation fixed preload API", () => {
     expect(Object.isFrozen(api)).toBe(true);
     expect(Object.keys(api).sort()).toEqual([
       "acquireImportDirectoryLease",
+      "authorizeAgentInputPaths",
       "authorizeCapturedInputFiles",
       "authorizeInputFile",
+      "authorizeOutputDirectoryPath",
       "captureInputFile",
       "commitGeneratedImportCandidate",
       "createGeneratedImportCandidate",
@@ -188,6 +190,7 @@ describe("subtitle translation fixed preload API", () => {
       "revokeInputFile",
       "revokeOutputDirectory",
       "revokeRecoveryScan",
+      "scanRecoveryPath",
       "selectAgentInputFiles",
       "selectOutputDirectory",
       "selectRecoveryDirectory",

@@ -28,6 +28,9 @@ it("passes cancellation into name planning and leaves no pending preview after c
 
 const api = {
   selectAgentInputFiles: vi.fn(),
+  authorizeAgentInputPaths: vi.fn(),
+  authorizeOutputDirectoryPath: vi.fn(),
+  scanRecoveryPath: vi.fn(),
   readAgentInputFile: vi.fn(),
   registerAgentAuthorizedTask: vi.fn(),
   revokeAgentInputSelection: vi.fn(),
@@ -216,6 +219,46 @@ describe("Agent subtitle translation producer", () => {
 
     expect(result).toMatchObject({ success: false });
     expect(api.selectAgentInputFiles).not.toHaveBeenCalled();
+  });
+});
+
+describe("paths the user typed", () => {
+  const folder = "D:/字幕/第一季";
+  const typed = (content: string) => useAgentStore.setState({ session: { ...useAgentStore.getState().session,
+    messages: [{ id: "user-typed", role: "user", content, timestamp: 2 }] } });
+  const base = { sliceType: "NORMAL" as const, sourceLang: "JA" as const, targetLang: "ZH" as const, translationOutputMode: "bilingual" as const, conflictPolicy: "index" as const, concurrentSlices: true };
+
+  it("translates the subtitles under a typed folder and saves to a typed output folder, without a picker", async () => {
+    typed(`把 ${folder} 里的字幕翻译成中文，保存到 D:/输出`);
+    api.authorizeAgentInputPaths.mockResolvedValueOnce(await api.selectAgentInputFiles());
+    api.authorizeOutputDirectoryPath.mockResolvedValueOnce({ ok: true, data: { cancelled: false, directoryToken: "subtitle-translation-directory-typed", displayLabel: "输出", expiresAt: Date.now() + 60_000 } });
+    const result = await executeQueueTranslate({ ...base, paths: [folder], recursive: true, outputDirectory: "D:/输出" });
+    expect(result).toMatchObject({ success: true, data: { queuedCount: 1 } });
+    expect(api.authorizeAgentInputPaths).toHaveBeenCalledWith({ paths: [folder], recursive: true });
+    expect(api.authorizeOutputDirectoryPath).toHaveBeenCalledWith({ directoryPath: "D:/输出" });
+    expect(api.selectAgentInputFiles).toHaveBeenCalledTimes(1);
+    expect(api.selectOutputDirectory).not.toHaveBeenCalled();
+    expect(api.registerAgentAuthorizedTask).toHaveBeenCalledWith(expect.objectContaining({ outputMode: "custom", directoryToken: "subtitle-translation-directory-typed" }));
+  });
+
+  it("refuses a path the user did not type and reports a folder without subtitles", async () => {
+    typed(`把 ${folder} 里的字幕翻译成中文`);
+    expect(await executeQueueTranslate({ ...base, paths: ["D:/私人"] })).toMatchObject({ success: false, error: "translation_path_not_typed" });
+    expect(await executeQueueTranslate({ ...base, paths: [folder], outputDirectory: "C:/Windows" })).toMatchObject({ success: false, error: "translation_path_not_typed" });
+    expect(api.authorizeAgentInputPaths).not.toHaveBeenCalled();
+    api.authorizeAgentInputPaths.mockResolvedValueOnce({ ok: true, data: { cancelled: true, matched: 0 } });
+    expect(await executeQueueTranslate({ ...base, paths: [folder] })).toMatchObject({ success: false, error: "translation_no_subtitles_found" });
+  });
+
+  it("scans a typed recovery folder instead of opening the picker", async () => {
+    typed(`继续 ${folder} 里没翻译完的字幕`);
+    api.scanRecoveryPath.mockResolvedValueOnce({ ok: true, data: { cancelled: false, recoveryScanId: "recovery-scan-typed", candidates: [], totalCount: 0,
+      recoverableCount: 0, scannedDirs: 1, scannedFiles: 0, skippedFiles: 0, truncated: false, errors: [], expiresAt: Date.now() + 60_000 } });
+    const result = await executeScanSubtitleRecoveryTasks({ path: folder, selectionMode: "directory", includeCompleted: false });
+    expect(api.scanRecoveryPath).toHaveBeenCalledWith({ path: folder, includeCompleted: false });
+    expect(api.selectRecoveryDirectory).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).toContain("recovery-scan-typed");
+    expect(await executeScanSubtitleRecoveryTasks({ path: "E:/别处", selectionMode: "directory", includeCompleted: false })).toMatchObject({ success: false, error: "recovery_path_not_typed" });
   });
 });
 
