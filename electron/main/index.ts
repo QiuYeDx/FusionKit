@@ -10,6 +10,11 @@ import {
 import { SubtitleTranslationDirectoryCapabilityRegistry } from "./translation/directory-capability";
 import { GeneratedSubtitleImportCandidateService } from "./translation/generated-import-candidate";
 import { update } from "./update";
+import {
+  installTestWindowMode,
+  resolveTestWindowMode,
+  TEST_WINDOW_MODE_ENV,
+} from "./test-window-mode";
 import { setupPowerIPC } from "./power";
 import { setupConversionIPC } from "./conversion/ipc";
 import { setupExtractionIPC } from "./extraction/ipc";
@@ -101,6 +106,8 @@ export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, "public")
   : RENDERER_DIST;
+
+installTestWindowMode(resolveTestWindowMode(process.env[TEST_WINDOW_MODE_ENV]));
 
 // Disable GPU Acceleration for Windows 7
 if (os.release().startsWith("6.1")) app.disableHardwareAcceleration();

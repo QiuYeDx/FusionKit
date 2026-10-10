@@ -240,6 +240,26 @@ pnpm install
 pnpm dev
 ```
 
+### 运行测试
+
+```bash
+# 构建测试包并运行全部测试
+pnpm test
+
+# 只运行指定测试文件
+pnpm exec vitest run test/subtitle-studio/cue-editing-ui.test.ts
+```
+
+许多测试会启动真实的 FusionKit（Electron）窗口。为了不打扰正在使用电脑的你，这些窗口默认以**静默模式**运行：在屏幕外渲染、不出现在任务栏、不抢占焦点，也不会最大化、全屏或弹出系统通知，页面渲染与动画照常进行。需要观看测试画面时可以切换模式：
+
+| 命令 | 窗口表现 |
+| --- | --- |
+| `pnpm test` | 静默模式（默认） |
+| `pnpm test:inactive [测试文件...]` | 窗口显示在屏幕上，但不抢占焦点、不全屏 |
+| `pnpm test:visible [测试文件...]` | 与正常运行应用完全一致 |
+
+也可以直接设置环境变量 `FUSIONKIT_TEST_WINDOW`（`quiet` / `inactive` / `visible`）后运行 `vitest`。该变量只影响测试，未设置时应用行为不变；实现见 `electron/main/test-window-mode.ts`。部分界面测试需要额外的开关才会运行（如 `FUSIONKIT_STUDIO_E2E=1`），见各测试文件开头的 `describe.runIf` 条件。
+
 ### 构建发布
 
 ```bash
