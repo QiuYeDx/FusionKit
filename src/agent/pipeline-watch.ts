@@ -13,17 +13,19 @@ import type { AgentUiEvent } from "./types";
 const TRANSCRIBING = new Set(["queued", "preparing_media", "loading_model", "transcribing", "post_processing"]);
 const TRANSLATING = new Set(["queued", "running"]);
 
-export interface PipelineScope { translate: boolean; exportFiles: boolean }
+export interface PipelineScope { translate: boolean; exportFiles: boolean; removeAfterExport?: boolean }
 
 /** Whether every file of the batch is through, and what to report when it is. */
 export function pipelineOutcome(tasks: readonly TranscriptionTaskSummary[], documents: ReadonlyMap<string, DocumentSummary>, scope: PipelineScope): AgentUiEvent | null {
   const written: string[] = [], problems: string[] = [];
-  let finished = 0;
+  let finished = 0, removed = 0;
   for (const task of tasks) {
     if (TRANSCRIBING.has(task.status)) return null;
     if (task.status !== "completed" || !task.documentId) { problems.push(`${task.displayName}: ${task.error?.code ?? task.status}`); continue; }
     if (!scope.translate && !scope.exportFiles) { finished++; continue; }
     const document = documents.get(task.documentId);
+    // A document is only removed after its file was written, so a missing one is a finished one.
+    if (!document && scope.exportFiles && scope.removeAfterExport) { removed++; finished++; continue; }
     if (!document) return null;
     if (scope.translate) {
       const handoff = task.automaticTranslation?.status;
@@ -40,7 +42,7 @@ export function pipelineOutcome(tasks: readonly TranscriptionTaskSummary[], docu
     }
     finished++;
   }
-  return { kind: "pipeline_completed", values: { total: tasks.length, finished, failed: tasks.length - finished,
+  return { kind: "pipeline_completed", values: { total: tasks.length, finished, failed: tasks.length - finished, ...(removed ? { removed } : {}),
     files: written.slice(0, 8).join(", ") + (written.length > 8 ? ` (+${written.length - 8})` : ""),
     problems: problems.slice(0, 5).join("; ") + (problems.length > 5 ? ` (+${problems.length - 5})` : "") } };
 }

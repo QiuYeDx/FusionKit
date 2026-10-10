@@ -6,6 +6,7 @@ import type { TranscriptionTaskSummary } from '../../src/subtitle-studio/transcr
 import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '../../src/subtitle-studio/transcription/domain';
 import { DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES, DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_DRAFT_PREFERENCES } from '../../src/subtitle-studio/transcription/config';
 import { DEFAULT_AUTOMATIC_KNOWLEDGE, DEFAULT_TRANSCRIPTION_PREFERENCES } from '../../src/subtitle-studio/transcription/preferences-contract';
+import { DEFAULT_AUTOMATIC_EXPORT_PREFERENCES } from '../../src/subtitle-studio/automatic-export-contract';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
 import { knowledgeFixture } from '../translation-knowledge/fixtures';
 
@@ -82,9 +83,23 @@ it('hydrates transcription config before the first snapshot and saves no transie
   const write = vi.fn(); const f = fixture(undefined, { preferences: { read: () => saved, write } });
   expect(f.controller.getState().config).toEqual(saved.config);
   await f.choose(media()); f.controller.setConfig({ ...saved.config, language: 'en' });
-  expect(write).toHaveBeenLastCalledWith({ ...saved, config: { ...saved.config, language: 'en' } });
+  expect(write).toHaveBeenLastCalledWith({ ...saved, config: { ...saved.config, language: 'en' }, autoExport: DEFAULT_AUTOMATIC_EXPORT_PREFERENCES });
   expect(JSON.stringify(write.mock.calls)).not.toContain('ls-input');
   expect(JSON.stringify(write.mock.calls)).not.toContain('drafts');
+});
+it('keeps the export setting between sessions and applies it to the start button, unless a batch says otherwise', async () => {
+  const saved = { ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), autoExport: { ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, enabled: true, format: 'lrc' as const, removeAfterExport: true } };
+  const write = vi.fn(); const f = fixture(undefined, { preferences: { read: () => saved, write } });
+  expect(f.controller.getState().autoExport).toEqual(saved.autoExport);
+  // Nothing is translated, so the setting's bilingual content becomes the original.
+  await f.choose(media()); await f.controller.enqueue();
+  expect(f.api.enqueueTranscription.mock.calls[0][0].autoExport).toEqual({ format: 'lrc', mode: 'source', order: 'source-first', conflictPolicy: 'indexed', removeAfterExport: true });
+  await f.choose(media('2')); await f.controller.enqueue({ autoExport: null });
+  expect(f.api.enqueueTranscription.mock.calls[1][0]).not.toHaveProperty('autoExport');
+  f.controller.setAutoExport({ ...saved.autoExport, enabled: false });
+  expect(write).toHaveBeenLastCalledWith(expect.objectContaining({ autoExport: { ...saved.autoExport, enabled: false } }));
+  await f.choose(media('3')); await f.controller.enqueue();
+  expect(f.api.enqueueTranscription.mock.calls[2][0]).not.toHaveProperty('autoExport');
 });
 it('omits default-off automatic translation and freezes enabled model configuration and credentials at submission', async () => {
   const automatic = { config: { model: { profileId: 'p', modelKey: 'deepseek-chat', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' as const, thinkingEnabled: true }, language: 'ja', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 32 }, apiKey: 'first-key' };

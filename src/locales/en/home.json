@@ -342,5 +342,6 @@
   "pipeline_conflict_overwrite": "Overwrite duplicates",
   "action_error_export_needs_translation": "Translated or bilingual subtitles can only be exported together with a translation.",
   "action_error_knowledge_invalid": "The chosen translation materials do not match the languages or are no longer available. Choose again.",
-  "action_error_automatic_translation": "Automatic translation cannot start yet. Check the task model settings or the chosen materials."
+  "action_error_automatic_translation": "Automatic translation cannot start yet. Check the task model settings or the chosen materials.",
+  "pipeline_remove_document": "The Studio document is deleted after a successful export"
 }

@@ -3,6 +3,7 @@ import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from './domain';
 import { transcriptionTaskConfigSchema } from './task-contract';
 import { knowledgeSelectionSchema } from '../../translation-knowledge/execution-contract';
 import { documentTopicIdsSchema } from '../knowledge-translation-contract';
+import { automaticExportPreferencesSchema } from '../automatic-export-contract';
 
 export const DEFAULT_STUDIO_TRANSCRIPTION_CONFIG = Object.freeze({
   modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id, devicePreference: 'auto' as const, language: 'auto', taskMode: 'transcribe' as const,
@@ -24,6 +25,7 @@ export const transcriptionPreferencesSchema = z.object({
   version: z.literal(1),
   config: transcriptionTaskConfigSchema.refine(value => value.windowStrategy !== 'acoustic_quiet_v1' || value.vadEnabled),
   autoTranslation: automaticTranslationPreferencesSchema,
+  autoExport: automaticExportPreferencesSchema.optional(),
 }).strict();
 export type AutomaticTranslationPreferences = z.infer<typeof automaticTranslationPreferencesSchema>;
 export type TranscriptionPreferences = z.infer<typeof transcriptionPreferencesSchema>;

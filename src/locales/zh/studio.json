@@ -336,7 +336,12 @@
     "cancel_requested": "已请求取消",
     "selecting": "正在选择文档…",
     "context_actions": "文档操作",
-    "context_count": "处理 {{count}} 份文档"
+    "context_count": "处理 {{count}} 份文档",
+    "auto_exported": "已导出 {{format}}",
+    "auto_exported_file": "已自动导出：{{name}}",
+    "auto_export_failed": "导出失败",
+    "auto_export_pending": "待导出",
+    "auto_export_pending_hint": "完成后将自动导出到原文件旁"
   },
   "recovery": {
     "title": "处理无法恢复的文档",
@@ -523,7 +528,13 @@
     "auto_translation_recovery_short": "自动翻译需处理",
     "clear_completed_hint": "移除已生成字幕或无可用内容的记录，保留字幕文档。",
     "clear_terminal_hint": "包含成功、失败和取消；保留字幕文档",
-    "status_no_content": "无可用字幕"
+    "status_no_content": "无可用字幕",
+    "auto_export": "完成后自动导出",
+    "auto_export_hint": "保存到原媒体文件旁；开启自动翻译时在翻译完成后导出。",
+    "auto_export_format_auto": "按来源（音频 LRC / 视频 SRT）",
+    "auto_export_remove": "导出成功后从工作台删除字幕文档",
+    "auto_export_remove_hint": "导出失败的文档会保留，以便检查或重新导出。",
+    "auto_export_source_only": "未开启自动翻译时只导出原文。"
   },
   "overview": {
     "title": "翻译任务",

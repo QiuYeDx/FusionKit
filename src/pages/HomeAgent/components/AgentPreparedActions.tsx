@@ -40,6 +40,7 @@ function pipelineLines(values: PreparedAction["summaryValues"], t: TFunction, lo
   if (values.exportFormat !== undefined) lines.push(t("home:prepared_pipeline_detail", {
     format: values.exportFormat === "auto" ? t("home:pipeline_format_auto") : String(values.exportFormat).toUpperCase(),
     content: t(`home:pipeline_content_${values.exportContent}`), conflict: t(`home:pipeline_conflict_${values.exportConflict}`) }));
+  if (values.exportRemove) lines.push(t("home:pipeline_remove_document"));
   return lines;
 }
 

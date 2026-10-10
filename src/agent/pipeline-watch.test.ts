@@ -22,6 +22,10 @@ describe("transcription pipeline outcome", () => {
     expect(event).toEqual({ kind: "pipeline_completed", values: { total: 3, finished: 1, failed: 2, files: "a.lrc",
       problems: "b.wav: failed; c.wav: transcription_failed" } });
   });
+  it("counts a document removed after its export as finished, but only when removal was asked for", () => {
+    expect(pipelineOutcome([task("a")], new Map(), { ...scope, removeAfterExport: true })).toMatchObject({ values: { finished: 1, removed: 1, failed: 0 } });
+    expect(pipelineOutcome([task("a")], new Map(), scope)).toBeNull();
+  });
   it("needs no documents when it only transcribes", () => {
     expect(pipelineOutcome([task("a")], new Map(), { translate: false, exportFiles: false })).toMatchObject({ values: { finished: 1, failed: 0 } });
   });

@@ -55,6 +55,11 @@
 .studio-library-metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 6px; padding-top: 3px; font-size: 10px; color: var(--muted-foreground); }
 .studio-library-task { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
 .studio-library-progress { white-space: nowrap; font-size: 10px; font-variant-numeric: tabular-nums; color: var(--foreground); }
+.studio-library-export { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.studio-library-export svg { width: 11px; height: 11px; flex-shrink: 0; }
+.studio-library-export[data-state='exported'] { color: var(--color-emerald-600); }
+.dark .studio-library-export[data-state='exported'] { color: var(--color-emerald-400); }
+.studio-library-export[data-state='failed'] { color: var(--destructive); }
 .studio-library-empty { padding: 40px 12px; text-align: center; font-size: 12px; color: var(--muted-foreground); }
 .studio-library-footer { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-shrink: 0; height: 37px; border-top: 1px solid var(--border); padding: 6px; }
 .studio-library-pagination { flex: 1; min-width: 0; }

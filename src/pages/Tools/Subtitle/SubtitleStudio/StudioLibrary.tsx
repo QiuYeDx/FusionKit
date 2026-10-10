@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, Check, ChevronDown, ListFilter, LoaderCircle, Search, Settings2, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, FileCheck2, FileClock, FileX2, ListFilter, LoaderCircle, Search, Settings2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -18,6 +18,19 @@ import { StudioFileName, StudioIconButton, StudioPagination } from './StudioCont
 import { StudioLibraryContextMenu, type LibraryContextAction, type LibraryContextScope } from './StudioLibraryContextMenu';
 
 export const LIBRARY_PAGE_SIZE = 20;
+
+/** Where the automatic export after transcription went, or why it did not; the file name is in the tooltip. */
+function AutomaticExportStatus({ value }: { value: NonNullable<DocumentSummary['automaticExport']> }) {
+  const { t } = useTranslation();
+  const format = value.fileName?.split('.').pop()?.toUpperCase() ?? '';
+  const detail = value.state === 'exported' ? t('studio:library.auto_exported_file', { name: value.fileName })
+    : value.state === 'failed' ? t(`studio:errors.${value.error}`, { defaultValue: value.error }) : t('studio:library.auto_export_pending_hint');
+  return <span className="studio-library-export" data-state={value.state} data-testid="studio-library-auto-export" title={detail}>
+    {value.state === 'exported' ? <FileCheck2 aria-hidden="true" /> : value.state === 'failed' ? <FileX2 aria-hidden="true" /> : <FileClock aria-hidden="true" />}
+    <span>{value.state === 'exported' ? t('studio:library.auto_exported', { format }) : t(value.state === 'failed' ? 'studio:library.auto_export_failed' : 'studio:library.auto_export_pending')}</span>
+    <span className="sr-only">{detail}</span>
+  </span>;
+}
 export type LibraryQuery = {
   query: string;
   format: 'all' | SubtitleTextFormat | 'media';
@@ -109,7 +122,7 @@ export function StudioLibrary(props: Props) {
           <button disabled={busy} aria-current={props.previewId === doc.id ? 'true' : undefined} className="studio-document" onClick={() => props.onPreview(doc)}>
             <span className="min-w-0 flex-1"><StudioFileName name={doc.origin.displayName} /><span className="studio-library-metadata"><Badge variant="outline" className="px-1 py-0 font-mono text-[10px] font-normal">{doc.origin.format.toUpperCase()}</Badge><span>{t('studio:cue_count', { count: doc.cueCount })}</span><span className={`studio-library-task ${attention ? 'text-amber-600 dark:text-amber-400' : ''}`}>
               {active && doc.task ? <><LoaderCircle className="size-3 studio-spin" aria-hidden="true" /><span>{t(taskKeys[doc.task.status])}</span><span className="studio-library-progress" aria-label={t('studio:translation.batch_progress', { completed: doc.task.completedBatches, total: doc.task.totalBatches })}>{doc.task.completedBatches} / {doc.task.totalBatches}</span></> : <span>{doc.task && doc.task.status !== 'completed' && doc.task.status !== 'cancelled' ? t(taskKeys[doc.task.status]) : t(doc.translationStatus === 'complete' ? 'studio:library.translated' : doc.translationStatus === 'partial' ? 'studio:library.partial' : 'studio:source_only')}</span>}
-            </span></span></span>
+            </span>{doc.automaticExport && <AutomaticExportStatus value={doc.automaticExport} />}</span></span>
             {doc.diagnostics.length ? <AlertCircle className="mt-1 size-3.5 shrink-0 text-amber-600 dark:text-amber-400" aria-label={t('studio:document_checks')} /> : props.previewId === doc.id ? <Check className="mt-1 size-3.5 shrink-0" aria-hidden="true" /> : null}
           </button>
         </li>;

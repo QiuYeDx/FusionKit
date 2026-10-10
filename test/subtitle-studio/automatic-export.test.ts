@@ -54,6 +54,16 @@ describe('automatic export after a pipeline', () => {
     expect(await readFile(path.join(f.parent, 'episode (1).srt'), 'utf8')).toContain('00:00:00,000 --> 00:00:01,500');
   });
 
+  it('removes the Studio document after a successful export when asked, and keeps it when the export fails', async () => {
+    const done = await transcribed('track.flac', spec({ removeAfterExport: true }));
+    await createAutomaticExporter(done.repository).exportDocument(done.documentId);
+    expect(await readFile(path.join(done.parent, 'track.lrc'), 'utf8')).toContain('こんにちは。');
+    expect(await done.repository.list()).toEqual([]);
+    const failed = await transcribed('voice.mp3', spec({ removeAfterExport: true }), false);
+    await createAutomaticExporter(failed.repository).exportDocument(failed.documentId);
+    expect((await failed.repository.readSnapshot(failed.documentId)).automaticExport).toMatchObject({ state: 'failed' });
+  });
+
   it('records why it could not export instead of failing silently', async () => {
     const f = await transcribed('voice.mp3', spec(), false);
     await createAutomaticExporter(f.repository).exportDocument(f.documentId);

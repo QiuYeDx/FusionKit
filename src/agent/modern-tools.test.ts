@@ -4,6 +4,7 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSubtitleTranscriberStore";
 import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES } from "@/subtitle-studio/transcription/preferences-contract";
+import { DEFAULT_AUTOMATIC_EXPORT_PREFERENCES } from "@/subtitle-studio/automatic-export-contract";
 import { modernAgentTools } from "./modern-tools";
 import { usePreparedActionsStore } from "./prepared-actions";
 import { emptySelection, translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
@@ -38,7 +39,7 @@ beforeEach(() => {
   api.planTranslationBatch.mockResolvedValue({ ok: true, value: { batchId: "batch-one", items: [{ ok: true, documentId, displayName: "subtitle.srt", plan: { cueCount: 3 } }], totalEstimatedInputTokens: 400 } });
   api.createTranslationBatch.mockResolvedValue({ ok: true, value: { items: [{ ok: true, documentId, displayName: "subtitle.srt", taskId: "task-one" }] } });
   api.listTranslationTasks.mockResolvedValue({ ok: true, value: { total: 1, counts: { queued: 1 }, items: [{ documentId, revision: 1, taskId: "task-one", displayName: "subtitle.srt", status: "queued", completedBatches: 0, totalBatches: 1, canResume: false, model: { apiKey: "secret" } }] } });
-  mocks.state = { config: structuredClone(DEFAULT_STUDIO_TRANSCRIPTION_CONFIG), autoTranslation: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation), drafts: [], error: null };
+  mocks.state = { config: structuredClone(DEFAULT_STUDIO_TRANSCRIPTION_CONFIG), autoTranslation: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation), autoExport: { ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES }, drafts: [], error: null };
   mocks.controller = {
     refresh: vi.fn().mockResolvedValue(undefined), getState: () => mocks.state,
     setConfig: vi.fn(value => { mocks.state.config = value; }), setAutoTranslation: vi.fn(value => { mocks.state.autoTranslation = value; }),
@@ -236,10 +237,18 @@ describe("transcription preparation ownership", () => {
     expect(mocks.state.autoTranslation).toMatchObject({ enabled: true, language: "zh" });
     expect(usePreparedActionsStore.getState().actions[0].summaryValues).toMatchObject({ translateTo: "zh", exportFormat: "auto", exportContent: "bilingual", exportConflict: "overwrite" });
     await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
-    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: { format: "auto", mode: "bilingual", order: "source-first", conflictPolicy: "overwrite" } });
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: { format: "auto", mode: "bilingual", order: "source-first", conflictPolicy: "overwrite", removeAfterExport: false } });
     // The user's own Studio choice is back, and the batch is followed until it is done.
     expect(mocks.state.autoTranslation).toEqual(saved);
-    expect(mocks.watch).toHaveBeenCalledWith({ sessionId: "modern-test", taskIds: ["transcription-task"], translate: true, exportFiles: true });
+    expect(mocks.watch).toHaveBeenCalledWith({ sessionId: "modern-test", taskIds: ["transcription-task"], translate: true, exportFiles: true, removeAfterExport: false });
+  });
+  it("follows the Studio export setting when the user did not mention export, and fills what a requested export leaves open", async () => {
+    mocks.state.autoExport = { ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, enabled: true, format: "srt", conflictPolicy: "overwrite", removeAfterExport: true };
+    const result = await call("prepare_studio_transcription");
+    expect(result.data.pipeline).toMatchObject({ exportSettingsFrom: "tool_page", export: { format: "srt", mode: "source", conflictPolicy: "overwrite", removeAfterExport: true } });
+    usePreparedActionsStore.getState().dismissAction(result.data.actionId);
+    const asked = await call("prepare_studio_transcription", { translation: { language: "zh" }, export: { format: "lrc", removeDocument: false } });
+    expect(asked.data.pipeline).toMatchObject({ exportSettingsFrom: "user", export: { format: "lrc", mode: "bilingual", conflictPolicy: "overwrite", removeAfterExport: false } });
   });
   it("refuses translated output without a translation, and restores the choice when the user drops the card", async () => {
     expect(await call("prepare_studio_transcription", { export: { content: "target" } })).toMatchObject({ success: false, error: "studio_export_needs_translation" });
@@ -257,7 +266,7 @@ describe("transcription preparation ownership", () => {
     expect(mocks.state.autoTranslation.enabled).toBe(false);
     await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
     expect(mocks.controller.enqueue).toHaveBeenCalledTimes(1);
-    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"] });
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: null });
   });
   it("rejects a prepared batch when one draft becomes unready without leaking native draft tokens", async () => {
     mocks.controller.selectMedia.mockImplementationOnce(async () => { mocks.state.drafts = [
@@ -277,7 +286,7 @@ describe("transcription preparation ownership", () => {
     const result = await call("prepare_studio_transcription");
     mocks.controller.enqueue.mockImplementationOnce(async () => { mocks.state.error = "revision_conflict"; mocks.state.drafts[0].status = "expired"; mocks.state.drafts[0].error = "access_denied"; return null; });
     await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
-    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"] });
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: null });
     expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "failed", result: { receipt: {
       successCount: 0, failureCount: 1, items: [{ id: "media-1", name: "media.mp4", error: "access_denied" }] } } });
   });

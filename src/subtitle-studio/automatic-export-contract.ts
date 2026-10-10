@@ -12,6 +12,8 @@ export const automaticExportSpecSchema = z.object({
   mode: z.enum(['source', 'target', 'bilingual']),
   order: z.enum(['source-first', 'target-first']),
   conflictPolicy: exportConflictPolicySchema,
+  /** Remove the Studio document once its file is written; a failed export keeps it. */
+  removeAfterExport: z.boolean().optional(),
 }).strict();
 export type AutomaticExportSpec = z.infer<typeof automaticExportSpecSchema>;
 
@@ -24,6 +26,19 @@ export const automaticExportStateSchema = z.object({
 }).strict().refine(value => value.state === 'exported' ? !!value.fileName && !value.error : value.state === 'failed' ? !!value.error : !value.fileName && !value.error);
 export type AutomaticExportState = z.infer<typeof automaticExportStateSchema>;
 export type AutomaticExportSummary = Pick<AutomaticExportState, 'state' | 'fileName' | 'error'> & { format: AutomaticExportSpec['format'] };
+
+/** The Studio setting, kept between sessions: off by default, LRC/SRT by source, bilingual when translating. */
+export const automaticExportPreferencesSchema = automaticExportSpecSchema.extend({ enabled: z.boolean() }).strict();
+export type AutomaticExportPreferences = z.infer<typeof automaticExportPreferencesSchema>;
+export const DEFAULT_AUTOMATIC_EXPORT_PREFERENCES: AutomaticExportPreferences = Object.freeze({
+  enabled: false, format: 'auto', mode: 'bilingual', order: 'source-first', conflictPolicy: 'indexed', removeAfterExport: false });
+
+/** What a batch exports under the setting: nothing when it is off, the original only when nothing translates. */
+export function automaticExportFromPreferences(value: AutomaticExportPreferences | undefined, translating: boolean): AutomaticExportSpec | undefined {
+  if (!value?.enabled) return undefined;
+  const { enabled: _enabled, ...spec } = value;
+  return { ...spec, mode: translating ? spec.mode : 'source' };
+}
 
 export function resolveAutomaticExportFormat(spec: AutomaticExportSpec, origin: { format: string; displayName: string }) {
   return spec.format === 'auto' ? defaultExportFormat(origin) : spec.format;

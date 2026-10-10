@@ -342,5 +342,6 @@
   "pipeline_conflict_overwrite": "同名时覆盖",
   "action_error_export_needs_translation": "只有同时翻译时才能导出译文或双语字幕。",
   "action_error_knowledge_invalid": "所选翻译资料与语言不匹配或已不可用，请重新选择。",
-  "action_error_automatic_translation": "自动翻译还不能开始：请检查任务模型配置或所选翻译资料。"
+  "action_error_automatic_translation": "自动翻译还不能开始：请检查任务模型配置或所选翻译资料。",
+  "pipeline_remove_document": "导出成功后从工作台删除字幕文档"
 }

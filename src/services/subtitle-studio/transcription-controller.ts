@@ -12,7 +12,8 @@ import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES,
   automaticKnowledgePreferencesSchema, type AutomaticKnowledgePreferences, type AutomaticTranslationPreferences, type TranscriptionPreferences } from '../../subtitle-studio/transcription/preferences-contract';
 import { batchKnowledgeSelectionSchema, type BatchKnowledgeSelection } from '../../subtitle-studio/knowledge-batch-contract';
 import type { LibrarySnapshot } from '../../translation-knowledge/ipc-contract';
-import type { AutomaticExportSpec } from '../../subtitle-studio/automatic-export-contract';
+import { automaticExportFromPreferences, automaticExportPreferencesSchema, DEFAULT_AUTOMATIC_EXPORT_PREFERENCES,
+  type AutomaticExportPreferences, type AutomaticExportSpec } from '../../subtitle-studio/automatic-export-contract';
 import { useStudioPreferences } from '../../store/tools/subtitle-studio/preferences';
 import useModelStore from '../../store/useModelStore';
 export { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG } from '../../subtitle-studio/transcription/preferences-contract';
@@ -40,6 +41,8 @@ export interface StudioTranscriptionState {
   readonly config: Config;
   readonly autoTranslation: AutomaticTranslationPreferences;
   readonly autoTranslationReady: boolean;
+  /** Write each result next to its media when it is done (Studio setting). */
+  readonly autoExport: AutomaticExportPreferences;
   readonly autoKnowledgeLibrary: LibrarySnapshot | null;
   readonly autoKnowledgeLoading: boolean;
   readonly autoKnowledgeStale: boolean;
@@ -135,6 +138,7 @@ export class StudioTranscriptionController {
   private readonly probing = new Map<string, object>();
   private state: StudioTranscriptionState = Object.freeze({ phase: 'idle', runtime: null, resources: [], resourceJobs: [], drafts: [], tasks: [],
     config: DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, autoTranslation: DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, autoTranslationReady: true,
+    autoExport: DEFAULT_AUTOMATIC_EXPORT_PREFERENCES,
     autoKnowledgeLibrary: null, autoKnowledgeLoading: false, autoKnowledgeStale: false,
     error: null, selecting: false, submitting: false, refreshing: false,
     resourceActions: [], taskActions: [], cancellingTaskIds: [], cleanupPendingCount: 0, queueAction: null, queueResult: null });
@@ -176,7 +180,8 @@ export class StudioTranscriptionController {
       let value: unknown;
       try { value = this.preferences.read(); } catch { /* Defaults keep the tool usable. */ }
       const saved = readTranscriptionPreferences(value);
-      this.state = Object.freeze({ ...this.state, config: freezeConfig(saved.config), autoTranslation: freezeAutomatic(saved.autoTranslation) });
+      this.state = Object.freeze({ ...this.state, config: freezeConfig(saved.config), autoTranslation: freezeAutomatic(saved.autoTranslation),
+        autoExport: Object.freeze({ ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, ...saved.autoExport }) });
       this.configTouched = true;
     }
     this.api = options.getApi ?? (() => window.subtitleStudio);
@@ -336,6 +341,13 @@ export class StudioTranscriptionController {
     this.emit({ autoTranslation: freezeAutomatic(parsed.data), error: null });
     this.refreshTranslationConfiguration(); this.savePreferences();
   };
+  setAutoExport = (value: AutomaticExportPreferences): void => {
+    if (this.state.submitting) return;
+    const parsed = automaticExportPreferencesSchema.safeParse(value);
+    if (!parsed.success) { this.emit({ error: 'invalid_input' }); return; }
+    this.emit({ autoExport: Object.freeze(parsed.data), error: null });
+    this.savePreferences();
+  };
   setAutomaticKnowledge = (value: AutomaticKnowledgePreferences, generation: number): boolean => {
     if (this.state.submitting || this.state.autoKnowledgeLoading || this.state.autoKnowledgeLibrary?.generation !== generation) return false;
     const parsed = automaticKnowledgePreferencesSchema.safeParse(value);
@@ -360,7 +372,7 @@ export class StudioTranscriptionController {
     return this.automaticKnowledgeRead;
   };
   private savePreferences() {
-    try { this.preferences?.write({ version: 1, config: this.state.config, autoTranslation: this.state.autoTranslation }); }
+    try { this.preferences?.write({ version: 1, config: this.state.config, autoTranslation: this.state.autoTranslation, autoExport: this.state.autoExport }); }
     catch { /* The in-memory choice and current operation remain valid. */ }
   }
   private automaticRequest(): AutomaticTranslationRequest | undefined {
@@ -471,8 +483,11 @@ export class StudioTranscriptionController {
     this.emit({ drafts: Object.freeze(this.state.drafts.filter(row => row.id !== id)) }); this.armPoll();
   };
   clearDrafts = (): void => { for (const draft of this.state.drafts) this.removeDraft(draft.id); };
-  /** `autoExport` writes each result next to its media when it is done; it applies to this batch only. */
-  enqueue = (options?: { expectedDraftIds?: readonly string[]; autoExport?: AutomaticExportSpec }): Promise<TranscriptionBatchAdmission | null> => {
+  /**
+   * `autoExport` writes each result next to its media when it is done, for this batch only: a spec, `null` for none,
+   * or left out to follow the Studio setting.
+   */
+  enqueue = (options?: { expectedDraftIds?: readonly string[]; autoExport?: AutomaticExportSpec | null }): Promise<TranscriptionBatchAdmission | null> => {
     if (this.enqueueOperation) {
       // A scoped confirmation must never adopt another caller's in-flight batch.
       if (options?.expectedDraftIds) { this.emit({ error: 'resource_busy' }); return Promise.resolve(null); }
@@ -493,9 +508,10 @@ export class StudioTranscriptionController {
     const drafts = this.state.drafts.filter(draft => draft.status === 'ready' && draft.media && draft.probe);
     const ids = new Set(drafts.map(draft => draft.id));
     const automatic = this.automaticRequest();
+    const exported = options?.autoExport === undefined ? automaticExportFromPreferences(this.state.autoExport, !!automatic) : options.autoExport ?? undefined;
     if (this.state.autoTranslation.enabled && !automatic) { this.emit({ error: 'needs_configuration' }); return Promise.resolve(null); }
     const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: this.state.config,
-      ...(automatic ? { autoTranslation: automatic } : {}), ...(options?.autoExport ? { autoExport: options.autoExport } : {}) });
+      ...(automatic ? { autoTranslation: automatic } : {}), ...(exported ? { autoExport: exported } : {}) });
     this.taskVersion++; this.emit({ submitting: true, error: null, drafts: Object.freeze(this.state.drafts.map(draft => ids.has(draft.id) ? Object.freeze({ ...draft, status: 'submitting' as const }) : draft)) });
     this.enqueueOperation = Promise.resolve().then(async () => {
       let response: Awaited<ReturnType<Api['enqueueTranscription']>>;

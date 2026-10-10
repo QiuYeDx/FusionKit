@@ -336,7 +336,12 @@
     "cancel_requested": "Cancellation requested",
     "selecting": "Selecting documents…",
     "context_actions": "Document actions",
-    "context_count": "Documents to process: {{count}}"
+    "context_count": "Documents to process: {{count}}",
+    "auto_exported": "Exported {{format}}",
+    "auto_exported_file": "Exported automatically: {{name}}",
+    "auto_export_failed": "Export failed",
+    "auto_export_pending": "Export pending",
+    "auto_export_pending_hint": "Will be exported next to the original file when done"
   },
   "recovery": {
     "title": "Manage unavailable documents",
@@ -523,7 +528,13 @@
     "auto_translation_recovery_short": "Translation needs attention",
     "clear_completed_hint": "Remove records with subtitles or no usable content. Keep subtitle documents.",
     "clear_terminal_hint": "Includes success, failure and cancellation; keeps subtitle documents",
-    "status_no_content": "No usable subtitles"
+    "status_no_content": "No usable subtitles",
+    "auto_export": "Export when finished",
+    "auto_export_hint": "Saved next to the original media; with automatic translation, after the translation finishes.",
+    "auto_export_format_auto": "By source (LRC for audio / SRT for video)",
+    "auto_export_remove": "Delete the subtitle document from Studio after a successful export",
+    "auto_export_remove_hint": "Documents whose export fails are kept so you can check or export them again.",
+    "auto_export_source_only": "Without automatic translation, only the original is exported."
   },
   "overview": {
     "title": "Translation tasks",

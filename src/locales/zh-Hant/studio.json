@@ -336,7 +336,12 @@
     "cancel_requested": "已請求取消",
     "selecting": "正在選擇文件…",
     "context_actions": "文件操作",
-    "context_count": "處理 {{count}} 份文件"
+    "context_count": "處理 {{count}} 份文件",
+    "auto_exported": "已匯出 {{format}}",
+    "auto_exported_file": "已自動匯出：{{name}}",
+    "auto_export_failed": "匯出失敗",
+    "auto_export_pending": "待匯出",
+    "auto_export_pending_hint": "完成後將自動匯出到原檔案旁"
   },
   "recovery": {
     "title": "處理無法還原的文件",
@@ -523,7 +528,13 @@
     "auto_translation_recovery_short": "自動翻譯待處理",
     "clear_completed_hint": "移除已產生字幕或無可用內容的紀錄，保留字幕文件。",
     "clear_terminal_hint": "包含成功、失敗和取消；保留字幕文件",
-    "status_no_content": "無可用字幕"
+    "status_no_content": "無可用字幕",
+    "auto_export": "完成後自動匯出",
+    "auto_export_hint": "儲存到原媒體檔案旁；開啟自動翻譯時在翻譯完成後匯出。",
+    "auto_export_format_auto": "依來源（音訊 LRC / 影片 SRT）",
+    "auto_export_remove": "匯出成功後從工作台刪除字幕文件",
+    "auto_export_remove_hint": "匯出失敗的文件會保留，以便檢查或重新匯出。",
+    "auto_export_source_only": "未開啟自動翻譯時只匯出原文。"
   },
   "overview": {
     "title": "翻譯任務",

@@ -31,7 +31,7 @@ function describe(event: AgentUiEvent): string {
     case "execution_dismissed":
       return "The user chose to keep the queued classic tasks in their queues without starting them.";
     case "pipeline_completed":
-      return `The transcription batch you submitted has gone as far as it will: ${Number(v.finished ?? 0)} of ${Number(v.total ?? 0)} files finished${v.files ? `; written next to their media: ${text(v.files, 1200)}` : ""}${Number(v.failed ?? 0) ? `; not finished: ${text(v.problems, 1200)}` : ""}. Nothing confirmed this; it is a status report.`;
+      return `The transcription batch you submitted has gone as far as it will: ${Number(v.finished ?? 0)} of ${Number(v.total ?? 0)} files finished${v.files ? `; written next to their media: ${text(v.files, 1200)}` : ""}${Number(v.removed ?? 0) ? `; ${Number(v.removed)} file(s) were written and their Studio documents removed as asked` : ""}${Number(v.failed ?? 0) ? `; not finished: ${text(v.problems, 1200)}` : ""}. Nothing confirmed this; it is a status report.`;
   }
 }
 

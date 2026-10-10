@@ -38,18 +38,21 @@ export function createAutomaticExporter(repository: DocumentRepository) {
       try {
         const current = await repository.readSnapshot(documentId);
         if (current.automaticExport?.state !== 'pending') return;
-        await publishTransaction(repository, documentId, current.document.revision, value => {
+        return await publishTransaction(repository, documentId, current.document.revision, value => {
           if (value.automaticExport?.state !== 'pending') return;
           value.automaticExport = 'fileName' in outcome
             ? { spec: value.automaticExport.spec, state: 'exported', fileName: outcome.fileName }
             : { spec: value.automaticExport.spec, state: 'failed', error: outcome.error };
         });
-        return;
       } catch (error) {
         // An edit landing between the read and the write moves the revision; read again.
         if (!(error instanceof StudioError) || error.code !== 'revision_conflict') return;
       }
     }
+  };
+  const remove = async (documentId: string, revision: number) => {
+    // Same path as deleting it in Studio; a document edited meanwhile is kept.
+    try { await repository.delete(documentId, revision); } catch { /* The written file stays; the document remains in Studio. */ }
   };
   const run = async (documentId: string) => {
     let snapshot: DocumentSnapshot;
@@ -64,7 +67,8 @@ export function createAutomaticExporter(repository: DocumentRepository) {
       const policy = options.conflictPolicy ?? 'indexed';
       const output = await sources.publish(documentId, location.bindingId,
         (directory, verify) => publishBytes(plan.bytes!, path.join(directory, plan.fileName), verify, policy), () => {}, undefined, policy === 'overwrite');
-      await record(documentId, { fileName: path.basename(output) });
+      const recorded = await record(documentId, { fileName: path.basename(output) });
+      if (recorded?.automaticExport?.state === 'exported' && recorded.automaticExport.spec.removeAfterExport) await remove(documentId, recorded.document.revision);
     } catch (error) {
       await record(documentId, { error: error instanceof StudioError ? error.code : 'output_write_failed' });
     }

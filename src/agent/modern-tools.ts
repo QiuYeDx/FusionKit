@@ -16,7 +16,7 @@ import { translationDraftMemory } from "@/services/subtitle-studio/translation-d
 import i18n from "@/i18n";
 import { userMentionedPath } from "./user-intent-authority";
 import { watchStudioPipeline } from "./pipeline-watch";
-import type { AutomaticExportSpec } from "@/subtitle-studio/automatic-export-contract";
+import { automaticExportFromPreferences, type AutomaticExportSpec } from "@/subtitle-studio/automatic-export-contract";
 import { registerPreparedAction, usePreparedActionsStore, type PreparedAction, type PreparedActionReceipt, type PreparedActionResult } from "./prepared-actions";
 
 interface Context { sessionId: string; signal?: AbortSignal; check: () => void }
@@ -119,7 +119,8 @@ export const prepareStudioTranscriptionSchema = z.object({ modelId: z.string().m
     knowledge: z.object({ collectionIds: z.array(z.string().min(1).max(200)).max(50), recipeId: z.string().min(1).max(200).optional(),
       sourceLanguage: z.string().min(2).max(16).optional() }).strict().optional() }).strict().optional(),
   export: z.object({ format: z.enum(["auto", "srt", "lrc", "vtt", "ass", "ssa", "sbv"]).optional(), content: z.enum(["bilingual", "target", "source"]).optional(),
-    order: z.enum(["source-first", "target-first"]).optional(), conflictPolicy: z.enum(["indexed", "overwrite"]).optional() }).strict().optional() }).strict();
+    order: z.enum(["source-first", "target-first"]).optional(), conflictPolicy: z.enum(["indexed", "overwrite"]).optional(),
+    removeDocument: z.boolean().optional() }).strict().optional() }).strict();
 export const configureLocalTranscriptionSchema = z.object({ language: language.optional(),
   modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional(),
   devicePreference: z.enum(["auto", "cpu", "metal", "cuda"]).optional(),
@@ -220,7 +221,7 @@ export const modernAgentTools = {
       });
       return exposePrepared(action, ctx, { appliedSettings: settings.applied });
     }) }),
-  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 20 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. To finish the whole job without stopping, pass translation (target language such as 'zh', optional instructions and knowledge collection/recipe IDs from search_translation_knowledge) and export (format 'auto' = LRC for audio, SRT for video; content bilingual/target/source; order source-first/target-first; conflictPolicy indexed = add a number, overwrite = replace a same-name file): each file is then translated as soon as it is transcribed and written next to its media, and you are told when the batch is done. Pass them only for what the user asked for, after asking what you need to know. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation.",
+  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 20 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. To finish the whole job without stopping, pass translation (target language such as 'zh', optional instructions and knowledge collection/recipe IDs from search_translation_knowledge) and export (format 'auto' = LRC for audio, SRT for video; content bilingual/target/source; order source-first/target-first; conflictPolicy indexed = add a number, overwrite = replace a same-name file; removeDocument = delete the Studio document after its file is written): each file is then translated as soon as it is transcribed and written next to its media, and you are told when the batch is done. Pass them only for what the user asked for, after asking what you need to know; without export, Studio's own auto-export setting applies, and export fields you leave out follow it too. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation.",
     inputSchema: prepareStudioTranscriptionSchema, execute: (args, options) => run(prepareStudioTranscriptionSchema, args, options, async (input, ctx) => {
       studio(); const controller = getStudioTranscriptionController();
       await controller.refresh(); ctx.check();
@@ -237,9 +238,14 @@ export const modernAgentTools = {
       // Translation for this batch only: the user's saved Studio choice comes back once it is submitted or dropped.
       const savedAutomatic = before.autoTranslation;
       const restoreAutomatic = () => controller.setAutoTranslation(savedAutomatic);
-      const exportSpec: AutomaticExportSpec | undefined = input.export ? { format: input.export.format ?? "auto",
-        mode: input.export.content ?? (input.translation ? "bilingual" : "source"), order: input.export.order ?? "source-first",
-        conflictPolicy: input.export.conflictPolicy ?? "indexed" } : undefined;
+      // Like every setting the user did not name, export follows the Studio page: its switch when export is not
+      // mentioned, its choices for anything a requested export leaves open.
+      const pageExport = before.autoExport;
+      const exportSpec: AutomaticExportSpec | undefined = input.export ? { format: input.export.format ?? pageExport.format,
+        mode: input.export.content ?? (input.translation ? pageExport.mode : "source"), order: input.export.order ?? pageExport.order,
+        conflictPolicy: input.export.conflictPolicy ?? pageExport.conflictPolicy, removeAfterExport: input.export.removeDocument ?? !!pageExport.removeAfterExport }
+        : automaticExportFromPreferences(pageExport, !!input.translation);
+      const exportSource = input.export ? "user" : exportSpec ? "tool_page" : null;
       if (exportSpec && exportSpec.mode !== "source" && !input.translation) throw new ToolFailure("studio_export_needs_translation");
       ctx.check();
       controller.setAutoTranslation(input.translation
@@ -289,7 +295,7 @@ export const modernAgentTools = {
           summary: `${ownedIds.length} media files; ${safeText(selected.config.modelId, 128)}; ${selected.config.language}. ${fileNames}`, cleanup: release,
           summaryKey: "home:prepared_transcription_summary", summaryValues: { count: ownedIds.length, model: selected.config.modelId, language: selected.config.language, files: fileNames,
             ...(input.translation ? { translateTo: input.translation.language } : {}),
-            ...(exportSpec ? { exportFormat: exportSpec.format, exportContent: exportSpec.mode, exportConflict: exportSpec.conflictPolicy } : {}) },
+            ...(exportSpec ? { exportFormat: exportSpec.format, exportContent: exportSpec.mode, exportConflict: exportSpec.conflictPolicy, exportRemove: exportSpec.removeAfterExport ? 1 : 0 } : {}) },
           execute: async () => {
             const notAdmitted = (error: string) => failed(error, { receipt: receipt("submission", preparationReceipt.items.map((item, index) => ({
               id: item.id, name: item.name, status: "failed",
@@ -299,10 +305,10 @@ export const modernAgentTools = {
             if (signature !== JSON.stringify({ config: current.config, automatic: current.autoTranslation, drafts: current.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) })) return notAdmitted("studio_transcription_draft_changed");
             const currentReadiness = getTranscriptionReadiness(current);
             if (!currentReadiness.canEnqueue || currentReadiness.readyCount !== ownedIds.length) return notAdmitted("studio_transcription_not_ready");
-            const admission = await controller.enqueue({ expectedDraftIds: ownedIds, ...(exportSpec ? { autoExport: exportSpec } : {}) });
+            const admission = await controller.enqueue({ expectedDraftIds: ownedIds, autoExport: exportSpec ?? null });
             restoreAutomatic();
             if (admission && (input.translation || exportSpec)) watchStudioPipeline({ sessionId, taskIds: admission.tasks.map(item => item.taskId),
-              translate: !!input.translation, exportFiles: !!exportSpec });
+              translate: !!input.translation, exportFiles: !!exportSpec, removeAfterExport: !!exportSpec?.removeAfterExport });
             if (!admission) {
               if (controller.getState().drafts.some(item => item.status === "submission_unknown")) return failed("studio_transcription_submission_unknown");
               return notAdmitted(controller.getState().error ?? "studio_transcription_not_admitted");
@@ -310,11 +316,11 @@ export const modernAgentTools = {
             return succeeded({ executionStatus: "queued", batchId: admission.batchId,
               receipt: receipt("submission", admission.tasks.map(item => ({ id: item.taskId, name: item.displayName, taskId: item.taskId, status: "queued" }))),
               tasks: admission.tasks.map(item => ({ taskId: item.taskId, name: safeText(item.displayName), status: item.status })),
-              ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null,
+              ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null, exportSettingsFrom: exportSource,
                 note: "Runs per file without you; you will get an interface event when the whole batch is done." } } : {}) });
           },
         });
-        return await exposePrepared(action, ctx, { ...pathPage, ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null } } : {}) });
+        return await exposePrepared(action, ctx, { ...pathPage, ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null, exportSettingsFrom: exportSource } } : {}) });
       } catch (error) { release(); throw error; }
     }) }),
   get_local_transcription_status: tool({ description: "Read classic local subtitle transcriber runtime/resources and existing tasks. Does not install resources, start transcription or expose paths/file capabilities.",

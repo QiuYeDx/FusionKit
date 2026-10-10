@@ -336,7 +336,12 @@
     "cancel_requested": "キャンセルを要求しました",
     "selecting": "ドキュメントを選択中…",
     "context_actions": "ドキュメント操作",
-    "context_count": "{{count}} 件のドキュメントを操作"
+    "context_count": "{{count}} 件のドキュメントを操作",
+    "auto_exported": "{{format}} を書き出し済み",
+    "auto_exported_file": "自動で書き出し済み：{{name}}",
+    "auto_export_failed": "書き出しに失敗",
+    "auto_export_pending": "書き出し待ち",
+    "auto_export_pending_hint": "完了後に元のファイルの隣へ自動で書き出します"
   },
   "recovery": {
     "title": "復元できないドキュメントの管理",
@@ -523,7 +528,13 @@
     "auto_translation_recovery_short": "自動翻訳の確認が必要",
     "clear_completed_hint": "字幕を作成した記録と、利用可能な内容がなかった記録を削除します。字幕ドキュメントは保持されます。",
     "clear_terminal_hint": "成功・失敗・キャンセルを含む。字幕文書は保持",
-    "status_no_content": "利用可能な字幕なし"
+    "status_no_content": "利用可能な字幕なし",
+    "auto_export": "完了後に自動で書き出す",
+    "auto_export_hint": "元のメディアファイルの隣に保存します。自動翻訳がオンの場合は翻訳の完了後に書き出します。",
+    "auto_export_format_auto": "ソースに合わせる（音声は LRC / 動画は SRT）",
+    "auto_export_remove": "書き出しに成功したらワークスペースから字幕文書を削除",
+    "auto_export_remove_hint": "書き出しに失敗した文書は確認や再書き出しのために残します。",
+    "auto_export_source_only": "自動翻訳がオフの場合は原文のみ書き出します。"
   },
   "overview": {
     "title": "翻訳タスク",
