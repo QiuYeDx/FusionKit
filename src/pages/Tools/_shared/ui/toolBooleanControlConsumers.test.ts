@@ -44,6 +44,9 @@ describe("tool boolean controls", () => {
       "Subtitle/LocalSubtitleTranscriber/index.tsx",
       // Studio stages export choices before a separate confirmation and selects
       // AI revisions to apply, documents, trial cues and recoverable documents.
+      // The consistency check selects the groups to unify and their staged
+      // options (correct the source, keep the wording) before one confirmation.
+      "Subtitle/SubtitleStudio/StudioConsistencyCheck.tsx",
       "Subtitle/SubtitleStudio/StudioCueRevision.tsx",
       "Subtitle/SubtitleStudio/StudioExport.tsx",
       "Subtitle/SubtitleStudio/StudioKnowledgeTrial.tsx",

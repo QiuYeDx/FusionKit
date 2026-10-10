@@ -36,7 +36,8 @@ export type AgentUiEventKind =
   | "rename_applied" | "rename_failed" | "rename_dismissed"
   | "action_completed" | "action_failed" | "action_dismissed"
   | "execution_confirmed" | "execution_dismissed"
-  | "pipeline_completed";
+  | "pipeline_completed"
+  | "revision_applied";
 
 export interface AgentUiEvent {
   kind: AgentUiEventKind;

@@ -15,6 +15,9 @@ import { CueRevisionService } from '../../electron/main/subtitle-studio/cue-revi
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { sourceDigest } from '../../electron/main/subtitle-studio/translation-planner';
 import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
+import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
+import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
+import type { Entry } from '../../src/translation-knowledge/schemas';
 
 const metadata = { format: 'lrc' as const, displayName: 'revise-fixture.lrc', encoding: 'utf-8' as const, digest: 'e'.repeat(64) };
 const lrc = (lines: string[]) => importSubtitleText(lines.map((line, index) => `[${String(Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}.00]${line}\n`).join(''), metadata, randomUUID);
@@ -36,13 +39,13 @@ afterEach(async () => {
   for (const service of services.splice(0)) await service.dispose();
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
-async function fixture(doc: SubtitleDocument, send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult>) {
+async function fixture(doc: SubtitleDocument, send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult>, readKnowledge?: () => Promise<LibrarySnapshot>) {
   const root = await mkdtemp(path.join(tmpdir(), 'studio-cue-revision-'));
   roots.push(root);
   const repository = new DocumentRepository(path.join(root, 'documents'));
   await repository.create(doc);
   const translation = new TranslationService(repository, translate);
-  const revisions = new CueRevisionService(repository, send);
+  const revisions = new CueRevisionService(repository, send, readKnowledge);
   services.push(translation, revisions);
   const edits = new CueEditService(repository);
   const read = () => repository.readSnapshot(doc.id);
@@ -280,5 +283,91 @@ describe('revise edits', () => {
     await expect(current.edit({ kind: 'revise', sources: {}, targets: { [cue.id]: plain('你好') } })).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(current.edit({ kind: 'revise', sources: { [cue.id]: plain(' ') } })).rejects.toMatchObject({ code: 'invalid_input' });
     expect((await current.edit({ kind: 'revise', sources: { [cue.id]: cue.source } })).changed).toBe(0);
+  });
+});
+
+describe('cue revisions and translation materials', () => {
+  const SOURCE = 'テイムフィールド家のお嬢様';
+  const TARGET = '泰姆菲尔德家的大小姐';
+  const collectionId = '30000000-0000-4000-8000-000000000001';
+  function library(): LibrarySnapshot {
+    const data: LibrarySnapshot['data'] = { format: 'fusionkit.translation-knowledge', schemaVersion: 1,
+      package: { id: '30000000-0000-4000-8000-000000000009', revision: 1, name: 'Fixture', description: '', purpose: 'backup', createdAt: '2026-10-10T00:00:00.000Z', generator: { name: 'FusionKit' } },
+      subjects: [], collections: [], sources: [], entries: [], styles: [], recipes: [], preferenceTemplates: [] };
+    const sourceId = '30000000-0000-4000-8000-000000000002';
+    data.collections = [{ id: collectionId, revision: 1, archived: false, name: '绝区零 · 人物', description: '', aboutSubjectIds: [], defaultLanguagePair: { source: 'ja', target: 'zh-Hans' } }];
+    data.sources = [{ id: sourceId, revision: 1, kind: 'user_note', title: 'Note', excerpt: 'note' }];
+    const entry: Entry = { id: '30000000-0000-4000-8000-000000000003', revision: 1, title: SOURCE, kind: 'term', collectionId, aboutSubjectIds: [], state: 'ready',
+      scope: { languagePair: { source: 'ja', target: 'zh-Hans' }, requiredSubjects: [], condition: { mode: 'none' } }, evidence: [{ sourceId, support: 'direct' }], derivedFrom: [],
+      payload: { source: SOURCE, target: TARGET, aliases: [], sense: '', match: { mode: 'literal_phrase', caseSensitive: false }, strength: 'preferred' } };
+    data.entries = [entry];
+    return { generation: 3, data, approvals: { [entry.id]: { revision: 1, digest: sha256Canonical(entry), method: 'human', approvedAt: '2026-10-10T00:00:00.000Z' } }, imports: [] };
+  }
+  const selection = { version: 1 as const, languagePair: { source: 'ja', target: 'zh-Hans' }, collectionIds: [collectionId], bindings: [], confirmations: [], disabledEntryIds: [] };
+  const lines = [`${SOURCE}がお見えです。`, 'こんにちは。', `${SOURCE}、こちらへ。`];
+
+  it('sends only the materials that apply to each line and keeps the wordings the texts bear out', async () => {
+    const requests: ModelRuntimeTextRequest[] = [];
+    let reads = 0;
+    const current = await fixture(lrc(lines), async request => {
+      requests.push(request);
+      const body = payload(request);
+      return reply({ items: body.items.filter(item => item.source.includes(SOURCE)).map(item => ({ id: item.id, target: `${TARGET}来了` })),
+        knowledge: [{ source: SOURCE, target: TARGET, note: '家族名' }, { source: '存在しない', target: '不存在' }, { source: SOURCE, target: '没有出现的译法' }, { source: 'a<b', target: 'x' }],
+        note: '统一了家族名。' });
+    }, async () => { reads++; return library(); });
+    const snapshot = await current.translateAll();
+    const trackId = snapshot.document.translationTracks[0].id;
+    const [first, , third] = snapshot.document.cues;
+    const result = await current.revise({ fields: 'target', trackId, knowledge: selection, instructions: '应该是泰姆菲尔德家的大小姐' });
+    expect(reads).toBe(1);
+    const body = JSON.parse(requests.at(-1)!.messages[1].content);
+    expect(body.translationKnowledge.items).toEqual([expect.objectContaining({ kind: 'term', applicableItemIds: ['c1', 'c3'] })]);
+    expect(requests.at(-1)!.messages[0].content).toContain('translationKnowledge and translationRequirements');
+    expect(requests.at(-1)!.messages[0].content).toContain('"knowledge"');
+    expect(result.knowledgeItems).toBe(1);
+    expect(result.knowledgeHints).toEqual([{ source: SOURCE, target: TARGET, note: '家族名', cueIds: [first.id, third.id] }]);
+  });
+
+  it('merges a wording suggested by several requests', async () => {
+    const many = Array.from({ length: 45 }, (_, index) => index % 2 ? `${SOURCE} ${index}` : `line ${index}`);
+    const current = await fixture(lrc(many), async request => {
+      const body = payload(request);
+      return reply({ items: body.items.filter(item => item.source.includes(SOURCE)).map(item => ({ id: item.id, target: `${TARGET} ${item.id}` })),
+        knowledge: [{ source: SOURCE, target: TARGET }] });
+    });
+    const snapshot = await current.translateAll();
+    const result = await current.revise({ fields: 'target', trackId: snapshot.document.translationTracks[0].id, instructions: 'unify' });
+    expect(result.knowledgeHints).toHaveLength(1);
+    expect(result.knowledgeHints![0].cueIds).toHaveLength(22);
+    // No materials were chosen: requests carry none.
+    expect(result.knowledgeItems).toBeUndefined();
+  });
+
+  it('asks for nothing extra when only the source may change, and reads no library without materials chosen', async () => {
+    const requests: ModelRuntimeTextRequest[] = [];
+    let reads = 0;
+    const current = await fixture(lrc(lines), async request => {
+      requests.push(request);
+      return reply({ items: [], knowledge: [{ source: SOURCE, target: TARGET }], note: 'ok' });
+    }, async () => { reads++; return library(); });
+    const snapshot = await current.translateAll();
+    const result = await current.revise({ fields: 'source', knowledge: selection });
+    expect(reads).toBe(0);
+    expect(requests.at(-1)!.messages[0].content).not.toContain('"knowledge"');
+    expect(JSON.parse(requests.at(-1)!.messages[1].content).translationKnowledge).toBeUndefined();
+    expect(result.knowledgeHints).toBeUndefined();
+    const noMaterials = await current.revise({ fields: 'target', trackId: snapshot.document.translationTracks[0].id, knowledge: { ...selection, collectionIds: [] } });
+    expect(reads).toBe(0);
+    expect(noMaterials.knowledgeHints).toEqual([]);
+  });
+
+  it('revises without materials when the library cannot be read', async () => {
+    const requests: ModelRuntimeTextRequest[] = [];
+    const current = await fixture(lrc(lines), async request => { requests.push(request); return reply({ items: [], note: 'ok' }); }, async () => { throw new Error('locked'); });
+    const snapshot = await current.translateAll();
+    const result = await current.revise({ fields: 'target', trackId: snapshot.document.translationTracks[0].id, knowledge: selection });
+    expect(JSON.parse(requests.at(-1)!.messages[1].content).translationKnowledge).toBeUndefined();
+    expect(result.notes).toEqual(['ok']);
   });
 });

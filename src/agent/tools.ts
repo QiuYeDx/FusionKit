@@ -1,6 +1,8 @@
 import { tool } from "ai";
 import { planningAgentTools } from "./planning-tools";
 import { modernAgentTools } from "./modern-tools";
+import { knowledgeAgentTools } from "./knowledge-tools";
+import { webAgentTools } from "./web-tools";
 import { navigationAgentTools } from "./navigation-tools";
 import {
   scanSubtitleFilesSchema,
@@ -32,6 +34,8 @@ import {
 export const agentTools = {
   ...planningAgentTools,
   ...modernAgentTools,
+  ...knowledgeAgentTools,
+  ...webAgentTools,
   ...navigationAgentTools,
   scan_subtitle_files: tool({
     description:

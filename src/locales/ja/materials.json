@@ -44,5 +44,20 @@
     "exclusion_count": "{{count}} 件を除外",
     "unavailable_scope": "使用できない対象 · チェックを外して削除",
     "unavailable_exclusion": "使用できない除外項目 · チェックを外して削除"
+  },
+  "capture": {
+    "title": "翻訳資料に記録",
+    "description": "適用した AI 修正から見つかった訳語です。保存するものを選び、必要なら編集してください。",
+    "choose": "「{{source}}」を選択",
+    "status_exists": "この資料集に同じ訳語があるためスキップします",
+    "status_conflict": "「{{collection}}」では「{{target}}」と訳しています。同時に選ぶと競合する可能性があります",
+    "status_invalid": "原文と訳語の両方を入力してください",
+    "adopt": "保存後すぐに有効にする",
+    "adopt_on": "この確認をレビューとみなし、翻訳でこの資料集を選ぶと適用されます。",
+    "adopt_off": "レビュー待ちとして保存します。翻訳資料の「レビュー待ち」で採用できます。",
+    "save": "{{count}} 件を記録",
+    "saved": "{{count}} 件の訳語を記録しました",
+    "nothing": "これらの訳語はすでに資料集にあります",
+    "source_revision": "適用した AI 修正"
   }
 }

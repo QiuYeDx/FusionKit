@@ -6,6 +6,10 @@ import { HistoryDialog, MaintenanceDialog } from "./Maintenance";
 import { languagePairLabel } from "./labels";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAgentPageContext } from "@/agent/page-context";
+import { KNOWLEDGE_CHANGED_EVENT, newerSnapshot } from "@/translation-knowledge/library-events";
+import { focusedCollection, knowledgePageContext, type KnowledgePageState } from "./agent-context";
 import { AnimatePresence } from "motion/react";
 import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
 import {
@@ -142,6 +146,25 @@ export default function TranslationKnowledge() {
   useEffect(() => {
     void refresh();
   }, []);
+  // The assistant and Studio dialogs save without this page; show their result as it lands.
+  useEffect(() => {
+    const changed = (event: Event) => {
+      const incoming = (event as CustomEvent<LibrarySnapshot>).detail;
+      if (incoming) setSnapshot(current => newerSnapshot(current, incoming));
+    };
+    window.addEventListener(KNOWLEDGE_CHANGED_EVENT, changed);
+    return () => window.removeEventListener(KNOWLEDGE_CHANGED_EVENT, changed);
+  }, []);
+  // Opened from a saved card: show that collection once, then forget the request.
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const focus = (location.state as { knowledgeFocus?: unknown } | null)?.knowledgeFocus;
+    if (!snapshot || !focus) return;
+    const collectionId = focusedCollection(snapshot, focus);
+    if (collectionId) { setView("materials"); setQuery({ ...initialQuery, collection: collectionId }); setSelected(null); }
+    navigate(location.pathname, { replace: true, state: null });
+  }, [snapshot, location.state]);
   useEffect(() => {
     setPage(0);
   }, [query, view, contentKind]);
@@ -182,6 +205,10 @@ export default function TranslationKnowledge() {
   const currentCollection = snapshot?.data.collections.find(
     (item) => item.id === query.collection,
   );
+  const agentState = useRef<KnowledgePageState>({ snapshot: null, view, collectionId: query.collection, visible: [], selectedIds: [] });
+  agentState.current = { snapshot, view, collectionId: query.collection, selectedIds,
+    visible: view === "plans" ? [] : filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE) };
+  useAgentPageContext(() => knowledgePageContext(() => agentState.current));
   const save = async (
     request: SaveRecordRequest,
   ): Promise<KnowledgeResult<LibrarySnapshot>> => {

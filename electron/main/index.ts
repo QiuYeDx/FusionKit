@@ -17,6 +17,7 @@ import { setupProxyIPC } from "./proxy";
 import { setupFsIPC } from "./fs/ipc";
 import { setupNativeFileSelectionIPC } from "./fs/native-file-selection-ipc";
 import { setupNameTranslationIPC } from "./name-translation/ipc";
+import { setupWebLookupIPC } from "./web-lookup";
 import {
   emitTextTranslationEvent,
   setupTextTranslationIPC,
@@ -512,6 +513,7 @@ app.whenReady().then(async () => {
   setupProxyIPC();
   setupFsIPC();
   setupNameTranslationIPC();
+  setupWebLookupIPC();
   setupTextTranslationIPC(textTranslationService);
   setupAudioIPC();
   setupAudioRealtimeIPC();

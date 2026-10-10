@@ -85,6 +85,14 @@ export function resolvePageContext(pathname = usePageContextStore.getState().pat
   return [...usePageContextStore.getState().pages].reverse().find((page) => page.route === pathname);
 }
 
+/** Something the user did on a page the assistant prepared, such as applying a revision. */
+export type PageEvent = { kind: string; values?: Record<string, string | number | boolean> };
+let pageEventSink: ((event: PageEvent) => void) | null = null;
+/** The assistant's runtime receives page events; pages stay independent of it. */
+export function setPageEventSink(sink: ((event: PageEvent) => void) | null): void { pageEventSink = sink; }
+/** Reports a page event to the assistant, when one is running in this window. */
+export function reportPageEvent(event: PageEvent): void { pageEventSink?.(event); }
+
 /** Known page names by route, for pages that register no context. Set by the application. */
 let routeTitleKeys: Readonly<Record<string, string>> = { "/": "home:agent_title" };
 export function setRouteTitleKeys(keys: Readonly<Record<string, string>>): void { routeTitleKeys = { "/": "home:agent_title", ...keys }; }

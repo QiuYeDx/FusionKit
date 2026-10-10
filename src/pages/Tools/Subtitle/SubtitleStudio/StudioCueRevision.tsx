@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, Check, LoaderCircle, RotateCcw, ScanSearch, Settings, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowRight, BookOpen, Check, LoaderCircle, RotateCcw, ScanSearch, Settings, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,11 +15,13 @@ import type { DocumentPage, StudioResult } from '@/subtitle-studio/ipc-contract'
 import { CUE_EDIT_LIMIT, editedText, type CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
 import {
   CUE_REVISION_CHUNK, CUE_REVISION_CONFIRM_ABOVE, CUE_REVISION_DOCUMENT_LIMIT, CUE_REVISION_INSTRUCTIONS_LIMIT, CUE_REVISION_LIMIT, revisesSource, revisesTarget,
-  type CueRevisionFields, type CueRevisionLocation, type CueRevisionProposal, type CueRevisionResult,
+  type CueRevisionFields, type CueRevisionHint, type CueRevisionLocation, type CueRevisionProposal, type CueRevisionResult,
 } from '@/subtitle-studio/cue-revision-contract';
 import { translationModelSchema, type TranslationUsage } from '@/subtitle-studio/translation-contract';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
-import { translationDraftMemory } from '@/services/subtitle-studio/translation-draft';
+import { hasMaterials, translationDraftMemory } from '@/services/subtitle-studio/translation-draft';
+import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
+import { appliedHints, materialNames, mergeHints } from './knowledge-hints';
 import { diffText } from '@/services/subtitle-studio/text-diff';
 import { currentEntry, type CueTrack } from './StudioCueMenu';
 import './StudioCueRevision.css';
@@ -52,10 +54,12 @@ type Scope = 'selection' | 'document';
 /** Ways to find the lines without asking the model first, such as wording the agent already knows. */
 export type CueRevisionSearch = { terms: string[] } | { lines: number[] };
 /** A request prepared elsewhere (the assistant): the dialog fills it in and starts generating. */
-export type CueRevisionPreset = { instructions: string; scope: Scope; fields?: CueRevisionFields; search?: CueRevisionSearch };
+export type CueRevisionPreset = { instructions: string; scope: Scope; fields?: CueRevisionFields; search?: CueRevisionSearch;
+  /** Called after the user applies the previewed revision, with the wordings it settled. */
+  onApplied?: (count: number, hints: CueRevisionHint[]) => void };
 /** How a preset run ended; reported once. Applying stays with the user in the dialog. */
 export type CueRevisionOutcome =
-  | { status: 'ready'; checked: number; proposals: number; notes: string[]; plan?: CueRevisionLocation['plan'] }
+  | { status: 'ready'; checked: number; proposals: number; notes: string[]; plan?: CueRevisionLocation['plan']; knowledgeHints?: CueRevisionHint[] }
   | { status: 'needs_confirmation'; count: number; plan: CueRevisionLocation['plan'] }
   | { status: 'failed'; error: ErrorCode }
   | { status: 'cancelled' };
@@ -108,8 +112,8 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
   request: CueRevisionRequestState | null;
   editBlocked?: string;
   onClose: () => void;
-  /** Applies the accepted revision; resolves whether it was applied. */
-  onApply: (operation: CueEditOperation, count: number) => Promise<boolean>;
+  /** Applies the accepted revision; resolves whether it was applied. The wordings are those of the applied proposals. */
+  onApply: (operation: CueEditOperation, count: number, applied: { knowledgeHints: CueRevisionHint[]; instructions: string }) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -152,6 +156,20 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
   const profile = profiles.find(item => item.id === profileId);
   const model = translationModelSchema.safeParse(profile ? { profileId: profile.id, modelKey: profile.modelKey, endpoint: profile.baseUrl, apiFormat: profile.apiFormat, outputTokenParameter: profile.outputTokenParameter } : null);
   const configured = model.success && !!profile?.apiKey.trim();
+  // The document's translation materials guide revised translations; only the translation dialog chooses them.
+  const materials = draft && hasMaterials(draft.selection) && draft.selection.languagePair.source ? draft.selection : undefined;
+  const [library, setLibrary] = useState<LibrarySnapshot | null>(null);
+  useEffect(() => {
+    if (!open || !materials || typeof window === 'undefined' || !window.translationKnowledge) return;
+    let active = true;
+    void window.translationKnowledge.read().then(response => { if (active && response.ok) setLibrary(response.value); }).catch(() => {});
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, request?.serial]);
+  const materialLabel = (() => {
+    const names = materials ? materialNames(materials, library) : [];
+    return names.length > 2 ? t('studio:cue_revision.materials_more', { first: names[0], count: names.length }) : names.join(t('studio:cue_revision.materials_separator'));
+  })();
   const translated = !!track && (scope === 'document' ? page.summary.translationStatus !== 'none' : selected.some(cueId => currentEntry(track, page.cues.find(cue => cue.id === cueId)!)));
 
   // A new request starts from a clean form with the remembered choices.
@@ -236,16 +254,20 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
         usage: location ? { ...location.usage } : { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checked: ids.length, ...(location ? { location } : {}) };
       for (let offset = 0; offset < ids.length; offset += CUE_REVISION_LIMIT) {
         setProgress({ stage: 'revising', done: offset, total: ids.length });
-        const value = await call(requestId => window.subtitleStudio.reviseCues({ ...base, requestId, cueIds: ids.slice(offset, offset + CUE_REVISION_LIMIT) }));
+        const value = await call(requestId => window.subtitleStudio.reviseCues({ ...base, requestId, cueIds: ids.slice(offset, offset + CUE_REVISION_LIMIT),
+          ...(materials && track && revisesTarget(base.fields) ? { knowledge: materials } : {}) }));
         if (!current()) return;
         outcome.revision = value.revision;
         outcome.proposals.push(...value.proposals);
         outcome.notes = [...new Set([...outcome.notes, ...value.notes])].slice(0, MAX_NOTES);
         outcome.rejected += value.rejected;
+        if (value.knowledgeHints) outcome.knowledgeHints = mergeHints(outcome.knowledgeHints ?? [], value.knowledgeHints);
+        if (value.knowledgeItems) outcome.knowledgeItems = (outcome.knowledgeItems ?? 0) + value.knowledgeItems;
         addUsage(outcome.usage, value.usage);
       }
       setResult(outcome); setAccepted(new Set(outcome.proposals.slice(0, CUE_EDIT_LIMIT).map(item => item.cueId)));
-      settle({ status: 'ready', checked: outcome.checked, proposals: outcome.proposals.length, notes: outcome.notes, ...(outcome.location ? { plan: outcome.location.plan } : {}) });
+      settle({ status: 'ready', checked: outcome.checked, proposals: outcome.proposals.length, notes: outcome.notes, ...(outcome.location ? { plan: outcome.location.plan } : {}),
+        ...(outcome.knowledgeHints?.length ? { knowledgeHints: outcome.knowledgeHints } : {}) });
     } catch (failure) {
       if (!current()) return;
       const code = failure instanceof StudioError ? failure.code : 'translation_failed';
@@ -275,9 +297,12 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
     const count = new Set([...Object.keys(sources), ...Object.keys(targets)]).size;
     if (!count || count > CUE_EDIT_LIMIT) return;
     setPending('apply'); setError(null);
-    const applied = await onApply({ kind: 'revise', sources, ...(track && Object.keys(targets).length ? { trackId: track.id, targets } : {}) }, count);
+    const hints = appliedHints(result.knowledgeHints, accepted);
+    const onApplied = target?.preset?.onApplied;
+    const applied = await onApply({ kind: 'revise', sources, ...(track && Object.keys(targets).length ? { trackId: track.id, targets } : {}) }, count,
+      { knowledgeHints: hints, instructions: instructions.trim() });
     setPending(null);
-    if (applied) onClose();
+    if (applied) { onApplied?.(count, hints); onClose(); }
     else setError('document_unavailable');
   };
   const onInstructionsKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -347,6 +372,8 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
             <SelectContent>{profiles.map(item => <SelectItem key={item.id} value={item.id}>{item.name || item.modelKey}</SelectItem>)}</SelectContent>
           </Select>
         </div>
+        {materials && track && revisesTarget(fields) && materialLabel && <p className="studio-cue-revision-hint studio-cue-revision-materials" data-testid="studio-cue-revision-materials">
+          <BookOpen />{t('studio:cue_revision.materials', { names: materialLabel })}</p>}
         {!configured && <div className="studio-translation-configuration"><p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.model_required')}</p><Button variant="outline" size="sm" onClick={() => { close(); navigate('/setting?tab=model'); }}><Settings />{t('studio:translation.model_settings')}</Button></div>}
       </div>
       {error && <p role="alert" className="studio-cue-revision-error"><AlertCircle />{t(errorKeys[error], { limit: CUE_REVISION_DOCUMENT_LIMIT })}</p>}
@@ -367,6 +394,8 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
           </Button>}
         </div>
         {result.notes.length > 0 && <p className="studio-cue-revision-note" data-testid="studio-cue-revision-note"><Sparkles />{result.notes.join(' ')}</p>}
+        {!!result.knowledgeHints?.length && proposals.length > 0 && <p className="studio-cue-revision-hint studio-cue-revision-materials" data-testid="studio-cue-revision-knowledge-hint">
+          <BookOpen />{t('studio:cue_revision.knowledge_hint', { count: result.knowledgeHints.length })}</p>}
         {proposals.length > 0 && <ul className="studio-cue-revision-list">{proposals.map(row)}</ul>}
         {result.rejected > 0 && <p className="studio-cue-revision-hint">{t('studio:cue_revision.rejected', { count: result.rejected })}</p>}
         {acceptedCount > CUE_EDIT_LIMIT && <p className="studio-cue-revision-hint" role="alert">{t('studio:cue_revision.apply_limit', { limit: CUE_EDIT_LIMIT })}</p>}

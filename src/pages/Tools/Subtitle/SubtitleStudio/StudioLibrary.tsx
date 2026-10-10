@@ -24,7 +24,7 @@ function AutomaticExportStatus({ value }: { value: NonNullable<DocumentSummary['
   const { t } = useTranslation();
   const format = value.fileName?.split('.').pop()?.toUpperCase() ?? '';
   const detail = value.state === 'exported' ? t('studio:library.auto_exported_file', { name: value.fileName })
-    : value.state === 'failed' ? t(`studio:errors.${value.error}`, { defaultValue: value.error }) : t('studio:library.auto_export_pending_hint');
+    : value.state === 'failed' ? (value.error ? t(`studio:errors.${value.error}`, { defaultValue: value.error }) : t('studio:library.auto_export_failed')) : t('studio:library.auto_export_pending_hint');
   return <span className="studio-library-export" data-state={value.state} data-testid="studio-library-auto-export" title={detail}>
     {value.state === 'exported' ? <FileCheck2 aria-hidden="true" /> : value.state === 'failed' ? <FileX2 aria-hidden="true" /> : <FileClock aria-hidden="true" />}
     <span>{value.state === 'exported' ? t('studio:library.auto_exported', { format }) : t(value.state === 'failed' ? 'studio:library.auto_export_failed' : 'studio:library.auto_export_pending')}</span>

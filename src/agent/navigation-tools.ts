@@ -16,6 +16,7 @@ export const AGENT_PAGES = {
   local_subtitle_transcriber: LOCAL_SUBTITLE_TRANSCRIBER_ROUTE,
   name_translator: "/tools/rename/name-translator",
   model_settings: "/setting",
+  agent_settings: "/setting",
 } as const satisfies Record<string, string>;
 export type AgentPageKey = keyof typeof AGENT_PAGES;
 
@@ -35,6 +36,7 @@ function target(input: z.output<typeof openAppPageSchema>): { route: string; to:
   const route = AGENT_PAGES[input.page];
   if (input.page === "subtitle_studio" && input.studioView) return { route, to: `${route}?view=${input.studioView}` };
   if (input.page === "model_settings") return { route, to: `${route}?tab=model` };
+  if (input.page === "agent_settings") return { route, to: `${route}?tab=agent` };
   return { route, to: route };
 }
 

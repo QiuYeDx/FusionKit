@@ -90,3 +90,60 @@ describe("HomeAgent handoff and draft progress checks", () => {
     expect(agentToolPath("translator", "/tools/subtitle/translator")).toBe("/tools/subtitle/translator");
   });
 });
+
+describe("translation materials card text", async () => {
+  const { knowledgeChangesSummary, knowledgeSavedSummary } = await import("./components/AgentKnowledgeChanges");
+  const { toolResultSummary } = await import("./components/AgentToolResult");
+  const t = ((key: string, values?: Record<string, unknown>) => values ? `${key}(${Object.entries(values).map(([name, value]) => `${name}=${value}`).join(",")})` : key) as never;
+  const counts = { subjects: 1, collections: 1, created: 2, updated: 0, archived: 0, existing: 1 };
+  const items = [
+    { key: "entry:0", group: "entries" as const, status: "new" as const, label: "a → b", collectionName: "绝区零 · 人物", warnings: [] },
+    { key: "entry:1", group: "entries" as const, status: "new" as const, label: "c → d", collectionName: "绝区零 · 人物", warnings: [] },
+    { key: "entry:2", group: "entries" as const, status: "exists" as const, label: "e → f", collectionName: "其他", warnings: [] },
+  ];
+  it("names the one destination and only the non-zero counts", () => {
+    expect(knowledgeChangesSummary({ items, counts, adoptDefault: true, adoptable: 2 }, t)).toBe(
+      "home:knowledge_summary_into(collection=绝区零 · 人物,changes=home:knowledge_count_subjects(count=1)home:knowledge_count_separatorhome:knowledge_count_collections(count=1)home:knowledge_count_separatorhome:knowledge_count_created(count=2)home:knowledge_count_separatorhome:knowledge_count_existing(count=1))");
+    const twoPlaces = [...items, { ...items[0], key: "entry:3", collectionName: "通用" }];
+    expect(knowledgeChangesSummary({ items: twoPlaces, counts: { ...counts, subjects: 0, collections: 0, existing: 0 }, adoptDefault: true, adoptable: 3 }, t)).toBe("home:knowledge_count_created(count=2)");
+  });
+  it("reports saved, enabled and already-saved results", () => {
+    const saved = (result: Record<string, unknown>) => knowledgeSavedSummary(action("k", "completed", { result }), t);
+    expect(saved({ executionStatus: "saved", counts: { subjects: 1, created: 2, updated: 1, archived: 0, existing: 4 }, adopted: 3 })).toBe(
+      "home:knowledge_saved_enabled(changes=home:knowledge_count_subjects(count=1)home:knowledge_count_separatorhome:knowledge_count_created(count=2)home:knowledge_count_separatorhome:knowledge_count_updated(count=1),enabled=3)");
+    expect(saved({ executionStatus: "saved", counts: { created: 1, updated: 0, archived: 0 }, adopted: 0 })).toBe("home:knowledge_saved_review(changes=home:knowledge_count_created(count=1))");
+    expect(saved({ executionStatus: "saved", counts: { created: 0, updated: 0, archived: 2 }, adopted: 0 })).toBe("home:knowledge_saved(changes=home:knowledge_count_archived(count=2))");
+    expect(saved({ executionStatus: "saved", alreadySaved: true, counts: {} })).toBe("home:knowledge_saved_already");
+    expect(knowledgeSavedSummary(action("k", "ready"), t)).toBeUndefined();
+  });
+  it("summarizes knowledge tool rows by totals rather than the page", () => {
+    expect(toolResultSummary({ toolName: "search_translation_knowledge", success: true, data: { entries: [{}], collections: [], pagination: { entries: { total: 12 }, collections: { total: 3 } } } } as never, t))
+      .toBe("home:result_knowledge(entries=12,collections=3)");
+    expect(toolResultSummary({ toolName: "list_translation_knowledge_catalog", success: true, data: { pagination: { collections: { total: 4 }, subjects: { total: 2 } } } } as never, t))
+      .toBe("home:result_knowledge_catalog(collections=4,subjects=2)");
+    expect(toolResultSummary({ toolName: "prepare_knowledge_changes", success: true, data: { executionStatus: "unchanged" } } as never, t)).toBe("home:result_knowledge_unchanged");
+  });
+});
+
+describe("web lookup rows", async () => {
+  const { toolResultSummary } = await import("./components/AgentToolResult");
+  const { actionErrorMessage } = await import("./components/action-error");
+  const t = ((key: string, values?: Record<string, unknown>) => values ? `${key}(${Object.entries(values).map(([name, value]) => `${name}=${value}`).join(",")})` : key) as never;
+  it("names the source and the page read", () => {
+    expect(toolResultSummary({ toolName: "web_search", success: true, data: { source: "moegirl", results: [{}, {}] } } as never, t)).toBe("home:result_web_search(source=home:web_source_moegirl,count=2)");
+    expect(toolResultSummary({ toolName: "web_read", success: true, data: { url: "https://www.example.com/a", title: "绝区零", site: "example.com" } } as never, t)).toBe("home:result_web_read(title=绝区零,site=example.com)");
+  });
+  it("explains each lookup failure", () => {
+    for (const code of ["web_lookup_disabled", "web_source_disabled", "web_source_unconfigured", "web_lookup_failed", "web_lookup_timeout", "web_lookup_blocked", "web_lookup_not_found"])
+      expect(actionErrorMessage(code, t)).toMatch(/^home:action_error_web_/);
+  });
+});
+
+describe("consistency check rows", async () => {
+  const { toolResultSummary } = await import("./components/AgentToolResult");
+  const t = ((key: string, values?: Record<string, unknown>) => values ? `${key}(${Object.entries(values).map(([name, value]) => `${name}=${value}`).join(",")})` : key) as never;
+  it("summarizes the groups found, not as a revision", () => {
+    expect(toolResultSummary({ toolName: "studio_check_consistency", success: true, data: { status: "awaiting_user_review", groups: 2, checkedLines: 40 } } as never, t)).toBe("home:result_consistency(count=2,checked=40)");
+    expect(toolResultSummary({ toolName: "studio_check_consistency", success: true, data: { status: "awaiting_user_review", groups: 0, checkedLines: 40 } } as never, t)).toBe("home:result_consistency_none(checked=40)");
+  });
+});

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUpRight, CheckCircle2, Loader2, PauseCircle, Play, Workflow, XCircle } from "lucide-react";
+import { ArrowUpRight, BookOpen, CheckCircle2, Loader2, PauseCircle, Play, Workflow, XCircle } from "lucide-react";
 import type { TFunction } from "i18next";
 import { useNavigate } from "react-router-dom";
 import { usePreparedActionsStore, type PreparedAction } from "@/agent/prepared-actions";
@@ -14,6 +14,7 @@ import AgentCard from "./AgentCard";
 import { capabilityLabels } from "./AgentCapabilities";
 import { actionErrorMessage } from "./action-error";
 import AgentActionReceipt from "./AgentActionReceipt";
+import AgentKnowledgeChanges, { knowledgeChangesSummary, knowledgeSavedSummary } from "./AgentKnowledgeChanges";
 import { actionFailureReceipt, actionReceipt, agentToolPath, groupPreparedActions, objectValue } from "../presentation";
 
 const actionStatusKeys = { ready: "home:action_ready", running: "home:action_running", completed: "home:action_completed", failed: "home:action_failed", dismissed: "home:action_dismissed" } as const;
@@ -52,10 +53,14 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
   const capability = AGENT_CAPABILITIES.find(item => item.toolKey === action.toolKey);
   const labels = capabilityLabels[action.toolKey as keyof typeof capabilityLabels];
   const title = action.summaryKey === "home:prepared_translation_summary" ? t("home:prepared_translation_title")
-    : action.summaryKey === "home:prepared_transcription_summary" ? t("home:prepared_transcription_title") : labels ? t(labels.title) : action.title;
+    : action.summaryKey === "home:prepared_transcription_summary" ? t("home:prepared_transcription_title")
+    : action.knowledge ? t("home:prepared_knowledge_title") : labels ? t(labels.title) : action.title;
+  const [adopt, setAdopt] = useState(action.knowledge?.adoptDefault ?? false);
   // The files are the receipt's items; the summary keeps to one line of what will happen.
   const values = action.summaryValues ? { ...action.summaryValues, language: languageName(action.summaryValues.language, i18n.resolvedLanguage || i18n.language) } : undefined;
-  const summary = action.summaryKey ? t(action.summaryKey, values) : action.summary;
+  const summary = action.knowledge ? knowledgeSavedSummary(action, t) ?? knowledgeChangesSummary(action.knowledge, t)
+    : action.summaryKey ? t(action.summaryKey, values) : action.summary;
+  const focusCollectionId = objectValue(action.result).focusCollectionId;
   const pipeline = pipelineLines(action.summaryValues, t, i18n.resolvedLanguage || i18n.language);
   const Icon = { ready: Play, running: Loader2, completed: CheckCircle2, failed: XCircle, dismissed: PauseCircle }[action.status];
   const submitted = action.status === "completed" && objectValue(action.result).executionStatus === "queued";
@@ -65,7 +70,7 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
   const Surface = flat ? "div" : AgentCard;
   // What the user decided goes back to the agent, which then follows up on its own.
   const confirm = async () => {
-    await confirmAction(action.id);
+    await confirmAction(action.id, action.knowledge ? { adopt } : undefined);
     const after = usePreparedActionsStore.getState().actions.find(item => item.id === action.id);
     if (after?.status === "completed") reportUiEvent({ kind: "action_completed", values: { title, actionId: action.id } });
     else if (after?.status === "failed") reportUiEvent({ kind: "action_failed", values: { title, actionId: action.id, error: after.error ?? "prepared_action_failed" } });
@@ -98,11 +103,18 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
         <div className="min-w-0 [overflow-wrap:anywhere]">{pipeline.map((line, index) => <p key={index} className={index ? "text-muted-foreground" : undefined}>{line}</p>)}</div>
       </div>}
       {action.error && <p className="text-xs leading-5 text-destructive [overflow-wrap:anywhere]">{actionErrorMessage(action.error, t)}</p>}
+      {action.knowledge && <AgentKnowledgeChanges action={action} adopt={adopt} onAdoptChange={setAdopt} disabled={busy} />}
       {preparationFailures && <AgentActionReceipt receipt={preparationFailures} />}
       {receipt && <AgentActionReceipt receipt={receipt} />}
       {action.status === "ready" && <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Button size="sm" className="h-7 rounded-full px-3 text-xs" disabled={busy} onClick={() => void confirm()}>{t("home:action_confirm")}</Button>
-        <Button variant="ghost" size="sm" className="h-7 rounded-full px-3 text-xs text-muted-foreground" disabled={busy} onClick={dismiss}>{t("home:action_dismiss")}</Button>
+        <Button size="sm" className="h-7 rounded-full px-3 text-xs" disabled={busy} onClick={() => void confirm()}>{action.knowledge ? t("home:knowledge_confirm") : t("home:action_confirm")}</Button>
+        <Button variant="ghost" size="sm" className="h-7 rounded-full px-3 text-xs text-muted-foreground" disabled={busy} onClick={dismiss}>{action.knowledge ? t("home:knowledge_dismiss") : t("home:action_dismiss")}</Button>
+      </div>}
+      {action.knowledge && action.status === "completed" && typeof focusCollectionId === "string" && <div className="pt-1">
+        <Button variant="outline" size="sm" className="h-7 rounded-full px-3 text-xs" data-testid="knowledge-open-collection"
+          onClick={() => navigate("/tools/translation-knowledge", { state: { knowledgeFocus: { collectionId: focusCollectionId } } })}>
+          <BookOpen className="size-3.5" />{t("home:knowledge_open")}
+        </Button>
       </div>}
     </div>
   </Surface>;

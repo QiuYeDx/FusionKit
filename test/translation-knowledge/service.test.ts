@@ -400,3 +400,94 @@ describe('translation knowledge service', () => {
     await service.dispose(); expect((await second.read()).generation).toBe(0);
   });
 });
+
+describe('translation knowledge batch saves', () => {
+  const pair = { source: 'ja', target: 'zh-Hans' };
+  function batch() {
+    const subjectId = randomUUID(), collectionId = randomUUID(), sourceId = randomUUID(), entryId = randomUUID();
+    return { subjectId, collectionId, sourceId, entryId, items: [
+      { group: 'subjects' as const, record: { id: subjectId, revision: 1, archived: false, kind: 'work' as const, name: '绝区零', aliases: ['ZZZ'], tags: [], description: '' } },
+      { group: 'collections' as const, record: { id: collectionId, revision: 1, archived: false, name: '绝区零 · 人物与称谓', description: '', aboutSubjectIds: [subjectId], defaultLanguagePair: pair } },
+      { group: 'entries' as const, adopt: true,
+        source: { id: sourceId, revision: 1, kind: 'user_note' as const, title: 'Conversation', excerpt: '应该是泰姆菲尔德家的大小姐' },
+        record: { id: entryId, revision: 1, title: 'テイムフィールド家のお嬢様', kind: 'term' as const, collectionId, aboutSubjectIds: [subjectId],
+          scope: { languagePair: pair, requiredSubjects: [], condition: { mode: 'none' as const } }, state: 'ready' as const,
+          evidence: [{ sourceId, support: 'direct' as const }], derivedFrom: [],
+          payload: { source: 'テイムフィールド家のお嬢様', target: '泰姆菲尔德家的大小姐', aliases: [], sense: '', match: { mode: 'literal_phrase' as const, caseSensitive: false }, strength: 'preferred' as const } } },
+    ] };
+  }
+
+  it('saves dependent records in one generation and approves adopted entries', async () => {
+    const { service } = await fixture();
+    const before = await service.read();
+    const { items, entryId, sourceId, collectionId, subjectId } = batch();
+    const after = await service.saveRecords({ generation: before.generation, items });
+    expect(after.generation).toBe(before.generation + 1);
+    expect(after.data.subjects.map(item => item.id)).toEqual([subjectId]);
+    expect(after.data.collections.map(item => item.id)).toEqual([collectionId]);
+    expect(after.data.sources.map(item => item.id)).toEqual([sourceId]);
+    const entry = after.data.entries.find(item => item.id === entryId)!;
+    expect(entry.state).toBe('ready');
+    expect(after.approvals[entryId]).toMatchObject({ revision: entry.revision, method: 'human', digest: sha256Canonical(entry) });
+  });
+
+  it('publishes nothing when any item is invalid and reports the item path', async () => {
+    const { service } = await fixture();
+    const before = await service.read();
+    const { items } = batch();
+    const broken = structuredClone(items);
+    (broken[2].record as { collectionId: string }).collectionId = randomUUID();
+    await expect(service.saveRecords({ generation: before.generation, items: broken })).rejects.toMatchObject({ code: 'invalid_input' });
+    const languageBroken = structuredClone(items);
+    languageBroken[1].record = { ...languageBroken[1].record, defaultLanguagePair: { source: 'ja', target: 'zh' } } as typeof languageBroken[1]['record'];
+    await expect(service.saveRecords({ generation: before.generation, items: languageBroken })).rejects.toMatchObject({ code: 'invalid_input' });
+    const revisionBroken = structuredClone(items);
+    revisionBroken[0].record = { ...revisionBroken[0].record, revision: 2 };
+    await expect(service.saveRecords({ generation: before.generation, items: revisionBroken })).rejects.toMatchObject({
+      code: 'invalid_input', diagnostics: [expect.objectContaining({ code: 'NEW_RECORD_REVISION' })] });
+    const malformed = structuredClone(items) as unknown as Record<string, unknown>[];
+    malformed[1] = { ...malformed[1], record: { name: 'missing fields' } };
+    await expect(service.saveRecords({ generation: before.generation, items: malformed as never })).rejects.toMatchObject({
+      code: 'invalid_input', diagnostics: expect.arrayContaining([expect.objectContaining({ path: expect.stringMatching(/^\/items\/1/) })]) });
+    const after = await service.read();
+    expect(after.generation).toBe(before.generation);
+    expect(after.data).toEqual(before.data);
+  });
+
+  it('rejects a stale generation and duplicate identities without writing', async () => {
+    const { service } = await fixture();
+    const before = await service.read();
+    const { items } = batch();
+    await expect(service.saveRecords({ generation: before.generation + 1, items })).rejects.toMatchObject({ code: 'revision_conflict' });
+    await expect(service.saveRecords({ generation: before.generation, items: [items[0], items[0]] })).rejects.toMatchObject({
+      code: 'invalid_input', diagnostics: [expect.objectContaining({ code: 'DUPLICATE_BATCH_RECORD' })] });
+    expect((await service.read()).generation).toBe(before.generation);
+  });
+
+  it('treats an identical replay after success as unchanged', async () => {
+    const { service } = await fixture();
+    const before = await service.read();
+    const { items, entryId } = batch();
+    const saved = await service.saveRecords({ generation: before.generation, items });
+    const entry = saved.data.entries.find(item => item.id === entryId)!;
+    const replay = items.map(item => item.group === 'entries' ? { ...item, record: entry } : item);
+    const again = await service.saveRecords({ generation: saved.generation, items: replay });
+    expect(again.generation).toBe(saved.generation);
+    expect(again.approvals[entryId]).toEqual(saved.approvals[entryId]);
+  });
+
+  it('updates an existing entry by revision in a batch and keeps the single-record API unchanged', async () => {
+    const { service } = await fixture();
+    const { items, entryId } = batch();
+    const saved = await service.saveRecords({ generation: (await service.read()).generation, items });
+    const entry = saved.data.entries.find(item => item.id === entryId)!;
+    if (entry.kind !== 'term') throw new Error('expected a term');
+    const edited = { ...entry, state: 'candidate' as const, payload: { ...entry.payload, target: '泰姆菲尔德家大小姐' } };
+    const updated = await service.saveRecords({ generation: saved.generation, items: [{ group: 'entries', record: edited }] });
+    const after = updated.data.entries.find(item => item.id === entryId)!;
+    expect(after.revision).toBe(entry.revision + 1);
+    expect(after.state).toBe('candidate');
+    expect(updated.approvals[entryId]).toBeUndefined();
+    await expect(service.saveRecords({ generation: updated.generation, items: [{ group: 'entries', record: edited }] })).rejects.toMatchObject({ code: 'revision_conflict' });
+  });
+});

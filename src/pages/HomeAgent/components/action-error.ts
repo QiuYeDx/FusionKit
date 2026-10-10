@@ -17,6 +17,10 @@ const errorKeys = {
   studio_transcription_no_media: "home:action_error_no_media",
   studio_export_needs_translation: "home:action_error_export_needs_translation",
   studio_translation_knowledge_invalid: "home:action_error_knowledge_invalid",
+  knowledge_proposal_invalid: "home:action_error_knowledge_proposal",
+  knowledge_changed: "home:action_error_knowledge_changed",
+  translation_knowledge_unavailable: "home:action_error_knowledge_unavailable",
+  storage_unavailable: "home:action_error_knowledge_unavailable",
   automatic_translation_not_ready: "home:action_error_automatic_translation",
   studio_translation_plan_has_no_ready_documents: "home:action_error_documents",
   studio_translation_not_admitted: "home:action_error_documents",
@@ -68,6 +72,14 @@ const errorKeys = {
   invalid_input: "studio:errors.invalid_input",
   translation_protocol_invalid: "studio:cue_revision.errors.protocol_invalid",
   translation_output_limit: "studio:cue_revision.errors.output_limit",
+  web_lookup_disabled: "home:action_error_web_disabled",
+  web_source_disabled: "home:action_error_web_source_disabled",
+  web_source_unconfigured: "home:action_error_web_source_unconfigured",
+  web_lookup_unavailable: "home:action_error_web_failed",
+  web_lookup_failed: "home:action_error_web_failed",
+  web_lookup_timeout: "home:action_error_web_timeout",
+  web_lookup_blocked: "home:action_error_web_blocked",
+  web_lookup_not_found: "home:action_error_web_not_found",
 } as const;
 
 export function actionErrorMessage(error: string, t: TFunction): string {

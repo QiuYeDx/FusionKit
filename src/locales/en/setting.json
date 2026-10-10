@@ -11,7 +11,8 @@
     "model_assignment": "Model Assignment",
     "model_profiles": "Model Profiles",
     "audio_assignment": "Audio Task Assignment",
-    "audio_apis": "Audio APIs"
+    "audio_apis": "Audio APIs",
+    "agent_config": "Agent settings"
   },
   "nav": {
     "general": {
@@ -29,6 +30,10 @@
     "audio": {
       "label": "Audio",
       "hint": "APIs · Routes · Assignment"
+    },
+    "agent": {
+      "label": "Agent",
+      "hint": "Web lookups for materials"
     }
   },
   "fields": {
@@ -261,5 +266,42 @@
     "model_key": "Please enter the Model Key",
     "proxy_host": "127.0.0.1",
     "proxy_port": "7890"
+  },
+  "agent": {
+    "web": {
+      "label": "Let the Agent look things up online",
+      "description": "When on, the Agent can search the sites turned on below to check how names, places and terms are translated. Only search words and page links are sent; your subtitles and translation materials never are."
+    },
+    "sources": {
+      "title": "Sources",
+      "note": "None of these sites need an account or key. Page content is treated as reference only: the Agent always asks before saving to your translation materials, and entries found online start as needing review.",
+      "wikipedia": {
+        "name": "Wikipedia",
+        "description": "The first place to look, for general topics. Chinese, Japanese and English."
+      },
+      "moegirl": {
+        "name": "Moegirlpedia (mirror)",
+        "description": "Anime, games, characters and other ACG topics. The official site limits programmatic access, so it is read through the moegirl.uk mirror."
+      },
+      "baidu_baike": {
+        "name": "Baidu Baike",
+        "description": "Summaries and info boxes of Chinese entries."
+      },
+      "biligame": {
+        "name": "Bilibili game wikis",
+        "description": "Character, place and item names in a game. Needs a wiki code."
+      },
+      "bing": {
+        "name": "Bing search",
+        "description": "General web search; can be limited to a game’s official site to find official translations."
+      }
+    },
+    "biligame": {
+      "label": "Bilibili game wiki codes",
+      "placeholder": "e.g. zzz, sr",
+      "hint": "A code is the path in the address, as in wiki.biligame.com/zzz. Separate with commas; the first is the default.",
+      "invalid": "Not a valid code: {{codes}}. Use lowercase letters, digits, underscores and hyphens only.",
+      "too_many": "Enter at most {{count}} codes."
+    }
   }
 }

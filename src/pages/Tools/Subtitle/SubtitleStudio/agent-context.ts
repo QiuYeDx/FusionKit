@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { LIMITS, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, StudioResult, SubtitleStudioApi } from '@/subtitle-studio/ipc-contract';
-import type { AgentPageContext, PageSuggestion, PageToolSet } from '@/agent/page-context';
+import { reportPageEvent, type AgentPageContext, type PageSuggestion, type PageToolSet } from '@/agent/page-context';
 import type { CueRevisionOutcome, CueRevisionPreset } from './StudioCueRevision';
+import type { ConsistencyOutcome } from './StudioConsistencyCheck';
+import type { CueRevisionHint } from '@/subtitle-studio/cue-revision-contract';
 import type { CueTrack } from './StudioCueMenu';
 
 export const STUDIO_ROUTE = '/tools/subtitle/studio';
@@ -19,6 +21,9 @@ export interface StudioAgentDeps {
   revisionOpen: () => boolean;
   /** Opens the AI revision preview with a preset; the outcome is reported once. */
   openRevision: (cueIds: string[], preset: CueRevisionPreset, onSettled: (outcome: CueRevisionOutcome) => void) => void;
+  consistencyOpen?: () => boolean;
+  /** Opens the consistency check for the open document and starts it; false when there is nothing to check. */
+  openConsistency?: (focus: string | undefined, onSettled: (outcome: ConsistencyOutcome) => void) => boolean;
   api: () => SubtitleStudioApi;
 }
 
@@ -85,9 +90,33 @@ const reviseSchema = z.object({
   lines: z.array(z.number().int().min(1).max(LIMITS.cues)).min(1).max(200).optional().describe('For scope=document: cue numbers to revise.'),
 }).strict().refine(value => !(value.terms && value.lines), 'Give terms or lines, not both.');
 
+/** Tells the assistant that the user applied the revision it prepared, with the wordings it settled. */
+function reportApplied(count: number, hints: CueRevisionHint[]) {
+  reportPageEvent({ kind: 'revision_applied',
+    values: { count, hints: hints.slice(0, 5).map(hint => `${clip(hint.source)} → ${clip(hint.target)}`).join('; '), hintCount: hints.length } });
+}
+
+const consistencySchema = z.object({
+  focus: z.string().trim().max(500).optional().describe('What to concentrate on, in the user\u2019s words, such as names of people and places.'),
+}).strict();
+
+function consistencyResult(outcome: ConsistencyOutcome): Result {
+  if (outcome.status === 'cancelled') return { success: false, error: 'consistency_cancelled' };
+  if (outcome.status === 'failed') return { success: false, error: outcome.error satisfies ErrorCode };
+  const { result } = outcome;
+  return ok({ status: 'awaiting_user_review', groups: result.groups.length, checkedLines: result.checkedLines,
+    summary: result.groups.slice(0, 10).map(group => ({ source: clip(group.source), kind: group.kind,
+      variants: group.variants.filter(variant => variant.text).map(variant => ({ text: clip(variant.text), count: variant.count })),
+      ...(group.spellings.length > 1 ? { sourceSpellings: group.spellings.map(spelling => ({ text: clip(spelling.text), count: spelling.count })) } : {}),
+      ...(group.recommended ? { recommended: clip(group.recommended) } : {}), ...(group.knowledgeTarget ? { fromMaterials: true } : {}) })),
+    nextAction: result.groups.length ? 'The consistency check is open in Subtitle Studio. The user chooses the standard wordings and unifies them there; nothing has been changed yet.'
+      : 'No inconsistent names or terms were found.' });
+}
+
 function outcomeResult(outcome: CueRevisionOutcome): Result {
   switch (outcome.status) {
     case 'ready': return ok({ status: 'awaiting_user_review', checkedCues: outcome.checked, proposedRevisions: outcome.proposals, notes: outcome.notes, ...(outcome.plan ? { plan: outcome.plan } : {}),
+      ...(outcome.knowledgeHints?.length ? { knowledgeHints: outcome.knowledgeHints.slice(0, 5).map(hint => ({ source: clip(hint.source), target: clip(hint.target) })) } : {}),
       nextAction: outcome.proposals ? 'The revision preview is open in Subtitle Studio. The user reviews the changes and applies them there; nothing has been written yet.' : 'No change was proposed; the preview is open for the user to adjust the request.' });
     case 'needs_confirmation': return ok({ status: 'awaiting_scan_confirmation', cueCount: outcome.count, plan: outcome.plan,
       nextAction: 'Checking this many cues needs many model requests. The user confirms the scan in the open preview.' });
@@ -137,6 +166,29 @@ export function createStudioAgentTools(deps: StudioAgentDeps): PageToolSet {
         return ok({ total: found.total, matches: found.matches.map(match => ({ number: match.index + 1, source: clip(match.source), ...(match.target !== undefined ? { target: clip(match.target) } : {}) })) });
       }),
     },
+    studio_check_consistency: {
+      description: 'Open the terminology consistency check for the document open in Subtitle Studio and run it: it finds names and terms translated or spelled more than one way (and lines not following the chosen translation materials). ' +
+        'Returns the groups found; the user chooses standard wordings and unifies them in the check window. This tool never writes. Uses the AI translation model configured for Studio.',
+      inputSchema: consistencySchema,
+      execute: (input: unknown, options?: { abortSignal?: AbortSignal }) => guard(async () => {
+        const args = consistencySchema.parse(input);
+        const { check } = currentDocument(deps);
+        if (!deps.openConsistency) throw new PageFailure('unsupported_feature');
+        if (deps.consistencyOpen?.() || deps.revisionOpen()) throw new PageFailure('consistency_already_open');
+        const outcome = await new Promise<ConsistencyOutcome | 'aborted' | 'empty'>(resolve => {
+          const signal = options?.abortSignal;
+          const abort = () => resolve('aborted');
+          if (signal?.aborted) { abort(); return; }
+          signal?.addEventListener('abort', abort, { once: true });
+          const opened = deps.openConsistency!(args.focus, value => { signal?.removeEventListener('abort', abort); resolve(value); });
+          if (!opened) { signal?.removeEventListener('abort', abort); resolve('empty'); }
+        });
+        if (outcome === 'aborted') throw new PageFailure('agent_cancelled');
+        if (outcome === 'empty') throw new PageFailure('empty_document');
+        check();
+        return consistencyResult(outcome);
+      }),
+    },
     studio_prepare_revision: {
       description: 'Open the AI revision preview in Subtitle Studio for the selected cues or the whole document, prefilled with the request, and wait until the proposals are ready. ' +
         'The user reviews and applies the changes in the preview; this tool never writes. Uses the AI translation model configured for Studio.',
@@ -157,7 +209,7 @@ export function createStudioAgentTools(deps: StudioAgentDeps): PageToolSet {
           const abort = () => resolve('aborted');
           if (signal?.aborted) { abort(); return; }
           signal?.addEventListener('abort', abort, { once: true });
-          deps.openRevision(selection, { instructions: args.instructions, scope: args.scope, ...(args.fields ? { fields: args.fields } : {}), ...(search ? { search } : {}) }, value => {
+          deps.openRevision(selection, { instructions: args.instructions, scope: args.scope, ...(args.fields ? { fields: args.fields } : {}), ...(search ? { search } : {}), onApplied: reportApplied }, value => {
             signal?.removeEventListener('abort', abort);
             resolve(value);
           });
@@ -176,6 +228,8 @@ export const STUDIO_AGENT_INSTRUCTIONS = [
   'To change subtitle text (misheard names or terms, what a line should say, punctuation, translations), call studio_prepare_revision. It opens the AI revision preview; the user reviews and applies the changes there. Never claim the text has been changed.',
   'When the user names wrong spellings, use scope=document and pass terms with the wrong forms and likely mis-transcriptions (homophones, near misses), so no extra planning request is needed; for numbered lines pass lines. Use scope=selection when the user refers to the selected cues.',
   'Use studio_read_cues or studio_find_cues to look at the text before answering questions about it. Translating, exporting and library work keep using the fixed Subtitle Studio tools.',
+  'When the user asks whether names or terms are consistent or wants them unified across the document, call studio_check_consistency (optionally with a focus); the user unifies them in the check window.',
+  'When the user wants a wording kept in translation materials (after a revision or not), take the exact source form from the cues the revision touched, use the source and translation languages of the document as the language pair, and prepare it with prepare_knowledge_changes.',
 ].join(' ');
 
 export const STUDIO_AGENT_SUGGESTIONS: readonly PageSuggestion[] = [

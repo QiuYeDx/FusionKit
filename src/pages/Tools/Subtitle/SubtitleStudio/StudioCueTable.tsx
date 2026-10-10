@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Ellipsis, Languages, Redo2, Sparkles, Trash2, Undo2, UserPen, X } from 'lucide-react';
+import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Ellipsis, Languages, Redo2, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -59,6 +59,8 @@ export type StudioCueTableProps = {
   onTranslate: (cueIds: string[]) => void;
   /** Opens the AI revision dialog for the cues, or for the whole document when none are given. */
   onRevise: (cueIds: string[]) => void;
+  /** Opens the terminology consistency check for this document. */
+  onCheckConsistency?: () => void;
   /** Reports the selected cues in list order whenever the selection changes. */
   onSelectionChange?: (cueIds: string[]) => void;
   onCopy: (cueId: string, text: string) => void;
@@ -70,7 +72,7 @@ export type StudioCueTableProps = {
  * source and translation in place, and translate, review, copy or delete the
  * selection. Every edit can be undone.
  */
-export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onSelectionChange, onCopy, onRemember }: StudioCueTableProps) {
+export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onCheckConsistency, onSelectionChange, onCopy, onRemember }: StudioCueTableProps) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const order = page.cues.map(cue => cue.id);
@@ -203,6 +205,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
       <span className="studio-cue-toolbar-divider" aria-hidden="true" />
     </>}
     <StudioIconButton data-testid="studio-cue-toolbar-revise" label={t(selected.length ? 'studio:cue_menu.revise' : 'studio:cue_revision.revise_document')} disabled={!!editBlocked} onClick={() => actions.onRevise(selected)}><Sparkles /></StudioIconButton>
+    {onCheckConsistency && <StudioIconButton data-testid="studio-cue-toolbar-consistency" label={t('studio:consistency.open')} onClick={onCheckConsistency}><ScanText /></StudioIconButton>}
     <StudioIconButton data-testid="studio-cue-undo" label={history.undo ? t('studio:cue_history.undo', { action: historyLabel(history.undo) }) : t('studio:cue_history.nothing_to_undo')} disabled={!history.undo || !!editBlocked} onClick={onUndo}><Undo2 /></StudioIconButton>
     <StudioIconButton data-testid="studio-cue-redo" label={history.redo ? t('studio:cue_history.redo', { action: historyLabel(history.redo) }) : t('studio:cue_history.nothing_to_redo')} disabled={!history.redo || !!editBlocked} onClick={onRedo}><Redo2 /></StudioIconButton>
     <CueHelp />

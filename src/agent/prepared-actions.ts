@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import useAgentStore from "@/store/agent/useAgentStore";
 import type { AgentCapabilityKey } from "./capability-catalog";
+import type { ProposalCounts, ProposalItem } from "@/translation-knowledge/proposal";
 
 export interface PreparedActionResult { success: boolean; data?: unknown; error?: string }
 export interface PreparedActionReceipt {
@@ -15,22 +16,29 @@ export interface PreparedAction {
   sessionId: string;
   title: string;
   summary: string;
-  summaryKey?: "home:prepared_translation_summary" | "home:prepared_transcription_summary";
+  summaryKey?: "home:prepared_translation_summary" | "home:prepared_transcription_summary" | "home:prepared_knowledge_summary";
   summaryValues?: Record<string, string | number>;
   preparationReceipt?: PreparedActionReceipt;
   toolKey: AgentCapabilityKey;
+  /** Only the user confirms it, in every execution mode (writes the user must see first). */
+  requiresConfirmation?: boolean;
+  /** A translation materials change: what the card lists and the default of its enable switch. */
+  knowledge?: PreparedKnowledgeChanges;
   status: "ready" | "running" | "completed" | "failed" | "dismissed";
   updatedAt?: number;
   error?: string;
   result?: unknown;
 }
+export interface PreparedKnowledgeChanges { items: ProposalItem[]; counts: ProposalCounts; adoptDefault: boolean; adoptable: number }
+/** What the user chose on the card when confirming. */
+export interface PreparedActionChoice { adopt?: boolean }
 interface ActionCallbacks {
-  execute: () => Promise<PreparedActionResult>;
+  execute: (choice?: PreparedActionChoice) => Promise<PreparedActionResult>;
   cleanup?: () => void | Promise<void>;
 }
 interface PreparedActionsState {
   actions: PreparedAction[];
-  confirmAction: (id: string) => Promise<void>;
+  confirmAction: (id: string, choice?: PreparedActionChoice) => Promise<void>;
   dismissAction: (id: string) => void;
 }
 const callbacks = new Map<string, ActionCallbacks>();
@@ -46,7 +54,7 @@ async function cleanup(entry: ActionCallbacks | undefined): Promise<void> {
 /** No persist middleware: authority and callbacks must never survive an application restart. */
 export const usePreparedActionsStore = create<PreparedActionsState>((set, get) => ({
   actions: [],
-  confirmAction: async id => {
+  confirmAction: async (id, choice) => {
     const action = get().actions.find(item => item.id === id);
     if (!action || action.status !== "ready") return;
     if (action.sessionId !== useAgentStore.getState().session.id) {
@@ -58,7 +66,7 @@ export const usePreparedActionsStore = create<PreparedActionsState>((set, get) =
     // Claim before the first await. UI clicks and automatic execution share this path.
     set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "running", updatedAt: Date.now() } : item) }));
     try {
-      const result = entry ? await entry.execute() : { success: false, error: "prepared_action_expired" };
+      const result = entry ? await entry.execute(choice) : { success: false, error: "prepared_action_expired" };
       set(state => ({ actions: state.actions.map(item => item.id === id ? {
         ...item, status: result.success ? "completed" : "failed", updatedAt: Date.now(),
         ...(result.data !== undefined ? { result: result.data } : {}),
@@ -79,14 +87,15 @@ export const usePreparedActionsStore = create<PreparedActionsState>((set, get) =
   },
 }));
 
-export function registerPreparedAction(input: Pick<PreparedAction, "sessionId" | "title" | "summary" | "toolKey" | "summaryKey" | "summaryValues" | "preparationReceipt"> & ActionCallbacks): PreparedAction {
+export function registerPreparedAction(input: Pick<PreparedAction, "sessionId" | "title" | "summary" | "toolKey" | "summaryKey" | "summaryValues" | "preparationReceipt" | "requiresConfirmation" | "knowledge"> & ActionCallbacks): PreparedAction {
   if (input.sessionId !== useAgentStore.getState().session.id) throw new Error("agent_session_changed");
   const current = usePreparedActionsStore.getState().actions;
   if (current.filter(item => item.status === "ready" || item.status === "running").length >= MAX_READY_ACTIONS) throw new Error("prepared_action_limit");
   const action: PreparedAction = { id: `prepared-${Date.now()}-${++sequence}`, sessionId: input.sessionId,
     title: input.title.slice(0, 200), summary: input.summary.slice(0, 2000), toolKey: input.toolKey, status: "ready", updatedAt: Date.now(),
     ...(input.summaryKey ? { summaryKey: input.summaryKey, summaryValues: input.summaryValues } : {}),
-    ...(input.preparationReceipt ? { preparationReceipt: input.preparationReceipt } : {}) };
+    ...(input.preparationReceipt ? { preparationReceipt: input.preparationReceipt } : {}),
+    ...(input.requiresConfirmation ? { requiresConfirmation: true } : {}), ...(input.knowledge ? { knowledge: input.knowledge } : {}) };
   callbacks.set(action.id, { execute: input.execute, cleanup: input.cleanup });
   const active = current.filter(item => item.status === "ready" || item.status === "running");
   const terminal = current.filter(item => item.status !== "ready" && item.status !== "running").slice(-(MAX_ACTION_HISTORY - active.length - 1));

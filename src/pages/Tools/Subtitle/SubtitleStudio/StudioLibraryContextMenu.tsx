@@ -1,11 +1,11 @@
 import { createPortal } from 'react-dom';
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownToLine, Download, Languages, Play, Square, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, Download, Languages, Play, Square, Trash2, ScanText } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { DocumentSummary } from '@/subtitle-studio/ipc-contract';
 
-export type LibraryContextAction = 'translate' | 'export' | 'source' | 'resume' | 'cancel' | 'delete';
+export type LibraryContextAction = 'translate' | 'export' | 'source' | 'consistency' | 'resume' | 'cancel' | 'delete';
 export type LibraryContextScope = { documents: DocumentSummary[]; x: number; y: number; origin: HTMLElement; query: unknown; offset: number };
 export type LibraryDialogRequest = { original?: boolean; restoreFocus: () => void };
 
@@ -40,6 +40,7 @@ export function StudioLibraryContextMenu({ scope, disabled, onClose, onAction }:
       <DropdownMenuSeparator />
       <DropdownMenuItem disabled={disabled || !targets.some(doc => doc.capabilities.translate && doc.cueCount > 0)} onSelect={() => act('translate')}><Languages />{t('studio:translation.action')}</DropdownMenuItem>
       <DropdownMenuItem disabled={disabled} onSelect={() => act('export')}><Download />{t('studio:export.action')}</DropdownMenuItem>
+      <DropdownMenuItem data-testid="studio-library-consistency" disabled={disabled || !targets.some(doc => doc.cueCount > 0)} onSelect={() => act('consistency')}><ScanText />{t('studio:consistency.open_documents')}</DropdownMenuItem>
       {targets.every(doc => doc.capabilities.preserveSource) && <DropdownMenuItem disabled={disabled} onSelect={() => act('source')}><ArrowDownToLine />{t('studio:export_source')}</DropdownMenuItem>}
       <DropdownMenuSeparator />
       <DropdownMenuItem disabled={disabled || !targets.some(doc => doc.task && ['failed', 'interrupted', 'needs_configuration'].includes(doc.task.status))} onSelect={() => act('resume')}><Play />{t('studio:translation.resume')}</DropdownMenuItem>

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { open, link, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { KNOWLEDGE_CHANNELS, type KnowledgeResult, type SaveRecordRequest } from '../../../src/translation-knowledge/ipc-contract';
+import { KNOWLEDGE_CHANNELS, type KnowledgeResult, type SaveRecordRequest, type SaveRecordsRequest } from '../../../src/translation-knowledge/ipc-contract';
 import { KnowledgeService } from './service';
 import { KnowledgeServiceError } from './errors';
 import { KnowledgeExportPlans } from './export-plans';
@@ -125,6 +125,9 @@ export function registerTranslationKnowledge(taskTracking?: KnowledgeTaskTrackin
           } else if (method === 'saveRecord') {
             exportPlans.invalidate();
             value = await service.saveRecord(payload.data as SaveRecordRequest, alive);
+          } else if (method === 'saveRecords') {
+            exportPlans.invalidate();
+            value = await service.saveRecords(payload.data as SaveRecordsRequest, alive);
           } else if (method === 'reviewEntries') {
             exportPlans.invalidate();
             value = await service.reviewEntries(knowledgeRequestSchemas.reviewEntries.parse(payload.data), alive);

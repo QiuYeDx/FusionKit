@@ -27,6 +27,7 @@ import { assertLegacyStudioChannelAllowed } from './subtitle-studio-channel-poli
 import { assertLegacySpeechResourcesChannelAllowed, createSpeechResourcesApi } from './speech-resources-api'
 import { assertLegacyKnowledgeChannelAllowed, createTranslationKnowledgeApi } from './translation-knowledge-api'
 import { assertLegacyNameTranslationChannelAllowed, createNameTranslationApi } from './name-translation-api'
+import { assertLegacyWebLookupChannelAllowed, createWebLookupApi } from './web-lookup-api'
 
 const AUDIO_CHANNEL_PREFIX = 'audio:'
 const AUDIO_REGISTER_CAPABILITY_CHANNEL =
@@ -57,6 +58,7 @@ const subtitleTranslationOwnerSessionRegistration = ipcRenderer.sendSync(
 
 const assertLegacyIpcChannelAllowed = (channel: string) => {
   assertLegacyNameTranslationChannelAllowed(channel)
+  assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyKnowledgeChannelAllowed(channel)
   assertLegacySpeechResourcesChannelAllowed(channel)
   assertLegacyStudioChannelAllowed(channel)
@@ -72,6 +74,7 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
 
 const assertLegacyListenChannelAllowed = (channel: string) => {
   assertLegacyNameTranslationChannelAllowed(channel)
+  assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyKnowledgeChannelAllowed(channel)
   assertLegacySpeechResourcesChannelAllowed(channel)
   assertLegacyStudioChannelAllowed(channel)
@@ -90,6 +93,7 @@ contextBridge.exposeInMainWorld('subtitleStudio', createSubtitleStudioApi(ipcRen
 contextBridge.exposeInMainWorld('translationKnowledge', createTranslationKnowledgeApi(ipcRenderer, webUtils))
 contextBridge.exposeInMainWorld('speechResources', createSpeechResourcesApi(ipcRenderer))
 contextBridge.exposeInMainWorld('nameTranslation', createNameTranslationApi(ipcRenderer))
+contextBridge.exposeInMainWorld('webLookup', createWebLookupApi(ipcRenderer))
 contextBridge.exposeInMainWorld(
   'ipcRenderer',
   createSafeLegacyIpcBridge({

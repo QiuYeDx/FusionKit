@@ -9,7 +9,6 @@ import { translationConfigSchema, normalizeTranslationModel } from "@/subtitle-s
 import { encodingSchema } from "@/subtitle-studio/domain";
 import { transcriptionTaskConfigSchema } from "@/subtitle-studio/transcription/task-contract";
 import type { DocumentSummary, StudioResult } from "@/subtitle-studio/ipc-contract";
-import { entrySummary } from "@/translation-knowledge/ipc-contract";
 import { AGENT_CAPABILITIES } from "./capability-catalog";
 import { SettingsResolver } from "./tool-page-settings";
 import { translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
@@ -19,14 +18,14 @@ import { watchStudioPipeline } from "./pipeline-watch";
 import { automaticExportFromPreferences, type AutomaticExportSpec } from "@/subtitle-studio/automatic-export-contract";
 import { registerPreparedAction, usePreparedActionsStore, type PreparedAction, type PreparedActionReceipt, type PreparedActionResult } from "./prepared-actions";
 
-interface Context { sessionId: string; signal?: AbortSignal; check: () => void }
-const page = { offset: z.number().int().min(0).max(100000).default(0), limit: z.number().int().min(1).max(50).default(20) };
-const id = z.string().uuid();
+export interface Context { sessionId: string; signal?: AbortSignal; check: () => void }
+export const page = { offset: z.number().int().min(0).max(100000).default(0), limit: z.number().int().min(1).max(50).default(20) };
+export const id = z.string().uuid();
 const language = z.string().trim().min(2).max(32).regex(/^(?:auto|[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$/);
-const safeText = (value: string, length = 255) => value.slice(0, length);
-class ToolFailure extends Error {}
-const failed = (error: string, data?: unknown): PreparedActionResult => ({ success: false, error, ...(data !== undefined ? { data } : {}) });
-const succeeded = (data: unknown): PreparedActionResult => ({ success: true, data });
+export const safeText = (value: string, length = 255) => value.slice(0, length);
+export class ToolFailure extends Error {}
+export const failed = (error: string, data?: unknown): PreparedActionResult => ({ success: false, error, ...(data !== undefined ? { data } : {}) });
+export const succeeded = (data: unknown): PreparedActionResult => ({ success: true, data });
 function receipt(phase: PreparedActionReceipt["phase"], items: PreparedActionReceipt["items"]): PreparedActionReceipt {
   const bounded = items.slice(0, 50).map(item => ({ ...item, name: safeText(item.name) }));
   const failureCount = bounded.filter(item => item.status === "failed").length;
@@ -47,7 +46,7 @@ function context(signal?: AbortSignal): Context {
     if (sessionId !== useAgentStore.getState().session.id) throw new ToolFailure("agent_session_changed");
   } };
 }
-async function run<S extends z.ZodType>(schema: S, input: unknown, options: { abortSignal?: AbortSignal } | undefined,
+export async function run<S extends z.ZodType>(schema: S, input: unknown, options: { abortSignal?: AbortSignal } | undefined,
   execute: (args: z.output<S>, ctx: Context) => Promise<PreparedActionResult>): Promise<PreparedActionResult> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) return failed("invalid_tool_arguments");
@@ -77,10 +76,10 @@ function documentSummary(document: DocumentSummary) {
     ...(document.automaticExport ? { automaticExport: { state: document.automaticExport.state, ...(document.automaticExport.fileName ? { fileName: safeText(document.automaticExport.fileName) } : {}),
       ...(document.automaticExport.error ? { error: document.automaticExport.error } : {}) } } : {}) };
 }
-async function exposePrepared(action: PreparedAction, ctx: Context, extra: Record<string, unknown> = {}): Promise<PreparedActionResult> {
+export async function exposePrepared(action: PreparedAction, ctx: Context, extra: Record<string, unknown> = {}): Promise<PreparedActionResult> {
   try { ctx.check(); }
   catch (error) { usePreparedActionsStore.getState().dismissAction(action.id); throw error; }
-  if (useAgentStore.getState().executionMode === "auto_execute") {
+  if (useAgentStore.getState().executionMode === "auto_execute" && !action.requiresConfirmation) {
     await usePreparedActionsStore.getState().confirmAction(action.id);
     const completed = usePreparedActionsStore.getState().actions.find(item => item.id === action.id)!;
     const data = { actionId: action.id, receipt: action.preparationReceipt, result: completed.result, ...extra };
@@ -88,7 +87,8 @@ async function exposePrepared(action: PreparedAction, ctx: Context, extra: Recor
       : failed(completed.error ?? "prepared_action_not_submitted", data);
   }
   return succeeded({ ...extra, actionId: action.id, executionStatus: "prepared", title: action.title, summary: action.summary, receipt: action.preparationReceipt,
-    nextAction: "Confirm this prepared action in HomeAgent to submit it. No task has started." });
+    nextAction: action.requiresConfirmation ? "The user reviews and confirms this on its card; the outcome arrives as an interface event. Nothing has been saved yet."
+      : "Confirm this prepared action in HomeAgent to submit it. No task has started." });
 }
 
 export const listStudioDocumentsSchema = z.object({ ...page, query: z.string().max(200).default(""),
@@ -128,14 +128,11 @@ export const configureLocalTranscriptionSchema = z.object({ language: language.o
   outputFormats: z.array(z.enum(["SRT", "LRC"])).min(1).max(2).refine(values => new Set(values).size === values.length).optional(),
   taskMode: z.enum(["transcribe", "translate_to_english"]).optional(), initialPrompt: z.string().max(1000).optional(),
 }).strict();
-export const knowledgeSearchSchema = z.object({ ...page, query: z.string().max(200).default(""),
-  collectionId: id.optional(), kind: z.enum(["all", "term", "context", "expression", "memory", "rule"]).default("all"),
-  includeArchived: z.boolean().default(false) }).strict();
 const emptySchema = z.object({}).strict();
 const pageSchema = z.object(page).strict();
 
 export const modernAgentTools = {
-  list_agent_capabilities: tool({ description: "Discover FusionKit's six official featured/classic tools, their routes and supported actions. Experimental tools are not included. Route links do not start tasks.",
+  list_agent_capabilities: tool({ description: "Discover FusionKit's seven official featured/classic tools, their routes and supported actions. Experimental tools are not included. Route links do not start tasks.",
     inputSchema: emptySchema, execute: (args, options) => run(emptySchema, args, options, async () => succeeded({ tools: AGENT_CAPABILITIES })) }),
   list_studio_documents: tool({ description: "Search the subtitle studio library. Returns documentId and revision for preparing translation, bounded metadata only. Supports imported subtitles and transcribed media documents.",
     inputSchema: listStudioDocumentsSchema, execute: (args, options) => run(listStudioDocumentsSchema, args, options, async (input, ctx) => {
@@ -349,28 +346,5 @@ export const modernAgentTools = {
       ctx.check(); if (initialPrompt !== undefined) store.setDraftInitialPrompt(initialPrompt);
       return succeeded({ executionStatus: "configured", route: AGENT_CAPABILITIES.find(item => item.toolKey === "localSubtitleTranscriber")!.route,
         nextAction: "Open the local subtitle transcriber, select media files, review settings, then start there. No task has started." });
-    }) }),
-  search_translation_knowledge: tool({ description: "Search translation knowledge with bounded entry summaries, collection/recipe metadata and review state. Does not send the whole library, raw evidence, adopt entries or change records.",
-    inputSchema: knowledgeSearchSchema, execute: (args, options) => run(knowledgeSearchSchema, args, options, async (input, ctx) => {
-      if (typeof window === "undefined" || !window.translationKnowledge) throw new ToolFailure("translation_knowledge_unavailable");
-      const response = await window.translationKnowledge.read(); ctx.check();
-      if (!response.ok) throw new ToolFailure(response.error);
-      const library = response.value;
-      const query = input.query.trim().normalize("NFC").toLocaleLowerCase();
-      const matches = (text: string) => text.normalize("NFC").toLocaleLowerCase().includes(query);
-      const entries = library.data.entries.filter(item => (input.includeArchived || item.state !== "archived")
-        && (!input.collectionId || item.collectionId === input.collectionId) && (input.kind === "all" || item.kind === input.kind)
-        && matches(`${item.title} ${entrySummary(item)}`));
-      const collections = library.data.collections.filter(item => (input.includeArchived || !item.archived) && matches(item.name));
-      const recipes = library.data.recipes.filter(item => (input.includeArchived || !item.archived) && matches(item.name));
-      const pagination = (total: number) => ({ total, hasMore: input.offset + input.limit < total,
-        nextOffset: input.offset + input.limit < total ? input.offset + input.limit : null });
-      return succeeded({ generation: library.generation, counts: { entries: library.data.entries.length, collections: library.data.collections.length, recipes: library.data.recipes.length },
-        pagination: { offset: input.offset, limit: input.limit, entries: pagination(entries.length), collections: pagination(collections.length), recipes: pagination(recipes.length) },
-        total: entries.length, offset: input.offset, entries: entries.slice(input.offset, input.offset + input.limit).map(item => ({ id: item.id, revision: item.revision,
-          kind: item.kind, title: safeText(item.title), collectionId: item.collectionId, languagePair: { source: safeText(item.scope.languagePair.source, 32), target: safeText(item.scope.languagePair.target, 32) },
-          state: item.state === "ready" && library.approvals[item.id]?.revision !== item.revision ? "unconfirmed" : item.state, summary: safeText(entrySummary(item), 400) })),
-        collections: collections.slice(input.offset, input.offset + input.limit).map(item => ({ id: item.id, name: safeText(item.name) })),
-        recipes: recipes.slice(input.offset, input.offset + input.limit).map(item => ({ id: item.id, name: safeText(item.name), languagePair: { source: safeText(item.languagePair.source, 32), target: safeText(item.languagePair.target, 32) } })) });
     }) }),
 };

@@ -117,3 +117,50 @@ describe('Studio page tools', () => {
     await expect(switching).resolves.toEqual({ success: false, error: 'page_changed' });
   });
 });
+
+const reported: unknown[] = [];
+
+describe('revisions the assistant prepared and the user applied', () => {
+  it('returns the wordings a revision settled and reports the applied revision back', async () => {
+    reported.length = 0;
+    const { setPageEventSink } = await import('@/agent/page-context');
+    setPageEventSink(event => { reported.push(event); });
+    const { value, opened } = deps();
+    const tools = createStudioAgentTools(value);
+    const pending = call(tools, 'studio_prepare_revision', { instructions: '应该是泰姆菲尔德家的大小姐', scope: 'document', fields: 'target', terms: ['テイムフィールド'] });
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    const hints = [{ source: 'テイムフィールド家のお嬢様', target: '泰姆菲尔德家的大小姐', cueIds: ['cue-5'] }];
+    opened[0].onSettled({ status: 'ready', checked: 2, proposals: 2, notes: [], knowledgeHints: hints });
+    expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', knowledgeHints: [{ source: 'テイムフィールド家のお嬢様', target: '泰姆菲尔德家的大小姐' }] });
+    opened[0].preset.onApplied!(2, hints);
+    await vi.waitFor(() => expect(reported).toHaveLength(1));
+    expect(reported[0]).toEqual({ kind: 'revision_applied', values: { count: 2, hintCount: 1, hints: 'テイムフィールド家のお嬢様 → 泰姆菲尔德家的大小姐' } });
+  });
+});
+
+describe('consistency checks the assistant starts', () => {
+  const result = { checkedLines: 4, usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, documents: [{ documentId: 'doc-1', revision: 7, name: 'episode.srt' }],
+    groups: [{ id: 'g1', kind: 'translation' as const, source: 'テイムフィールド家のお嬢様', recommended: '泰姆菲尔德家的大小姐', spellings: [{ text: 'テイムフィールド家のお嬢様', count: 4, occurrences: [] }],
+      variants: [{ text: '泰姆菲尔德家的大小姐', count: 3, occurrences: [] }, { text: '时间菲尔德家的大小姐', count: 1, occurrences: [] }] }] };
+  it('opens and runs the check, then returns the groups for the user to unify', async () => {
+    const started: { focus?: string; onSettled: (outcome: import('./StudioConsistencyCheck').ConsistencyOutcome) => void }[] = [];
+    const { value } = deps({ openConsistency: (focus, onSettled) => { started.push({ focus, onSettled }); return true; }, consistencyOpen: () => false });
+    const tools = createStudioAgentTools(value);
+    const pending = call(tools, 'studio_check_consistency', { focus: '人名' });
+    await vi.waitFor(() => expect(started).toHaveLength(1));
+    expect(started[0].focus).toBe('人名');
+    started[0].onSettled({ status: 'ready', result });
+    expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', groups: 1, checkedLines: 4,
+      summary: [{ source: 'テイムフィールド家のお嬢様', kind: 'translation', recommended: '泰姆菲尔德家的大小姐', variants: [{ text: '泰姆菲尔德家的大小姐', count: 3 }, { text: '时间菲尔德家的大小姐', count: 1 }] }] });
+  });
+  it('refuses without a document, while a check is open, or when there is nothing to check', async () => {
+    const open = deps({ openConsistency: () => true, consistencyOpen: () => true });
+    expect(await call(createStudioAgentTools(open.value), 'studio_check_consistency', {})).toMatchObject({ success: false, error: 'consistency_already_open' });
+    const empty = deps({ openConsistency: () => false, consistencyOpen: () => false });
+    expect(await call(createStudioAgentTools(empty.value), 'studio_check_consistency', {})).toMatchObject({ success: false, error: 'empty_document' });
+    const none = deps({ page: () => null, openConsistency: () => true });
+    expect((await call(createStudioAgentTools(none.value), 'studio_check_consistency', {})).success).toBe(false);
+    const cancelled = deps({ openConsistency: (_focus, onSettled) => { onSettled({ status: 'cancelled' }); return true; }, consistencyOpen: () => false });
+    expect(await call(createStudioAgentTools(cancelled.value), 'studio_check_consistency', {})).toMatchObject({ success: false, error: 'consistency_cancelled' });
+  });
+});

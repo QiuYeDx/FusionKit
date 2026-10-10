@@ -3,6 +3,7 @@ export const SETTING_TAB_KEYS = [
   "proxy",
   "model",
   "audio",
+  "agent",
 ] as const;
 
 export type SettingTabKey = (typeof SETTING_TAB_KEYS)[number];

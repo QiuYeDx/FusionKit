@@ -16,3 +16,13 @@ describe("official Agent capability catalog", () => {
     }
   });
 });
+
+describe("translation materials capability", () => {
+  it("lists the knowledge tools the agent can call", async () => {
+    const { AGENT_CAPABILITIES } = await import("./capability-catalog");
+    const { knowledgeAgentTools } = await import("./knowledge-tools");
+    const operations = AGENT_CAPABILITIES.find(item => item.toolKey === "translationKnowledge")!.operations;
+    expect(operations).toEqual(["search_translation_knowledge", "list_translation_knowledge_catalog", "prepare_knowledge_changes"]);
+    for (const name of operations) expect(knowledgeAgentTools).toHaveProperty(name);
+  });
+});

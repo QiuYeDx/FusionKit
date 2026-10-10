@@ -10,6 +10,7 @@ describe("setting navigation", () => {
   it("accepts known tabs and falls back to general", () => {
     expect(resolveSettingTab("audio")).toBe("audio");
     expect(resolveSettingTab("proxy")).toBe("proxy");
+    expect(resolveSettingTab("agent")).toBe("agent");
     expect(resolveSettingTab("unknown")).toBe("general");
     expect(resolveSettingTab(null)).toBe("general");
   });

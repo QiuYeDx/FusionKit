@@ -18,6 +18,7 @@ import { BilingualService } from './bilingual-service';
 import { TranslationTrackService } from './translation-track-service';
 import { CueEditService } from './cue-edit-service';
 import { CueRevisionService } from './cue-revision-service';
+import { ConsistencyService } from './consistency-service';
 import { BatchService } from './batch-service';
 import { selectLibrary } from './library-service';
 import { STUDIO_BATCH_LIMIT, type BatchImportResult } from '../../../src/subtitle-studio/batch-contract';
@@ -51,7 +52,8 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   const bilingual = new BilingualService(repository);
   const tracks = new TranslationTrackService(repository);
   const cueEdits = new CueEditService(repository);
-  const cueRevisions = new CueRevisionService(repository);
+  const cueRevisions = new CueRevisionService(repository, undefined, readKnowledge);
+  const consistency = new ConsistencyService(repository, undefined, readKnowledge);
   const exports = new ExportService(repository);
   const batches = new BatchService(repository, translation);
   const sources = new SourceLocationService(repository);
@@ -74,7 +76,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   function forgetOwner(id: number) {
     const owner = owners.get(id);
     owners.delete(id);
-    for (const service of [translation, exports, batches, knowledgeTrial, knowledgeTranslation, knowledgeBatchTranslation, cueRevisions]) {
+    for (const service of [translation, exports, batches, knowledgeTrial, knowledgeTranslation, knowledgeBatchTranslation, cueRevisions, consistency]) {
       try { service.forgetOwner(id); } catch (error) { retirementFailures.push(error); }
     }
     if (!owner || !runtime) return;
@@ -184,6 +186,13 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
         if (method === 'createKnowledgeTranslation') {
           const value = await knowledgeTranslation.start(event.sender.id, requestSchemas.createKnowledgeTranslation.parse(payload), alive);
           alive(); return { ok: true, value };
+        }
+        if (method === 'cancelConsistency') { consistency.cancel(event.sender.id, requestSchemas.cancelConsistency.parse(payload).requestId); return { ok: true, value: null }; }
+        if (method === 'checkConsistency') {
+          const request = requestSchemas.checkConsistency.parse(payload);
+          if (request.documents.some(item => !owner.documents.has(item.documentId))) throw new StudioError('access_denied');
+          const value = await consistency.check(event.sender.id, request, alive); alive();
+          return { ok: true, value };
         }
         if (method === 'cancelCueRevision') { cueRevisions.cancel(event.sender.id, requestSchemas.cancelCueRevision.parse(payload).requestId); return { ok: true, value: null }; }
         if (method === 'findCues') {
@@ -486,7 +495,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
       }).catch(error => { shutdown = undefined; throw error; });
       try { automaticCleanup = automaticTranslation.shutdown(); } catch (error) { retirementFailures.push(error); }
       for (const id of owners.keys()) forgetOwner(id);
-      for (const cleanup of [() => exports.dispose(), () => batches.dispose(), () => cueRevisions.dispose(), unsubscribe,
+      for (const cleanup of [() => exports.dispose(), () => batches.dispose(), () => cueRevisions.dispose(), () => consistency.dispose(), unsubscribe,
         () => allowed.clear(), () => ipcMain.removeAllListeners(STUDIO_CHANNELS.register), () => ipcMain.removeHandler(STUDIO_CHANNELS.importDroppedSubtitles), () => ipcMain.removeHandler(STUDIO_CHANNELS.dropTranscriptionMedia),
         ...(Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]).map(method => () => ipcMain.removeHandler(STUDIO_CHANNELS[method]))]) {
         try { cleanup(); } catch (error) { retirementFailures.push(error); }

@@ -11,7 +11,8 @@
     "model_assignment": "模型分配",
     "model_profiles": "模型配置",
     "audio_assignment": "音频任务分配",
-    "audio_apis": "音频 API"
+    "audio_apis": "音频 API",
+    "agent_config": "Agent 设置"
   },
   "nav": {
     "general": {
@@ -29,6 +30,10 @@
     "audio": {
       "label": "音频",
       "hint": "API · 路由 · 分配"
+    },
+    "agent": {
+      "label": "Agent",
+      "hint": "联网查询资料"
     }
   },
   "fields": {
@@ -261,5 +266,42 @@
     "model_key": "请输入 Model Key",
     "proxy_host": "127.0.0.1",
     "proxy_port": "7890"
+  },
+  "agent": {
+    "web": {
+      "label": "允许 Agent 联网查询资料",
+      "description": "开启后，Agent 可以检索下面开启的网站，核对人名、地名和术语的译法。只发送检索词和网页链接，不会发送你的字幕或翻译资料。"
+    },
+    "sources": {
+      "title": "检索来源",
+      "note": "这些网站无需账号或密钥。网页内容只作为参考，Agent 存入翻译资料前都会请你确认，网上查到的条目默认待审核。",
+      "wikipedia": {
+        "name": "维基百科",
+        "description": "首选来源，适合一般词条，支持中文、日文和英文。"
+      },
+      "moegirl": {
+        "name": "萌娘百科（镜像）",
+        "description": "动画、游戏、角色等二次元内容。官方站点限制程序访问，经镜像 moegirl.uk 读取。"
+      },
+      "baidu_baike": {
+        "name": "百度百科",
+        "description": "中文词条的摘要和信息栏。"
+      },
+      "biligame": {
+        "name": "B 站游戏 Wiki",
+        "description": "游戏中的角色、地点和道具名称。需填写 Wiki 代号。"
+      },
+      "bing": {
+        "name": "必应搜索",
+        "description": "一般网页搜索，可限定到游戏官网等站点查官方译名。"
+      }
+    },
+    "biligame": {
+      "label": "B 站游戏 Wiki 代号",
+      "placeholder": "例如 zzz, sr",
+      "hint": "代号是网址中的路径，如 wiki.biligame.com/zzz；用逗号分隔，第一个作为默认。",
+      "invalid": "代号格式不正确：{{codes}}。只能使用小写字母、数字、下划线和短横线。",
+      "too_many": "最多填写 {{count}} 个代号。"
+    }
   }
 }

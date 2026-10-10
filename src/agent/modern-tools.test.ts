@@ -345,31 +345,7 @@ describe("transcription preparation ownership", () => {
   });
 });
 
-describe("local handoff and knowledge projection", () => {
-  it("paginates matched entries, collections and recipes independently beyond the first page", async () => {
-    const entries = Array.from({ length: 3 }, (_, index) => ({ id: `entry-${index}`, revision: 1, title: `Match entry ${index}`, collectionId,
-      state: "candidate", kind: "term", scope: { languagePair: { source: "ja", target: "zh-Hans" } }, payload: { source: "source", target: "target" } }));
-    const collections = Array.from({ length: 4 }, (_, index) => ({ id: `collection-${index}`, name: `Match collection ${index}`, archived: false }));
-    const recipes = Array.from({ length: 2 }, (_, index) => ({ id: `recipe-${index}`, name: `Match recipe ${index}`, archived: false,
-      languagePair: { source: "ja", target: "zh-Hans" } }));
-    knowledge.read.mockResolvedValue({ ok: true, value: { generation: 1, approvals: {}, data: { entries,
-      collections: [...collections, { id: "archived", name: "Match archived", archived: true }, { id: "other", name: "Unrelated", archived: false }], recipes } } });
-    const first = (await call("search_translation_knowledge", { query: "Match", limit: 2 })).data;
-    const second = (await call("search_translation_knowledge", { query: "Match", limit: 2, offset: 2 })).data;
-    const last = (await call("search_translation_knowledge", { query: "Match", limit: 2, offset: 4 })).data;
-    expect(first.pagination).toEqual({ offset: 0, limit: 2,
-      entries: { total: 3, hasMore: true, nextOffset: 2 }, collections: { total: 4, hasMore: true, nextOffset: 2 }, recipes: { total: 2, hasMore: false, nextOffset: null } });
-    expect(second.pagination).toEqual({ offset: 2, limit: 2,
-      entries: { total: 3, hasMore: false, nextOffset: null }, collections: { total: 4, hasMore: false, nextOffset: null }, recipes: { total: 2, hasMore: false, nextOffset: null } });
-    for (const key of ["entries", "collections", "recipes"] as const) {
-      const ids = [...first[key], ...second[key]].map((item: { id: string }) => item.id);
-      expect(new Set(ids).size).toBe(ids.length);
-      expect(ids).toEqual(({ entries, collections, recipes })[key].map(item => item.id));
-      expect(last[key]).toEqual([]);
-      expect(last.pagination[key]).toMatchObject({ hasMore: false, nextOffset: null });
-    }
-    expect(second.total).toBe(3); expect(second.offset).toBe(2);
-  });
+describe("local handoff", () => {
   it("rejects unsupported classic output formats without changing preferences", async () => {
     expect(await call("configure_local_transcription", { outputFormats: ["VTT"] })).toMatchObject({ success: false, error: "invalid_tool_arguments" });
   });
@@ -383,14 +359,6 @@ describe("local handoff and knowledge projection", () => {
     expect(await call("configure_local_transcription", { language: "ja", outputFormats: ["SRT", "LRC"] })).toMatchObject({ success: true, data: { executionStatus: "configured", route: "/tools/subtitle/local-transcriber" } });
     expect(useLocalSubtitleTranscriberStore.getState().preferences.language).toBe("ja");
     expect(useLocalSubtitleTranscriberStore.getState().draftInputFiles).toBe(originalInputs);
-  });
-  it("returns bounded matched summaries and review state without raw library evidence", async () => {
-    const entry = { id: documentId, revision: 2, title: "Test term", collectionId, state: "ready", kind: "term", scope: { languagePair: { source: "ja", target: "zh-Hans" } }, payload: { source: "source", target: "x".repeat(800) }, evidence: [{ sourceId: "private-evidence" }] };
-    knowledge.read.mockResolvedValueOnce({ ok: true, value: { generation: 1, approvals: {}, data: { entries: [entry, entry], collections: [{ id: collectionId, name: "Test collection", archived: false }], recipes: [], sources: [{ excerpt: "PRIVATE RAW EVIDENCE" }] } } });
-    const result = await call("search_translation_knowledge", { query: "Test", limit: 1 });
-    expect(result.data.entries).toHaveLength(1); expect(result.data.entries[0].state).toBe("unconfirmed");
-    expect(result.data.entries[0].summary.length).toBeLessThanOrEqual(400);
-    expect(JSON.stringify(result)).not.toMatch(/PRIVATE RAW EVIDENCE|private-evidence/);
   });
 });
 

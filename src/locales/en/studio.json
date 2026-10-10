@@ -792,7 +792,8 @@
       "review": "review {{count}} translations",
       "unreview": "clear {{count}} review marks",
       "delete": "delete {{count}} subtitles",
-      "revise": "AI revision of {{count}} subtitles"
+      "revise": "AI revision of {{count}} subtitles",
+      "unify": "unify wording in {{count}} cue(s)"
     }
   },
   "cue_help": {
@@ -902,7 +903,11 @@
       "found": "and found {{count}} related subtitles",
       "lines": "Lines {{lines}}",
       "all": "Checked all {{count}} subtitles one by one"
-    }
+    },
+    "materials": "Using translation knowledge: {{names}}",
+    "materials_more": "{{first}} and {{count}} in all",
+    "materials_separator": ", ",
+    "knowledge_hint": "After applying, you can keep {{count}} wording(s) in translation knowledge"
   },
   "agent": {
     "suggest_fix": "Fix a misheard word",
@@ -911,5 +916,56 @@
     "suggest_terms_prompt": "Check whether names and terms are spelled consistently in these subtitles, and prepare revisions where they are not.",
     "suggest_summary": "Summarize",
     "suggest_summary_prompt": "Summarize what the open subtitle document is about."
+  },
+  "knowledge_offer": {
+    "text": "The AI revision settled {{count}} wording(s) you can keep in translation knowledge for consistent translations.",
+    "action": "Keep in translation knowledge"
+  },
+  "consistency": {
+    "title": "Terminology consistency",
+    "description_one": "Find names and terms written more than one way in this document’s {{count}} cues. Suggestions only; nothing changes until you confirm.",
+    "description_many": "Find names and terms written more than one way across {{documents}} documents ({{count}} cues). Suggestions only; nothing changes until you confirm.",
+    "focus": "Focus",
+    "focus_placeholder": "Focus (optional), such as names and places",
+    "too_large": "Check at most {{documents}} documents and {{count}} cues at a time; select fewer documents.",
+    "checking": "Checking {{count}} cues…",
+    "applied": "Unified {{groups}} group(s): {{count}} cue(s) changed in {{documents}} document(s).",
+    "undone": "This unification was undone.",
+    "skipped_changed": "“{{name}}” changed after the check and was skipped; check again.",
+    "skipped_unavailable": "“{{name}}” could not be read and was skipped.",
+    "skipped_too_many": "“{{name}}” needs more changes than one edit allows and was skipped.",
+    "skipped_busy": "“{{name}}” is being translated and was skipped.",
+    "result": "Results",
+    "summary": "{{count}} group(s) written more than one way ({{total}} cues checked)",
+    "none": "Checked {{total}} cues; every name and term is written one way.",
+    "footnote": "Uses the AI translation model; unifying only replaces text, without the model.",
+    "close": "Done",
+    "undo": "Undo this unification",
+    "recheck": "Check again",
+    "check": "Check",
+    "apply": "Unify {{groups}} group(s) ({{count}} cues)",
+    "kind_translation": "Translated differently",
+    "kind_source": "Spelled differently",
+    "kind_knowledge": "Not as in materials",
+    "places": "{{count}} places",
+    "apply_group": "Unify “{{source}}”",
+    "standard": "Standard wording",
+    "from_materials": "Materials",
+    "recommended": "Suggested",
+    "custom": "Custom",
+    "custom_label": "Custom standard wording",
+    "fix_source": "Also unify how the source writes it",
+    "unfixable": "{{count}} translation(s) do not use “{{target}}” and cannot be replaced directly",
+    "revise_lines": "Revise these {{count}} with AI",
+    "revise_instructions": "“{{source}}” should be translated as “{{target}}”; fix the translations of these lines.",
+    "keep": "Keep in translation knowledge",
+    "hide_places": "Hide places",
+    "show_places": "Show places",
+    "open": "Terminology consistency",
+    "open_documents": "Check terminology consistency",
+    "keep_hint": "Keep the {{count}} unified wording(s) in translation knowledge for consistent translations.",
+    "keep_open": "Keep in translation knowledge",
+    "source_standard": "Unify the source to",
+    "most_common": "Most common"
   }
 }

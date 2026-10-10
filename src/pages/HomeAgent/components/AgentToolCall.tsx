@@ -32,6 +32,8 @@ const toolNameKeys = {
   get_local_transcription_status: "home:tool_name_local_status",
   configure_local_transcription: "home:tool_name_configure_transcription",
   search_translation_knowledge: "home:tool_name_search_knowledge",
+  list_translation_knowledge_catalog: "home:tool_name_knowledge_catalog",
+  prepare_knowledge_changes: "home:tool_name_prepare_knowledge",
   open_app_page: "home:tool_name_open_page",
   subtitle_translator_update_settings: "home:tool_name_update_settings",
   subtitle_converter_update_settings: "home:tool_name_update_settings",
@@ -40,6 +42,9 @@ const toolNameKeys = {
   studio_read_cues: "home:tool_name_read_cues",
   studio_find_cues: "home:tool_name_find_cues",
   studio_prepare_revision: "home:tool_name_prepare_revision",
+  studio_check_consistency: "home:tool_name_check_consistency",
+  web_search: "home:tool_name_web_search",
+  web_read: "home:tool_name_web_read",
 } as const;
 
 /**

@@ -11,11 +11,15 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import { usePreparedActionsStore } from "@/agent/prepared-actions";
 
 /** Tools a page lends to the assistant while it is open (see src/agent/page-context.ts). */
-const PAGE_TOOLS = ["open_app_page", "studio_read_cues", "studio_find_cues", "studio_prepare_revision",
+const PAGE_TOOLS = ["open_app_page", "studio_read_cues", "studio_find_cues", "studio_prepare_revision", "studio_check_consistency",
   "subtitle_translator_update_settings", "subtitle_converter_update_settings", "subtitle_extractor_update_settings", "name_translator_update_settings"];
+const WEB_TOOLS = ["web_search", "web_read"];
+const webSourceKeys = { wikipedia: "home:web_source_wikipedia", moegirl: "home:web_source_moegirl", baidu_baike: "home:web_source_baidu_baike",
+  biligame: "home:web_source_biligame", bing: "home:web_source_bing" } as const;
+const hostOf = (url: unknown) => { try { return new URL(String(url)).hostname.replace(/^www\./, ""); } catch { return ""; } };
 
 export function isModernToolResult(toolName: string) {
-  return PAGE_TOOLS.includes(toolName) || toolName === "list_agent_capabilities" || toolName === "update_agent_plan" || toolName === "get_classic_subtitle_tasks" || AGENT_CAPABILITIES.some(capability => (capability.operations as readonly string[]).includes(toolName) && !["translator", "converter", "extractor"].includes(capability.toolKey));
+  return PAGE_TOOLS.includes(toolName) || WEB_TOOLS.includes(toolName) || toolName === "list_agent_capabilities" || toolName === "update_agent_plan" || toolName === "get_classic_subtitle_tasks" || AGENT_CAPABILITIES.some(capability => (capability.operations as readonly string[]).includes(toolName) && !["translator", "converter", "extractor"].includes(capability.toolKey));
 }
 
 const classicLabels = { translate: "home:capability_translator", convert: "home:capability_converter", extract: "home:capability_extractor" } as const;
@@ -42,6 +46,12 @@ export function toolResultSummary(result: ToolResult, t: TFunction): string | un
     return undefined;
   }
   if (result.toolName === "update_agent_plan") return t("home:result_plan_updated");
+  if (result.toolName === "web_search") return t("home:result_web_search", { source: Object.prototype.hasOwnProperty.call(webSourceKeys, data.source)
+    ? t(webSourceKeys[data.source as keyof typeof webSourceKeys]) : String(data.source ?? ""),
+    count: Array.isArray(data.results) ? data.results.length : 0 });
+  if (result.toolName === "web_read") return t("home:result_web_read", { title: typeof data.title === "string" ? data.title : hostOf(data.url), site: String(data.site ?? hostOf(data.url)) });
+  if (result.toolName === "studio_check_consistency" && data.status === "awaiting_user_review") return Number(data.groups) > 0
+    ? t("home:result_consistency", { count: Number(data.groups), checked: Number(data.checkedLines ?? 0) }) : t("home:result_consistency_none", { checked: Number(data.checkedLines ?? 0) });
   if (data.status === "awaiting_user_review") return Number(data.proposedRevisions) > 0
     ? t("home:result_revision_ready", { count: Number(data.proposedRevisions), checked: Number(data.checkedCues ?? 0) })
     : t("home:result_revision_none", { checked: Number(data.checkedCues ?? 0) });
@@ -53,9 +63,12 @@ export function toolResultSummary(result: ToolResult, t: TFunction): string | un
   if (data.executionStatus === "prepared") return t("home:result_preparation_created");
   if (data.executionStatus === "submitted" || data.executionStatus === "queued") return t("home:result_submitted");
   if (data.executionStatus === "configured") return t("home:result_configured");
+  if (data.executionStatus === "unchanged") return t("home:result_knowledge_unchanged");
   if (typeof data.importedCount === "number") return t("home:result_imported", { count: data.importedCount, total: Number(data.total ?? data.importedCount) });
   if (TASK_QUERIES.includes(result.toolName) && typeof data.total === "number") return t("home:result_tasks", { count: data.total });
-  if (result.toolName === "search_translation_knowledge") return t("home:result_knowledge", { entries: Array.isArray(data.entries) ? data.entries.length : 0, collections: Array.isArray(data.collections) ? data.collections.length : 0, recipes: Array.isArray(data.recipes) ? data.recipes.length : 0 });
+  if (result.toolName === "search_translation_knowledge") return t("home:result_knowledge", { entries: Number(data.pagination?.entries?.total ?? (Array.isArray(data.entries) ? data.entries.length : 0)),
+    collections: Number(data.pagination?.collections?.total ?? (Array.isArray(data.collections) ? data.collections.length : 0)) });
+  if (result.toolName === "list_translation_knowledge_catalog") return t("home:result_knowledge_catalog", { collections: Number(data.pagination?.collections?.total ?? 0), subjects: Number(data.pagination?.subjects?.total ?? 0) });
   if (typeof data.total === "number") return t("home:result_found", { count: data.total });
   if (Array.isArray(data.tools)) return t("home:result_capabilities", { count: data.tools.length });
   return undefined;
@@ -119,6 +132,11 @@ export default function ToolResultDetails({ result }: { result: ToolResult }) {
       const names = Array.isArray(data[kind]) ? (data[kind] as unknown[]).map(value => objectValue(value).name).filter((name): name is string => typeof name === "string") : [];
       return names.length > 0 && <p key={kind} className="text-muted-foreground [overflow-wrap:anywhere]">{t(kind === "collections" ? "home:result_collections" : "home:result_recipes")}: {names.slice(0, 5).join(" · ")}</p>;
     }) : []),
+    result.toolName === "web_search" && Array.isArray(data.results) && data.results.length > 0 && <ul key="web" className="space-y-1">
+      {(data.results as unknown[]).slice(0, 5).map((value, index) => { const hit = objectValue(value);
+        return <li key={index} className="min-w-0 [overflow-wrap:anywhere]"><span>{String(hit.title ?? "")}</span><span className="text-muted-foreground"> · {hostOf(hit.url)}</span></li>; })}
+    </ul>,
+    result.toolName === "web_read" && typeof data.url === "string" && <p key="web" className="text-muted-foreground [overflow-wrap:anywhere]">{data.url}</p>,
     preparationReceipt && receipt?.phase === "submission" && preparationReceipt.failureCount === 0 && <AgentActionReceipt key="preparation" receipt={preparationReceipt} />,
     receipt && receipt.failureCount === 0 && (data.executionStatus !== "prepared" || !hasCurrentAction) && <AgentActionReceipt key="receipt" receipt={receipt} />,
     classicStores.length > 0 && <div key="stores" className="flex flex-wrap gap-1.5">

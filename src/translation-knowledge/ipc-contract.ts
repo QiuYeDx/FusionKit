@@ -15,6 +15,7 @@ export interface ImportPreview { planId: string; generation: number; packageName
 export interface ImportDecision { id: string; action: 'keep' | 'replace' | 'copy' | 'skip' }
 export interface CommitImportRequest { planId: string; decisions: ImportDecision[]; adoptReady: boolean }
 export interface SaveRecordRequest { generation: number; group: EntityGroup; record: KnowledgeEntity; source?: Source; adopt?: boolean }
+export interface SaveRecordsRequest { generation: number; items: Omit<SaveRecordRequest, 'generation'>[] }
 export interface ReviewEntriesRequest { generation: number; ids: string[]; action: 'adopt' | 'reject' | 'archive' }
 export interface ExportRequest { generation: number; purpose: 'backup' | 'share'; collectionIds: string[]; includeMemories: boolean }
 export interface ExportReceipt { fileName: string; entries: number; purpose: 'backup' | 'share' }
@@ -24,6 +25,8 @@ export interface TranslationKnowledgeApi {
   importDroppedFile(file: File): Promise<KnowledgeResult<ImportPreview>>;
   commitImport(request: CommitImportRequest): Promise<KnowledgeResult<ImportReceipt>>;
   saveRecord(request: SaveRecordRequest): Promise<KnowledgeResult<LibrarySnapshot>>;
+  /** Up to 200 saves in one transaction: all are published together or none is. */
+  saveRecords(request: SaveRecordsRequest): Promise<KnowledgeResult<LibrarySnapshot>>;
   reviewEntries(request: ReviewEntriesRequest): Promise<KnowledgeResult<LibrarySnapshot>>;
   planMaintenance(request: MaintenanceRequest): Promise<KnowledgeResult<MaintenancePreview>>;
   commitMaintenance(request: MaintenanceCommit): Promise<KnowledgeResult<MaintenanceReceipt>>;
@@ -38,6 +41,7 @@ export const KNOWLEDGE_CHANNELS = {
   importDroppedFile: 'translation-knowledge:import-dropped-file',
   commitImport: 'translation-knowledge:commit-import',
   saveRecord: 'translation-knowledge:save-record',
+  saveRecords: 'translation-knowledge:save-records',
   reviewEntries: 'translation-knowledge:review-entries',
   planMaintenance: 'translation-knowledge:plan-maintenance',
   commitMaintenance: 'translation-knowledge:commit-maintenance',

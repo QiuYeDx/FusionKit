@@ -27,6 +27,7 @@ export function createTranslationKnowledgeApi(ipc: {
     },
     commitImport: request => invoke(KNOWLEDGE_CHANNELS.commitImport, request),
     saveRecord: request => invoke(KNOWLEDGE_CHANNELS.saveRecord, request),
+    saveRecords: request => invoke(KNOWLEDGE_CHANNELS.saveRecords, request),
     reviewEntries: request => invoke(KNOWLEDGE_CHANNELS.reviewEntries, request),
     planMaintenance: request => invoke(KNOWLEDGE_CHANNELS.planMaintenance, request),
     commitMaintenance: request => invoke(KNOWLEDGE_CHANNELS.commitMaintenance, request),

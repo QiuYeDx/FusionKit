@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AudioLines,
+  Bot,
   Settings as SettingsIcon,
   Globe,
   Cpu,
@@ -15,6 +16,7 @@ import GeneralConfig from "./components/GeneralConfig";
 import ModelConfig from "./components/ModelConfig";
 import ProxyConfig from "./components/ProxyConfig";
 import AudioApiConfig from "./components/AudioApiConfig";
+import AgentConfig from "./components/AgentConfig";
 import {
   createSettingSearchParams,
   resolveAudioSettingsReturnTo,
@@ -34,6 +36,7 @@ const NAV: NavItem[] = [
   { key: "proxy",   labelKey: "setting:nav.proxy.label",   hintKey: "setting:nav.proxy.hint",   icon: Globe },
   { key: "model",   labelKey: "setting:nav.model.label",   hintKey: "setting:nav.model.hint",   icon: Cpu },
   { key: "audio",   labelKey: "setting:nav.audio.label",   hintKey: "setting:nav.audio.hint",   icon: AudioLines },
+  { key: "agent",   labelKey: "setting:nav.agent.label",   hintKey: "setting:nav.agent.hint",   icon: Bot },
 ];
 
 const EASE_OUT_QUAD = [0.25, 0.46, 0.45, 0.94] as const;
@@ -204,6 +207,7 @@ const Setting: React.FC = () => {
                 {tab === "general" && <GeneralConfig />}
                 {tab === "proxy" && <ProxyConfig />}
                 {tab === "model" && <ModelConfig />}
+                {tab === "agent" && <AgentConfig />}
                 {tab === "audio" && (
                   <AudioApiConfig
                     returnTo={returnTo}

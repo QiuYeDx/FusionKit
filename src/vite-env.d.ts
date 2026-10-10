@@ -14,6 +14,7 @@ interface Window {
   translationKnowledge: import('./translation-knowledge/ipc-contract').TranslationKnowledgeApi;
   speechResources: import('./speech-resources/events').SpeechResourcesNotifications;
   nameTranslation: import('./name-translation/contract').NameTranslationRendererApi;
+  webLookup: import('./web-lookup/contract').WebLookupApi;
   // expose in the `electron/preload/index.ts`
   ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge
   audioApi: import('@/type/audioIpc').AudioRendererApi

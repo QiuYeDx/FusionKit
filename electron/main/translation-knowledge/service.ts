@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { ENTITY_ARRAYS, subjectSchema, collectionSchema, entrySchema, sourceSchema, styleSchema, recipeSchema, preferenceTemplateSchema, knowledgePackageSchema, type Entry, type KnowledgePackage } from '../../../src/translation-knowledge/schemas';
 import { canonicalize, sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
 import { parseKnowledgePackage, validatePackage, type Diagnostic } from '../../../src/translation-knowledge/validation';
-import type { CommitImportRequest, EntityGroup, ExportRequest, ImportItem, ImportPreview, ImportReceipt, KnowledgeEntity, LibrarySnapshot, ReviewEntriesRequest, SaveRecordRequest } from '../../../src/translation-knowledge/ipc-contract';
+import type { CommitImportRequest, EntityGroup, ExportRequest, ImportItem, ImportPreview, ImportReceipt, KnowledgeEntity, LibrarySnapshot, ReviewEntriesRequest, SaveRecordRequest, SaveRecordsRequest } from '../../../src/translation-knowledge/ipc-contract';
 import { diagnostic, KnowledgeServiceError } from './errors';
 import { emptyPackage, KnowledgeRepository, type RepositoryOptions, type StoredLibrary } from './repository';
 import type { MaintenanceCommit, MaintenancePreview, MaintenanceReceipt, MaintenanceRequest } from '../../../src/translation-knowledge/maintenance-contract';
@@ -16,6 +16,7 @@ export { KnowledgeServiceError } from './errors';
 const generation = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const commitSchema = z.strictObject({ planId: z.uuid(), decisions: z.array(z.strictObject({ id: z.uuid(), action: z.enum(['keep', 'replace', 'copy', 'skip']) })).max(20_000), adoptReady: z.boolean() });
 const saveSchema = z.strictObject({ generation, group: z.enum(ENTITY_ARRAYS), record: z.unknown(), source: sourceSchema.optional(), adopt: z.boolean().optional() });
+const saveManySchema = z.strictObject({ generation, items: z.array(z.unknown()).min(1).max(200) });
 const reviewSchema = z.strictObject({ generation, ids: z.array(z.uuid()).min(1).max(20_000), action: z.enum(['adopt', 'reject', 'archive']) });
 const exportSchema = z.strictObject({ generation, purpose: z.enum(['backup', 'share']), collectionIds: z.array(z.uuid()).max(20_000), includeMemories: z.boolean() });
 const entitySchemas = { subjects: subjectSchema, collections: collectionSchema, sources: sourceSchema, entries: entrySchema, styles: styleSchema, recipes: recipeSchema, preferenceTemplates: preferenceTemplateSchema };
@@ -111,6 +112,67 @@ function remap(group: EntityGroup, incoming: KnowledgeEntity, ids: Map<string, s
     if (item.suggestedDestinationCollectionId) item.suggestedDestinationCollectionId = id(item.suggestedDestinationCollectionId);
   }
   return copy;
+}
+
+interface SaveItem { generation: number; group: EntityGroup; record: KnowledgeEntity; source?: KnowledgePackage['sources'][number]; adopt?: boolean }
+function parseSaveItem(request: unknown): SaveItem {
+  const input = parse(saveSchema, request);
+  const record = parse(entitySchemas[input.group] as z.ZodType<KnowledgeEntity>, input.record);
+  if (input.group !== 'entries' && (input.source || input.adopt)) fail('ENTRY_ONLY_ACTION', 'Evidence creation and adoption apply to entries only.');
+  if (input.source && input.source.id === record.id) fail('SOURCE_ID_COLLISION', 'An entry and its evidence source must have different identities.');
+  return { generation: input.generation, group: input.group, record, ...(input.source ? { source: input.source } : {}), ...(input.adopt ? { adopt: true } : {}) };
+}
+function prefixDiagnostics(error: unknown, prefix: string): unknown {
+  if (!(error instanceof KnowledgeServiceError) || !error.diagnostics) return error;
+  return new KnowledgeServiceError(error.code, error.diagnostics.map(item => ({ ...item, path: `${prefix}${item.path && item.path !== '$' ? item.path : ''}` })));
+}
+/**
+ * Apply saves in order inside one transaction. Later items may reference records created by
+ * earlier ones. Returns whether anything changed; throws (and so publishes nothing) on any failure.
+ */
+function commitSaves(state: StoredLibrary, items: SaveItem[]): boolean {
+  const changed = new Set<string>();
+  const adopted: Entry[] = [];
+  let hasChanges = false;
+  for (const item of items) {
+    const existing = records(state.data);
+    const save = (group: EntityGroup, record: KnowledgeEntity): KnowledgeEntity => {
+      const local = existing.get(record.id);
+      if (local && (local.group !== group || local.record.revision !== record.revision)) throw new KnowledgeServiceError('revision_conflict');
+      if (!local && record.revision !== 1) fail('NEW_RECORD_REVISION', 'A new record must start at revision 1.');
+      if (local && canonicalize(local.record) === canonicalize(record)) return local.record;
+      const next = clone(record);
+      if (local) {
+        next.revision = nextRevision(local.record.revision);
+        if (affectsDependents(group, local.record, next)) changed.add(next.id);
+      }
+      put(state.data, group, next);
+      delete state.approvals[next.id];
+      hasChanges = true;
+      return next;
+    };
+    if (item.source) {
+      const old = existing.get(item.source.id);
+      if (!old || old.group !== 'sources' || canonicalize(old.record) !== canonicalize(item.source)) save('sources', item.source);
+    }
+    const entity = save(item.group, item.record);
+    const target = item.group === 'entries' ? entity as Entry : undefined;
+    if (target && item.adopt) {
+      if (target.state !== 'ready') {
+        if (existing.has(target.id) && !changed.has(target.id)) target.revision = nextRevision(target.revision);
+        target.state = 'ready'; changed.add(target.id); hasChanges = true;
+      }
+      adopted.push(target);
+    }
+  }
+  invalidate(state, changed, new Set(adopted.map(entry => entry.id)));
+  checkPackage(state.data);
+  for (const target of adopted) {
+    if (unavailable(target, state.data)) throw new KnowledgeServiceError('import_conflict', [diagnostic('REVIEW_DEPENDENCY_ARCHIVED', 'Restore the required archived dependencies before accepting this entry.')]);
+    if (!isTrusted(state, target)) { approve(state, target, 'human'); hasChanges = true; }
+  }
+  if (hasChanges) delete state.importedOriginal;
+  return hasChanges;
 }
 
 export class KnowledgeService {
@@ -252,49 +314,25 @@ export class KnowledgeService {
   }
 
   async saveRecord(request: SaveRecordRequest, guard?: () => void): Promise<LibrarySnapshot> {
-    const input = parse(saveSchema, request);
-    const identity = parse(entitySchemas[input.group] as z.ZodType<KnowledgeEntity>, input.record);
-    if (input.group !== 'entries' && (input.source || input.adopt)) fail('ENTRY_ONLY_ACTION', 'Evidence creation and adoption apply to entries only.');
+    const item = parseSaveItem(request);
+    return this.repository.transact(state => {
+      requireGeneration(state, item.generation);
+      return commitSaves(state, [item]) ? { state, result: snapshot } : { result: snapshot };
+    }, guard);
+  }
+
+  /** Several saves as one transaction: one generation check, one validation, all or nothing. */
+  async saveRecords(request: SaveRecordsRequest, guard?: () => void): Promise<LibrarySnapshot> {
+    const input = parse(saveManySchema, request);
+    const items = input.items.map((item, index) => {
+      try { return parseSaveItem({ generation: input.generation, ...item as object }); }
+      catch (error) { throw prefixDiagnostics(error, `/items/${index}`); }
+    });
+    const ids = items.flatMap(item => [item.record.id, ...(item.source ? [item.source.id] : [])]);
+    if (new Set(ids).size !== ids.length) fail('DUPLICATE_BATCH_RECORD', 'Each record and evidence source may appear once in a batch.', '/items');
     return this.repository.transact(state => {
       requireGeneration(state, input.generation);
-      const existing = records(state.data);
-      const changed = new Set<string>();
-      let hasChanges = false;
-      const save = (group: EntityGroup, record: KnowledgeEntity): KnowledgeEntity => {
-        const local = existing.get(record.id);
-        if (local && (local.group !== group || local.record.revision !== record.revision)) throw new KnowledgeServiceError('revision_conflict');
-        if (!local && record.revision !== 1) fail('NEW_RECORD_REVISION', 'A new record must start at revision 1.');
-        if (local && canonicalize(local.record) === canonicalize(record)) return local.record;
-        const next = clone(record);
-        if (local) {
-          next.revision = nextRevision(local.record.revision);
-          if (affectsDependents(group, local.record, next)) changed.add(next.id);
-        }
-        put(state.data, group, next);
-        delete state.approvals[next.id];
-        hasChanges = true;
-        return next;
-      };
-      if (input.source) {
-        if (input.source.id === identity.id) fail('SOURCE_ID_COLLISION', 'An entry and its evidence source must have different identities.');
-        const old = existing.get(input.source.id);
-        if (!old || old.group !== 'sources' || canonicalize(old.record) !== canonicalize(input.source)) save('sources', input.source);
-      }
-      const entity = save(input.group, identity);
-      const target = input.group === 'entries' ? entity as Entry : undefined;
-      if (target && input.adopt && target.state !== 'ready') {
-        if (existing.has(target.id) && !changed.has(target.id)) target.revision = nextRevision(target.revision);
-        target.state = 'ready'; changed.add(target.id); hasChanges = true;
-      }
-      invalidate(state, changed, target && input.adopt ? new Set([target.id]) : undefined);
-      checkPackage(state.data);
-      if (target && input.adopt) {
-        if (unavailable(target, state.data)) throw new KnowledgeServiceError('import_conflict', [diagnostic('REVIEW_DEPENDENCY_ARCHIVED', 'Restore the required archived dependencies before accepting this entry.')]);
-        if (!isTrusted(state, target)) { approve(state, target, 'human'); hasChanges = true; }
-      }
-      if (!hasChanges) return { result: snapshot };
-      delete state.importedOriginal;
-      return { state, result: snapshot };
+      return commitSaves(state, items) ? { state, result: snapshot } : { result: snapshot };
     }, guard);
   }
 

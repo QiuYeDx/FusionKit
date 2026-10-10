@@ -11,7 +11,8 @@
     "model_assignment": "モデル割り当て",
     "model_profiles": "モデル構成",
     "audio_assignment": "音声タスク割り当て",
-    "audio_apis": "音声 API"
+    "audio_apis": "音声 API",
+    "agent_config": "Agent 設定"
   },
   "nav": {
     "general": {
@@ -29,6 +30,10 @@
     "audio": {
       "label": "音声",
       "hint": "API · ルート · 割り当て"
+    },
+    "agent": {
+      "label": "Agent",
+      "hint": "Web で資料を調べる"
     }
   },
   "fields": {
@@ -261,5 +266,42 @@
     "model_key": "Model Key を入力してください",
     "proxy_host": "127.0.0.1",
     "proxy_port": "7890"
+  },
+  "agent": {
+    "web": {
+      "label": "Agent に Web 検索を許可",
+      "description": "オンにすると、Agent は下で有効にしたサイトを検索し、人名・地名・用語の訳し方を確かめます。送信するのは検索語とページのリンクだけで、字幕や翻訳資料は送信しません。"
+    },
+    "sources": {
+      "title": "検索先",
+      "note": "これらのサイトはアカウントやキーが不要です。ページの内容は参考情報として扱い、翻訳資料に保存する前に必ず確認を求めます。Web で見つけた項目は既定で要確認になります。",
+      "wikipedia": {
+        "name": "Wikipedia",
+        "description": "最初に使う検索先。一般的な項目向けで、中国語・日本語・英語に対応します。"
+      },
+      "moegirl": {
+        "name": "萌娘百科（ミラー）",
+        "description": "アニメ・ゲーム・キャラクターなどの ACG 情報。公式サイトはプログラムからのアクセスを制限しているため、ミラー moegirl.uk から読み取ります。"
+      },
+      "baidu_baike": {
+        "name": "百度百科",
+        "description": "中国語の項目の概要と情報欄。"
+      },
+      "biligame": {
+        "name": "bilibili ゲーム Wiki",
+        "description": "ゲーム内のキャラクター・地名・アイテム名。Wiki コードの入力が必要です。"
+      },
+      "bing": {
+        "name": "Bing 検索",
+        "description": "一般的な Web 検索。ゲーム公式サイトなどに絞って公式訳を調べられます。"
+      }
+    },
+    "biligame": {
+      "label": "bilibili ゲーム Wiki コード",
+      "placeholder": "例: zzz, sr",
+      "hint": "コードは URL のパスです（例: wiki.biligame.com/zzz）。カンマ区切りで、最初のものが既定になります。",
+      "invalid": "コードの形式が正しくありません: {{codes}}。小文字の英字・数字・アンダースコア・ハイフンのみ使えます。",
+      "too_many": "コードは {{count}} 個まで入力できます。"
+    }
   }
 }

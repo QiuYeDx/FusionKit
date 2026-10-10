@@ -48,6 +48,15 @@ const AGENT_PAGE_TITLE_KEYS = [
 
 export const I18N_USAGE_MANIFEST = [
   {
+    // Export content and same-name policy of a prepared transcription pipeline (automatic-export-contract).
+    selector: "src/pages/HomeAgent/components/AgentPreparedActions.tsx#`home:pipeline_content_${values.exportContent}`",
+    keys: ["home:pipeline_content_bilingual", "home:pipeline_content_target", "home:pipeline_content_source"],
+  },
+  {
+    selector: "src/pages/HomeAgent/components/AgentPreparedActions.tsx#`home:pipeline_conflict_${values.exportConflict}`",
+    keys: ["home:pipeline_conflict_indexed", "home:pipeline_conflict_overwrite"],
+  },
+  {
     selector: "src/agent/orchestrator.ts#key",
     keys: AGENT_PAGE_TITLE_KEYS,
   },

@@ -30,6 +30,8 @@ function describe(event: AgentUiEvent): string {
       return `The user confirmed starting ${Number(v.count ?? 0)} queued classic task(s) (${text(v.stores)}). Starting is not completion.`;
     case "execution_dismissed":
       return "The user chose to keep the queued classic tasks in their queues without starting them.";
+    case "revision_applied":
+      return `The user applied the AI revision you prepared in Subtitle Studio: ${Number(v.count ?? 0)} cue(s) changed${Number(v.hintCount ?? 0) ? `. It settled wordings worth keeping in translation materials: ${text(v.hints, 1200)}` : "; it settled no wording worth keeping"}.`;
     case "pipeline_completed":
       return `The transcription batch you submitted has gone as far as it will: ${Number(v.finished ?? 0)} of ${Number(v.total ?? 0)} files finished${v.files ? `; written next to their media: ${text(v.files, 1200)}` : ""}${Number(v.removed ?? 0) ? `; ${Number(v.removed)} file(s) were written and their Studio documents removed as asked` : ""}${Number(v.failed ?? 0) ? `; not finished: ${text(v.problems, 1200)}` : ""}. Nothing confirmed this; it is a status report.`;
   }
@@ -47,6 +49,8 @@ const DISMISSALS = new Set<AgentUiEvent["kind"]>(["rename_dismissed", "action_di
  * does when a plan still has open steps that it changes; otherwise the card already says enough.
  */
 export function shouldFollowUpUiEvent(event: AgentUiEvent, plan: AgentPlan | undefined): boolean {
+  // An applied revision needs a word only when it found wordings to keep or a plan is waiting on it.
+  if (event.kind === "revision_applied") return Number(event.values?.hintCount ?? 0) > 0 || !!plan?.steps.some((step) => step.status !== "completed");
   if (!DISMISSALS.has(event.kind)) return true;
   return !!plan?.steps.some((step) => step.status !== "completed");
 }

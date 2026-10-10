@@ -1,0 +1,150 @@
+{
+  "schema_version": 2,
+  "feature": "agent-knowledge-loop",
+  "tier": "L",
+  "risk": "medium",
+  "current_increment": "I4",
+  "modules": [
+    {
+      "slug": "agent",
+      "code": "AGENT",
+      "path": "modules/module-agent"
+    },
+    {
+      "slug": "knowledge",
+      "code": "KNOWLEDGE",
+      "path": "modules/module-knowledge"
+    },
+    {
+      "slug": "studio",
+      "code": "STUDIO",
+      "path": "modules/module-studio"
+    },
+    {
+      "slug": "web",
+      "code": "WEB",
+      "path": "modules/module-web"
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "Agent 检索与维护翻译资料",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-10 用户提出 Agent 与翻译资料打通、修订后询问沉淀、一致性检查三项想法，要求“先整理梳理一下，好好设计一下……然后先沉淀到一个文档中，再进行开发”。按本规格自主实现 I1 并隔离验证；写入资料仍须用户在卡片上确认；不代签用户验收，不提交推送、不发布，不调用付费 API。 实施中按 Electron 审查与重试场景补充 AC-KNOWLEDGE-02-6（同类同名对象/同名资料集复用、同一 id 重建视为已保存），目的为避免重复资料集，未扩大写入权限或产品范围；相应刷新摘要。",
+        "digest": "3179a1acbdf226e5c54336961d34665191b8737da32198174909abf1c7bd6a26"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "修订后沉淀译法与修订参考资料",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "同 I1：2026-10-10 用户提出“AI修订后……智能地判断是否发现了适合归入/丰富翻译资料的地方，然后询问用户是否要添加到翻译资料中”，并要求先沉淀文档再开发。按本规格自主实现 I2 并隔离验证；写入资料仍须用户在对话框或卡片上确认；不代签验收，不提交推送、不发布，不调用付费 API。",
+        "digest": "edba6b818077ba7aa7b26a723636e80e95d4977c97b14f1732cb3d77ca39357d"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I3",
+      "title": "术语一致性检查",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "同 I1：2026-10-10 用户提出“一键让AI分析当前文档或若干文档之中是否存在一些疑似应该是同一个词语/术语/说法/表达习惯的字幕但没有统一或不够标准的，能够检查并发现，然后让用户确认是否需要修订和完善”，并要求先沉淀文档再开发。Q-02 按可逆默认处理并在交付说明中告知。写入仍由用户在检查窗口确认；不代签验收，不提交推送、不发布，不调用付费 API。 实施中按渲染审查把 AC-STUDIO-05-4 由“统一后打开批量记入对话框”细化为“回执中提供记入按钮，点击打开预填对话框”（避免在检查窗口上叠加对话框），目的不变；相应刷新摘要。",
+        "digest": "131156b1e4dc86c22d2e0f7371755463b7b87595ae7609440d1e79da3308d541"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I4",
+      "title": "联网查证资料",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-10 用户：“可以，按你的建议方案做第四批吧（但是不需要支持什么要填密钥的通用搜索；可以多支持几种搜索源 比如首选的维基百科，二次元相关的优先萌娘百科、百度百科、可选的B站游戏Wiki、主流搜索引擎或相应的游戏官网等）”。按本规格自主实现与隔离验证；不绕过验证码或访问限制；实网验证只做只读公开请求；不提交推送、不发布、不调用付费 API。 2026-10-10 实施中细化（同一授权内、未扩大范围）：实测本机代理为 fake-IP 模式，198.18.0.0/15 不视为内网（R-WEB-02 边界）；中文维基返回简繁混排，语言增加 zh-Hant 并按字形转换（AC-WEB-01-1）；脚本绘制的页面回退到页面描述（R-WEB-01 边界）；web 来源必须是 web_read 读过的页面（资料库要求访问时间，R-AGENT-07 边界）。指纹随之更新。",
+        "digest": "6098b340d4e87c9b15640ae1410b727776bd7a35a001e9c895791d9dfc27aa07"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "Agent 写入资料是否在自动执行模式下自动保存",
+      "resolution": "不自动保存：资料变更卡片在任何执行模式下都需用户确认，与 AI 修订只在预览中应用的既有规则一致（architecture.md 写入边界）。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "Agent 提案条目保存后的默认状态",
+      "resolution": "按依据区分：用户明确说出或亲自修订得到的译法默认保存并启用（human 批准，与快捷记录一致）；AI 推断、字幕归纳、联网所得默认待审核；用户可在卡片上切换。"
+    },
+    {
+      "id": "A-03",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "Agent 可执行的资料写入范围",
+      "resolution": "新建对象/资料集、新建与修改 term/rule/context、归档条目；不提供永久删除、方案/风格修改、导入与维护操作。"
+    },
+    {
+      "id": "Q-01",
+      "increment": "I4",
+      "blocking": true,
+      "state": "resolved",
+      "text": "联网查证的来源选型：默认无需密钥的 MediaWiki 站点（维基百科、萌娘百科、B 站游戏 wiki 等）+ 可选填密钥的通用搜索（Tavily / Brave / 自建 SearXNG）是否可接受；联网开关默认关闭。",
+      "resolution": "2026-10-10 用户确认：按建议做，但不需要支持要填密钥的通用搜索；多支持几种来源：首选维基百科，二次元相关优先萌娘百科、百度百科，可选 B 站游戏 Wiki、主流搜索引擎或游戏官网。实测后：萌娘百科官方限制程序访问，改用镜像 moegirl.uk 并如实标注；百度百科用公开摘要卡片接口；搜索引擎用必应（百度搜索与 DuckDuckGo 返回验证/挑战，不绕过）。联网默认关闭。"
+    },
+    {
+      "id": "Q-02",
+      "increment": "I3",
+      "blocking": true,
+      "state": "resolved",
+      "text": "一致性检查跨文档批量统一的撤销保留方式（仅在本次回执存续期间可撤销，或持久化到文档历史），以及是否允许修改原文（听写错误）。",
+      "resolution": "按推荐默认（可逆，用户可调整）：当前文档的统一进入工作台撤销历史；其他文档在本次检查结果窗口内提供「撤销本次统一」（保存各文档逆操作，窗口关闭后不再提供，可用各文档的编辑历史或再次检查恢复）；原文写法只在用户逐组勾选「同时修正原文」时修改，默认不改。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

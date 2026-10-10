@@ -792,7 +792,8 @@
       "review": "複核 {{count}} 條譯文",
       "unreview": "取消複核 {{count}} 條譯文",
       "delete": "刪除 {{count}} 條字幕",
-      "revise": "AI 修訂 {{count}} 條字幕"
+      "revise": "AI 修訂 {{count}} 條字幕",
+      "unify": "統一 {{count}} 條字幕的寫法"
     }
   },
   "cue_help": {
@@ -902,7 +903,11 @@
       "found": "找到 {{count}} 條相關字幕",
       "lines": "定位到第 {{lines}} 句",
       "all": "逐條檢查全部 {{count}} 條字幕"
-    }
+    },
+    "materials": "參考資料：{{names}}",
+    "materials_more": "{{first}} 等 {{count}} 項",
+    "materials_separator": "、",
+    "knowledge_hint": "套用後可將 {{count}} 條譯法記入翻譯資料"
   },
   "agent": {
     "suggest_fix": "修正辨識錯誤",
@@ -911,5 +916,56 @@
     "suggest_terms_prompt": "檢查這份字幕裡人名和專有名詞的寫法是否前後一致，不一致的地方請準備修訂。",
     "suggest_summary": "概括內容",
     "suggest_summary_prompt": "概括一下目前字幕文件講了什麼。"
+  },
+  "knowledge_offer": {
+    "text": "AI 修訂中有 {{count}} 條譯法可以記入翻譯資料，以後翻譯時保持一致。",
+    "action": "記入翻譯資料"
+  },
+  "consistency": {
+    "title": "術語一致性檢查",
+    "description_one": "檢查本文件 {{count}} 條字幕中寫法不統一的名稱和術語。只給出建議，確認後才修改。",
+    "description_many": "檢查所選 {{documents}} 個文件共 {{count}} 條字幕中寫法不統一的名稱和術語。只給出建議，確認後才修改。",
+    "focus": "重點檢查",
+    "focus_placeholder": "重點檢查（選填），例如：人名和地名",
+    "too_large": "一次最多檢查 {{documents}} 個文件、{{count}} 條字幕，請減少所選文件。",
+    "checking": "正在檢查 {{count}} 條字幕…",
+    "applied": "已統一 {{groups}} 組寫法，修改 {{count}} 條字幕（{{documents}} 個文件）。",
+    "undone": "已復原本次統一。",
+    "skipped_changed": "「{{name}}」在檢查後有改動，已略過；請重新檢查。",
+    "skipped_unavailable": "「{{name}}」無法讀取，已略過。",
+    "skipped_too_many": "「{{name}}」需要修改的字幕超過單次上限，已略過。",
+    "skipped_busy": "「{{name}}」正在翻譯，暫不能修改，已略過。",
+    "result": "檢查結果",
+    "summary": "發現 {{count}} 組寫法不統一（檢查 {{total}} 條）",
+    "none": "檢查了 {{total}} 條，沒有發現寫法不統一的名稱或術語。",
+    "footnote": "使用 AI 翻譯的模型設定；統一時只做文字替換，不再呼叫模型。",
+    "close": "完成",
+    "undo": "復原本次統一",
+    "recheck": "重新檢查",
+    "check": "開始檢查",
+    "apply": "統一 {{groups}} 組（修改 {{count}} 條）",
+    "kind_translation": "譯法不統一",
+    "kind_source": "原文寫法不一",
+    "kind_knowledge": "未按翻譯資料",
+    "places": "{{count}} 處",
+    "apply_group": "統一「{{source}}」",
+    "standard": "標準寫法",
+    "from_materials": "翻譯資料",
+    "recommended": "推薦",
+    "custom": "自訂",
+    "custom_label": "自訂標準寫法",
+    "fix_source": "同時統一原文寫法",
+    "unfixable": "{{count}} 處譯文沒有使用「{{target}}」，無法直接替換",
+    "revise_lines": "用 AI 修訂這 {{count}} 行",
+    "revise_instructions": "「{{source}}」應譯為「{{target}}」，請修正這些行的譯文。",
+    "keep": "記入翻譯資料",
+    "hide_places": "收起出處",
+    "show_places": "查看出處",
+    "open": "術語一致性檢查",
+    "open_documents": "檢查術語一致性",
+    "keep_hint": "統一後的 {{count}} 個寫法可以記入翻譯資料，以後翻譯時保持一致。",
+    "keep_open": "記入翻譯資料",
+    "source_standard": "原文統一為",
+    "most_common": "最常見"
   }
 }

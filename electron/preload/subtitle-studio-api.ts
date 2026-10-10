@@ -87,6 +87,8 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     editCues: request => invoke(STUDIO_CHANNELS.editCues, request),
     locateCueRevision: request => invoke(STUDIO_CHANNELS.locateCueRevision, request),
     reviseCues: request => invoke(STUDIO_CHANNELS.reviseCues, request),
+    checkConsistency: request => invoke(STUDIO_CHANNELS.checkConsistency, request),
+    cancelConsistency: request => invoke(STUDIO_CHANNELS.cancelConsistency, request),
     cancelCueRevision: request => invoke(STUDIO_CHANNELS.cancelCueRevision, request),
     findCues: request => invoke(STUDIO_CHANNELS.findCues, request),
     subscribe: listener => {

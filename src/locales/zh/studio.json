@@ -792,7 +792,8 @@
       "review": "复核 {{count}} 条译文",
       "unreview": "取消复核 {{count}} 条译文",
       "delete": "删除 {{count}} 条字幕",
-      "revise": "AI 修订 {{count}} 条字幕"
+      "revise": "AI 修订 {{count}} 条字幕",
+      "unify": "统一 {{count}} 条字幕的写法"
     }
   },
   "cue_help": {
@@ -902,7 +903,11 @@
       "found": "找到 {{count}} 条相关字幕",
       "lines": "定位到第 {{lines}} 句",
       "all": "逐条检查全部 {{count}} 条字幕"
-    }
+    },
+    "materials": "参考资料：{{names}}",
+    "materials_more": "{{first}} 等 {{count}} 项",
+    "materials_separator": "、",
+    "knowledge_hint": "应用后可将 {{count}} 条译法记入翻译资料"
   },
   "agent": {
     "suggest_fix": "修正识别错误",
@@ -911,5 +916,56 @@
     "suggest_terms_prompt": "检查这份字幕里人名和专有名词的写法是否前后一致，不一致的地方请准备修订。",
     "suggest_summary": "概括内容",
     "suggest_summary_prompt": "概括一下当前字幕文档讲了什么。"
+  },
+  "knowledge_offer": {
+    "text": "AI 修订中有 {{count}} 条译法可以记入翻译资料，以后翻译时保持一致。",
+    "action": "记入翻译资料"
+  },
+  "consistency": {
+    "title": "术语一致性检查",
+    "description_one": "检查本文档 {{count}} 条字幕中写法不统一的名称和术语。只给出建议，确认后才修改。",
+    "description_many": "检查所选 {{documents}} 个文档共 {{count}} 条字幕中写法不统一的名称和术语。只给出建议，确认后才修改。",
+    "focus": "重点检查",
+    "focus_placeholder": "重点检查（可选），例如：人名和地名",
+    "too_large": "一次最多检查 {{documents}} 个文档、{{count}} 条字幕，请减少所选文档。",
+    "checking": "正在检查 {{count}} 条字幕…",
+    "applied": "已统一 {{groups}} 组写法，修改 {{count}} 条字幕（{{documents}} 个文档）。",
+    "undone": "已撤销本次统一。",
+    "skipped_changed": "「{{name}}」在检查后有改动，已跳过；请重新检查。",
+    "skipped_unavailable": "「{{name}}」无法读取，已跳过。",
+    "skipped_too_many": "「{{name}}」需要修改的字幕超过单次上限，已跳过。",
+    "skipped_busy": "「{{name}}」正在翻译，暂不能修改，已跳过。",
+    "result": "检查结果",
+    "summary": "发现 {{count}} 组写法不统一（检查 {{total}} 条）",
+    "none": "检查了 {{total}} 条，没有发现写法不统一的名称或术语。",
+    "footnote": "使用 AI 翻译的模型配置；统一时只做文字替换，不再调用模型。",
+    "close": "完成",
+    "undo": "撤销本次统一",
+    "recheck": "重新检查",
+    "check": "开始检查",
+    "apply": "统一 {{groups}} 组（修改 {{count}} 条）",
+    "kind_translation": "译法不统一",
+    "kind_source": "原文写法不一",
+    "kind_knowledge": "未按翻译资料",
+    "places": "{{count}} 处",
+    "apply_group": "统一「{{source}}」",
+    "standard": "标准写法",
+    "from_materials": "翻译资料",
+    "recommended": "推荐",
+    "custom": "自定义",
+    "custom_label": "自定义标准写法",
+    "fix_source": "同时统一原文写法",
+    "unfixable": "{{count}} 处译文没有使用「{{target}}」，无法直接替换",
+    "revise_lines": "用 AI 修订这 {{count}} 行",
+    "revise_instructions": "「{{source}}」应译为「{{target}}」，请修正这些行的译文。",
+    "keep": "记入翻译资料",
+    "hide_places": "收起出处",
+    "show_places": "查看出处",
+    "open": "术语一致性检查",
+    "open_documents": "检查术语一致性",
+    "keep_hint": "统一后的 {{count}} 个写法可以记入翻译资料，以后翻译时保持一致。",
+    "keep_open": "记入翻译资料",
+    "source_standard": "原文统一为",
+    "most_common": "最常见"
   }
 }

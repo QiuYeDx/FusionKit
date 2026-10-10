@@ -1,8 +1,8 @@
 import { StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
 import { normalizeTranslationModel, type TranslationModel, type TranslationUsage } from '../../../src/subtitle-studio/translation-contract';
 import {
-  buildCueLocateMessages, buildCueRevisionMessages, CUE_REVISION_CHUNK, CUE_REVISION_DOCUMENT_LIMIT, cueRevisionRequestSchemas, mentionsTerm,
-  parseCueLocateResponse, parseCueRevisionResponse, revisesTarget,
+  buildCueLocateMessages, buildCueRevisionMessages, containsWording, CUE_REVISION_CHUNK, CUE_REVISION_DOCUMENT_LIMIT, CUE_REVISION_HINTS_LIMIT, cueRevisionRequestSchemas, mentionsTerm,
+  parseCueLocateResponse, parseCueRevisionResponse, revisesTarget, type CueRevisionHint,
   type CueFindRequest, type CueFindResult, type CueLocateRequest, type CueRevisionContext, type CueRevisionItem, type CueRevisionLocation, type CueRevisionPlan, type CueRevisionProposal, type CueRevisionRequest, type CueRevisionResult,
 } from '../../../src/subtitle-studio/cue-revision-contract';
 import { sendModelRuntimeText, type ModelRuntimeMessage, type ModelRuntimeTextRequest, type ModelRuntimeTextResult } from '../ai/model-runtime-client';
@@ -10,6 +10,9 @@ import { ModelRuntimeClientError } from '../ai/model-runtime-errors';
 import type { DocumentRepository } from './document-repository';
 import { normalizeUsage } from './translation-service';
 import { providerError } from './knowledge-trial';
+import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
+import type { KnowledgeEnvironment, KnowledgeSelection } from '../../../src/translation-knowledge/execution-contract';
+import { compileKnowledge, resolveEnvironment, selectBatchKnowledge } from '../../../src/translation-knowledge/execution';
 
 /** Requests of one call run side by side. */
 const CONCURRENCY = 3;
@@ -64,7 +67,22 @@ export class CueRevisionService {
   private active = new Map<string, Active>();
   private closed = false;
 
-  constructor(private repository: DocumentRepository, private sendText: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = sendModelRuntimeText) {}
+  constructor(private repository: DocumentRepository, private sendText: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = sendModelRuntimeText,
+    private readKnowledge?: () => Promise<LibrarySnapshot>) {}
+
+  /**
+   * The document's translation materials resolved for the cues, or nothing: materials only guide a
+   * revision, so an unreadable library or selection revises without them instead of failing.
+   */
+  private async materials(selection: KnowledgeSelection | undefined, document: SubtitleDocument, cueIds: string[]): Promise<KnowledgeEnvironment | undefined> {
+    if (!selection || !this.readKnowledge || !selection.languagePair.source || (!selection.recipeId && !selection.collectionIds.length)) return undefined;
+    try {
+      const library = await this.readKnowledge();
+      const cues = new Map(document.cues.map(cue => [cue.id, cue]));
+      const environment = resolveEnvironment(library, selection, cueIds.map(id => ({ id, text: cues.get(id)!.source.plain, sourceLanguage: selection.languagePair.source })));
+      return environment.items.length || environment.instructions || environment.context ? environment : undefined;
+    } catch { return undefined; }
+  }
 
   async locate(owner: number, input: CueLocateRequest, guard: () => void = () => {}): Promise<CueRevisionLocation> {
     const parsed = cueRevisionRequestSchemas.locateCueRevision.safeParse(input);
@@ -91,6 +109,10 @@ export class CueRevisionService {
     return this.run(owner, request, guard, async ({ document, track, usage, send, alive }) => {
       const positions = new Map(document.cues.map((cue, index) => [cue.id, index]));
       if (request.cueIds.some(id => !positions.has(id))) throw new StudioError('invalid_input');
+      const translating = !!track && revisesTarget(request.fields);
+      const environment = translating ? await this.materials(request.knowledge, document, request.cueIds) : undefined;
+      alive();
+      let knowledgeItems = 0;
       const context = (index: number): CueRevisionContext | undefined => {
         const cue = document.cues[index];
         if (!cue) return undefined;
@@ -114,9 +136,21 @@ export class CueRevisionService {
       // A failed request stops its siblings without counting as a cancellation by the user.
       const requests = new AbortController();
       const results: ReturnType<typeof parseCueRevisionResponse>[] = new Array(chunks.length);
+      // Each chunk carries only the materials that apply to its lines, projected as for translation.
+      const chunkMaterials = (chunk: (typeof chunks)[number]) => {
+        if (!environment) return {};
+        const compiled = compileKnowledge(selectBatchKnowledge(environment, chunk.map(item => item.cueId)));
+        const ids = new Map(chunk.map(item => [item.cueId, item.id]));
+        const items = compiled.items.map(item => ({ kind: item.kind, required: item.required, payload: item.payload,
+          applicableItemIds: item.applicableCueIds.map(id => ids.get(id)).filter((id): id is string => id !== undefined),
+          ...(item.condition ? { condition: item.condition } : {}) }));
+        knowledgeItems += items.length;
+        return items.length || compiled.context || compiled.instructions
+          ? { translationKnowledge: { background: compiled.context, items }, ...(compiled.instructions ? { translationRequirements: compiled.instructions } : {}) } : {};
+      };
       const runChunk = async (chunk: (typeof chunks)[number]) => parseCueRevisionResponse(await send(buildCueRevisionMessages({
         instructions: request.instructions, fields: request.fields,
-        ...(track && revisesTarget(request.fields) ? { targetLanguage: track.language } : {}),
+        ...(translating ? { targetLanguage: track!.language, suggestKnowledge: true, ...chunkMaterials(chunk) } : {}),
         items: chunk,
       }), requests.signal), chunk, request.fields);
       let next = 0;
@@ -144,10 +178,27 @@ export class CueRevisionService {
         }
         proposals.push(value);
       }
+      // A suggested wording counts only where the texts bear it out: its source in a line's source and
+      // its translation in that line's revised (or kept) translation.
+      const hints = new Map<string, CueRevisionHint>();
+      results.forEach((result, position) => {
+        for (const hint of result.hints) {
+          const cueIds = chunks[position].filter(item => {
+            const revised = proposed.get(item.cueId);
+            return containsWording(revised?.source ?? item.source, hint.source) && containsWording(revised?.target ?? item.target, hint.target);
+          }).map(item => item.cueId);
+          if (!cueIds.length) continue;
+          const key = JSON.stringify([hint.source, hint.target].map(text => text.normalize('NFKC').toLowerCase()));
+          const existing = hints.get(key);
+          if (existing) existing.cueIds = [...new Set([...existing.cueIds, ...cueIds])];
+          else if (hints.size < CUE_REVISION_HINTS_LIMIT) hints.set(key, { ...hint, cueIds });
+        }
+      });
       return {
         documentId: document.id, revision: document.revision, ...(track ? { trackId: track.id } : {}), proposals,
         notes: results.flatMap(result => result.note ? [result.note] : []),
         rejected: results.reduce((sum, result) => sum + result.rejected, 0), usage,
+        ...(translating ? { knowledgeHints: [...hints.values()] } : {}), ...(knowledgeItems ? { knowledgeItems } : {}),
       };
     });
   }

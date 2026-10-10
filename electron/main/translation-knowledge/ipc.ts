@@ -14,6 +14,7 @@ export const knowledgeRequestSchemas = {
   importDroppedFile: z.object({ path: z.string().min(1).max(32768).refine(value => path.isAbsolute(value)) }).strict(),
   commitImport: z.object({ planId: id, decisions: z.array(z.object({ id, action: z.enum(['keep', 'replace', 'copy', 'skip']) }).strict()).max(20000), adoptReady: z.boolean() }).strict(),
   saveRecord: z.object({ generation, group: z.enum(['subjects', 'collections', 'sources', 'entries', 'styles', 'recipes', 'preferenceTemplates']), record: z.record(z.string(), z.unknown()), source: z.record(z.string(), z.unknown()).optional(), adopt: z.boolean().optional() }).strict(),
+  saveRecords: z.object({ generation, items: z.array(z.object({ group, record: z.record(z.string(), z.unknown()), source: z.record(z.string(), z.unknown()).optional(), adopt: z.boolean().optional() }).strict()).min(1).max(200) }).strict(),
   reviewEntries: z.object({ generation, ids: z.array(id).min(1).max(20000).refine(ids => new Set(ids).size === ids.length), action: z.enum(['adopt', 'reject', 'archive']) }).strict(),
   planMaintenance: z.discriminatedUnion('action', [
     z.object({ generation, action: z.literal('archive'), targets: maintenanceTargets }).strict(),

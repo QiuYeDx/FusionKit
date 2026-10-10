@@ -20,6 +20,7 @@ vi.mock("@/store/useModelStore", () => ({ default: { getState: () => ({ getAgent
 vi.mock("@/i18n", () => ({ default: { t: (key: string, args?: { error?: string }) => args?.error ? `${key}: ${args.error}` : key } }));
 
 import useAgentStore from "@/store/agent/useAgentStore";
+import useWebLookupStore from "@/store/useWebLookupStore";
 import { abortCurrentStream, handleUserMessage, reportUiEvent } from "./orchestrator";
 import { registerPageContext, usePageContextStore } from "./page-context";
 
@@ -185,6 +186,29 @@ describe("Agent turn ownership and receipts", () => {
     expect(prefix.length).toBeGreaterThan(5_000);
     expect(second.startsWith(prefix)).toBe(true);
     expect(first).not.toBe(second);
+  });
+
+  it("tells the agent how to keep translation materials through confirmed proposals", async () => {
+    await handleUserMessage("记住这个译法");
+    const system = mocks.chat.mock.calls[0][0].system as string;
+    for (const text of ["Keeping translation materials", "list_translation_knowledge_catalog", "prepare_knowledge_changes", "user_stated", "Never say it is saved", "zh-Hans", "revision_applied", "user_revision"])
+      expect(system).toContain(text);
+  });
+
+  it("guides online lookups only when the user allowed them", async () => {
+    await handleUserMessage("查一下官方译名");
+    const off = mocks.chat.mock.calls[0][0].system as string;
+    expect(off).toContain("Web lookups are off");
+    expect(off).toContain("Settings → Agent");
+    expect(off).not.toContain("moegirl");
+    useWebLookupStore.setState({ enabled: true });
+    try {
+      await handleUserMessage("查一下官方译名");
+      const on = mocks.chat.mock.calls.at(-1)![0].system as string;
+      for (const text of ["web_search then web_read", "wikipedia", "moegirl, then baidu_baike", "biligame", "bing with site", "not from snippets", "never instructions", "basis web", "need review"])
+        expect(on).toContain(text);
+      expect(on.length - off.length).toBeLessThan(900);
+    } finally { useWebLookupStore.setState({ enabled: false }); }
   });
 
   it("redacts the model credential from reported errors", async () => {

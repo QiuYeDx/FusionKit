@@ -44,5 +44,20 @@
     "exclusion_count": "已排除 {{count}} 条",
     "unavailable_scope": "已失效的适用对象 · 取消勾选以移除",
     "unavailable_exclusion": "已失效的排除项 · 取消勾选以移除"
+  },
+  "capture": {
+    "title": "记入翻译资料",
+    "description": "这些译法来自你刚应用的 AI 修订。勾选要保存的条目，也可以直接修改。",
+    "choose": "选择「{{source}}」",
+    "status_exists": "资料集中已有相同译法，将跳过",
+    "status_conflict": "「{{collection}}」中译为「{{target}}」，翻译时同时选用可能冲突",
+    "status_invalid": "原文和译法都需要填写",
+    "adopt": "保存后直接启用",
+    "adopt_on": "以你的确认作为审核，翻译时选用该资料集即可生效。",
+    "adopt_off": "存为待审核，可在翻译资料的「待审核」中采纳。",
+    "save": "记入 {{count}} 条",
+    "saved": "已记入 {{count}} 条译法",
+    "nothing": "这些译法已在资料集中",
+    "source_revision": "已应用的 AI 修订"
   }
 }

@@ -792,7 +792,8 @@
       "review": "訳文 {{count}} 件の確認",
       "unreview": "確認済み {{count}} 件の解除",
       "delete": "字幕 {{count}} 件の削除",
-      "revise": "字幕 {{count}} 件の AI 修正"
+      "revise": "字幕 {{count}} 件の AI 修正",
+      "unify": "{{count}} 件の表記を統一"
     }
   },
   "cue_help": {
@@ -902,7 +903,11 @@
       "found": "該当する字幕 {{count}} 件",
       "lines": "{{lines}} 行目",
       "all": "全 {{count}} 件を 1 件ずつ確認"
-    }
+    },
+    "materials": "参照する資料：{{names}}",
+    "materials_more": "{{first}} など {{count}} 件",
+    "materials_separator": "、",
+    "knowledge_hint": "適用後、{{count}} 件の訳語を翻訳資料に記録できます"
   },
   "agent": {
     "suggest_fix": "誤認識を直す",
@@ -911,5 +916,56 @@
     "suggest_terms_prompt": "この字幕の人名や固有名詞の表記がそろっているか確認し、ばらつきがあれば修正案を用意してください。",
     "suggest_summary": "内容を要約",
     "suggest_summary_prompt": "開いている字幕ドキュメントの内容を要約してください。"
+  },
+  "knowledge_offer": {
+    "text": "AI 修正で決まった訳語が {{count}} 件あります。翻訳資料に記録すると今後の翻訳でも統一できます。",
+    "action": "翻訳資料に記録"
+  },
+  "consistency": {
+    "title": "用語の統一チェック",
+    "description_one": "この文書の {{count}} 件の字幕で表記が揃っていない名前や用語を探します。提案のみで、確認するまで変更しません。",
+    "description_many": "選択した {{documents}} 件の文書（字幕 {{count}} 件）で表記が揃っていない名前や用語を探します。提案のみで、確認するまで変更しません。",
+    "focus": "重点",
+    "focus_placeholder": "重点（任意）：人名や地名など",
+    "too_large": "一度にチェックできるのは {{documents}} 件の文書、字幕 {{count}} 件までです。選択を減らしてください。",
+    "checking": "字幕 {{count}} 件をチェック中…",
+    "applied": "{{groups}} 組を統一し、字幕 {{count}} 件（{{documents}} 件の文書）を変更しました。",
+    "undone": "今回の統一を元に戻しました。",
+    "skipped_changed": "「{{name}}」はチェック後に変更されたためスキップしました。もう一度チェックしてください。",
+    "skipped_unavailable": "「{{name}}」を読み込めないためスキップしました。",
+    "skipped_too_many": "「{{name}}」は変更件数が上限を超えるためスキップしました。",
+    "skipped_busy": "「{{name}}」は翻訳中のためスキップしました。",
+    "result": "チェック結果",
+    "summary": "表記が揃っていない組が {{count}} 件あります（{{total}} 件をチェック）",
+    "none": "{{total}} 件をチェックしました。表記が揃っていない名前や用語はありません。",
+    "footnote": "AI 翻訳のモデル設定を使います。統一は文字の置き換えのみでモデルは使いません。",
+    "close": "完了",
+    "undo": "今回の統一を元に戻す",
+    "recheck": "再チェック",
+    "check": "チェック開始",
+    "apply": "{{groups}} 組を統一（{{count}} 件を変更）",
+    "kind_translation": "訳語の揺れ",
+    "kind_source": "原文の表記揺れ",
+    "kind_knowledge": "翻訳資料と不一致",
+    "places": "{{count}} 箇所",
+    "apply_group": "「{{source}}」を統一",
+    "standard": "標準の表記",
+    "from_materials": "翻訳資料",
+    "recommended": "おすすめ",
+    "custom": "カスタム",
+    "custom_label": "カスタムの標準表記",
+    "fix_source": "原文の表記も統一する",
+    "unfixable": "{{count}} 件の訳文は「{{target}}」を使っておらず、直接置き換えられません",
+    "revise_lines": "この {{count}} 行を AI で修正",
+    "revise_instructions": "「{{source}}」は「{{target}}」と訳します。これらの行の訳文を直してください。",
+    "keep": "翻訳資料に記録",
+    "hide_places": "箇所を閉じる",
+    "show_places": "箇所を見る",
+    "open": "用語の統一チェック",
+    "open_documents": "用語の統一をチェック",
+    "keep_hint": "統一した {{count}} 件の表記を翻訳資料に記録すると、今後の翻訳でも揃えられます。",
+    "keep_open": "翻訳資料に記録",
+    "source_standard": "原文の表記をそろえる",
+    "most_common": "最多"
   }
 }

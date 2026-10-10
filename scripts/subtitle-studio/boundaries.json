@@ -136,7 +136,11 @@
     "src/pages/TranslationKnowledge/Controls.tsx",
     "src/pages/TranslationKnowledge/KnowledgeDisclosure.tsx",
     "src/pages/TranslationKnowledge/labels.ts",
-    "src/pages/TranslationKnowledge/model.ts"
+    "src/pages/TranslationKnowledge/model.ts",
+    "src/translation-knowledge/proposal.ts",
+    "src/translation-knowledge/library-events.ts",
+    "src/pages/TranslationKnowledge/KnowledgeCaptureDialog.tsx",
+    "src/pages/TranslationKnowledge/capture.ts"
   ],
   "packages": [
     "yauzl",
@@ -207,6 +211,11 @@
       "source": "src/pages/TranslationKnowledge/labels.ts",
       "package": "i18next",
       "reason": "Type-only TFunction import for localized material language and scope labels; runtime translation is supplied by the consuming view."
+    },
+    {
+      "source": "src/pages/TranslationKnowledge/KnowledgeCaptureDialog.tsx",
+      "package": "sonner",
+      "reason": "The shared multi-wording save dialog (opened after an applied AI revision) uses the existing application toast component for confirmed saves, like QuickTermDialog; no legacy tool service is imported."
     }
   ],
   "dynamicAudits": [

@@ -5,7 +5,7 @@ import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { readStudioNavigationView } from './navigation';
-import { AlertCircle, AudioLines, CheckCheck, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2 } from 'lucide-react';
+import { AlertCircle, AudioLines, BookOpen, CheckCheck, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -50,6 +50,13 @@ import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
 import { StudioRenameTranslation } from './StudioRenameTranslation';
 import { StudioTranscription } from './StudioTranscription';
 import { QuickTermDialog } from '@/pages/TranslationKnowledge/QuickTermDialog';
+import { KnowledgeCaptureDialog } from '@/pages/TranslationKnowledge/KnowledgeCaptureDialog';
+import { translationDraftMemory } from '@/services/subtitle-studio/translation-draft';
+import type { CueRevisionHint } from '@/subtitle-studio/cue-revision-contract';
+import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
+import type { LanguagePair } from '@/translation-knowledge/schemas';
+import { captureLanguagePair, hintsToOffer, preferredCollection } from './knowledge-hints';
+import { StudioConsistencyCheck, type ConsistencyRequestState, type ConsistencyTarget } from './StudioConsistencyCheck';
 import { STUDIO_RESULT_DIALOG_CLASS, STUDIO_RESULT_DIALOG_WIDTH, StudioOperationResult } from './StudioOperationResult';
 import './studio.css';
 
@@ -189,6 +196,16 @@ export default function SubtitleStudio() {
   // revision before the page reloads, and renders in between still show the old one.
   useEffect(() => { cueHistory.current.sync(page?.summary.id, page?.summary.revision); }, [page?.summary.id, page?.summary.revision]);
   const [cueNotice, setCueNotice] = useState<{ deleted: number; stopped: number } | null>(null);
+  /** Wordings an applied AI revision settled, offered for keeping until the document changes again. */
+  const [knowledgeOffer, setKnowledgeOffer] = useState<{ documentId: string; revision: number; hints: CueRevisionHint[]; pair: Partial<LanguagePair>; preferredCollectionId?: string; instructions: string } | null>(null);
+  const [captureOpen, setCaptureOpen] = useState(false);
+  /** Wordings to keep from the consistency check, independent of the revision offer. */
+  const [checkCapture, setCheckCapture] = useState<{ wordings: { source: string; target: string }[]; pair: Partial<LanguagePair>; preferredCollectionId?: string; saved: () => void } | null>(null);
+  const [consistency, setConsistency] = useState<ConsistencyRequestState | null>(null);
+  const consistencySerial = useRef(0);
+  const consistencyOpenRef = useRef(false);
+  consistencyOpenRef.current = !!consistency;
+  const openConsistencyRef = useRef<(focus: string | undefined, onSettled: NonNullable<ConsistencyRequestState['onSettled']>) => boolean>(() => false);
   const [cueTranslation, setCueTranslation] = useState<{ cueIds: string[]; trackId?: string; request: LibraryDialogRequest } | null>(null);
   const [cueRevision, setCueRevision] = useState<CueRevisionRequestState | null>(null);
   const cueRevisionSerial = useRef(0);
@@ -221,6 +238,8 @@ export default function SubtitleStudio() {
     },
     revisionOpen: () => !!agentState.current.cueRevision,
     openRevision: (cueIds, preset, onSettled) => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current, preset, onSettled }),
+    consistencyOpen: () => consistencyOpenRef.current,
+    openConsistency: (focus, onSettled) => openConsistencyRef.current(focus, onSettled),
     api: () => window.subtitleStudio,
   }), []);
   const agentTools = useMemo(() => createStudioAgentTools(agentDeps), [agentDeps]);
@@ -609,6 +628,51 @@ export default function SubtitleStudio() {
       await load(currentOffset.current);
     }, false).then(() => resolve(applied));
   });
+  /** Opens the consistency check for documents; the shown track is used for the open one, the latest elsewhere. */
+  const openConsistency = (targets: DocumentSummary[], extra: Partial<ConsistencyRequestState> = {}) => {
+    const documents: ConsistencyTarget[] = targets.filter(doc => doc.cueCount > 0).map(doc => ({ documentId: doc.id, revision: doc.revision, name: doc.origin.displayName, cueCount: doc.cueCount,
+      ...(doc.id === currentPage.current?.summary.id && track ? { trackId: track.id } : doc.translationTracks?.length ? { trackId: doc.translationTracks.at(-1)!.id } : {}) }));
+    if (!documents.length) return false;
+    setConsistency({ serial: ++consistencySerial.current, documents, ...extra });
+    return true;
+  };
+  openConsistencyRef.current = (focus, onSettled) => openConsistency(currentPage.current ? [currentPage.current.summary] : [], { autoStart: true, onSettled, ...(focus ? { focus } : {}) });
+  /** Undoes the consistency check's edit of the open document while it is still the latest edit. */
+  const undoUnify = () => new Promise<boolean>(resolve => {
+    cueHistory.current.sync(currentPage.current?.summary.id, currentPage.current?.summary.revision);
+    const entry = cueHistory.current.peek('undo');
+    if (!entry || entry.label !== 'unify') { resolve(false); return; }
+    void applyCueEdit(entry.operation, 'undo').then(resolve);
+  });
+  /** Wordings the consistency check settled, offered for keeping in translation materials. */
+  const keepCheckedWordings = async (wordings: { source: string; target: string }[], saved: () => void) => {
+    const current = currentPage.current;
+    const draft = current ? translationDraftMemory.read(current.summary.id, current.summary.revision) : undefined;
+    let library: LibrarySnapshot | null = null;
+    try { const response = await window.translationKnowledge.read(); if (response.ok) library = response.value; } catch { /* The dialog reads it again. */ }
+    const pair = captureLanguagePair(draft, translationDraftMemory.last(), track?.language);
+    const preferred = preferredCollection(draft?.selection, library);
+    if (mounted.current) setCheckCapture({ wordings, pair, saved, ...(preferred ? { preferredCollectionId: preferred } : {}) });
+  };
+  /** After a revision is applied: offer the wordings it settled that the library does not already hold. */
+  const offerKnowledge = async (hints: CueRevisionHint[], instructions: string) => {
+    const current = currentPage.current;
+    if (!current) return;
+    const draft = translationDraftMemory.read(current.summary.id, current.summary.revision);
+    const pair = captureLanguagePair(draft, translationDraftMemory.last(), track?.language);
+    let library: LibrarySnapshot | null = null;
+    try { const response = await window.translationKnowledge.read(); if (response.ok) library = response.value; } catch { /* Offer them all. */ }
+    const offered = hintsToOffer(hints, library, pair);
+    const now = currentPage.current;
+    if (!offered.length || !mounted.current || now?.summary.id !== current.summary.id) return;
+    setKnowledgeOffer({ documentId: now.summary.id, revision: now.summary.revision, hints: offered, pair, instructions,
+      ...(preferredCollection(draft?.selection, library) ? { preferredCollectionId: preferredCollection(draft?.selection, library) } : {}) });
+  };
+  // Another edit, an undo or another document ends the offer.
+  useEffect(() => {
+    if (knowledgeOffer && (page?.summary.id !== knowledgeOffer.documentId || page.summary.revision !== knowledgeOffer.revision)) { setKnowledgeOffer(null); setCaptureOpen(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page?.summary.id, page?.summary.revision]);
   const stepCueHistory = (direction: 'undo' | 'redo') => {
     cueHistory.current.sync(currentPage.current?.summary.id, currentPage.current?.summary.revision);
     const entry = cueHistory.current.peek(direction);
@@ -622,6 +686,7 @@ export default function SubtitleStudio() {
       <DropdownMenuContent align="start" side="top" className="w-48" onCloseAutoFocus={event => { if (batchConfirm) event.preventDefault(); }}>
         <DropdownMenuItem disabled={busy || !selected.some(doc => doc.task && ['failed', 'interrupted', 'needs_configuration'].includes(doc.task.status))} onSelect={() => confirmBatch('resume')}><Play />{t('studio:library.resume_selected')}</DropdownMenuItem>
         <DropdownMenuItem disabled={busy || !selected.some(doc => doc.task && ['queued', 'running', 'failed', 'interrupted', 'needs_configuration'].includes(doc.task.status))} onSelect={() => processSelected('cancel')}><Square />{t('studio:library.cancel_selected')}</DropdownMenuItem>
+        <DropdownMenuItem data-testid="studio-library-batch-consistency" disabled={busy || !selected.some(doc => doc.cueCount > 0)} onSelect={() => openConsistency(latestScope(selected))}><ScanText />{t('studio:consistency.open_documents')}</DropdownMenuItem>
         <DropdownMenuItem disabled={busy || !selected.length} onSelect={() => confirmBatch('delete')}><Trash2 />{t('studio:library.delete_selected')}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={busy || !selected.length} onSelect={clearSelection}><X />{t('studio:library.clear_selection')}</DropdownMenuItem>
@@ -634,7 +699,8 @@ export default function SubtitleStudio() {
     if (busy || selectionPending) return;
     const targets = latestScope(scope.documents);
     const restore = () => restoreLibraryFocus(scope.origin);
-    if (action === 'translate' || action === 'export' || action === 'source') setContextDialog({ kind: action, documents: targets, request: { original: action === 'source', restoreFocus: restore } });
+    if (action === 'consistency') openConsistency(targets);
+    else if (action === 'translate' || action === 'export' || action === 'source') setContextDialog({ kind: action, documents: targets, request: { original: action === 'source', restoreFocus: restore } });
     else if (action === 'cancel') processSelected(action, targets, restore);
     else confirmBatch(action, targets, restore);
   };
@@ -674,6 +740,12 @@ export default function SubtitleStudio() {
         <span>{[cueNotice.deleted ? t('studio:cue_notice.deleted', { count: cueNotice.deleted }) : '', cueNotice.stopped ? t('studio:cue_notice.stopped', { count: cueNotice.stopped }) : ''].filter(Boolean).join(' ')}</span>
         {cueNotice.deleted > 0 && cueHistory.current.peek('undo')?.label === 'delete' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setCueNotice(null); stepCueHistory('undo'); }}><Undo2 />{t('studio:cue_history.undo_short')}</Button>}
         <StudioIconButton label={t('studio:dismiss')} onClick={() => setCueNotice(null)}><X /></StudioIconButton>
+      </div>}
+      {knowledgeOffer && page && <div role="status" data-testid="studio-knowledge-offer" className="studio-notice">
+        <BookOpen className="text-muted-foreground" />
+        <span>{t('studio:knowledge_offer.text', { count: knowledgeOffer.hints.length })}</span>
+        <Button size="sm" variant="ghost" data-testid="studio-knowledge-offer-open" onClick={() => setCaptureOpen(true)}>{t('studio:knowledge_offer.action')}</Button>
+        <StudioIconButton label={t('studio:dismiss')} onClick={() => setKnowledgeOffer(null)}><X /></StudioIconButton>
       </div>}
       <div aria-busy={busy || (!!previewRequest && !previewRequest.error)} className="studio-preview-region" data-preview-pending={!!previewRequest || undefined}>
         <div className="studio-preview-surface" inert={!!previewRequest} aria-hidden={previewRequest ? true : undefined}>
@@ -716,7 +788,7 @@ export default function SubtitleStudio() {
                     history={{ undo: cueHistory.current.peek('undo'), redo: cueHistory.current.peek('redo') }}
                     onOperation={(operation, label, count) => applyCueEdit(operation, 'do', label, count)} onUndo={() => stepCueHistory('undo')} onRedo={() => stepCueHistory('redo')}
                     onTranslate={cueIds => setCueTranslation({ cueIds, ...(track ? { trackId: track.id } : {}), request: { restoreFocus: focusCueList } })}
-                    onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })}
+                    onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })} onCheckConsistency={() => openConsistency(page ? [page.summary] : [])}
                     onSelectionChange={cueIds => { cueSelection.current = cueIds; }}
                     onCopy={copyCue}
                     onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
@@ -743,8 +815,19 @@ export default function SubtitleStudio() {
     </ClipPathTabsContent>
     </ClipPathTabs>
     {page && <StudioCueRevision page={page} track={track} request={cueRevision} editBlocked={page.tasks.some(task => task.status === 'queued' || task.status === 'running') ? t('studio:cue_edit.blocked_translation') : undefined}
-      onClose={() => setCueRevision(null)} onApply={(operation, count) => applyCueEdit(operation, 'do', 'revise', count)} />}
+      onClose={() => setCueRevision(null)} onApply={(operation, count, applied) => applyCueEdit(operation, 'do', 'revise', count).then(ok => {
+        if (ok && applied.knowledgeHints.length) void offerKnowledge(applied.knowledgeHints, applied.instructions);
+        return ok;
+      })} />}
     {page && <StudioTranslation page={page} scope={cueTranslation ?? undefined} triggerContainer={null} openRequest={cueTranslation?.request} onRequestClosed={() => setCueTranslation(null)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />}
+    <StudioConsistencyCheck request={consistency} currentDocumentId={page?.summary.id} editBlocked={page?.tasks.some(task => task.status === 'queued' || task.status === 'running') ? t('studio:cue_edit.blocked_translation') : undefined}
+      onClose={() => setConsistency(null)} onApplyCurrent={(operation, count) => applyCueEdit(operation, 'do', 'unify', count)} onUndoCurrent={undoUnify} onChangedOther={onBatchChanged}
+      onKeep={(wordings, saved) => void keepCheckedWordings(wordings, saved)}
+      onReviseLines={(lines, instructions) => { setConsistency(null); setCueRevision({ cueIds: [], serial: ++cueRevisionSerial.current, preset: { instructions, scope: 'document', fields: 'target', search: { lines } } }); }} />
+    <KnowledgeCaptureDialog open={!!checkCapture} onOpenChange={open => { if (!open) setCheckCapture(null); }} wordings={checkCapture?.wordings ?? []}
+      languagePair={checkCapture?.pair} preferredCollectionId={checkCapture?.preferredCollectionId} onSaved={() => checkCapture?.saved()} />
+    <KnowledgeCaptureDialog open={captureOpen && !!knowledgeOffer} onOpenChange={open => { if (!open) setCaptureOpen(false); }} wordings={knowledgeOffer?.hints ?? []}
+      languagePair={knowledgeOffer?.pair} preferredCollectionId={knowledgeOffer?.preferredCollectionId} evidence={knowledgeOffer?.instructions} onSaved={() => setKnowledgeOffer(null)} />
     <QuickTermDialog open={!!rememberTerm} onOpenChange={open => { if (!open) setRememberTerm(null); }} initialSource={rememberTerm?.source} initialTarget={rememberTerm?.target} initialLanguagePair={rememberTerm?.targetLanguage ? { source: '', target: rememberTerm.targetLanguage } : undefined} />
     <StudioBatchTranslation triggerContainer={translationSlot} documents={contextDialog?.kind === 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog?.kind === 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind === 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />
     <StudioBatchExport triggerContainer={exportSlot} documents={contextDialog && contextDialog.kind !== 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog && contextDialog.kind !== 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind !== 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} />

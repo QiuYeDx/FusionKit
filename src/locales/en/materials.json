@@ -44,5 +44,20 @@
     "exclusion_count": "{{count}} excluded",
     "unavailable_scope": "Unavailable subject · uncheck to remove",
     "unavailable_exclusion": "Unavailable exclusion · uncheck to remove"
+  },
+  "capture": {
+    "title": "Keep in translation knowledge",
+    "description": "These wordings come from the AI revision you just applied. Choose the ones to keep; you can edit them first.",
+    "choose": "Choose “{{source}}”",
+    "status_exists": "Already in this collection; skipped",
+    "status_conflict": "“{{collection}}” translates it as “{{target}}”; selecting both may conflict",
+    "status_invalid": "Fill in both the source and the wording",
+    "adopt": "Enable after saving",
+    "adopt_on": "Your confirmation counts as the review; it applies when the collection is selected for translation.",
+    "adopt_off": "Saved for review; adopt it under Review in translation knowledge.",
+    "save": "Keep {{count}}",
+    "saved": "Kept {{count}} wording(s)",
+    "nothing": "These wordings are already in the collection",
+    "source_revision": "Applied AI revision"
   }
 }

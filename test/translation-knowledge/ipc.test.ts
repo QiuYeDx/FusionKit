@@ -15,7 +15,7 @@ const state = vi.hoisted(() => ({
   select: vi.fn(async () => ({ canceled: true, filePaths: [] as string[] })),
   save: vi.fn(async () => ({ canceled: true, filePath: undefined as string | undefined })),
   export: vi.fn(async () => ({ entries: [] })), plan: vi.fn(),
-  planMaintenance: vi.fn(), commitMaintenance: vi.fn(),
+  planMaintenance: vi.fn(), commitMaintenance: vi.fn(), saveRecords: vi.fn(),
   prepareExport: vi.fn(async () => ({ text: '{}\n', preview: { counts: { entries: 0 }, purpose: 'backup' } })),
   planExport: vi.fn(), invalidateExports: vi.fn(), exportGuard: vi.fn(),
 }));
@@ -35,7 +35,7 @@ vi.mock('node:fs/promises', async importOriginal => {
   return { ...actual, link: vi.fn(actual.link) };
 });
 vi.mock('../../electron/main/translation-knowledge/service', () => ({
-  KnowledgeService: class { read = state.read; releaseOwner = state.release; dispose = state.dispose; exportPackage = state.export; planImport = state.plan; planMaintenance = state.planMaintenance; commitMaintenance = state.commitMaintenance; },
+  KnowledgeService: class { read = state.read; releaseOwner = state.release; dispose = state.dispose; exportPackage = state.export; planImport = state.plan; planMaintenance = state.planMaintenance; commitMaintenance = state.commitMaintenance; saveRecords = state.saveRecords; },
   KnowledgeServiceError: class extends Error { constructor(public code: string, public diagnostics?: unknown[]) { super(code); } },
 }));
 vi.mock('../../electron/main/translation-knowledge/export-plans', () => ({
@@ -163,6 +163,31 @@ describe('knowledge IPC and native publication', () => {
       const ordinary: MaintenanceRequest = { generation: 3, action: 'purge', targets: [{ group: 'entries', id: entryId }] };
       expect(await api.planMaintenance(ordinary)).toEqual({ ok: true, value: preview });
       expect(state.planMaintenance).toHaveBeenLastCalledWith(event.returnValue, ordinary);
+    } finally { await bridge.dispose(); }
+  });
+
+  it('passes bounded batch saves through preload and rejects empty, oversized or forged batches and unregistered callers', async () => {
+    const bridge = registerTranslationKnowledge();
+    const contents = Object.assign(new EventEmitter(), { id: 74, mainFrame: { url: pathToFileURL(path.join(process.cwd(), 'dist/index.html')).href }, isDestroyed: () => false });
+    bridge.attach(contents as any);
+    const event = { sender: contents, senderFrame: contents.mainFrame, returnValue: undefined as unknown };
+    const api = createTranslationKnowledgeApi({
+      sendSync: (channel, payload) => { state.listeners.get(channel)!(event, payload); return event.returnValue; },
+      invoke: async (channel, envelope) => state.handlers.get(channel)!(event, envelope),
+    });
+    const item = { group: 'collections' as const, record: { id: '10000000-0000-4000-8000-000000000011', revision: 1 } as never };
+    state.saveRecords.mockResolvedValue({ generation: 4 });
+    try {
+      expect(isPublicKnowledgeChannel(KNOWLEDGE_CHANNELS.saveRecords)).toBe(true);
+      expect(await api.saveRecords({ generation: 3, items: [item] })).toEqual({ ok: true, value: { generation: 4 } });
+      expect(state.saveRecords).toHaveBeenCalledWith({ generation: 3, items: [item] }, expect.any(Function));
+      expect(await api.saveRecords({ generation: 3, items: [] })).toEqual({ ok: false, error: 'invalid_input' });
+      expect(await api.saveRecords({ generation: 3, items: Array.from({ length: 201 }, () => item) })).toEqual({ ok: false, error: 'invalid_input' });
+      expect(await api.saveRecords({ generation: 3, items: [{ ...item, extra: true } as never] })).toEqual({ ok: false, error: 'invalid_input' });
+      expect(state.saveRecords).toHaveBeenCalledTimes(1);
+      const forged = await state.handlers.get(KNOWLEDGE_CHANNELS.saveRecords)!({ ...event, sender: Object.assign(new EventEmitter(), { id: 99 }) }, { capability: '10000000-0000-4000-8000-000000000012', payload: { generation: 3, items: [item] } });
+      expect(forged).toEqual({ ok: false, error: 'access_denied' });
+      expect(state.saveRecords).toHaveBeenCalledTimes(1);
     } finally { await bridge.dispose(); }
   });
 

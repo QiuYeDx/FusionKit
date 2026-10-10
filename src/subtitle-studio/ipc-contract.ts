@@ -3,6 +3,7 @@ import { encodingSchema, idSchema, LIMITS, SUBTITLE_TEXT_FORMATS, translationTra
 import { translationConfigSchema, translationModelSchema, translationScopeSchema, type TranslationPlanSummary } from './translation-contract';
 import { cueEditOperationSchema, type CueEditResult } from './cue-edit-contract';
 import { cueRevisionRequestSchemas, type CueFindResult, type CueRevisionLocation, type CueRevisionResult } from './cue-revision-contract';
+import { consistencyRequestSchemas, type ConsistencyResult } from './consistency-contract';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { hasBilingualCandidates, isBilingualRecommended } from './bilingual';
@@ -68,6 +69,8 @@ export const STUDIO_CHANNELS = {
   reviseCues: 'subtitle-studio:revise-cues',
   cancelCueRevision: 'subtitle-studio:cancel-cue-revision',
   findCues: 'subtitle-studio:find-cues',
+  checkConsistency: 'subtitle-studio:check-consistency',
+  cancelConsistency: 'subtitle-studio:cancel-consistency',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   authorizeTranscriptionPaths: 'subtitle-studio:authorize-transcription-paths',
@@ -149,6 +152,7 @@ export const requestSchemas = {
   renameTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema, name: translationTrackNameSchema }).strict(),
   editCues: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), operation: cueEditOperationSchema }).strict(),
   ...cueRevisionRequestSchemas,
+  ...consistencyRequestSchemas,
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -252,6 +256,9 @@ export interface SubtitleStudioApi {
   reviseCues(request: z.infer<typeof requestSchemas.reviseCues>): Promise<StudioResult<CueRevisionResult>>;
   cancelCueRevision(request: z.infer<typeof requestSchemas.cancelCueRevision>): Promise<StudioResult<null>>;
   findCues(request: z.input<typeof requestSchemas.findCues>): Promise<StudioResult<CueFindResult>>;
+  /** Finds names and terms written more than one way across documents; read-only. */
+  checkConsistency(request: z.infer<typeof requestSchemas.checkConsistency>): Promise<StudioResult<ConsistencyResult>>;
+  cancelConsistency(request: z.infer<typeof requestSchemas.cancelConsistency>): Promise<StudioResult<null>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 
