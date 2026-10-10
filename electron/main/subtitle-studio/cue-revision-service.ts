@@ -13,6 +13,7 @@ import { providerError } from './knowledge-trial';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
 import type { KnowledgeEnvironment, KnowledgeSelection } from '../../../src/translation-knowledge/execution-contract';
 import { compileKnowledge, resolveEnvironment, selectBatchKnowledge } from '../../../src/translation-knowledge/execution';
+import { mergeProposal, type CueStructureProposal } from '../../../src/subtitle-studio/cue-structure';
 
 /** Requests of one call run side by side. */
 const CONCURRENCY = 3;
@@ -194,10 +195,34 @@ export class CueRevisionService {
           else if (hints.size < CUE_REVISION_HINTS_LIMIT) hints.set(key, { ...hint, cueIds });
         }
       });
+      // Merges and deletions take their times and current texts from the document, never from the model.
+      const structure: CueStructureProposal[] = [];
+      let structureRejected = 0;
+      const located = (cueId: string) => ({ ...document.cues[positions.get(cueId)!], index: positions.get(cueId)! });
+      for (const result of results) {
+        for (const merge of result.merges) {
+          const proposal = mergeProposal(merge.cueIds.map(located), track, 'ai');
+          proposal.source = merge.source;
+          if (merge.target !== undefined && track) { proposal.target = merge.target; delete proposal.targetStale; }
+          structure.push(proposal);
+        }
+        for (const cueId of result.deletes) {
+          const cue = located(cueId);
+          const target = currentTarget(track, cue);
+          structure.push({ kind: 'delete', cueId, index: cue.index, current: { source: structuredClone(cue.source), ...(target ? { target: structuredClone(target) } : {}) }, timing: { ...cue.timing } });
+        }
+      }
+      // A document keeps at least one cue: deletions that would remove every cue are dropped.
+      const removing = structure.reduce((sum, item) => sum + (item.kind === 'merge' ? item.cueIds.length - 1 : 1), 0);
+      if (removing >= document.cues.length) {
+        structureRejected = structure.filter(item => item.kind === 'delete').length;
+        structure.splice(0, structure.length, ...structure.filter(item => item.kind !== 'delete'));
+      }
+      structure.sort((a, b) => (a.kind === 'merge' ? a.indexes[0] : a.index) - (b.kind === 'merge' ? b.indexes[0] : b.index));
       return {
         documentId: document.id, revision: document.revision, ...(track ? { trackId: track.id } : {}), proposals,
         notes: results.flatMap(result => result.note ? [result.note] : []),
-        rejected: results.reduce((sum, result) => sum + result.rejected, 0), usage,
+        rejected: results.reduce((sum, result) => sum + result.rejected, 0) + structureRejected, usage, ...(structure.length ? { structure } : {}),
         ...(translating ? { knowledgeHints: [...hints.values()] } : {}), ...(knowledgeItems ? { knowledgeItems } : {}),
       };
     });

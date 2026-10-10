@@ -412,5 +412,12 @@
   "action_error_web_failed": "サイトにアクセスできないか、読み取れない内容が返されました。",
   "action_error_web_timeout": "サイトの応答がタイムアウトしました。",
   "action_error_web_blocked": "公開 Web ページのみ読み取れます。このアドレスにはアクセスできません。",
-  "action_error_web_not_found": "ページが見つかりません。"
+  "action_error_web_not_found": "ページが見つかりません。",
+  "tool_name_prepare_cue_edits": "字幕の結合・調整を準備",
+  "tool_name_find_duplicates": "隣接する重複を確認",
+  "action_error_invalid_cue_number": "字幕番号が範囲外か、すべての字幕を削除することになります。",
+  "action_error_not_adjacent": "結合できるのは隣り合う 2〜50 件の字幕です。",
+  "action_error_invalid_time": "時間の形式が正しくないか、終了が開始より前です。",
+  "action_error_overlapping_edits": "同じ字幕が複数の変更に含まれています。",
+  "action_error_too_many_edits": "一度に準備できる変更は 200 件までです。"
 }

@@ -89,7 +89,9 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
   // Cues deleted in the studio leave their original nodes behind; exports omit them.
   const removedNodes = new Set(doc.schemaVersion === 1 ? doc.preservation.removedNodeIds : []);
   const bodies = doc.schemaVersion === 1 ? preservedBodies(doc) : undefined;
-  const preserve = !!bodies && options.format === doc.origin.format;
+  // Patching the original file keeps its timing lines, so a document whose times were edited is written anew.
+  const retimed = doc.cues.some(cue => cue.timingRevision > 1);
+  const preserve = !!bodies && options.format === doc.origin.format && !retimed;
   if (options.format === 'vtt' && options.encoding !== 'utf-8') issue('encoding_not_supported', 1, true);
   if (isAssFamily(options.format) && !preserve && options.encoding !== 'utf-8') issue('encoding_not_supported', 1, true);
   if (doc.schemaVersion === 2) issue('transcription_evidence_omitted', 1, false, true);

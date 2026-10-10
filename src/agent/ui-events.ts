@@ -31,7 +31,7 @@ function describe(event: AgentUiEvent): string {
     case "execution_dismissed":
       return "The user chose to keep the queued classic tasks in their queues without starting them.";
     case "revision_applied":
-      return `The user applied the AI revision you prepared in Subtitle Studio: ${Number(v.count ?? 0)} cue(s) changed${Number(v.hintCount ?? 0) ? `. It settled wordings worth keeping in translation materials: ${text(v.hints, 1200)}` : "; it settled no wording worth keeping"}.`;
+      return `The user applied the AI revision you prepared in Subtitle Studio: ${Number(v.count ?? 0)} cue(s) changed${[v.merged ? `${Number(v.merged)} merge(s)` : "", v.deleted ? `${Number(v.deleted)} deletion(s)` : "", v.retimed ? `${Number(v.retimed)} time change(s)` : ""].filter(Boolean).map((part, index) => `${index ? ", " : " ("}${part}`).join("")}${v.merged || v.deleted || v.retimed ? ")" : ""}${Number(v.hintCount ?? 0) ? `. It settled wordings worth keeping in translation materials: ${text(v.hints, 1200)}` : "; it settled no wording worth keeping"}.`;
     case "pipeline_completed":
       return `The transcription batch you submitted has gone as far as it will: ${Number(v.finished ?? 0)} of ${Number(v.total ?? 0)} files finished${v.files ? `; written next to their media: ${text(v.files, 1200)}` : ""}${Number(v.removed ?? 0) ? `; ${Number(v.removed)} file(s) were written and their Studio documents removed as asked` : ""}${Number(v.failed ?? 0) ? `; not finished: ${text(v.problems, 1200)}` : ""}. Nothing confirmed this; it is a status report.`;
   }

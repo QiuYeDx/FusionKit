@@ -793,7 +793,9 @@
       "unreview": "取消复核 {{count}} 条译文",
       "delete": "删除 {{count}} 条字幕",
       "revise": "AI 修订 {{count}} 条字幕",
-      "unify": "统一 {{count}} 条字幕的写法"
+      "unify": "统一 {{count}} 条字幕的写法",
+      "merge": "合并 {{count}} 条字幕",
+      "timing": "调整 {{count}} 条字幕的时间"
     }
   },
   "cue_help": {
@@ -817,6 +819,14 @@
     "field": {
       "keys": "← / →",
       "desc": "切换原文或译文"
+    },
+    "timing": {
+      "keys": "双击时间 / T",
+      "desc": "编辑开始与结束时间"
+    },
+    "merge": {
+      "keys": "Ctrl+M",
+      "desc": "合并所选的相邻字幕"
     },
     "delete": {
       "keys": "Delete",
@@ -907,7 +917,21 @@
     "materials": "参考资料：{{names}}",
     "materials_more": "{{first}} 等 {{count}} 项",
     "materials_separator": "、",
-    "knowledge_hint": "应用后可将 {{count}} 条译法记入翻译资料"
+    "knowledge_hint": "应用后可将 {{count}} 条译法记入翻译资料",
+    "find_duplicates": "检查相邻重复",
+    "duplicates_none": "检查了 {{total}} 条字幕，没有发现相邻重复。",
+    "include_structure": "应用第 {{numbers}} 条的修改",
+    "tag_merge": "合并 {{count}} 条",
+    "tag_delete": "删除",
+    "tag_timing": "改时间",
+    "part_texts": "改字 {{count}} 条",
+    "part_merges": "合并 {{count}} 处",
+    "part_deletes": "删除 {{count}} 条",
+    "part_timings": "改时间 {{count}} 条",
+    "summary_structure": "建议修改：{{parts}}（共检查 {{total}} 条）",
+    "prepared_by_agent": "这些修改由 Agent 按你的要求准备，确认后才会生效。",
+    "reading": "正在读取 {{done}} / {{total}} 条字幕…",
+    "summary_prepared": "已准备：{{parts}}"
   },
   "agent": {
     "suggest_fix": "修正识别错误",
@@ -967,5 +991,41 @@
     "keep_open": "记入翻译资料",
     "source_standard": "原文统一为",
     "most_common": "最常见"
+  },
+  "bilingual_import": {
+    "direction": "{{source}} → {{target}}",
+    "label": "双语 · {{direction}}",
+    "notice": "已识别为双语字幕（{{direction}}），共 {{count}} 条：前者作为原文，后者作为译文。",
+    "revert": "按原样导入",
+    "revert_description": "当前按双语导入（{{direction}}，{{count}} 条）。按原样导入后，每一行都作为原文，导入的译文将移除。之后仍可用「双语整理」重新整理。",
+    "result": "已识别为双语：{{direction}}",
+    "chinese": "中文"
+  },
+  "cue_structure": {
+    "merge": "合并为一条",
+    "merge_not_adjacent": "只能合并相邻的字幕",
+    "merge_too_many": "一次最多合并 {{count}} 条字幕",
+    "edit_timing": "编辑时间",
+    "shift": "平移时间…",
+    "start": "开始时间",
+    "end": "结束时间",
+    "time_keys": "Enter 保存 · Esc 取消 · 格式 00:00:00.000",
+    "time_invalid": "时间格式不正确，例如 00:01:02.300",
+    "end_before_start": "结束时间不能早于开始时间",
+    "end_required": "这条字幕必须有结束时间",
+    "before_previous": "开始时间不能早于上一条字幕",
+    "after_next": "开始时间不能晚于下一条字幕",
+    "beyond_media": "结束时间不能超过媒体时长",
+    "time_rejected": "无法保存这个时间，请检查与相邻字幕的先后顺序。",
+    "shift_title": "平移时间",
+    "shift_description": "将所选的 {{count}} 条字幕整体提前或推后，开始与结束时间同时移动。",
+    "shift_label": "移动的毫秒数（负数为提前）",
+    "shift_preview": "第一条从 {{from}} 移到 {{to}}，共 {{count}} 条。",
+    "shift_invalid": "请输入整数毫秒，例如 500 或 -250",
+    "shift_negative": "移动后开始时间会小于 0",
+    "shift_before_previous": "移动后会早于上一条字幕",
+    "shift_after_next": "移动后会晚于下一条字幕",
+    "shift_apply": "平移",
+    "unknown": "未知"
   }
 }

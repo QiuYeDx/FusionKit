@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, Check, Columns2, Eraser, LoaderCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Check, Columns2, Eraser, LoaderCircle, RefreshCw, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { Switch } from '@/components/ui/switch';
@@ -47,11 +47,15 @@ type ChangeProps = {
 type PreviewState = { identity: string; sourceSide: BilingualOptions['sourceSide']; value: BilingualPreview };
 const PAGE_SIZE = 20;
 
-export function StudioBilingual(props: ChangeProps & { autoOpen?: boolean }) {
+/**
+ * Manual separation for files the import did not separate by itself: import already separates
+ * every file the analysis recommends (see interpretBilingualImport).
+ */
+export function StudioBilingual(props: ChangeProps) {
   return <StudioBilingualDocument key={props.page.summary.id} {...props} />;
 }
 
-function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = false }: ChangeProps & { autoOpen?: boolean }) {
+function StudioBilingualDocument({ page, busy, onChanged, onError }: ChangeProps) {
   const { t } = useTranslation();
   const controlId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -59,7 +63,6 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
   const optionsRegion = useRef<HTMLDivElement>(null);
   const candidatesRegion = useRef<HTMLOListElement>(null);
   const [open, setOpen] = useState(false);
-  const autoOpened = useRef(false);
   const [options, setOptions] = useState<BilingualOptions>({ sourceSide: 'first', splitInline: false, overrides: [] });
   const [offset, setOffset] = useState(0);
   const [reviewOnly, setReviewOnly] = useState(false);
@@ -93,11 +96,6 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
     mounted.current = true;
     return () => { mounted.current = false; requestVersion.current += 1; };
   }, []);
-  useEffect(() => {
-    if (autoOpen && !autoOpened.current && eligible && page.summary.bilingualRecommended && !busy) {
-      autoOpened.current = true; setOpen(true);
-    }
-  }, [autoOpen, eligible, page.summary.bilingualRecommended, busy]);
   useEffect(() => {
     if (!open || !eligible) return;
     const version = ++requestVersion.current;
@@ -164,8 +162,8 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
 
   if (!page.summary.bilingualAvailable) return null;
   return <>
-    <StudioIconButton ref={trigger} label={t('studio:bilingual.action')} disabled={busy || !eligible || applying} onClick={() => { autoOpened.current = true; setOpen(true); }}><Columns2 /></StudioIconButton>
-    <ScrollableDialog animateSize open={open} onOpenChange={value => { if (!applying) { autoOpened.current = true; setOpen(value); } }} maxWidth="sm:max-w-[720px]" contentClassName="studio-bilingual-dialog" onOpenAutoFocus={event => { event.preventDefault(); firstControl.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+    <StudioIconButton ref={trigger} label={t('studio:bilingual.action')} disabled={busy || !eligible || applying} onClick={() => setOpen(true)}><Columns2 /></StudioIconButton>
+    <ScrollableDialog animateSize open={open} onOpenChange={value => { if (!applying) setOpen(value); }} maxWidth="sm:max-w-[720px]" contentClassName="studio-bilingual-dialog" onOpenAutoFocus={event => { event.preventDefault(); firstControl.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="relative p-3 pr-12">
         <DialogTitle className="flex items-center gap-2 text-base"><Columns2 className="size-4" />{t('studio:bilingual.title')}</DialogTitle>
         <DialogDescription className="text-xs"><StudioFileName name={page.summary.origin.displayName} /></DialogDescription>
@@ -239,6 +237,56 @@ function StudioBilingualDocument({ page, busy, onChanged, onError, autoOpen = fa
         </div>
         <div className="studio-bilingual-actions"><Button variant="ghost" size="sm" disabled={applying} onClick={() => setOpen(false)}>{t('studio:cancel')}</Button><Button size="sm" disabled={pending || !eligible || !currentPreview || currentPreview.pairedCount === 0} onClick={() => void apply()}>{applying ? <LoaderCircle className="studio-spin" /> : <Check />}{t('studio:bilingual.apply')}</Button></div>
       </ScrollableDialogFooter>
+    </ScrollableDialog>
+  </>;
+}
+
+/** "Japanese → Chinese" for a separated bilingual import. */
+export function bilingualDirection(t: ReturnType<typeof useTranslation>['t'], value: NonNullable<DocumentSummary['bilingualImport']>) {
+  // Detection tells Chinese from other languages, not Simplified from Traditional.
+  const name = (language: string) => language === 'zh' ? t('studio:bilingual_import.chinese')
+    : language in languageKeys ? t(languageKeys[language as keyof typeof languageKeys]) : t('studio:language_unknown');
+  return t('studio:bilingual_import.direction', { source: name(value.sourceLanguage), target: name(value.targetLanguage) });
+}
+
+/** Imports a separated, unedited document again as it was: every line becomes source text. */
+export async function revertBilingualImport(summary: DocumentSummary) {
+  return unwrapStudio(window.subtitleStudio.revertBilingual({ documentId: summary.id, revision: summary.revision }));
+}
+
+export function StudioRevertBilingual({ page, busy, onChanged, onError }: ChangeProps) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [reverting, setReverting] = useState(false);
+  const [error, setError] = useState<ErrorCode | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { setOpen(false); setError(null); }, [page.summary.id, page.summary.revision]);
+  const bilingual = page.summary.bilingualImport;
+  if (!bilingual || !page.summary.bilingualRevertible) return null;
+  const revert = async () => {
+    if (reverting || busy) return;
+    setReverting(true); setError(null);
+    try {
+      const summary = await revertBilingualImport(page.summary);
+      if (mounted.current) { setOpen(false); onChanged(summary); }
+    } catch (failure) {
+      const code = failure instanceof StudioError ? failure.code : 'document_unavailable';
+      if (mounted.current) { setError(code); onError(code); }
+    } finally { if (mounted.current) setReverting(false); }
+  };
+  return <>
+    <StudioIconButton ref={trigger} data-testid="studio-bilingual-revert" label={t('studio:bilingual_import.revert')} disabled={busy || reverting} onClick={() => setOpen(true)}><Columns2 /></StudioIconButton>
+    <ScrollableDialog animateSize open={open} onOpenChange={value => { if (!reverting) setOpen(value); }} onOpenAutoFocus={event => { event.preventDefault(); cancel.current?.focus({ preventScroll: true }); }} onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
+      <ScrollableDialogHeader className="p-3 pr-12"><DialogTitle className="text-base">{t('studio:bilingual_import.revert')}</DialogTitle>
+        <DialogDescription className="text-xs leading-5">{t('studio:bilingual_import.revert_description', { direction: bilingualDirection(t, bilingual), count: page.summary.cueCount })}</DialogDescription></ScrollableDialogHeader>
+      <ScrollableDialogContent className="studio-bilingual-content" fadeMaskHeight={16}>
+        <DialogTransition transitionKey={error ?? 'error'}>{error && <p className="studio-bilingual-error" role="alert">{t(errorKeys[error])}</p>}</DialogTransition>
+      </ScrollableDialogContent>
+      <ScrollableDialogFooter className="flex flex-wrap justify-end gap-2 p-3"><Button ref={cancel} variant="outline" size="sm" disabled={reverting} onClick={() => setOpen(false)}>{t('studio:cancel')}</Button>
+        <Button size="sm" data-testid="studio-bilingual-revert-confirm" disabled={reverting || busy} onClick={() => void revert()}>{reverting ? <LoaderCircle className="studio-spin" /> : <Undo2 />}{t('studio:bilingual_import.revert')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
   </>;
 }

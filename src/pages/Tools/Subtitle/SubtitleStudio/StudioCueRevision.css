@@ -56,3 +56,11 @@
 @media (prefers-reduced-motion: reduce) {
   .studio-cue-revision-bar > span { transition: none; }
 }
+
+/* Structure proposals: what happens and when on top, the result, then the lines it replaces. */
+.studio-cue-structure-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.studio-cue-structure-head .studio-cue-revision-tag { margin-left: 0; }
+.studio-cue-structure-head .studio-cue-revision-tag > svg { width: 11px; height: 11px; }
+.studio-cue-structure-time { font: 11px/16px ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; color: var(--muted-foreground); white-space: pre-wrap; }
+.studio-cue-structure-old { display: grid; gap: 1px; font-size: 11.5px; line-height: 17px; color: var(--muted-foreground); }
+.studio-cue-structure-old del, [data-kind=delete] del { text-decoration-color: color-mix(in oklab, var(--muted-foreground) 70%, transparent); }

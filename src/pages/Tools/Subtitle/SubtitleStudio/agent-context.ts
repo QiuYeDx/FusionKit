@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { LIMITS, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, StudioResult, SubtitleStudioApi } from '@/subtitle-studio/ipc-contract';
 import { reportPageEvent, type AgentPageContext, type PageSuggestion, type PageToolSet } from '@/agent/page-context';
-import type { CueRevisionOutcome, CueRevisionPreset } from './StudioCueRevision';
+import type { CueRevisionOutcome, CueRevisionPreset, StructureCounts } from './StudioCueRevision';
+import { MERGE_LIMIT, mergeProposal, parseStudioTime, type CueStructureProposal } from '@/subtitle-studio/cue-structure';
 import type { ConsistencyOutcome } from './StudioConsistencyCheck';
 import type { CueRevisionHint } from '@/subtitle-studio/cue-revision-contract';
 import type { CueTrack } from './StudioCueMenu';
@@ -90,10 +91,81 @@ const reviseSchema = z.object({
   lines: z.array(z.number().int().min(1).max(LIMITS.cues)).min(1).max(200).optional().describe('For scope=document: cue numbers to revise.'),
 }).strict().refine(value => !(value.terms && value.lines), 'Give terms or lines, not both.');
 
-/** Tells the assistant that the user applied the revision it prepared, with the wordings it settled. */
-function reportApplied(count: number, hints: CueRevisionHint[]) {
+/** Tells the assistant that the user applied the revision it prepared, with the wordings it settled and the cues merged, deleted or retimed. */
+function reportApplied(count: number, hints: CueRevisionHint[], changes?: StructureCounts) {
   reportPageEvent({ kind: 'revision_applied',
-    values: { count, hints: hints.slice(0, 5).map(hint => `${clip(hint.source)} → ${clip(hint.target)}`).join('; '), hintCount: hints.length } });
+    values: { count, hints: hints.slice(0, 5).map(hint => `${clip(hint.source)} → ${clip(hint.target)}`).join('; '), hintCount: hints.length,
+      ...(changes?.merges ? { merged: changes.merges } : {}), ...(changes?.deletes ? { deleted: changes.deletes } : {}), ...(changes?.timings ? { retimed: changes.timings } : {}) } });
+}
+
+const EDIT_LIMIT = 200;
+const cueNumber = z.number().int().min(1).max(LIMITS.cues);
+const time = z.string().trim().min(1).max(20).describe('A time such as 00:01:02.300, 01:02.3 or 62.3 (seconds).');
+const editSchema = z.object({
+  edits: z.array(z.discriminatedUnion('kind', [
+    z.object({ kind: z.literal('merge'), from: cueNumber, to: cueNumber }).strict().describe('Merge cues from..to (consecutive, at most 50) into one: texts joined without repeating, from the first start to the last end.'),
+    z.object({ kind: z.literal('delete'), numbers: z.array(cueNumber).min(1).max(EDIT_LIMIT) }).strict(),
+    z.object({ kind: z.literal('timing'), number: cueNumber, start: time.optional(), end: z.union([time, z.literal('unknown')]).optional() }).strict()
+      .describe('New start and/or end of one cue; end "unknown" only for LRC documents.'),
+  ])).min(1).max(EDIT_LIMIT),
+}).strict();
+const duplicatesSchema = z.object({
+  scope: z.enum(['selection', 'document']).describe('selection: among the cues the user selected; document: the whole document.'),
+}).strict();
+
+/** Reads the cues the edits name, by number, at the page's revision. */
+async function cuesByNumber(deps: StudioAgentDeps, page: DocumentPage, numbers: readonly number[], check: () => void) {
+  const track = deps.track();
+  const cues = new Map<number, DocumentPage['cues'][number] & { index: number }>();
+  const entries: NonNullable<CueTrack>['entries'] = {};
+  for (const offset of new Set(numbers.map(number => Math.floor((number - 1) / LIMITS.pageSize) * LIMITS.pageSize))) {
+    const chunk = offset === page.offset ? page : unwrap(await deps.api().readDocumentPage({ documentId: page.summary.id, revision: page.summary.revision, offset }));
+    check();
+    chunk.cues.forEach((cue, position) => cues.set(chunk.offset + position + 1, { ...cue, index: chunk.offset + position }));
+    Object.assign(entries, chunk.translationTracks.find(item => item.id === track?.id)?.entries ?? {});
+  }
+  return { cues, track: track ? { id: track.id, entries } : undefined };
+}
+
+/** The structure proposals for the edits the user asked for, or why they cannot be made. */
+async function prepareEdits(deps: StudioAgentDeps, page: DocumentPage, edits: z.infer<typeof editSchema>['edits'], check: () => void): Promise<CueStructureProposal[]> {
+  const total = page.summary.cueCount;
+  const numbers = edits.flatMap(edit => edit.kind === 'merge' ? Array.from({ length: Math.max(0, edit.to - edit.from + 1) }, (_, offset) => edit.from + offset) : edit.kind === 'delete' ? edit.numbers : [edit.number]);
+  if (numbers.some(number => number > total)) throw new PageFailure('invalid_cue_number');
+  if (numbers.length > EDIT_LIMIT * 2 || new Set(numbers).size !== numbers.length) throw new PageFailure(new Set(numbers).size !== numbers.length ? 'overlapping_edits' : 'too_many_edits');
+  const { cues, track } = await cuesByNumber(deps, page, numbers, check);
+  const proposals: CueStructureProposal[] = [];
+  for (const edit of edits) {
+    if (edit.kind === 'merge') {
+      if (edit.to <= edit.from || edit.to - edit.from + 1 > MERGE_LIMIT) throw new PageFailure('not_adjacent');
+      proposals.push(mergeProposal(Array.from({ length: edit.to - edit.from + 1 }, (_, offset) => cues.get(edit.from + offset)!), track));
+    } else if (edit.kind === 'delete') {
+      for (const number of edit.numbers) {
+        const cue = cues.get(number)!;
+        const entry = track?.entries[cue.id];
+        proposals.push({ kind: 'delete', cueId: cue.id, index: cue.index, current: { source: cue.source, ...(entry && entry.sourceRevision === cue.sourceRevision ? { target: entry.text } : {}) }, timing: { ...cue.timing } });
+      }
+    } else {
+      const cue = cues.get(edit.number)!;
+      const startMs = edit.start === undefined ? cue.timing.startMs : parseStudioTime(edit.start);
+      const endMs = edit.end === undefined ? cue.timing.endMs : edit.end === 'unknown' ? null : parseStudioTime(edit.end);
+      if (startMs === null || (edit.end !== undefined && edit.end !== 'unknown' && endMs === null) || (endMs !== null && endMs < startMs)
+        || (endMs === null && page.summary.origin.format !== 'lrc' && cue.timing.endMs !== null)) throw new PageFailure('invalid_time');
+      proposals.push({ kind: 'timing', cueId: cue.id, index: cue.index, current: { source: cue.source }, before: { ...cue.timing }, timing: { startMs, endMs } });
+    }
+  }
+  if (proposals.reduce((sum, item) => sum + (item.kind === 'merge' ? item.cueIds.length - 1 : item.kind === 'delete' ? 1 : 0), 0) >= total) throw new PageFailure('invalid_cue_number');
+  return proposals;
+}
+
+/** Opens the revision preview with a preset and waits for its outcome; a stopped turn leaves the preview with the user. */
+function openPreview(deps: StudioAgentDeps, cueIds: string[], preset: CueRevisionPreset, signal?: AbortSignal) {
+  return new Promise<CueRevisionOutcome | 'aborted'>(resolve => {
+    const abort = () => resolve('aborted');
+    if (signal?.aborted) { abort(); return; }
+    signal?.addEventListener('abort', abort, { once: true });
+    deps.openRevision(cueIds, preset, value => { signal?.removeEventListener('abort', abort); resolve(value); });
+  });
 }
 
 const consistencySchema = z.object({
@@ -116,6 +188,7 @@ function consistencyResult(outcome: ConsistencyOutcome): Result {
 function outcomeResult(outcome: CueRevisionOutcome): Result {
   switch (outcome.status) {
     case 'ready': return ok({ status: 'awaiting_user_review', checkedCues: outcome.checked, proposedRevisions: outcome.proposals, notes: outcome.notes, ...(outcome.plan ? { plan: outcome.plan } : {}),
+      ...(outcome.structure ? { structure: { merges: outcome.structure.merges, deletes: outcome.structure.deletes, timings: outcome.structure.timings } } : {}),
       ...(outcome.knowledgeHints?.length ? { knowledgeHints: outcome.knowledgeHints.slice(0, 5).map(hint => ({ source: clip(hint.source), target: clip(hint.target) })) } : {}),
       nextAction: outcome.proposals ? 'The revision preview is open in Subtitle Studio. The user reviews the changes and applies them there; nothing has been written yet.' : 'No change was proposed; the preview is open for the user to adjust the request.' });
     case 'needs_confirmation': return ok({ status: 'awaiting_scan_confirmation', cueCount: outcome.count, plan: outcome.plan,
@@ -204,17 +277,42 @@ export function createStudioAgentTools(deps: StudioAgentDeps): PageToolSet {
         const track = deps.track();
         if (args.fields && args.fields !== 'source' && !track) throw new PageFailure('no_translation_track');
         const search = args.scope === 'document' ? args.terms ? { terms: args.terms } : args.lines ? { lines: args.lines } : undefined : undefined;
-        const outcome = await new Promise<CueRevisionOutcome | 'aborted'>(resolve => {
-          const signal = options?.abortSignal;
-          const abort = () => resolve('aborted');
-          if (signal?.aborted) { abort(); return; }
-          signal?.addEventListener('abort', abort, { once: true });
-          deps.openRevision(selection, { instructions: args.instructions, scope: args.scope, ...(args.fields ? { fields: args.fields } : {}), ...(search ? { search } : {}), onApplied: reportApplied }, value => {
-            signal?.removeEventListener('abort', abort);
-            resolve(value);
-          });
-        });
-        // A stopped turn leaves the preview with the user.
+        const outcome = await openPreview(deps, selection, { instructions: args.instructions, scope: args.scope, ...(args.fields ? { fields: args.fields } : {}), ...(search ? { search } : {}), onApplied: reportApplied }, options?.abortSignal);
+        if (outcome === 'aborted') throw new PageFailure('agent_cancelled');
+        check();
+        return outcomeResult(outcome);
+      }),
+    },
+    studio_prepare_cue_edits: {
+      description: 'Prepare structural edits the user asked for in the open Subtitle Studio document, by cue number: merge consecutive cues into one (texts joined without repeating; from the first start to the last end), delete cues, or change a cue\u2019s start or end time. ' +
+        'No model is used. The edits open in the revision preview, where the user reviews and applies them as one undoable edit; this tool never writes.',
+      inputSchema: editSchema,
+      execute: (input: unknown, options?: { abortSignal?: AbortSignal }) => guard(async () => {
+        const args = editSchema.parse(input);
+        const { page, check } = currentDocument(deps);
+        const blocked = deps.editBlocked();
+        if (blocked) return { success: false, error: 'edit_blocked', data: { reason: blocked } };
+        if (deps.revisionOpen()) throw new PageFailure('revision_already_open');
+        const structure = await prepareEdits(deps, page, args.edits, check);
+        const outcome = await openPreview(deps, [], { instructions: '', scope: 'document', mode: 'prepared', structure, onApplied: reportApplied }, options?.abortSignal);
+        if (outcome === 'aborted') throw new PageFailure('agent_cancelled');
+        check();
+        return outcomeResult(outcome);
+      }),
+    },
+    studio_find_duplicates: {
+      description: 'Check the open Subtitle Studio document (or the selected cues) for neighbouring cues that repeat each other, as speech recognition sometimes outputs one line twice. No model is used. ' +
+        'Each repetition is proposed as a merge in the revision preview, where the user reviews and applies them; this tool never writes.',
+      inputSchema: duplicatesSchema,
+      execute: (input: unknown, options?: { abortSignal?: AbortSignal }) => guard(async () => {
+        const args = duplicatesSchema.parse(input);
+        const { check } = currentDocument(deps);
+        const blocked = deps.editBlocked();
+        if (blocked) return { success: false, error: 'edit_blocked', data: { reason: blocked } };
+        if (deps.revisionOpen()) throw new PageFailure('revision_already_open');
+        const selection = args.scope === 'selection' ? [...deps.selection()] : [];
+        if (args.scope === 'selection' && selection.length < 2) throw new PageFailure('empty_selection');
+        const outcome = await openPreview(deps, selection, { instructions: '', scope: args.scope, mode: 'duplicates', onApplied: reportApplied }, options?.abortSignal);
         if (outcome === 'aborted') throw new PageFailure('agent_cancelled');
         check();
         return outcomeResult(outcome);
@@ -228,6 +326,7 @@ export const STUDIO_AGENT_INSTRUCTIONS = [
   'To change subtitle text (misheard names or terms, what a line should say, punctuation, translations), call studio_prepare_revision. It opens the AI revision preview; the user reviews and applies the changes there. Never claim the text has been changed.',
   'When the user names wrong spellings, use scope=document and pass terms with the wrong forms and likely mis-transcriptions (homophones, near misses), so no extra planning request is needed; for numbered lines pass lines. Use scope=selection when the user refers to the selected cues.',
   'Use studio_read_cues or studio_find_cues to look at the text before answering questions about it. Translating, exporting and library work keep using the fixed Subtitle Studio tools.',
+  'To merge, delete or retime cues the user names ("merge 19 and 20", "start line 5 at 00:01:02.300"), call studio_prepare_cue_edits. To find lines speech recognition repeated, call studio_find_duplicates; for repeats only the model can judge, studio_prepare_revision may also propose merges and deletions. The user applies them in the preview.',
   'When the user asks whether names or terms are consistent or wants them unified across the document, call studio_check_consistency (optionally with a focus); the user unifies them in the check window.',
   'When the user wants a wording kept in translation materials (after a revision or not), take the exact source form from the cues the revision touched, use the source and translation languages of the document as the language pair, and prepare it with prepare_knowledge_changes.',
 ].join(' ');

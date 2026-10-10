@@ -11,7 +11,7 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import { usePreparedActionsStore } from "@/agent/prepared-actions";
 
 /** Tools a page lends to the assistant while it is open (see src/agent/page-context.ts). */
-const PAGE_TOOLS = ["open_app_page", "studio_read_cues", "studio_find_cues", "studio_prepare_revision", "studio_check_consistency",
+const PAGE_TOOLS = ["open_app_page", "studio_read_cues", "studio_find_cues", "studio_prepare_revision", "studio_prepare_cue_edits", "studio_find_duplicates", "studio_check_consistency",
   "subtitle_translator_update_settings", "subtitle_converter_update_settings", "subtitle_extractor_update_settings", "name_translator_update_settings"];
 const WEB_TOOLS = ["web_search", "web_read"];
 const webSourceKeys = { wikipedia: "home:web_source_wikipedia", moegirl: "home:web_source_moegirl", baidu_baike: "home:web_source_baidu_baike",

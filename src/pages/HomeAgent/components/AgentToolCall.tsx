@@ -42,6 +42,8 @@ const toolNameKeys = {
   studio_read_cues: "home:tool_name_read_cues",
   studio_find_cues: "home:tool_name_find_cues",
   studio_prepare_revision: "home:tool_name_prepare_revision",
+  studio_prepare_cue_edits: "home:tool_name_prepare_cue_edits",
+  studio_find_duplicates: "home:tool_name_find_duplicates",
   studio_check_consistency: "home:tool_name_check_consistency",
   web_search: "home:tool_name_web_search",
   web_read: "home:tool_name_web_read",

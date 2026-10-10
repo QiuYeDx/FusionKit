@@ -6,7 +6,7 @@ import { cueRevisionRequestSchemas, type CueFindResult, type CueRevisionLocation
 import { consistencyRequestSchemas, type ConsistencyResult } from './consistency-contract';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
-import { hasBilingualCandidates, isBilingualRecommended } from './bilingual';
+import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
 import { exportOptionsSchema, exportIssueCodeSchema, exportDestinationSchema, type SourceLocationSummary, type ExportPlanSummary, type ExportResult } from './export-contract';
 import { batchRequestSchemas, type BatchImportResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
 import { enqueueTranscriptionRequestSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
@@ -62,6 +62,7 @@ export const STUDIO_CHANNELS = {
   resumeTask: 'subtitle-studio:resume-task',
   previewBilingual: 'subtitle-studio:preview-bilingual',
   applyBilingual: 'subtitle-studio:apply-bilingual',
+  revertBilingual: 'subtitle-studio:revert-bilingual',
   removeTranslationTrack: 'subtitle-studio:remove-translation-track',
   renameTranslationTrack: 'subtitle-studio:rename-translation-track',
   editCues: 'subtitle-studio:edit-cues',
@@ -148,6 +149,7 @@ export const requestSchemas = {
   resumeTask: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), taskId: idSchema, model: translationModelSchema.nullable(), apiKey: z.string().max(8000) }).strict(),
   previewBilingual: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: bilingualOptionsSchema, offset: z.number().int().min(0).max(LIMITS.cues), reviewOnly: z.boolean().optional() }).strict(),
   applyBilingual: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: bilingualOptionsSchema }).strict(),
+  revertBilingual: z.object({ documentId: idSchema, revision: z.number().int().positive().safe() }).strict(),
   removeTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema }).strict(),
   renameTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema, name: translationTrackNameSchema }).strict(),
   editCues: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), operation: cueEditOperationSchema }).strict(),
@@ -159,6 +161,8 @@ export type StudioEvent = z.infer<typeof studioEventSchema>;
 export type DocumentListSnapshot = { documents: DocumentSummary[]; total: number; unavailableDocuments: number; sequence: number; allTotal?: number; unavailable?: UnavailableDocument[] };
 export type DocumentSummary = Pick<SubtitleDocument, 'id' | 'revision' | 'origin' | 'capabilities' | 'diagnostics' | 'bilingualImport'> & {
   cueCount: number; bilingualAvailable?: boolean; bilingualRecommended?: boolean; updatedAt?: number;
+  /** Separated into source and translation and not edited since: it can be imported again as it was. */
+  bilingualRevertible?: boolean;
   translationStatus?: 'none' | 'partial' | 'complete';
   translationTracks?: Pick<SubtitleDocument['translationTracks'][number], 'id' | 'language' | 'origin' | 'name'>[];
   task?: { id: string; status: DocumentSnapshot['tasks'][number]['status']; model?: z.infer<typeof translationModelSchema>; completedBatches: number; totalBatches: number } | null;
@@ -249,6 +253,7 @@ export interface SubtitleStudioApi {
   resumeTask(request: z.infer<typeof requestSchemas.resumeTask>): Promise<StudioResult<{ taskId: string }>>;
   previewBilingual(request: z.infer<typeof requestSchemas.previewBilingual>): Promise<StudioResult<BilingualPreview>>;
   applyBilingual(request: z.infer<typeof requestSchemas.applyBilingual>): Promise<StudioResult<DocumentSummary>>;
+  revertBilingual(request: z.infer<typeof requestSchemas.revertBilingual>): Promise<StudioResult<DocumentSummary>>;
   removeTranslationTrack(request: z.infer<typeof requestSchemas.removeTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
   renameTranslationTrack(request: z.infer<typeof requestSchemas.renameTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
   editCues(request: z.infer<typeof requestSchemas.editCues>): Promise<StudioResult<CueEditResult>>;
@@ -278,7 +283,8 @@ export function summarizeDocument(doc: SubtitleDocument, tasks: DocumentSnapshot
     ...(doc.bilingualImport ? { bilingualImport: doc.bilingualImport } : {}),
     ...(exported ? { automaticExport: exported } : {}),
     bilingualAvailable: !doc.translationTracks.length && !doc.bilingualImport && hasBilingualCandidates(doc),
-    bilingualRecommended: !doc.translationTracks.length && !doc.bilingualImport && isBilingualRecommended(doc) };
+    bilingualRecommended: !doc.translationTracks.length && !doc.bilingualImport && isBilingualRecommended(doc),
+    ...(canRevertBilingual(doc) && !tasks.length ? { bilingualRevertible: true } : {}) };
 }
 
 export function summarizeTask(task: StoredTask): DocumentTask {

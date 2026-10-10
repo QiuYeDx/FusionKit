@@ -1,9 +1,10 @@
 import { useRef, type ComponentProps } from 'react';
-import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Copy, Eraser, Languages, PencilLine, Sparkles, Trash2 } from 'lucide-react';
+import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, MoveHorizontal, PencilLine, Sparkles, Timer, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '@/components/ui/dropdown-menu';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
 import { buildCueCopyText, type CueCopyMode } from '@/services/subtitle-studio/cue-copy';
+import { consecutive, MERGE_LIMIT } from '@/subtitle-studio/cue-structure';
 import './StudioCueCopy.css';
 
 export type CueField = 'source' | 'target';
@@ -21,6 +22,12 @@ export type CueMenuActions = {
   onClear: (cueIds: string[]) => void;
   onReview: (cueIds: string[], reviewed: boolean) => void;
   onDelete: (cueIds: string[]) => void;
+  /** Merges consecutive cues into the first of them. */
+  onMerge: (cueIds: string[]) => void;
+  /** Edits one cue's start and end time in place. */
+  onEditTiming: (cueId: string) => void;
+  /** Moves the cues earlier or later by the same amount. */
+  onShift: (cueIds: string[]) => void;
   onCopy: (cueId: string, text: string) => void;
   onRemember: (cueId: string) => void;
 };
@@ -60,6 +67,7 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
   const stale = !!single && !!currentEntry(track, single) && track?.entries[single.id].sourceRevision !== single.sourceRevision;
   const translatable = cues.some(cue => cue.source.plain.trim());
   const deletesAll = cues.length >= page.summary.cueCount;
+  const mergeable = cues.length >= 2 && cues.length <= MERGE_LIMIT && consecutive(cueIds, page.cues.map(cue => cue.id));
   const copy = (mode: CueCopyMode, timing: boolean) => {
     const text = copyCues(page, track, cueIds, mode, timing);
     if (text !== null) actions.onCopy(cueIds[0], text);
@@ -74,8 +82,14 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
     {single && <>
       <DropdownMenuItem data-testid="studio-cue-edit-source" disabled={!!editBlocked} onSelect={() => edit('source')}><PencilLine />{t('studio:cue_menu.edit_source')}</DropdownMenuItem>
       {track && <DropdownMenuItem data-testid="studio-cue-edit-target" disabled={!!editBlocked} onSelect={() => edit('target')}><PencilLine />{t('studio:cue_menu.edit_target')}</DropdownMenuItem>}
+      <DropdownMenuItem data-testid="studio-cue-edit-timing" disabled={!!editBlocked} onSelect={() => { onEditing(); actions.onEditTiming(single.id); }}><Timer />{t('studio:cue_structure.edit_timing')}<DropdownMenuShortcut>T</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSeparator />
     </>}
+    {cues.length > 1 && <DropdownMenuItem data-testid="studio-cue-merge" disabled={!!editBlocked || !mergeable} onSelect={() => actions.onMerge(cueIds)}>
+      <Combine />{t('studio:cue_structure.merge')}<DropdownMenuShortcut>Ctrl+M</DropdownMenuShortcut>
+    </DropdownMenuItem>}
+    <DropdownMenuItem data-testid="studio-cue-shift" disabled={!!editBlocked} onSelect={() => { onEditing(); actions.onShift(cueIds); }}><MoveHorizontal />{t('studio:cue_structure.shift')}</DropdownMenuItem>
+    {(cues.length > 1 || !single) && <DropdownMenuSeparator />}
     <DropdownMenuItem data-testid="studio-cue-translate" disabled={!!editBlocked || !actions.canTranslate || !translatable} onSelect={() => actions.onTranslate(cueIds)}>
       <Languages />{t(track && translated ? 'studio:cue_menu.retranslate' : 'studio:cue_menu.translate')}
     </DropdownMenuItem>
@@ -102,8 +116,9 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
     <DropdownMenuItem data-testid="studio-cue-delete" variant="destructive" disabled={!!editBlocked || deletesAll} onSelect={() => actions.onDelete(cueIds)}>
       <Trash2 />{t(cues.length > 1 ? 'studio:cue_menu.delete_many' : 'studio:cue_menu.delete')}<DropdownMenuShortcut>Del</DropdownMenuShortcut>
     </DropdownMenuItem>
-    {(editBlocked || deletesAll || (single && (!translated || stale))) && <DropdownMenuSeparator />}
+    {(editBlocked || deletesAll || (cues.length > 1 && !mergeable) || (single && (!translated || stale))) && <DropdownMenuSeparator />}
     {editBlocked && <p className="studio-copy-hint" role="note">{editBlocked}</p>}
+    {!editBlocked && cues.length > 1 && !mergeable && <p className="studio-copy-hint" role="note">{t(cues.length > MERGE_LIMIT ? 'studio:cue_structure.merge_too_many' : 'studio:cue_structure.merge_not_adjacent', { count: MERGE_LIMIT })}</p>}
     {!editBlocked && deletesAll && <p className="studio-copy-hint" role="note">{t('studio:cue_menu.keep_one')}</p>}
     {single && (!translated || stale) && <p className="studio-copy-hint" role="note">{t(stale ? 'studio:copy_options.stale' : 'studio:copy_options.no_translation')}</p>}
   </>;

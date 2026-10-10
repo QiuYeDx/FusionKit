@@ -51,7 +51,20 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
       await app!.evaluate(({ dialog }, input) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [input] }); }, file);
       await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
     };
-    await openFile(input);
+    // Clearly bilingual files are separated at import. Imported as they were, the manual cleanup reviews each candidate.
+    const openForCleanup = async (file: string) => {
+      await openFile(file);
+      await uiExpect(page.getByRole('heading', { name: path.basename(file), exact: true })).toBeVisible();
+      const separated = page.getByTestId('studio-bilingual-label');
+      const cleanup = page.getByRole('button', { name: '双语整理', exact: true });
+      await uiExpect(separated.or(cleanup)).toBeVisible();
+      if (await separated.isVisible()) {
+        await page.getByTestId('studio-bilingual-notice-revert').click();
+        await uiExpect(separated).toHaveCount(0);
+      }
+      await cleanup.click();
+    };
+    await openForCleanup(input);
     const dialog = page.getByRole('dialog');
     // Presence retains the outgoing preview while the current page enters.
     const list = dialog.locator('.studio-bilingual-list:not([data-dialog-exiting="true"] *)');
@@ -165,7 +178,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     const srtName = '双语字幕-后段原文.srt';
     const srt = Array.from({ length: 4 }, (_, i) => `${i + 7}\n00:00:0${i},000 --> 00:00:0${i + 1},000\n旧译文${i}\n今日は道具を使います${i} 旧译文${i}\n`).join('\n');
     await writeFile(path.join(root, srtName), srt);
-    await openFile(path.join(root, srtName));
+    await openForCleanup(path.join(root, srtName));
     await uiExpect(dialog).toBeVisible();
     await dialog.getByRole('combobox', { name: '原文顺序', exact: true }).click();
     await page.getByRole('option', { name: '后段为原文', exact: true }).click();
@@ -199,7 +212,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
       return i < 40 ? `${time}${source}\n${time}${target}` : `${time}${source} ${target}\n${time}${source} ${target}`;
     }).join('\n');
     await writeFile(repeatedFile, repeatedInput);
-    await openFile(repeatedFile);
+    await openForCleanup(repeatedFile);
     await uiExpect(dialog).toBeVisible();
     await dialog.getByRole('switch', { name: '按空格拆分单行双语' }).check();
     await uiExpect(candidates).toHaveAttribute('aria-busy', 'false');
@@ -282,7 +295,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     if (process.env.FUSIONKIT_STUDIO_BILINGUAL_INPUT_BASE) {
       await window.evaluate(win => win.setSize(1280, 860));
       for (const format of ['lrc', 'srt']) {
-        await openFile(`${process.env.FUSIONKIT_STUDIO_BILINGUAL_INPUT_BASE}.${format}`);
+        await openForCleanup(`${process.env.FUSIONKIT_STUDIO_BILINGUAL_INPUT_BASE}.${format}`);
         await uiExpect(dialog).toBeVisible();
         if (format === 'lrc') await dialog.getByRole('switch', { name: '按空格拆分单行双语' }).check();
         await uiExpect(candidates.locator(':scope > li')).toHaveCount(20);

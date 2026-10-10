@@ -149,9 +149,9 @@ describe('real default comparison evidence analysis', () => {
   });
 
   it.each([
-    // A later source revision is a valid studio edit, but never producer output.
+    // A later source or timing revision is a valid studio edit (retimed or merged cues), but never producer output.
     ['sourceRevision', true, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].sourceRevision = 2; }],
-    ['timingRevision', false, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].timingRevision = 2; }],
+    ['timingRevision', true, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].timingRevision = 2; }],
     ['segmentId', false, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].segmentId = 'other-segment'; }],
     ['source/spans/0/marks/0', false, (document: ReturnType<typeof transcriptToDocument>) => { document.cues[0].source.spans[0].marks.push('b'); }],
   ] as const)('checks the full document cue field %s rather than text/time alone', (field, valid, mutate) => {

@@ -9,6 +9,8 @@ describe("applied revision events", () => {
     expect(uiEventModelText(withHints)).toContain("テイムフィールド家のお嬢様 → 泰姆菲尔德家的大小姐");
     expect(uiEventModelText(without)).toContain("settled no wording worth keeping");
     expect(uiEventModelText(without)).toContain("authorizes nothing new");
+    expect(uiEventModelText({ kind: "revision_applied", values: { count: 4, hintCount: 0, hints: "", merged: 1, deleted: 1, retimed: 1 } }))
+      .toContain("4 cue(s) changed (1 merge(s), 1 deletion(s), 1 time change(s))");
   });
   it("follows up only when there are wordings to keep or an open plan", () => {
     expect(shouldFollowUpUiEvent(withHints, undefined)).toBe(true);

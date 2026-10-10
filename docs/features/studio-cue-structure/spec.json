@@ -1,0 +1,127 @@
+{
+  "schema_version": 2,
+  "feature": "studio-cue-structure",
+  "tier": "L",
+  "risk": "medium",
+  "current_increment": "I3",
+  "modules": [
+    {
+      "slug": "import",
+      "code": "IMPORT",
+      "path": "modules/module-import"
+    },
+    {
+      "slug": "structure",
+      "code": "STRUCTURE",
+      "path": "modules/module-structure"
+    },
+    {
+      "slug": "revision",
+      "code": "REVISION",
+      "path": "modules/module-revision"
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "双语字幕导入即识别",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-10 用户：“……可以好好设计一下完善一下。（可以先写文档再开始开发）”，并补充“字幕工作台导入……双语lrc字幕文件时应该能智能识别将双语分别认作原文和译文”。按本规格先写文档再自主实现与隔离验证；AI/Agent 的结构修改只在预览中由用户确认后应用；不提交推送（除非用户要求）、不调用付费 API。",
+        "digest": "71d385b188bcddb3e45b2da9471be3421fe4aff4f451dcab995b57573ee14d04"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "合并相邻字幕与调整时间",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-10 用户：“……可以好好设计一下完善一下。（可以先写文档再开始开发）”，并补充“字幕工作台导入……双语lrc字幕文件时应该能智能识别将双语分别认作原文和译文”。按本规格先写文档再自主实现与隔离验证；AI/Agent 的结构修改只在预览中由用户确认后应用；不提交推送（除非用户要求）、不调用付费 API。 同一授权覆盖 I1–I3，按路线图依次实施。",
+        "digest": "9708bded49d6cf96df0f71402014d3ceeabb50ce410d933cfd1e1439a5637042"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I3",
+      "title": "重复检测、AI 修订与 Agent 结构修复",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-10 用户：“……可以好好设计一下完善一下。（可以先写文档再开始开发）”，并补充“字幕工作台导入……双语lrc字幕文件时应该能智能识别将双语分别认作原文和译文”。按本规格先写文档再自主实现与隔离验证；AI/Agent 的结构修改只在预览中由用户确认后应用；不提交推送（除非用户要求）、不调用付费 API。 同一授权覆盖 I1–I3，按路线图依次实施。",
+        "digest": "d2a6107aaffa4f5127aef147347da0dd383a6b05b9e6202fda62e9f15a50353b"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "导入时识别双语是否需要用户先确认",
+      "resolution": "不弹确认：只在现有推荐阈值（≥3 对且 ≥80% 无需核对）满足时自动拆分，并提供“按原样导入”一键恢复；不明显的文件仍按原样导入，可手动「双语整理」。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "原文一侧如何判定",
+      "resolution": "两种语言恰有一种为中文时，中文一侧为译文；否则第一行一侧为原文（与 FusionKit 默认“原文在前”导出一致）。"
+    },
+    {
+      "id": "A-03",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "合并后的字幕身份与时间",
+      "resolution": "保留第一条的 id 与位置；开始取第一条开始、结束取最后一条结束（未知则保持未知）；时间从不由模型提供。"
+    },
+    {
+      "id": "A-04",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "改过时间的 VTT/ASS/SSA 如何同格式导出",
+      "resolution": "任一字幕 timingRevision > 1 时改为重新生成，原文件样式等以现有“已省略”确认提示说明；不在原文件上改写时间行。"
+    },
+    {
+      "id": "A-05",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "是否同时提供拆分字幕",
+      "resolution": "本功能不提供（用户请求为合并、删除、改时间）；拆分涉及新字幕 id、文本节点与转写片段一对多，列为后续批次。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

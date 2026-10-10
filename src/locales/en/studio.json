@@ -793,7 +793,9 @@
       "unreview": "clear {{count}} review marks",
       "delete": "delete {{count}} subtitles",
       "revise": "AI revision of {{count}} subtitles",
-      "unify": "unify wording in {{count}} cue(s)"
+      "unify": "unify wording in {{count}} cue(s)",
+      "merge": "Merge {{count}} cue(s)",
+      "timing": "Retime {{count}} cue(s)"
     }
   },
   "cue_help": {
@@ -817,6 +819,14 @@
     "field": {
       "keys": "← / →",
       "desc": "Switch between source and translation"
+    },
+    "timing": {
+      "keys": "Double-click time / T",
+      "desc": "Edit start and end time"
+    },
+    "merge": {
+      "keys": "Ctrl+M",
+      "desc": "Merge the selected adjacent cues"
     },
     "delete": {
       "keys": "Delete",
@@ -907,7 +917,21 @@
     "materials": "Using translation knowledge: {{names}}",
     "materials_more": "{{first}} and {{count}} in all",
     "materials_separator": ", ",
-    "knowledge_hint": "After applying, you can keep {{count}} wording(s) in translation knowledge"
+    "knowledge_hint": "After applying, you can keep {{count}} wording(s) in translation knowledge",
+    "find_duplicates": "Find repeated lines",
+    "duplicates_none": "Checked {{total}} cue(s); no neighbouring repeats found.",
+    "include_structure": "Apply the change to {{numbers}}",
+    "tag_merge": "Merge {{count}}",
+    "tag_delete": "Delete",
+    "tag_timing": "Retime",
+    "part_texts": "{{count}} text change(s)",
+    "part_merges": "{{count}} merge(s)",
+    "part_deletes": "{{count}} deletion(s)",
+    "part_timings": "{{count}} time change(s)",
+    "summary_structure": "Suggested: {{parts}} ({{total}} checked)",
+    "prepared_by_agent": "The Agent prepared these changes from your request; nothing changes until you apply them.",
+    "reading": "Reading {{done}} / {{total}} cues…",
+    "summary_prepared": "Prepared: {{parts}}"
   },
   "agent": {
     "suggest_fix": "Fix a misheard word",
@@ -967,5 +991,41 @@
     "keep_open": "Keep in translation knowledge",
     "source_standard": "Unify the source to",
     "most_common": "Most common"
+  },
+  "bilingual_import": {
+    "direction": "{{source}} → {{target}}",
+    "label": "Bilingual · {{direction}}",
+    "notice": "Recognized as bilingual subtitles ({{direction}}), {{count}} cues: the first language is the source, the second its translation.",
+    "revert": "Import as is",
+    "revert_description": "This document was imported as bilingual ({{direction}}, {{count}} cues). Importing it as is makes every line source text and removes the imported translation. You can still separate it again with Organize bilingual subtitles.",
+    "result": "Recognized as bilingual: {{direction}}",
+    "chinese": "Chinese"
+  },
+  "cue_structure": {
+    "merge": "Merge into one",
+    "merge_not_adjacent": "Only adjacent cues can be merged",
+    "merge_too_many": "Merge at most {{count}} cues at a time",
+    "edit_timing": "Edit time",
+    "shift": "Shift time…",
+    "start": "Start time",
+    "end": "End time",
+    "time_keys": "Enter saves · Esc cancels · format 00:00:00.000",
+    "time_invalid": "Not a time; for example 00:01:02.300",
+    "end_before_start": "The end cannot be before the start",
+    "end_required": "This cue needs an end time",
+    "before_previous": "The start cannot be before the previous cue",
+    "after_next": "The start cannot be after the next cue",
+    "beyond_media": "The end is past the end of the media",
+    "time_rejected": "This time could not be saved; check the order against the neighbouring cues.",
+    "shift_title": "Shift time",
+    "shift_description": "Moves the {{count}} selected cue(s) earlier or later; start and end move together.",
+    "shift_label": "Milliseconds to move (negative is earlier)",
+    "shift_preview": "The first moves from {{from}} to {{to}}; {{count}} cue(s) in all.",
+    "shift_invalid": "Enter whole milliseconds, such as 500 or -250",
+    "shift_negative": "A start would fall before 0",
+    "shift_before_previous": "They would move before the previous cue",
+    "shift_after_next": "They would move after the next cue",
+    "shift_apply": "Shift",
+    "unknown": "Unknown"
   }
 }

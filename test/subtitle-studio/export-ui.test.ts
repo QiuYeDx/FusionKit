@@ -79,11 +79,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio local 
     let nativeWindow = await app!.browserWindow(page); await nativeWindow.evaluate(win => win.setSize(1280, 860));
     await app!.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, input);
     await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
-    const bilingualDialog = page.getByRole('dialog', { name: '整理双语字幕', exact: true });
-    await uiExpect(bilingualDialog).toBeVisible();
-    await uiExpect(page.locator('.studio-bilingual-candidates > li')).toHaveCount(3);
-    await bilingualDialog.getByRole('button', { name: '确认整理', exact: true }).click();
-    await uiExpect(bilingualDialog).toHaveCount(0);
+    // Separated at import: three pairs and one source-only line, without a cleanup step.
+    await uiExpect(page.getByTestId('studio-bilingual-notice')).toBeVisible();
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(4);
     const organized = await snapshot(page);
     expect(organized.cues.map(cue => cue.source.plain)).toEqual(sourceLines);

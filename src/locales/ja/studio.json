@@ -793,7 +793,9 @@
       "unreview": "確認済み {{count}} 件の解除",
       "delete": "字幕 {{count}} 件の削除",
       "revise": "字幕 {{count}} 件の AI 修正",
-      "unify": "{{count}} 件の表記を統一"
+      "unify": "{{count}} 件の表記を統一",
+      "merge": "{{count}} 件の字幕を結合",
+      "timing": "{{count}} 件の字幕の時間を調整"
     }
   },
   "cue_help": {
@@ -817,6 +819,14 @@
     "field": {
       "keys": "← / →",
       "desc": "原文と訳文を切り替え"
+    },
+    "timing": {
+      "keys": "時間をダブルクリック / T",
+      "desc": "開始と終了の時間を編集"
+    },
+    "merge": {
+      "keys": "Ctrl+M",
+      "desc": "選択した隣り合う字幕を結合"
     },
     "delete": {
       "keys": "Delete",
@@ -907,7 +917,21 @@
     "materials": "参照する資料：{{names}}",
     "materials_more": "{{first}} など {{count}} 件",
     "materials_separator": "、",
-    "knowledge_hint": "適用後、{{count}} 件の訳語を翻訳資料に記録できます"
+    "knowledge_hint": "適用後、{{count}} 件の訳語を翻訳資料に記録できます",
+    "find_duplicates": "隣接する重複を確認",
+    "duplicates_none": "{{total}} 件を確認しました。隣り合う重複はありません。",
+    "include_structure": "{{numbers}} の変更を適用",
+    "tag_merge": "{{count}} 件を結合",
+    "tag_delete": "削除",
+    "tag_timing": "時間変更",
+    "part_texts": "文字の修正 {{count}} 件",
+    "part_merges": "結合 {{count}} か所",
+    "part_deletes": "削除 {{count}} 件",
+    "part_timings": "時間変更 {{count}} 件",
+    "summary_structure": "提案：{{parts}}（{{total}} 件を確認）",
+    "prepared_by_agent": "Agent が依頼に沿って用意した変更です。適用するまで反映されません。",
+    "reading": "{{done}} / {{total}} 件を読み込み中…",
+    "summary_prepared": "用意した変更：{{parts}}"
   },
   "agent": {
     "suggest_fix": "誤認識を直す",
@@ -967,5 +991,41 @@
     "keep_open": "翻訳資料に記録",
     "source_standard": "原文の表記をそろえる",
     "most_common": "最多"
+  },
+  "bilingual_import": {
+    "direction": "{{source}} → {{target}}",
+    "label": "対訳 · {{direction}}",
+    "notice": "対訳字幕として読み込みました（{{direction}}、{{count}} 件）：前者を原文、後者を訳文としています。",
+    "revert": "そのまま読み込む",
+    "revert_description": "現在は対訳として読み込まれています（{{direction}}、{{count}} 件）。そのまま読み込むと、すべての行が原文になり、読み込んだ訳文は削除されます。あとから「対訳字幕を整理」で整理し直せます。",
+    "result": "対訳として認識：{{direction}}",
+    "chinese": "中国語"
+  },
+  "cue_structure": {
+    "merge": "1 つに結合",
+    "merge_not_adjacent": "隣り合う字幕だけを結合できます",
+    "merge_too_many": "一度に結合できるのは {{count}} 件までです",
+    "edit_timing": "時間を編集",
+    "shift": "時間をずらす…",
+    "start": "開始時間",
+    "end": "終了時間",
+    "time_keys": "Enter で保存 · Esc で取消 · 形式 00:00:00.000",
+    "time_invalid": "時間の形式が正しくありません（例: 00:01:02.300）",
+    "end_before_start": "終了時間を開始時間より前にはできません",
+    "end_required": "この字幕には終了時間が必要です",
+    "before_previous": "開始時間を前の字幕より前にはできません",
+    "after_next": "開始時間を次の字幕より後にはできません",
+    "beyond_media": "終了時間がメディアの長さを超えています",
+    "time_rejected": "この時間は保存できません。前後の字幕との順序を確認してください。",
+    "shift_title": "時間をずらす",
+    "shift_description": "選択した {{count}} 件の字幕をまとめて前後にずらします。開始と終了の両方が動きます。",
+    "shift_label": "ずらすミリ秒（負の値で前へ）",
+    "shift_preview": "最初の字幕は {{from}} から {{to}} へ（{{count}} 件）。",
+    "shift_invalid": "整数のミリ秒を入力してください（例: 500、-250）",
+    "shift_negative": "開始時間が 0 未満になります",
+    "shift_before_previous": "前の字幕より前になります",
+    "shift_after_next": "次の字幕より後になります",
+    "shift_apply": "ずらす",
+    "unknown": "不明"
   }
 }

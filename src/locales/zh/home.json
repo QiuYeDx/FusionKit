@@ -412,5 +412,12 @@
   "action_error_web_failed": "网站暂时无法访问或返回了无法识别的内容。",
   "action_error_web_timeout": "网站响应超时。",
   "action_error_web_blocked": "只能读取公开网页，这个地址不允许访问。",
-  "action_error_web_not_found": "没有找到这个页面。"
+  "action_error_web_not_found": "没有找到这个页面。",
+  "tool_name_prepare_cue_edits": "准备合并或调整字幕",
+  "tool_name_find_duplicates": "检查相邻重复",
+  "action_error_invalid_cue_number": "字幕序号超出范围，或会删除全部字幕。",
+  "action_error_not_adjacent": "只能合并 2–50 条相邻的字幕。",
+  "action_error_invalid_time": "时间格式不正确，或结束时间早于开始时间。",
+  "action_error_overlapping_edits": "同一条字幕出现在多项修改中。",
+  "action_error_too_many_edits": "一次最多准备 200 处修改。"
 }

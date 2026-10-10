@@ -26,6 +26,8 @@ import { createTranscriptionRuntime, type TranscriptionRuntime } from './transcr
 import { authorizeTranscriptionMedia, handleTranscriptionRequest, transcriptionIpcError } from './transcription-ipc';
 import type { SpeechResourceService } from '../speech-resources/service';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
+import { interpretBilingualImport } from '../../../src/subtitle-studio/bilingual';
+import { sourceDigest } from './translation-planner';
 import type { KnowledgeTaskGate, KnowledgeReferenceInventory } from '../../../src/translation-knowledge/task-reference-contract';
 import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
 import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
@@ -127,8 +129,10 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
       if (seen.has(key)) continue;
       seen.add(key);
       try {
-        const { document, sourceLocation } = await readSubtitleWithSource(identity, encoding); alive();
-        await repository.create(document, alive, sourceLocation); alive(); owner.documents.add(document.id);
+        const read = await readSubtitleWithSource(identity, encoding); alive();
+        // A clearly bilingual file becomes source and translation right away, from any entry point.
+        const document = interpretBilingualImport(read.document, randomUUID, sourceDigest);
+        await repository.create(document, alive, read.sourceLocation); alive(); owner.documents.add(document.id);
         value.items.push({ fileName: document.origin.displayName, ok: true, document: summarizeDocument(document) });
       } catch (error) { alive(); value.items.push({ fileName: selection.fileName, ok: false, error: error instanceof StudioError ? error.code : 'document_unavailable' }); }
     }
@@ -380,6 +384,10 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
         if (method === 'applyBilingual') {
           const { options } = requestSchemas.applyBilingual.parse(payload);
           const value = await bilingual.apply(request.documentId, request.revision, options, alive); alive();
+          return { ok: true, value: summarizeDocument(value) };
+        }
+        if (method === 'revertBilingual') {
+          const value = await bilingual.revert(request.documentId, request.revision, alive); alive();
           return { ok: true, value: summarizeDocument(value) };
         }
         if (method === 'removeTranslationTrack') {

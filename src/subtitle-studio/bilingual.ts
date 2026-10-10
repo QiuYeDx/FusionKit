@@ -349,3 +349,36 @@ export function applyBilingual(doc: SubtitleDocument, options: BilingualOptions,
   validated.bilingualImport = { sourceSide: options.sourceSide, sourceLanguage: analysis.sourceLanguage, targetLanguage: analysis.targetLanguage };
   return validateDocument(validated);
 }
+
+/**
+ * At import: a document the analysis clearly finds bilingual is separated straight away. When
+ * exactly one language is Chinese, that side is the translation; otherwise the first side is the
+ * source, as FusionKit itself exports. Anything unexpected keeps the document as imported.
+ */
+export function interpretBilingualImport(doc: SubtitleDocument, newId: () => string, sourceDigest: (cue: SubtitleCue) => string): SubtitleDocument {
+  try {
+    if (doc.schemaVersion !== 1 || !isBilingualRecommended(doc)) return doc;
+    const first = analyzeBilingual(doc, { sourceSide: 'first', splitInline: false, overrides: [] });
+    const sourceSide = first.sourceLanguage === 'zh' && first.targetLanguage !== 'zh' ? 'second' : 'first';
+    return applyBilingual(structuredClone(doc), { sourceSide, splitInline: false, overrides: [] }, newId, sourceDigest);
+  } catch {
+    return doc;
+  }
+}
+
+/**
+ * Whether a separated document is still exactly as separated, so it can be imported again as it
+ * was: no text, timing or review changed, nothing deleted, only the imported translation track.
+ */
+export function canRevertBilingual(doc: SubtitleDocument): boolean {
+  if (doc.schemaVersion !== 1 || !doc.bilingualImport || doc.preservation.removedNodeIds?.length) return false;
+  if (doc.translationTracks.length !== 1) return false;
+  const [track] = doc.translationTracks;
+  if (track.origin !== 'imported' || track.revision !== 1) return false;
+  const cues = new Map(doc.cues.map(cue => [cue.id, cue]));
+  // Separation moves each paired cue to its second source revision; anything later is an edit.
+  if (doc.cues.some(cue => cue.timingRevision !== 1 || cue.sourceRevision !== (cue.importedPair ? 2 : 1))) return false;
+  const entries = Object.entries(track.entries);
+  if (entries.length !== doc.cues.filter(cue => cue.importedPair).length) return false;
+  return entries.every(([cueId, entry]) => entry.origin === 'imported' && entry.reviewStatus === 'unreviewed' && !!cues.get(cueId)?.importedPair && entry.sourceRevision === cues.get(cueId)!.sourceRevision);
+}

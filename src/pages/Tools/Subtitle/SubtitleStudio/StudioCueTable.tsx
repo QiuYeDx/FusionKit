@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Ellipsis, Languages, Redo2, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
+import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Combine, Ellipsis, Languages, Redo2, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -15,6 +15,9 @@ import { formatStudioTime, StudioIconButton } from './StudioControls';
 import { StudioCueEditor, type CueEditorMove } from './StudioCueEditor';
 import { StudioCueMenuContent, currentEntry, type CueField, type CueMenuActions, type CueTrack } from './StudioCueMenu';
 import { CUE_CONTROL_ATTR, useCueSelection } from './useCueSelection';
+import { consecutive, mergeOperation, MERGE_LIMIT } from '@/subtitle-studio/cue-structure';
+import { StudioCueTimeEditor, type CueTimeProblem } from './StudioCueTimeEditor';
+import { StudioCueShift } from './StudioCueShift';
 import './StudioCueTable.css';
 
 const control = { [CUE_CONTROL_ATTR]: '' };
@@ -25,7 +28,7 @@ const problemKeys: Record<CueTextProblem | 'empty_source', string> = {
   characters: 'studio:cue_edit.problem.characters',
   too_long: 'studio:cue_edit.problem.too_long',
 };
-const HELP_ITEMS = ['select', 'marquee', 'edit', 'editor', 'field', 'delete', 'copy', 'undo', 'menu'] as const;
+const HELP_ITEMS = ['select', 'marquee', 'edit', 'editor', 'field', 'timing', 'merge', 'delete', 'copy', 'undo', 'menu'] as const;
 
 function Spans({ text }: { text: SubtitleText }) {
   return <>{text.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</>;
@@ -76,7 +79,8 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const order = page.cues.map(cue => cue.id);
-  const [editing, setEditing] = useState<{ cueId: string; field: CueField } | null>(null);
+  const [editing, setEditing] = useState<{ cueId: string; field: CueField | 'timing' } | null>(null);
+  const [shifting, setShifting] = useState<string[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | undefined>();
   const [field, setField] = useState<CueField>('source');
@@ -99,6 +103,39 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     if (editBlocked) return false;
     return onOperation(operation, label, count);
   };
+  const startTiming = (cueId: string) => {
+    if (editBlocked) return;
+    setEditError(undefined);
+    selectionApi.commit({ keys: new Set([cueId]), anchor: cueId, lead: cueId });
+    setEditing({ cueId, field: 'timing' });
+  };
+  const mergeable = (cueIds: readonly string[]) => cueIds.length >= 2 && cueIds.length <= MERGE_LIMIT && consecutive(cueIds, order);
+  const merge = async (cueIds: string[]) => {
+    if (editBlocked || !mergeable(cueIds)) return;
+    const ids = new Set(cueIds);
+    const cues = page.cues.filter(cue => ids.has(cue.id));
+    if (await run(mergeOperation(cues, track), 'merge', cues.length)) {
+      selectionApi.commit({ keys: new Set([cues[0].id]), anchor: cues[0].id, lead: cues[0].id });
+      focusList();
+    }
+  };
+  /** Checks typed times against the neighbouring cues on this page; the main process checks again. */
+  const timingProblem = (cue: DocumentPage['cues'][number], startMs: number, endMs: number | null): CueTimeProblem | null => {
+    const index = order.indexOf(cue.id);
+    const previous = page.cues[index - 1]?.timing.startMs, next = page.cues[index + 1]?.timing.startMs;
+    if (endMs !== null && endMs < startMs) return 'end_before_start';
+    if (previous !== undefined && startMs < previous && cue.timing.startMs >= previous) return 'before_previous';
+    if (next !== undefined && startMs > next && cue.timing.startMs <= next) return 'after_next';
+    if (page.summary.origin.format === 'media' && endMs !== null && 'durationMs' in page.summary.origin && endMs > page.summary.origin.durationMs) return 'beyond_media';
+    return null;
+  };
+  const saveTiming = async (cue: DocumentPage['cues'][number], startMs: number, endMs: number | null) => {
+    setSaving(true);
+    const ok = await run({ kind: 'timing', changes: { [cue.id]: { startMs, endMs } } }, 'timing', 1);
+    setSaving(false);
+    if (ok) { setEditing(null); setEditError(undefined); focusList(); }
+    else setEditError(t('studio:cue_structure.time_rejected'));
+  };
   const remove = async (cueIds: string[]) => {
     if (editBlocked || !cueIds.length || cueIds.length >= page.summary.cueCount) return;
     const gone = new Set(cueIds);
@@ -117,6 +154,9 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     onClear: cueIds => { if (track) void run({ kind: 'clear', trackId: track.id, cueIds }, 'clear', cueIds.length); },
     onReview: (cueIds, reviewed) => { if (track) void run({ kind: 'review', trackId: track.id, cueIds, reviewed }, reviewed ? 'review' : 'unreview', cueIds.length); },
     onDelete: cueIds => void remove(cueIds),
+    onMerge: cueIds => void merge(cueIds),
+    onEditTiming: startTiming,
+    onShift: cueIds => { if (!editBlocked) setShifting(cueIds); },
     onCopy,
     onRemember: cueId => { const cue = page.cues.find(item => item.id === cueId); if (cue) onRemember(cue); },
   };
@@ -132,6 +172,8 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     if (mod && key === 'z') { if (event.shiftKey) onRedo(); else onUndo(); return true; }
     if (mod && key === 'y') { onRedo(); return true; }
     if (mod && key === 'c') { copySelection(targets); return true; }
+    if (mod && key === 'm' && !event.shiftKey) { void merge(targets); return true; }
+    if (key === 't' && !mod && !event.altKey && targets.length) { startTiming(selectionApi.selectionRef.current.lead ?? targets[0]); return true; }
     if ((event.key === 'Enter' || event.key === 'F2') && !mod && targets.length) { startEdit(selectionApi.selectionRef.current.lead ?? targets[0], activeField); return true; }
     if (track && (event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !mod && !event.shiftKey) {
       setField(event.key === 'ArrowLeft' ? 'source' : 'target'); selectionApi.setKeyboardNav(true); return true;
@@ -196,6 +238,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     {selected.length > 0 && <>
       <StudioIconButton data-testid="studio-cue-toolbar-translate" label={t(translatedSelection ? 'studio:cue_menu.retranslate' : 'studio:cue_menu.translate')} disabled={!canTranslate || !selected.some(id => page.cues.find(cue => cue.id === id)?.source.plain.trim())} onClick={() => onTranslate(selected)}><Languages /></StudioIconButton>
       {track && <StudioIconButton data-testid="studio-cue-toolbar-review" label={t(reviewedAll ? 'studio:cue_menu.unreview' : 'studio:cue_menu.review')} disabled={!!editBlocked || !hasEntries} onClick={() => actions.onReview(selected, !reviewedAll)}>{reviewedAll ? <CircleDashed /> : <CheckCheck />}</StudioIconButton>}
+      {selected.length > 1 && <StudioIconButton data-testid="studio-cue-toolbar-merge" label={t(mergeable(selected) ? 'studio:cue_structure.merge' : selected.length > MERGE_LIMIT ? 'studio:cue_structure.merge_too_many' : 'studio:cue_structure.merge_not_adjacent', { count: MERGE_LIMIT })} disabled={!!editBlocked || !mergeable(selected)} onClick={() => void merge(selected)}><Combine /></StudioIconButton>}
       <StudioIconButton data-testid="studio-cue-toolbar-delete" label={t(selected.length > 1 ? 'studio:cue_menu.delete_many' : 'studio:cue_menu.delete')} disabled={!!editBlocked || selected.length >= page.summary.cueCount} onClick={() => void remove(selected)}><Trash2 /></StudioIconButton>
       <DropdownMenu>
         <Tooltip delayDuration={350}><TooltipTrigger asChild><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={t('studio:cue_toolbar.more')}><Ellipsis /></Button></DropdownMenuTrigger></TooltipTrigger><TooltipContent sideOffset={6}>{t('studio:cue_toolbar.more')}</TooltipContent></Tooltip>
@@ -231,7 +274,13 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
             data-selected-last={isSelected && !selection.keys.has(order[index + 1]) || undefined}
             data-lead={lead || undefined} data-editing={editingField ? true : undefined} data-warning={flaggedNodes.has('nodeId' in cue ? cue.nodeId : undefined) || undefined}>
             <td className="studio-cue-number">{page.offset + index + 1}</td>
-            <td className="studio-cue-time"><div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div></td>
+            <td className="studio-cue-time" onDoubleClick={() => startTiming(cue.id)}>{editingField === 'timing'
+              ? <StudioCueTimeEditor startMs={cue.timing.startMs} endMs={cue.timing.endMs} saving={saving} error={editError}
+                // Only text subtitles may leave the end unknown; LRC never has one.
+                allowUnknownEnd={page.summary.origin.format !== 'media' && (cue.timing.endMs === null || page.summary.origin.format === 'lrc')}
+                check={(startMs, endMs) => timingProblem(cue, startMs, endMs)}
+                onSave={(startMs, endMs) => void saveTiming(cue, startMs, endMs)} onCancel={() => { setEditing(null); setEditError(undefined); focusList(); }} />
+              : <div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div>}</td>
             <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}>
               <div className="studio-cue-field" data-field="source" data-active={lead && activeField === 'source' || undefined} onPointerDown={() => setField('source')} onDoubleClick={() => startEdit(cue.id, 'source')}>
                 {editingField === 'source' ? editor('source') : <Spans text={cue.source} />}
@@ -265,6 +314,16 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
       </table>
       {marquee && <div aria-hidden="true" className="studio-cue-marquee" data-testid="studio-cue-marquee" style={marquee} />}
     </div>
+    {(() => {
+      const ids = new Set(shifting ?? []);
+      const cues = page.cues.filter(cue => ids.has(cue.id));
+      const together = cues.length > 0 && consecutive(cues.map(cue => cue.id), order);
+      const first = order.indexOf(cues[0]?.id), last = order.indexOf(cues.at(-1)?.id ?? '');
+      return <StudioCueShift open={!!shifting} cues={cues} busy={!!editBlocked}
+        previousStart={together ? page.cues[first - 1]?.timing.startMs : undefined} nextStart={together ? page.cues[last + 1]?.timing.startMs : undefined}
+        onClose={() => { setShifting(null); focusList(); }}
+        onShift={changes => run({ kind: 'timing', changes }, 'timing', Object.keys(changes).length)} />;
+    })()}
     <DropdownMenu key={menu?.serial ?? lastMenu.current?.serial ?? 0} open={!!menu} modal={false} onOpenChange={open => { if (!open) setMenu(null); }}>
       {createPortal(<DropdownMenuTrigger tabIndex={-1} aria-hidden="true" style={{ position: 'fixed', left: (menu ?? lastMenu.current)?.x ?? 0, top: (menu ?? lastMenu.current)?.y ?? 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />, document.body)}
       <StudioCueMenuContent align="start" side="bottom" sideOffset={2} collisionPadding={8} data-testid="studio-cue-context-menu" timedTestId="studio-cue-context-timed-menu"

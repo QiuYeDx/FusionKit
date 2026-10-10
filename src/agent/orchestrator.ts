@@ -301,8 +301,13 @@ function runQueuedEvent(): void {
 export function reportUiEvent(event: AgentUiEvent): void {
   const { session } = useAgentStore.getState();
   const profile = useModelStore.getState().getAgentProfile();
-  if (!profile?.apiKey || !isAgentProfileApiFormatSupported(profile) || !shouldFollowUpUiEvent(event, session.plan)) return;
+  if (!profile?.apiKey || !isAgentProfileApiFormatSupported(profile)) return;
   const message: AgentMessage = { id: generateId(), role: "user", content: uiEventModelText(event), timestamp: Date.now(), event };
+  if (!shouldFollowUpUiEvent(event, session.plan)) {
+    // An applied revision that needs no word is still recorded, so the agent knows what changed when the user writes next.
+    if (event.kind === "revision_applied") useAgentStore.getState().addMessage(message);
+    return;
+  }
   if (activeTurn) { queuedEvents.push({ sessionId: session.id, message }); return; }
   void runTurn(message);
 }

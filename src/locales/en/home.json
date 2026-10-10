@@ -412,5 +412,12 @@
   "action_error_web_failed": "The site could not be reached or returned something unreadable.",
   "action_error_web_timeout": "The site took too long to answer.",
   "action_error_web_blocked": "Only public web pages can be read; this address is not allowed.",
-  "action_error_web_not_found": "No such page."
+  "action_error_web_not_found": "No such page.",
+  "tool_name_prepare_cue_edits": "Prepare cue merges or retiming",
+  "tool_name_find_duplicates": "Find repeated lines",
+  "action_error_invalid_cue_number": "A cue number is out of range, or every cue would be deleted.",
+  "action_error_not_adjacent": "Only 2–50 adjacent cues can be merged.",
+  "action_error_invalid_time": "A time is not valid, or an end is before its start.",
+  "action_error_overlapping_edits": "The same cue appears in more than one change.",
+  "action_error_too_many_edits": "At most 200 changes can be prepared at once."
 }

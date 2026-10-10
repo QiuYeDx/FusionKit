@@ -26,7 +26,13 @@ export const removedCuesSchema = z.object({
  * One undoable change to the cues of a document. Every applied operation
  * returns its inverse, so undo and redo are ordinary operations too.
  */
-export const cueEditOperationSchema = z.discriminatedUnion('kind', [
+const timingSchema = z.object({ startMs: z.number().int().min(0), endMs: z.number().int().min(0).nullable() }).strict();
+/** Consecutive cues merged into one at most. */
+export const CUE_MERGE_LIMIT = 50;
+/** Operations one batch applies together. */
+export const CUE_BATCH_LIMIT = 400;
+
+const singleOperationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('source'), cueId: idSchema, text: textSchema }).strict(),
   /** A human translation; `null` clears it. */
   z.object({ kind: z.literal('target'), trackId: idSchema, cueId: idSchema, text: textSchema.nullable() }).strict(),
@@ -43,7 +49,20 @@ export const cueEditOperationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('revise'), sources: textsSchema, trackId: idSchema.optional(), targets: textsSchema.optional(), entries: entriesSchema.optional() }).strict(),
   z.object({ kind: z.literal('delete'), cueIds: cueIdsSchema }).strict(),
   z.object({ kind: z.literal('restore'), removed: removedCuesSchema }).strict(),
+  /** New start and end times; an end may be unknown (`null`) only where the format allows it. */
+  z.object({ kind: z.literal('timing'), changes: z.record(idSchema, timingSchema).refine(changes => { const count = Object.keys(changes).length; return count >= 1 && count <= CUE_EDIT_LIMIT; }) }).strict(),
+  /**
+   * Consecutive cues become the first of them: it takes `source`, the first start and the last
+   * end, and the others are deleted. `target` replaces its translation on `trackId` (`null`
+   * clears it), as `origin`; `targetStale` keeps it marked as made for an older source.
+   */
+  z.object({ kind: z.literal('merge'), cueIds: z.array(idSchema).min(2).max(CUE_MERGE_LIMIT).refine(ids => new Set(ids).size === ids.length), source: textSchema,
+    trackId: idSchema.optional(), target: textSchema.nullable().optional(), origin: z.enum(['human', 'ai']).optional(), targetStale: z.literal(true).optional() }).strict(),
 ]);
+/** Several operations applied in order as one edit, with one undo. */
+const batchOperationSchema = z.object({ kind: z.literal('batch'), operations: z.array(singleOperationSchema).min(1).max(CUE_BATCH_LIMIT) }).strict();
+export const cueEditOperationSchema = z.union([singleOperationSchema, batchOperationSchema]);
+export type SingleCueEditOperation = z.infer<typeof singleOperationSchema>;
 export type CueEditOperation = z.infer<typeof cueEditOperationSchema>;
 export type RemovedCues = z.infer<typeof removedCuesSchema>;
 export type CueEditResult = {

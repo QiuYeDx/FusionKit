@@ -412,5 +412,12 @@
   "action_error_web_failed": "網站暫時無法存取或傳回了無法辨識的內容。",
   "action_error_web_timeout": "網站回應逾時。",
   "action_error_web_blocked": "只能讀取公開網頁，這個位址不允許存取。",
-  "action_error_web_not_found": "找不到這個頁面。"
+  "action_error_web_not_found": "找不到這個頁面。",
+  "tool_name_prepare_cue_edits": "準備合併或調整字幕",
+  "tool_name_find_duplicates": "檢查相鄰重複",
+  "action_error_invalid_cue_number": "字幕序號超出範圍，或會刪除全部字幕。",
+  "action_error_not_adjacent": "只能合併 2–50 條相鄰的字幕。",
+  "action_error_invalid_time": "時間格式不正確，或結束時間早於開始時間。",
+  "action_error_overlapping_edits": "同一條字幕出現在多項修改中。",
+  "action_error_too_many_edits": "一次最多準備 200 處修改。"
 }

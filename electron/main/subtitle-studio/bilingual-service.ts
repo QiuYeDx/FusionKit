@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { StudioError } from '../../../src/subtitle-studio/domain';
 import type { BilingualOptions } from '../../../src/subtitle-studio/bilingual-contract';
-import { applyBilingual, hasStudioEdits, previewBilingual } from '../../../src/subtitle-studio/bilingual';
+import { applyBilingual, canRevertBilingual, hasStudioEdits, previewBilingual } from '../../../src/subtitle-studio/bilingual';
+import { importSubtitleText } from '../../../src/subtitle-studio/formats/import';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import { DocumentRepository } from './document-repository';
 import { sourceDigest } from './translation-planner';
@@ -25,6 +26,17 @@ export class BilingualService {
     const snapshot = await this.repository.transact(documentId, revision, value => {
       assertUninterpreted(value);
       value.document = applyBilingual(value.document, options, randomUUID, sourceDigest);
+    }, guard);
+    return snapshot.document;
+  }
+
+  /** Imports a separated, unedited document again as it was: every line a source cue. */
+  async revert(documentId: string, revision: number, guard: () => void = () => {}) {
+    const snapshot = await this.repository.transact(documentId, revision, value => {
+      const doc = value.document;
+      if (value.tasks.length || doc.schemaVersion !== 1 || !canRevertBilingual(doc)) throw new StudioError('revision_conflict');
+      const reimported = importSubtitleText(doc.preservation.rawText, doc.origin, randomUUID, doc.preservation.bom);
+      value.document = { ...reimported, id: doc.id, revision: doc.revision };
     }, guard);
     return snapshot.document;
   }

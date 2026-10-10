@@ -94,7 +94,8 @@ export function validateDocument(value: unknown): SubtitleDocument {
     if (doc.origin.displayName !== transcript.source.displayName || doc.origin.durationMs !== transcript.source.durationMs
       || doc.cues.length > transcript.segments.length || doc.diagnostics.length) throw new StudioError('invalid_input');
     // Cues follow the transcript in order. Deleted cues leave gaps; edited cues
-    // (sourceRevision > 1) keep their segment timing but may change their text.
+    // (sourceRevision > 1) may change their text, and retimed or merged cues
+    // (timingRevision > 1) their times, within the media.
     const segments = new Map(transcript.segments.map((segment, index) => [segment.id, index]));
     let previous = -1;
     for (const cue of doc.cues) {
@@ -102,7 +103,8 @@ export function validateDocument(value: unknown): SubtitleDocument {
       if (index === undefined || index <= previous) throw new StudioError('invalid_input');
       previous = index;
       const segment = transcript.segments[index];
-      if (cue.timing.startMs !== segment.startMs || cue.timing.endMs !== segment.endMs || cue.timingRevision !== 1) throw new StudioError('invalid_input');
+      if (cue.timingRevision === 1 ? cue.timing.startMs !== segment.startMs || cue.timing.endMs !== segment.endMs
+        : cue.timing.endMs < cue.timing.startMs || cue.timing.endMs > doc.origin.durationMs) throw new StudioError('invalid_input');
       if (cue.sourceRevision === 1 && (cue.source.plain !== segment.text
         || cue.source.spans.length !== 1 || cue.source.spans[0].text !== segment.text || cue.source.spans[0].marks.length)) {
         throw new StudioError('invalid_input');

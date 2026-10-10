@@ -793,7 +793,9 @@
       "unreview": "取消複核 {{count}} 條譯文",
       "delete": "刪除 {{count}} 條字幕",
       "revise": "AI 修訂 {{count}} 條字幕",
-      "unify": "統一 {{count}} 條字幕的寫法"
+      "unify": "統一 {{count}} 條字幕的寫法",
+      "merge": "合併 {{count}} 條字幕",
+      "timing": "調整 {{count}} 條字幕的時間"
     }
   },
   "cue_help": {
@@ -817,6 +819,14 @@
     "field": {
       "keys": "← / →",
       "desc": "切換原文或譯文"
+    },
+    "timing": {
+      "keys": "按兩下時間 / T",
+      "desc": "編輯開始與結束時間"
+    },
+    "merge": {
+      "keys": "Ctrl+M",
+      "desc": "合併所選的相鄰字幕"
     },
     "delete": {
       "keys": "Delete",
@@ -907,7 +917,21 @@
     "materials": "參考資料：{{names}}",
     "materials_more": "{{first}} 等 {{count}} 項",
     "materials_separator": "、",
-    "knowledge_hint": "套用後可將 {{count}} 條譯法記入翻譯資料"
+    "knowledge_hint": "套用後可將 {{count}} 條譯法記入翻譯資料",
+    "find_duplicates": "檢查相鄰重複",
+    "duplicates_none": "檢查了 {{total}} 條字幕，沒有發現相鄰重複。",
+    "include_structure": "套用第 {{numbers}} 條的修改",
+    "tag_merge": "合併 {{count}} 條",
+    "tag_delete": "刪除",
+    "tag_timing": "改時間",
+    "part_texts": "改字 {{count}} 條",
+    "part_merges": "合併 {{count}} 處",
+    "part_deletes": "刪除 {{count}} 條",
+    "part_timings": "改時間 {{count}} 條",
+    "summary_structure": "建議修改：{{parts}}（共檢查 {{total}} 條）",
+    "prepared_by_agent": "這些修改由 Agent 依你的要求準備，確認後才會生效。",
+    "reading": "正在讀取 {{done}} / {{total}} 條字幕…",
+    "summary_prepared": "已準備：{{parts}}"
   },
   "agent": {
     "suggest_fix": "修正辨識錯誤",
@@ -967,5 +991,41 @@
     "keep_open": "記入翻譯資料",
     "source_standard": "原文統一為",
     "most_common": "最常見"
+  },
+  "bilingual_import": {
+    "direction": "{{source}} → {{target}}",
+    "label": "雙語 · {{direction}}",
+    "notice": "已識別為雙語字幕（{{direction}}），共 {{count}} 條：前者作為原文，後者作為譯文。",
+    "revert": "按原樣匯入",
+    "revert_description": "目前按雙語匯入（{{direction}}，{{count}} 條）。按原樣匯入後，每一行都作為原文，匯入的譯文將移除。之後仍可用「雙語整理」重新整理。",
+    "result": "已識別為雙語：{{direction}}",
+    "chinese": "中文"
+  },
+  "cue_structure": {
+    "merge": "合併為一條",
+    "merge_not_adjacent": "只能合併相鄰的字幕",
+    "merge_too_many": "一次最多合併 {{count}} 條字幕",
+    "edit_timing": "編輯時間",
+    "shift": "平移時間…",
+    "start": "開始時間",
+    "end": "結束時間",
+    "time_keys": "Enter 儲存 · Esc 取消 · 格式 00:00:00.000",
+    "time_invalid": "時間格式不正確，例如 00:01:02.300",
+    "end_before_start": "結束時間不能早於開始時間",
+    "end_required": "這條字幕必須有結束時間",
+    "before_previous": "開始時間不能早於上一條字幕",
+    "after_next": "開始時間不能晚於下一條字幕",
+    "beyond_media": "結束時間不能超過媒體長度",
+    "time_rejected": "無法儲存這個時間，請檢查與相鄰字幕的先後順序。",
+    "shift_title": "平移時間",
+    "shift_description": "將所選的 {{count}} 條字幕整體提前或延後，開始與結束時間同時移動。",
+    "shift_label": "移動的毫秒數（負數為提前）",
+    "shift_preview": "第一條從 {{from}} 移到 {{to}}，共 {{count}} 條。",
+    "shift_invalid": "請輸入整數毫秒，例如 500 或 -250",
+    "shift_negative": "移動後開始時間會小於 0",
+    "shift_before_previous": "移動後會早於上一條字幕",
+    "shift_after_next": "移動後會晚於下一條字幕",
+    "shift_apply": "平移",
+    "unknown": "未知"
   }
 }

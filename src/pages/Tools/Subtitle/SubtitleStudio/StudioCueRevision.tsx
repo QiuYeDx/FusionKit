@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, BookOpen, Check, LoaderCircle, RotateCcw, ScanSearch, Settings, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowRight, BookOpen, Check, Combine, LoaderCircle, RotateCcw, ScanSearch, Settings, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,7 +12,8 @@ import useModelStore from '@/store/useModelStore';
 import { inferMaxOutputTokens } from '@/constants/model';
 import { StudioError, type ErrorCode } from '@/subtitle-studio/domain';
 import type { DocumentPage, StudioResult } from '@/subtitle-studio/ipc-contract';
-import { CUE_EDIT_LIMIT, editedText, type CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
+import { CUE_BATCH_LIMIT, CUE_EDIT_LIMIT, editedText, type CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
+import { findAdjacentDuplicates, revisionOperation, structureCueIds, structureKey, type CueStructureProposal } from '@/subtitle-studio/cue-structure';
 import {
   CUE_REVISION_CHUNK, CUE_REVISION_CONFIRM_ABOVE, CUE_REVISION_DOCUMENT_LIMIT, CUE_REVISION_INSTRUCTIONS_LIMIT, CUE_REVISION_LIMIT, revisesSource, revisesTarget,
   type CueRevisionFields, type CueRevisionHint, type CueRevisionLocation, type CueRevisionProposal, type CueRevisionResult,
@@ -24,6 +25,7 @@ import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 import { appliedHints, materialNames, mergeHints } from './knowledge-hints';
 import { diffText } from '@/services/subtitle-studio/text-diff';
 import { currentEntry, type CueTrack } from './StudioCueMenu';
+import { formatStudioTime } from './StudioControls';
 import './StudioCueRevision.css';
 
 const errorKeys = {
@@ -55,11 +57,21 @@ type Scope = 'selection' | 'document';
 export type CueRevisionSearch = { terms: string[] } | { lines: number[] };
 /** A request prepared elsewhere (the assistant): the dialog fills it in and starts generating. */
 export type CueRevisionPreset = { instructions: string; scope: Scope; fields?: CueRevisionFields; search?: CueRevisionSearch;
-  /** Called after the user applies the previewed revision, with the wordings it settled. */
-  onApplied?: (count: number, hints: CueRevisionHint[]) => void };
+  /**
+   * `duplicates` checks for repeated neighbours instead of asking the model; `prepared` shows the
+   * given structure proposals (made by the assistant from the user's words) without asking the model.
+   */
+  mode?: 'duplicates' | 'prepared';
+  structure?: CueStructureProposal[];
+  /** Called after the user applies the previewed revision, with the wordings it settled and the structural changes. */
+  onApplied?: (count: number, hints: CueRevisionHint[], changes: StructureCounts) => void };
+/** Structural changes in a revision: cues merged away, deleted and retimed. */
+export type StructureCounts = { merges: number; deletes: number; timings: number };
+const countStructure = (structure: readonly CueStructureProposal[]): StructureCounts => ({
+  merges: structure.filter(item => item.kind === 'merge').length, deletes: structure.filter(item => item.kind === 'delete').length, timings: structure.filter(item => item.kind === 'timing').length });
 /** How a preset run ended; reported once. Applying stays with the user in the dialog. */
 export type CueRevisionOutcome =
-  | { status: 'ready'; checked: number; proposals: number; notes: string[]; plan?: CueRevisionLocation['plan']; knowledgeHints?: CueRevisionHint[] }
+  | { status: 'ready'; checked: number; proposals: number; notes: string[]; plan?: CueRevisionLocation['plan']; knowledgeHints?: CueRevisionHint[]; structure?: StructureCounts }
   | { status: 'needs_confirmation'; count: number; plan: CueRevisionLocation['plan'] }
   | { status: 'failed'; error: ErrorCode }
   | { status: 'cancelled' };
@@ -71,7 +83,11 @@ export type CueRevisionRequestState = {
   onSettled?: (outcome: CueRevisionOutcome) => void;
 };
 type RunProgress = { stage: 'locating' } | { stage: 'revising'; done: number; total: number };
-type Outcome = Omit<CueRevisionResult, 'trackId'> & { checked: number; location?: CueRevisionLocation };
+type Outcome = Omit<CueRevisionResult, 'trackId'> & { checked: number; location?: CueRevisionLocation;
+  /** How the proposals were made, for the summary: by the model, by the duplicate check, or by the assistant. */
+  origin?: 'duplicates' | 'prepared' };
+/** The texts a structure proposal shows for one cue. */
+const structureText = (current: { source: { plain: string }; target?: { plain: string } }) => current.source.plain;
 
 function addUsage(total: TranslationUsage, usage: TranslationUsage) {
   for (const key of ['inputTokens', 'outputTokens', 'totalTokens'] as const) total[key] = total[key] === null || usage[key] === null ? null : total[key]! + usage[key]!;
@@ -124,7 +140,7 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
   const [scope, setScope] = useState<Scope>('selection');
   const [fields, setFields] = useState<CueRevisionFields>('source');
   const [profileId, setProfileId] = useState('');
-  const [pending, setPending] = useState<'generate' | 'apply' | null>(null);
+  const [pending, setPending] = useState<'generate' | 'duplicates' | 'apply' | null>(null);
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [confirm, setConfirm] = useState<CueRevisionLocation | null>(null);
   const [result, setResult] = useState<Outcome | null>(null);
@@ -263,11 +279,12 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
         outcome.rejected += value.rejected;
         if (value.knowledgeHints) outcome.knowledgeHints = mergeHints(outcome.knowledgeHints ?? [], value.knowledgeHints);
         if (value.knowledgeItems) outcome.knowledgeItems = (outcome.knowledgeItems ?? 0) + value.knowledgeItems;
+        if (value.structure?.length) outcome.structure = [...(outcome.structure ?? []), ...value.structure];
         addUsage(outcome.usage, value.usage);
       }
-      setResult(outcome); setAccepted(new Set(outcome.proposals.slice(0, CUE_EDIT_LIMIT).map(item => item.cueId)));
-      settle({ status: 'ready', checked: outcome.checked, proposals: outcome.proposals.length, notes: outcome.notes, ...(outcome.location ? { plan: outcome.location.plan } : {}),
-        ...(outcome.knowledgeHints?.length ? { knowledgeHints: outcome.knowledgeHints } : {}) });
+      setResult(outcome); setAccepted(new Set([...outcome.proposals.slice(0, CUE_EDIT_LIMIT).map(item => item.cueId), ...(outcome.structure ?? []).slice(0, CUE_BATCH_LIMIT).map(structureKey)]));
+      settle({ status: 'ready', checked: outcome.checked, proposals: outcome.proposals.length + (outcome.structure?.length ?? 0), notes: outcome.notes, ...(outcome.location ? { plan: outcome.location.plan } : {}),
+        ...(outcome.knowledgeHints?.length ? { knowledgeHints: outcome.knowledgeHints } : {}), ...(outcome.structure?.length ? { structure: countStructure(outcome.structure) } : {}) });
     } catch (failure) {
       if (!current()) return;
       const code = failure instanceof StudioError ? failure.code : 'translation_failed';
@@ -277,10 +294,60 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
       if (current()) { setPending(null); setProgress(null); }
     }
   };
-  // A preset starts once the form shows it and a model profile has been chosen.
+  /** Shows proposals made without the model and reports them like a generated revision. */
+  const showStructure = (structure: CueStructureProposal[], checked: number, origin: 'duplicates' | 'prepared') => {
+    const outcome: Outcome = { documentId: page.summary.id, revision: page.summary.revision, proposals: [], notes: [], rejected: 0,
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, checked, structure, origin };
+    setResult(outcome); setAccepted(new Set(structure.slice(0, CUE_BATCH_LIMIT).map(structureKey)));
+    settle({ status: 'ready', checked, proposals: structure.length, notes: [], structure: countStructure(structure) });
+  };
+  /**
+   * Finds neighbouring cues that repeat each other, in the selection or the whole document, with no
+   * model involved; each run becomes a merge proposal.
+   */
+  const checkDuplicates = async () => {
+    if (pending) return;
+    const run = ++generation.current;
+    setPending('duplicates'); setError(null); setConfirm(null); setResult(null);
+    try {
+      const cues: (DocumentPage['cues'][number] & { index: number })[] = [];
+      const entries: Record<string, NonNullable<CueTrack>['entries'][string]> = {};
+      if (scope === 'selection') {
+        const ids = new Set(selected);
+        page.cues.forEach((cue, position) => { if (ids.has(cue.id)) cues.push({ ...cue, index: page.offset + position }); });
+        if (track) Object.assign(entries, track.entries);
+      } else {
+        for (let offset = 0; offset < Math.min(page.summary.cueCount, CUE_REVISION_DOCUMENT_LIMIT * 4); offset += 100) {
+          setProgress({ stage: 'revising', done: offset, total: page.summary.cueCount });
+          const read = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: page.summary.id, revision: page.summary.revision, offset }));
+          if (generation.current !== run) return;
+          read.cues.forEach((cue, position) => cues.push({ ...cue, index: offset + position }));
+          const pageTrack = track && read.translationTracks.find(item => item.id === track.id);
+          if (pageTrack) Object.assign(entries, pageTrack.entries);
+        }
+      }
+      // Only neighbours in the document: a gap in the selection separates runs.
+      const runs: (typeof cues)[] = [];
+      for (const cue of cues) { const last = runs.at(-1)?.at(-1); if (last && cue.index === last.index + 1) runs.at(-1)!.push(cue); else runs.push([cue]); }
+      const found = runs.flatMap(group => findAdjacentDuplicates(group, track ? { id: track.id, entries } : undefined));
+      if (generation.current !== run) return;
+      showStructure(found, cues.length, 'duplicates');
+    } catch (failure) {
+      if (generation.current !== run) return;
+      const code = failure instanceof StudioError ? failure.code : 'document_unavailable';
+      setError(code);
+      settle({ status: 'failed', error: code });
+    } finally {
+      if (generation.current === run) { setPending(null); setProgress(null); }
+    }
+  };
+  // A preset starts once the form shows it and, when it asks the model, a model profile has been chosen.
   useEffect(() => {
     const preset = autoRun.current;
-    if (!preset || !open || instructions !== preset.instructions || (profiles.length > 0 && !profileId)) return;
+    if (!preset || !open || instructions !== preset.instructions) return;
+    if (preset.mode === 'prepared') { autoRun.current = null; showStructure(preset.structure ?? [], preset.structure?.length ?? 0, 'prepared'); return; }
+    if (preset.mode === 'duplicates') { autoRun.current = null; void checkDuplicates(); return; }
+    if (profiles.length > 0 && !profileId) return;
     autoRun.current = null;
     void generate(undefined, preset.search);
   });
@@ -289,20 +356,24 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
     if (!result || pending || editBlocked) return;
     if (result.revision !== page.summary.revision || result.documentId !== page.summary.id) { setError('revision_conflict'); return; }
     const sources: Record<string, ReturnType<typeof editedText>> = {}, targets: Record<string, ReturnType<typeof editedText>> = {};
+    const structure = (result.structure ?? []).filter(item => accepted.has(structureKey(item)));
+    // A cue merged or deleted takes no separate text change.
+    const taken = new Set(structure.flatMap(structureCueIds));
     for (const proposal of result.proposals) {
-      if (!accepted.has(proposal.cueId)) continue;
+      if (!accepted.has(proposal.cueId) || taken.has(proposal.cueId)) continue;
       if (proposal.source !== undefined) sources[proposal.cueId] = editedText(proposal.current.source, proposal.source);
       if (proposal.target !== undefined && track) targets[proposal.cueId] = proposal.keptTarget && proposal.current.target ? proposal.current.target : editedText(proposal.current.target, proposal.target);
     }
-    const count = new Set([...Object.keys(sources), ...Object.keys(targets)]).size;
+    const count = new Set([...Object.keys(sources), ...Object.keys(targets), ...taken]).size;
     if (!count || count > CUE_EDIT_LIMIT) return;
+    const operation = revisionOperation({ kind: 'revise', sources, ...(track && Object.keys(targets).length ? { trackId: track.id, targets } : {}) }, structure, track?.id);
+    if (!operation) return;
     setPending('apply'); setError(null);
     const hints = appliedHints(result.knowledgeHints, accepted);
     const onApplied = target?.preset?.onApplied;
-    const applied = await onApply({ kind: 'revise', sources, ...(track && Object.keys(targets).length ? { trackId: track.id, targets } : {}) }, count,
-      { knowledgeHints: hints, instructions: instructions.trim() });
+    const applied = await onApply(operation, count, { knowledgeHints: hints, instructions: instructions.trim() });
     setPending(null);
-    if (applied) { onApplied?.(count, hints); onClose(); }
+    if (applied) { onApplied?.(count, hints, countStructure(structure)); onClose(); }
     else setError('document_unavailable');
   };
   const onInstructionsKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -315,7 +386,10 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
   });
 
   const proposals = result?.proposals ?? [];
-  const acceptedCount = proposals.filter(item => accepted.has(item.cueId)).length;
+  const structure = result?.structure ?? [];
+  const acceptedCount = proposals.filter(item => accepted.has(item.cueId)).length + structure.filter(item => accepted.has(structureKey(item))).length;
+  const total = proposals.length + structure.length;
+  const allKeys = () => new Set([...proposals.map(item => item.cueId), ...structure.map(structureKey)]);
   const usage = result?.usage.totalTokens ?? null;
   const fieldOptions = (['source', 'target', 'both'] as const).map(value => ({ value, label: t(fieldKeys[value]), testId: `studio-cue-revision-field-${value}`, disabled: value !== 'source' && !track }));
   const scopeOptions = [
@@ -344,6 +418,42 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
         </span>
       </label>
     </li>;
+  };
+  const range = (timing: { startMs: number; endMs: number | null }) => `${formatStudioTime(timing.startMs)} → ${timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(timing.endMs)}`;
+  const structureRow = (proposal: CueStructureProposal) => {
+    const key = structureKey(proposal);
+    const checked = accepted.has(key);
+    const numbers = proposal.kind === 'merge' ? `${proposal.indexes[0] + 1}–${proposal.indexes.at(-1)! + 1}` : String(proposal.index + 1);
+    return <li key={key} data-testid="studio-cue-structure-item" data-kind={proposal.kind} data-accepted={checked || undefined}>
+      <label className="studio-cue-revision-item">
+        <Checkbox checked={checked} onCheckedChange={value => toggle(key, value === true)} aria-label={t('studio:cue_revision.include_structure', { numbers })} />
+        <span className="studio-cue-revision-number">{numbers}</span>
+        <span className="studio-cue-revision-texts">
+          <span className="studio-cue-structure-head">
+            <span className="studio-cue-revision-tag" data-tone={proposal.kind === 'delete' ? 'warning' : undefined}>
+              {proposal.kind === 'merge' ? <><Combine />{t('studio:cue_revision.tag_merge', { count: proposal.cueIds.length })}</> : t(`studio:cue_revision.tag_${proposal.kind}`)}
+            </span>
+            <span className="studio-cue-structure-time">{proposal.kind === 'timing' ? `${range(proposal.before)}  ⇒  ${range(proposal.timing)}` : range(proposal.timing)}</span>
+          </span>
+          {proposal.kind === 'merge' ? <>
+            <span className="studio-cue-revision-text" data-field="source">{proposal.source}</span>
+            {proposal.target !== undefined && <span className="studio-cue-revision-text" data-field="target">{proposal.target}
+              {proposal.targetStale && <span className="studio-cue-revision-tag" data-tone="warning">{t('studio:cue_revision.target_stale')}</span>}</span>}
+            <span className="studio-cue-structure-old">{proposal.current.map((item, index) => <span key={index}><del>{structureText(item)}</del>{item.target && <del className="text-muted-foreground"> · {item.target.plain}</del>}</span>)}</span>
+          </> : proposal.kind === 'delete' ? <span className="studio-cue-revision-text" data-field="source"><del>{proposal.current.source.plain}</del>{proposal.current.target && <del className="text-muted-foreground"> · {proposal.current.target.plain}</del>}</span>
+            : <span className="studio-cue-revision-text studio-cue-revision-unchanged" data-field="source">{proposal.current.source.plain}</span>}
+        </span>
+      </label>
+    </li>;
+  };
+  const summary = () => {
+    if (!total) return t(result!.origin === 'duplicates' ? 'studio:cue_revision.duplicates_none' : result!.checked ? 'studio:cue_revision.no_changes' : 'studio:cue_revision.nothing_found', { total: result!.checked });
+    if (!structure.length) return t('studio:cue_revision.summary', { count: proposals.length, total: result!.checked });
+    const counts = countStructure(structure);
+    const parts = [proposals.length && t('studio:cue_revision.part_texts', { count: proposals.length }), counts.merges && t('studio:cue_revision.part_merges', { count: counts.merges }),
+      counts.deletes && t('studio:cue_revision.part_deletes', { count: counts.deletes }), counts.timings && t('studio:cue_revision.part_timings', { count: counts.timings })].filter(Boolean);
+    const joined = parts.join(t('studio:cue_revision.materials_separator'));
+    return result!.origin === 'prepared' ? t('studio:cue_revision.summary_prepared', { parts: joined }) : t('studio:cue_revision.summary_structure', { parts: joined, total: result!.checked });
   };
   const generateLabel = pending === 'generate' ? 'studio:cue_revision.generating' : confirm ? 'studio:cue_revision.continue' : result ? 'studio:cue_revision.regenerate' : 'studio:cue_revision.generate';
 
@@ -378,7 +488,7 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
       </div>
       {error && <p role="alert" className="studio-cue-revision-error"><AlertCircle />{t(errorKeys[error], { limit: CUE_REVISION_DOCUMENT_LIMIT })}</p>}
       {progress && <div className="studio-cue-revision-progress" role="status" data-testid="studio-cue-revision-progress">
-        <span><LoaderCircle className="animate-spin" />{progress.stage === 'locating' ? t('studio:cue_revision.locating') : t('studio:cue_revision.revising', { done: progress.done, total: progress.total })}</span>
+        <span><LoaderCircle className="animate-spin" />{progress.stage === 'locating' ? t('studio:cue_revision.locating') : t(pending === 'duplicates' ? 'studio:cue_revision.reading' : 'studio:cue_revision.revising', { done: progress.done, total: progress.total })}</span>
         {progress.stage === 'revising' && progress.total > CUE_REVISION_LIMIT && <span className="studio-cue-revision-bar" aria-hidden="true"><span style={{ width: `${progress.done / progress.total * 100}%` }} /></span>}
       </div>}
       {confirm && <section className="studio-cue-revision-result" data-testid="studio-cue-revision-confirm">
@@ -388,15 +498,16 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
       {result && <section className="studio-cue-revision-result" aria-label={t('studio:cue_revision.result')} data-testid="studio-cue-revision-result">
         {result.location && <PlanSummary location={result.location} />}
         <div className="studio-cue-revision-summary">
-          <span aria-live="polite">{proposals.length ? t('studio:cue_revision.summary', { count: proposals.length, total: result.checked }) : t(result.checked ? 'studio:cue_revision.no_changes' : 'studio:cue_revision.nothing_found')}</span>
-          {proposals.length > 1 && <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setAccepted(acceptedCount === proposals.length ? new Set() : new Set(proposals.map(item => item.cueId)))}>
-            {t(acceptedCount === proposals.length ? 'studio:cue_revision.deselect_all' : 'studio:cue_revision.select_all')}
+          <span aria-live="polite" data-testid="studio-cue-revision-summary">{summary()}</span>
+          {total > 1 && <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setAccepted(acceptedCount === total ? new Set() : allKeys())}>
+            {t(acceptedCount === total ? 'studio:cue_revision.deselect_all' : 'studio:cue_revision.select_all')}
           </Button>}
         </div>
+        {result.origin === 'prepared' && total > 0 && <p className="studio-cue-revision-note" data-testid="studio-cue-revision-prepared"><Sparkles />{t('studio:cue_revision.prepared_by_agent')}</p>}
         {result.notes.length > 0 && <p className="studio-cue-revision-note" data-testid="studio-cue-revision-note"><Sparkles />{result.notes.join(' ')}</p>}
         {!!result.knowledgeHints?.length && proposals.length > 0 && <p className="studio-cue-revision-hint studio-cue-revision-materials" data-testid="studio-cue-revision-knowledge-hint">
           <BookOpen />{t('studio:cue_revision.knowledge_hint', { count: result.knowledgeHints.length })}</p>}
-        {proposals.length > 0 && <ul className="studio-cue-revision-list">{proposals.map(row)}</ul>}
+        {total > 0 && <ul className="studio-cue-revision-list">{structure.map(structureRow)}{proposals.map(row)}</ul>}
         {result.rejected > 0 && <p className="studio-cue-revision-hint">{t('studio:cue_revision.rejected', { count: result.rejected })}</p>}
         {acceptedCount > CUE_EDIT_LIMIT && <p className="studio-cue-revision-hint" role="alert">{t('studio:cue_revision.apply_limit', { limit: CUE_EDIT_LIMIT })}</p>}
         {revisesSource(fields) && !revisesTarget(fields) && translated && proposals.some(item => item.source !== undefined) && <p className="studio-cue-revision-hint">{t('studio:cue_revision.source_only_hint')}</p>}
@@ -404,16 +515,20 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
       </div>
     </ScrollableDialogContent>
     <ScrollableDialogFooter className="flex flex-wrap items-center gap-2 p-3 sm:justify-between">
-      <span className="studio-cue-revision-footnote">{editBlocked ?? (usage !== null ? t('studio:cue_revision.usage', { count: usage }) : t('studio:cue_revision.shortcut'))}</span>
+      {/* Proposals made without the model used nothing worth counting. */}
+      <span className="studio-cue-revision-footnote">{editBlocked ?? (usage !== null && !result?.origin ? t('studio:cue_revision.usage', { count: usage }) : t('studio:cue_revision.shortcut'))}</span>
       <div className="flex items-center gap-2">
         {pending === 'generate'
           ? <Button variant="ghost" size="sm" data-testid="studio-cue-revision-stop" onClick={stop}>{t('studio:cue_revision.stop')}</Button>
           : <Button variant="ghost" size="sm" disabled={pending === 'apply'} onClick={close}>{t('studio:cancel')}</Button>}
+        <Button variant="outline" size="sm" data-testid="studio-cue-revision-duplicates" disabled={!!pending || (scope === 'selection' && selected.length < 2)} onClick={() => void checkDuplicates()}>
+          {pending === 'duplicates' ? <LoaderCircle className="animate-spin" /> : <Combine />}{t('studio:cue_revision.find_duplicates')}
+        </Button>
         <Button variant={result ? 'outline' : 'default'} size="sm" data-testid="studio-cue-revision-generate" disabled={!!pending || !configured || !instructions.trim() || (scope === 'selection' && !selected.length)} onClick={() => void generate(confirm ?? undefined)}>
           {pending === 'generate' ? <LoaderCircle className="animate-spin" /> : result ? <RotateCcw /> : <Sparkles />}
           {t(generateLabel)}
         </Button>
-        {result && proposals.length > 0 && <Button size="sm" data-testid="studio-cue-revision-apply" disabled={!!pending || !!editBlocked || !acceptedCount || acceptedCount > CUE_EDIT_LIMIT} onClick={() => void apply()}>
+        {result && total > 0 && <Button size="sm" data-testid="studio-cue-revision-apply" disabled={!!pending || !!editBlocked || !acceptedCount || acceptedCount > CUE_EDIT_LIMIT} onClick={() => void apply()}>
           {pending === 'apply' ? <LoaderCircle className="animate-spin" /> : <ArrowRight />}{t('studio:cue_revision.apply', { count: acceptedCount })}
         </Button>}
       </div>

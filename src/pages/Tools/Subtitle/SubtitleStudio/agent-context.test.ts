@@ -132,7 +132,7 @@ describe('revisions the assistant prepared and the user applied', () => {
     const hints = [{ source: 'テイムフィールド家のお嬢様', target: '泰姆菲尔德家的大小姐', cueIds: ['cue-5'] }];
     opened[0].onSettled({ status: 'ready', checked: 2, proposals: 2, notes: [], knowledgeHints: hints });
     expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', knowledgeHints: [{ source: 'テイムフィールド家のお嬢様', target: '泰姆菲尔德家的大小姐' }] });
-    opened[0].preset.onApplied!(2, hints);
+    opened[0].preset.onApplied!(2, hints, { merges: 0, deletes: 0, timings: 0 });
     await vi.waitFor(() => expect(reported).toHaveLength(1));
     expect(reported[0]).toEqual({ kind: 'revision_applied', values: { count: 2, hintCount: 1, hints: 'テイムフィールド家のお嬢様 → 泰姆菲尔德家的大小姐' } });
   });
@@ -162,5 +162,55 @@ describe('consistency checks the assistant starts', () => {
     expect((await call(createStudioAgentTools(none.value), 'studio_check_consistency', {})).success).toBe(false);
     const cancelled = deps({ openConsistency: (_focus, onSettled) => { onSettled({ status: 'cancelled' }); return true; }, consistencyOpen: () => false });
     expect(await call(createStudioAgentTools(cancelled.value), 'studio_check_consistency', {})).toMatchObject({ success: false, error: 'consistency_cancelled' });
+  });
+});
+
+describe('structural edits the assistant prepares', () => {
+  it('prepares merges, deletions and time changes by cue number without a model, and reports them applied', async () => {
+    reported.length = 0;
+    const { setPageEventSink } = await import('@/agent/page-context');
+    setPageEventSink(event => { reported.push(event); });
+    const { value, opened, api } = deps();
+    const tools = createStudioAgentTools(value);
+    const pending = call(tools, 'studio_prepare_cue_edits', { edits: [
+      { kind: 'merge', from: 101, to: 102 }, { kind: 'delete', numbers: [5] }, { kind: 'timing', number: 150, start: '00:02:29.500', end: '150.2' },
+    ] });
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    const { preset } = opened[0];
+    expect(preset).toMatchObject({ mode: 'prepared', scope: 'document' });
+    expect(preset.structure).toEqual([
+      expect.objectContaining({ kind: 'merge', cueIds: ['cue-101', 'cue-102'], indexes: [100, 101], source: 'line 101 line 102', timing: { startMs: 100000, endMs: 101800 } }),
+      expect.objectContaining({ kind: 'delete', cueId: 'cue-5', index: 4 }),
+      expect.objectContaining({ kind: 'timing', cueId: 'cue-150', before: { startMs: 149000, endMs: 149800 }, timing: { startMs: 149500, endMs: 150200 } }),
+    ]);
+    // Only the pages holding the named cues are read, the visible one not again.
+    expect(api.readDocumentPage).toHaveBeenCalledTimes(1);
+    opened[0].onSettled({ status: 'ready', checked: 3, proposals: 3, notes: [], structure: { merges: 1, deletes: 1, timings: 1 } });
+    expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', proposedRevisions: 3, structure: { merges: 1, deletes: 1, timings: 1 } });
+    preset.onApplied!(4, [], { merges: 1, deletes: 1, timings: 1 });
+    await vi.waitFor(() => expect(reported).toHaveLength(1));
+    expect(reported[0]).toMatchObject({ kind: 'revision_applied', values: { count: 4, merged: 1, deleted: 1, retimed: 1 } });
+  });
+
+  it('refuses edits it cannot prepare, with stable codes and no preview', async () => {
+    const { value, opened } = deps();
+    const tools = createStudioAgentTools(value);
+    expect(await call(tools, 'studio_prepare_cue_edits', { edits: [{ kind: 'merge', from: 101, to: 101 }] })).toMatchObject({ success: false, error: 'not_adjacent' });
+    expect(await call(tools, 'studio_prepare_cue_edits', { edits: [{ kind: 'delete', numbers: [251] }] })).toMatchObject({ success: false, error: 'invalid_cue_number' });
+    expect(await call(tools, 'studio_prepare_cue_edits', { edits: [{ kind: 'merge', from: 101, to: 102 }, { kind: 'delete', numbers: [102] }] })).toMatchObject({ success: false, error: 'overlapping_edits' });
+    expect(await call(tools, 'studio_prepare_cue_edits', { edits: [{ kind: 'timing', number: 101, end: '00:00:01.000' }] })).toMatchObject({ success: false, error: 'invalid_time' });
+    expect(await call(tools, 'studio_prepare_cue_edits', { edits: [{ kind: 'timing', number: 101, start: 'soon' }] })).toMatchObject({ success: false, error: 'invalid_time' });
+    expect(opened).toHaveLength(0);
+  });
+
+  it('opens the duplicate check for the selection or the document', async () => {
+    const { value, opened } = deps();
+    const tools = createStudioAgentTools(value);
+    const pending = call(tools, 'studio_find_duplicates', { scope: 'selection' });
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    expect(opened[0]).toMatchObject({ cueIds: ['cue-102', 'cue-101', 'missing'], preset: { mode: 'duplicates', scope: 'selection' } });
+    opened[0].onSettled({ status: 'ready', checked: 2, proposals: 0, notes: [], structure: { merges: 0, deletes: 0, timings: 0 } });
+    expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', proposedRevisions: 0 });
+    expect(await call(createStudioAgentTools({ ...value, selection: () => [] }), 'studio_find_duplicates', { scope: 'selection' })).toMatchObject({ success: false, error: 'empty_selection' });
   });
 });

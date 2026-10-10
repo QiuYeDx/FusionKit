@@ -5,7 +5,7 @@ import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { readStudioNavigationView } from './navigation';
-import { AlertCircle, AudioLines, BookOpen, CheckCheck, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText } from 'lucide-react';
+import { AlertCircle, AudioLines, BookOpen, CheckCheck, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText, Columns2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -46,7 +46,7 @@ import { StudioLibrary, LIBRARY_PAGE_SIZE, defaultLibraryQuery, type LibraryQuer
 import { StudioRecovery } from './StudioRecovery';
 import { StudioSelectedDocuments } from './StudioSelectedDocuments';
 import { StudioDocumentList, StudioDocumentRow } from './StudioDocumentList';
-import { StudioBilingual, StudioRemoveTranslation } from './StudioBilingual';
+import { bilingualDirection, revertBilingualImport, StudioBilingual, StudioRemoveTranslation, StudioRevertBilingual } from './StudioBilingual';
 import { StudioRenameTranslation } from './StudioRenameTranslation';
 import { StudioTranscription } from './StudioTranscription';
 import { QuickTermDialog } from '@/pages/TranslationKnowledge/QuickTermDialog';
@@ -74,7 +74,7 @@ const diagnosticKeys: Record<Diagnostic['code'], string> = {
   empty_document: 'studio:diagnostics.empty_document', unsupported_markup: 'studio:diagnostics.unsupported_markup', enhanced_lrc: 'studio:diagnostics.enhanced_lrc', negative_time: 'studio:diagnostics.negative_time', zero_duration: 'studio:diagnostics.zero_duration', untimed_text: 'studio:diagnostics.untimed_text',
 };
 type Activity = 'load' | 'import' | 'select' | 'export' | 'delete' | 'batch';
-type OperationResult = { name: string; error?: ErrorCode; documentId?: string; skipped?: 'studio:library.no_cancel_task' | 'studio:library.no_resume_task' };
+type OperationResult = { name: string; error?: ErrorCode; documentId?: string; skipped?: 'studio:library.no_cancel_task' | 'studio:library.no_resume_task'; bilingual?: string };
 type WorkspaceView = 'documents' | 'transcription';
 let lastWorkspaceView: WorkspaceView = 'documents';
 
@@ -188,7 +188,8 @@ export default function SubtitleStudio() {
   const [trackId, setTrackId] = useState('');
   const [rememberTerm, setRememberTerm] = useState<{ source: string; target: string; targetLanguage: string } | null>(null);
   const [knowledgeRecheck, setKnowledgeRecheck] = useState<AutomaticKnowledgeRecheckRequest | undefined>();
-  const [importedId, setImportedId] = useState('');
+  /** The document just imported and separated as bilingual, until the notice is dismissed. */
+  const [bilingualNotice, setBilingualNotice] = useState('');
   const track = page?.translationTracks.find(item => item.id === trackId) ?? page?.translationTracks.at(-1);
   const cueHistory = useRef(new CueHistory());
   // Undo only covers edits made at the revision on screen; any other change ends it.
@@ -360,8 +361,9 @@ export default function SubtitleStudio() {
     const added = result.items.flatMap(item => item.ok ? [item.document] : []);
     changeQuery(defaultLibraryQuery); clearSelection();
     await load(0);
-    if (added[0]) { await select(added[0]); setView('preview'); setImportedId(result.items.length === 1 ? added[0].id : ''); }
-    if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ kind: 'import', items: result.items.map(item => ({ name: item.fileName, ...(item.ok ? { documentId: item.document.id } : { error: item.error }) })) });
+    if (added[0]) { await select(added[0]); setView('preview'); setBilingualNotice(added[0].bilingualImport ? added[0].id : ''); }
+    if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ kind: 'import', items: result.items.map(item => ({ name: item.fileName,
+      ...(item.ok ? { documentId: item.document.id, ...(item.document.bilingualImport ? { bilingual: bilingualDirection(t, item.document.bilingualImport) } : {}) } : { error: item.error }) })) });
   };
   const importDocument = () => { captureResultFocus('import'); void run('import', async () => acceptImportResult(await unwrapStudio(window.subtitleStudio.importSubtitles({ encoding })))); };
   const canDrop = (event: DragEvent) => workspaceView === 'documents' && !((event.target as HTMLElement).closest?.('[role=dialog]'));
@@ -741,6 +743,16 @@ export default function SubtitleStudio() {
         {cueNotice.deleted > 0 && cueHistory.current.peek('undo')?.label === 'delete' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setCueNotice(null); stepCueHistory('undo'); }}><Undo2 />{t('studio:cue_history.undo_short')}</Button>}
         <StudioIconButton label={t('studio:dismiss')} onClick={() => setCueNotice(null)}><X /></StudioIconButton>
       </div>}
+      {page && bilingualNotice === page.summary.id && page.summary.bilingualImport && <div role="status" data-testid="studio-bilingual-notice" className="studio-notice">
+        <Columns2 className="text-muted-foreground" />
+        <span>{t('studio:bilingual_import.notice', { direction: bilingualDirection(t, page.summary.bilingualImport), count: page.summary.cueCount })}</span>
+        {page.summary.bilingualRevertible && <Button size="sm" variant="ghost" disabled={busy} data-testid="studio-bilingual-notice-revert" onClick={() => {
+          const summary = page.summary;
+          setBilingualNotice('');
+          void run('select', async () => { const reverted = await revertBilingualImport(summary); await select(reverted); await load(currentOffset.current); });
+        }}><Undo2 />{t('studio:bilingual_import.revert')}</Button>}
+        <StudioIconButton label={t('studio:dismiss')} onClick={() => setBilingualNotice('')}><X /></StudioIconButton>
+      </div>}
       {knowledgeOffer && page && <div role="status" data-testid="studio-knowledge-offer" className="studio-notice">
         <BookOpen className="text-muted-foreground" />
         <span>{t('studio:knowledge_offer.text', { count: knowledgeOffer.hints.length })}</span>
@@ -753,7 +765,7 @@ export default function SubtitleStudio() {
           title={t('studio:preview')}
           icon={Subtitles}
           badge={page ? <Badge variant="secondary" className="font-mono text-[11px]">{page.summary.cueCount}</Badge> : undefined}
-          actions={page ? <><StudioBilingual page={page} busy={busy} autoOpen={importedId === page.summary.id} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setImportedId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} recheckRequest={knowledgeRecheck} onRecheckClosed={requestId => setKnowledgeRecheck(current => current?.requestId === requestId ? undefined : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioRevealSource key={page.summary.id} kind="document" id={page.summary.id} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton></> : undefined}
+          actions={page ? <><StudioBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioRevertBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setBilingualNotice(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} recheckRequest={knowledgeRecheck} onRecheckClosed={requestId => setKnowledgeRecheck(current => current?.requestId === requestId ? undefined : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioRevealSource key={page.summary.id} kind="document" id={page.summary.id} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton></> : undefined}
           className="studio-preview-panel"
           footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t(page.summary.capabilities.preserveSource ? 'studio:source_preserved' : 'studio:transcription_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
@@ -778,6 +790,7 @@ export default function SubtitleStudio() {
                 <div className="studio-document-meta text-[11px] text-muted-foreground">
                   <Badge variant="outline" className="font-mono text-[10px] font-normal">{page.summary.origin.format.toUpperCase()}</Badge>
                   {'encoding' in page.summary.origin && <span>{page.summary.origin.encoding.toUpperCase()}</span>}
+                  {page.summary.bilingualImport && <span data-testid="studio-bilingual-label">{t('studio:bilingual_import.label', { direction: bilingualDirection(t, page.summary.bilingualImport) })}</span>}
                   <span>{t(track?.origin === 'imported' ? 'studio:translation_imported' : track && page.summary.translationStatus !== 'none' ? 'studio:translation_unreviewed' : 'studio:source_only')}</span>
                 </div>
               </div>
@@ -839,7 +852,7 @@ export default function SubtitleStudio() {
       <ScrollableDialogFooter className="flex flex-wrap items-center justify-end gap-2 p-3"><Button id="studio-batch-cancel" variant="ghost" size="sm" onClick={() => setBatchConfirm(null)}>{t('studio:cancel')}</Button><Button size="sm" variant={displayedConfirmation?.kind === 'delete' ? 'destructive' : 'default'} disabled={busy} onClick={() => batchConfirm && processSelected(batchConfirm.kind, batchConfirm.documents, batchConfirm.restore)}>{t(displayedConfirmation?.kind === 'delete' ? 'studio:library.confirm_delete' : 'studio:library.confirm_resume')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
     <ScrollableDialog animateSize open={!!results} onOpenChange={open => { if (!open) setResults(null); }} maxWidth={STUDIO_RESULT_DIALOG_WIDTH} contentClassName={STUDIO_RESULT_DIALOG_CLASS} onCloseAutoFocus={event => { event.preventDefault(); restoreResultFocus(); }}>
-      {displayedResults && <StudioOperationResult operation={displayedResults.kind} testId="studio-library-result" closeButtonId="studio-result-close" onClose={() => setResults(null)} items={displayedResults.items.map((item, index) => ({ id: `${item.documentId ?? item.name}:${index}`, name: item.name, state: item.error ? 'failed' : item.skipped ? 'skipped' : 'success', detail: item.error ? t(errorKeys[item.error]) : item.skipped ? t(item.skipped) : t(displayedResults.kind === 'resume' ? 'studio:library.resume_requested' : displayedResults.kind === 'cancel' ? 'studio:library.cancel_requested' : 'studio:library.succeeded') }))} />}
+      {displayedResults && <StudioOperationResult operation={displayedResults.kind} testId="studio-library-result" closeButtonId="studio-result-close" onClose={() => setResults(null)} items={displayedResults.items.map((item, index) => ({ id: `${item.documentId ?? item.name}:${index}`, name: item.name, state: item.error ? 'failed' : item.skipped ? 'skipped' : 'success', ...(item.bilingual ? { note: t('studio:bilingual_import.result', { direction: item.bilingual }) } : {}), detail: item.error ? t(errorKeys[item.error]) : item.skipped ? t(item.skipped) : t(displayedResults.kind === 'resume' ? 'studio:library.resume_requested' : displayedResults.kind === 'cancel' ? 'studio:library.cancel_requested' : 'studio:library.succeeded') }))} />}
     </ScrollableDialog>
     <ScrollableDialog animateSize open={!!deleting} onOpenChange={open => { if (!open) setDeleting(null); }} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-delete-cancel')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('studio-delete-trigger')?.focus(); }}>
       <ScrollableDialogHeader><DialogTitle className="pr-6">{t('studio:delete_document')}</DialogTitle><DialogDescription>{t('studio:delete_description')}</DialogDescription></ScrollableDialogHeader>

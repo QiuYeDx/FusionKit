@@ -1,5 +1,5 @@
 import { StudioError, validateDocument, type SubtitleCue, type SubtitleText, type TranslationEntry } from '../../../src/subtitle-studio/domain';
-import { cueEditOperationSchema, storedTextProblem, type CueEditOperation, type RemovedCues } from '../../../src/subtitle-studio/cue-edit-contract';
+import { cueEditOperationSchema, storedTextProblem, type CueEditOperation, type RemovedCues, type SingleCueEditOperation } from '../../../src/subtitle-studio/cue-edit-contract';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import type { DocumentRepository } from './document-repository';
 import { sourceDigest } from './translation-planner';
@@ -20,12 +20,14 @@ function assertStoredText(text: SubtitleText) {
 export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation): AppliedCueEdit {
   const parsed = cueEditOperationSchema.safeParse(input);
   if (!parsed.success) throw new StudioError('invalid_input');
-  const operation = parsed.data;
   const doc = snapshot.document;
   if (snapshot.tasks.some(task => task.status === 'queued' || task.status === 'running')) throw new StudioError('resource_busy');
-  const indices = new Map(doc.cues.map((cue, index) => [cue.id, index]));
+  const operations = parsed.data.kind === 'batch' ? parsed.data.operations : [parsed.data];
+  // Positions are rebuilt after an operation adds or removes cues.
+  let indices: Map<string, number> | null = null;
+  const positions = () => indices ??= new Map(doc.cues.map((cue, index) => [cue.id, index]));
   const cueOf = (id: string) => {
-    const index = indices.get(id);
+    const index = positions().get(id);
     if (index === undefined) throw new StudioError('invalid_input');
     return doc.cues[index];
   };
@@ -72,7 +74,25 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
     }
   };
 
-  let applied: AppliedCueEdit;
+  /** A cue's start may not move past a neighbour it was not already past. */
+  const keepsOrder = (index: number, before: number, after: number) => {
+    const previous = doc.cues[index - 1]?.timing.startMs, next = doc.cues[index + 1]?.timing.startMs;
+    if (previous !== undefined && after < previous && before >= previous) return false;
+    if (next !== undefined && after > next && before <= next) return false;
+    return true;
+  };
+  const writeTiming = (cue: SubtitleCue, startMs: number, endMs: number | null) => {
+    if (endMs !== null && endMs < startMs) throw new StudioError('invalid_input');
+    // Transcripts always know when a line ends, and it ends within the media.
+    if (doc.schemaVersion === 2 && (endMs === null || endMs <= 0 || endMs > doc.origin.durationMs)) throw new StudioError('invalid_input');
+    if (cue.timing.startMs === startMs && cue.timing.endMs === endMs) return false;
+    (cue.timing as { startMs: number; endMs: number | null }).startMs = startMs;
+    (cue.timing as { startMs: number; endMs: number | null }).endMs = endMs;
+    cue.timingRevision++;
+    return true;
+  };
+
+  const applyOne = (operation: SingleCueEditOperation): AppliedCueEdit => { let applied: AppliedCueEdit;
   switch (operation.kind) {
     case 'source': {
       const cue = cueOf(operation.cueId);
@@ -158,13 +178,69 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
     }
     case 'delete':
       applied = deleteCues(snapshot, operation.cueIds, cueOf);
+      indices = null;
       break;
     case 'restore':
       applied = restoreCues(snapshot, operation.removed);
+      indices = null;
       break;
+    case 'timing': {
+      const previous: Record<string, { startMs: number; endMs: number | null }> = {};
+      const changes = Object.entries(operation.changes).map(([cueId, timing]) => {
+        const cue = cueOf(cueId);
+        return { cue, timing, before: { startMs: cue.timing.startMs, endMs: cue.timing.endMs } };
+      });
+      for (const { cue, timing, before } of changes) if (writeTiming(cue, timing.startMs, timing.endMs)) previous[cue.id] = before;
+      // Checked once every change is in, so a group may move together past where one of them was.
+      for (const { cue, before } of changes) if (!keepsOrder(positions().get(cue.id)!, before.startMs, cue.timing.startMs)) throw new StudioError('invalid_input');
+      // Nothing moved: the undo is the same no-op.
+      applied = { undo: { kind: 'timing', changes: Object.keys(previous).length ? previous : Object.fromEntries(changes.map(({ cue, before }) => [cue.id, before])) },
+        changed: Object.keys(previous).length, stoppedTasks: 0 };
+      break;
+    }
+    case 'merge': {
+      const cues = operation.cueIds.map(cueOf);
+      const order = cues.map(cue => positions().get(cue.id)!).sort((a, b) => a - b);
+      if (order.some((position, index) => index && position !== order[index - 1] + 1)) throw new StudioError('invalid_input');
+      const ordered = order.map(position => doc.cues[position]);
+      const first = ordered[0], last = ordered.at(-1)!;
+      const track = operation.trackId ? trackOf(operation.trackId) : undefined;
+      if (operation.target !== undefined && !track) throw new StudioError('invalid_input');
+      const undo: SingleCueEditOperation[] = [];
+      // The others go first: their entries and nodes are kept for undo by the deletion.
+      const removed = deleteCues(snapshot, ordered.slice(1).map(cue => cue.id), cueOf);
+      indices = null;
+      undo.push(removed.undo as SingleCueEditOperation);
+      const before = { startMs: first.timing.startMs, endMs: first.timing.endMs };
+      if (writeTiming(first, first.timing.startMs, last.timing.endMs)) undo.push({ kind: 'timing', changes: { [first.id]: before } });
+      const oldSource = structuredClone(first.source);
+      const oldEntry = track ? structuredClone(track.entries[first.id] ?? null) : null;
+      const sourceChanged = JSON.stringify(first.source) !== JSON.stringify(operation.source);
+      if (sourceChanged) writeSource(first, operation.source);
+      if (track && operation.target !== undefined) {
+        if (operation.target === null) delete track.entries[first.id];
+        else {
+          assertStoredText(operation.target);
+          // A stale translation keeps the revision of the source it was made for.
+          const made = operation.targetStale ? { sourceRevision: Math.max(1, first.sourceRevision - 1), sourceHash: oldEntry?.sourceHash ?? '' } : { sourceRevision: first.sourceRevision, sourceHash: sourceDigest(first) };
+          track.entries[first.id] = { ...made, text: structuredClone(operation.target), origin: operation.origin ?? 'human', reviewStatus: operation.targetStale ? 'unreviewed' : 'reviewed' };
+        }
+        track.revision++;
+      }
+      if (sourceChanged || track) undo.push({ kind: 'revise', sources: sourceChanged ? { [first.id]: oldSource } : {}, ...(track ? { trackId: track.id, entries: { [first.id]: oldEntry } } : {}) });
+      applied = { undo: { kind: 'batch', operations: undo.reverse() }, changed: ordered.length, stoppedTasks: removed.stoppedTasks + retireResumableTasks(snapshot) };
+      break;
+    }
   }
+  return applied; };
+
+  const results = operations.map(operation => applyOne(operation));
   validateDocument(doc);
-  return applied;
+  if (results.length === 1) return results[0];
+  // Undo runs the inverses backwards; a merge's own undo is already a batch and joins the list in its order.
+  const undo: SingleCueEditOperation[] = [];
+  for (const result of [...results].reverse()) undo.push(...(result.undo.kind === 'batch' ? result.undo.operations : [result.undo]));
+  return { undo: { kind: 'batch', operations: undo }, changed: results.reduce((sum, result) => sum + result.changed, 0), stoppedTasks: results.reduce((sum, result) => sum + result.stoppedTasks, 0) };
 }
 
 function deleteCues(snapshot: DocumentSnapshot, cueIds: string[], cueOf: (id: string) => SubtitleCue): AppliedCueEdit {

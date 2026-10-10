@@ -13,6 +13,8 @@ export const STUDIO_RESULT_DIALOG_WIDTH = 'sm:max-w-[420px]';
 export type StudioOperationResultItem = {
   id: string; name: string; state: 'success' | 'failed' | 'skipped';
   outputName?: string; detail?: ReactNode; actions?: ReactNode;
+  /** Shown in every state, such as how an imported file was read. */
+  note?: ReactNode;
 };
 type Operation = 'export' | 'source' | 'import' | 'translation' | 'delete' | 'resume' | 'cancel';
 type Props = {
@@ -87,6 +89,7 @@ export function StudioOperationResult({ operation, items, onClose, closeButtonId
                 <StudioFileName name={item.outputName ?? item.name} focusable />
                 <span className="sr-only">{t(item.state === 'success' && requested ? 'studio:operation_result.item_requested' : stateKeys[item.state])}</span>
                 {item.state !== 'success' && item.detail && <div className="studio-result-item-detail">{item.detail}</div>}
+                {item.note && <div className="studio-result-item-detail">{item.note}</div>}
                 {item.actions && <div className="studio-result-item-actions">{item.actions}</div>}
               </div>
             </li>;

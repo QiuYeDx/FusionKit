@@ -47,6 +47,15 @@
 .studio-cue-editor-error { color: var(--destructive); }
 .studio-cue-editor-saving { display: inline-flex; align-items: center; gap: 4px; }
 .studio-cue-editor-saving > svg { width: 11px; height: 11px; }
+/* Start and end in place of the time range; stacked when the column is narrow. */
+.studio-cue-time-editor { display: grid; gap: 3px; margin: -3px -5px; }
+.studio-cue-time-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.studio-cue-time-fields > svg { width: 12px; height: 12px; flex: none; color: var(--muted-foreground); }
+.studio-cue-time-fields input { flex: none; width: calc(12ch + 14px); height: 26px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); font: inherit; font-variant-numeric: tabular-nums; outline: none; }
+.studio-cue-time-fields input:focus { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent); }
+.studio-cue-time-fields input[aria-invalid=true] { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 18%, transparent); }
+.studio-cue-time-editor[data-saving] input { opacity: .7; }
+.studio-cue-time-editor .studio-cue-editor-meta { max-width: 30ch; }
 
 /* The toolbar sits in the sticky header's last cell and grows leftwards over the column labels. */
 .studio-cue-table th.studio-cue-toolbar-cell { position: sticky; }

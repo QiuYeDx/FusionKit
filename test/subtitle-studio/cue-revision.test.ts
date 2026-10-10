@@ -153,6 +153,37 @@ describe('cue revision service', () => {
     expect((await current.read()).document.revision).toBe(snapshot.document.revision);
   });
 
+  it('turns proposed merges and deletions into checked structure proposals with the document’s times', async () => {
+    const requests: Payload[] = [];
+    const current = await fixture(lrc(['Hello', 'Same line,', 'Same line', 'ご視聴ありがとうございました', 'Bye']), async request => {
+      const body = payload(request); requests.push(body);
+      return reply({ items: [{ id: 'c2', source: 'never applied' }, { id: 'c5', source: 'Bye!' }],
+        merge: [{ ids: ['c3', 'c2'], source: 'Same line,' }, { ids: ['c1', 'c4'], source: 'not neighbours' }, { ids: ['c2', 'c3'], source: 'used twice' }],
+        delete: ['c4', 'c9', 'c3'] });
+    });
+    const snapshot = (await current.read()).document;
+    const result = await current.revise({ instructions: '合并重复识别的句子' });
+    expect(requests[0].items.every(item => !('index' in item))).toBe(true);
+    const system = buildCueRevisionMessages({ instructions: 'x', fields: 'source', items: [] })[0].content;
+    expect(system).toContain('"merge"');
+    expect(system).toContain('never return times');
+    expect(result.proposals.map(item => [item.index, item.source])).toEqual([[4, 'Bye!']]);
+    expect(result.structure).toEqual([
+      expect.objectContaining({ kind: 'merge', cueIds: [snapshot.cues[1].id, snapshot.cues[2].id], indexes: [1, 2], source: 'Same line,', origin: 'ai',
+        timing: { startMs: snapshot.cues[1].timing.startMs, endMs: null } }),
+      expect.objectContaining({ kind: 'delete', cueId: snapshot.cues[3].id, index: 3 }),
+    ]);
+    // Not neighbours, used twice, unknown and already merged: four dropped.
+    expect(result.rejected).toBe(4);
+  });
+
+  it('never proposes deleting every cue', async () => {
+    const current = await fixture(lrc(['One', 'Two']), async () => reply({ items: [], delete: ['c1', 'c2'] }));
+    const result = await current.revise({ instructions: 'remove noise' });
+    expect(result.structure).toBeUndefined();
+    expect(result.rejected).toBe(2);
+  });
+
   it('splits a large selection into concurrent requests and merges them in document order', async () => {
     const lines = Array.from({ length: 90 }, (_, index) => `line ${index + 1}`);
     let calls = 0;

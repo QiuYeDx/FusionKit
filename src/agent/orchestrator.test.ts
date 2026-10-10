@@ -335,6 +335,16 @@ describe("Agent turn ownership and receipts", () => {
     expect(mocks.chat).toHaveBeenCalledTimes(1);
   });
 
+  it("records an applied revision that needs no word, for the next turn to see", async () => {
+    reportUiEvent({ kind: "revision_applied", values: { count: 2, hintCount: 0, hints: "", merged: 1 } });
+    expect(mocks.chat).not.toHaveBeenCalled();
+    const recorded = useAgentStore.getState().session.messages.at(-1)!;
+    expect(recorded).toMatchObject({ role: "user", event: { kind: "revision_applied" } });
+    expect(recorded.content).toContain("2 cue(s) changed (1 merge(s))");
+    await handleUserMessage("好了吗？");
+    expect(JSON.stringify(mocks.chat.mock.calls[0][0].messages)).toContain("1 merge(s)");
+  });
+
   it("names the home page when no page context is registered", async () => {
     usePageContextStore.getState().setPathname("/");
     await handleUserMessage("hello");
