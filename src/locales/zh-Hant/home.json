@@ -217,6 +217,8 @@
   "export_error_save": "儲存會話失敗，請重試。",
   "feedback_dismiss": "關閉提示",
   "agent_input_label": "傳送給 Agent 的訊息",
+  "input_history_position": "歷史 {{current}}/{{total}}",
+  "input_history_keys": "↑ 較早的訊息 · ↓ 較新的訊息，回到最新後恢復草稿",
   "execution_mode_label": "執行方式",
   "logs_latest": "查看最新日誌",
   "result_preparation_created": "已建立準備操作。確認後的結果可在操作回執中查看。",

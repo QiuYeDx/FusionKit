@@ -217,6 +217,8 @@
   "export_error_save": "The session could not be saved. Please try again.",
   "feedback_dismiss": "Dismiss message",
   "agent_input_label": "Message to Agent",
+  "input_history_position": "History {{current}}/{{total}}",
+  "input_history_keys": "↑ older message · ↓ newer message; past the newest restores your draft",
   "execution_mode_label": "Execution mode",
   "logs_latest": "View latest logs",
   "result_preparation_created": "Preparation was created. Results after confirmation appear in action receipts.",

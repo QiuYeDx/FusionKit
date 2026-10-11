@@ -19,18 +19,26 @@ function readHistory(): string[] {
 /**
  * Up and Down recall sent messages (newest first) when the caret is at the start or end of a
  * single-line draft, and keep stepping while a recalled message is unedited; going past the newest
- * restores the draft. The history is kept across sessions and shared by every composer.
+ * restores the draft. The history is kept across sessions and shared by every composer, and the
+ * recalled message's place in it is reported for an "i/n" hint.
  */
 export function useInputHistory(input: string, setInput: Dispatch<SetStateAction<string>>, inputRef: RefObject<HTMLTextAreaElement | null>) {
   const index = useRef(-1);
   const draft = useRef("");
   const recalled = useRef<string | null>(null);
-  const show = (text: string) => { recalled.current = text; setInput(text); };
+  // Counted from the oldest message: the newest of n messages is n/n.
+  const [position, setPosition] = useState<{ current: number; total: number } | null>(null);
+  const show = (history: string[]) => {
+    recalled.current = history[history.length - 1 - index.current];
+    setPosition({ current: history.length - index.current, total: history.length });
+    setInput(recalled.current);
+  };
 
   const remember = useCallback((text: string) => {
     index.current = -1;
     draft.current = "";
     recalled.current = null;
+    setPosition(null);
     const history = readHistory();
     if (history[history.length - 1] === text) return;
     history.push(text);
@@ -48,7 +56,7 @@ export function useInputHistory(input: string, setInput: Dispatch<SetStateAction
       event.preventDefault();
       if (index.current === -1 || !browsing) { index.current = -1; draft.current = input; }
       index.current = Math.min(index.current + 1, history.length - 1);
-      show(history[history.length - 1 - index.current]);
+      show(history);
       return true;
     }
     if (event.key === "ArrowDown" && index.current >= 0) {
@@ -56,14 +64,16 @@ export function useInputHistory(input: string, setInput: Dispatch<SetStateAction
       event.preventDefault();
       index.current -= 1;
       const history = readHistory();
-      if (index.current < 0) { recalled.current = null; setInput(draft.current); }
-      else show(history[history.length - 1 - index.current] ?? draft.current);
+      if (index.current < 0 || index.current >= history.length) { index.current = -1; recalled.current = null; setPosition(null); setInput(draft.current); }
+      else show(history);
       return true;
     }
     return false;
   };
 
-  return { remember, onHistoryKey };
+  /** Where the recalled message sits in the history; null once the draft is back or the message was edited. */
+  const historyPosition = position && index.current >= 0 && input === recalled.current ? position : null;
+  return { remember, onHistoryKey, historyPosition };
 }
 
 /** Dropping files on the composer appends their paths to the draft, each in backticks. */

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { useFileDropInput, useInputHistory } from "../HomeAgent/composer";
+import { InputHistoryHint } from "../HomeAgent/components/InputHistoryHint";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -289,7 +290,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     if (restoreFocus) { quietLauncherFocus.current = true; requestAnimationFrame(() => launcherRef.current?.focus({ preventScroll: true })); }
   };
   // Up/Down recall sent messages and dropped files add their paths, as on the home page.
-  const { remember: rememberInput, onHistoryKey } = useInputHistory(input, setInput, inputRef);
+  const { remember: rememberInput, onHistoryKey, historyPosition } = useInputHistory(input, setInput, inputRef);
   const { isDragOver, dropHandlers } = useFileDropInput(setInput, inputRef);
   const send = async () => {
     const text = input.trim();
@@ -438,6 +439,8 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
                 className="agent-dock-input max-h-32 min-h-0 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-2 pt-1.5 pb-1 text-sm shadow-none focus-visible:border-transparent focus-visible:ring-0 disabled:opacity-50 dark:bg-transparent" />
               <div className={cn("flex items-center justify-between gap-2 pt-1.5", isDragOver && "opacity-0")}>
                 <CapsuleModeSelector value={executionMode} onChange={setExecutionMode} disabled={isStreaming} radius={10} />
+                {/* In the panel the hint sits in the control row; above the composer it would cross the divider. */}
+                <InputHistoryHint position={historyPosition} className="static mb-0 ml-auto shadow-none" />
                 <SmoothCorners asChild radius={10} smoothing={0.72}><Button type="button" data-testid="agent-dock-send" aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
                   onClick={isStreaming ? () => abortCurrentStream() : () => void send()} disabled={!isStreaming && !canSend}
                   className={cn("size-8 shrink-0 transition-all duration-200",

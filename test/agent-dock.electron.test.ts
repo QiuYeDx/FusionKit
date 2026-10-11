@@ -256,13 +256,20 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       // Up and Down recall sent messages in the panel as on the home page.
       const dockInput = page.getByTestId('agent-dock-input');
       await dockInput.click();
+      const historyHint = page.getByTestId('agent-dock-composer').getByTestId('agent-input-history');
       await dockInput.press('ArrowUp');
       await uiExpect(dockInput).toHaveValue('第 5 句现在是什么？');
+      // "历史 i/n" shows where the recalled message sits; the newest of n is n/n.
+      await uiExpect(historyHint).toHaveText(/^历史 (\d+)\/\1$/);
+      const total = Number((await historyHint.textContent())!.split('/')[1]);
+      await page.screenshot({ path: path.join(artifacts, '06d-history-hint-786-dark.png'), clip: { x: 0, y: composerBox.y - 40, width: 440, height: composerBox.height + 60 } });
       await dockInput.press('ArrowUp');
       await uiExpect(dockInput).toHaveValue('文中的“法尔童”都应为“法厄同”');
+      await uiExpect(historyHint).toHaveText(`历史 ${total - 1}/${total}`);
       await dockInput.press('ArrowDown');
       await dockInput.press('ArrowDown');
       await uiExpect(dockInput).toHaveValue('');
+      await uiExpect(historyHint).toHaveCount(0);
 
       // A sent message offers a copy button while hovered.
       const sent = panel.locator('[data-message-role=user]').filter({ hasText: '第 5 句现在是什么？' });

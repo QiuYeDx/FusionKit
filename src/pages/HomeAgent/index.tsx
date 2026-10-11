@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
 import FusionKitLogo from "@/assets/FusionKit.svg";
 import { useFileDropInput, useInputHistory } from "./composer";
+import { InputHistoryHint } from "./components/InputHistoryHint";
 
 // ---------------------------------------------------------------------------
 // Persist draft input across in-app navigation (reset on full page reload)
@@ -75,6 +76,9 @@ function HomeAgent() {
   const isAtBottomRef = useRef(true);
   const scrollFrameRef = useRef<number | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  /** The text width of the one-line capsule, and a canvas to measure whether a draft fits it. */
+  const capsuleTextWidth = useRef(0);
+  const measureCanvas = useRef<HTMLCanvasElement | null>(null);
   const bottomComposerRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
   const [bottomComposerHeight, setBottomComposerHeight] = useState(0);
@@ -178,7 +182,7 @@ function HomeAgent() {
   );
 
   // Up/Down recall sent messages and dropped files add their paths, as in the floating panel.
-  const { remember: rememberInput, onHistoryKey } = useInputHistory(input, setInput, textareaRef);
+  const { remember: rememberInput, onHistoryKey, historyPosition } = useInputHistory(input, setInput, textareaRef);
   const { isDragOver, dropHandlers } = useFileDropInput(setInput, textareaRef);
 
   useEffect(() => {
@@ -280,11 +284,28 @@ function HomeAgent() {
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [input]);
+    // Text that wraps in the one-line capsule gets the full-width multi-line layout, as a line break does,
+    // and returns to the capsule once it fits there again with room to spare, so the layout cannot flicker.
+    const style = getComputedStyle(el);
+    if (!isMultiline) {
+      capsuleTextWidth.current = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+      const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      if (input && el.scrollHeight - padding > line * 1.5) setIsMultiline(true);
+    } else if (input && !input.includes("\n") && capsuleTextWidth.current) {
+      const context = (measureCanvas.current ??= document.createElement("canvas")).getContext("2d");
+      if (context) {
+        context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        if (context.measureText(input).width < capsuleTextWidth.current - 24) setIsMultiline(false);
+      }
+    }
+  }, [input, isMultiline]);
 
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
+    // While typing, the layout change keeps the caret where it is (text can wrap mid-line).
+    if (document.activeElement === el) return;
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
   }, [isMultiline]);
@@ -492,6 +513,7 @@ function HomeAgent() {
           isDragOver && "bg-primary/5 ring-2 ring-primary/40 ring-inset",
         )}
       >
+        <InputHistoryHint position={historyPosition} />
         <AnimatePresence>
           {isDragOver && (
             <motion.div

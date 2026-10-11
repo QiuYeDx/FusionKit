@@ -217,6 +217,8 @@
   "export_error_save": "会話を保存できませんでした。もう一度お試しください。",
   "feedback_dismiss": "通知を閉じる",
   "agent_input_label": "Agent に送るメッセージ",
+  "input_history_position": "履歴 {{current}}/{{total}}",
+  "input_history_keys": "↑ 前のメッセージ · ↓ 次のメッセージ。最新より先で下書きに戻ります",
   "execution_mode_label": "実行方法",
   "logs_latest": "最新のログを表示",
   "result_preparation_created": "操作の準備を作成しました。確認後の結果は操作結果に表示されます。",
