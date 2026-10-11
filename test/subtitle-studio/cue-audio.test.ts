@@ -208,6 +208,29 @@ describe('failures and cancellation', () => {
     expect(await missingRuntime.read(doc.id, { cueIds: [doc.cues[0].id] })).toEqual({ kind: 'unavailable', reason: 'runtime_unavailable' });
   }, 30_000);
 
+  it('verifies the player in the background once, so the first clip does not wait for it', async () => {
+    let verified = 0, verifying = 0;
+    const verifyRuntime: typeof verifyLocalSubtitleRuntimeBundle = async input => { verified++; const started = performance.now(); try { return await verifyLocalSubtitleRuntimeBundle(input); } finally { verifying = performance.now() - started; } };
+    const s = services(undefined, { verifyRuntime });
+    const doc = await transcribed(s, path.join(media, 'tones.wav'));
+    s.clipper.prewarm(); s.clipper.prewarm();
+    await expect.poll(() => verifying, { timeout: 20_000 }).toBeGreaterThan(0);
+    const started = performance.now();
+    expect(clip(await s.read(doc.id, { cueIds: [doc.cues[1].id] }))).toMatchObject({ startMs: 9500, endMs: 10500 });
+    const first = performance.now() - started;
+    expect(verified).toBe(1);
+    console.info(`[cue-audio] background verification ${Math.round(verifying)} ms; first clip after it ${Math.round(first)} ms`);
+    // A failed warm-up is quiet; playing verifies again and reports it.
+    let failures = 0;
+    const missing = services(undefined, { verifyRuntime: async () => { failures++; throw new Error('missing'); } });
+    const other = await transcribed(missing, path.join(media, 'tones.wav'));
+    missing.clipper.prewarm();
+    // A failed verification is tried once more straight away.
+    await expect.poll(() => failures).toBe(2);
+    expect(await missing.read(other.id, { cueIds: [other.cues[0].id] })).toEqual({ kind: 'unavailable', reason: 'runtime_unavailable' });
+    expect(failures).toBe(3);
+  }, 30_000);
+
   it('stops an earlier decode for the same window and leaves no files behind', async () => {
     const s = services();
     const doc = await transcribed(s, path.join(media, 'tones.mkv'));

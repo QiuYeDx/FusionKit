@@ -316,7 +316,9 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
         if (method === 'getCueMedia' || method === 'chooseCueMedia' || method === 'clearCueMedia') {
           const { documentId } = requestSchemas.getCueMedia.parse(payload);
           if (!owner.documents.has(documentId)) throw new StudioError('access_denied');
-          if (method === 'getCueMedia') return { ok: true, value: await cueMedia.status(documentId, alive) };
+          // Media the window can play: verify the player in the background before the first clip is asked for.
+          const ready = <T extends { status: string } | null>(value: T) => { if (value?.status === 'ready') cueAudio.prewarm(); return value; };
+          if (method === 'getCueMedia') return { ok: true, value: ready(await cueMedia.status(documentId, alive)) };
           if (method === 'clearCueMedia') return { ok: true, value: await cueMedia.clear(documentId, alive) };
           const window = BrowserWindow.fromWebContents(event.sender);
           if (!window) throw new StudioError('access_denied');
@@ -324,7 +326,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const selection = await dialog.showOpenDialog(window, { properties: ['openFile'], ...(source ? { defaultPath: source.capture.directoryPath } : {}),
             filters: [{ name: 'Media', extensions: [...CUE_MEDIA_EXTENSIONS] }] }); alive();
           if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
-          return { ok: true, value: await cueMedia.link(documentId, selection.filePaths[0], alive) };
+          return { ok: true, value: ready(await cueMedia.link(documentId, selection.filePaths[0], alive)) };
         }
         if (method === 'getSourceLocation' || method === 'selectSourceDirectory') {
           const { documentId } = requestSchemas.getSourceLocation.parse(payload);

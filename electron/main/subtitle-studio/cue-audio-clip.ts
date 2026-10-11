@@ -73,6 +73,14 @@ export class CueAudioClipper {
   }
 
   /**
+   * Verifies the runtime in the background, as soon as a document with media is shown, so the
+   * first clip does not wait for it. A failure is not reported here: decoding verifies again.
+   */
+  prewarm() {
+    void this.currentTools().catch(() => undefined);
+  }
+
+  /**
    * Starts a request for the window: stops its decode in progress, and makes
    * any earlier request that has not started decoding yet end as cancelled.
    */
