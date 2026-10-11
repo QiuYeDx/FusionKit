@@ -834,6 +834,10 @@
       "keys": "按兩下時間 / T",
       "desc": "編輯開始與結束時間"
     },
+    "play": {
+      "keys": "P",
+      "desc": "播放 / 停止原始音訊"
+    },
     "merge": {
       "keys": "Ctrl+M",
       "desc": "合併所選的相鄰字幕"
@@ -1037,5 +1041,40 @@
     "shift_after_next": "移動後會晚於下一條字幕",
     "shift_apply": "平移",
     "unknown": "未知"
+  },
+  "cue_audio": {
+    "play": "播放原始音訊",
+    "play_cue": "播放第 {{number}} 條的原始音訊",
+    "stop": "停止播放",
+    "media": "原始音訊",
+    "media_ready": "原始音訊：{{name}}",
+    "via": {
+      "linked": "手動選擇",
+      "transcription": "轉寫來源",
+      "matched": "同名檔案自動比對"
+    },
+    "status": {
+      "missing": "找不到原始媒體",
+      "missing_hint": "選擇與這份字幕對應的影片或音訊檔後，即可逐條試聽原聲。",
+      "unavailable": "原始媒體已移動或修改",
+      "unavailable_hint": "重新選擇媒體檔後即可繼續試聽。"
+    },
+    "choose": "選擇媒體檔…",
+    "change": "更換…",
+    "clear": "取消關聯",
+    "choose_failed": "無法使用這個檔案，請選擇其他媒體檔。",
+    "padding": "前後餘量",
+    "padding_none": "無",
+    "padding_short": "0.3 秒",
+    "padding_long": "1 秒",
+    "shortcut_hint": "選取字幕後按 P 播放，再按一次停止。",
+    "errors": {
+      "no_media": "未關聯原始媒體",
+      "media_unavailable": "原始媒體已移動或修改",
+      "no_audio": "媒體中沒有音軌",
+      "decode_failed": "無法解碼這段音訊",
+      "runtime_unavailable": "音訊解碼元件無法使用",
+      "failed": "播放失敗"
+    }
   }
 }

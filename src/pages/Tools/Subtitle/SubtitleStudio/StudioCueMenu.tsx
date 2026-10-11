@@ -1,5 +1,5 @@
 import { useRef, type ComponentProps } from 'react';
-import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, MoveHorizontal, PencilLine, Sparkles, Timer, Trash2 } from 'lucide-react';
+import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, MoveHorizontal, PencilLine, Play, Sparkles, Timer, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '@/components/ui/dropdown-menu';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
@@ -30,6 +30,8 @@ export type CueMenuActions = {
   onShift: (cueIds: string[]) => void;
   onCopy: (cueId: string, text: string) => void;
   onRemember: (cueId: string) => void;
+  /** Plays the cues' original audio; `ready` is false when the document has no usable media. */
+  audio?: { ready: boolean; onPlay: (cueIds: string[]) => void };
 };
 
 const copyLabels = {
@@ -79,6 +81,12 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
   const edit = (field: CueField) => { onEditing(); actions.onEdit(single!.id, field); };
   return <>
     {cues.length > 1 && <><DropdownMenuLabel className="text-xs font-normal text-muted-foreground">{t('studio:cue_menu.selected', { count: cues.length })}</DropdownMenuLabel><DropdownMenuSeparator /></>}
+    {actions.audio && <>
+      <DropdownMenuItem data-testid="studio-cue-play-menu" disabled={!actions.audio.ready} onSelect={() => actions.audio!.onPlay(cueIds)}>
+        <Play />{t('studio:cue_audio.play')}<DropdownMenuShortcut>P</DropdownMenuShortcut>
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+    </>}
     {single && <>
       <DropdownMenuItem data-testid="studio-cue-edit-source" disabled={!!editBlocked} onSelect={() => edit('source')}><PencilLine />{t('studio:cue_menu.edit_source')}</DropdownMenuItem>
       {track && <DropdownMenuItem data-testid="studio-cue-edit-target" disabled={!!editBlocked} onSelect={() => edit('target')}><PencilLine />{t('studio:cue_menu.edit_target')}</DropdownMenuItem>}
@@ -116,11 +124,12 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
     <DropdownMenuItem data-testid="studio-cue-delete" variant="destructive" disabled={!!editBlocked || deletesAll} onSelect={() => actions.onDelete(cueIds)}>
       <Trash2 />{t(cues.length > 1 ? 'studio:cue_menu.delete_many' : 'studio:cue_menu.delete')}<DropdownMenuShortcut>Del</DropdownMenuShortcut>
     </DropdownMenuItem>
-    {(editBlocked || deletesAll || (cues.length > 1 && !mergeable) || (single && (!translated || stale))) && <DropdownMenuSeparator />}
+    {(editBlocked || deletesAll || (cues.length > 1 && !mergeable) || (single && (!translated || stale)) || (actions.audio && !actions.audio.ready)) && <DropdownMenuSeparator />}
     {editBlocked && <p className="studio-copy-hint" role="note">{editBlocked}</p>}
     {!editBlocked && cues.length > 1 && !mergeable && <p className="studio-copy-hint" role="note">{t(cues.length > MERGE_LIMIT ? 'studio:cue_structure.merge_too_many' : 'studio:cue_structure.merge_not_adjacent', { count: MERGE_LIMIT })}</p>}
     {!editBlocked && deletesAll && <p className="studio-copy-hint" role="note">{t('studio:cue_menu.keep_one')}</p>}
     {single && (!translated || stale) && <p className="studio-copy-hint" role="note">{t(stale ? 'studio:copy_options.stale' : 'studio:copy_options.no_translation')}</p>}
+    {actions.audio && !actions.audio.ready && <p className="studio-copy-hint" role="note">{t('studio:cue_audio.errors.no_media')}</p>}
   </>;
 }
 

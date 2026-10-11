@@ -834,6 +834,10 @@
       "keys": "双击时间 / T",
       "desc": "编辑开始与结束时间"
     },
+    "play": {
+      "keys": "P",
+      "desc": "播放 / 停止原始音频"
+    },
     "merge": {
       "keys": "Ctrl+M",
       "desc": "合并所选的相邻字幕"
@@ -1037,5 +1041,40 @@
     "shift_after_next": "移动后会晚于下一条字幕",
     "shift_apply": "平移",
     "unknown": "未知"
+  },
+  "cue_audio": {
+    "play": "播放原始音频",
+    "play_cue": "播放第 {{number}} 条的原始音频",
+    "stop": "停止播放",
+    "media": "原始音频",
+    "media_ready": "原始音频：{{name}}",
+    "via": {
+      "linked": "手动选择",
+      "transcription": "转写来源",
+      "matched": "同名文件自动匹配"
+    },
+    "status": {
+      "missing": "未找到原始媒体",
+      "missing_hint": "选择与这份字幕对应的视频或音频文件后，即可逐条试听原声。",
+      "unavailable": "原始媒体已移动或修改",
+      "unavailable_hint": "重新选择媒体文件后即可继续试听。"
+    },
+    "choose": "选择媒体文件…",
+    "change": "更换…",
+    "clear": "取消关联",
+    "choose_failed": "无法使用这个文件，请选择其他媒体文件。",
+    "padding": "前后余量",
+    "padding_none": "无",
+    "padding_short": "0.3 秒",
+    "padding_long": "1 秒",
+    "shortcut_hint": "选中字幕后按 P 播放，再按一次停止。",
+    "errors": {
+      "no_media": "未关联原始媒体",
+      "media_unavailable": "原始媒体已移动或修改",
+      "no_audio": "媒体中没有音轨",
+      "decode_failed": "无法解码这段音频",
+      "runtime_unavailable": "音频解码组件不可用",
+      "failed": "播放失败"
+    }
   }
 }

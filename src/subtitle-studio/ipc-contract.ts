@@ -4,6 +4,7 @@ import { translationConfigSchema, translationModelSchema, translationScopeSchema
 import { cueEditOperationSchema, type CueEditResult } from './cue-edit-contract';
 import { cueRevisionRequestSchemas, type CueFindResult, type CueRevisionLocation, type CueRevisionResult } from './cue-revision-contract';
 import { consistencyRequestSchemas, type ConsistencyResult } from './consistency-contract';
+import { cueAudioRequestSchemas, type CueAudioResult, type CueMediaStatus } from './cue-audio';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
@@ -72,6 +73,10 @@ export const STUDIO_CHANNELS = {
   findCues: 'subtitle-studio:find-cues',
   checkConsistency: 'subtitle-studio:check-consistency',
   cancelConsistency: 'subtitle-studio:cancel-consistency',
+  getCueMedia: 'subtitle-studio:cue-media',
+  chooseCueMedia: 'subtitle-studio:choose-cue-media',
+  clearCueMedia: 'subtitle-studio:clear-cue-media',
+  readCueAudio: 'subtitle-studio:read-cue-audio',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   authorizeTranscriptionPaths: 'subtitle-studio:authorize-transcription-paths',
@@ -155,6 +160,7 @@ export const requestSchemas = {
   editCues: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), operation: cueEditOperationSchema }).strict(),
   ...cueRevisionRequestSchemas,
   ...consistencyRequestSchemas,
+  ...cueAudioRequestSchemas,
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -264,6 +270,13 @@ export interface SubtitleStudioApi {
   /** Finds names and terms written more than one way across documents; read-only. */
   checkConsistency(request: z.infer<typeof requestSchemas.checkConsistency>): Promise<StudioResult<ConsistencyResult>>;
   cancelConsistency(request: z.infer<typeof requestSchemas.cancelConsistency>): Promise<StudioResult<null>>;
+  /** Which original media a document plays from: its file name and how it was found, never its path. */
+  getCueMedia(request: z.infer<typeof requestSchemas.getCueMedia>): Promise<StudioResult<CueMediaStatus>>;
+  /** Asks the user for a media file in the system dialog; null when cancelled. */
+  chooseCueMedia(request: z.infer<typeof requestSchemas.chooseCueMedia>): Promise<StudioResult<CueMediaStatus | null>>;
+  clearCueMedia(request: z.infer<typeof requestSchemas.clearCueMedia>): Promise<StudioResult<CueMediaStatus>>;
+  /** Decodes the original audio of cues (or of a stretch) as WAV; a newer request from the window stops this one. */
+  readCueAudio(request: z.infer<typeof requestSchemas.readCueAudio>): Promise<StudioResult<CueAudioResult>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 

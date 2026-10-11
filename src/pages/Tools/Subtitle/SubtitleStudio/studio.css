@@ -141,7 +141,8 @@
 .studio-document-list { display: flex; flex-direction: column; gap: 4px; }
 .studio-document { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 10px; text-align: left; border-radius: 8px; cursor: pointer; transition: background-color 150ms ease-out; }
 .studio-document:disabled { cursor: default; }
-.studio-file-name { position: relative; display: flex; min-width: 0; max-width: 100%; white-space: nowrap; }
+/* pre, not nowrap: a space where the name splits into its two parts would collapse at the flex item edge. */
+.studio-file-name { position: relative; display: flex; min-width: 0; max-width: 100%; white-space: pre; }
 .studio-file-name-start { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .studio-file-name-end { flex-shrink: 0; max-width: 50%; overflow: hidden; }
 .studio-file-name:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 2px; }

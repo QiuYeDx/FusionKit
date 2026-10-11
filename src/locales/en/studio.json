@@ -834,6 +834,10 @@
       "keys": "Double-click time / T",
       "desc": "Edit start and end time"
     },
+    "play": {
+      "keys": "P",
+      "desc": "Play / stop the original audio"
+    },
     "merge": {
       "keys": "Ctrl+M",
       "desc": "Merge the selected adjacent cues"
@@ -1037,5 +1041,40 @@
     "shift_after_next": "They would move after the next cue",
     "shift_apply": "Shift",
     "unknown": "Unknown"
+  },
+  "cue_audio": {
+    "play": "Play original audio",
+    "play_cue": "Play the original audio of line {{number}}",
+    "stop": "Stop",
+    "media": "Original audio",
+    "media_ready": "Original audio: {{name}}",
+    "via": {
+      "linked": "Chosen by you",
+      "transcription": "Transcribed file",
+      "matched": "Matched by file name"
+    },
+    "status": {
+      "missing": "No original media found",
+      "missing_hint": "Choose the video or audio file these subtitles belong to, then play any line.",
+      "unavailable": "The original media was moved or changed",
+      "unavailable_hint": "Choose the media file again to keep listening."
+    },
+    "choose": "Choose media file…",
+    "change": "Change…",
+    "clear": "Unlink",
+    "choose_failed": "This file can't be used. Choose another media file.",
+    "padding": "Extra before and after",
+    "padding_none": "None",
+    "padding_short": "0.3 s",
+    "padding_long": "1 s",
+    "shortcut_hint": "Select lines and press P to play; press P again to stop.",
+    "errors": {
+      "no_media": "No original media linked",
+      "media_unavailable": "The original media was moved or changed",
+      "no_audio": "The media has no audio track",
+      "decode_failed": "This stretch of audio couldn't be decoded",
+      "runtime_unavailable": "The audio decoder is unavailable",
+      "failed": "Couldn't play the audio"
+    }
   }
 }

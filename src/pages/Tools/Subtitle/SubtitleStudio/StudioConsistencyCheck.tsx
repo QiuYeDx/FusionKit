@@ -18,6 +18,7 @@ import { hasMaterials, translationDraftMemory } from '@/services/subtitle-studio
 import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 import { cueKey, defaultChoice, groupChanges, hasSpellings, hasTranslations, planConsistencyEdits, unfixablePlaces, wordingsToKeep, type CueTexts, type GroupChoice } from './consistency-apply';
 import { materialNames } from './knowledge-hints';
+import { CueAudioButton, useCueMedia, useStopCueAudioOnClose } from './StudioCueAudio';
 import './StudioCueRevision.css';
 import './StudioConsistencyCheck.css';
 
@@ -48,6 +49,16 @@ function Marked({ text, wording }: { text: string; wording: string }) {
  * ones the user confirms with a literal replacement (no model involved in fixing). The current
  * document's change joins its undo history; the receipt can undo every document.
  */
+/** Plays an occurrence from its own document's media; no button shows when that document has none. */
+function PlaceAudio({ documentId, cueId, number }: { documentId: string; cueId: string; number: number }) {
+  const { t } = useTranslation();
+  const media = useCueMedia(documentId);
+  return media.ready ? <CueAudioButton playKey={`cue:${documentId}:${cueId}`} request={{ documentId, target: { cueIds: [cueId] }, rows: [cueId] }}
+    label={t('studio:cue_audio.play_cue', { number })} className="studio-consistency-audio" data-testid="studio-consistency-play" />
+    // Keeps the line numbers aligned with places that have a button.
+    : <span className="studio-consistency-audio-space" aria-hidden="true" />;
+}
+
 export function StudioConsistencyCheck({ request, currentDocumentId, editBlocked, onClose, onApplyCurrent, onUndoCurrent, onChangedOther, onKeep, onReviseLines }: {
   request: ConsistencyRequestState | null;
   currentDocumentId?: string;
@@ -117,6 +128,7 @@ export function StudioConsistencyCheck({ request, currentDocumentId, editBlocked
     setPending(value => value === 'check' ? null : value);
   };
   const close = () => { stop(); onClose(); };
+  useStopCueAudioOnClose(!!request);
   useEffect(() => () => { generation.current++; if (running.current) void window.subtitleStudio.cancelConsistency({ requestId: running.current }); settle({ status: 'cancelled' }); }, []);
 
   const maxOutputTokens = () => {
@@ -306,7 +318,7 @@ export function StudioConsistencyCheck({ request, currentDocumentId, editBlocked
       </div>
       {open && <ul className="studio-consistency-places" data-testid="studio-consistency-places">
         {listed.slice(0, 100).map(({ place, spelling, rendering }) => <li key={`${place.documentId}:${place.cueId}`}>
-          <span className="studio-consistency-place">{documents.length > 1 ? `${name(place.documentId)} · ` : ''}#{place.index + 1}</span>
+          <span className="studio-consistency-place"><PlaceAudio documentId={place.documentId} cueId={place.cueId} number={place.index + 1} />{documents.length > 1 ? `${name(place.documentId)} · ` : ''}#{place.index + 1}</span>
           <span className="studio-consistency-place-text"><span><Marked text={place.source} wording={spelling} /></span>
             {place.target && <span className="text-muted-foreground"><Marked text={place.target} wording={rendering} /></span>}</span>
         </li>)}

@@ -26,6 +26,8 @@ import { appliedHints, materialNames, mergeHints } from './knowledge-hints';
 import { diffText } from '@/services/subtitle-studio/text-diff';
 import { currentEntry, type CueTrack } from './StudioCueMenu';
 import { formatStudioTime } from './StudioControls';
+import { CueAudioButton, useCueMedia, useStopCueAudioOnClose } from './StudioCueAudio';
+import type { CueAudioRequest } from '@/services/subtitle-studio/cue-audio-player';
 import './StudioCueRevision.css';
 
 const errorKeys = {
@@ -215,6 +217,23 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
     setProgress(null);
   };
   const close = () => { stop(); onClose(); };
+  const documentId = page.summary.id;
+  const media = useCueMedia(documentId);
+  useStopCueAudioOnClose(!!request);
+  /** Plays the original audio of a proposal: its cue, or the stretch a structural change covers. */
+  const audio = (key: string, number: string, what: Omit<CueAudioRequest, 'documentId' | 'revision'>) => media.ready
+    ? <CueAudioButton playKey={key} request={{ documentId, revision: page.summary.revision, ...what }} label={t('studio:cue_audio.play_cue', { number })}
+      className="studio-cue-revision-audio" data-testid="studio-cue-revision-play" />
+    : null;
+  /** Merges play from the first cue's start to the last one's end; a time change plays its proposed time. */
+  const structureAudio = (proposal: CueStructureProposal, numbers: string) => {
+    const key = `structure:${documentId}:${structureKey(proposal)}`;
+    const cueIds = proposal.kind === 'merge' ? proposal.cueIds : [proposal.cueId];
+    if (proposal.kind === 'delete') return audio(key, numbers, { target: { cueIds: [proposal.cueId] }, rows: cueIds });
+    const { startMs, endMs } = proposal.timing;
+    if (endMs !== null && endMs > Math.max(0, startMs)) return audio(key, numbers, { target: { range: { startMs: Math.max(0, startMs), endMs } }, rows: cueIds });
+    return proposal.kind === 'merge' ? audio(key, numbers, { target: { cueIds: [cueIds[0], cueIds.at(-1)!] }, rows: cueIds }) : null;
+  };
   useEffect(() => () => {
     generation.current++;
     if (running.current) void window.subtitleStudio.cancelCueRevision({ requestId: running.current });
@@ -404,7 +423,7 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
     return <li key={proposal.cueId} data-testid="studio-cue-revision-item" data-accepted={checked || undefined}>
       <label className="studio-cue-revision-item">
         <Checkbox checked={checked} onCheckedChange={value => toggle(proposal.cueId, value === true)} aria-label={t('studio:cue_revision.include', { number: proposal.index + 1 })} />
-        <span className="studio-cue-revision-number">{proposal.index + 1}</span>
+        <span className="studio-cue-revision-number">{audio(`cue:${documentId}:${proposal.cueId}`, String(proposal.index + 1), { target: { cueIds: [proposal.cueId] }, rows: [proposal.cueId] })}{proposal.index + 1}</span>
         <span className="studio-cue-revision-texts">
           <span className="studio-cue-revision-text" data-field="source">
             {sourceChanged ? <Diff before={current.source.plain} after={proposal.source!} /> : <span className="studio-cue-revision-unchanged">{current.source.plain}</span>}
@@ -427,7 +446,7 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
     return <li key={key} data-testid="studio-cue-structure-item" data-kind={proposal.kind} data-accepted={checked || undefined}>
       <label className="studio-cue-revision-item">
         <Checkbox checked={checked} onCheckedChange={value => toggle(key, value === true)} aria-label={t('studio:cue_revision.include_structure', { numbers })} />
-        <span className="studio-cue-revision-number">{numbers}</span>
+        <span className="studio-cue-revision-number">{structureAudio(proposal, numbers)}{numbers}</span>
         <span className="studio-cue-revision-texts">
           <span className="studio-cue-structure-head">
             <span className="studio-cue-revision-tag" data-tone={proposal.kind === 'delete' ? 'warning' : undefined}>

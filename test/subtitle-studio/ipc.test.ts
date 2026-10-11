@@ -6,6 +6,7 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { STUDIO_CHANNELS } from '../../src/subtitle-studio/ipc-contract';
+import { pcm16WavHeader } from '../../src/subtitle-studio/cue-audio';
 import { createSubtitleStudioApi } from '../../electron/preload/subtitle-studio-api';
 import { assertLegacyStudioChannelAllowed, isPublicStudioChannel } from '../../electron/preload/subtitle-studio-channel-policy';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
@@ -384,6 +385,43 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(ipc.invoke).not.toHaveBeenCalled();
     for (const internal of ['invoke', 'register', 'capability', 'internal']) expect(api).not.toHaveProperty(internal);
   });
+
+  it('plays original audio through owner-bound fixed channels without exposing media paths', async () => {
+    const { owner, doc } = await setup();
+    // Two seconds of a 440 Hz tone beside the imported sample.lrc.
+    const samples = new Int16Array(96000).map((_, i) => Math.round(Math.sin(2 * Math.PI * 440 * i / 48000) * 8000));
+    await writeFile(path.join(adapter.directory, 'sample.wav'), Buffer.concat([pcm16WavHeader(samples.byteLength, 48000, 1), new Uint8Array(samples.buffer)]));
+    const chosen = path.join(adapter.directory, 'picked', 'Interview take 2.wav');
+    await mkdir(path.dirname(chosen)); await writeFile(chosen, await readFile(path.join(adapter.directory, 'sample.wav')));
+    for (const method of ['getCueMedia', 'chooseCueMedia', 'clearCueMedia', 'readCueAudio'] as const) {
+      expect(isPublicStudioChannel(STUDIO_CHANNELS[method])).toBe(true);
+      expect(isPublicStudioChannel(`${STUDIO_CHANNELS[method]}:internal`)).toBe(false);
+    }
+    const media = { documentId: doc.id };
+    const status = await owner.invoke(STUDIO_CHANNELS.getCueMedia, media);
+    expect(status).toEqual({ ok: true, value: { status: 'ready', via: 'matched', name: 'sample.wav' } });
+    const page = await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { documentId: doc.id, revision: doc.revision, offset: 0 });
+    const read = { documentId: doc.id, target: { cueIds: [page.value.cues[0].id] }, padMs: 0 };
+    const audio = await owner.invoke(STUDIO_CHANNELS.readCueAudio, read);
+    expect(audio.ok && audio.value).toMatchObject({ kind: 'clip', mimeType: 'audio/wav', startMs: 1000, endMs: 6000 });
+    // The tone ends at two seconds, so the decoded audio does too.
+    expect((audio.value.bytes.length - 44) / 96000).toBeCloseTo(1, 1);
+    const directory = await realpath(adapter.directory);
+    expect(JSON.stringify({ ...audio.value, bytes: undefined })).not.toContain(path.basename(directory));
+    expect(await attach().invoke(STUDIO_CHANNELS.readCueAudio, read)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await attach().invoke(STUDIO_CHANNELS.getCueMedia, media)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.readCueAudio, { ...read, path: adapter.directory })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.chooseCueMedia, { ...media, path: chosen })).toEqual({ ok: false, error: 'invalid_input' });
+    adapter.open.mockResolvedValueOnce({ canceled: true, filePaths: [] });
+    expect(await owner.invoke(STUDIO_CHANNELS.chooseCueMedia, media)).toEqual({ ok: true, value: null });
+    adapter.open.mockResolvedValueOnce({ canceled: false, filePaths: [chosen] });
+    expect(await owner.invoke(STUDIO_CHANNELS.chooseCueMedia, media)).toEqual({ ok: true, value: { status: 'ready', via: 'linked', name: 'Interview take 2.wav' } });
+    expect(adapter.open.mock.calls.at(-1)?.[1]).toMatchObject({ properties: ['openFile'], defaultPath: directory });
+    expect(await owner.invoke(STUDIO_CHANNELS.clearCueMedia, media)).toEqual({ ok: true, value: { status: 'ready', via: 'matched', name: 'sample.wav' } });
+    const ipc = { sendSync: () => null, invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn() };
+    const api = createSubtitleStudioApi(ipc);
+    for (const method of ['getCueMedia', 'chooseCueMedia', 'clearCueMedia', 'readCueAudio'] as const) expect(typeof api[method]).toBe('function');
+  }, 30_000);
 
   it('reveals a bound source folder without granting path or cross-owner authority', async () => {
     const { owner, doc } = await setup();

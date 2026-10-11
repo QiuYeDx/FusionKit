@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "feature": "studio-cue-audio",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "studio-cue-audio",
+      "code": "AUDIO",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "字幕片段原始音频试听",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-11 用户：“……需要支持一下播放片段的原始音频的功能……可以设计一下实现一下（先写文档再开发）”。按本规格先写文档再自主实现与隔离验证；只读取用户媒体文件、不修改；不提交推送（除非用户要求）、不调用付费 API。 实施中按渲染审查调整 AC-AUDIO-03-3（无媒体按 P 改为打开“原始音频”面板）与 AC-AUDIO-04-2（无媒体的出处不显示按钮），属于同一授权内的可逆交互细节，见 design.md“实施中确定”，并在交付说明中告知用户。",
+        "digest": "ca607aecd86c29a7cbdcba2bd7ed0d7cee1f6c95b19c6a405bb86d4892b920e3"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "按需读取的方式：特权协议流式播放整份媒体，还是主进程截取片段",
+      "resolution": "主进程用随应用的 FFmpeg 截取片段并以内存 WAV 返回（实测 ~150 ms）；不新增读文件协议、不写临时文件、不缓存整份音频。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "导入字幕如何找到原始媒体",
+      "resolution": "同目录同名（可去掉最多两段语言/版本后缀）唯一匹配时自动使用；否则由用户选择文件，手动关联优先且持久化。"
+    },
+    {
+      "id": "A-03",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "多音轨文件播放哪条音轨",
+      "resolution": "本次固定第一条音频流（转写时所选音轨未持久化），记为已知限制。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

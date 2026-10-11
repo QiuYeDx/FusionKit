@@ -834,6 +834,10 @@
       "keys": "時間をダブルクリック / T",
       "desc": "開始と終了の時間を編集"
     },
+    "play": {
+      "keys": "P",
+      "desc": "元の音声を再生 / 停止"
+    },
     "merge": {
       "keys": "Ctrl+M",
       "desc": "選択した隣り合う字幕を結合"
@@ -1037,5 +1041,40 @@
     "shift_after_next": "次の字幕より後になります",
     "shift_apply": "ずらす",
     "unknown": "不明"
+  },
+  "cue_audio": {
+    "play": "元の音声を再生",
+    "play_cue": "{{number}} 行目の元の音声を再生",
+    "stop": "停止",
+    "media": "元の音声",
+    "media_ready": "元の音声：{{name}}",
+    "via": {
+      "linked": "手動で選択",
+      "transcription": "文字起こし元",
+      "matched": "同名ファイルを自動検出"
+    },
+    "status": {
+      "missing": "元のメディアが見つかりません",
+      "missing_hint": "この字幕に対応する動画または音声ファイルを選ぶと、行ごとに原音を確認できます。",
+      "unavailable": "元のメディアが移動または変更されました",
+      "unavailable_hint": "メディアファイルを選び直すと再生できます。"
+    },
+    "choose": "メディアファイルを選択…",
+    "change": "変更…",
+    "clear": "関連付けを解除",
+    "choose_failed": "このファイルは使用できません。別のメディアファイルを選んでください。",
+    "padding": "前後の余白",
+    "padding_none": "なし",
+    "padding_short": "0.3 秒",
+    "padding_long": "1 秒",
+    "shortcut_hint": "字幕を選択して P で再生、もう一度 P で停止します。",
+    "errors": {
+      "no_media": "元のメディアが関連付けられていません",
+      "media_unavailable": "元のメディアが移動または変更されました",
+      "no_audio": "メディアに音声トラックがありません",
+      "decode_failed": "この区間の音声をデコードできません",
+      "runtime_unavailable": "音声デコーダーを使用できません",
+      "failed": "再生できませんでした"
+    }
   }
 }

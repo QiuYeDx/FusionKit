@@ -10,6 +10,9 @@ import { readSubtitleWithSource } from './input-service';
 import { resolveDroppedInputPaths, resolveDroppedSubtitlePaths, type SubtitleInputSelection } from './drop-input-service';
 import { selectTranslationTasks } from './translation-overview';
 import { SourceLocationService } from './source-location-service';
+import { CueMediaService } from './cue-media-service';
+import { CueAudioClipper, readCueAudio } from './cue-audio-clip';
+import { CUE_MEDIA_EXTENSIONS } from '../../../src/subtitle-studio/cue-audio';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
 import { createAutomaticTranslationCoordinator } from './automatic-translation';
@@ -59,6 +62,9 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   const exports = new ExportService(repository);
   const batches = new BatchService(repository, translation);
   const sources = new SourceLocationService(repository);
+  const cueMedia = new CueMediaService(repository);
+  const cueAudio = new CueAudioClipper({ workingDirectory: path.join(app.getPath('userData'), 'subtitle-studio', 'cue-audio'),
+    environment: app.isPackaged ? { mode: 'packaged', resourcesPath: process.resourcesPath } : { mode: 'development', appRoot: app.getAppPath() } });
   const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string>; unavailable: Map<string, string> }>();
   const allowed = new Set<number>();
   let runtime: TranscriptionRuntime | undefined;
@@ -78,6 +84,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   function forgetOwner(id: number) {
     const owner = owners.get(id);
     owners.delete(id);
+    cueAudio.forgetOwner(id);
     for (const service of [translation, exports, batches, knowledgeTrial, knowledgeTranslation, knowledgeBatchTranslation, cueRevisions, consistency]) {
       try { service.forgetOwner(id); } catch (error) { retirementFailures.push(error); }
     }
@@ -277,6 +284,24 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           owner.unavailable = new Map(snapshot.unavailable.map(item => [item.id, item.token]));
           return { ok: true, value };
         }
+        if (method === 'readCueAudio') {
+          const request = requestSchemas.readCueAudio.parse(payload);
+          if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
+          return { ok: true, value: await readCueAudio({ repository, media: cueMedia, clipper: cueAudio }, event.sender.id, request, alive) };
+        }
+        if (method === 'getCueMedia' || method === 'chooseCueMedia' || method === 'clearCueMedia') {
+          const { documentId } = requestSchemas.getCueMedia.parse(payload);
+          if (!owner.documents.has(documentId)) throw new StudioError('access_denied');
+          if (method === 'getCueMedia') return { ok: true, value: await cueMedia.status(documentId, alive) };
+          if (method === 'clearCueMedia') return { ok: true, value: await cueMedia.clear(documentId, alive) };
+          const window = BrowserWindow.fromWebContents(event.sender);
+          if (!window) throw new StudioError('access_denied');
+          const source = await repository.readSourceLocation(documentId).catch(() => null); alive();
+          const selection = await dialog.showOpenDialog(window, { properties: ['openFile'], ...(source ? { defaultPath: source.capture.directoryPath } : {}),
+            filters: [{ name: 'Media', extensions: [...CUE_MEDIA_EXTENSIONS] }] }); alive();
+          if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
+          return { ok: true, value: await cueMedia.link(documentId, selection.filePaths[0], alive) };
+        }
         if (method === 'getSourceLocation' || method === 'selectSourceDirectory') {
           const { documentId } = requestSchemas.getSourceLocation.parse(payload);
           if (!owner.documents.has(documentId)) throw new StudioError('access_denied');
@@ -285,6 +310,8 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           if (!window) throw new StudioError('access_denied');
           const selection = await dialog.showOpenDialog(window, { properties: ['openDirectory', 'createDirectory'] }); alive();
           if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
+          // The transcribed media is named by the receipt this replaces; keep it for playback.
+          await cueMedia.keepTranscribedMedia(documentId, alive); alive();
           return { ok: true, value: await sources.selectDirectory(documentId, selection.filePaths[0], alive) };
         }
         if (method === 'revealUnavailable' || method === 'deleteUnavailable') {
@@ -503,7 +530,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
       }).catch(error => { shutdown = undefined; throw error; });
       try { automaticCleanup = automaticTranslation.shutdown(); } catch (error) { retirementFailures.push(error); }
       for (const id of owners.keys()) forgetOwner(id);
-      for (const cleanup of [() => exports.dispose(), () => batches.dispose(), () => cueRevisions.dispose(), () => consistency.dispose(), unsubscribe,
+      for (const cleanup of [() => exports.dispose(), () => batches.dispose(), () => cueAudio.dispose(), () => cueRevisions.dispose(), () => consistency.dispose(), unsubscribe,
         () => allowed.clear(), () => ipcMain.removeAllListeners(STUDIO_CHANNELS.register), () => ipcMain.removeHandler(STUDIO_CHANNELS.importDroppedSubtitles), () => ipcMain.removeHandler(STUDIO_CHANNELS.dropTranscriptionMedia),
         ...(Object.keys(requestSchemas) as (keyof typeof requestSchemas)[]).map(method => () => ipcMain.removeHandler(STUDIO_CHANNELS[method]))]) {
         try { cleanup(); } catch (error) { retirementFailures.push(error); }

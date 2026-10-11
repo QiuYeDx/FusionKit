@@ -10,6 +10,7 @@ import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/au
 import type { AutomaticExportState } from '../../../src/subtitle-studio/automatic-export-contract';
 import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
 import { bindSourceLocation, validateSourceLocationRecord, SOURCE_LOCATION_FILE, type SourceLocationCapture, type SourceLocationRecord } from './source-location-service';
+import { validateCueMediaRecord, CUE_MEDIA_FILE, type CueMediaRecord } from './cue-media-service';
 import { knowledgeResourceReferences, validateFrozenKnowledgeSnapshot } from '../../../src/translation-knowledge/snapshot-contract';
 import { automaticKnowledgeResourceReferences, validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
 import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
@@ -175,6 +176,24 @@ export class DocumentRepository {
       const document = (await this.committed(id)).snapshot.document;
       const record = bindSourceLocation(document, capture);
       await this.publish(path.join(this.directory(id), SOURCE_LOCATION_FILE), JSON.stringify(record), undefined, guard);
+      await this.syncDirectory(this.directory(id));
+    });
+  }
+  /** The media the user chose for playback; null when none was chosen or the document's origin changed since. */
+  readCueMedia(id: string): Promise<CueMediaRecord | null> {
+    return this.serial(async () => {
+      const document = (await this.committed(id)).snapshot.document;
+      try { return validateCueMediaRecord(document, JSON.parse(await this.readFile(path.join(this.directory(id), CUE_MEDIA_FILE), 128 * 1024))); }
+      // A missing or unreadable choice means none: playback falls back to the automatic sources.
+      catch { return null; }
+    });
+  }
+  setCueMedia(id: string, record: ((document: SubtitleDocument) => CueMediaRecord) | null, guard: () => void = () => {}) {
+    return this.serial(async () => {
+      const document = (await this.committed(id)).snapshot.document;
+      const file = path.join(this.directory(id), CUE_MEDIA_FILE);
+      if (record) await this.publish(file, JSON.stringify(record(document)), undefined, guard);
+      else { guard(); await rm(file, { force: true }); }
       await this.syncDirectory(this.directory(id));
     });
   }
@@ -399,7 +418,7 @@ export class DocumentRepository {
         if (++documentCount > KNOWLEDGE_REFERENCE_SCAN_LIMITS.documents) { unknown.add('$limit'); break; }
         const directory = this.directory(id);
         try {
-          const entries = await names(directory), expected = new Set(['current.json', 'previous.json', SOURCE_LOCATION_FILE]);
+          const entries = await names(directory), expected = new Set(['current.json', 'previous.json', SOURCE_LOCATION_FILE, CUE_MEDIA_FILE]);
           for (const pointerName of ['current.json', 'previous.json']) {
             if (!entries.includes(pointerName)) { if (pointerName === 'current.json') unknown.add(id); continue; }
             try {

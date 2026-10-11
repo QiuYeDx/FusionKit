@@ -1,0 +1,68 @@
+/* A round play button the size of a cue number line; the progress ring stays inside its 20px box. */
+.studio-cue-audio-button {
+  position: relative; display: inline-grid; place-items: center; flex: none;
+  width: 20px; height: 20px; padding: 0; border: 0; border-radius: 999px;
+  background: transparent; color: var(--muted-foreground); cursor: pointer; outline: none;
+}
+.studio-cue-audio-button:hover { background: var(--accent); color: var(--foreground); }
+.studio-cue-audio-button:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.studio-cue-audio-button > svg { width: 11px; height: 11px; }
+.studio-cue-audio-button .studio-cue-audio-play { margin-left: 1px; fill: currentColor; }
+.studio-cue-audio-button .studio-cue-audio-stop { width: 8px; height: 8px; fill: currentColor; }
+.studio-cue-audio-button[data-state=playing], .studio-cue-audio-button[data-state=loading] { color: var(--studio-cue-audio, oklch(58% 0.16 237)); }
+.studio-cue-audio-button[data-state=error] { color: var(--destructive); }
+.studio-cue-audio-button > svg.studio-cue-audio-ring { position: absolute; inset: 0; width: 20px; height: 20px; transform: rotate(-90deg); }
+.studio-cue-audio-ring circle { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.studio-cue-audio-ring .studio-cue-audio-track { opacity: .2; }
+.dark .studio-cue-audio-button[data-state=playing], .dark .studio-cue-audio-button[data-state=loading] { color: oklch(76% 0.13 232); }
+
+/*
+ * In the cue list the button sits exactly over the number: the number shows
+ * by default, the button on hover, on the keyboard row and while it plays,
+ * so the column keeps its width and rows keep their height.
+ */
+.studio-cue-table td.studio-cue-number { position: relative; }
+.studio-cue-number > .studio-cue-audio-button { position: absolute; top: 6px; left: 7px; opacity: 0; pointer-events: none; }
+.studio-cue-list tbody tr:hover > td.studio-cue-number[data-audio] > .studio-cue-audio-button,
+.studio-cue-list:focus-visible tbody tr[data-lead] > td.studio-cue-number[data-audio] > .studio-cue-audio-button,
+.studio-cue-number > .studio-cue-audio-button:not([data-state=idle]) { opacity: 1; pointer-events: auto; }
+.studio-cue-list tbody tr:hover > td.studio-cue-number[data-audio] > .studio-cue-number-text,
+.studio-cue-list:focus-visible tbody tr[data-lead] > td.studio-cue-number[data-audio] > .studio-cue-number-text,
+.studio-cue-number:has(> .studio-cue-audio-button:not([data-state=idle])) > .studio-cue-number-text { opacity: 0; }
+.studio-cue-list tbody tr[data-playing] > td.studio-cue-number { box-shadow: inset 2px 0 var(--studio-cue-focus); }
+@media (prefers-reduced-motion: no-preference) {
+  .studio-cue-number > .studio-cue-audio-button, .studio-cue-number-text { transition: opacity 120ms ease-out; }
+}
+@media (max-width: 520px) {
+  .studio-cue-number > .studio-cue-audio-button { left: 3px; }
+}
+
+/* The toolbar button and its panel. */
+.studio-cue-media-trigger { position: relative; }
+.studio-cue-media-trigger[data-status=missing], .studio-cue-media-trigger[data-status=unavailable] { color: var(--muted-foreground); }
+.studio-cue-media-dot { position: absolute; right: 5px; bottom: 5px; width: 6px; height: 6px; border-radius: 999px; background: #d97706; box-shadow: 0 0 0 1.5px var(--card); }
+.studio-cue-media-panel { display: grid; gap: 10px; width: min(288px, calc(100vw - 24px)); padding: 12px; font-size: 12px; }
+.studio-cue-media-title { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.studio-cue-media-title > svg { width: 14px; height: 14px; color: var(--muted-foreground); }
+.studio-cue-media-file { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in oklab, var(--muted) 45%, var(--popover)); }
+.studio-cue-media-file > svg { width: 16px; height: 16px; flex: none; color: var(--muted-foreground); }
+/* The text column takes the free width; sized to content, the name's 50% tail would cut it short. */
+.studio-cue-media-file > div { flex: 1; min-width: 0; }
+.studio-cue-media-file[data-status=unavailable] { border-color: color-mix(in oklab, #d97706 45%, var(--border)); }
+.studio-cue-media-file[data-status=unavailable] .studio-cue-media-via { color: #b45309; }
+.dark .studio-cue-media-file[data-status=unavailable] .studio-cue-media-via { color: #fbbf24; }
+.studio-cue-media-name { min-width: 0; font-weight: 500; line-height: 18px; }
+.studio-cue-media-via { font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+.studio-cue-media-missing { margin: 0; font-weight: 500; }
+.studio-cue-media-hint { margin: 0; font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+.studio-cue-media-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.studio-cue-media-padding { display: grid; gap: 6px; }
+.studio-cue-media-padding > span { font-size: 11px; color: var(--muted-foreground); }
+
+/* In the revision and consistency lists the button leads the line number, on the number's 20px / 18px line. */
+.studio-cue-revision-number:has(> .studio-cue-revision-audio) { display: inline-flex; align-items: flex-start; gap: 2px; margin-left: -4px; }
+.studio-consistency-places:has(.studio-consistency-audio) .studio-consistency-place { display: inline-flex; align-items: center; gap: 2px; margin-left: -4px; }
+.studio-consistency-audio-space { display: none; flex: none; width: 18px; height: 18px; }
+.studio-consistency-places:has(.studio-consistency-audio) .studio-consistency-audio-space { display: inline-block; }
+.studio-consistency-audio { width: 18px; height: 18px; }
+.studio-consistency-audio > svg.studio-cue-audio-ring { width: 18px; height: 18px; }

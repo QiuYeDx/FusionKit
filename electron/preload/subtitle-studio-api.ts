@@ -93,6 +93,10 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     cancelConsistency: request => invoke(STUDIO_CHANNELS.cancelConsistency, request),
     cancelCueRevision: request => invoke(STUDIO_CHANNELS.cancelCueRevision, request),
     findCues: request => invoke(STUDIO_CHANNELS.findCues, request),
+    getCueMedia: request => invoke(STUDIO_CHANNELS.getCueMedia, request),
+    chooseCueMedia: request => invoke(STUDIO_CHANNELS.chooseCueMedia, request),
+    clearCueMedia: request => invoke(STUDIO_CHANNELS.clearCueMedia, request),
+    readCueAudio: request => invoke(STUDIO_CHANNELS.readCueAudio, request),
     subscribe: listener => {
       if (typeof capability !== 'string') return () => {};
       const receive = (_event: unknown, input: unknown) => {

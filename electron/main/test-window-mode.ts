@@ -11,7 +11,7 @@ import { app, BrowserWindow, Notification, screen, session } from "electron";
  * - visible:  the app behaves exactly as it does for users.
  *
  * Neither quiet nor inactive lets a page enter full screen over the
- * developer's screen.
+ * developer's screen, and both mute the app's audio.
  */
 export type TestWindowMode = "quiet" | "inactive" | "visible";
 
@@ -59,6 +59,8 @@ function offscreenOrigin() {
 export function installTestWindowMode(mode: TestWindowMode | null) {
   if (!mode || mode === "visible") return;
   keepRendererLive();
+  // Media still decodes and advances while muted, so playback tests stay silent.
+  app.commandLine.appendSwitch("mute-audio");
 
   // Tests and the app call show()/focus() directly; neither may pull the
   // window in front of whatever the developer is doing.

@@ -1,0 +1,33 @@
+base 027f010 (v0.4.0) + uncommitted working tree; snapshot = sha256 over sorted files of (path, NUL, bytes, NUL):
+CHANGELOG.md
+README.md
+electron/main/subtitle-studio/cue-audio-clip.ts
+electron/main/subtitle-studio/cue-media-service.ts
+electron/main/subtitle-studio/document-repository.ts
+electron/main/subtitle-studio/index.ts
+electron/main/test-window-mode.ts
+electron/preload/subtitle-studio-api.ts
+electron/preload/subtitle-studio-channel-policy.ts
+resources/speech-resources/provenance/current-integration-audits.v1.json
+src/locales/en/studio.json
+src/locales/ja/studio.json
+src/locales/zh-Hant/studio.json
+src/locales/zh/studio.json
+src/pages/Tools/Subtitle/SubtitleStudio/StudioConsistencyCheck.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueAudio.css
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueAudio.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueMenu.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueRevision.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueTable.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/studio.css
+src/services/subtitle-studio/cue-audio-player.test.ts
+src/services/subtitle-studio/cue-audio-player.ts
+src/store/tools/subtitle-studio/preferences.ts
+src/subtitle-studio/cue-audio.test.ts
+src/subtitle-studio/cue-audio.ts
+src/subtitle-studio/ipc-contract.ts
+test/subtitle-studio/cue-audio-ui.test.ts
+test/subtitle-studio/cue-audio.test.ts
+test/subtitle-studio/ipc.test.ts
+test/subtitle-studio/transcription-preferences.test.ts
+sha256 cc135b2eb4b30173819c6ac762131076f37aa00941676bceb9f9b2d64d23dd74
