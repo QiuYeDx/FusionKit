@@ -5,6 +5,7 @@
     "about": "About",
     "setting": "Setting",
     "back": "Back",
+    "escape_again": "Press Esc again to go back to the tools",
     "subtitle": {
       "translator": "Subtitle AI Translation",
       "converter": "Subtitle Format Converter",

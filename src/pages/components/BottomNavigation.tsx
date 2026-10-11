@@ -16,15 +16,21 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { ThemeTransitionToggle } from "@/components/qiuye-ui/theme-transition-toggle";
 import { cn } from "@/lib/utils";
-import { useToolPageEscape } from "@/pages/Tools/_shared/useToolPageEscape";
+import { ESCAPE_CONFIRM_MS, useToolPageEscape } from "@/pages/Tools/_shared/useToolPageEscape";
+import { toast } from "sonner";
+
+/** Heavy editing pages: Escape goes back only when pressed twice. */
+const CONFIRM_ESCAPE = new Set(["/tools/subtitle/studio"]);
+const confirmEscape = (pathname: string) => CONFIRM_ESCAPE.has(pathname);
 
 const BottomNavigation: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark, setTheme } = useThemeStore();
-  const backToTools = useCallback(() => navigate("/tools"), [navigate]);
-  useToolPageEscape(location.pathname, backToTools);
+  const backToTools = useCallback(() => { toast.dismiss("tool-escape"); navigate("/tools"); }, [navigate]);
+  const armEscape = useCallback(() => toast(t("menu.escape_again"), { id: "tool-escape", duration: ESCAPE_CONFIRM_MS }), [t]);
+  useToolPageEscape(location.pathname, backToTools, { confirm: confirmEscape, onArm: armEscape });
 
   const currentToolName = useMemo(() => {
     return ToolNameMap[location.pathname] || "menu.tools";

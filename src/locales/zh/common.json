@@ -5,6 +5,7 @@
     "about": "关于",
     "setting": "设置",
     "back": "返回",
+    "escape_again": "再按一次 Esc 返回工具列表",
     "subtitle": {
       "translator": "字幕AI翻译",
       "converter": "字幕格式转换",

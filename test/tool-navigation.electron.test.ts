@@ -82,6 +82,12 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool navigation in na
             };
             sample();
           }));
+          if (route === '/tools/subtitle/studio') {
+            // A heavy editing page asks for a second Escape, so a stray one cannot leave it.
+            await page.keyboard.press('Escape');
+            await uiExpect(page.getByText(/再按一次 Esc|Press Esc again/)).toBeVisible();
+            await staysOn(route);
+          }
           await page.keyboard.press('Escape');
           await uiExpect(page).toHaveURL(/#\/tools$/);
           const tops = await departure;

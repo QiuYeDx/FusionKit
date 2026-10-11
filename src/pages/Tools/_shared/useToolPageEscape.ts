@@ -22,10 +22,20 @@ export function isLocalEscape(event: KeyboardEvent) {
   return editing || layerOpen;
 }
 
-/** Page navigation is the last Escape action, after local editing and layers. */
-export function useToolPageEscape(pathname: string, onBack: () => void) {
+/** How long a first Escape on a guarded page waits for the second. */
+export const ESCAPE_CONFIRM_MS = 1500;
+
+/**
+ * Page navigation is the last Escape action, after local editing and layers.
+ * On pages where `confirm` holds (heavy editing, where an Escape meant for a
+ * layer that just closed is easy to press twice), the first Escape only calls
+ * `onArm`; a second one within ESCAPE_CONFIRM_MS goes back.
+ */
+export function useToolPageEscape(pathname: string, onBack: () => void, options: { confirm?: (pathname: string) => boolean; onArm?: () => void } = {}) {
+  const { confirm, onArm } = options;
   useEffect(() => {
     if (!pathname.startsWith("/tools/")) return;
+    let armedUntil = 0;
 
     const localEvents = new WeakSet<KeyboardEvent>();
     let pending: ReturnType<typeof setTimeout> | undefined;
@@ -41,7 +51,14 @@ export function useToolPageEscape(pathname: string, onBack: () => void) {
       // this dispatch. Wait for all of them rather than depending on mount order.
       clearTimeout(pending);
       pending = setTimeout(() => {
-        if (!event.defaultPrevented) onBack();
+        if (event.defaultPrevented) return;
+        if (confirm?.(pathname) && Date.now() > armedUntil) {
+          armedUntil = Date.now() + ESCAPE_CONFIRM_MS;
+          onArm?.();
+          return;
+        }
+        armedUntil = 0;
+        onBack();
       }, 0);
     };
 
@@ -52,5 +69,5 @@ export function useToolPageEscape(pathname: string, onBack: () => void) {
       window.removeEventListener("keydown", capture, true);
       window.removeEventListener("keydown", handleEscape);
     };
-  }, [pathname, onBack]);
+  }, [pathname, onBack, confirm, onArm]);
 }
