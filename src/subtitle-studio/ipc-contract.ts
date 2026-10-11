@@ -5,6 +5,7 @@ import { cueEditOperationSchema, type CueEditResult } from './cue-edit-contract'
 import { cueRevisionRequestSchemas, type CueFindResult, type CueRevisionLocation, type CueRevisionResult } from './cue-revision-contract';
 import { consistencyRequestSchemas, type ConsistencyResult } from './consistency-contract';
 import { cueAudioRequestSchemas, type CueAudioResult, type CueMediaStatus } from './cue-audio';
+import { cueRecognizeRequestSchemas, type CueRecognizeResult } from './cue-recognize-contract';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
@@ -77,6 +78,8 @@ export const STUDIO_CHANNELS = {
   chooseCueMedia: 'subtitle-studio:choose-cue-media',
   clearCueMedia: 'subtitle-studio:clear-cue-media',
   readCueAudio: 'subtitle-studio:read-cue-audio',
+  recognizeCue: 'subtitle-studio:recognize-cue',
+  cancelCueRecognition: 'subtitle-studio:cancel-cue-recognition',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   authorizeTranscriptionPaths: 'subtitle-studio:authorize-transcription-paths',
@@ -161,6 +164,7 @@ export const requestSchemas = {
   ...cueRevisionRequestSchemas,
   ...consistencyRequestSchemas,
   ...cueAudioRequestSchemas,
+  ...cueRecognizeRequestSchemas,
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -277,6 +281,9 @@ export interface SubtitleStudioApi {
   clearCueMedia(request: z.infer<typeof requestSchemas.clearCueMedia>): Promise<StudioResult<CueMediaStatus>>;
   /** Decodes the original audio of cues (or of a stretch) as WAV; a newer request from the window stops this one. */
   readCueAudio(request: z.infer<typeof requestSchemas.readCueAudio>): Promise<StudioResult<CueAudioResult>>;
+  /** Recognizes a cue's original audio again with an installed local model; a newer request or cancel stops it. */
+  recognizeCue(request: z.infer<typeof requestSchemas.recognizeCue>): Promise<StudioResult<CueRecognizeResult>>;
+  cancelCueRecognition(request: z.infer<typeof requestSchemas.cancelCueRecognition>): Promise<StudioResult<null>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 

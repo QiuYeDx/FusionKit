@@ -805,7 +805,8 @@
       "revise": "字幕 {{count}} 件の AI 修正",
       "unify": "{{count}} 件の表記を統一",
       "merge": "{{count}} 件の字幕を結合",
-      "timing": "{{count}} 件の字幕の時間を調整"
+      "timing": "{{count}} 件の字幕の時間を調整",
+      "recognize": "{{count}} 行を再認識"
     }
   },
   "cue_help": {
@@ -1091,5 +1092,37 @@
     "mark_needs_playback": "再生中に [ / ] で開始 / 終了を設定できます",
     "waveform": "波形：マーカーをドラッグして開始と終了を調整",
     "play_edited": "この区間を再生"
+  },
+  "cue_recognize": {
+    "menu": "元の音声を再認識…",
+    "title": "元の音声を再認識",
+    "description": "選択した {{count}} 行の元の音声をローカルの文字起こしモデルで再認識し、確認したうえで本文を置き換えます。",
+    "model": "文字起こしモデル",
+    "no_model": "使用できるモデルがありません",
+    "language": "言語",
+    "prompt": "プロンプト",
+    "prompt_placeholder": "プロンプト（任意）：人名や用語など、聞き取りの手がかり",
+    "no_model_hint": "文字起こしモデルがまだインストールされていません。インストールすると再認識できます。",
+    "open_transcription": "モデルをインストール",
+    "limited": "一度に認識するのは選択した先頭の {{limit}} 行までです。",
+    "start": "認識を開始",
+    "restart": "もう一度認識",
+    "stop": "停止",
+    "progress": "認識中 {{done}} / {{total}}",
+    "listening": "認識中",
+    "summary": "{{done}} 行を認識し、{{changed}} 行が本文と異なります",
+    "same": "本文と同じ",
+    "empty": "音声を認識できませんでした",
+    "include": "{{number}} 行目の認識結果を使う",
+    "apply": "{{count}} 行を適用",
+    "footnote": "認識はこのコンピューターで行い、音声はアップロードされません。",
+    "errors": {
+      "resource_busy": "文字起こしの実行中です。しばらくしてからお試しください",
+      "needs_configuration": "モデルを使用できません。文字起こしページで確認してください",
+      "limit_exceeded": "30 秒を超えるため単独では認識できません",
+      "document_unavailable": "元のメディアを使用できません",
+      "interrupted": "停止しました",
+      "failed": "認識に失敗しました"
+    }
   }
 }

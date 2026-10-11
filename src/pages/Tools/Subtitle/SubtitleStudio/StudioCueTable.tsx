@@ -75,6 +75,8 @@ export type StudioCueTableProps = {
   onRemember: (cue: DocumentPage['cues'][number]) => void;
   /** Shows the page at this offset, as continuous playback moves past the last cue shown. */
   onFollowPage?: (offset: number) => void;
+  /** Opens “recognize the original audio again” for the cues. */
+  onRecognize?: (cueIds: string[]) => void;
 };
 
 /**
@@ -82,7 +84,7 @@ export type StudioCueTableProps = {
  * source and translation in place, and translate, review, copy or delete the
  * selection. Every edit can be undone.
  */
-export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onCheckConsistency, onSelectionChange, onCopy, onRemember, onFollowPage }: StudioCueTableProps) {
+export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onCheckConsistency, onSelectionChange, onCopy, onRemember, onFollowPage, onRecognize }: StudioCueTableProps) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const order = page.cues.map(cue => cue.id);
@@ -227,7 +229,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     onShift: cueIds => { if (!editBlocked) setShifting(cueIds); },
     onCopy,
     onRemember: cueId => { const cue = page.cues.find(item => item.id === cueId); if (cue) onRemember(cue); },
-    audio: { ready: media.ready, onPlay: playCues, onFollow: follow },
+    audio: { ready: media.ready, onPlay: playCues, onFollow: follow, onRecognize: cueIds => onRecognize?.(cueIds) },
   };
 
   const copySelection = (cueIds: string[]) => {

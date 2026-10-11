@@ -1,0 +1,6 @@
+/* Model and language side by side; on narrow windows they take a line each. */
+.studio-cue-recognize-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 12rem); gap: 8px; }
+@media (max-width: 560px) {
+  .studio-cue-recognize-options { grid-template-columns: minmax(0, 1fr); }
+}
+.studio-cue-recognize-dialog .studio-cue-revision-tag > svg { width: 12px; height: 12px; }

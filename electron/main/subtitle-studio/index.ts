@@ -12,6 +12,7 @@ import { selectTranslationTasks } from './translation-overview';
 import { SourceLocationService } from './source-location-service';
 import { CueMediaService } from './cue-media-service';
 import { CueAudioClipper, readCueAudio } from './cue-audio-clip';
+import { recognizeCue } from './cue-recognize-service';
 import { CUE_MEDIA_EXTENSIONS } from '../../../src/subtitle-studio/cue-audio';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
@@ -63,7 +64,10 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
   const batches = new BatchService(repository, translation);
   const sources = new SourceLocationService(repository);
   const cueMedia = new CueMediaService(repository);
-  const cueAudio = new CueAudioClipper({ workingDirectory: path.join(app.getPath('userData'), 'subtitle-studio', 'cue-audio'),
+  const cueAudioDirectory = path.join(app.getPath('userData'), 'subtitle-studio', 'cue-audio');
+  /** One recognition per window: a newer request, cancel or the window going away stops it. */
+  const recognitions = new Map<number, AbortController>();
+  const cueAudio = new CueAudioClipper({ workingDirectory: cueAudioDirectory,
     environment: app.isPackaged ? { mode: 'packaged', resourcesPath: process.resourcesPath } : { mode: 'development', appRoot: app.getAppPath() } });
   const owners = new Map<number, { sender: WebContents; capability: string; documents: Set<string>; unavailable: Map<string, string> }>();
   const allowed = new Set<number>();
@@ -85,6 +89,7 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
     const owner = owners.get(id);
     owners.delete(id);
     cueAudio.forgetOwner(id);
+    recognitions.get(id)?.abort(); recognitions.delete(id);
     for (const service of [translation, exports, batches, knowledgeTrial, knowledgeTranslation, knowledgeBatchTranslation, cueRevisions, consistency]) {
       try { service.forgetOwner(id); } catch (error) { retirementFailures.push(error); }
     }
@@ -288,6 +293,24 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const request = requestSchemas.readCueAudio.parse(payload);
           if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
           return { ok: true, value: await readCueAudio({ repository, media: cueMedia, clipper: cueAudio }, event.sender.id, request, alive) };
+        }
+        if (method === 'cancelCueRecognition') { recognitions.get(event.sender.id)?.abort(); recognitions.delete(event.sender.id); return { ok: true, value: null }; }
+        if (method === 'recognizeCue') {
+          const request = requestSchemas.recognizeCue.parse(payload);
+          if (!owner.documents.has(request.documentId)) throw new StudioError('access_denied');
+          recognitions.get(event.sender.id)?.abort();
+          const controller = new AbortController();
+          recognitions.set(event.sender.id, controller);
+          try {
+            const current = await ensureRuntime(); alive();
+            const runtimeOwner = { webContentsId: event.sender.id, ownerSessionId: owner.capability };
+            const value = await recognizeCue({ repository, media: cueMedia, clipper: cueAudio, workingDirectory: cueAudioDirectory,
+              recognize: clip => current.recognize.clip(runtimeOwner, clip) }, event.sender.id, request, alive, controller.signal);
+            return { ok: true, value };
+          } catch (error) {
+            if (error instanceof StudioError) throw error;
+            return { ok: false, error: controller.signal.aborted ? 'interrupted' : transcriptionIpcError(error) };
+          } finally { if (recognitions.get(event.sender.id) === controller) recognitions.delete(event.sender.id); }
         }
         if (method === 'getCueMedia' || method === 'chooseCueMedia' || method === 'clearCueMedia') {
           const { documentId } = requestSchemas.getCueMedia.parse(payload);

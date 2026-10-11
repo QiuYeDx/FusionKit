@@ -805,7 +805,8 @@
       "revise": "AI revision of {{count}} subtitles",
       "unify": "unify wording in {{count}} cue(s)",
       "merge": "Merge {{count}} cue(s)",
-      "timing": "Retime {{count}} cue(s)"
+      "timing": "Retime {{count}} cue(s)",
+      "recognize": "recognize {{count}} lines again"
     }
   },
   "cue_help": {
@@ -1091,5 +1092,37 @@
     "mark_needs_playback": "Press [ / ] while playing to set the start / end",
     "waveform": "Waveform: drag the markers to adjust the start and end",
     "play_edited": "Play this stretch"
+  },
+  "cue_recognize": {
+    "menu": "Recognize the audio again…",
+    "title": "Recognize the audio again",
+    "description": "Recognizes the original audio of the {{count}} selected lines again with a local transcription model; you choose which results replace the text.",
+    "model": "Transcription model",
+    "no_model": "No model available",
+    "language": "Language",
+    "prompt": "Prompt",
+    "prompt_placeholder": "Prompt (optional): names and terms that help the model hear them right",
+    "no_model_hint": "No transcription model is installed yet. Install one to recognize lines again.",
+    "open_transcription": "Install a model",
+    "limited": "Up to the first {{limit}} selected lines are recognized at a time.",
+    "start": "Recognize",
+    "restart": "Recognize again",
+    "stop": "Stop",
+    "progress": "Recognizing {{done}} / {{total}}",
+    "listening": "Listening",
+    "summary": "{{done}} recognized, {{changed}} differ from the text",
+    "same": "Same as the text",
+    "empty": "No speech heard",
+    "include": "Use the result for line {{number}}",
+    "apply": "Apply {{count}}",
+    "footnote": "Recognition runs on this computer; no audio is uploaded.",
+    "errors": {
+      "resource_busy": "A transcription is running; try again later",
+      "needs_configuration": "The model is not available; check it under Transcription",
+      "limit_exceeded": "Longer than 30 seconds; cannot be recognized alone",
+      "document_unavailable": "The original media is not available",
+      "interrupted": "Stopped",
+      "failed": "Recognition failed"
+    }
   }
 }

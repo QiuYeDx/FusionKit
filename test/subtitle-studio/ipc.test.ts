@@ -420,7 +420,16 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(await owner.invoke(STUDIO_CHANNELS.clearCueMedia, media)).toEqual({ ok: true, value: { status: 'ready', via: 'matched', name: 'sample.wav' } });
     const ipc = { sendSync: () => null, invoke: vi.fn(), on: vi.fn(), removeListener: vi.fn() };
     const api = createSubtitleStudioApi(ipc);
-    for (const method of ['getCueMedia', 'chooseCueMedia', 'clearCueMedia', 'readCueAudio'] as const) expect(typeof api[method]).toBe('function');
+    for (const method of ['getCueMedia', 'chooseCueMedia', 'clearCueMedia', 'readCueAudio', 'recognizeCue', 'cancelCueRecognition'] as const) expect(typeof api[method]).toBe('function');
+    // Recognizing again: fixed public channels, owner-bound documents, strict requests.
+    for (const method of ['recognizeCue', 'cancelCueRecognition'] as const) {
+      expect(isPublicStudioChannel(STUDIO_CHANNELS[method])).toBe(true);
+      expect(isPublicStudioChannel(`${STUDIO_CHANNELS[method]}:internal`)).toBe(false);
+    }
+    const recognize = { documentId: doc.id, cueId: page.value.cues[0].id, modelId: 'large-v3-q5_0', language: 'auto' };
+    expect(await attach().invoke(STUDIO_CHANNELS.recognizeCue, recognize)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.recognizeCue, { ...recognize, filePath: adapter.directory })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.cancelCueRecognition, {})).toEqual({ ok: true, value: null });
   }, 30_000);
 
   it('reveals a bound source folder without granting path or cross-owner authority', async () => {

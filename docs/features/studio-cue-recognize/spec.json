@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "feature": "studio-cue-recognize",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "studio-cue-recognize",
+      "code": "RECOG",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "单句重新识别",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-11 用户：“你上面说的这些建议都挺好的，可以记录到一个TODO文档，然后再逐一处理”；随后“跑完后提交并推送，然后继续下一项”。按项目惯例先写本规格再自主实现与隔离验证；只读用户媒体与已安装模型，不下载或删除模型，不调用付费服务；完成后按用户既有要求提交并推送。",
+        "digest": "b5ca585de7bf42256fdc8ad4176637f29a50a067d5f68eed0d159c19c113d1ab"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "识别结果如何呈现与应用",
+      "resolution": "独立的“重新识别原声”对话框，逐条显示与原文的差异与勾选，确认后作为一次可撤销的原文修改应用；不复用 AI 修订对话框（其选项与模型类型不同）。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "识别时是否启用 VAD",
+      "resolution": "不启用：片段已按字幕时间截取，VAD 可能把短句整段判为静音；与转写任务启用 VAD 时加载身份不同，转写运行中会返回资源忙。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

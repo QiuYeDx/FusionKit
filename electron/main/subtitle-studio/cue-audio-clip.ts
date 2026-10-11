@@ -10,7 +10,6 @@ import { isLocalSubtitleVerifiedRuntimeBundle, verifyLocalSubtitleRuntimeBundle,
 
 /** Mono 16-bit PCM: speech stays clear and a two-minute clip stays near 11.5 MB. */
 const CHANNELS = 1;
-const BYTES_PER_SECOND = CUE_AUDIO_LIMITS.sampleRate * CHANNELS * 2;
 const TIMEOUT_MS = 20_000;
 const seconds = (ms: number) => (ms / 1000).toFixed(3);
 
@@ -96,7 +95,9 @@ export class CueAudioClipper {
     }
   }
 
-  async decode(owner: string, ticket: number, mediaPath: string, clipStartMs: number, clipEndMs: number, tempo: CueAudioTempo = 1): Promise<CueAudioDecoded> {
+  async decode(owner: string, ticket: number, mediaPath: string, clipStartMs: number, clipEndMs: number, tempo: CueAudioTempo = 1,
+    sampleRate: number = CUE_AUDIO_LIMITS.sampleRate): Promise<CueAudioDecoded> {
+    const bytesPerSecond = sampleRate * CHANNELS * 2;
     if (this.latest.get(owner) !== ticket) return { kind: 'unavailable', reason: 'cancelled' };
     const controller = new AbortController();
     this.active.set(owner, controller);
@@ -108,12 +109,12 @@ export class CueAudioClipper {
       const durationMs = clipEndMs - clipStartMs;
       const run = () => (this.options.runProcess ?? runLocalSubtitleMediaProcess)({
         command: tools.ffmpeg, cwd: this.options.workingDirectory, env: tools.environment, signal: controller.signal, timeoutMs: TIMEOUT_MS,
-        stdoutMaxBytes: Math.ceil(durationMs / 1000 / tempo * BYTES_PER_SECOND) + BYTES_PER_SECOND, stderrMaxBytes: 16 * 1024,
+        stdoutMaxBytes: Math.ceil(durationMs / 1000 / tempo * bytesPerSecond) + bytesPerSecond, stderrMaxBytes: 16 * 1024,
         // -t before -i limits the media read, so a slowed stretch comes out longer instead of cut short.
         // The file: prefix keeps ffmpeg from reading any part of a name as a protocol.
         args: ['-hide_banner', '-nostdin', '-nostats', '-loglevel', 'error', '-ss', seconds(clipStartMs), '-t', seconds(durationMs), '-i', `file:${mediaPath}`,
           '-map', '0:a:0', '-vn', '-sn', '-dn', ...(tempo === 1 ? [] : ['-af', `atempo=${tempo}`]),
-          '-ac', String(CHANNELS), '-ar', String(CUE_AUDIO_LIMITS.sampleRate), '-c:a', 'pcm_s16le', '-f', 's16le', 'pipe:1'],
+          '-ac', String(CHANNELS), '-ar', String(sampleRate), '-c:a', 'pcm_s16le', '-f', 's16le', 'pipe:1'],
       });
       let result = await run();
       if (result.status === 'spawn_error' && !controller.signal.aborted) {
@@ -131,7 +132,7 @@ export class CueAudioClipper {
       const dataBytes = result.stdout.length - (result.stdout.length % (CHANNELS * 2));
       if (!dataBytes) return { kind: 'unavailable', reason: 'no_audio' };
       const bytes = new Uint8Array(44 + dataBytes);
-      bytes.set(pcm16WavHeader(dataBytes, CUE_AUDIO_LIMITS.sampleRate, CHANNELS));
+      bytes.set(pcm16WavHeader(dataBytes, sampleRate, CHANNELS));
       bytes.set(result.stdout.subarray(0, dataBytes), 44);
       return { kind: 'wav', bytes };
     } finally {

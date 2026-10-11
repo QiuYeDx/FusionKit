@@ -7,7 +7,11 @@ import * as esbuild from 'esbuild';
 const digest = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 
 /** Mirrors the production build. The default controlled run substitutes one exact native module. */
-export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missing', options: { mainPlugins?: esbuild.Plugin[] } = {}) {
+/**
+ * `mediaRuntime` also copies the development media runtime (bundled FFmpeg), for flows that decode the
+ * user's media in the main process, such as playing or recognizing a cue's original audio.
+ */
+export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missing', options: { mainPlugins?: esbuild.Plugin[]; mediaRuntime?: boolean } = {}) {
   const mainPlugins = options.mainPlugins ?? [];
   if (mode !== 'controlled' && mainPlugins.length) throw new Error('Main fixture plugins require the controlled build.');
   const repositoryRoot = realpathSync.native(process.cwd());
@@ -21,6 +25,10 @@ export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missi
     version: manifest.version, type: 'module', main: 'dist-electron/main/index.js' }, null, 2));
   await cp(path.join(repositoryRoot, 'dist'), path.join(appRoot, 'dist'), { recursive: true });
   await cp(path.join(repositoryRoot, 'dist-electron'), path.join(appRoot, 'dist-electron'), { recursive: true });
+  if (options.mediaRuntime) {
+    const runtime = path.join('build', 'subtitle-studio-resources', 'transcription');
+    await cp(path.join(repositoryRoot, runtime), path.join(appRoot, runtime), { recursive: true });
+  }
   const mainSource = path.join(repositoryRoot, 'electron/main/index.ts');
   const runtimeSource = path.join(repositoryRoot, 'electron/main/subtitle-studio/transcription/runtime.ts');
   const substitute = path.join(repositoryRoot, 'test/subtitle-studio/helpers/transcription-ui-runtime.ts');

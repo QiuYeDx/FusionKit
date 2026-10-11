@@ -35,6 +35,8 @@ import type { SpeechResourceService } from '../../speech-resources/service';
 import { canonicalResourceId, SPEECH_CUDA_RESOURCE_ID } from '../../speech-resources/catalog';
 import { createStudioSharedResources, type StudioSharedResources } from './shared-resources';
 import { createLocalSubtitleServerSession } from './native/server-session';
+import { localSubtitleFileIdentityForPath } from './native/filesystem-object-identity';
+import type { LocalSubtitleDevicePreference } from '../../../../src/subtitle-studio/transcription/domain';
 import { cleanupSpeechResourceSessionStartupOrphans } from '../../speech-resources/engine/resource-startup-cleaner';
 import type { AutomaticTranslationCoordinator } from '../automatic-translation';
 import type { AutomaticKnowledgeCapture } from '../automatic-knowledge';
@@ -69,6 +71,13 @@ export class TranscriptionRuntimeError extends Error {
 const ownerSchema = z.object({ webContentsId: z.number().int().positive(),
   ownerSessionId: z.string().min(1).max(128).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value)) }).strict();
 const importSchema = z.object({ owner: ownerSchema, filePath: z.string().min(1), modelId: z.string().min(1) }).strict();
+/** One short 16 kHz mono WAV to recognize again, outside the task queue. */
+export type RecognizeClipRequest = {
+  modelId: string; devicePreference: LocalSubtitleDevicePreference; language: string; initialPrompt?: string;
+  filePath: string; signal?: AbortSignal;
+};
+/** Threads the transcription executor gives the server; a recognition reuses the same load. */
+const RECOGNIZE_CPU_THREADS = 4;
 const absolutePathSchema = z.string().min(1).refine(value => !value.includes('\0') && path.isAbsolute(value));
 const targetFields = { platform: z.enum(['darwin', 'win32']).optional(), arch: z.enum(['arm64', 'x64']).optional() };
 const optionsSchema = z.object({ userDataRoot: absolutePathSchema, environment: z.discriminatedUnion('mode', [
@@ -172,7 +181,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     // Document tasks are joined explicitly before resource/media shutdown begins.
     const taskTarget = jobs ?? { releaseOwner() {}, async shutdown() {} };
     const lifecycle = new LocalSubtitleSessionLifecycle(taskTarget, models, media, server, registry);
-    return { inputs, outputs, artifacts, importTokens, media, server, models, registry, lifecycle, tasks };
+    return { inputs, outputs, artifacts, importTokens, media, server, models, registry, lifecycle, tasks, backendResolver };
   }
 
   function releaseCapabilities(owner: LocalSubtitleOwnerKey) {
@@ -396,6 +405,41 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
         const { current, owner } = requireOwner(value); return current.models.onResourceEvent(owner, listener);
       },
       waitForIdle() { return requireReady().models.waitForIdle(); },
+    }),
+    recognize: Object.freeze({
+      /**
+       * Recognizes a short clip with an installed model, as a transcription task would: the model,
+       * server runtime and backend are resolved the same way and the server process is shared when
+       * the load matches. No VAD: the clip is already cut to the cue. A running transcription with
+       * another load makes the server busy.
+       */
+      async clip(value: LocalSubtitleOwnerKey, request: RecognizeClipRequest): Promise<Readonly<{ text: string; language: string }>> {
+        const { current, owner, signal: lifetime } = requireOwner(value);
+        const signal = ownerSignal(lifetime, request.signal);
+        const cuda = (environment.platform ?? process.platform) === 'win32' && ['auto', 'cuda'].includes(request.devicePreference);
+        const use = dependencies.sharedResources?.reserveUse([request.modelId, ...(cuda ? [SPEECH_CUDA_RESOURCE_ID] : [])].map(canonicalResourceId));
+        try {
+          const model = await current.models.resolveManagedModel(request.modelId, signal);
+          requireOwner(owner);
+          const runtime = await verifyRuntime('server');
+          const resolution = await current.backendResolver.resolveBackend({ model, devicePreference: request.devicePreference,
+            admittedRuntimeGeneration: runtime.runtimeGeneration, signal });
+          requireOwner(owner);
+          const common = { purpose: 'inference' as const, verifiedRuntime: runtime, serverArtifactId: resolution.serverArtifact.id, model, threads: RECOGNIZE_CPU_THREADS };
+          const lease = await current.server.acquire(owner, resolution.resolvedBackend === 'cuda'
+            ? { ...common, backend: 'cuda', acceleratorPack: resolution.acceleratorPack! }
+            : { ...common, backend: resolution.resolvedBackend }, signal);
+          try {
+            const expectedFileIdentity = await localSubtitleFileIdentityForPath(request.filePath);
+            const operation = current.server.beginInference(lease, { requestGeneration: 1, filePath: request.filePath, expectedFileIdentity,
+              language: request.language, taskMode: 'transcribe', beamSize: 5, temperature: 0, vadEnabled: false, vadMinSilenceMs: 500,
+              ...(request.initialPrompt ? { initialPrompt: request.initialPrompt } : {}), signal });
+            const { result } = (await operation.result).response;
+            requireOwner(owner);
+            return Object.freeze({ text: result.text.trim(), language: result.language });
+          } finally { await current.server.release(lease); }
+        } finally { use?.release(); }
+      },
     }),
   });
 }

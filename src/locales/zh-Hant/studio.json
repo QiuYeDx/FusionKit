@@ -805,7 +805,8 @@
       "revise": "AI 修訂 {{count}} 條字幕",
       "unify": "統一 {{count}} 條字幕的寫法",
       "merge": "合併 {{count}} 條字幕",
-      "timing": "調整 {{count}} 條字幕的時間"
+      "timing": "調整 {{count}} 條字幕的時間",
+      "recognize": "重新辨識 {{count}} 條字幕"
     }
   },
   "cue_help": {
@@ -1091,5 +1092,37 @@
     "mark_needs_playback": "播放時按 [ / ] 設定開始 / 結束",
     "waveform": "波形：拖動標記調整開始和結束",
     "play_edited": "試聽這段時間"
+  },
+  "cue_recognize": {
+    "menu": "重新辨識原聲…",
+    "title": "重新辨識原聲",
+    "description": "用本機轉寫模型重新辨識所選 {{count}} 條字幕的原聲，確認後取代原文。",
+    "model": "轉寫模型",
+    "no_model": "沒有可用的模型",
+    "language": "語言",
+    "prompt": "提示詞",
+    "prompt_placeholder": "提示詞（選填）：人名、術語等，幫助模型聽準",
+    "no_model_hint": "尚未安裝轉寫模型，安裝後即可重新辨識。",
+    "open_transcription": "前往安裝模型",
+    "limited": "一次最多辨識所選的前 {{limit}} 條。",
+    "start": "開始辨識",
+    "restart": "重新辨識",
+    "stop": "停止",
+    "progress": "正在辨識 {{done}} / {{total}}",
+    "listening": "辨識中",
+    "summary": "已辨識 {{done}} 條，其中 {{changed}} 條與原文不同",
+    "same": "與原文一致",
+    "empty": "未辨識到語音",
+    "include": "採用第 {{number}} 條的辨識結果",
+    "apply": "套用 {{count}} 條",
+    "footnote": "辨識在本機進行，音訊不會上傳。",
+    "errors": {
+      "resource_busy": "轉寫任務正在進行，請稍後再試",
+      "needs_configuration": "模型無法使用，請在轉寫頁檢查",
+      "limit_exceeded": "超過 30 秒，無法單獨辨識",
+      "document_unavailable": "原始媒體無法使用",
+      "interrupted": "已停止",
+      "failed": "辨識失敗"
+    }
   }
 }

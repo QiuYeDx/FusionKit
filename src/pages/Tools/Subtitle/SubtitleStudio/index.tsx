@@ -28,6 +28,7 @@ import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
 import { CueHistory, type CueEditLabel } from '@/services/subtitle-studio/cue-history';
 import { StudioCueTable } from './StudioCueTable';
 import { StudioPreviewExpandControls, useStudioPreviewExpansion } from './StudioPreviewExpansion';
+import { StudioCueRecognize, type CueRecognizeRequestState } from './StudioCueRecognize';
 import { StudioCueRevision, type CueRevisionRequestState } from './StudioCueRevision';
 import { useAgentPageContext } from '@/agent/page-context';
 import { createStudioAgentTools, studioPageContext, type StudioAgentDeps } from './agent-context';
@@ -210,6 +211,8 @@ export default function SubtitleStudio() {
   const openConsistencyRef = useRef<(focus: string | undefined, onSettled: NonNullable<ConsistencyRequestState['onSettled']>) => boolean>(() => false);
   const [cueTranslation, setCueTranslation] = useState<{ cueIds: string[]; trackId?: string; request: LibraryDialogRequest } | null>(null);
   const [cueRevision, setCueRevision] = useState<CueRevisionRequestState | null>(null);
+  const [cueRecognize, setCueRecognize] = useState<CueRecognizeRequestState | null>(null);
+  const cueRecognizeSerial = useRef(0);
   const cueRevisionSerial = useRef(0);
   const observations = useRef(new StudioObservations());
   const currentPage = useRef<DocumentPage | null>(null);
@@ -809,6 +812,7 @@ export default function SubtitleStudio() {
                     onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })} onCheckConsistency={() => openConsistency(page ? [page.summary] : [])}
                     onSelectionChange={cueIds => { cueSelection.current = cueIds; }}
                     onCopy={copyCue}
+                    onRecognize={cueIds => setCueRecognize({ cueIds, serial: ++cueRecognizeSerial.current })}
                     onFollowPage={offset => void run('select', () => select(page.summary, offset, page.nodeOffset, { silent: true }))}
                     onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
                 </ClipPathTabsContent>
@@ -838,6 +842,9 @@ export default function SubtitleStudio() {
         if (ok && applied.knowledgeHints.length) void offerKnowledge(applied.knowledgeHints, applied.instructions);
         return ok;
       })} />}
+    {page && <StudioCueRecognize page={page} request={cueRecognize} editBlocked={page.tasks.some(task => task.status === 'queued' || task.status === 'running') ? t('studio:cue_edit.blocked_translation') : undefined}
+      onClose={() => setCueRecognize(null)} onApply={(operation, count) => applyCueEdit(operation, 'do', 'recognize', count)}
+      onOpenTranscription={() => changeWorkspaceView('transcription')} />}
     {page && <StudioTranslation page={page} scope={cueTranslation ?? undefined} triggerContainer={null} openRequest={cueTranslation?.request} onRequestClosed={() => setCueTranslation(null)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />}
     <StudioConsistencyCheck request={consistency} currentDocumentId={page?.summary.id} editBlocked={page?.tasks.some(task => task.status === 'queued' || task.status === 'running') ? t('studio:cue_edit.blocked_translation') : undefined}
       onClose={() => setConsistency(null)} onApplyCurrent={(operation, count) => applyCueEdit(operation, 'do', 'unify', count)} onUndoCurrent={undoUnify} onChangedOther={onBatchChanged}

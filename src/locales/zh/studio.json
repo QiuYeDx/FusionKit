@@ -805,7 +805,8 @@
       "revise": "AI 修订 {{count}} 条字幕",
       "unify": "统一 {{count}} 条字幕的写法",
       "merge": "合并 {{count}} 条字幕",
-      "timing": "调整 {{count}} 条字幕的时间"
+      "timing": "调整 {{count}} 条字幕的时间",
+      "recognize": "重新识别 {{count}} 条字幕"
     }
   },
   "cue_help": {
@@ -1091,5 +1092,37 @@
     "mark_needs_playback": "播放时按 [ / ] 设定开始 / 结束",
     "waveform": "波形：拖动标记调整开始和结束",
     "play_edited": "试听这段时间"
+  },
+  "cue_recognize": {
+    "menu": "重新识别原声…",
+    "title": "重新识别原声",
+    "description": "用本地转写模型重新识别所选 {{count}} 条字幕的原声，确认后替换原文。",
+    "model": "转写模型",
+    "no_model": "没有可用的模型",
+    "language": "语言",
+    "prompt": "提示词",
+    "prompt_placeholder": "提示词（可选）：人名、术语等，帮助模型听准",
+    "no_model_hint": "尚未安装转写模型，安装后即可重新识别。",
+    "open_transcription": "去安装模型",
+    "limited": "一次最多识别所选的前 {{limit}} 条。",
+    "start": "开始识别",
+    "restart": "重新识别",
+    "stop": "停止",
+    "progress": "正在识别 {{done}} / {{total}}",
+    "listening": "识别中",
+    "summary": "已识别 {{done}} 条，其中 {{changed}} 条与原文不同",
+    "same": "与原文一致",
+    "empty": "未识别到语音",
+    "include": "采用第 {{number}} 条的识别结果",
+    "apply": "应用 {{count}} 条",
+    "footnote": "识别在本机进行，音频不会上传。",
+    "errors": {
+      "resource_busy": "转写任务正在进行，稍后再试",
+      "needs_configuration": "模型不可用，请在转写页检查",
+      "limit_exceeded": "超过 30 秒，无法单独识别",
+      "document_unavailable": "原始媒体不可用",
+      "interrupted": "已停止",
+      "failed": "识别失败"
+    }
   }
 }

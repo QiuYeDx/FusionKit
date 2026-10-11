@@ -1,5 +1,5 @@
 import { useRef, type ComponentProps } from 'react';
-import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, ListMusic, MoveHorizontal, PencilLine, Play, Sparkles, Timer, Trash2 } from 'lucide-react';
+import { AudioWaveform, BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, ListMusic, MoveHorizontal, PencilLine, Play, Sparkles, Timer, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '@/components/ui/dropdown-menu';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
@@ -33,7 +33,9 @@ export type CueMenuActions = {
   /** Plays the cues' original audio; `ready` is false when the document has no usable media. */
   audio?: { ready: boolean; onPlay: (cueIds: string[]) => void;
     /** Plays from the cue to the end of the document, following along in the list. */
-    onFollow: (cueId: string) => void };
+    onFollow: (cueId: string) => void;
+    /** Recognizes the cues' original audio again with a local transcription model. */
+    onRecognize: (cueIds: string[]) => void };
 };
 
 const copyLabels = {
@@ -109,6 +111,9 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
     <DropdownMenuItem data-testid="studio-cue-revise" disabled={!!editBlocked} onSelect={() => { onEditing(); actions.onRevise(cueIds); }}>
       <Sparkles />{t('studio:cue_menu.revise')}
     </DropdownMenuItem>
+    {actions.audio && <DropdownMenuItem data-testid="studio-cue-recognize-menu" disabled={!actions.audio.ready} onSelect={() => { onEditing(); actions.audio!.onRecognize(cueIds); }}>
+      <AudioWaveform />{t('studio:cue_recognize.menu')}
+    </DropdownMenuItem>}
     {track && <>
       <DropdownMenuItem data-testid="studio-cue-review" disabled={!!editBlocked || !entries.length} onSelect={() => actions.onReview(cueIds, !allReviewed)}>
         {allReviewed ? <CircleDashed /> : <CheckCheck />}{t(allReviewed ? 'studio:cue_menu.unreview' : 'studio:cue_menu.review')}

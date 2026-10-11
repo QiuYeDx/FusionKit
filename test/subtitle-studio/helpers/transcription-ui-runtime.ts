@@ -1,6 +1,7 @@
 import { captureSourceInput, verifySourceLocation, type SourceLocationCapture } from '../../../electron/main/subtitle-studio/source-location-service';
 /** Test-only native boundary. Production main, IPC, preload and repository stay real. */
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import type { DocumentRepository } from '../../../electron/main/subtitle-studio/document-repository';
 import { transcriptToDocument } from '../../../electron/main/subtitle-studio/transcription/document-adapter';
@@ -18,6 +19,7 @@ type Owner = LocalSubtitleOwnerKey;
 type Task = { source: SourceLocationCapture; owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string }; releaseKnowledge?: () => void };
 type Job = { owner: string; value: ReturnType<typeof localSubtitleResourceJobSummarySchema.parse> };
 type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { operation: 'probe-recovered' }
+  | { operation: 'recognitions'; recognitions?: Array<{ text: string } | { error: string }>; delayMs?: number }
   | { operation: 'revoke-failures'; count: number }
   | { operation: 'resource-complete'; resourceId: string }
   | { operation: 'resource-failed'; resourceId: string }
@@ -62,8 +64,12 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
     jobs.push({ owner: check(owner), value });
     return structuredClone(value);
   };
+  /** What the next recognitions return, in order: a text, or an error code thrown as the native runtime would. Each command replaces the queue. */
+  const recognitions: Array<{ text: string } | { error: string }> = [];
+  let recognitionDelayMs = 0;
   const control = async (command: Command) => {
     if (command.operation === 'resources-ready') resources.forEach(resource => { resource.status = 'ready'; });
+    if (command.operation === 'recognitions') { recognitions.splice(0, Infinity, ...(command.recognitions ?? [])); recognitionDelayMs = command.delayMs ?? 0; }
     if (command.operation === 'probe-recovered') recoveredProbe = true;
     if (command.operation === 'revoke-failures') revokeFailures = command.count;
     if (command.operation === 'resource-busy') shared = { shared: true, revision: (shared?.revision ?? 0) + 1,
@@ -172,6 +178,21 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
         check(owner); trace('revoke-media');
         if (revokeFailures-- > 0) throw Object.assign(new Error('Fixture revoke retry'), { code: 'transcription_failed' });
         return tokens.get(fileToken)?.owner === key(owner) && tokens.delete(fileToken);
+      },
+    },
+    recognize: {
+      async clip(owner: Owner, request: { modelId: string; language: string; initialPrompt?: string; filePath: string; signal?: AbortSignal }) {
+        check(owner);
+        if (resources.find(resource => resource.resourceId === request.modelId)?.status !== 'ready') throw Object.assign(new Error('Model missing'), { code: 'model_missing' });
+        const bytes = await readFile(request.filePath);
+        trace('recognize', { modelId: request.modelId, language: request.language, initialPrompt: request.initialPrompt ?? null, sampleRate: bytes.readUInt32LE(24), bytes: bytes.length });
+        if (recognitionDelayMs) await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, recognitionDelayMs);
+          request.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(Object.assign(new Error('stopped'), { code: 'cancelled' })); }, { once: true });
+        });
+        const next = recognitions.shift() ?? { text: `识别文本 ${bytes.length}` };
+        if ('error' in next) throw Object.assign(new Error('Fixture recognition failure'), { code: next.error });
+        return Object.freeze({ text: next.text, language: request.language === 'auto' ? 'ja' : request.language });
       },
     },
     resources: {

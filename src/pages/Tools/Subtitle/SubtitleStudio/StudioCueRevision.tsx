@@ -95,7 +95,8 @@ function addUsage(total: TranslationUsage, usage: TranslationUsage) {
   for (const key of ['inputTokens', 'outputTokens', 'totalTokens'] as const) total[key] = total[key] === null || usage[key] === null ? null : total[key]! + usage[key]!;
 }
 
-function Diff({ before, after }: { before: string; after: string }) {
+/** Inline differences from `before` to `after`: removed text struck through, added text marked. */
+export function Diff({ before, after }: { before: string; after: string }) {
   return <>{diffText(before, after).map((part, index) => part.kind === 'same' ? <span key={index}>{part.text}</span>
     : part.kind === 'added' ? <ins key={index}>{part.text}</ins> : <del key={index}>{part.text}</del>)}</>;
 }
