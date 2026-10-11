@@ -103,8 +103,9 @@ export class CueAudioClipper {
     }
   }
 
+  /** `audioOrdinal` picks the media's audio stream, from 1; a file without that many falls back to its first. */
   async decode(owner: string, ticket: number, mediaPath: string, clipStartMs: number, clipEndMs: number, tempo: CueAudioTempo = 1,
-    sampleRate: number = CUE_AUDIO_LIMITS.sampleRate): Promise<CueAudioDecoded> {
+    sampleRate: number = CUE_AUDIO_LIMITS.sampleRate, audioOrdinal = 1): Promise<CueAudioDecoded> {
     const bytesPerSecond = sampleRate * CHANNELS * 2;
     if (this.latest.get(owner) !== ticket) return { kind: 'unavailable', reason: 'cancelled' };
     const controller = new AbortController();
@@ -115,13 +116,14 @@ export class CueAudioClipper {
       catch { return { kind: 'unavailable', reason: 'runtime_unavailable' }; }
       if (controller.signal.aborted) return { kind: 'unavailable', reason: 'cancelled' };
       const durationMs = clipEndMs - clipStartMs;
+      let stream = audioOrdinal - 1;
       const run = () => (this.options.runProcess ?? runLocalSubtitleMediaProcess)({
         command: tools.ffmpeg, cwd: this.options.workingDirectory, env: tools.environment, signal: controller.signal, timeoutMs: TIMEOUT_MS,
         stdoutMaxBytes: Math.ceil(durationMs / 1000 / tempo * bytesPerSecond) + bytesPerSecond, stderrMaxBytes: 16 * 1024,
         // -t before -i limits the media read, so a slowed stretch comes out longer instead of cut short.
         // The file: prefix keeps ffmpeg from reading any part of a name as a protocol.
         args: ['-hide_banner', '-nostdin', '-nostats', '-loglevel', 'error', '-ss', seconds(clipStartMs), '-t', seconds(durationMs), '-i', `file:${mediaPath}`,
-          '-map', '0:a:0', '-vn', '-sn', '-dn', ...(tempo === 1 ? [] : ['-af', `atempo=${tempo}`]),
+          '-map', `0:a:${stream}`, '-vn', '-sn', '-dn', ...(tempo === 1 ? [] : ['-af', `atempo=${tempo}`]),
           '-ac', String(CHANNELS), '-ar', String(sampleRate), '-c:a', 'pcm_s16le', '-f', 's16le', 'pipe:1'],
       });
       let result = await run();
@@ -132,10 +134,16 @@ export class CueAudioClipper {
         result = await run();
         if (result.status === 'spawn_error') return { kind: 'unavailable', reason: 'runtime_unavailable' };
       }
+      const missingStream = (stderr: string) => /matches no streams|does not contain any stream|Output file .* does not contain/i.test(stderr);
+      if (stream > 0 && !controller.signal.aborted && result.status === 'closed' && result.exitCode !== 0 && missingStream(result.stderr.toString('utf8'))) {
+        // Another file than the one transcribed, with fewer audio tracks: play its first.
+        stream = 0;
+        result = await run();
+      }
       if (controller.signal.aborted || result.aborted || this.latest.get(owner) !== ticket) return { kind: 'unavailable', reason: 'cancelled' };
       const stderr = result.stderr.toString('utf8');
       if (result.status !== 'closed' || result.exitCode !== 0 || result.timedOut || result.outputExceeded) {
-        return { kind: 'unavailable', reason: /matches no streams|does not contain any stream|Output file .* does not contain/i.test(stderr) ? 'no_audio' : 'decode_failed' };
+        return { kind: 'unavailable', reason: missingStream(stderr) ? 'no_audio' : 'decode_failed' };
       }
       const dataBytes = result.stdout.length - (result.stdout.length % (CHANNELS * 2));
       if (!dataBytes) return { kind: 'unavailable', reason: 'no_audio' };
@@ -166,6 +174,6 @@ export async function readCueAudio(deps: { repository: DocumentRepository; media
   const resolved = await deps.media.resolve(request.documentId, guard);
   if (!resolved.media) return { kind: 'unavailable', reason: resolved.status.status === 'missing' ? 'no_media' : 'media_unavailable' };
   const tempo = request.tempo ?? 1;
-  const decoded = await deps.clipper.decode(lane, ticket, resolved.media.path, clipStartMs, clipEndMs, tempo); guard();
+  const decoded = await deps.clipper.decode(lane, ticket, resolved.media.path, clipStartMs, clipEndMs, tempo, undefined, resolved.media.audioOrdinal); guard();
   return decoded.kind === 'wav' ? { kind: 'clip', bytes: decoded.bytes, mimeType: 'audio/wav', revision: doc.revision, ...range, clipStartMs, clipEndMs, tempo } : decoded;
 }

@@ -37,6 +37,9 @@ import { createStudioSharedResources, type StudioSharedResources } from './share
 import { createLocalSubtitleServerSession } from './native/server-session';
 import { localSubtitleFileIdentityForPath } from './native/filesystem-object-identity';
 import type { LocalSubtitleDevicePreference } from '../../../../src/subtitle-studio/transcription/domain';
+import type { LocalSubtitleMediaProbeSummary } from '../../../../src/subtitle-studio/transcription/ipc-contract';
+import type { AudioTrack } from '../../../../src/subtitle-studio/domain';
+import { audioTrackOfProbe } from '../../../../src/subtitle-studio/cue-audio';
 import { cleanupSpeechResourceSessionStartupOrphans } from '../../speech-resources/engine/resource-startup-cleaner';
 import type { AutomaticTranslationCoordinator } from '../automatic-translation';
 import type { AutomaticKnowledgeCapture } from '../automatic-knowledge';
@@ -112,6 +115,19 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     server?: LocalSubtitleServerSupervisor; registry?: LocalSubtitleSessionRegistry } = {};
 
   function ownerKey(owner: LocalSubtitleOwnerKey) { return `${owner.webContentsId}:${owner.ownerSessionId}`; }
+  // The latest probes of each owner, so a published transcript remembers which audio track it used.
+  const probes = new Map<string, Map<string, LocalSubtitleMediaProbeSummary>>();
+  function rememberProbe(owner: LocalSubtitleOwnerKey, summary: LocalSubtitleMediaProbeSummary) {
+    const files = probes.get(ownerKey(owner)) ?? new Map<string, LocalSubtitleMediaProbeSummary>();
+    probes.set(ownerKey(owner), files);
+    files.delete(summary.fileToken); files.set(summary.fileToken, summary);
+    if (files.size > 200) files.delete(files.keys().next().value!);
+    return summary;
+  }
+  function describeAudioTrack(owner: LocalSubtitleOwnerKey, fileToken: string, audioStreamId?: string): AudioTrack | undefined {
+    const summary = probes.get(ownerKey(owner))?.get(fileToken);
+    return summary && audioTrackOfProbe(summary, audioStreamId);
+  }
   function requireReady() {
     if (terminal) throw new TranscriptionRuntimeError('runtime_closed');
     if (phase !== 'initialized' || !services) throw new TranscriptionRuntimeError('not_initialized');
@@ -169,7 +185,8 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     if (repository) {
       const executor = new TranscriptionExecutor({ media, supervisor: server, runtimeEnvironment: environment, resolveCudaAccelerator });
       tasks = createTranscriptionTaskService({ repository, inputs, leases, media, modelResolver: models, backendResolver, executor,
-        automaticTranslation: dependencies.automaticTranslation, automaticKnowledge: dependencies.automaticKnowledge, automaticExport: dependencies.automaticExport });
+        automaticTranslation: dependencies.automaticTranslation, automaticKnowledge: dependencies.automaticKnowledge, automaticExport: dependencies.automaticExport,
+        describeAudioTrack });
     } else {
       // Retain the resource-only T03 host contract; no legacy job API is exposed.
       const exporter = new LocalSubtitleExporter(artifacts);
@@ -280,6 +297,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     releaseOwner(value: LocalSubtitleOwnerKey) {
       const owner = Object.freeze(ownerSchema.parse(value));
       const key = ownerKey(owner);
+      probes.delete(key);
       const fence = () => {
         const record = owners.get(key);
         if (record) { record.released = true; record.controller.abort(); }
@@ -337,7 +355,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       },
       probe(value: LocalSubtitleOwnerKey, fileToken: string, signal?: AbortSignal) {
         const { current, owner, signal: lifetime } = requireOwner(value);
-        return completeOwner(owner, current.media.probeDraft({ owner, fileToken, signal: ownerSignal(lifetime, signal) }));
+        return completeOwner(owner, current.media.probeDraft({ owner, fileToken, signal: ownerSignal(lifetime, signal) }).then(summary => rememberProbe(owner, summary)));
       },
     }),
     tasks: Object.freeze({

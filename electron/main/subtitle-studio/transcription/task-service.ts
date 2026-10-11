@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { StudioError, errorCodeSchema } from '../../../../src/subtitle-studio/domain';
+import { StudioError, errorCodeSchema, type AudioTrack } from '../../../../src/subtitle-studio/domain';
 import { LOCAL_SUBTITLE_CUE_POLICY, LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION, LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION, LOCAL_SUBTITLE_PRODUCTION_CONTRACT, LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
   createLocalSubtitleError, isLocalSubtitleErrorCode } from '../../../../src/subtitle-studio/transcription/domain';
@@ -31,6 +31,8 @@ type PublicError = NonNullable<TranscriptionTaskSummary['error']>;
 interface Record {
   readonly owner: LocalSubtitleOwnerKey; readonly ownerKey: string; readonly taskId: string; readonly fileToken: string;
   readonly sourceKey: string; readonly inputPath: string; readonly inputIdentity: LocalSubtitleFileIdentity; readonly audioStreamId?: string;
+  /** The track transcribed, as the probe described it; the published document remembers it. */
+  readonly audioTrack?: AudioTrack;
   readonly execution: Execution; readonly controller: AbortController;
   summary: TranscriptionTaskSummary; running: boolean; leased: boolean; selectionBound: boolean; cleanupPending: boolean;
   leaseFailure?: unknown;
@@ -61,10 +63,13 @@ export interface TranscriptionTaskServiceOptions {
   readonly automaticTranslation?: Pick<AutomaticTranslationCoordinator, 'handoff'>;
   readonly automaticKnowledge?: AutomaticKnowledgeCapture;
   readonly automaticExport?: Pick<AutomaticExporter, 'exportDocument'>;
+  /** The audio track a file will be transcribed from: the chosen stream, else the one chosen automatically. */
+  readonly describeAudioTrack?: (owner: LocalSubtitleOwnerKey, fileToken: string, audioStreamId?: string) => AudioTrack | undefined;
 }
 
 const ownerSchema = z.object({ webContentsId: z.number().int().positive().safe(),
   ownerSessionId: z.string().min(1).max(128).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value)) }).strict();
+const withAudioTrack = (audioTrack: AudioTrack | undefined) => audioTrack ? { audioTrack } : {};
 const keyOf = (owner: LocalSubtitleOwnerKey) => JSON.stringify([owner.webContentsId, owner.ownerSessionId]);
 const terminal = (record: Record) => ['completed', 'no_content', 'failed', 'cancelled'].includes(record.summary.status);
 const cleanupError = () => createLocalSubtitleError('cleanup_failed', 'Transcription cleanup failed.', { stage: 'cleanup' });
@@ -238,6 +243,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
         taskId: record.taskId, generation: 1, assertActive: () => assertActive(record),
         ...(record.automatic ? { automaticTranslation: record.automatic.intent } : {}),
         ...(record.autoExport ? { automaticExport: record.autoExport } : {}),
+        ...withAudioTrack(record.audioTrack),
         async resolveSourceLocation() {
           const input = await options.inputs.resolveTaskLease(record.owner, record.taskId, 'transcribe', record.fileToken);
           const directory = await options.inputs.resolveTaskSourceOutputDirectory(record.owner, record.taskId, record.fileToken);
@@ -360,6 +366,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
         const input = inputs[index]!, file = request.files[index]!, taskId = randomUUID(), now = timestamp();
         created.push({ owner: owner.owner, ownerKey: owner.key, taskId, fileToken: file.fileToken, sourceKey: input.sourceKey,
           inputPath: input.filePath, inputIdentity: input.identity, ...(file.audioStreamId ? { audioStreamId: file.audioStreamId } : {}), execution,
+          ...withAudioTrack(options.describeAudioTrack?.(owner.owner, file.fileToken, file.audioStreamId)),
           controller: new AbortController(), running: false, leased: false, selectionBound: false, cleanupPending: false,
           ...(request.autoTranslation ? { automatic: { apiKey: request.autoTranslation.apiKey,
             intent: { intentId: randomUUID(), sourceTaskId: taskId, generation: 1 as const, config: structuredClone(request.autoTranslation.config), state: 'pending' as const,

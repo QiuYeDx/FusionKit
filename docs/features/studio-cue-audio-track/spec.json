@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "feature": "studio-cue-audio-track",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "studio-cue-audio-track",
+      "code": "TRACK",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "记住转写时的音轨",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-11 用户：“你上面说的这些建议都挺好的，可以记录到一个TODO文档，然后再逐一处理”；随后“跑完后提交并推送，然后继续下一项”。按项目惯例先写本规格再自主实现与隔离验证；只读用户媒体与已安装模型，不下载或删除模型，不调用付费服务；完成后按用户既有要求提交并推送。",
+        "digest": "7eca875812737d622bb41cd23d4d80ea75bde0e61fcca6f77050269967df15ae"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "音轨记在哪里",
+      "resolution": "记在媒体文档的来源信息 origin.audioTrack（序号、语言、标题）：随文档保存与删除，不另建私有文件；冻结的转写副本不改动，由工作台自有的运行时门面在入队时按探测摘要解析。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "手动选择的媒体是否沿用",
+      "resolution": "沿用：常见情形是原文件移动后重新选择同一视频；所选文件没有该音轨时改用第一条，不报错。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

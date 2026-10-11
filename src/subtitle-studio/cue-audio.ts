@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { idSchema, StudioError, type SubtitleDocument } from './domain';
+import { idSchema, StudioError, type AudioTrack, type SubtitleDocument } from './domain';
 
 /** Extensions offered when the user picks a media file, and matched next to an imported subtitle. */
 export const CUE_MEDIA_EXTENSIONS = [
@@ -43,7 +43,16 @@ export const cueAudioRequestSchemas = {
 /** How the document found its media: chosen by the user, the transcribed file, or a same-named file beside the subtitle. */
 export type CueMediaVia = 'linked' | 'transcription' | 'matched';
 /** What the renderer may know about a document's media: never its path. */
-export type CueMediaStatus = { status: 'ready' | 'unavailable'; via: CueMediaVia; name: string } | { status: 'missing' };
+type ProbedTracks = { audioTracks: readonly { streamId: string; ordinal: number; language?: string; title?: string }[]; autoSelectedStreamId: string };
+/** The track a transcription uses: the chosen stream, else the one chosen automatically (the only default track, else the first). */
+export function audioTrackOfProbe(probe: ProbedTracks, audioStreamId?: string): AudioTrack | undefined {
+  const track = probe.audioTracks.find(item => item.streamId === (audioStreamId ?? probe.autoSelectedStreamId));
+  if (!track) return undefined;
+  return { ordinal: track.ordinal, ...(track.language ? { language: track.language.slice(0, 64) } : {}), ...(track.title ? { title: track.title.slice(0, 255) } : {}) };
+}
+
+/** `track` is the audio track the document was transcribed from, when it remembers one. */
+export type CueMediaStatus = { status: 'ready' | 'unavailable'; via: CueMediaVia; name: string; track?: AudioTrack } | { status: 'missing' };
 export type CueAudioUnavailable = 'no_media' | 'media_unavailable' | 'no_audio' | 'decode_failed' | 'runtime_unavailable' | 'cancelled';
 export type CueAudioClip = {
   kind: 'clip'; bytes: Uint8Array; mimeType: 'audio/wav'; revision: number;

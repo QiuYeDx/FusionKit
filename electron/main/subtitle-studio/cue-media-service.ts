@@ -2,7 +2,7 @@ import { lstat, opendir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { idSchema, StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
+import { idSchema, StudioError, type AudioTrack, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
 import { matchSiblingMedia, CUE_AUDIO_LIMITS, type CueMediaStatus, type CueMediaVia } from '../../../src/subtitle-studio/cue-audio';
 import type { DocumentRepository } from './document-repository';
 import { verifySourceLocation, type SourceLocationRecord } from './source-location-service';
@@ -28,8 +28,8 @@ export function validateCueMediaRecord(doc: SubtitleDocument, value: unknown): C
   return record.success && record.data.documentId === doc.id && record.data.originFingerprint === fingerprint(doc) ? record.data : null;
 }
 
-/** A file to decode, checked to be the one recorded. */
-export type ResolvedCueMedia = { status: CueMediaStatus; media?: { path: string; identity: LocalSubtitleFileIdentity } };
+/** A file to decode, checked to be the one recorded, and which of its audio streams to play (from 1). */
+export type ResolvedCueMedia = { status: CueMediaStatus; media?: { path: string; identity: LocalSubtitleFileIdentity; audioOrdinal: number } };
 
 async function regularFile(filePath: string) {
   const stat = await lstat(filePath);
@@ -58,14 +58,17 @@ export class CueMediaService {
   async resolve(documentId: string, guard: () => void = () => {}): Promise<ResolvedCueMedia> {
     const doc = (await this.repository.readSnapshot(documentId)).document; guard();
     const linked = await this.repository.readCueMedia(documentId); guard();
-    if (linked) return this.checked('linked', linked.mediaPath, linked.mediaIdentity, guard);
+    // The track transcribed plays from the transcribed file, and from a file chosen in its place.
+    const track = doc.origin.format === 'media' ? doc.origin.audioTrack : undefined;
+    const withTrack = track ? { track } : {};
+    if (linked) return this.checked('linked', linked.mediaPath, linked.mediaIdentity, guard, track);
     const source = await this.sourceRecord(documentId); guard();
     if (source?.capture.origin !== 'input') return { status: { status: 'missing' } };
     const { inputPath, inputIdentity, directoryPath } = source.capture;
     if (doc.origin.format === 'media') {
       try { await verifySourceLocation(source.capture); guard(); }
-      catch { guard(); return { status: { status: 'unavailable', via: 'transcription', name: path.basename(inputPath) } }; }
-      return { status: { status: 'ready', via: 'transcription', name: path.basename(inputPath) }, media: { path: inputPath, identity: inputIdentity } };
+      catch { guard(); return { status: { status: 'unavailable', via: 'transcription', name: path.basename(inputPath), ...withTrack } }; }
+      return { status: { status: 'ready', via: 'transcription', name: path.basename(inputPath), ...withTrack }, media: { path: inputPath, identity: inputIdentity, audioOrdinal: track?.ordinal ?? 1 } };
     }
     try {
       const folder = await lstat(directoryPath);
@@ -79,17 +82,18 @@ export class CueMediaService {
       if (!name) return { status: { status: 'missing' } };
       const mediaPath = path.join(directoryPath, name);
       const identity = await regularFile(mediaPath); guard();
-      return { status: { status: 'ready', via: 'matched', name }, media: { path: mediaPath, identity } };
+      return { status: { status: 'ready', via: 'matched', name }, media: { path: mediaPath, identity, audioOrdinal: 1 } };
     } catch {
       guard();
       return { status: { status: 'missing' } };
     }
   }
 
-  private async checked(via: CueMediaVia, mediaPath: string, identity: LocalSubtitleFileIdentity, guard: () => void): Promise<ResolvedCueMedia> {
+  private async checked(via: CueMediaVia, mediaPath: string, identity: LocalSubtitleFileIdentity, guard: () => void, track?: AudioTrack): Promise<ResolvedCueMedia> {
     const ok = await sameFile(mediaPath, identity); guard();
-    const name = path.basename(mediaPath);
-    return ok ? { status: { status: 'ready', via, name }, media: { path: mediaPath, identity } } : { status: { status: 'unavailable', via, name } };
+    const name = path.basename(mediaPath), withTrack = track ? { track } : {};
+    return ok ? { status: { status: 'ready', via, name, ...withTrack }, media: { path: mediaPath, identity, audioOrdinal: track?.ordinal ?? 1 } }
+      : { status: { status: 'unavailable', via, name, ...withTrack } };
   }
 
   async status(documentId: string, guard: () => void = () => {}): Promise<CueMediaStatus> {

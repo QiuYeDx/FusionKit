@@ -35,7 +35,7 @@ async function eventually(predicate: () => boolean) {
   throw new Error('Condition did not occur.');
 }
 
-async function fixture() {
+async function fixture(extra: Partial<TranscriptionTaskServiceOptions> = {}) {
   const bundle = await createRuntimeFixture();
   const verified = await verifyLocalSubtitleRuntimeBundle({ environment: bundle.environment, scope: 'server', signatureVerifier: async () => true });
   const inputs = new LocalSubtitleInputAuthorizationRegistry();
@@ -55,7 +55,7 @@ async function fixture() {
       transcript, durationMs: 5000, cueSummary: { cueCount: 1, exceedsTargetCount: 0 } })), endBatchSlice: vi.fn() };
   const timers: { callback: () => void; cancelled: boolean }[] = [];
   const scheduleLeaseRenewal = vi.fn((callback: () => void) => { const timer = { callback, cancelled: false }; timers.push(timer); return () => { timer.cancelled = true; }; });
-  const options: TranscriptionTaskServiceOptions = { inputs, leases, repository, media, modelResolver, backendResolver, executor, scheduleLeaseRenewal };
+  const options: TranscriptionTaskServiceOptions = { inputs, leases, repository, media, modelResolver, backendResolver, executor, scheduleLeaseRenewal, ...extra };
   const service = createTranscriptionTaskService(options);
   let sequence = 0;
   const request = async (owner = ownerA, count = 1, streams = false): Promise<EnqueueTranscriptionRequest> => {
@@ -94,6 +94,22 @@ it('keeps queued leases, renewals and document source bindings valid after exter
   const tasks = f.service.list(ownerA);
   expect(tasks.map(task => task.status)).toEqual(['completed', 'completed']);
   for (const task of tasks) expect(await new SourceLocationService(f.repository).get(task.documentId!)).toEqual({ status: 'ready', origin: 'input' });
+});
+
+it('publishes documents that remember the audio track each file is transcribed from', async () => {
+  const describeAudioTrack = vi.fn((_owner: unknown, _fileToken: string, audioStreamId?: string) => audioStreamId === 'audio-1' ? { ordinal: 2, language: 'ja', title: 'Interpretation' } : { ordinal: 1 });
+  const f = await fixture({ describeAudioTrack }), request = await f.request(ownerA, 2, true);
+  await f.service.enqueue(ownerA, request);
+  await f.service.waitForIdle();
+  expect(describeAudioTrack.mock.calls.map(([, fileToken, stream]) => [fileToken, stream])).toEqual(request.files.map(file => [file.fileToken, file.audioStreamId]));
+  const documents = await Promise.all(f.service.list(ownerA).map(task => f.repository.read(task.documentId!)));
+  expect(documents.map(doc => doc.origin.format === 'media' && doc.origin.audioTrack)).toEqual([{ ordinal: 1 }, { ordinal: 2, language: 'ja', title: 'Interpretation' }]);
+  // Without a description (an earlier probe that is gone) nothing is remembered.
+  const plain = await fixture({ describeAudioTrack: () => undefined });
+  await plain.service.enqueue(ownerA, await plain.request(ownerA));
+  await plain.service.waitForIdle();
+  const [task] = plain.service.list(ownerA);
+  expect((await plain.repository.read(task.documentId!)).origin).not.toHaveProperty('audioTrack');
 });
 
 it('rejects duplicate source objects authorized on either side of a metadata update', async () => {

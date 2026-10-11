@@ -1077,6 +1077,7 @@
       "transcription": "Transcribed file",
       "matched": "Matched by file name"
     },
+    "track": "Audio track {{number}}",
     "status": {
       "missing": "No original media found",
       "missing_hint": "Choose the video or audio file these subtitles belong to, then play any line.",

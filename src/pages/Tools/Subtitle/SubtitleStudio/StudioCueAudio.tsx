@@ -161,6 +161,10 @@ export function StudioCueMediaControl({ media, openRequest = 0 }: { media: CueMe
         <div>
           <div className="studio-cue-media-name"><StudioFileName name={status.name} /></div>
           <div className="studio-cue-media-via">{status.status === 'unavailable' ? t('studio:cue_audio.status.unavailable') : t(`studio:cue_audio.via.${status.via}`)}</div>
+          {status.track && (() => {
+            const label = [t('studio:cue_audio.track', { number: status.track.ordinal }), status.track.language, status.track.title].filter(Boolean).join(' · ');
+            return <div className="studio-cue-media-track" data-testid="studio-cue-media-track" title={label}>{label}</div>;
+          })()}
         </div>
       </div> : <p className="studio-cue-media-missing" data-testid="studio-cue-media-missing">{status ? t('studio:cue_audio.status.missing') : t('studio:loading')}</p>}
       {status && status.status !== 'ready' && <p className="studio-cue-media-hint">{t(status.status === 'missing' ? 'studio:cue_audio.status.missing_hint' : 'studio:cue_audio.status.unavailable_hint')}</p>}

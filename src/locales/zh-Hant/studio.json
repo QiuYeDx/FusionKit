@@ -1077,6 +1077,7 @@
       "transcription": "轉寫來源",
       "matched": "同名檔案自動比對"
     },
+    "track": "音軌 {{number}}",
     "status": {
       "missing": "找不到原始媒體",
       "missing_hint": "選擇與這份字幕對應的影片或音訊檔後，即可逐條試聽原聲。",

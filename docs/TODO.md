@@ -25,7 +25,8 @@
   - 2026-10-11 完成，见 `docs/features/studio-cue-shift/`：主进程新增 `shift` 编辑操作（整篇或从某条到结尾，撤销为反向平移）与只读预检；对话框增加范围、微调与按平移后时间试听。按比例伸缩（帧率换算）与自动对齐未做。
 - [x] **预热播放组件**：打开工作台时在后台校验随应用的 FFmpeg，免得第一次试听多等约 1 秒。
   - 2026-10-11 完成（小改动，未单独建规格）：打开或选择了可用原始媒体的文档时（`getCueMedia` / `chooseCueMedia` 返回 ready），主进程在后台开始本次会话唯一一次的 FFmpeg 校验（`CueAudioClipper.prewarm`），失败时不提示、试听时照常重新校验并说明。没有媒体的文档不校验。本机实测后台校验约 150 毫秒（磁盘缓存冷时约 1 秒），其后第一次截取约 60–70 毫秒；验证见 `test/subtitle-studio/cue-audio.test.ts`“verifies the player in the background once”。
-- [ ] **记住转写时的音轨**：转写时选的音轨目前未保存，多音轨文件试听固定播放第一条音轨。
+- [x] **记住转写时的音轨**：转写时选的音轨目前未保存，多音轨文件试听固定播放第一条音轨。
+  - 2026-10-11 完成，见 `docs/features/studio-cue-audio-track/`：文档来源记下转写音轨（序号、语言、标题），截取按 `0:a:<序号−1>` 选流，手动选择的文件缺少该流时用第一条；面板显示音轨。本次之前的转写文档无法补记。
 
 ## 字幕工作台：编辑能力
 
@@ -40,5 +41,5 @@
 
 ## 测试与工程
 
-- [ ] **清理过时的界面测试**：约 7 个 Electron 界面测试在未改动的代码上也失败，多为测试过时（如 `interaction-copy-ui` 仍在等待已取消的“整理双语字幕”对话框；另有 `i1-coexistence-ui`、`lifecycle-ui`、`recovery-batch-ui`、vertical-layout、`interaction-workspace-ui` 及 agent-handoff 的滚动条用例）。修复或明确标注，避免掩盖真正的回归。
+- [ ] **清理过时的界面测试**：约 7 个 Electron 界面测试在未改动的代码上也失败，多为测试过时（如 `interaction-copy-ui` 仍在等待已取消的“整理双语字幕”对话框；另有 `i1-coexistence-ui`、`lifecycle-ui`、`recovery-batch-ui`、vertical-layout、`interaction-workspace-ui` 及 agent-handoff 的滚动条用例；2026-10-11 又确认 `transcription-ui`（布局左边距 38 > 36）、`acceptance-queue-overview-ui`、`interaction-queue-ui`、`experience-transcription-ui`（窗口宽度 799 不在 786/787）在未改动的代码上同样失败）。修复或明确标注，避免掩盖真正的回归。
 - [ ] **`library-ui` 默认跑不起来**：需要开发服务器或打包产物，回归时被跳过；改为使用 `vite build --mode=test` 的测试构建运行。

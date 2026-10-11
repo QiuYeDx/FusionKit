@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { LIMITS, StudioError, validateDocument, type MediaSubtitleDocument } from '../../../../src/subtitle-studio/domain';
+import { LIMITS, StudioError, validateDocument, type AudioTrack, type MediaSubtitleDocument } from '../../../../src/subtitle-studio/domain';
 import { localSubtitleTranscriptSchema } from '../../../../src/subtitle-studio/transcription/ipc-contract';
 import { LOCAL_SUBTITLE_LIMITS } from '../../../../src/subtitle-studio/transcription/domain';
 
@@ -22,7 +22,7 @@ function assertSnapshotBudget(document: MediaSubtitleDocument) {
 }
 
 /** Canonical JSON from the strict transcript schema; this digest is not a media-file hash. */
-export function transcriptToDocument(input: unknown, options: { documentId?: string; newId?: () => string } = {}): MediaSubtitleDocument {
+export function transcriptToDocument(input: unknown, options: { documentId?: string; newId?: () => string; audioTrack?: AudioTrack } = {}): MediaSubtitleDocument {
   if (input && typeof input === 'object' && Array.isArray((input as { segments?: unknown }).segments)) {
     const segments = (input as { segments: Array<{ text?: unknown; words?: unknown }> }).segments;
     if (segments.length > LIMITS.cues) throw new StudioError('limit_exceeded');
@@ -45,7 +45,8 @@ export function transcriptToDocument(input: unknown, options: { documentId?: str
   const document: MediaSubtitleDocument = {
     schemaVersion: 2, id: options.documentId ?? newId(), revision: 1,
     origin: { format: 'media', displayName: transcript.source.displayName, durationMs: transcript.source.durationMs,
-      transcriptDigest: createHash('sha256').update(JSON.stringify(transcript)).digest('hex') },
+      transcriptDigest: createHash('sha256').update(JSON.stringify(transcript)).digest('hex'),
+      ...(options.audioTrack ? { audioTrack: { ...options.audioTrack } } : {}) },
     cues: transcript.segments.map(segment => ({
       id: newId(), sourceRevision: 1, timingRevision: 1, segmentId: segment.id,
       timing: { startMs: segment.startMs, endMs: segment.endMs, provenance: 'transcription' },

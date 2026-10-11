@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { StudioError, type MediaSubtitleDocument } from '../../../../src/subtitle-studio/domain';
+import { audioTrackSchema, StudioError, type AudioTrack, type MediaSubtitleDocument } from '../../../../src/subtitle-studio/domain';
 import { DocumentRepository, type DocumentCreationReceipt } from '../document-repository';
 import { transcriptToDocument } from './document-adapter';
 import type { LocalSubtitleOwnerKey } from './native/authorizations';
@@ -18,6 +18,8 @@ export interface TranscriptionDocumentSinkOptions {
   readonly resolveSourceLocation?: () => Promise<SourceLocationCapture>;
   readonly automaticTranslation?: AutomaticTranslationIntent;
   readonly automaticExport?: AutomaticExportSpec;
+  /** The audio track transcribed, remembered so that the document plays that track. */
+  readonly audioTrack?: AudioTrack;
 }
 
 const identityString = z.string().min(1).max(128).refine(value => value.trim() === value && !/[\u0000-\u001f\u007f]/.test(value));
@@ -28,6 +30,7 @@ const optionsSchema = z.object({
   generation: z.number().int().positive().safe(),
   assertActive: z.custom<() => void>(value => typeof value === 'function'),
   sourceLocation: sourceLocationCaptureSchema.optional(),
+  audioTrack: audioTrackSchema.optional(),
   resolveSourceLocation: z.custom<() => Promise<SourceLocationCapture>>(value => typeof value === 'function').optional(),
   automaticTranslation: automaticTranslationIntentSchema.optional(),
   automaticExport: automaticExportSpecSchema.optional(),
@@ -38,7 +41,7 @@ const optionsSchema = z.object({
 export function createTranscriptionDocumentSink(options: TranscriptionDocumentSinkOptions) {
   const parsed = optionsSchema.safeParse(options);
   if (!parsed.success) throw new StudioError('invalid_input');
-  const { repository, assertActive, resolveSourceLocation, automaticTranslation, automaticExport } = parsed.data;
+  const { repository, assertActive, resolveSourceLocation, automaticTranslation, automaticExport, audioTrack } = parsed.data;
   let sourceLocation = parsed.data.sourceLocation;
   const identity = Object.freeze({ owner: Object.freeze(parsed.data.owner), taskId: parsed.data.taskId, generation: parsed.data.generation });
   const documentId = randomUUID();
@@ -54,7 +57,7 @@ export function createTranscriptionDocumentSink(options: TranscriptionDocumentSi
       assertActive();
       if (!committed && request.signal?.aborted) throw new StudioError('interrupted');
       let index = 0;
-      const candidate = transcriptToDocument(transcript, { documentId, newId: () => cueIds[index++] ?? (cueIds[index - 1] = randomUUID()) });
+      const candidate = transcriptToDocument(transcript, { documentId, newId: () => cueIds[index++] ?? (cueIds[index - 1] = randomUUID()), ...(audioTrack ? { audioTrack } : {}) });
       if (document && document.origin.transcriptDigest !== candidate.origin.transcriptDigest) throw new StudioError('revision_conflict');
       document ??= candidate;
       if (operation) return operation;

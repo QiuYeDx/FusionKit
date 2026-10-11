@@ -54,6 +54,8 @@
 .dark .studio-cue-media-file[data-status=unavailable] .studio-cue-media-via { color: #fbbf24; }
 .studio-cue-media-name { min-width: 0; font-weight: 500; line-height: 18px; }
 .studio-cue-media-via { font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+/* The transcribed audio track: one line, like the source above it. */
+.studio-cue-media-track { overflow: hidden; font-size: 11px; line-height: 16px; color: var(--muted-foreground); text-overflow: ellipsis; white-space: nowrap; }
 .studio-cue-media-missing { margin: 0; font-weight: 500; }
 .studio-cue-media-hint { margin: 0; font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
 .studio-cue-media-actions { display: flex; flex-wrap: wrap; gap: 6px; }

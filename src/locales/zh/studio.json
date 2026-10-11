@@ -1077,6 +1077,7 @@
       "transcription": "转写来源",
       "matched": "同名文件自动匹配"
     },
+    "track": "音轨 {{number}}",
     "status": {
       "missing": "未找到原始媒体",
       "missing_hint": "选择与这份字幕对应的视频或音频文件后，即可逐条试听原声。",

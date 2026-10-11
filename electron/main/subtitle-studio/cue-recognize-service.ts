@@ -34,7 +34,7 @@ export async function recognizeCue(deps: CueRecognizeDependencies, owner: number
     const clipStartMs = Math.max(0, range.startMs - CUE_RECOGNIZE_LIMITS.padMs), clipEndMs = range.endMs + CUE_RECOGNIZE_LIMITS.padMs;
     const resolved = await deps.media.resolve(request.documentId, guard);
     if (!resolved.media) throw new StudioError('document_unavailable');
-    const decoded = await deps.clipper.decode(lane, ticket, resolved.media.path, clipStartMs, clipEndMs, 1, CUE_RECOGNIZE_LIMITS.sampleRate); guard();
+    const decoded = await deps.clipper.decode(lane, ticket, resolved.media.path, clipStartMs, clipEndMs, 1, CUE_RECOGNIZE_LIMITS.sampleRate, resolved.media.audioOrdinal); guard();
     if (signal?.aborted) throw new StudioError('interrupted');
     if (decoded.kind !== 'wav') throw new StudioError(decoded.reason === 'cancelled' ? 'interrupted' : 'transcription_failed');
     const file = path.join(deps.workingDirectory, `recognize-${randomUUID()}.wav`);

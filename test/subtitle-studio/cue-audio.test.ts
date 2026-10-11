@@ -12,7 +12,8 @@ import { CueMediaService, CUE_MEDIA_FILE } from '../../electron/main/subtitle-st
 import { CueAudioClipper, readCueAudio, selectCueAudioFfmpeg } from '../../electron/main/subtitle-studio/cue-audio-clip';
 import { transcriptToDocument } from '../../electron/main/subtitle-studio/transcription/document-adapter';
 import { verifyLocalSubtitleRuntimeBundle, type LocalSubtitleResourceEnvironment } from '../../electron/main/subtitle-studio/transcription/native/resource-path';
-import type { CueAudioClip, CueAudioResult } from '../../src/subtitle-studio/cue-audio';
+import { audioTrackOfProbe, type CueAudioClip, type CueAudioResult } from '../../src/subtitle-studio/cue-audio';
+import { validateDocument, type AudioTrack } from '../../src/subtitle-studio/domain';
 
 const run = promisify(execFile);
 const environment: LocalSubtitleResourceEnvironment = { mode: 'development', appRoot: process.cwd() };
@@ -45,10 +46,10 @@ function services(repositoryRoot = path.join(root, 'documents'), options: Partia
   return { repository, media: mediaService, clipper, read: (documentId: string, target: Parameters<typeof readCueAudio>[2]['target'], padMs: 0 | 300 | 1000 = 0, owner = 1) =>
     readCueAudio({ repository, media: mediaService, clipper }, owner, { documentId, target, padMs }) };
 }
-async function transcribed(s: ReturnType<typeof services>, file: string, durationMs = 20000, segments = [[0, 2000], [9500, 10500], [12000, 14000]]) {
+async function transcribed(s: ReturnType<typeof services>, file: string, durationMs = 20000, segments = [[0, 2000], [9500, 10500], [12000, 14000]], audioTrack?: AudioTrack) {
   const doc = transcriptToDocument({ schemaVersion: 1, source: { displayName: path.basename(file), durationMs },
     model: { engine: 'whisper_cpp', modelId: 'm', modelHash: 'a'.repeat(64), backend: 'cpu' }, detectedLanguage: 'en',
-    segments: segments.map(([startMs, endMs], index) => ({ id: `s${index}`, startMs, endMs, text: `line ${index}` })) }, { newId: randomUUID });
+    segments: segments.map(([startMs, endMs], index) => ({ id: `s${index}`, startMs, endMs, text: `line ${index}` })) }, { newId: randomUUID, ...(audioTrack ? { audioTrack } : {}) });
   await s.repository.create(doc, undefined, await captureSourceInput(file));
   return doc;
 }
@@ -68,6 +69,10 @@ beforeAll(async () => {
   await twoTones(path.join(media, 'tones.wav'));
   await twoTones(path.join(media, 'tones.mkv'), '-c:a', 'aac');
   await twoTones(path.join(media, 'tones.mp3'), '-c:a', 'libmp3lame');
+  // Two audio tracks of 20 s: the first at 440 Hz, the second at 880 Hz.
+  await make(path.join(media, 'tracks.mkv'), '-f', 'lavfi', '-i', 'sine=frequency=440:duration=20:sample_rate=48000',
+    '-f', 'lavfi', '-i', 'sine=frequency=880:duration=20:sample_rate=48000', '-map', '0:a', '-map', '1:a', '-c:a', 'aac');
+  await make(path.join(media, 'single.mkv'), '-f', 'lavfi', '-i', 'sine=frequency=440:duration=20:sample_rate=48000', '-c:a', 'aac');
 }, 60_000);
 afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 
@@ -272,5 +277,41 @@ describe('failures and cancellation', () => {
     expect(await earlier).toEqual({ kind: 'unavailable', reason: 'cancelled' });
     expect((await later).kind).toBe('clip');
     expect(exits[0]).toMatchObject({ aborted: true });
+  }, 30_000);
+});
+
+describe('the audio track transcribed', () => {
+  const tracks = { autoSelectedStreamId: 'b', audioTracks: [{ streamId: 'a', ordinal: 1, language: 'en' }, { streamId: 'b', ordinal: 2, language: 'ja', title: 'Interpretation' }] };
+  it('is the chosen stream, else the one chosen automatically', () => {
+    expect(audioTrackOfProbe(tracks, 'a')).toEqual({ ordinal: 1, language: 'en' });
+    expect(audioTrackOfProbe(tracks)).toEqual({ ordinal: 2, language: 'ja', title: 'Interpretation' });
+    expect(audioTrackOfProbe(tracks, 'gone')).toBeUndefined();
+    expect(audioTrackOfProbe({ autoSelectedStreamId: 'a', audioTracks: [{ streamId: 'a', ordinal: 1, title: 'x'.repeat(300) }] })?.title).toHaveLength(255);
+  });
+
+  it('is part of the document origin, which older documents go without', async () => {
+    const s = services();
+    const remembered = await transcribed(s, path.join(media, 'tracks.mkv'), 20000, undefined, { ordinal: 2, language: 'ja' });
+    expect(remembered.origin).toMatchObject({ format: 'media', audioTrack: { ordinal: 2, language: 'ja' } });
+    const older = await transcribed(s, path.join(media, 'tracks.mkv'));
+    expect(older.origin).not.toHaveProperty('audioTrack');
+    for (const ordinal of [0, 129]) expect(() => validateDocument({ ...remembered, origin: { ...remembered.origin, audioTrack: { ordinal } } })).toThrow();
+  });
+
+  it('plays the track transcribed, from the transcribed file and from a chosen one, and the first track when a file has fewer', async () => {
+    const s = services();
+    const second = await transcribed(s, path.join(media, 'tracks.mkv'), 20000, undefined, { ordinal: 2, language: 'ja', title: 'Interpretation' });
+    expect(await s.media.status(second.id)).toEqual({ status: 'ready', via: 'transcription', name: 'tracks.mkv', track: { ordinal: 2, language: 'ja', title: 'Interpretation' } });
+    const heard = clip(await s.read(second.id, { cueIds: [second.cues[1].id] }));
+    expect(frequency(heard, 100, 900)).toBeGreaterThan(820);
+    const first = await transcribed(s, path.join(media, 'tracks.mkv'), 20000, undefined, { ordinal: 1 });
+    expect(frequency(clip(await s.read(first.id, { cueIds: [first.cues[1].id] })), 100, 900)).toBeLessThan(480);
+    const unknown = await transcribed(s, path.join(media, 'tracks.mkv'));
+    expect(frequency(clip(await s.read(unknown.id, { cueIds: [unknown.cues[1].id] })), 100, 900)).toBeLessThan(480);
+    // Choosing the same file again keeps the track; a file with one track plays that one.
+    expect(await s.media.link(second.id, path.join(media, 'tracks.mkv'))).toMatchObject({ status: 'ready', via: 'linked', track: { ordinal: 2 } });
+    expect(frequency(clip(await s.read(second.id, { cueIds: [second.cues[1].id] })), 100, 900)).toBeGreaterThan(820);
+    await s.media.link(second.id, path.join(media, 'single.mkv'));
+    expect(frequency(clip(await s.read(second.id, { cueIds: [second.cues[1].id] })), 100, 900)).toBeLessThan(480);
   }, 30_000);
 });

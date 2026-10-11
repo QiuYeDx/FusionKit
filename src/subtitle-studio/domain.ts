@@ -17,6 +17,10 @@ export class StudioError extends Error {
   constructor(public readonly code: ErrorCode) { super(code); }
 }
 const integer = z.number().int().safe();
+/** The audio track a transcript was made from: its position among the media's audio streams, from 1. */
+export const audioTrackSchema = z.object({ ordinal: integer.min(1).max(128),
+  language: z.string().min(1).max(64).optional(), title: z.string().min(1).max(255).optional() }).strict();
+export type AudioTrack = z.infer<typeof audioTrackSchema>;
 const revision = integer.positive();
 export const diagnosticSchema = z.object({
   code: z.enum(['empty_document', 'unsupported_markup', 'enhanced_lrc', 'negative_time', 'zero_duration', 'untimed_text', 'opaque_structure', 'ass_drawing', 'ass_karaoke', 'vtt_payload_unsupported']),
@@ -64,7 +68,8 @@ const mediaCueSchema = z.object({
 export const mediaDocumentSchema = z.object({
   schemaVersion: z.literal(2), id: idSchema, revision,
   origin: z.object({ format: z.literal('media'), displayName: z.string().min(1).max(255),
-    durationMs: integer.positive(), transcriptDigest: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
+    durationMs: integer.positive(), transcriptDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    audioTrack: audioTrackSchema.optional() }).strict(),
   cues: z.array(mediaCueSchema).min(1).max(LIMITS.cues),
   translationTracks: textDocumentSchema.shape.translationTracks,
   bilingualImport: z.never().optional(),

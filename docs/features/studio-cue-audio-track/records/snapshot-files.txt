@@ -1,0 +1,23 @@
+base d55ec36 (v0.4.0) + uncommitted working tree (excluding test/subtitle-studio/automatic-export.test.ts, not part of this work); sha256 over sorted (path NUL bytes NUL):
+CHANGELOG.md
+electron/main/subtitle-studio/cue-audio-clip.ts
+electron/main/subtitle-studio/cue-media-service.ts
+electron/main/subtitle-studio/cue-recognize-service.ts
+electron/main/subtitle-studio/transcription/document-adapter.ts
+electron/main/subtitle-studio/transcription/document-sink.ts
+electron/main/subtitle-studio/transcription/runtime.ts
+electron/main/subtitle-studio/transcription/task-service.ts
+resources/speech-resources/provenance/current-integration-audits.v1.json
+src/locales/en/studio.json
+src/locales/ja/studio.json
+src/locales/zh-Hant/studio.json
+src/locales/zh/studio.json
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueAudio.css
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueAudio.tsx
+src/subtitle-studio/cue-audio.ts
+src/subtitle-studio/domain.ts
+test/subtitle-studio/cue-audio-track-ui.test.ts
+test/subtitle-studio/cue-audio.test.ts
+test/subtitle-studio/helpers/transcription-ui-runtime.ts
+test/subtitle-studio/transcription-task-service.test.ts
+snapshot-sha256:2e1aa984584d3688b72dc785c94601277f324e48528b5c9ac0547ffa3627d324

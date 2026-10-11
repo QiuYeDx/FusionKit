@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import type { DocumentRepository } from '../../../electron/main/subtitle-studio/document-repository';
 import { transcriptToDocument } from '../../../electron/main/subtitle-studio/transcription/document-adapter';
+import { audioTrackOfProbe } from '../../../src/subtitle-studio/cue-audio';
 import { createTranscriptionDocumentSink, type TranscriptionDocumentSink } from '../../../electron/main/subtitle-studio/transcription/document-sink';
 import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/automatic-translation-contract';
 import type { AutomaticTranslationCoordinator } from '../../../electron/main/subtitle-studio/automatic-translation';
@@ -16,6 +17,8 @@ import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '../.
 import { localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
 
 type Owner = LocalSubtitleOwnerKey;
+const AUDIO_TRACKS = [{ streamId: 'audio-0', ordinal: 1, isDefault: true, language: 'en', title: 'Original interview', codec: 'pcm_s16le', channels: 2, sampleRateHz: 48000 },
+  { streamId: 'audio-1', ordinal: 2, isDefault: false, language: 'ja', title: '通訳音声 · interpretation', codec: 'aac', channels: 2, sampleRateHz: 48000 }];
 type Task = { source: SourceLocationCapture; owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string }; releaseKnowledge?: () => void };
 type Job = { owner: string; value: ReturnType<typeof localSubtitleResourceJobSummarySchema.parse> };
 type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { operation: 'probe-recovered' }
@@ -170,9 +173,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
         if (!media || media.owner !== check(owner)) throw Object.assign(new Error('Unknown token'), { code: 'invalid_token' });
         trace('probe-media', { displayName: media.displayName });
         if (media.displayName.startsWith('probe-retry') && !recoveredProbe) throw Object.assign(new Error('Fixture probe failure'), { code: 'unsupported_media' });
-        return { fileToken, displayName: media.displayName, durationMs: 315000, autoSelectedStreamId: 'audio-0',
-          audioTracks: [{ streamId: 'audio-0', ordinal: 1, isDefault: true, language: 'en', title: 'Original interview', codec: 'pcm_s16le', channels: 2, sampleRateHz: 48000 },
-            { streamId: 'audio-1', ordinal: 2, isDefault: false, language: 'ja', title: '通訳音声 · interpretation', codec: 'aac', channels: 2, sampleRateHz: 48000 }] };
+        return { fileToken, displayName: media.displayName, durationMs: 315000, autoSelectedStreamId: 'audio-0', audioTracks: AUDIO_TRACKS };
       },
       async revokeInput(owner: Owner, fileToken: string) {
         check(owner); trace('revoke-media');
@@ -246,7 +247,10 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
               const automatic = request.autoTranslation ? { intent: { intentId: randomUUID(), sourceTaskId: value.taskId, generation: 1 as const, state: 'pending' as const,
                 config: structuredClone(request.autoTranslation.config), ...(capture ? { knowledge: capture.snapshot } : {}) }, apiKey: request.autoTranslation.apiKey } : undefined;
               if (automatic) value = { ...value, automaticTranslation: { status: 'pending' } };
-              const sink = createTranscriptionDocumentSink({ repository, owner, taskId: value.taskId, generation: 1,
+              // As the production runtime does: the chosen track, else the one chosen automatically.
+              const audioTrack = audioTrackOfProbe({ audioTracks: AUDIO_TRACKS, autoSelectedStreamId: 'audio-0' }, file.audioStreamId);
+              // As in production, the document records the transcribed file as its source.
+              const sink = createTranscriptionDocumentSink({ repository, owner, taskId: value.taskId, generation: 1, sourceLocation: media.source, ...(audioTrack ? { audioTrack } : {}),
                 assertActive: () => { check(owner); const task = getTask(value.taskId); if (['cancelled', 'failed', 'no_content'].includes(task.value.status)) throw new StudioError('interrupted'); },
                 ...(automatic ? { automaticTranslation: automatic.intent } : {}) });
               return { source: media.source, owner: check(owner), value, sink, automatic,
