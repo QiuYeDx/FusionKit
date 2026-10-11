@@ -16,10 +16,11 @@ import { StudioCueEditor, type CueEditorMove } from './StudioCueEditor';
 import { StudioCueMenuContent, currentEntry, type CueField, type CueMenuActions, type CueTrack } from './StudioCueMenu';
 import { CUE_CONTROL_ATTR, useCueSelection } from './useCueSelection';
 import { consecutive, mergeOperation, MERGE_LIMIT } from '@/subtitle-studio/cue-structure';
-import { StudioCueTimeEditor, type CueTimeProblem } from './StudioCueTimeEditor';
+import { StudioCueTimeEditor, timeProblemKeys, type CueTimeProblem } from './StudioCueTimeEditor';
 import { StudioCueShift } from './StudioCueShift';
 import { CueAudioButton, StudioCueMediaControl, useCueMedia } from './StudioCueAudio';
-import { cueAudioPlayer, useCueAudioRows } from '@/services/subtitle-studio/cue-audio-player';
+import { cueAudioPlayer, useCueAudioFollow, useCueAudioRows } from '@/services/subtitle-studio/cue-audio-player';
+import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
 import './StudioCueTable.css';
 
 const control = { [CUE_CONTROL_ATTR]: '' };
@@ -30,7 +31,7 @@ const problemKeys: Record<CueTextProblem | 'empty_source', string> = {
   characters: 'studio:cue_edit.problem.characters',
   too_long: 'studio:cue_edit.problem.too_long',
 };
-const HELP_ITEMS = ['select', 'marquee', 'edit', 'editor', 'field', 'timing', 'play', 'merge', 'delete', 'copy', 'undo', 'menu'] as const;
+const HELP_ITEMS = ['select', 'marquee', 'edit', 'editor', 'field', 'timing', 'play', 'follow', 'mark', 'merge', 'delete', 'copy', 'undo', 'menu'] as const;
 /** The player key of a cue row; a stretch of several cues plays under its first row's key. */
 export const cueAudioKey = (documentId: string, cueId: string) => `cue:${documentId}:${cueId}`;
 
@@ -72,6 +73,8 @@ export type StudioCueTableProps = {
   onSelectionChange?: (cueIds: string[]) => void;
   onCopy: (cueId: string, text: string) => void;
   onRemember: (cue: DocumentPage['cues'][number]) => void;
+  /** Shows the page at this offset, as continuous playback moves past the last cue shown. */
+  onFollowPage?: (offset: number) => void;
 };
 
 /**
@@ -79,7 +82,7 @@ export type StudioCueTableProps = {
  * source and translation in place, and translate, review, copy or delete the
  * selection. Every edit can be undone.
  */
-export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onCheckConsistency, onSelectionChange, onCopy, onRemember }: StudioCueTableProps) {
+export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onCheckConsistency, onSelectionChange, onCopy, onRemember, onFollowPage }: StudioCueTableProps) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const order = page.cues.map(cue => cue.id);
@@ -101,6 +104,51 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const playing = new Set(playingKey ? playingKey.split(',') : []);
   const [mediaRequest, setMediaRequest] = useState(0);
   useEffect(() => () => cueAudioPlayer.stopFor(documentId), [documentId]);
+  /** A short message in the list header, such as why a mark was not set. */
+  const [notice, setNotice] = useState('');
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(''), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  const followKey = `follow:${documentId}`;
+  const hasNextPage = page.offset + page.cues.length < page.summary.cueCount;
+  /** The cue being heard: the last one starting at or before the position; 'next' past this page's last cue. */
+  const following = useCueAudioFollow(documentId, positionMs => {
+    let found: string | null = null;
+    for (const cue of page.cues) { if (cue.timing.startMs <= positionMs) found = cue.id; else break; }
+    const last = page.cues.at(-1);
+    if (last && hasNextPage && positionMs >= (last.timing.endMs ?? last.timing.startMs + 5000)) return 'next';
+    return found;
+  });
+  const lastFollowed = useRef<string | null>(null);
+  const requestedPage = useRef(-1);
+  useEffect(() => {
+    if (following === 'next') {
+      // Turn the page only when playback ran off this page's last cue, not after the user paged elsewhere.
+      if (lastFollowed.current === page.cues.at(-1)?.id && requestedPage.current !== page.offset) {
+        requestedPage.current = page.offset;
+        onFollowPage?.(page.offset + page.cues.length);
+      }
+      return;
+    }
+    lastFollowed.current = following;
+    if (!following) return;
+    const row = listRef.current?.querySelector<HTMLElement>(`tr[data-cue-id="${following}"]`), view = scrollRef.current;
+    if (!row || !view) return;
+    const box = row.getBoundingClientRect(), frame = view.getBoundingClientRect();
+    // The sticky header covers the top 36px of the reader.
+    if (box.top < frame.top + 36 || box.bottom > frame.bottom) row.scrollIntoView({ block: 'nearest' });
+  }, [following, page.offset, page.cues, onFollowPage, scrollRef]);
+  /** Plays from a cue to the end of the document; the list follows along. */
+  const follow = (cueId: string) => {
+    if (!media.ready) { setMediaRequest(value => value + 1); return; }
+    const cue = page.cues.find(item => item.id === cueId);
+    if (!cue) return;
+    const padMs = useStudioPreferences.getState().cueAudioPadMs;
+    cueAudioPlayer.follow(followKey, { documentId, fromMs: Math.max(0, cue.timing.startMs - padMs),
+      ...(page.summary.origin.format === 'media' && 'durationMs' in page.summary.origin ? { endMs: page.summary.origin.durationMs } : {}) });
+  };
   const cueAudioRequest = (cueIds: readonly string[]) => ({ documentId, revision: page.summary.revision, rows: [...cueIds],
     target: { cueIds: cueIds.length > 1 ? [cueIds[0], cueIds.at(-1)!] as [string, string] : [cueIds[0]] as [string] } });
   /** Plays one cue, consecutive cues as one stretch, otherwise the keyboard row. */
@@ -179,7 +227,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     onShift: cueIds => { if (!editBlocked) setShifting(cueIds); },
     onCopy,
     onRemember: cueId => { const cue = page.cues.find(item => item.id === cueId); if (cue) onRemember(cue); },
-    audio: { ready: media.ready, onPlay: playCues },
+    audio: { ready: media.ready, onPlay: playCues, onFollow: follow },
   };
 
   const copySelection = (cueIds: string[]) => {
@@ -195,6 +243,32 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     if (mod && key === 'c') { copySelection(targets); return true; }
     if (mod && key === 'm' && !event.shiftKey) { void merge(targets); return true; }
     if (key === 't' && !mod && !event.altKey && targets.length) { startTiming(selectionApi.selectionRef.current.lead ?? targets[0]); return true; }
+    // Shift+P plays on from the keyboard row and the list follows; again it stops.
+    if (key === 'p' && event.shiftKey && !mod && !event.altKey) {
+      const current = cueAudioPlayer.snapshot();
+      if (current?.documentId === documentId && current.phase !== 'error') cueAudioPlayer.stop();
+      else { const from = selectionApi.selectionRef.current.lead ?? targets[0] ?? order[0]; if (from) follow(from); }
+      return true;
+    }
+    // [ and ] set the keyboard row's start and end to what is heard now; ] then moves to the next cue.
+    if ((event.key === '[' || event.key === ']') && !mod && !event.altKey) {
+      const positionMs = cueAudioPlayer.positionFor(documentId);
+      if (positionMs === null) { setNotice(t('studio:cue_listen.mark_needs_playback')); return true; }
+      if (editBlocked) { setNotice(editBlocked); return true; }
+      const id = selectionApi.selectionRef.current.lead ?? targets[0];
+      const cue = page.cues.find(item => item.id === id);
+      if (!cue) return true;
+      const ending = event.key === ']';
+      const startMs = ending ? cue.timing.startMs : positionMs, endMs = ending ? positionMs : cue.timing.endMs;
+      const problem = timingProblem(cue, startMs, endMs);
+      if (problem) { setNotice(t(timeProblemKeys[problem])); return true; }
+      void run({ kind: 'timing', changes: { [cue.id]: { startMs, endMs } } }, 'timing', 1).then(ok => {
+        if (!ok || !ending) return;
+        const next = order[order.indexOf(cue.id) + 1];
+        if (next) { selectionApi.commit({ keys: new Set([next]), anchor: next, lead: next }); selectionApi.scrollToRow(next); }
+      });
+      return true;
+    }
     // P plays the selection, or stops whatever this document is playing.
     if (key === 'p' && !mod && !event.altKey) {
       const current = cueAudioPlayer.snapshot();
@@ -261,7 +335,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   // selection it widens over the column labels, like a mail list header.
   const toolbar = <div className="studio-cue-bar" data-selecting={selected.length > 0 || undefined} {...control}>
     <span className="studio-cue-bar-status" data-testid="studio-cue-selected-count" aria-live="polite">
-      {selected.length ? t('studio:cue_toolbar.selected', { count: selected.length }) : activeTask ? editBlocked : ''}
+      {notice || (selected.length ? t('studio:cue_toolbar.selected', { count: selected.length }) : activeTask ? editBlocked : '')}
     </span>
     <div className="studio-cue-toolbar" role="toolbar" aria-label={t('studio:cue_toolbar.label')} data-testid="studio-cue-toolbar">
     {selected.length > 0 && <>
@@ -303,16 +377,19 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
           return <tr key={cue.id} data-cue-id={cue.id} aria-selected={isSelected} data-selected={isSelected || undefined}
             data-selected-last={isSelected && !selection.keys.has(order[index + 1]) || undefined}
             data-lead={lead || undefined} data-editing={editingField ? true : undefined} data-warning={flaggedNodes.has('nodeId' in cue ? cue.nodeId : undefined) || undefined}
-            data-playing={playing.has(cue.id) || undefined}>
+            data-playing={playing.has(cue.id) || following === cue.id || undefined} data-following={following === cue.id || undefined}>
             <td className="studio-cue-number" data-audio={media.ready || undefined}><span className="studio-cue-number-text">{page.offset + index + 1}</span>
-              {media.ready && <CueAudioButton playKey={cueAudioKey(documentId, cue.id)} request={cueAudioRequest([cue.id])} tabbable={false} {...control}
+              {media.ready && <CueAudioButton playKey={following === cue.id ? followKey : cueAudioKey(documentId, cue.id)} request={cueAudioRequest([cue.id])} tabbable={false} {...control}
                 label={t('studio:cue_audio.play_cue', { number: page.offset + index + 1 })} data-testid="studio-cue-play" />}</td>
             <td className="studio-cue-time" onDoubleClick={() => startTiming(cue.id)}>{editingField === 'timing'
               ? <StudioCueTimeEditor startMs={cue.timing.startMs} endMs={cue.timing.endMs} saving={saving} error={editError}
                 // Only text subtitles may leave the end unknown; LRC never has one.
                 allowUnknownEnd={page.summary.origin.format !== 'media' && (cue.timing.endMs === null || page.summary.origin.format === 'lrc')}
                 check={(startMs, endMs) => timingProblem(cue, startMs, endMs)}
-                onSave={(startMs, endMs) => void saveTiming(cue, startMs, endMs)} onCancel={() => { setEditing(null); setEditError(undefined); focusList(); }} />
+                onSave={(startMs, endMs) => void saveTiming(cue, startMs, endMs)} onCancel={() => { setEditing(null); setEditError(undefined); focusList(); }}
+                waveform={media.ready ? { playKey: `edit:${documentId}:${cue.id}`,
+                  load: (startMs, endMs, buckets) => cueAudioPlayer.peaks({ documentId, revision: page.summary.revision, startMs, endMs }, buckets),
+                  request: (startMs, endMs) => ({ documentId, target: { range: { startMs, endMs } } }) } : undefined} />
               : <div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div>}</td>
             <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}>
               <div className="studio-cue-field" data-field="source" data-active={lead && activeField === 'source' || undefined} onPointerDown={() => setField('source')} onDoubleClick={() => startEdit(cue.id, 'source')}>

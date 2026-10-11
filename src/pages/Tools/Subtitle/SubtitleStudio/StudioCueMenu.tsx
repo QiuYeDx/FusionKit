@@ -1,5 +1,5 @@
 import { useRef, type ComponentProps } from 'react';
-import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, MoveHorizontal, PencilLine, Play, Sparkles, Timer, Trash2 } from 'lucide-react';
+import { BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, ListMusic, MoveHorizontal, PencilLine, Play, Sparkles, Timer, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '@/components/ui/dropdown-menu';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
@@ -31,7 +31,9 @@ export type CueMenuActions = {
   onCopy: (cueId: string, text: string) => void;
   onRemember: (cueId: string) => void;
   /** Plays the cues' original audio; `ready` is false when the document has no usable media. */
-  audio?: { ready: boolean; onPlay: (cueIds: string[]) => void };
+  audio?: { ready: boolean; onPlay: (cueIds: string[]) => void;
+    /** Plays from the cue to the end of the document, following along in the list. */
+    onFollow: (cueId: string) => void };
 };
 
 const copyLabels = {
@@ -84,6 +86,9 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
     {actions.audio && <>
       <DropdownMenuItem data-testid="studio-cue-play-menu" disabled={!actions.audio.ready} onSelect={() => actions.audio!.onPlay(cueIds)}>
         <Play />{t('studio:cue_audio.play')}<DropdownMenuShortcut>P</DropdownMenuShortcut>
+      </DropdownMenuItem>
+      <DropdownMenuItem data-testid="studio-cue-follow-menu" disabled={!actions.audio.ready} onSelect={() => actions.audio!.onFollow(cueIds[0])}>
+        <ListMusic />{t('studio:cue_listen.follow')}<DropdownMenuShortcut>Shift+P</DropdownMenuShortcut>
       </DropdownMenuItem>
       <DropdownMenuSeparator />
     </>}

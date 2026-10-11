@@ -809,6 +809,7 @@ export default function SubtitleStudio() {
                     onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })} onCheckConsistency={() => openConsistency(page ? [page.summary] : [])}
                     onSelectionChange={cueIds => { cueSelection.current = cueIds; }}
                     onCopy={copyCue}
+                    onFollowPage={offset => void run('select', () => select(page.summary, offset, page.nodeOffset, { silent: true }))}
                     onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
                 </ClipPathTabsContent>
                 <ClipPathTabsContent value="raw" className="studio-raw"><ol start={page.nodeOffset + 1}>{page.rawNodes.map((node, index) => <li key={node.id}><span aria-hidden="true">{page.nodeOffset + index + 1}</span><pre>{node.text}</pre></li>)}</ol>{!page.rawNodes.length && <div className="studio-content-empty"><Code2 /><p>{t('studio:no_source_content')}</p></div>}</ClipPathTabsContent>

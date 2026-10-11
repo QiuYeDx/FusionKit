@@ -1,0 +1,75 @@
+{
+  "schema_version": 2,
+  "feature": "studio-cue-listening",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I2",
+  "modules": [
+    {
+      "slug": "studio-cue-listening",
+      "code": "LISTEN",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "边听边改：连续跟读、速度与循环、打点",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-11 用户：“你上面说的这些建议都挺好的，可以记录到一个TODO文档，然后再逐一处理”，随后“先提交这两项，然后开始做TODO中的吧”。按项目惯例（同日“先写文档再开发”）先写本规格再自主实现与隔离验证；只读取用户媒体，不修改；不调用付费 API；提交推送等用户要求时再做。",
+        "digest": "4c1fd8a78a25194c7970d1eb2c6438a5e8e864ec512c95b0a07ba802755d7873"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "时间编辑框中的波形",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-11 用户：“你上面说的这些建议都挺好的，可以记录到一个TODO文档，然后再逐一处理”，随后“先提交这两项，然后开始做TODO中的吧”。按项目惯例（同日“先写文档再开发”）先写本规格再自主实现与隔离验证；只读取用户媒体，不修改；不调用付费 API；提交推送等用户要求时再做。",
+        "digest": "2676380ecc0225c2d25e69954337653dc8d835df6b95561007b785fcab83f8ae"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "连续播放与变速的实现方式",
+      "resolution": "渲染端改用 Web Audio 首尾调度 20 秒 PCM 段（无缝）；变速由主进程 FFmpeg atempo 完成（不变调），引擎始终 1× 播放并按 tempo 换算位置。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "打点作用于哪一条字幕",
+      "resolution": "作用于当前行（键盘焦点行，否则第一个所选）；] 设结束后移到下一条，便于连续跟读时逐句定时间（参照常见字幕软件的“设结束并到下一条”）。连续跟读只高亮、不改变选择。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

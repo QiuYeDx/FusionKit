@@ -41,7 +41,8 @@
 .studio-cue-media-trigger { position: relative; }
 .studio-cue-media-trigger[data-status=missing], .studio-cue-media-trigger[data-status=unavailable] { color: var(--muted-foreground); }
 .studio-cue-media-dot { position: absolute; right: 5px; bottom: 5px; width: 6px; height: 6px; border-radius: 999px; background: #d97706; box-shadow: 0 0 0 1.5px var(--card); }
-.studio-cue-media-panel { display: grid; gap: 10px; width: min(288px, calc(100vw - 24px)); padding: 12px; font-size: 12px; }
+/* Short windows scroll the panel instead of cutting it off. */
+.studio-cue-media-panel { display: grid; gap: 10px; width: min(288px, calc(100vw - 24px)); max-height: var(--radix-popover-content-available-height); overflow-y: auto; padding: 12px; font-size: 12px; }
 .studio-cue-media-title { display: flex; align-items: center; gap: 6px; font-weight: 500; }
 .studio-cue-media-title > svg { width: 14px; height: 14px; color: var(--muted-foreground); }
 .studio-cue-media-file { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in oklab, var(--muted) 45%, var(--popover)); }
@@ -58,6 +59,19 @@
 .studio-cue-media-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .studio-cue-media-padding { display: grid; gap: 6px; }
 .studio-cue-media-padding > span { font-size: 11px; color: var(--muted-foreground); }
+.studio-cue-media-loop { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.studio-cue-media-keys { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; margin: 0; font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+.studio-cue-media-keys > dt { font-variant-numeric: tabular-nums; color: var(--foreground); white-space: nowrap; }
+.studio-cue-media-keys > dd { margin: 0; }
+.studio-cue-media-badge { position: absolute; right: 1px; bottom: 1px; display: inline-grid; place-items: center; min-width: 13px; height: 12px; padding: 0 2px; border-radius: 4px;
+  background: var(--card); color: var(--studio-cue-audio, oklch(58% 0.16 237)); font-size: 8.5px; font-weight: 600; line-height: 12px; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 1px color-mix(in oklab, currentColor 35%, transparent); }
+.studio-cue-media-badge > svg { width: 8px; height: 8px; }
+.dark .studio-cue-media-badge { color: oklch(76% 0.13 232); }
+
+/* The cue being heard while playing continuously: a neutral tint beside the playback bar, apart from the blue selection. */
+.studio-cue-list tbody tr[data-following] > td { background: color-mix(in oklab, var(--foreground) 5%, var(--card)); }
+.dark .studio-cue-list tbody tr[data-following] > td { background: color-mix(in oklab, var(--foreground) 8%, var(--card)); }
+.studio-cue-list tbody tr[data-following][data-selected] > td { background: var(--studio-cue-selected-hover); }
 
 /* In the revision and consistency lists the button leads the line number, on the number's 20px / 18px line. */
 .studio-cue-revision-number:has(> .studio-cue-revision-audio) { display: inline-flex; align-items: flex-start; gap: 2px; margin-left: -4px; }

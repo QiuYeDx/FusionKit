@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type MouseEvent } from 'react';
-import { AlertCircle, AudioLines, FileAudio, LoaderCircle, Play, Square } from 'lucide-react';
+import { AlertCircle, AudioLines, FileAudio, LoaderCircle, Play, Repeat, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { CueAudioPadding, CueMediaStatus } from '@/subtitle-studio/cue-audio';
+import type { CueAudioPadding, CueAudioTempo, CueMediaStatus } from '@/subtitle-studio/cue-audio';
 import { cueAudioPlayer, onCueMediaProblem, useCueAudio, type CueAudioFailure, type CueAudioRequest } from '@/services/subtitle-studio/cue-audio-player';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
 import { ToolRadioButtonGroup } from '../../_shared/ui/ToolRadioButtonGroup';
@@ -77,7 +78,7 @@ const RING = 2 * Math.PI * 8.5;
  * label behind it, so playing does not change a selection or a checkbox.
  */
 export function CueAudioButton({ playKey, request, label, className, tabbable = true, ...props }: Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> & {
-  playKey: string; request: CueAudioRequest; label: string; tabbable?: boolean;
+  playKey: string; request: CueAudioRequest; label: string; tabbable?: boolean; disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const playback = useCueAudio(playKey);
@@ -107,6 +108,7 @@ const stop = (event: { stopPropagation: () => void }) => event.stopPropagation()
 const PADDINGS = [
   { value: '0', key: 'studio:cue_audio.padding_none' }, { value: '300', key: 'studio:cue_audio.padding_short' }, { value: '1000', key: 'studio:cue_audio.padding_long' },
 ] as const satisfies readonly { value: `${CueAudioPadding}`; key: string }[];
+const TEMPOS = ['0.5', '0.75', '1'] as const satisfies readonly `${CueAudioTempo}`[];
 
 /** The list toolbar's original-audio button: which media the document plays from, choosing another, and the padding. */
 export function StudioCueMediaControl({ media, openRequest = 0 }: { media: CueMedia;
@@ -115,6 +117,10 @@ export function StudioCueMediaControl({ media, openRequest = 0 }: { media: CueMe
   const { t } = useTranslation();
   const padMs = useStudioPreferences(state => state.cueAudioPadMs);
   const setPadMs = useStudioPreferences(state => state.setCueAudioPadMs);
+  const tempo = useStudioPreferences(state => state.cueAudioTempo);
+  const setTempo = useStudioPreferences(state => state.setCueAudioTempo);
+  const loop = useStudioPreferences(state => state.cueAudioLoop);
+  const setLoop = useStudioPreferences(state => state.setCueAudioLoop);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -137,7 +143,10 @@ export function StudioCueMediaControl({ media, openRequest = 0 }: { media: CueMe
     <Tooltip delayDuration={350} open={open ? false : undefined}>
       <TooltipTrigger asChild><PopoverTrigger asChild>
         <Button variant="ghost" size="icon-sm" aria-label={label} data-testid="studio-cue-media" data-status={status?.status ?? 'loading'} className="studio-cue-media-trigger">
-          <AudioLines />{status && status.status !== 'ready' && <span className="studio-cue-media-dot" aria-hidden="true" />}
+          <AudioLines />{status && status.status !== 'ready' ? <span className="studio-cue-media-dot" aria-hidden="true" />
+            // Non-default playback shows on the button, so a slow or looping list is never a surprise.
+            : tempo !== 1 ? <span className="studio-cue-media-badge" data-testid="studio-cue-media-tempo-badge" aria-hidden="true">{String(tempo).replace(/^0/, '')}</span>
+            : loop ? <span className="studio-cue-media-badge" data-testid="studio-cue-media-loop-badge" aria-hidden="true"><Repeat /></span> : null}
         </Button>
       </PopoverTrigger></TooltipTrigger>
       <TooltipContent sideOffset={6}>{label}</TooltipContent>
@@ -168,7 +177,21 @@ export function StudioCueMediaControl({ media, openRequest = 0 }: { media: CueMe
           options={PADDINGS.map(option => ({ value: option.value, label: t(option.key), testId: `studio-cue-media-padding-${option.value}` }))}
           onValueChange={value => setPadMs(Number(value) as CueAudioPadding)} />
       </div>
-      <p className="studio-cue-media-hint">{t('studio:cue_audio.shortcut_hint')}</p>
+      <div className="studio-cue-media-padding">
+        <span>{t('studio:cue_listen.tempo')}</span>
+        <ToolRadioButtonGroup ariaLabel={t('studio:cue_listen.tempo')} value={String(tempo) as `${CueAudioTempo}`}
+          options={TEMPOS.map(value => ({ value, label: `${value}×`, testId: `studio-cue-media-tempo-${value}` }))}
+          onValueChange={value => setTempo(Number(value) as CueAudioTempo)} />
+      </div>
+      <div className="studio-cue-media-loop">
+        <label htmlFor="studio-cue-media-loop">{t('studio:cue_listen.loop')}</label>
+        <Switch id="studio-cue-media-loop" checked={loop} onCheckedChange={setLoop} />
+      </div>
+      <dl className="studio-cue-media-keys">
+        <dt>P</dt><dd>{t('studio:cue_help.play.desc')}</dd>
+        <dt>Shift+P</dt><dd>{t('studio:cue_help.follow.desc')}</dd>
+        <dt>[ / ]</dt><dd>{t('studio:cue_help.mark.desc')}</dd>
+      </dl>
     </PopoverContent>
   </Popover>;
 }

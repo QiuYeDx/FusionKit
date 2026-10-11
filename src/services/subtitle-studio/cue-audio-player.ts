@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { CueAudioPadding, CueAudioResult, CueAudioTarget, CueAudioUnavailable } from '@/subtitle-studio/cue-audio';
+import { CUE_AUDIO_LIMITS, type CueAudioClip, type CueAudioPadding, type CueAudioResult, type CueAudioTarget, type CueAudioTempo, type CueAudioUnavailable } from '@/subtitle-studio/cue-audio';
 import type { StudioResult } from '@/subtitle-studio/ipc-contract';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
 
@@ -12,116 +12,256 @@ export type CueAudioRequest = {
   /** Cue ids the stretch covers, so lists can mark them while it plays. */
   rows?: readonly string[];
 };
+/** Continuous playback from a point of the media to its end. */
+export type CueAudioFollowRequest = { documentId: string; fromMs: number;
+  /** Where the media ends, when known (transcribed documents); otherwise the main process reports the end. */
+  endMs?: number };
 export type CueAudioFailure = CueAudioUnavailable | 'failed';
-export type CueAudioPlayback = { key: string; documentId: string; rows: readonly string[]; phase: 'loading' | 'playing' | 'error'; progress: number; reason?: CueAudioFailure };
+export type CueAudioPlayback = {
+  key: string; documentId: string; rows: readonly string[];
+  /** One stretch, or continuous playback that a list follows. */
+  mode: 'clip' | 'follow';
+  phase: 'loading' | 'playing' | 'error';
+  /** Played share of a stretch (0 while following). */
+  progress: number;
+  /** Where in the original media the audio is, in milliseconds; published about ten times a second. */
+  positionMs: number | null;
+  reason?: CueAudioFailure;
+};
+export type CueAudioSettings = { padMs: CueAudioPadding; tempo: CueAudioTempo; loop: boolean };
 
-type AudioLike = Pick<HTMLAudioElement, 'play' | 'pause' | 'addEventListener' | 'currentTime' | 'duration' | 'src'>;
+/** The parts of the Web Audio API the player uses, so tests can drive its clock. */
+export type AudioBufferLike = { readonly duration: number; getChannelData(channel: number): Float32Array };
+export type AudioSourceLike = {
+  buffer: AudioBufferLike | null; loop: boolean; onended: (() => void) | null;
+  connect(destination: unknown): unknown; disconnect(): void; start(when?: number): void; stop(when?: number): void;
+};
+export type AudioContextLike = {
+  readonly currentTime: number; readonly destination: unknown; readonly outputLatency?: number; readonly baseLatency?: number; readonly state: string;
+  createBuffer(channels: number, length: number, sampleRate: number): AudioBufferLike;
+  createBufferSource(): AudioSourceLike;
+  resume(): Promise<void>;
+};
 export type CueAudioPlayerDependencies = {
-  read: (request: { documentId: string; target: CueAudioTarget; padMs: CueAudioPadding }) => Promise<StudioResult<CueAudioResult>>;
-  padMs: () => CueAudioPadding;
-  createAudio?: () => AudioLike;
-  createUrl?: (blob: Blob) => string;
-  revokeUrl?: (url: string) => void;
+  read: (request: { documentId: string; target: CueAudioTarget; padMs: CueAudioPadding; tempo: CueAudioTempo; purpose?: 'waveform' }) => Promise<StudioResult<CueAudioResult>>;
+  settings: () => CueAudioSettings;
+  createContext?: () => AudioContextLike;
   frame?: (callback: () => void) => number;
   cancelFrame?: (handle: number) => void;
   /** Called when a document's media turned out missing or moved, so its status can be read again. */
   onMediaProblem?: (documentId: string) => void;
 };
 
+/** Loudness of a stretch for drawing: per bucket the lowest and highest sample, from -1 to 1. */
+export type CueAudioPeaks = { startMs: number; endMs: number; peaks: Float32Array };
+/** Folds a decoded WAV into `buckets` pairs of [min, max]. */
+export function pcmPeaks(bytes: Uint8Array, buckets: number): Float32Array {
+  const samples = Math.floor((bytes.length - 44) / 2);
+  const pcm = new DataView(bytes.buffer, bytes.byteOffset + 44, samples * 2);
+  const peaks = new Float32Array(buckets * 2);
+  for (let bucket = 0; bucket < buckets; bucket++) {
+    const from = Math.floor(bucket * samples / buckets), to = Math.max(from + 1, Math.floor((bucket + 1) * samples / buckets));
+    let min = 0, max = 0;
+    for (let i = from; i < Math.min(to, samples); i++) { const value = pcm.getInt16(i * 2, true) / 32768; if (value < min) min = value; if (value > max) max = value; }
+    peaks[bucket * 2] = min; peaks[bucket * 2 + 1] = max;
+  }
+  return peaks;
+}
+
 const CACHE_SIZE = 6;
+const PEAKS_CACHE_SIZE = 4;
 const ERROR_MS = 4000;
+/** Continuous playback asks for the media in stretches of this length. */
+export const FOLLOW_CHUNK_MS = 20_000;
+const START_DELAY_S = 0.02;
+const POSITION_STEP_MS = 100;
+
+type Segment = { source: AudioSourceLike; ctxStart: number; duration: number; mediaStartMs: number; tempo: CueAudioTempo };
+type Clip = { buffer: AudioBufferLike; meta: CueAudioClip };
+type Session = {
+  serial: number; key: string; documentId: string; rows: readonly string[]; mode: 'clip' | 'follow'; tempo: CueAudioTempo;
+  segments: Segment[];
+  /** A stretch: its media end, to restart there at another speed. */
+  clipEndMs?: number;
+  /** Following: the media start of the next stretch to ask for (null when the end is reached), its end and whether a request is out. */
+  nextMs?: number | null; endMs?: number; fetching?: boolean;
+};
 
 /**
- * One player for the whole studio: starting a clip stops the one before.
- * Clips are decoded by the main process on request; the last few stay in
- * memory as object URLs so playing a cue again starts at once.
+ * One player for the whole studio: starting playback stops what played before.
+ * Stretches are decoded by the main process on request and played through Web
+ * Audio, so continuous playback joins them without gaps and the position in
+ * the original media is known to the millisecond. Slower speeds are stretched
+ * by the main process (the pitch stays); the player always plays at 1x and
+ * converts the clock back to media time.
  */
 export function createCueAudioPlayer(dependencies: CueAudioPlayerDependencies) {
-  const createUrl = dependencies.createUrl ?? (blob => URL.createObjectURL(blob));
-  const revokeUrl = dependencies.revokeUrl ?? (url => URL.revokeObjectURL(url));
   const frame = dependencies.frame ?? (callback => requestAnimationFrame(callback));
   const cancelFrame = dependencies.cancelFrame ?? (handle => cancelAnimationFrame(handle));
   const listeners = new Set<() => void>();
-  const cache = new Map<string, string>();
+  const cache = new Map<string, Clip>();
+  const peaksCache = new Map<string, CueAudioPeaks>();
   const epochs = new Map<string, number>();
-  let audio: AudioLike | undefined;
+  let context: AudioContextLike | undefined;
   let state: CueAudioPlayback | null = null;
+  let session: Session | null = null;
   let serial = 0;
   let ticking: number | undefined;
   let errorTimer: ReturnType<typeof setTimeout> | undefined;
-  /** An uncached clip's URL, released when the next clip starts. */
-  let transient: string | undefined;
 
+  const audio = () => context ??= dependencies.createContext?.() ?? (new AudioContext() as unknown as AudioContextLike);
   const publish = (next: CueAudioPlayback | null) => { state = next; for (const listener of listeners) listener(); };
+  const latency = (ctx: AudioContextLike) => ctx.outputLatency || ctx.baseLatency || 0;
   const stopTicking = () => { if (ticking !== undefined) cancelFrame(ticking); ticking = undefined; };
-  const release = () => { if (transient) revokeUrl(transient); transient = undefined; };
-  function element() {
-    if (audio) return audio;
-    const created = audio = dependencies.createAudio?.() ?? new Audio();
-    created.addEventListener('ended', () => { if (state?.phase === 'playing') { stopTicking(); publish(null); } });
+
+  function buffer(clip: CueAudioClip): AudioBufferLike {
+    const samples = Math.floor((clip.bytes.length - 44) / 2);
+    const pcm = new DataView(clip.bytes.buffer, clip.bytes.byteOffset + 44, samples * 2);
+    const created = audio().createBuffer(1, Math.max(1, samples), CUE_AUDIO_LIMITS.sampleRate);
+    const channel = created.getChannelData(0);
+    for (let i = 0; i < samples; i++) channel[i] = pcm.getInt16(i * 2, true) / 32768;
     return created;
   }
-  function tick(current: number) {
-    ticking = undefined;
-    if (current !== serial || state?.phase !== 'playing' || !audio) return;
-    const duration = audio.duration;
-    const progress = Number.isFinite(duration) && duration > 0 ? Math.min(1, audio.currentTime / duration) : 0;
-    if (Math.abs(progress - state.progress) >= 0.01) publish({ ...state, progress });
-    ticking = frame(() => tick(current));
-  }
-  function fail(current: number, base: Omit<CueAudioPlayback, 'phase' | 'progress'>, reason: CueAudioFailure) {
-    if (current !== serial) return;
-    publish({ ...base, phase: 'error', progress: 0, reason });
-    clearTimeout(errorTimer);
-    errorTimer = setTimeout(() => { if (current === serial && state?.phase === 'error') publish(null); }, ERROR_MS);
-  }
-  function remember(key: string, url: string) {
-    cache.delete(key); cache.set(key, url);
-    while (cache.size > CACHE_SIZE) {
-      const [oldest, old] = cache.entries().next().value as [string, string];
-      cache.delete(oldest); revokeUrl(old);
+  function silence(current: Session | null) {
+    for (const segment of current?.segments ?? []) {
+      segment.source.onended = null;
+      try { segment.source.stop(); } catch { /* Not started or already stopped. */ }
+      segment.source.disconnect();
     }
   }
-  const cacheKey = (request: CueAudioRequest, padMs: CueAudioPadding, revision = request.revision) => revision === undefined ? undefined
-    : `${request.documentId}|${revision}|${epochs.get(request.documentId) ?? 0}|${padMs}|${JSON.stringify(request.target)}`;
+  /** Media time now, from the audio clock less the output delay; null before anything plays. */
+  function position(current: Session): number | null {
+    const ctx = context;
+    if (!ctx || !current.segments.length) return null;
+    const heard = ctx.currentTime - latency(ctx);
+    const segment = [...current.segments].reverse().find(item => item.ctxStart <= heard) ?? current.segments[0];
+    let elapsed = Math.max(0, heard - segment.ctxStart);
+    elapsed = segment.source.loop ? elapsed % segment.duration : Math.min(elapsed, segment.duration);
+    return Math.round(segment.mediaStartMs + elapsed * 1000 * segment.tempo);
+  }
+  function fail(current: Session, reason: CueAudioFailure) {
+    if (current.serial !== serial) return;
+    silence(current); session = null; stopTicking();
+    publish({ key: current.key, documentId: current.documentId, rows: current.rows, mode: current.mode, phase: 'error', progress: 0, positionMs: null, reason });
+    clearTimeout(errorTimer);
+    errorTimer = setTimeout(() => { if (current.serial === serial && state?.phase === 'error') publish(null); }, ERROR_MS);
+  }
+  function finish(current: Session) {
+    if (current.serial !== serial) return;
+    silence(current); session = null; stopTicking(); publish(null);
+  }
+  function unavailable(current: Session, documentId: string, reason: CueAudioUnavailable) {
+    if (reason === 'no_media' || reason === 'media_unavailable') dependencies.onMediaProblem?.(documentId);
+    if (reason === 'cancelled') { if (current.serial === serial) { session = null; stopTicking(); publish(null); } return; }
+    fail(current, reason);
+  }
+  function schedule(current: Session, clip: Clip, loop: boolean) {
+    const ctx = audio();
+    const source = ctx.createBufferSource();
+    source.buffer = clip.buffer; source.loop = loop;
+    source.connect(ctx.destination);
+    const last = current.segments.at(-1);
+    const when = Math.max(ctx.currentTime + START_DELAY_S, last ? last.ctxStart + last.duration : 0);
+    source.start(when);
+    current.segments.push({ source, ctxStart: when, duration: clip.buffer.duration, mediaStartMs: clip.meta.clipStartMs, tempo: clip.meta.tempo });
+    // Only a stretch ends by itself; following ends once its last stretch has played.
+    if (current.mode === 'clip') source.onended = () => finish(current);
+  }
+  function tick(current: Session) {
+    ticking = undefined;
+    if (current.serial !== serial || session !== current || !context) return;
+    const ctx = context;
+    if (current.mode === 'follow') {
+      const last = current.segments.at(-1);
+      // Ask for the next stretch once the last one asked for has started playing.
+      if (!current.fetching && current.nextMs != null && (!last || ctx.currentTime >= last.ctxStart)) void fetchNext(current);
+      if (last && ctx.currentTime >= last.ctxStart + last.duration) {
+        if (current.nextMs == null && !current.fetching) return finish(current);
+        if (state?.phase === 'playing') publish({ ...state, phase: 'loading' });
+      }
+    }
+    const positionMs = position(current);
+    if (state && positionMs !== null) {
+      let progress = 0;
+      if (current.mode === 'clip') {
+        const segment = current.segments[0];
+        const elapsed = Math.max(0, ctx.currentTime - segment.ctxStart);
+        progress = Math.min(1, (segment.source.loop ? elapsed % segment.duration : elapsed) / segment.duration);
+      }
+      const moved = state.positionMs === null || Math.abs(positionMs - state.positionMs) >= POSITION_STEP_MS || Math.abs(progress - state.progress) >= 0.01;
+      const playing = state.phase === 'loading' && current.segments.some(segment => segment.ctxStart <= ctx.currentTime && ctx.currentTime < segment.ctxStart + segment.duration);
+      if (moved || playing) publish({ ...state, progress, positionMs, phase: playing ? 'playing' : state.phase });
+    }
+    ticking = frame(() => tick(current));
+  }
+  async function fetchNext(current: Session) {
+    const startMs = current.nextMs!;
+    if (current.endMs !== undefined && startMs >= current.endMs) { current.nextMs = null; return; }
+    current.fetching = true;
+    const endMs = current.endMs !== undefined ? Math.min(startMs + FOLLOW_CHUNK_MS, current.endMs) : startMs + FOLLOW_CHUNK_MS;
+    let result: StudioResult<CueAudioResult>;
+    try { result = await dependencies.read({ documentId: current.documentId, target: { range: { startMs, endMs } }, padMs: 0, tempo: current.tempo }); }
+    catch { return fail(current, 'failed'); }
+    finally { current.fetching = false; }
+    if (current.serial !== serial || session !== current) return;
+    const started = current.segments.length > 0;
+    // Past the end of the media: what is scheduled plays out.
+    if ((!result.ok && result.error === 'invalid_input' && started) || (result.ok && result.value.kind === 'unavailable' && result.value.reason === 'no_audio' && started)) { current.nextMs = null; return; }
+    if (!result.ok) return fail(current, 'failed');
+    if (result.value.kind === 'unavailable') return unavailable(current, current.documentId, result.value.reason);
+    const clip = result.value;
+    schedule(current, { buffer: buffer(clip), meta: clip }, false);
+    // A stretch cut short by the media's known length was the last one.
+    current.nextMs = clip.endMs < endMs ? null : endMs;
+    if (state?.phase === 'loading' && !started) publish({ ...state, phase: 'playing', positionMs: position(current) });
+  }
+  const cacheKey = (request: CueAudioRequest, settings: CueAudioSettings, revision = request.revision) => revision === undefined ? undefined
+    : `${request.documentId}|${revision}|${epochs.get(request.documentId) ?? 0}|${settings.padMs}|${settings.tempo}|${JSON.stringify(request.target)}`;
+  function remember(key: string, clip: Clip) {
+    cache.delete(key); cache.set(key, clip);
+    while (cache.size > CACHE_SIZE) cache.delete(cache.keys().next().value as string);
+  }
+  function begin(key: string, documentId: string, rows: readonly string[], mode: 'clip' | 'follow', tempo: CueAudioTempo): Session {
+    stop();
+    const current: Session = { serial, key, documentId, rows, mode, tempo, segments: [] };
+    session = current;
+    void audio().resume().catch(() => undefined);
+    publish({ key, documentId, rows, mode, phase: 'loading', progress: 0, positionMs: null });
+    return current;
+  }
 
   function stop() {
     serial++;
     clearTimeout(errorTimer);
     stopTicking();
-    audio?.pause();
+    silence(session); session = null;
     if (state) publish(null);
   }
-  async function start(key: string, request: CueAudioRequest) {
-    stop();
-    const current = serial;
-    const base = { key, documentId: request.documentId, rows: request.rows ?? [] };
-    publish({ ...base, phase: 'loading', progress: 0 });
-    const padMs = dependencies.padMs();
-    let url = (() => { const known = cacheKey(request, padMs); const found = known && cache.get(known); if (found) remember(known, found); return found; })();
-    if (!url) {
+  async function playClip(key: string, request: CueAudioRequest, settings = dependencies.settings()) {
+    const current = begin(key, request.documentId, request.rows ?? [], 'clip', settings.tempo);
+    const known = cacheKey(request, settings);
+    let clip = known ? cache.get(known) : undefined;
+    if (clip && known) remember(known, clip);
+    if (!clip) {
       let result: StudioResult<CueAudioResult>;
-      try { result = await dependencies.read({ documentId: request.documentId, target: request.target, padMs }); }
-      catch { return fail(current, base, 'failed'); }
-      if (current !== serial) return;
-      if (!result.ok) return fail(current, base, 'failed');
-      if (result.value.kind === 'unavailable') {
-        if (result.value.reason === 'no_media' || result.value.reason === 'media_unavailable') dependencies.onMediaProblem?.(request.documentId);
-        return result.value.reason === 'cancelled' ? publish(null) : fail(current, base, result.value.reason);
-      }
-      const clip = result.value;
-      url = createUrl(new Blob([clip.bytes as Uint8Array<ArrayBuffer>], { type: clip.mimeType }));
-      const known = request.revision === clip.revision ? cacheKey(request, padMs, clip.revision) : undefined;
-      release();
-      if (known) remember(known, url); else transient = url;
+      try { result = await dependencies.read({ documentId: request.documentId, target: request.target, padMs: settings.padMs, tempo: settings.tempo }); }
+      catch { return fail(current, 'failed'); }
+      if (current.serial !== serial) return;
+      if (!result.ok) return fail(current, 'failed');
+      if (result.value.kind === 'unavailable') return unavailable(current, request.documentId, result.value.reason);
+      clip = { buffer: buffer(result.value), meta: result.value };
+      const store = request.revision === result.value.revision ? cacheKey(request, settings, result.value.revision) : undefined;
+      if (store) remember(store, clip);
     }
-    const player = element();
-    player.src = url;
-    player.currentTime = 0;
-    try { await player.play(); }
-    catch { return fail(current, base, 'failed'); }
-    if (current !== serial) return;
-    publish({ ...base, phase: 'playing', progress: 0 });
+    current.clipEndMs = clip.meta.clipEndMs;
+    schedule(current, clip, settings.loop);
+    publish({ ...state!, phase: 'playing', positionMs: position(current) });
+    ticking = frame(() => tick(current));
+  }
+  function playFollow(key: string, request: CueAudioFollowRequest, settings = dependencies.settings()) {
+    const current = begin(key, request.documentId, [], 'follow', settings.tempo);
+    current.nextMs = Math.max(0, request.fromMs);
+    if (request.endMs !== undefined) current.endMs = request.endMs;
     ticking = frame(() => tick(current));
   }
 
@@ -129,15 +269,59 @@ export function createCueAudioPlayer(dependencies: CueAudioPlayerDependencies) {
     /** Plays the request, or stops it when the same key is already loading or playing. */
     toggle(key: string, request: CueAudioRequest) {
       if (state?.key === key && state.phase !== 'error') { stop(); return; }
-      void start(key, request);
+      void playClip(key, request);
+    },
+    /** Plays continuously from a point to the end, for a list to follow; the same key stops it. */
+    follow(key: string, request: CueAudioFollowRequest) {
+      if (state?.key === key && state.phase !== 'error') { stop(); return; }
+      playFollow(key, request);
     },
     stop,
-    /** Stops only if the playing clip belongs to the document (or the key). */
+    /** Stops only if the playing audio belongs to the document. */
     stopFor(documentId: string) { if (state?.documentId === documentId) stop(); },
     /** Drops a document's clips, after its media changed. */
     invalidate(documentId: string) {
       epochs.set(documentId, (epochs.get(documentId) ?? 0) + 1);
-      for (const [key, url] of [...cache]) if (key.startsWith(`${documentId}|`)) { cache.delete(key); revokeUrl(url); }
+      for (const key of [...cache.keys()]) if (key.startsWith(`${documentId}|`)) cache.delete(key);
+      for (const key of [...peaksCache.keys()]) if (key.startsWith(`${documentId}|`)) peaksCache.delete(key);
+    },
+    /**
+     * The waveform of a stretch, decoded beside whatever plays (a waveform never stops playback);
+     * null when the media cannot be read. The last few are kept for the document's revision.
+     */
+    async peaks(request: { documentId: string; revision?: number; startMs: number; endMs: number }, buckets: number): Promise<CueAudioPeaks | null> {
+      const key = request.revision === undefined ? undefined
+        : `${request.documentId}|${request.revision}|${epochs.get(request.documentId) ?? 0}|${request.startMs}|${request.endMs}|${buckets}`;
+      const known = key ? peaksCache.get(key) : undefined;
+      if (known) return known;
+      let result: StudioResult<CueAudioResult>;
+      try { result = await dependencies.read({ documentId: request.documentId, target: { range: { startMs: request.startMs, endMs: request.endMs } }, padMs: 0, tempo: 1, purpose: 'waveform' }); }
+      catch { return null; }
+      if (!result.ok || result.value.kind !== 'clip') return null;
+      const value = { startMs: result.value.clipStartMs, endMs: result.value.clipEndMs, peaks: pcmPeaks(result.value.bytes, buckets) };
+      if (key) { peaksCache.set(key, value); while (peaksCache.size > PEAKS_CACHE_SIZE) peaksCache.delete(peaksCache.keys().next().value as string); }
+      return value;
+    },
+    /** Where in the media the document's audio is right now, or null when it is not playing. */
+    positionFor(documentId: string): number | null {
+      const current = session;
+      if (!current || current.documentId !== documentId || state?.phase !== 'playing') return null;
+      return position(current);
+    },
+    /** Applies changed settings to what plays: a new speed continues from the current position, looping turns on or off at once. */
+    applySettings() {
+      const current = session;
+      if (!current || !state) return;
+      const settings = dependencies.settings();
+      if (settings.tempo !== current.tempo) {
+        const from = position(current);
+        if (from === null) return;
+        const { key, documentId, rows, mode } = current;
+        if (mode === 'follow') playFollow(key, { documentId, fromMs: from, ...(current.endMs !== undefined ? { endMs: current.endMs } : {}) }, settings);
+        else if (current.clipEndMs !== undefined && current.clipEndMs > from) void playClip(key, { documentId, rows, target: { range: { startMs: from, endMs: current.clipEndMs } } }, { ...settings, padMs: 0 });
+        return;
+      }
+      if (current.mode === 'clip') for (const segment of current.segments) segment.source.loop = settings.loop;
     },
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     snapshot: () => state,
@@ -150,10 +334,17 @@ export type CueAudioPlayer = ReturnType<typeof createCueAudioPlayer>;
 const mediaProblemListeners = new Set<(documentId: string) => void>();
 export const onCueMediaProblem = (listener: (documentId: string) => void) => { mediaProblemListeners.add(listener); return () => { mediaProblemListeners.delete(listener); }; };
 
+const readSettings = (): CueAudioSettings => {
+  const { cueAudioPadMs, cueAudioTempo, cueAudioLoop } = useStudioPreferences.getState();
+  return { padMs: cueAudioPadMs, tempo: cueAudioTempo, loop: cueAudioLoop };
+};
 export const cueAudioPlayer = createCueAudioPlayer({
   read: request => window.subtitleStudio.readCueAudio(request),
-  padMs: () => useStudioPreferences.getState().cueAudioPadMs,
+  settings: readSettings,
   onMediaProblem: documentId => { for (const listener of mediaProblemListeners) listener(documentId); },
+});
+useStudioPreferences.subscribe((next, previous) => {
+  if (next.cueAudioTempo !== previous.cueAudioTempo || next.cueAudioLoop !== previous.cueAudioLoop) cueAudioPlayer.applySettings();
 });
 
 /** The playback of one key, or null: other keys' progress never re-renders this caller. */
@@ -162,5 +353,15 @@ export function useCueAudio(key: string, player: CueAudioPlayer = cueAudioPlayer
 }
 /** The cue rows of a document that the playing clip covers, joined; changes only when playback starts or stops. */
 export function useCueAudioRows(documentId: string, player: CueAudioPlayer = cueAudioPlayer): string {
-  return useSyncExternalStore(player.subscribe, () => { const state = player.snapshot(); return state?.documentId === documentId && state.phase !== 'error' ? state.rows.join(',') : ''; });
+  return useSyncExternalStore(player.subscribe, () => { const state = player.snapshot(); return state?.documentId === documentId && state.mode === 'clip' && state.phase !== 'error' ? state.rows.join(',') : ''; });
+}
+/**
+ * While a document plays continuously, what `select` makes of the position (such as the id of
+ * the cue being heard); null otherwise. Re-renders only when that result changes.
+ */
+export function useCueAudioFollow<T extends string | number | null>(documentId: string, select: (positionMs: number) => T, player: CueAudioPlayer = cueAudioPlayer): T | null {
+  return useSyncExternalStore(player.subscribe, () => {
+    const state = player.snapshot();
+    return state?.documentId === documentId && state.mode === 'follow' && state.positionMs !== null ? select(state.positionMs) : null;
+  });
 }

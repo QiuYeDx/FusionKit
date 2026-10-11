@@ -838,6 +838,14 @@
       "keys": "P",
       "desc": "播放 / 停止原始音訊"
     },
+    "follow": {
+      "keys": "Shift+P",
+      "desc": "從目前列連續播放，清單跟隨"
+    },
+    "mark": {
+      "keys": "[ / ]",
+      "desc": "播放時把目前列的開始 / 結束設為聽到的位置"
+    },
     "merge": {
       "keys": "Ctrl+M",
       "desc": "合併所選的相鄰字幕"
@@ -1067,7 +1075,6 @@
     "padding_none": "無",
     "padding_short": "0.3 秒",
     "padding_long": "1 秒",
-    "shortcut_hint": "選取字幕後按 P 播放，再按一次停止。",
     "errors": {
       "no_media": "未關聯原始媒體",
       "media_unavailable": "原始媒體已移動或修改",
@@ -1076,5 +1083,13 @@
       "runtime_unavailable": "音訊解碼元件無法使用",
       "failed": "播放失敗"
     }
+  },
+  "cue_listen": {
+    "follow": "從這裡連續播放",
+    "tempo": "播放速度",
+    "loop": "循環播放片段",
+    "mark_needs_playback": "播放時按 [ / ] 設定開始 / 結束",
+    "waveform": "波形：拖動標記調整開始和結束",
+    "play_edited": "試聽這段時間"
   }
 }

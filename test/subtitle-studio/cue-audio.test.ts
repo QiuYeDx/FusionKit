@@ -100,6 +100,20 @@ describe('decoding the original audio of cues', () => {
     expect(seconds(proposed)).toBeCloseTo(0.25, 2);
   }, 30_000);
 
+  it.each([0.75, 0.5] as const)('slows a stretch to %sx without changing its pitch', async tempo => {
+    const s = services();
+    const doc = await transcribed(s, path.join(media, 'tones.mkv'));
+    const slow = clip(await readCueAudio({ repository: s.repository, media: s.media, clipper: s.clipper }, 1,
+      { documentId: doc.id, target: { cueIds: [doc.cues[1].id] }, padMs: 0, tempo }));
+    // 9.5–10.5 s of media plays 1 / tempo seconds; the media read is limited, not the output.
+    expect(slow).toMatchObject({ startMs: 9500, endMs: 10500, tempo });
+    expect(seconds(slow)).toBeCloseTo(1 / tempo, 1);
+    const length = seconds(slow) * 1000;
+    expect(frequency(slow, 30, length / 2 - 60)).toBeGreaterThan(400);
+    expect(frequency(slow, 30, length / 2 - 60)).toBeLessThan(480);
+    expect(frequency(slow, length / 2 + 60, length - 30)).toBeGreaterThan(820);
+  }, 30_000);
+
   it('cuts 4.5 s from 25 minutes into a long file quickly', async () => {
     const s = services();
     const long = await make(path.join(media, 'long.mp3'), '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1500', '-f', 'lavfi', '-i', 'sine=frequency=880:duration=10',
@@ -204,6 +218,16 @@ describe('failures and cancellation', () => {
     expect(seconds(await later)).toBeCloseTo(2, 1);
     expect(seconds(await other)).toBeCloseTo(2, 1);
     expect(await readdir(path.join(root, 'work'))).toEqual([]);
+  }, 30_000);
+
+  it('decodes a waveform beside playback without stopping it', async () => {
+    const s = services();
+    const doc = await transcribed(s, path.join(media, 'tones.mkv'));
+    const deps = { repository: s.repository, media: s.media, clipper: s.clipper };
+    const playing = readCueAudio(deps, 9, { documentId: doc.id, target: { range: { startMs: 0, endMs: 20000 } }, padMs: 0 });
+    const waveform = readCueAudio(deps, 9, { documentId: doc.id, target: { cueIds: [doc.cues[1].id] }, padMs: 0, purpose: 'waveform' });
+    expect(seconds(await playing)).toBeCloseTo(20, 1);
+    expect(seconds(await waveform)).toBeCloseTo(1, 1);
   }, 30_000);
 
   it('kills a running decode when the window asks for another stretch', async () => {

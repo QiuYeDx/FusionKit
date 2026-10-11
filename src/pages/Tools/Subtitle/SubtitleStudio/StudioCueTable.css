@@ -83,3 +83,12 @@
 @media (prefers-reduced-motion: no-preference) {
   .studio-cue-list tbody tr > td { transition: background-color 120ms ease-out; }
 }
+
+/* The waveform under the time fields: as wide as they are, never wider than the column. */
+.studio-cue-waveform { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; min-width: 0;
+  --studio-wave-dim: color-mix(in oklab, var(--muted-foreground) 45%, transparent); --studio-wave-active: oklch(58% 0.16 237); --studio-wave-marker: var(--foreground); }
+.dark .studio-cue-waveform { --studio-wave-active: oklch(76% 0.13 232); }
+.studio-cue-waveform-canvas { position: relative; height: 36px; min-width: 0; overflow: hidden; border-radius: 6px; cursor: ew-resize; touch-action: none;
+  background: color-mix(in oklab, var(--muted) 45%, var(--background)); }
+.studio-cue-waveform-canvas > canvas { display: block; }
+.studio-cue-waveform:not([data-loaded]) .studio-cue-waveform-canvas { cursor: default; }

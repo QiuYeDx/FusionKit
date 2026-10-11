@@ -20,9 +20,10 @@ it('hydrates the existing preference key and persists only valid settings alongs
   const settings = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES); settings.config.language = 'ja'; settings.config.advanced.beamSize = 7; settings.autoTranslation.enabled = true; settings.autoTranslation.profileId = 'profile';
   useStudioPreferences.getState().setTranscription(settings);
   const persisted = JSON.parse(storage.get(key)!);
-  expect(Object.keys(persisted.state).sort()).toEqual(['cueAudioPadMs', 'dismissedRecoveryKey', 'encoding', 'transcription']);
+  expect(Object.keys(persisted.state).sort()).toEqual(['cueAudioLoop', 'cueAudioPadMs', 'cueAudioTempo', 'dismissedRecoveryKey', 'encoding', 'transcription']);
   // An older store without the original-audio padding gets the default.
   expect(persisted.state.cueAudioPadMs).toBe(300);
+  expect(persisted.state.cueAudioTempo).toBe(1); expect(persisted.state.cueAudioLoop).toBe(false);
   expect(persisted.state.transcription).toEqual(settings);
   useStudioPreferences.setState({ transcription: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES) });
   storage.set(key, JSON.stringify(persisted)); await useStudioPreferences.persist.rehydrate();

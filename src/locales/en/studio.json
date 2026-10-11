@@ -838,6 +838,14 @@
       "keys": "P",
       "desc": "Play / stop the original audio"
     },
+    "follow": {
+      "keys": "Shift+P",
+      "desc": "Play on from the current line; the list follows"
+    },
+    "mark": {
+      "keys": "[ / ]",
+      "desc": "While playing, set the current line’s start / end to what you hear"
+    },
     "merge": {
       "keys": "Ctrl+M",
       "desc": "Merge the selected adjacent cues"
@@ -1067,7 +1075,6 @@
     "padding_none": "None",
     "padding_short": "0.3 s",
     "padding_long": "1 s",
-    "shortcut_hint": "Select lines and press P to play; press P again to stop.",
     "errors": {
       "no_media": "No original media linked",
       "media_unavailable": "The original media was moved or changed",
@@ -1076,5 +1083,13 @@
       "runtime_unavailable": "The audio decoder is unavailable",
       "failed": "Couldn't play the audio"
     }
+  },
+  "cue_listen": {
+    "follow": "Play from here",
+    "tempo": "Playback speed",
+    "loop": "Repeat the stretch",
+    "mark_needs_playback": "Press [ / ] while playing to set the start / end",
+    "waveform": "Waveform: drag the markers to adjust the start and end",
+    "play_edited": "Play this stretch"
   }
 }

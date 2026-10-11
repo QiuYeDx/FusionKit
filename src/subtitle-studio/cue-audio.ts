@@ -17,6 +17,9 @@ export const CUE_AUDIO_LIMITS = {
   sampleRate: 48_000,
 } as const;
 export const CUE_AUDIO_PADDINGS = [0, 300, 1000] as const;
+/** Playback speeds; slower audio is stretched by the main process and keeps its pitch. */
+export const CUE_AUDIO_TEMPOS = [1, 0.75, 0.5] as const;
+export type CueAudioTempo = typeof CUE_AUDIO_TEMPOS[number];
 export type CueAudioPadding = typeof CUE_AUDIO_PADDINGS[number];
 export const DEFAULT_CUE_AUDIO_PADDING: CueAudioPadding = 300;
 
@@ -31,7 +34,10 @@ export const cueAudioRequestSchemas = {
   chooseCueMedia: z.object({ documentId: idSchema }).strict(),
   clearCueMedia: z.object({ documentId: idSchema }).strict(),
   readCueAudio: z.object({ documentId: idSchema, target: cueAudioTargetSchema,
-    padMs: z.union([z.literal(0), z.literal(300), z.literal(1000)]) }).strict(),
+    padMs: z.union([z.literal(0), z.literal(300), z.literal(1000)]),
+    tempo: z.union([z.literal(1), z.literal(0.75), z.literal(0.5)]).optional(),
+    /** Playback and waveforms decode independently: a newer request only stops one of the same purpose. */
+    purpose: z.enum(['play', 'waveform']).optional() }).strict(),
 };
 
 /** How the document found its media: chosen by the user, the transcribed file, or a same-named file beside the subtitle. */
@@ -45,6 +51,8 @@ export type CueAudioClip = {
   startMs: number; endMs: number; clipStartMs: number; clipEndMs: number;
   /** The stretch was longer than the clip limit and only its start was decoded. */
   truncated: boolean;
+  /** The speed the audio was stretched to: it plays (clipEndMs - clipStartMs) / tempo long. */
+  tempo: CueAudioTempo;
 };
 export type CueAudioResult = CueAudioClip | { kind: 'unavailable'; reason: CueAudioUnavailable };
 

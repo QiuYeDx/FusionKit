@@ -1,0 +1,23 @@
+base 393dc61 (v0.4.0) + uncommitted working tree (excluding test/subtitle-studio/automatic-export.test.ts, not part of this work); sha256 over sorted (path NUL bytes NUL):
+CHANGELOG.md
+electron/main/subtitle-studio/cue-audio-clip.ts
+src/locales/en/studio.json
+src/locales/ja/studio.json
+src/locales/zh-Hant/studio.json
+src/locales/zh/studio.json
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueAudio.css
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueAudio.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueMenu.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueTable.css
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueTable.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueTimeEditor.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueWaveform.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/index.tsx
+src/services/subtitle-studio/cue-audio-player.test.ts
+src/services/subtitle-studio/cue-audio-player.ts
+src/store/tools/subtitle-studio/preferences.ts
+src/subtitle-studio/cue-audio.ts
+test/subtitle-studio/cue-audio.test.ts
+test/subtitle-studio/cue-listening-ui.test.ts
+test/subtitle-studio/transcription-preferences.test.ts
+snapshot-sha256:48c354b152b6c94e79510f14955b329f34a1ffbf30e6ea45b90d0e0a57e126be

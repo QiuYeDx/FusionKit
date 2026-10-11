@@ -838,6 +838,14 @@
       "keys": "P",
       "desc": "元の音声を再生 / 停止"
     },
+    "follow": {
+      "keys": "Shift+P",
+      "desc": "現在の行から続けて再生し、リストが追従"
+    },
+    "mark": {
+      "keys": "[ / ]",
+      "desc": "再生中、現在の行の開始 / 終了を聞こえている位置に設定"
+    },
     "merge": {
       "keys": "Ctrl+M",
       "desc": "選択した隣り合う字幕を結合"
@@ -1067,7 +1075,6 @@
     "padding_none": "なし",
     "padding_short": "0.3 秒",
     "padding_long": "1 秒",
-    "shortcut_hint": "字幕を選択して P で再生、もう一度 P で停止します。",
     "errors": {
       "no_media": "元のメディアが関連付けられていません",
       "media_unavailable": "元のメディアが移動または変更されました",
@@ -1076,5 +1083,13 @@
       "runtime_unavailable": "音声デコーダーを使用できません",
       "failed": "再生できませんでした"
     }
+  },
+  "cue_listen": {
+    "follow": "ここから続けて再生",
+    "tempo": "再生速度",
+    "loop": "区間をリピート",
+    "mark_needs_playback": "再生中に [ / ] で開始 / 終了を設定できます",
+    "waveform": "波形：マーカーをドラッグして開始と終了を調整",
+    "play_edited": "この区間を再生"
   }
 }
