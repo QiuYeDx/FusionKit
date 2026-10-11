@@ -8,6 +8,7 @@ import { cueAudioRequestSchemas, type CueAudioResult, type CueMediaStatus } from
 import { cueRecognizeRequestSchemas, type CueRecognizeResult } from './cue-recognize-contract';
 import { cueShiftRequestSchemas, type CueShiftPreview } from './cue-shift';
 import { cueSplitRequestSchemas, type CueSplitSuggestion } from './cue-split';
+import { cueFindRequestSchemas, type CueFindResult as CueSearchResult } from './cue-find';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
@@ -84,6 +85,7 @@ export const STUDIO_CHANNELS = {
   cancelCueRecognition: 'subtitle-studio:cancel-cue-recognition',
   previewCueShift: 'subtitle-studio:preview-cue-shift',
   suggestCueSplit: 'subtitle-studio:suggest-cue-split',
+  searchCues: 'subtitle-studio:search-cues',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   authorizeTranscriptionPaths: 'subtitle-studio:authorize-transcription-paths',
@@ -171,6 +173,7 @@ export const requestSchemas = {
   ...cueRecognizeRequestSchemas,
   ...cueShiftRequestSchemas,
   ...cueSplitRequestSchemas,
+  ...cueFindRequestSchemas,
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -294,6 +297,8 @@ export interface SubtitleStudioApi {
   previewCueShift(request: z.infer<typeof requestSchemas.previewCueShift>): Promise<StudioResult<CueShiftPreview>>;
   /** When to split a cue at a place in its text: at a word's start in an untouched transcript, else by the share of the text. */
   suggestCueSplit(request: z.infer<typeof requestSchemas.suggestCueSplit>): Promise<StudioResult<CueSplitSuggestion>>;
+  /** Finds a literal text in every cue's source and/or translation, for the list's find bar. */
+  searchCues(request: z.infer<typeof requestSchemas.searchCues>): Promise<StudioResult<CueSearchResult>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 

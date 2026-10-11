@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "feature": "studio-cue-find",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "studio-cue-find",
+      "code": "FIND",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "列表内查找替换",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-11 用户：“你上面说的这些建议都挺好的，可以记录到一个TODO文档，然后再逐一处理”；随后“跑完后提交并推送，然后继续下一项”。按项目惯例先写本规格再自主实现与隔离验证；只读用户媒体与已安装模型，不下载或删除模型，不调用付费服务；完成后按用户既有要求提交并推送。",
+        "digest": "ec3ced1a56fb54d498a3dbf8d6c32a2914aae5447d3e04675ea83c4e1c5e1c40"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "查找与替换在哪里计算",
+      "resolution": "在共享纯模块中计算：主进程用于整篇查找（只读通道）与全部替换（新的 replace 编辑操作），渲染端只用于当前页的高亮；渲染端只持有一页，无法自行全部替换。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "匹配方式",
+      "resolution": "字面匹配，可选区分大小写；不支持正则与整词，近似查找仍由 AI 修订负责。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

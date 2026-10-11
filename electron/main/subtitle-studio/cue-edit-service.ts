@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { StudioError, validateDocument, type SubtitleCue, type SubtitleText, type TranslationEntry } from '../../../src/subtitle-studio/domain';
-import { cueEditOperationSchema, storedTextProblem, type CueEditOperation, type RemovedCues, type SingleCueEditOperation } from '../../../src/subtitle-studio/cue-edit-contract';
+import { CUE_EDIT_LIMIT, cueEditOperationSchema, storedTextProblem, type CueEditOperation, type RemovedCues, type SingleCueEditOperation } from '../../../src/subtitle-studio/cue-edit-contract';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import { shiftProblem, shiftStart } from '../../../src/subtitle-studio/cue-shift';
+import { replaceText } from '../../../src/subtitle-studio/cue-find';
 import type { DocumentRepository } from './document-repository';
 import { sourceDigest } from './translation-planner';
 import { retireResumableTasks } from './translation-service';
@@ -281,6 +282,41 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
       const added = addCue(index, anchor, startMs, endMs, operation.source);
       if (track && operation.target) writeHumanTargets(track, [[added, operation.target]]);
       applied = { undo: { kind: 'delete', cueIds: [added.id] }, changed: 1, stoppedTasks: retireResumableTasks(snapshot) };
+      break;
+    }
+    case 'replace': {
+      const track = operation.trackId ? trackOf(operation.trackId) : undefined;
+      if (operation.field !== 'source' && !track) throw new StudioError('invalid_input');
+      // The replacement is typed text: no markup brackets, as in an inline edit.
+      if (/[<>]/.test(operation.replacement)) throw new StudioError('invalid_input');
+      const cues = operation.cueIds ? operation.cueIds.map(cueOf) : doc.cues as SubtitleCue[];
+      const oldSources: Record<string, SubtitleText> = {};
+      const targets: Record<string, TranslationEntry> = {};
+      const touched = new Set<string>();
+      for (const cue of cues) {
+        if (operation.field !== 'target') {
+          const next = replaceText(cue.source, operation.query, operation.replacement, operation.matchCase);
+          if (next) { oldSources[cue.id] = structuredClone(cue.source); writeSource(cue, next); touched.add(cue.id); }
+        }
+        const entry = track && operation.field !== 'source' ? track.entries[cue.id] : undefined;
+        const text = entry && replaceText(entry.text, operation.query, operation.replacement, operation.matchCase);
+        if (text) {
+          assertStoredText(text);
+          targets[cue.id] = { sourceRevision: cue.sourceRevision, sourceHash: sourceDigest(cue), text, origin: 'human', reviewStatus: 'reviewed' };
+          touched.add(cue.id);
+        }
+        if (touched.size > CUE_EDIT_LIMIT) throw new StudioError('limit_exceeded');
+      }
+      const undo: SingleCueEditOperation[] = [{ kind: 'revise', sources: oldSources }];
+      let stoppedTasks = Object.keys(oldSources).length ? retireResumableTasks(snapshot) : 0;
+      if (track && Object.keys(targets).length) {
+        const previous = writeEntries(track, targets);
+        track.revision++;
+        stoppedTasks += retireResumableTasks(snapshot, track.id);
+        // Translations go back after the sources, which would otherwise mark them current again.
+        undo.push({ kind: 'entries', trackId: track.id, entries: previous });
+      }
+      applied = { undo: { kind: 'batch', operations: undo }, changed: touched.size, stoppedTasks };
       break;
     }
     case 'merge': {

@@ -1,0 +1,24 @@
+base 110ad54 (v0.4.0) + uncommitted working tree (excluding test/subtitle-studio/automatic-export.test.ts, not part of this work); sha256 over sorted (path NUL bytes NUL):
+CHANGELOG.md
+electron/main/subtitle-studio/cue-edit-service.ts
+electron/main/subtitle-studio/index.ts
+electron/preload/subtitle-studio-api.ts
+electron/preload/subtitle-studio-channel-policy.ts
+resources/speech-resources/provenance/current-integration-audits.v1.json
+src/locales/en/studio.json
+src/locales/ja/studio.json
+src/locales/zh-Hant/studio.json
+src/locales/zh/studio.json
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueFind.css
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueFind.tsx
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueTable.css
+src/pages/Tools/Subtitle/SubtitleStudio/StudioCueTable.tsx
+src/services/subtitle-studio/cue-history.ts
+src/subtitle-studio/cue-edit-contract.ts
+src/subtitle-studio/cue-find.test.ts
+src/subtitle-studio/cue-find.ts
+src/subtitle-studio/ipc-contract.ts
+test/subtitle-studio/cue-find-ui.test.ts
+test/subtitle-studio/cue-find.test.ts
+test/subtitle-studio/ipc.test.ts
+snapshot-sha256:2b217c287c50c15888de2ef081e593992e7decc614c589e4b74149f23e5a7b04

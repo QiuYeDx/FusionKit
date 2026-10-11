@@ -809,7 +809,8 @@
       "recognize": "{{count}} 行を再認識",
       "shift": "{{count}} 件の字幕の時間をずらす",
       "split": "字幕を分割",
-      "insert": "字幕を挿入"
+      "insert": "字幕を挿入",
+      "replace": "{{count}} 件の字幕を置換"
     }
   },
   "cue_help": {
@@ -1100,6 +1101,27 @@
     "target": "訳文",
     "target_optional": "任意",
     "apply": "挿入"
+  },
+  "cue_find": {
+    "open": "検索と置換（Ctrl+F）",
+    "label": "字幕を検索",
+    "query": "検索",
+    "replacement": "置換後",
+    "none": "一致なし",
+    "count": "{{total}} 件中 {{position}} 件目 · {{occurrences}} 箇所",
+    "count_truncated": "{{total}}+ 件中 {{position}} 件目 · {{occurrences}} 箇所",
+    "match_case": "大文字と小文字を区別",
+    "previous": "前へ（Shift+Enter）",
+    "next": "次へ（Enter）",
+    "close": "閉じる（Esc）",
+    "show_replace": "置換を表示",
+    "hide_replace": "置換を隠す",
+    "scope": "検索対象",
+    "scope_source": "原文",
+    "scope_target": "訳文",
+    "scope_both": "すべて",
+    "replace": "この行で置換（Enter）",
+    "replace_all": "すべて置換（{{count}} 件）"
   },
   "cue_audio": {
     "play": "元の音声を再生",

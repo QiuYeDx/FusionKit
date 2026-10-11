@@ -15,7 +15,7 @@
   --studio-cue-focus: color-mix(in oklab, oklch(74.6% 0.16 232.7) 70%, var(--card));
 }
 .studio-cue-list .studio-cue-text { user-select: none; cursor: default; }
-.studio-cue-list tbody tr { scroll-margin-top: 36px; scroll-margin-bottom: 8px; }
+.studio-cue-list tbody tr { scroll-margin-top: var(--studio-cue-head, 36px); scroll-margin-bottom: 8px; }
 
 /* Rows run edge to edge with square ends; adjacent selected rows read as one block. */
 .studio-cue-list tbody tr[data-selected] > td { background: var(--studio-cue-selected); }

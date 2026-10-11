@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Combine, Ellipsis, Languages, MoveHorizontal, Redo2, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
+import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Combine, Ellipsis, Languages, MoveHorizontal, Redo2, Search, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
-import type { SubtitleText } from '@/subtitle-studio/domain';
+import { LIMITS, type SubtitleText } from '@/subtitle-studio/domain';
+import { findRanges } from '@/subtitle-studio/cue-find';
 import { cueTextProblem, editedText, hasMixedStyle, normalizeCueText, type CueEditOperation, type CueTextProblem } from '@/subtitle-studio/cue-edit-contract';
 import { buildCueCopyText } from '@/services/subtitle-studio/cue-copy';
 import type { CueEditLabel, CueHistoryEntry } from '@/services/subtitle-studio/cue-history';
@@ -20,6 +21,7 @@ import { StudioCueTimeEditor, timeProblemKeys, type CueTimeProblem } from './Stu
 import { StudioCueShift, type CueShiftRequest } from './StudioCueShift';
 import { StudioCueSplit, type CueSplitRequest } from './StudioCueSplit';
 import { StudioCueInsert, type CueInsertRequest } from './StudioCueInsert';
+import { StudioCueFind, type CueFindHighlight, type CueFindTarget } from './StudioCueFind';
 import { CueAudioButton, StudioCueMediaControl, useCueMedia } from './StudioCueAudio';
 import { cueAudioPlayer, useCueAudioFollow, useCueAudioRows } from '@/services/subtitle-studio/cue-audio-player';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
@@ -37,8 +39,28 @@ const HELP_ITEMS = ['select', 'marquee', 'edit', 'editor', 'field', 'timing', 'p
 /** The player key of a cue row; a stretch of several cues plays under its first row's key. */
 export const cueAudioKey = (documentId: string, cueId: string) => `cue:${documentId}:${cueId}`;
 
-function Spans({ text }: { text: SubtitleText }) {
-  return <>{text.spans.map((span, i) => <span key={i} style={{ fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined }}>{span.text}</span>)}</>;
+/** A cue's styled text; matches of the find bar's words are marked. */
+function Spans({ text, find }: { text: SubtitleText; find?: { query: string; matchCase: boolean } }) {
+  const ranges = find ? findRanges(text.plain, find.query, find.matchCase) : [];
+  let offset = 0;
+  return <>{text.spans.map((span, i) => {
+    const start = offset;
+    offset += span.text.length;
+    const style = { fontWeight: span.marks.includes('b') ? 650 : undefined, fontStyle: span.marks.includes('i') ? 'italic' : undefined, textDecoration: span.marks.includes('u') ? 'underline' : undefined };
+    if (!ranges.some(([from, to]) => from < offset && to > start)) return <span key={i} style={style}>{span.text}</span>;
+    // Cut the span at the matches that fall in it.
+    const parts: ReactElement[] = [];
+    let at = 0;
+    for (const [from, to] of ranges) {
+      const a = Math.max(0, from - start), b = Math.min(span.text.length, to - start);
+      if (b <= 0 || a >= span.text.length) continue;
+      if (a > at) parts.push(<span key={`t${at}`}>{span.text.slice(at, a)}</span>);
+      parts.push(<mark key={`m${a}`} className="studio-cue-find-mark">{span.text.slice(a, b)}</mark>);
+      at = b;
+    }
+    if (at < span.text.length) parts.push(<span key={`t${at}`}>{span.text.slice(at)}</span>);
+    return <span key={i} style={style}>{parts}</span>;
+  })}</>;
 }
 
 function CueHelp() {
@@ -93,6 +115,10 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const [editing, setEditing] = useState<{ cueId: string; field: CueField | 'timing' } | null>(null);
   const [shifting, setShifting] = useState<CueShiftRequest | null>(null);
   const [splitting, setSplitting] = useState<CueSplitRequest | null>(null);
+  const [finding, setFinding] = useState<{ initialQuery: string; serial: number } | null>(null);
+  const [highlight, setHighlight] = useState<CueFindHighlight | null>(null);
+  /** A match on another page, selected once that page shows. */
+  const pendingFind = useRef<string | null>(null);
   const [inserting, setInserting] = useState<CueInsertRequest | null>(null);
   const structureSerial = useRef(0);
   /** The cue to select once the page shows an added one: the one beside `cueId`. */
@@ -254,6 +280,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     if (mod && key === 'y') { onRedo(); return true; }
     if (mod && key === 'c') { copySelection(targets); return true; }
     if (mod && key === 'm' && !event.shiftKey) { void merge(targets); return true; }
+    if (mod && key === 'f' && !event.shiftKey) { openFind(); return true; }
     if (key === 't' && !mod && !event.altKey && targets.length) { startTiming(selectionApi.selectionRef.current.lead ?? targets[0]); return true; }
     // Shift+P plays on from the keyboard row and the list follows; again it stops.
     if (key === 'p' && event.shiftKey && !mod && !event.altKey) {
@@ -301,6 +328,38 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     openMenu: (targets, point) => setMenu(current => ({ targets, ...point, serial: (current?.serial ?? lastMenu.current?.serial ?? 0) + 1 })),
     onKey,
   });
+  /** Opens the find bar, with the text selected in the list as its words. */
+  const openFind = () => {
+    const selected = window.getSelection()?.toString().trim() ?? '';
+    setFinding(current => ({ initialQuery: current?.initialQuery ?? (selected.length <= 200 && !selected.includes('\n') ? selected : ''), serial: (current?.serial ?? 0) + 1 }));
+  };
+  /** Shows a match: on this page it is selected at once, on another the page turns first. */
+  const goToMatch = (target: CueFindTarget) => {
+    if (page.cues.some(cue => cue.id === target.cueId)) {
+      selectionApi.commit({ keys: new Set([target.cueId]), anchor: target.cueId, lead: target.cueId });
+      selectionApi.scrollToRow(target.cueId);
+      return;
+    }
+    pendingFind.current = target.cueId;
+    onFollowPage?.(Math.floor(target.index / LIMITS.pageSize) * LIMITS.pageSize);
+  };
+  useEffect(() => {
+    const cueId = pendingFind.current;
+    if (!cueId || !page.cues.some(cue => cue.id === cueId)) return;
+    pendingFind.current = null;
+    selectionApi.commit({ keys: new Set([cueId]), anchor: cueId, lead: cueId });
+    selectionApi.scrollToRow(cueId);
+  }, [page.cues, selectionApi]);
+  // Rows scrolled into view stop below the sticky header, whose height grows with the find bar.
+  useEffect(() => {
+    const head = listRef.current?.querySelector('thead');
+    if (!head) return;
+    const update = () => listRef.current?.style.setProperty('--studio-cue-head', `${head.getBoundingClientRect().height}px`);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(head);
+    return () => observer.disconnect();
+  }, [finding]);
   // Select a split's second half or an inserted cue once the page shows it.
   useEffect(() => {
     const added = selectAdded.current;
@@ -375,6 +434,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     </>}
     <StudioCueMediaControl media={media} openRequest={mediaRequest} />
     {!selected.length && <StudioIconButton data-testid="studio-cue-toolbar-shift" label={t('studio:cue_structure.shift_document')} disabled={!!editBlocked} onClick={() => setShifting({ cueIds: [], scope: 'all' })}><MoveHorizontal /></StudioIconButton>}
+    <StudioIconButton data-testid="studio-cue-toolbar-find" label={t('studio:cue_find.open')} onClick={() => openFind()}><Search /></StudioIconButton>
     <StudioIconButton data-testid="studio-cue-toolbar-revise" label={t(selected.length ? 'studio:cue_menu.revise' : 'studio:cue_revision.revise_document')} disabled={!!editBlocked} onClick={() => actions.onRevise(selected)}><Sparkles /></StudioIconButton>
     {onCheckConsistency && <StudioIconButton data-testid="studio-cue-toolbar-consistency" label={t('studio:consistency.open')} onClick={onCheckConsistency}><ScanText /></StudioIconButton>}
     <StudioIconButton data-testid="studio-cue-undo" label={history.undo ? t('studio:cue_history.undo', { action: historyLabel(history.undo) }) : t('studio:cue_history.nothing_to_undo')} disabled={!history.undo || !!editBlocked} onClick={onUndo}><Undo2 /></StudioIconButton>
@@ -386,9 +446,17 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   return <>
     <div ref={listRef} className="studio-cue-list" tabIndex={0} data-testid="studio-cue-list" aria-label={t('studio:cue_toolbar.list_label')} {...selectionApi.listProps}>
       <table aria-label={t('studio:preview')} aria-multiselectable="true" role="grid" className={track ? 'studio-cue-table studio-translated-table' : 'studio-cue-table'}>
-        <thead><tr><th scope="col">#</th><th scope="col">{t('studio:time')}</th><th scope="col">{track ? <div className="studio-parallel-text"><span>{t('studio:source')}</span><span>{t('studio:target')}</span></div> : t('studio:source')}</th><th scope="col" className="studio-cue-toolbar-cell"><span className="sr-only">{t('studio:copy')}</span>{toolbar}</th></tr></thead>
+        <thead><tr><th scope="col">#</th><th scope="col">{t('studio:time')}</th><th scope="col">{track ? <div className="studio-parallel-text"><span>{t('studio:source')}</span><span>{t('studio:target')}</span></div> : t('studio:source')}</th><th scope="col" className="studio-cue-toolbar-cell"><span className="sr-only">{t('studio:copy')}</span>{toolbar}</th></tr>
+          {/* The find bar is a header row: it stays in view and never covers a row. */}
+          {finding && <tr className="studio-cue-find-head"><th colSpan={4} {...control} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}
+            onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onContextMenu={event => event.stopPropagation()}>
+            <StudioCueFind key={documentId} page={page} track={track} initialQuery={finding.initialQuery} focusSerial={finding.serial} busy={editBlocked}
+              onClose={() => { setFinding(null); setHighlight(null); focusList(); }} onHighlight={setHighlight} onGo={goToMatch} onApply={run} />
+          </th></tr>}
+        </thead>
         <tbody>{page.cues.map((cue, index) => {
           const isSelected = selection.keys.has(cue.id);
+          const findCurrent = highlight?.currentCueId === cue.id;
           const entry = track?.entries[cue.id];
           const editingField = editing?.cueId === cue.id ? editing.field : undefined;
           const lead = keyboardNav && selection.lead === cue.id;
@@ -398,7 +466,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
               note={text && hasMixedStyle(text) ? t('studio:cue_edit.mixed_style') : undefined}
               onSave={(value, move) => void save(cue, target, value, move)} onCancel={() => { setEditing(null); setEditError(undefined); focusList(); }} />;
           };
-          return <tr key={cue.id} data-cue-id={cue.id} aria-selected={isSelected} data-selected={isSelected || undefined}
+          return <tr key={cue.id} data-cue-id={cue.id} aria-selected={isSelected} data-selected={isSelected || undefined} data-find-current={findCurrent || undefined}
             data-selected-last={isSelected && !selection.keys.has(order[index + 1]) || undefined}
             data-lead={lead || undefined} data-editing={editingField ? true : undefined} data-warning={flaggedNodes.has('nodeId' in cue ? cue.nodeId : undefined) || undefined}
             data-playing={playing.has(cue.id) || following === cue.id || undefined} data-following={following === cue.id || undefined}>
@@ -417,12 +485,12 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
               : <div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div>}</td>
             <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}>
               <div className="studio-cue-field" data-field="source" data-active={lead && activeField === 'source' || undefined} onPointerDown={() => setField('source')} onDoubleClick={() => startEdit(cue.id, 'source')}>
-                {editingField === 'source' ? editor('source') : <Spans text={cue.source} />}
+                {editingField === 'source' ? editor('source') : <Spans text={cue.source} find={highlight && highlight.field !== 'target' ? highlight : undefined} />}
               </div>
               {track && <div className="studio-target-text studio-cue-field" data-field="target" data-active={lead && activeField === 'target' || undefined} onPointerDown={() => setField('target')} onDoubleClick={() => startEdit(cue.id, 'target')}>
                 {editingField === 'target' ? editor('target') : entry ? <>
                   {entry.sourceRevision !== cue.sourceRevision && <span className="block text-xs text-amber-600">{t('studio:translation_stale')}</span>}
-                  <Spans text={entry.text} />
+                  <Spans text={entry.text} find={highlight && highlight.field !== 'source' ? highlight : undefined} />
                   {(entry.reviewStatus === 'reviewed' || entry.origin === 'human') && <Tooltip delayDuration={350}>
                     <TooltipTrigger asChild><span className="studio-cue-mark" role="img" aria-label={t(entry.origin === 'human' ? 'studio:cue_edit.human' : 'studio:cue_edit.reviewed')} {...control}>{entry.origin === 'human' ? <UserPen /> : <Check />}</span></TooltipTrigger>
                     <TooltipContent sideOffset={6}>{t(entry.origin === 'human' ? 'studio:cue_edit.human' : 'studio:cue_edit.reviewed')}</TooltipContent>

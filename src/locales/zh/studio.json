@@ -809,7 +809,8 @@
       "recognize": "重新识别 {{count}} 条字幕",
       "shift": "平移 {{count}} 条字幕的时间",
       "split": "拆分字幕",
-      "insert": "插入字幕"
+      "insert": "插入字幕",
+      "replace": "替换 {{count}} 条字幕"
     }
   },
   "cue_help": {
@@ -1100,6 +1101,27 @@
     "target": "译文",
     "target_optional": "可选",
     "apply": "插入"
+  },
+  "cue_find": {
+    "open": "查找与替换（Ctrl+F）",
+    "label": "查找字幕",
+    "query": "查找",
+    "replacement": "替换为",
+    "none": "无匹配",
+    "count": "第 {{position}} / {{total}} 条 · 共 {{occurrences}} 处",
+    "count_truncated": "第 {{position}} / {{total}}+ 条 · 共 {{occurrences}} 处",
+    "match_case": "区分大小写",
+    "previous": "上一条（Shift+Enter）",
+    "next": "下一条（Enter）",
+    "close": "关闭（Esc）",
+    "show_replace": "展开替换",
+    "hide_replace": "收起替换",
+    "scope": "查找范围",
+    "scope_source": "原文",
+    "scope_target": "译文",
+    "scope_both": "全部",
+    "replace": "替换当前这条（Enter）",
+    "replace_all": "全部替换（{{count}} 条）"
   },
   "cue_audio": {
     "play": "播放原始音频",

@@ -809,7 +809,8 @@
       "recognize": "重新辨識 {{count}} 條字幕",
       "shift": "平移 {{count}} 條字幕的時間",
       "split": "拆分字幕",
-      "insert": "插入字幕"
+      "insert": "插入字幕",
+      "replace": "取代 {{count}} 條字幕"
     }
   },
   "cue_help": {
@@ -1100,6 +1101,27 @@
     "target": "譯文",
     "target_optional": "選填",
     "apply": "插入"
+  },
+  "cue_find": {
+    "open": "尋找與取代（Ctrl+F）",
+    "label": "尋找字幕",
+    "query": "尋找",
+    "replacement": "取代為",
+    "none": "無相符項目",
+    "count": "第 {{position}} / {{total}} 條 · 共 {{occurrences}} 處",
+    "count_truncated": "第 {{position}} / {{total}}+ 條 · 共 {{occurrences}} 處",
+    "match_case": "區分大小寫",
+    "previous": "上一條（Shift+Enter）",
+    "next": "下一條（Enter）",
+    "close": "關閉（Esc）",
+    "show_replace": "展開取代",
+    "hide_replace": "收起取代",
+    "scope": "尋找範圍",
+    "scope_source": "原文",
+    "scope_target": "譯文",
+    "scope_both": "全部",
+    "replace": "取代目前這條（Enter）",
+    "replace_all": "全部取代（{{count}} 條）"
   },
   "cue_audio": {
     "play": "播放原始音訊",

@@ -71,6 +71,13 @@ const singleOperationSchema = z.discriminatedUnion('kind', [
   /** A new cue just before or after `cueId`, with an optional human translation on `trackId`. */
   z.object({ kind: z.literal('insert'), cueId: idSchema, position: z.enum(['before', 'after']), timing: timingSchema, source: textSchema,
     trackId: idSchema.optional(), target: textSchema.optional() }).strict().refine(value => !value.target || value.trackId),
+  /**
+   * Replaces every literal match of `query` in the sources and/or the translations on `trackId`,
+   * of `cueIds` or of every cue (the same rules as `cue-find.ts`, which this contract does not import).
+   */
+  z.object({ kind: z.literal('replace'), query: z.string().min(1).max(200).refine(value => value.trim().length > 0), replacement: z.string().max(200),
+    matchCase: z.boolean(), field: z.enum(['source', 'target', 'both']), trackId: idSchema.optional(), cueIds: cueIdsSchema.optional() }).strict()
+    .refine(value => value.field === 'source' || value.trackId),
 ]);
 /** Several operations applied in order as one edit, with one undo. */
 const batchOperationSchema = z.object({ kind: z.literal('batch'), operations: z.array(singleOperationSchema).min(1).max(CUE_BATCH_LIMIT) }).strict();

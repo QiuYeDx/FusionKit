@@ -809,7 +809,8 @@
       "recognize": "recognize {{count}} lines again",
       "shift": "shift {{count}} cue(s)",
       "split": "split a cue",
-      "insert": "insert a cue"
+      "insert": "insert a cue",
+      "replace": "replace in {{count}} cue(s)"
     }
   },
   "cue_help": {
@@ -1100,6 +1101,27 @@
     "target": "Translation",
     "target_optional": "Optional",
     "apply": "Insert"
+  },
+  "cue_find": {
+    "open": "Find and replace (Ctrl+F)",
+    "label": "Find in cues",
+    "query": "Find",
+    "replacement": "Replace with",
+    "none": "No matches",
+    "count": "{{position}} of {{total}} cues · {{occurrences}} matches",
+    "count_truncated": "{{position}} of {{total}}+ cues · {{occurrences}} matches",
+    "match_case": "Match case",
+    "previous": "Previous (Shift+Enter)",
+    "next": "Next (Enter)",
+    "close": "Close (Esc)",
+    "show_replace": "Show replace",
+    "hide_replace": "Hide replace",
+    "scope": "Search in",
+    "scope_source": "Text",
+    "scope_target": "Translation",
+    "scope_both": "Both",
+    "replace": "Replace in this cue (Enter)",
+    "replace_all": "Replace all ({{count}} cues)"
   },
   "cue_audio": {
     "play": "Play original audio",

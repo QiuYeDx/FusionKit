@@ -447,6 +447,14 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(await attach().invoke(STUDIO_CHANNELS.suggestCueSplit, split)).toEqual({ ok: false, error: 'access_denied' });
     expect(await owner.invoke(STUDIO_CHANNELS.suggestCueSplit, { ...split, offset: 0 })).toEqual({ ok: false, error: 'invalid_input' });
     expect(await owner.invoke(STUDIO_CHANNELS.suggestCueSplit, split)).toMatchObject({ ok: true, value: { basis: expect.any(String), splitMs: expect.any(Number) } });
+    // Searching reads only as well.
+    expect(typeof api.searchCues).toBe('function');
+    expect(isPublicStudioChannel(STUDIO_CHANNELS.searchCues)).toBe(true);
+    const search = { documentId: doc.id, revision: page.value.summary.revision, query: page.value.cues[0].source.plain.slice(0, 2), field: 'source' as const, matchCase: true };
+    expect(await attach().invoke(STUDIO_CHANNELS.searchCues, search)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.searchCues, { ...search, query: '  ' })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.searchCues, { ...search, trackId: randomUUID() })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.searchCues, search)).toMatchObject({ ok: true, value: { cues: expect.arrayContaining([expect.objectContaining({ cueId: page.value.cues[0].id })]), truncated: false } });
   }, 30_000);
 
   it('reveals a bound source folder without granting path or cross-owner authority', async () => {
