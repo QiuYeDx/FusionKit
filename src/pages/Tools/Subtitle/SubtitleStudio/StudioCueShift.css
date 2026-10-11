@@ -1,0 +1,13 @@
+/* Scope, amount with its steps, then the preview beside the listen button. */
+.studio-cue-shift-scope { margin-bottom: 12px; }
+.studio-cue-shift-amount { display: flex; gap: 8px; align-items: center; }
+.studio-cue-shift-amount > input { flex: 1 1 8rem; min-width: 0; }
+.studio-cue-shift-steps { display: flex; flex: none; gap: 4px; }
+.studio-cue-shift-steps > button { height: 2rem; padding-inline: 8px; font-size: 12px; }
+.studio-cue-shift-result { display: flex; gap: 8px; align-items: center; min-height: 28px; margin-top: 8px; }
+.studio-cue-shift-result > p { flex: 1; min-width: 0; }
+@media (max-width: 560px) {
+  .studio-cue-shift-amount { flex-wrap: wrap; }
+  .studio-cue-shift-steps { flex: 1 1 100%; }
+  .studio-cue-shift-steps > button { flex: 1; }
+}

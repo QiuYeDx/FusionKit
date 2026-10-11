@@ -1,6 +1,7 @@
 import { StudioError, validateDocument, type SubtitleCue, type SubtitleText, type TranslationEntry } from '../../../src/subtitle-studio/domain';
 import { cueEditOperationSchema, storedTextProblem, type CueEditOperation, type RemovedCues, type SingleCueEditOperation } from '../../../src/subtitle-studio/cue-edit-contract';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
+import { shiftProblem, shiftStart } from '../../../src/subtitle-studio/cue-shift';
 import type { DocumentRepository } from './document-repository';
 import { sourceDigest } from './translation-planner';
 import { retireResumableTasks } from './translation-service';
@@ -196,6 +197,19 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
       // Nothing moved: the undo is the same no-op.
       applied = { undo: { kind: 'timing', changes: Object.keys(previous).length ? previous : Object.fromEntries(changes.map(({ cue, before }) => [cue.id, before])) },
         changed: Object.keys(previous).length, stoppedTasks: 0 };
+      break;
+    }
+    case 'shift': {
+      const from = shiftStart(doc.cues, operation.fromCueId);
+      if (shiftProblem(doc.cues, from, operation.deltaMs, doc.schemaVersion === 2 ? doc.origin.durationMs : undefined)) throw new StudioError('invalid_input');
+      // Every cue moves by the same amount, so lengths and order within the range stay as they were.
+      for (const cue of doc.cues.slice(from) as SubtitleCue[]) {
+        const timing = cue.timing as { startMs: number; endMs: number | null };
+        timing.startMs += operation.deltaMs;
+        if (timing.endMs !== null) timing.endMs += operation.deltaMs;
+        cue.timingRevision++;
+      }
+      applied = { undo: { kind: 'shift', deltaMs: -operation.deltaMs, ...(operation.fromCueId ? { fromCueId: operation.fromCueId } : {}) }, changed: doc.cues.length - from, stoppedTasks: 0 };
       break;
     }
     case 'merge': {

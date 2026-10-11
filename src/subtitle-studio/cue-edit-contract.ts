@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { bilingualImportSchema, cueSchema, diagnosticSchema, idSchema, LIMITS, textSchema, translationEntrySchema, type SubtitleText } from './domain';
 import type { DocumentSummary } from './ipc-contract';
+import { cueShiftDeltaSchema } from './cue-shift';
 
 /** Upper bound for cues touched by one edit; the preview list shows at most one page. */
 export const CUE_EDIT_LIMIT = 1000;
@@ -58,6 +59,8 @@ const singleOperationSchema = z.discriminatedUnion('kind', [
    */
   z.object({ kind: z.literal('merge'), cueIds: z.array(idSchema).min(2).max(CUE_MERGE_LIMIT).refine(ids => new Set(ids).size === ids.length), source: textSchema,
     trackId: idSchema.optional(), target: textSchema.nullable().optional(), origin: z.enum(['human', 'ai']).optional(), targetStale: z.literal(true).optional() }).strict(),
+  /** Every cue from `fromCueId` (or the whole document) moves earlier or later by `deltaMs`; its undo moves them back. */
+  z.object({ kind: z.literal('shift'), deltaMs: cueShiftDeltaSchema, fromCueId: idSchema.optional() }).strict(),
 ]);
 /** Several operations applied in order as one edit, with one undo. */
 const batchOperationSchema = z.object({ kind: z.literal('batch'), operations: z.array(singleOperationSchema).min(1).max(CUE_BATCH_LIMIT) }).strict();

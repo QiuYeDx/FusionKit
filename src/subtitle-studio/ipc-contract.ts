@@ -6,6 +6,7 @@ import { cueRevisionRequestSchemas, type CueFindResult, type CueRevisionLocation
 import { consistencyRequestSchemas, type ConsistencyResult } from './consistency-contract';
 import { cueAudioRequestSchemas, type CueAudioResult, type CueMediaStatus } from './cue-audio';
 import { cueRecognizeRequestSchemas, type CueRecognizeResult } from './cue-recognize-contract';
+import { cueShiftRequestSchemas, type CueShiftPreview } from './cue-shift';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
@@ -80,6 +81,7 @@ export const STUDIO_CHANNELS = {
   readCueAudio: 'subtitle-studio:read-cue-audio',
   recognizeCue: 'subtitle-studio:recognize-cue',
   cancelCueRecognition: 'subtitle-studio:cancel-cue-recognition',
+  previewCueShift: 'subtitle-studio:preview-cue-shift',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   authorizeTranscriptionPaths: 'subtitle-studio:authorize-transcription-paths',
@@ -165,6 +167,7 @@ export const requestSchemas = {
   ...consistencyRequestSchemas,
   ...cueAudioRequestSchemas,
   ...cueRecognizeRequestSchemas,
+  ...cueShiftRequestSchemas,
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -284,6 +287,8 @@ export interface SubtitleStudioApi {
   /** Recognizes a cue's original audio again with an installed local model; a newer request or cancel stops it. */
   recognizeCue(request: z.infer<typeof requestSchemas.recognizeCue>): Promise<StudioResult<CueRecognizeResult>>;
   cancelCueRecognition(request: z.infer<typeof requestSchemas.cancelCueRecognition>): Promise<StudioResult<null>>;
+  /** How many cues a whole-document (or from-a-cue) shift moves, or why it cannot; changes nothing. */
+  previewCueShift(request: z.infer<typeof requestSchemas.previewCueShift>): Promise<StudioResult<CueShiftPreview>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 

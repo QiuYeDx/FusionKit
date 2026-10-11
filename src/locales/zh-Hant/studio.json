@@ -806,7 +806,8 @@
       "unify": "統一 {{count}} 條字幕的寫法",
       "merge": "合併 {{count}} 條字幕",
       "timing": "調整 {{count}} 條字幕的時間",
-      "recognize": "重新辨識 {{count}} 條字幕"
+      "recognize": "重新辨識 {{count}} 條字幕",
+      "shift": "平移 {{count}} 條字幕的時間"
     }
   },
   "cue_help": {
@@ -1043,12 +1044,26 @@
     "shift_title": "平移時間",
     "shift_description": "將所選的 {{count}} 條字幕整體提前或延後，開始與結束時間同時移動。",
     "shift_label": "移動的毫秒數（負數為提前）",
-    "shift_preview": "第一條從 {{from}} 移到 {{to}}，共 {{count}} 條。",
+    "shift_preview": "第 {{number}} 條從 {{from}} 移到 {{to}}，共 {{count}} 條。",
     "shift_invalid": "請輸入整數毫秒，例如 500 或 -250",
     "shift_negative": "移動後開始時間會小於 0",
     "shift_before_previous": "移動後會早於上一條字幕",
     "shift_after_next": "移動後會晚於下一條字幕",
     "shift_apply": "平移",
+    "shift_scope": "平移範圍",
+    "shift_scope_selected": "所選 {{count}} 條",
+    "shift_scope_from": "從第 {{number}} 條到結尾",
+    "shift_scope_all": "整篇（共 {{count}} 條）",
+    "shift_description_from": "將第 {{number}} 條及之後的所有字幕整體提前或延後，開始與結束時間同時移動。",
+    "shift_description_all": "將整篇 {{count}} 條字幕整體提前或延後，開始與結束時間同時移動。",
+    "shift_steps": "微調",
+    "shift_earlier": "提前 {{seconds}} 秒",
+    "shift_later": "延後 {{seconds}} 秒",
+    "shift_listen": "按平移後的時間試聽第 {{number}} 條",
+    "shift_checking": "正在檢查…",
+    "shift_beyond_media": "移動後會超出媒體時長",
+    "shift_failed": "無法檢查平移結果，請稍後重試",
+    "shift_document": "平移整篇時間…",
     "unknown": "未知"
   },
   "cue_audio": {

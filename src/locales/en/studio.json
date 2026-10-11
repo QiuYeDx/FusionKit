@@ -806,7 +806,8 @@
       "unify": "unify wording in {{count}} cue(s)",
       "merge": "Merge {{count}} cue(s)",
       "timing": "Retime {{count}} cue(s)",
-      "recognize": "recognize {{count}} lines again"
+      "recognize": "recognize {{count}} lines again",
+      "shift": "shift {{count}} cue(s)"
     }
   },
   "cue_help": {
@@ -1043,12 +1044,26 @@
     "shift_title": "Shift time",
     "shift_description": "Moves the {{count}} selected cue(s) earlier or later; start and end move together.",
     "shift_label": "Milliseconds to move (negative is earlier)",
-    "shift_preview": "The first moves from {{from}} to {{to}}; {{count}} cue(s) in all.",
+    "shift_preview": "Line {{number}} moves from {{from}} to {{to}}; {{count}} cue(s) in all.",
     "shift_invalid": "Enter whole milliseconds, such as 500 or -250",
     "shift_negative": "A start would fall before 0",
     "shift_before_previous": "They would move before the previous cue",
     "shift_after_next": "They would move after the next cue",
     "shift_apply": "Shift",
+    "shift_scope": "What to shift",
+    "shift_scope_selected": "{{count}} selected",
+    "shift_scope_from": "From line {{number}} to the end",
+    "shift_scope_all": "Whole document ({{count}})",
+    "shift_description_from": "Moves line {{number}} and every cue after it earlier or later; start and end move together.",
+    "shift_description_all": "Moves all {{count}} cues of the document earlier or later; start and end move together.",
+    "shift_steps": "Nudge",
+    "shift_earlier": "{{seconds}} s earlier",
+    "shift_later": "{{seconds}} s later",
+    "shift_listen": "Play line {{number}} at its shifted time",
+    "shift_checking": "Checking…",
+    "shift_beyond_media": "They would end after the media",
+    "shift_failed": "Could not check the shift; try again",
+    "shift_document": "Shift the whole document…",
     "unknown": "Unknown"
   },
   "cue_audio": {

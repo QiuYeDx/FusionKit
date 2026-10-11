@@ -13,6 +13,7 @@ import { SourceLocationService } from './source-location-service';
 import { CueMediaService } from './cue-media-service';
 import { CueAudioClipper, readCueAudio } from './cue-audio-clip';
 import { recognizeCue } from './cue-recognize-service';
+import { shiftProblem, shiftStart } from '../../../src/subtitle-studio/cue-shift';
 import { CUE_MEDIA_EXTENSIONS } from '../../../src/subtitle-studio/cue-audio';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
@@ -485,6 +486,12 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const cueIds = new Set(cues.map(cue => cue.id));
           const translationTracks = doc.translationTracks.map(track => ({ ...track, entries: Object.fromEntries(Object.entries(track.entries).filter(([id]) => cueIds.has(id))) }));
           return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks, undefined, snapshot.automaticExport), cues, offset, nodeOffset, nodeCount: raw?.nodes.length ?? 0, rawNodes: nodes.map(node => ({ id: node.id, text: raw!.rawText.slice(node.start, node.end) })), translationTracks, automaticKnowledgeReportTrackIds: automaticKnowledgeReportTrackIds(snapshot), tasks: snapshot.tasks.map(summarizeTask) } };
+        }
+        if (method === 'previewCueShift') {
+          const { deltaMs, fromCueId } = requestSchemas.previewCueShift.parse(payload);
+          const from = shiftStart(doc.cues, fromCueId);
+          const problem = shiftProblem(doc.cues, from, deltaMs, doc.schemaVersion === 2 ? doc.origin.durationMs : undefined);
+          return { ok: true, value: { count: doc.cues.length - from, ...(problem ? { problem } : {}) } };
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
         if (!doc.capabilities.preserveSource) throw new StudioError('unsupported_feature');

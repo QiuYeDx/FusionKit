@@ -430,6 +430,16 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(await attach().invoke(STUDIO_CHANNELS.recognizeCue, recognize)).toEqual({ ok: false, error: 'access_denied' });
     expect(await owner.invoke(STUDIO_CHANNELS.recognizeCue, { ...recognize, filePath: adapter.directory })).toEqual({ ok: false, error: 'invalid_input' });
     expect(await owner.invoke(STUDIO_CHANNELS.cancelCueRecognition, {})).toEqual({ ok: true, value: null });
+    // Previewing a whole-document shift reads only: owner-bound, strict, and revision-checked.
+    expect(typeof api.previewCueShift).toBe('function');
+    expect(isPublicStudioChannel(STUDIO_CHANNELS.previewCueShift)).toBe(true);
+    const shift = { documentId: doc.id, revision: page.value.summary.revision, deltaMs: -500 };
+    expect(await attach().invoke(STUDIO_CHANNELS.previewCueShift, shift)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.previewCueShift, { ...shift, deltaMs: 0 })).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.previewCueShift, { ...shift, revision: shift.revision + 1 })).toEqual({ ok: false, error: 'revision_conflict' });
+    expect(await owner.invoke(STUDIO_CHANNELS.previewCueShift, shift)).toEqual({ ok: true, value: { count: page.value.summary.cueCount } });
+    expect(await owner.invoke(STUDIO_CHANNELS.previewCueShift, { ...shift, deltaMs: -page.value.cues[0].timing.startMs - 1 }))
+      .toEqual({ ok: true, value: { count: page.value.summary.cueCount, problem: 'negative' } });
   }, 30_000);
 
   it('reveals a bound source folder without granting path or cross-owner authority', async () => {

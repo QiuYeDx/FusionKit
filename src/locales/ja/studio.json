@@ -806,7 +806,8 @@
       "unify": "{{count}} 件の表記を統一",
       "merge": "{{count}} 件の字幕を結合",
       "timing": "{{count}} 件の字幕の時間を調整",
-      "recognize": "{{count}} 行を再認識"
+      "recognize": "{{count}} 行を再認識",
+      "shift": "{{count}} 件の字幕の時間をずらす"
     }
   },
   "cue_help": {
@@ -1043,12 +1044,26 @@
     "shift_title": "時間をずらす",
     "shift_description": "選択した {{count}} 件の字幕をまとめて前後にずらします。開始と終了の両方が動きます。",
     "shift_label": "ずらすミリ秒（負の値で前へ）",
-    "shift_preview": "最初の字幕は {{from}} から {{to}} へ（{{count}} 件）。",
+    "shift_preview": "{{number}} 行目は {{from}} から {{to}} へ（{{count}} 件）。",
     "shift_invalid": "整数のミリ秒を入力してください（例: 500、-250）",
     "shift_negative": "開始時間が 0 未満になります",
     "shift_before_previous": "前の字幕より前になります",
     "shift_after_next": "次の字幕より後になります",
     "shift_apply": "ずらす",
+    "shift_scope": "ずらす範囲",
+    "shift_scope_selected": "選択した {{count}} 件",
+    "shift_scope_from": "{{number}} 行目から最後まで",
+    "shift_scope_all": "全体（{{count}} 件）",
+    "shift_description_from": "{{number}} 行目以降のすべての字幕をまとめて前後にずらします。開始と終了の両方が動きます。",
+    "shift_description_all": "全 {{count}} 件の字幕をまとめて前後にずらします。開始と終了の両方が動きます。",
+    "shift_steps": "微調整",
+    "shift_earlier": "{{seconds}} 秒前へ",
+    "shift_later": "{{seconds}} 秒後へ",
+    "shift_listen": "{{number}} 行目をずらした時間で再生",
+    "shift_checking": "確認中…",
+    "shift_beyond_media": "メディアの長さを超えます",
+    "shift_failed": "確認できませんでした。もう一度お試しください",
+    "shift_document": "全体の時間をずらす…",
     "unknown": "不明"
   },
   "cue_audio": {

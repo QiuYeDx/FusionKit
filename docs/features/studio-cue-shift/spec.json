@@ -1,0 +1,65 @@
+{
+  "schema_version": 2,
+  "feature": "studio-cue-shift",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "studio-cue-shift",
+      "code": "SHIFT",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "整篇时间偏移",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-11 用户：“你上面说的这些建议都挺好的，可以记录到一个TODO文档，然后再逐一处理”；随后“跑完后提交并推送，然后继续下一项”。按项目惯例先写本规格再自主实现与隔离验证；只读用户媒体与已安装模型，不下载或删除模型，不调用付费服务；完成后按用户既有要求提交并推送。",
+        "digest": "f50259bd16dca1de5df059cfdc5bc12467917bf829bc09180776810f586c7101"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "整篇平移由谁计算",
+      "resolution": "主进程新增 shift 编辑操作（整篇或从某条到结尾），撤销为反向平移；渲染端只持有当前页，不能列出全部时间，也不受单次编辑 1000 条限制。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "越界时裁剪还是拒绝",
+      "resolution": "拒绝并说明原因（开始小于 0、超出媒体时长、早于前一条），不自动裁剪：裁剪会改变时长且撤销不再是简单的反向平移。"
+    },
+    {
+      "id": "A-03",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "按比例伸缩与自动对齐",
+      "resolution": "不在本次范围：TODO 只要求整体平移并试听确认。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

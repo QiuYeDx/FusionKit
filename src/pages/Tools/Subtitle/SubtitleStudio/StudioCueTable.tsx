@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Combine, Ellipsis, Languages, Redo2, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
+import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Combine, Ellipsis, Languages, MoveHorizontal, Redo2, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -17,7 +17,7 @@ import { StudioCueMenuContent, currentEntry, type CueField, type CueMenuActions,
 import { CUE_CONTROL_ATTR, useCueSelection } from './useCueSelection';
 import { consecutive, mergeOperation, MERGE_LIMIT } from '@/subtitle-studio/cue-structure';
 import { StudioCueTimeEditor, timeProblemKeys, type CueTimeProblem } from './StudioCueTimeEditor';
-import { StudioCueShift } from './StudioCueShift';
+import { StudioCueShift, type CueShiftRequest } from './StudioCueShift';
 import { CueAudioButton, StudioCueMediaControl, useCueMedia } from './StudioCueAudio';
 import { cueAudioPlayer, useCueAudioFollow, useCueAudioRows } from '@/services/subtitle-studio/cue-audio-player';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
@@ -89,7 +89,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const listRef = useRef<HTMLDivElement>(null);
   const order = page.cues.map(cue => cue.id);
   const [editing, setEditing] = useState<{ cueId: string; field: CueField | 'timing' } | null>(null);
-  const [shifting, setShifting] = useState<string[] | null>(null);
+  const [shifting, setShifting] = useState<CueShiftRequest | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | undefined>();
   const [field, setField] = useState<CueField>('source');
@@ -226,7 +226,8 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     onDelete: cueIds => void remove(cueIds),
     onMerge: cueIds => void merge(cueIds),
     onEditTiming: startTiming,
-    onShift: cueIds => { if (!editBlocked) setShifting(cueIds); },
+    // Ctrl+A selects this page only: when that is every cue shown and the document is longer, the whole document is meant.
+    onShift: cueIds => { if (!editBlocked) setShifting({ cueIds, scope: cueIds.length === page.cues.length && page.summary.cueCount > page.cues.length ? 'all' : 'selected' }); },
     onCopy,
     onRemember: cueId => { const cue = page.cues.find(item => item.id === cueId); if (cue) onRemember(cue); },
     audio: { ready: media.ready, onPlay: playCues, onFollow: follow, onRecognize: cueIds => onRecognize?.(cueIds) },
@@ -353,6 +354,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
       <span className="studio-cue-toolbar-divider" aria-hidden="true" />
     </>}
     <StudioCueMediaControl media={media} openRequest={mediaRequest} />
+    {!selected.length && <StudioIconButton data-testid="studio-cue-toolbar-shift" label={t('studio:cue_structure.shift_document')} disabled={!!editBlocked} onClick={() => setShifting({ cueIds: [], scope: 'all' })}><MoveHorizontal /></StudioIconButton>}
     <StudioIconButton data-testid="studio-cue-toolbar-revise" label={t(selected.length ? 'studio:cue_menu.revise' : 'studio:cue_revision.revise_document')} disabled={!!editBlocked} onClick={() => actions.onRevise(selected)}><Sparkles /></StudioIconButton>
     {onCheckConsistency && <StudioIconButton data-testid="studio-cue-toolbar-consistency" label={t('studio:consistency.open')} onClick={onCheckConsistency}><ScanText /></StudioIconButton>}
     <StudioIconButton data-testid="studio-cue-undo" label={history.undo ? t('studio:cue_history.undo', { action: historyLabel(history.undo) }) : t('studio:cue_history.nothing_to_undo')} disabled={!history.undo || !!editBlocked} onClick={onUndo}><Undo2 /></StudioIconButton>
@@ -426,16 +428,8 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
       </table>
       {marquee && <div aria-hidden="true" className="studio-cue-marquee" data-testid="studio-cue-marquee" style={marquee} />}
     </div>
-    {(() => {
-      const ids = new Set(shifting ?? []);
-      const cues = page.cues.filter(cue => ids.has(cue.id));
-      const together = cues.length > 0 && consecutive(cues.map(cue => cue.id), order);
-      const first = order.indexOf(cues[0]?.id), last = order.indexOf(cues.at(-1)?.id ?? '');
-      return <StudioCueShift open={!!shifting} cues={cues} busy={!!editBlocked}
-        previousStart={together ? page.cues[first - 1]?.timing.startMs : undefined} nextStart={together ? page.cues[last + 1]?.timing.startMs : undefined}
-        onClose={() => { setShifting(null); focusList(); }}
-        onShift={changes => run({ kind: 'timing', changes }, 'timing', Object.keys(changes).length)} />;
-    })()}
+    <StudioCueShift page={page} request={shifting} mediaReady={media.ready} busy={!!editBlocked}
+      onClose={() => { setShifting(null); focusList(); }} onApply={run} />
     <DropdownMenu key={menu?.serial ?? lastMenu.current?.serial ?? 0} open={!!menu} modal={false} onOpenChange={open => { if (!open) setMenu(null); }}>
       {createPortal(<DropdownMenuTrigger tabIndex={-1} aria-hidden="true" style={{ position: 'fixed', left: (menu ?? lastMenu.current)?.x ?? 0, top: (menu ?? lastMenu.current)?.y ?? 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none' }} />, document.body)}
       <StudioCueMenuContent align="start" side="bottom" sideOffset={2} collisionPadding={8} data-testid="studio-cue-context-menu" timedTestId="studio-cue-context-timed-menu"
