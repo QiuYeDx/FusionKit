@@ -1166,8 +1166,8 @@
     "waveform": "Waveform: drag the markers to adjust the start and end",
     "play_edited": "Play this stretch",
     "length": "{{seconds}} s",
-    "length_to_next": "{{seconds}} s · until the next line",
-    "length_unknown": "{{seconds}} s · end unknown"
+    "end_at_next": "Until the next line starts",
+    "end_default": "End unknown: plays 5 seconds"
   },
   "cue_recognize": {
     "menu": "Recognize the audio again…",

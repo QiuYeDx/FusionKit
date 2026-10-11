@@ -1166,8 +1166,8 @@
     "waveform": "波形：拖動標記調整開始和結束",
     "play_edited": "試聽這段時間",
     "length": "{{seconds}} 秒",
-    "length_to_next": "{{seconds}} 秒 · 到下一句開始",
-    "length_unknown": "{{seconds}} 秒 · 結束時間未知"
+    "end_at_next": "到下一句開始",
+    "end_default": "結束時間未知，按 5 秒試聽"
   },
   "cue_recognize": {
     "menu": "重新辨識原聲…",

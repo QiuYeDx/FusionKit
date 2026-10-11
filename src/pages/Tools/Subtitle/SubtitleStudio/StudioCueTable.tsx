@@ -114,6 +114,8 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const listRef = useRef<HTMLDivElement>(null);
   const order = page.cues.map(cue => cue.id);
   const [editing, setEditing] = useState<{ cueId: string; field: CueField | 'timing' } | null>(null);
+  // The retimed row's text cell, where the time editor puts its waveform.
+  const [waveformSlot, setWaveformSlot] = useState<HTMLDivElement | null>(null);
   const [shifting, setShifting] = useState<CueShiftRequest | null>(null);
   const [splitting, setSplitting] = useState<CueSplitRequest | null>(null);
   const [finding, setFinding] = useState<{ initialQuery: string; serial: number } | null>(null);
@@ -482,7 +484,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
                 onSave={(startMs, endMs) => void saveTiming(cue, startMs, endMs)} onCancel={() => { setEditing(null); setEditError(undefined); focusList(); }}
                 waveform={media.ready ? { playKey: `edit:${documentId}:${cue.id}`,
                   load: (startMs, endMs, buckets) => cueAudioPlayer.peaks({ documentId, revision: page.summary.revision, startMs, endMs }, buckets),
-                  request: (startMs, endMs) => ({ documentId, target: { range: { startMs, endMs } } }) } : undefined} />
+                  request: (startMs, endMs) => ({ documentId, target: { range: { startMs, endMs } } }) } : undefined} waveformSlot={waveformSlot} />
               : <div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div>}</td>
             <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}>
               <div className="studio-cue-field" data-field="source" data-active={lead && activeField === 'source' || undefined} onPointerDown={() => setField('source')} onDoubleClick={() => startEdit(cue.id, 'source')}>
@@ -498,7 +500,8 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
                   </Tooltip>}
                 </> : <span className="text-xs text-muted-foreground">{cue.source.plain.trim() ? t('studio:translation_missing') : ''}</span>}
               </div>}
-            </div></td>
+            </div>
+            {editingField === 'timing' && media.ready && <div ref={setWaveformSlot} className="studio-cue-wave-slot" {...control} />}</td>
             <td className="studio-cue-action" {...control}>
               <DropdownMenu>
                 <Tooltip delayDuration={350}>

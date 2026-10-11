@@ -11,7 +11,7 @@ export type CueWaveformSource = {
 };
 
 const BUCKETS = 320;
-const HEIGHT = 44;
+const HEIGHT = 36;
 /** Bars two pixels wide with a one-pixel gap. */
 const BAR = 2, PITCH = 3;
 /** Dragged times snap to 10 ms. */
@@ -110,7 +110,11 @@ export function StudioCueWaveform({ source, viewStartMs, viewEndMs, startMs, end
   const playable = startMs !== null && shownEnd !== null && shownEnd > startMs;
   const playhead = playback?.phase === 'playing' && playback.positionMs !== null && inView(playback.positionMs) ? playback.positionMs : null;
   const seconds = playable ? ((shownEnd - startMs) / 1000).toFixed(2) : null;
+  const lengthNote = implied ? t(impliedEnd!.toNext ? 'studio:cue_listen.end_at_next' : 'studio:cue_listen.end_default') : undefined;
+  // One strip: play, the waveform, and the stretch's length.
   return <div className="studio-cue-waveform" data-testid="studio-cue-waveform" data-loaded={!!peaks || undefined}>
+    <CueAudioButton playKey={source.playKey} request={source.request(startMs ?? viewStartMs, playable ? shownEnd : viewEndMs)} tabbable={false} tooltipSide="bottom"
+      label={t('studio:cue_listen.play_edited')} data-testid="studio-cue-waveform-play" disabled={!playable} />
     <div ref={box} className="studio-cue-waveform-canvas" role="img" aria-label={t('studio:cue_listen.waveform')} data-dragging={dragging ?? undefined}
       onPointerDown={event => {
         if (!peaks || event.button !== 0) return;
@@ -132,12 +136,9 @@ export function StudioCueWaveform({ source, viewStartMs, viewEndMs, startMs, end
       {inView(shownEnd) && <span className="studio-cue-wave-marker" data-which="end" data-implied={implied || undefined} data-active={dragging === 'end' || undefined} style={place(shownEnd)} />}
       {playhead !== null && <span className="studio-cue-wave-playhead" data-testid="studio-cue-waveform-playhead" style={place(playhead)} />}
     </div>
-    <div className="studio-cue-waveform-foot">
-      <CueAudioButton playKey={source.playKey} request={source.request(startMs ?? viewStartMs, playable ? shownEnd : viewEndMs)}
-        label={t('studio:cue_listen.play_edited')} data-testid="studio-cue-waveform-play" disabled={!playable} />
-      {seconds !== null && <span className="studio-cue-waveform-length" data-testid="studio-cue-waveform-length">
-        {t(!implied ? 'studio:cue_listen.length' : impliedEnd!.toNext ? 'studio:cue_listen.length_to_next' : 'studio:cue_listen.length_unknown', { seconds })}
-      </span>}
-    </div>
+    <span className="studio-cue-waveform-length" data-testid="studio-cue-waveform-length" data-implied={implied || undefined} title={lengthNote}>
+      {seconds !== null ? t('studio:cue_listen.length', { seconds }) : '–'}
+      {lengthNote && <span className="sr-only"> · {lengthNote}</span>}
+    </span>
   </div>;
 }

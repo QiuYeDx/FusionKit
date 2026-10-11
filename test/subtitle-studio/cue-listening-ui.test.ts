@@ -233,6 +233,12 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       await uiExpect(wave.locator('.studio-cue-wave-marker[data-which=start]')).toHaveCount(1);
       await uiExpect(wave.locator('.studio-cue-wave-marker[data-which=end]:not([data-implied])')).toHaveCount(1);
       await uiExpect(wave.getByTestId('studio-cue-waveform-length')).toHaveText(locale.cue_listen.length.replace('{{seconds}}', '0.60'));
+      // The strip sits in the row's wide text cell, so the row grows by one strip only.
+      const textCell = (await rows.nth(4).locator('td.studio-cue-text').boundingBox())!;
+      const waveCard = (await wave.boundingBox())!;
+      expect(waveCard.x).toBeGreaterThanOrEqual(textCell.x - 1);
+      expect(waveCard.width).toBeGreaterThan(textCell.width * 0.8);
+      expect((await rows.nth(4).boundingBox())!.height).toBeLessThan(110);
       await shot('studio-cue-listening--08-waveform-1280-light');
       // Dragging the end marker writes the end field (to 10 ms); Enter saves and Ctrl+Z undoes.
       await page.mouse.move(x(4600), box.y + 18); await page.mouse.down();
@@ -268,7 +274,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       await page.waitForFunction(() => document.documentElement.classList.contains('dark'));
       await rows.nth(2).locator('.studio-cue-time').dblclick();
       await uiExpect(rows.nth(2).getByTestId('studio-cue-waveform')).toHaveAttribute('data-loaded', 'true', { timeout: 1500 });
-      const column = (await rows.nth(2).locator('td.studio-cue-time').boundingBox())!;
+      const column = (await rows.nth(2).locator('td.studio-cue-text').boundingBox())!;
       const waveBox = (await rows.nth(2).getByTestId('studio-cue-waveform').boundingBox())!;
       expect(waveBox.x + waveBox.width).toBeLessThanOrEqual(column.x + column.width + 1);
       await shot('studio-cue-listening--09-waveform-786-dark');
@@ -289,7 +295,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       await uiExpect(lrcWave).toHaveAttribute('data-loaded', 'true', { timeout: 1500 });
       await uiExpect(page.getByTestId('studio-cue-time-end')).toHaveValue('');
       await uiExpect(lrcWave.locator('.studio-cue-wave-marker[data-which=end][data-implied]')).toHaveCount(1);
-      await uiExpect(lrcWave.getByTestId('studio-cue-waveform-length')).toHaveText(locale.cue_listen.length_to_next.replace('{{seconds}}', '3.50'));
+      await uiExpect(lrcWave.getByTestId('studio-cue-waveform-length')).toHaveText(new RegExp('^' + locale.cue_listen.length.replace('{{seconds}}', '3.50')));
+      await uiExpect(lrcWave.getByTestId('studio-cue-waveform-length')).toHaveAttribute('title', locale.cue_listen.end_at_next);
       const lrcPlay = lrcWave.getByTestId('studio-cue-waveform-play');
       await uiExpect(lrcPlay).toBeEnabled();
       await lrcPlay.click();
@@ -301,14 +308,15 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       await page.getByTestId('studio-cue-time-start').fill('x');
       await uiExpect(lrcPlay).toBeDisabled();
       await lrcPlay.click({ force: true });
-      await rows.nth(1).locator('.studio-cue-editor-meta').click();
-      await rows.nth(1).locator('.studio-cue-waveform-foot').click({ position: { x: 60, y: 8 } });
+      await lrcWave.getByTestId('studio-cue-waveform-length').click();
+      await lrcWave.click({ position: { x: 2, y: 2 } });
       await uiExpect(page.getByTestId('studio-cue-time-start')).toBeVisible();
       await uiExpect(page.getByTestId('studio-cue-time-start')).toBeFocused();
       await page.getByTestId('studio-cue-time-start').press('Escape');
       // The last line has no next one: it plays for five seconds.
       await rows.nth(2).locator('.studio-cue-time').dblclick();
-      await uiExpect(rows.nth(2).getByTestId('studio-cue-waveform-length')).toHaveText(locale.cue_listen.length_unknown.replace('{{seconds}}', '5.00'));
+      await uiExpect(rows.nth(2).getByTestId('studio-cue-waveform-length')).toHaveAttribute('title', locale.cue_listen.end_default);
+      await uiExpect(rows.nth(2).getByTestId('studio-cue-waveform-length')).toHaveText(new RegExp('^' + locale.cue_listen.length.replace('{{seconds}}', '5.00')));
       await page.getByTestId('studio-cue-time-start').press('Escape');
 
       // Without media the editor is as before.

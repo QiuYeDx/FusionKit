@@ -78,8 +78,10 @@ const RING = 2 * Math.PI * 8.5;
  * Plays or stops one stretch of original audio. Clicks never reach the row or
  * label behind it, so playing does not change a selection or a checkbox.
  */
-export function CueAudioButton({ playKey, request, label, className, tabbable = true, disabled = false, ...props }: Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> & {
+export function CueAudioButton({ playKey, request, label, className, tabbable = true, disabled = false, tooltipSide, ...props }: Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> & {
   playKey: string; request: CueAudioRequest; label: string; tabbable?: boolean; disabled?: boolean;
+  /** Where the tooltip opens, when above would cover what is being listened to. */
+  tooltipSide?: 'top' | 'bottom';
 }) {
   const { t } = useTranslation();
   const playback = useCueAudio(playKey);
@@ -105,7 +107,7 @@ export function CueAudioButton({ playKey, request, label, className, tabbable = 
           : phase === 'error' ? <AlertCircle /> : <Play className="studio-cue-audio-play" />}
       </button>
     </TooltipTrigger>
-    <TooltipContent sideOffset={6} className={error ? 'max-w-64' : undefined}>{error ?? (active ? t('studio:cue_audio.stop') : label)}</TooltipContent>
+    <TooltipContent side={tooltipSide} sideOffset={6} className={error ? 'max-w-64' : undefined}>{error ?? (active ? t('studio:cue_audio.stop') : label)}</TooltipContent>
   </Tooltip>;
 }
 
