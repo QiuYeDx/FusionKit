@@ -12,7 +12,9 @@ import type { DocumentPage, DocumentSummary } from '../../src/subtitle-studio/ip
 // The root task owns the real development server. This test owns only its
 // isolated Electron profile and loopback model fixture.
 const devUrl = process.env.FUSIONKIT_STUDIO_DEV_URL;
-const packaged = process.env.FUSIONKIT_STUDIO_PACKAGED_UI === '1';
+// With the usual FUSIONKIT_STUDIO_E2E flag (and no development server) it runs on the test build
+// (`vite build --mode=test`), like the other studio UI tests.
+const packaged = process.env.FUSIONKIT_STUDIO_PACKAGED_UI === '1' || (!devUrl && process.env.FUSIONKIT_STUDIO_E2E === '1');
 const artifacts = path.resolve('test-results/studio-library');
 type ModelRequest = { messages: { content: string }[]; model: string };
 
@@ -381,7 +383,8 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     await page.getByTestId('studio-batch-toolbar').getByRole('button', { name: label('batch.translation'), exact: true }).click();
     const translation = page.getByRole('dialog', { name: label('batch.translation'), exact: true });
     await translation.getByTestId('studio-translation-check').click();
-    await uiExpect(page.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
+    // The plan shows how many documents are ready as its summary (the per-document list was folded into it).
+    await uiExpect(page.getByTestId('studio-batch-plan')).toContainText(label('batch.ready_count').replace('{{count}}', '2').replace('{{total}}', '2'));
     expect(requests).toHaveLength(0);
     await capture(page, 'batch-translation-plan-desktop');
     await page.getByTestId('studio-translation-review-start').click();
@@ -409,7 +412,7 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
         visibleText: button.textContent?.trim(), label: button.getAttribute('aria-label') };
     }));
     expect(actionStyles.map(style => style.label)).toEqual([
-      label('translation.action'), label('batch.download_single'), label('source_folder'), label('delete_document'),
+      label('translation.action'), label('batch.download_single'), label('source_folder'), label('delete_document'), label('preview_view.expand'),
     ]);
     expect(new Set(actionStyles.map(({ width, height, border, shadow }) => JSON.stringify({ width, height, border, shadow }))).size).toBe(1);
     expect(actionStyles.every(style => style.visibleText === '' && !!style.label)).toBe(true);
@@ -440,7 +443,8 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
     await save.click();
     await uiExpect(save).toBeEnabled();
     expect(await readdir(outputs)).toHaveLength(0);
-    const proposed = (await reviewDetails.locator('.studio-export-note').first().textContent())!.split(' · ')[0];
+    // Each ready document shows the file name it will be written as.
+    const proposed = (await reviewDetails.locator('.studio-export-output-name').first().textContent())!;
     expect(proposed).toMatch(/\.srt$/);
     const collision = path.join(outputs, proposed);
     await writeFile(collision, 'Existing output must survive.');
@@ -506,7 +510,8 @@ it.runIf(Boolean(devUrl) || packaged)('manages a paginated subtitle library and 
       await dialog.getByTestId('studio-translation-advanced').click();
       await dialog.getByRole('spinbutton', { name: '每批字幕上限', exact: true }).fill('1');
       await dialog.getByTestId('studio-translation-check').click();
-      await uiExpect(page.getByTestId('studio-batch-plan').locator('[data-state="ready"]')).toHaveCount(2);
+      // The plan shows how many documents are ready as its summary (the per-document list was folded into it).
+    await uiExpect(page.getByTestId('studio-batch-plan')).toContainText(label('batch.ready_count').replace('{{count}}', '2').replace('{{total}}', '2'));
       await page.getByTestId('studio-translation-review-start').click();
       await expandOperationResult(page, 'studio-batch-result');
       await uiExpect(page.getByTestId('studio-batch-result').locator('[data-state="success"]')).toHaveCount(2);

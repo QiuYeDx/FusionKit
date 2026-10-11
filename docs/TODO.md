@@ -47,4 +47,5 @@
 ## 测试与工程
 
 - [ ] **清理过时的界面测试**：约 7 个 Electron 界面测试在未改动的代码上也失败，多为测试过时（如 `interaction-copy-ui` 仍在等待已取消的“整理双语字幕”对话框；另有 `i1-coexistence-ui`、`lifecycle-ui`、`recovery-batch-ui`、vertical-layout、`interaction-workspace-ui` 及 agent-handoff 的滚动条用例；2026-10-11 又确认 `transcription-ui`（布局左边距 38 > 36）、`acceptance-queue-overview-ui`、`interaction-queue-ui`、`experience-transcription-ui`（窗口宽度 799 不在 786/787）在未改动的代码上同样失败）。修复或明确标注，避免掩盖真正的回归。
-- [ ] **`library-ui` 默认跑不起来**：需要开发服务器或打包产物，回归时被跳过；改为使用 `vite build --mode=test` 的测试构建运行。
+- [x] **`library-ui` 默认跑不起来**：需要开发服务器或打包产物，回归时被跳过；改为使用 `vite build --mode=test` 的测试构建运行。
+  - 2026-10-11 完成：`FUSIONKIT_STUDIO_E2E=1`（且无开发服务器）时在测试构建上运行；同时更新了三处随界面改版过时的断言（批量翻译检查改为摘要“2 份文档中，2 份已就绪”、预览标题栏多了“放大查看”、导出检查的文件名在各文档行的 `.studio-export-output-name`）。
