@@ -41,7 +41,8 @@
 
 - [x] **Esc 误退出工作台**：在工作台这类重度编辑页，一次 Esc 就可能回到工具页（弹层刚关闭时尤其容易发生）。改为“再按一次 Esc 返回”或只在无选择、无编辑状态时返回。
   - 2026-10-11 完成（小改动，未单独建规格）：`useToolPageEscape` 新增可选确认，字幕工作台第一次 Esc 只提示“再按一次 Esc 返回工具列表”（1.5 秒内再按才返回），其他工具页不变。验证：`test/tool-navigation.electron.test.ts`（工作台两次 Esc、其余工具一次）。
-- [ ] **列表内弹出层的事件冒泡**：弹层渲染到 body，但 React 事件仍会冒泡到字幕列表，列表抢焦点后弹层自行关闭。抽成共用的弹出层组件，并记入项目避坑清单。
+- [x] **列表内弹出层的事件冒泡**：弹层渲染到 body，但 React 事件仍会冒泡到字幕列表，列表抢焦点后弹层自行关闭。抽成共用的弹出层组件，并记入项目避坑清单。
+  - 2026-10-11 完成：`StudioListLayer.tsx` 提供 `StudioListPopoverContent`（“原始音频”面板改用）与 `isolateListEvents`（查找栏表头行改用）；避坑记录 FK-PIT-0189（`.agents/skills/fusionkit-pitfall-guard/references/`）。
 
 ## 测试与工程
 

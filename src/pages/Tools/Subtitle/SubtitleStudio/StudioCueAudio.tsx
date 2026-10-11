@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type CS
 import { AlertCircle, AudioLines, FileAudio, LoaderCircle, Play, Repeat, Square } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverTrigger } from '@/components/ui/popover';
+import { StudioListPopoverContent } from './StudioListLayer';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -104,7 +105,6 @@ export function CueAudioButton({ playKey, request, label, className, tabbable = 
   </Tooltip>;
 }
 
-const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
 const PADDINGS = [
   { value: '0', key: 'studio:cue_audio.padding_none' }, { value: '300', key: 'studio:cue_audio.padding_short' }, { value: '1000', key: 'studio:cue_audio.padding_long' },
 ] as const satisfies readonly { value: `${CueAudioPadding}`; key: string }[];
@@ -151,9 +151,7 @@ export function StudioCueMediaControl({ media, openRequest = 0 }: { media: CueMe
       </PopoverTrigger></TooltipTrigger>
       <TooltipContent sideOffset={6}>{label}</TooltipContent>
     </Tooltip>
-    {/* Portaled, but React still bubbles its events to the cue list, whose selection would take focus and close it. */}
-    <PopoverContent align="end" sideOffset={6} collisionPadding={8} className="studio-cue-media-panel" data-testid="studio-cue-media-panel"
-      onMouseDown={stop} onPointerDown={stop} onPointerUp={stop} onPointerMove={stop} onClick={stop} onDoubleClick={stop} onContextMenu={stop}
+    <StudioListPopoverContent align="end" sideOffset={6} collisionPadding={8} className="studio-cue-media-panel" data-testid="studio-cue-media-panel"
       onCloseAutoFocus={event => { event.preventDefault(); document.querySelector<HTMLElement>('[data-testid=studio-cue-list]')?.focus({ preventScroll: true }); }}>
       <div className="studio-cue-media-title"><AudioLines />{t('studio:cue_audio.media')}</div>
       {status && status.status !== 'missing' ? <div className="studio-cue-media-file" data-status={status.status} data-testid="studio-cue-media-file">
@@ -196,6 +194,6 @@ export function StudioCueMediaControl({ media, openRequest = 0 }: { media: CueMe
         <dt>Shift+P</dt><dd>{t('studio:cue_help.follow.desc')}</dd>
         <dt>[ / ]</dt><dd>{t('studio:cue_help.mark.desc')}</dd>
       </dl>
-    </PopoverContent>
+    </StudioListPopoverContent>
   </Popover>;
 }

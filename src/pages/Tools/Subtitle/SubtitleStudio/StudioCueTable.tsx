@@ -22,6 +22,7 @@ import { StudioCueShift, type CueShiftRequest } from './StudioCueShift';
 import { StudioCueSplit, type CueSplitRequest } from './StudioCueSplit';
 import { StudioCueInsert, type CueInsertRequest } from './StudioCueInsert';
 import { StudioCueFind, type CueFindHighlight, type CueFindTarget } from './StudioCueFind';
+import { isolateListEvents } from './StudioListLayer';
 import { CueAudioButton, StudioCueMediaControl, useCueMedia } from './StudioCueAudio';
 import { cueAudioPlayer, useCueAudioFollow, useCueAudioRows } from '@/services/subtitle-studio/cue-audio-player';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
@@ -448,8 +449,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
       <table aria-label={t('studio:preview')} aria-multiselectable="true" role="grid" className={track ? 'studio-cue-table studio-translated-table' : 'studio-cue-table'}>
         <thead><tr><th scope="col">#</th><th scope="col">{t('studio:time')}</th><th scope="col">{track ? <div className="studio-parallel-text"><span>{t('studio:source')}</span><span>{t('studio:target')}</span></div> : t('studio:source')}</th><th scope="col" className="studio-cue-toolbar-cell"><span className="sr-only">{t('studio:copy')}</span>{toolbar}</th></tr>
           {/* The find bar is a header row: it stays in view and never covers a row. */}
-          {finding && <tr className="studio-cue-find-head"><th colSpan={4} {...control} onMouseDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}
-            onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()} onContextMenu={event => event.stopPropagation()}>
+          {finding && <tr className="studio-cue-find-head"><th colSpan={4} {...control} {...isolateListEvents}>
             <StudioCueFind key={documentId} page={page} track={track} initialQuery={finding.initialQuery} focusSerial={finding.serial} busy={editBlocked}
               onClose={() => { setFinding(null); setHighlight(null); focusList(); }} onHighlight={setHighlight} onGo={goToMatch} onApply={run} />
           </th></tr>}
