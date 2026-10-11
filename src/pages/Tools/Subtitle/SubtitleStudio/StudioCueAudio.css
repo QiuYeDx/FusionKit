@@ -5,6 +5,8 @@
   background: transparent; color: var(--muted-foreground); cursor: pointer; outline: none;
 }
 .studio-cue-audio-button:hover { background: var(--accent); color: var(--foreground); }
+.studio-cue-audio-button[aria-disabled=true] { opacity: .4; cursor: default; }
+.studio-cue-audio-button[aria-disabled=true]:hover { background: transparent; color: var(--muted-foreground); }
 .studio-cue-audio-button:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
 .studio-cue-audio-button > svg { width: 11px; height: 11px; }
 .studio-cue-audio-button .studio-cue-audio-play { margin-left: 1px; fill: currentColor; }

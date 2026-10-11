@@ -475,6 +475,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
                 label={t('studio:cue_audio.play_cue', { number: page.offset + index + 1 })} data-testid="studio-cue-play" />}</td>
             <td className="studio-cue-time" onDoubleClick={() => startTiming(cue.id)}>{editingField === 'timing'
               ? <StudioCueTimeEditor startMs={cue.timing.startMs} endMs={cue.timing.endMs} saving={saving} error={editError}
+                nextStartMs={page.cues.slice(index + 1).find(next => next.timing.startMs > cue.timing.startMs)?.timing.startMs}
                 // Only text subtitles may leave the end unknown; LRC never has one.
                 allowUnknownEnd={page.summary.origin.format !== 'media' && (cue.timing.endMs === null || page.summary.origin.format === 'lrc')}
                 check={(startMs, endMs) => timingProblem(cue, startMs, endMs)}

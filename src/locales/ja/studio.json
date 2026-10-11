@@ -1164,7 +1164,10 @@
     "loop": "区間をリピート",
     "mark_needs_playback": "再生中に [ / ] で開始 / 終了を設定できます",
     "waveform": "波形：マーカーをドラッグして開始と終了を調整",
-    "play_edited": "この区間を再生"
+    "play_edited": "この区間を再生",
+    "length": "{{seconds}} 秒",
+    "length_to_next": "{{seconds}} 秒 · 次の行の開始まで",
+    "length_unknown": "{{seconds}} 秒 · 終了時刻不明"
   },
   "cue_recognize": {
     "menu": "元の音声を再認識…",

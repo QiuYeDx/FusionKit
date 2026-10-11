@@ -216,14 +216,23 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       const canvas = wave.locator('canvas');
       const box = (await wave.locator('.studio-cue-waveform-canvas').boundingBox())!;
       const x = (ms: number) => box.x + (ms - 2500) / 3600 * box.width;
+      // Bars have gaps between them: the tallest of the columns around the point.
       const inked = (ms: number) => canvas.evaluate((element, column) => {
         const target = element as HTMLCanvasElement, scale = target.width / target.clientWidth;
-        const data = target.getContext('2d')!.getImageData(Math.round(column * scale), 0, 1, target.height).data;
-        let painted = 0; for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
-        return painted / target.height;
+        let tallest = 0;
+        for (let offset = -3; offset <= 3; offset++) {
+          const data = target.getContext('2d')!.getImageData(Math.max(0, Math.round((column + offset) * scale)), 0, 1, target.height).data;
+          let painted = 0; for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
+          tallest = Math.max(tallest, painted / target.height);
+        }
+        return tallest;
       }, (ms - 2500) / 3600 * box.width);
       expect(await inked(4300)).toBeGreaterThan(0.3);
       expect(await inked(4800)).toBeLessThan(0.1);
+      // The start and end are bracket markers; the length is shown beside the play button.
+      await uiExpect(wave.locator('.studio-cue-wave-marker[data-which=start]')).toHaveCount(1);
+      await uiExpect(wave.locator('.studio-cue-wave-marker[data-which=end]:not([data-implied])')).toHaveCount(1);
+      await uiExpect(wave.getByTestId('studio-cue-waveform-length')).toHaveText(locale.cue_listen.length.replace('{{seconds}}', '0.60'));
       await shot('studio-cue-listening--08-waveform-1280-light');
       // Dragging the end marker writes the end field (to 10 ms); Enter saves and Ctrl+Z undoes.
       await page.mouse.move(x(4600), box.y + 18); await page.mouse.down();
@@ -236,6 +245,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       await uiExpect(page.getByTestId('studio-cue-time-start')).toBeVisible();
       await wave.getByTestId('studio-cue-waveform-play').click();
       await uiExpect(wave.getByTestId('studio-cue-waveform-play')).toHaveAttribute('data-state', 'playing');
+      await uiExpect(wave.getByTestId('studio-cue-waveform-playhead')).toBeVisible();
       await uiExpect(page.getByTestId('studio-cue-time-start')).toBeVisible();
       await end.press('Enter');
       await uiExpect.poll(async () => (await times(rows.nth(4))).endMs).toBe(endMs);
@@ -262,6 +272,43 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       const waveBox = (await rows.nth(2).getByTestId('studio-cue-waveform').boundingBox())!;
       expect(waveBox.x + waveBox.width).toBeLessThanOrEqual(column.x + column.width + 1);
       await shot('studio-cue-listening--09-waveform-786-dark');
+      await page.getByTestId('studio-cue-time-start').press('Escape');
+
+      // An LRC line has no end: it plays until the next line starts (a dashed marker), and pressing
+      // the play button, a disabled one or the space around it keeps the edit open.
+      const songs = path.join(root, 'songs');
+      await tones(path.join(songs, 'Song.wav'));
+      const lrc = path.join(songs, 'Song.lrc');
+      await writeFile(lrc, '[00:01.00]第一句\n[00:03.00]第二句\n[00:06.50]第三句\n');
+      await app.evaluate(({ dialog }, input) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [input] }); }, lrc);
+      await page.getByRole('button', { name: '打开字幕文件', exact: true }).first().click();
+      await uiExpect(rows).toHaveCount(3);
+      await uiExpect(page.getByTestId('studio-cue-media')).toHaveAttribute('data-status', 'ready');
+      await rows.nth(1).locator('.studio-cue-time').dblclick();
+      const lrcWave = rows.nth(1).getByTestId('studio-cue-waveform');
+      await uiExpect(lrcWave).toHaveAttribute('data-loaded', 'true', { timeout: 1500 });
+      await uiExpect(page.getByTestId('studio-cue-time-end')).toHaveValue('');
+      await uiExpect(lrcWave.locator('.studio-cue-wave-marker[data-which=end][data-implied]')).toHaveCount(1);
+      await uiExpect(lrcWave.getByTestId('studio-cue-waveform-length')).toHaveText(locale.cue_listen.length_to_next.replace('{{seconds}}', '3.50'));
+      const lrcPlay = lrcWave.getByTestId('studio-cue-waveform-play');
+      await uiExpect(lrcPlay).toBeEnabled();
+      await lrcPlay.click();
+      await uiExpect(lrcPlay).toHaveAttribute('data-state', 'playing');
+      await uiExpect(page.getByTestId('studio-cue-time-start')).toBeVisible();
+      await shot('studio-cue-listening--10-waveform-lrc-786-dark');
+      await lrcPlay.click();
+      await uiExpect(lrcPlay).toHaveAttribute('data-state', 'idle');
+      await page.getByTestId('studio-cue-time-start').fill('x');
+      await uiExpect(lrcPlay).toBeDisabled();
+      await lrcPlay.click({ force: true });
+      await rows.nth(1).locator('.studio-cue-editor-meta').click();
+      await rows.nth(1).locator('.studio-cue-waveform-foot').click({ position: { x: 60, y: 8 } });
+      await uiExpect(page.getByTestId('studio-cue-time-start')).toBeVisible();
+      await uiExpect(page.getByTestId('studio-cue-time-start')).toBeFocused();
+      await page.getByTestId('studio-cue-time-start').press('Escape');
+      // The last line has no next one: it plays for five seconds.
+      await rows.nth(2).locator('.studio-cue-time').dblclick();
+      await uiExpect(rows.nth(2).getByTestId('studio-cue-waveform-length')).toHaveText(locale.cue_listen.length_unknown.replace('{{seconds}}', '5.00'));
       await page.getByTestId('studio-cue-time-start').press('Escape');
 
       // Without media the editor is as before.

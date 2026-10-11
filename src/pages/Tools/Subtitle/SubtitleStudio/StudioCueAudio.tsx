@@ -78,7 +78,7 @@ const RING = 2 * Math.PI * 8.5;
  * Plays or stops one stretch of original audio. Clicks never reach the row or
  * label behind it, so playing does not change a selection or a checkbox.
  */
-export function CueAudioButton({ playKey, request, label, className, tabbable = true, ...props }: Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> & {
+export function CueAudioButton({ playKey, request, label, className, tabbable = true, disabled = false, ...props }: Omit<HTMLAttributes<HTMLButtonElement>, 'onClick'> & {
   playKey: string; request: CueAudioRequest; label: string; tabbable?: boolean; disabled?: boolean;
 }) {
   const { t } = useTranslation();
@@ -86,10 +86,14 @@ export function CueAudioButton({ playKey, request, label, className, tabbable = 
   const phase = playback?.phase ?? 'idle';
   const active = phase === 'loading' || phase === 'playing';
   const error = playback?.reason ? t(failureKeys[playback.reason]) : undefined;
-  const click = (event: MouseEvent) => { event.preventDefault(); event.stopPropagation(); cueAudioPlayer.toggle(playKey, request); };
+  // A stop stays possible while disabled, so a stretch that became unplayable mid-play can be ended.
+  const click = (event: MouseEvent) => { event.preventDefault(); event.stopPropagation(); if (!disabled || active) cueAudioPlayer.toggle(playKey, request); };
   return <Tooltip delayDuration={350} open={phase === 'error' ? true : undefined}>
     <TooltipTrigger asChild>
+      {/* aria-disabled, not disabled: Chromium sends no mouse events to a disabled button, so a press
+          on it would move focus out of an inline editor (and save or close it) instead of doing nothing. */}
       <button type="button" {...props} className={cn('studio-cue-audio-button', className)} data-state={phase} tabIndex={tabbable ? undefined : -1}
+        aria-disabled={disabled && !active || undefined}
         aria-label={active ? t('studio:cue_audio.stop') : label} aria-pressed={active} onClick={click} onPointerDown={event => event.stopPropagation()}
         // A click plays without taking focus, so focus stays in the list and no tooltip lingers over the row above.
         onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}>

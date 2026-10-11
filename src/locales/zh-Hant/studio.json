@@ -1164,7 +1164,10 @@
     "loop": "循環播放片段",
     "mark_needs_playback": "播放時按 [ / ] 設定開始 / 結束",
     "waveform": "波形：拖動標記調整開始和結束",
-    "play_edited": "試聽這段時間"
+    "play_edited": "試聽這段時間",
+    "length": "{{seconds}} 秒",
+    "length_to_next": "{{seconds}} 秒 · 到下一句開始",
+    "length_unknown": "{{seconds}} 秒 · 結束時間未知"
   },
   "cue_recognize": {
     "menu": "重新辨識原聲…",

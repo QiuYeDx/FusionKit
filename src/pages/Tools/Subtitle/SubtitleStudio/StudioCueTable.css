@@ -56,6 +56,12 @@
 .studio-cue-time-fields input[aria-invalid=true] { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 18%, transparent); }
 .studio-cue-time-editor[data-saving] input { opacity: .7; }
 .studio-cue-time-editor .studio-cue-editor-meta { max-width: 30ch; }
+.studio-cue-time-editor:has(.studio-cue-waveform) { gap: 5px; }
+.studio-cue-time-editor:has(.studio-cue-waveform) .studio-cue-editor-meta { max-width: none; }
+.studio-cue-time-keys { display: flex; flex-wrap: wrap; column-gap: 0; }
+.studio-cue-time-keys > span { white-space: nowrap; }
+/* The dot ends a line rather than starting the next one. */
+.studio-cue-time-keys > span:not(:last-child)::after { content: '·'; margin-inline: .5em; }
 
 /* The toolbar sits in the sticky header's last cell and grows leftwards over the column labels. */
 .studio-cue-table th.studio-cue-toolbar-cell { position: sticky; }
@@ -84,11 +90,39 @@
   .studio-cue-list tbody tr > td { transition: background-color 120ms ease-out; }
 }
 
-/* The waveform under the time fields: as wide as they are, never wider than the column. */
-.studio-cue-waveform { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px; min-width: 0;
-  --studio-wave-dim: color-mix(in oklab, var(--muted-foreground) 45%, transparent); --studio-wave-active: oklch(58% 0.16 237); --studio-wave-marker: var(--foreground); }
-.dark .studio-cue-waveform { --studio-wave-active: oklch(76% 0.13 232); }
-.studio-cue-waveform-canvas { position: relative; height: 36px; min-width: 0; overflow: hidden; border-radius: 6px; cursor: ew-resize; touch-action: none;
-  background: color-mix(in oklab, var(--muted) 45%, var(--background)); }
-.studio-cue-waveform-canvas > canvas { display: block; }
+/* The waveform under the time fields: as wide as they are, never wider than the column. A card like
+   the fields, the cue's stretch tinted between bracket markers ([ at the start, ] at the end). */
+.studio-cue-waveform { display: grid; gap: 4px; min-width: 0;
+  --studio-wave-dim: color-mix(in oklab, var(--muted-foreground) 38%, transparent);
+  --studio-wave-active: oklch(60% 0.15 237); --studio-wave-marker: oklch(52% 0.17 240);
+  --studio-wave-region: color-mix(in oklab, oklch(68.5% 0.169 237.3) 13%, transparent); }
+.dark .studio-cue-waveform { --studio-wave-active: oklch(76% 0.13 232); --studio-wave-marker: oklch(84% 0.11 230);
+  --studio-wave-region: color-mix(in oklab, oklch(74.6% 0.16 232.7) 16%, transparent); }
+.studio-cue-waveform-canvas { position: relative; height: 44px; min-width: 0; overflow: hidden; cursor: ew-resize; touch-action: none;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--background); box-sizing: content-box; }
+.studio-cue-waveform-canvas > canvas { position: relative; z-index: 1; display: block; }
 .studio-cue-waveform:not([data-loaded]) .studio-cue-waveform-canvas { cursor: default; }
+.studio-cue-wave-region { position: absolute; inset-block: 0; z-index: 0; background: var(--studio-wave-region); }
+.studio-cue-wave-region[data-implied] { background: color-mix(in oklab, var(--studio-wave-region) 55%, transparent); }
+/* A two-pixel line with short serifs pointing into the stretch; wider while dragged. */
+.studio-cue-wave-marker { position: absolute; inset-block: 0; z-index: 2; width: 2px; margin-left: -1px; pointer-events: none; background: var(--studio-wave-marker); }
+.studio-cue-wave-marker::before, .studio-cue-wave-marker::after { content: ''; position: absolute; width: 6px; height: 2px; background: inherit; border-radius: 1px; }
+.studio-cue-wave-marker::before { top: 0; }
+.studio-cue-wave-marker::after { bottom: 0; }
+.studio-cue-wave-marker[data-which=start]::before, .studio-cue-wave-marker[data-which=start]::after { left: 0; }
+.studio-cue-wave-marker[data-which=end]::before, .studio-cue-wave-marker[data-which=end]::after { right: 0; }
+.studio-cue-wave-marker[data-active] { width: 3px; margin-left: -1.5px; box-shadow: 0 0 0 3px color-mix(in oklab, var(--studio-wave-marker) 18%, transparent); }
+/* The end a cue without one is heard until: dashed, no serifs. */
+.studio-cue-wave-marker[data-implied] { background: none; border-left: 2px dashed color-mix(in oklab, var(--studio-wave-marker) 65%, transparent); }
+.studio-cue-wave-marker[data-implied]::before, .studio-cue-wave-marker[data-implied]::after { display: none; }
+.studio-cue-wave-playhead { position: absolute; inset-block: 0; z-index: 3; width: 1.5px; margin-left: -.75px; pointer-events: none; background: var(--foreground); opacity: .75; }
+.studio-cue-wave-loading { position: absolute; inset: 0; margin: auto 10px; height: 2px; border-radius: 1px; background: var(--studio-wave-dim); animation: studio-wave-pulse 1.1s ease-in-out infinite alternate; }
+@keyframes studio-wave-pulse { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: no-preference) {
+  .studio-cue-wave-playhead { transition: left 100ms linear; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-cue-wave-loading { animation: none; }
+}
+.studio-cue-waveform-foot { display: flex; align-items: center; gap: 6px; min-width: 0; padding-inline: 1px; }
+.studio-cue-waveform-length { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 16px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }

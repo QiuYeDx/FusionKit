@@ -1164,7 +1164,10 @@
     "loop": "Repeat the stretch",
     "mark_needs_playback": "Press [ / ] while playing to set the start / end",
     "waveform": "Waveform: drag the markers to adjust the start and end",
-    "play_edited": "Play this stretch"
+    "play_edited": "Play this stretch",
+    "length": "{{seconds}} s",
+    "length_to_next": "{{seconds}} s · until the next line",
+    "length_unknown": "{{seconds}} s · end unknown"
   },
   "cue_recognize": {
     "menu": "Recognize the audio again…",
