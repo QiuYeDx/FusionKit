@@ -18,6 +18,8 @@ import { CUE_CONTROL_ATTR, useCueSelection } from './useCueSelection';
 import { consecutive, mergeOperation, MERGE_LIMIT } from '@/subtitle-studio/cue-structure';
 import { StudioCueTimeEditor, timeProblemKeys, type CueTimeProblem } from './StudioCueTimeEditor';
 import { StudioCueShift, type CueShiftRequest } from './StudioCueShift';
+import { StudioCueSplit, type CueSplitRequest } from './StudioCueSplit';
+import { StudioCueInsert, type CueInsertRequest } from './StudioCueInsert';
 import { CueAudioButton, StudioCueMediaControl, useCueMedia } from './StudioCueAudio';
 import { cueAudioPlayer, useCueAudioFollow, useCueAudioRows } from '@/services/subtitle-studio/cue-audio-player';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
@@ -90,6 +92,11 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const order = page.cues.map(cue => cue.id);
   const [editing, setEditing] = useState<{ cueId: string; field: CueField | 'timing' } | null>(null);
   const [shifting, setShifting] = useState<CueShiftRequest | null>(null);
+  const [splitting, setSplitting] = useState<CueSplitRequest | null>(null);
+  const [inserting, setInserting] = useState<CueInsertRequest | null>(null);
+  const structureSerial = useRef(0);
+  /** The cue to select once the page shows an added one: the one beside `cueId`. */
+  const selectAdded = useRef<{ cueId: string; step: 1 | -1 } | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | undefined>();
   const [field, setField] = useState<CueField>('source');
@@ -226,6 +233,8 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     onDelete: cueIds => void remove(cueIds),
     onMerge: cueIds => void merge(cueIds),
     onEditTiming: startTiming,
+    onSplit: cueId => { if (!editBlocked) setSplitting({ cueId, serial: ++structureSerial.current }); },
+    onInsert: (cueId, position) => { if (!editBlocked) setInserting({ cueId, position, serial: ++structureSerial.current }); },
     // Ctrl+A selects this page only: when that is every cue shown and the document is longer, the whole document is meant.
     onShift: cueIds => { if (!editBlocked) setShifting({ cueIds, scope: cueIds.length === page.cues.length && page.summary.cueCount > page.cues.length ? 'all' : 'selected' }); },
     onCopy,
@@ -292,6 +301,17 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     openMenu: (targets, point) => setMenu(current => ({ targets, ...point, serial: (current?.serial ?? lastMenu.current?.serial ?? 0) + 1 })),
     onKey,
   });
+  // Select a split's second half or an inserted cue once the page shows it.
+  useEffect(() => {
+    const added = selectAdded.current;
+    if (!added) return;
+    const index = page.cues.findIndex(cue => cue.id === added.cueId);
+    const target = index < 0 ? undefined : page.cues[index + added.step]?.id;
+    if (!target) return;
+    selectAdded.current = null;
+    selectionApi.commit({ keys: new Set([target]), anchor: target, lead: target });
+    selectionApi.scrollToRow(target);
+  }, [page.cues, selectionApi]);
   const { selection, marquee, keyboardNav } = selectionApi;
   const selected = order.filter(id => selection.keys.has(id));
   const selectedKey = selected.join(',');
@@ -428,6 +448,21 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
       </table>
       {marquee && <div aria-hidden="true" className="studio-cue-marquee" data-testid="studio-cue-marquee" style={marquee} />}
     </div>
+    <StudioCueSplit page={page} request={splitting} track={track} mediaReady={media.ready} busy={editBlocked}
+      onClose={() => { setSplitting(null); focusList(); }}
+      onApply={async (operation, label, count) => {
+        const ok = await run(operation, label, count);
+        // The second half follows the cue.
+        if (ok && operation.kind === 'split') selectAdded.current = { cueId: operation.cueId, step: 1 };
+        return ok;
+      }} />
+    <StudioCueInsert page={page} request={inserting} track={track} mediaReady={media.ready} busy={editBlocked}
+      onClose={() => { setInserting(null); focusList(); }}
+      onApply={async (operation, label, count) => {
+        const ok = await run(operation, label, count);
+        if (ok && operation.kind === 'insert') selectAdded.current = { cueId: operation.cueId, step: operation.position === 'after' ? 1 : -1 };
+        return ok;
+      }} />
     <StudioCueShift page={page} request={shifting} mediaReady={media.ready} busy={!!editBlocked}
       onClose={() => { setShifting(null); focusList(); }} onApply={run} />
     <DropdownMenu key={menu?.serial ?? lastMenu.current?.serial ?? 0} open={!!menu} modal={false} onOpenChange={open => { if (!open) setMenu(null); }}>

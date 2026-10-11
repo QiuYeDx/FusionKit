@@ -1,5 +1,5 @@
 import { useRef, type ComponentProps } from 'react';
-import { AudioWaveform, BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, ListMusic, MoveHorizontal, PencilLine, Play, Sparkles, Timer, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpToLine, AudioWaveform, BookmarkPlus, CheckCheck, CircleDashed, Clock3, Combine, Copy, Eraser, Languages, ListMusic, MoveHorizontal, PencilLine, Play, Scissors, Sparkles, Timer, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '@/components/ui/dropdown-menu';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
@@ -28,6 +28,10 @@ export type CueMenuActions = {
   onEditTiming: (cueId: string) => void;
   /** Moves the cues earlier or later by the same amount. */
   onShift: (cueIds: string[]) => void;
+  /** Splits one cue in two at a place in its text. */
+  onSplit: (cueId: string) => void;
+  /** Adds a new cue before or after one. */
+  onInsert: (cueId: string, position: 'before' | 'after') => void;
   onCopy: (cueId: string, text: string) => void;
   onRemember: (cueId: string) => void;
   /** Plays the cues' original audio; `ready` is false when the document has no usable media. */
@@ -104,6 +108,11 @@ function CueMenuItems({ targets, actions, timedTestId, onEditing }: { targets: r
       <Combine />{t('studio:cue_structure.merge')}<DropdownMenuShortcut>Ctrl+M</DropdownMenuShortcut>
     </DropdownMenuItem>}
     <DropdownMenuItem data-testid="studio-cue-shift" disabled={!!editBlocked} onSelect={() => { onEditing(); actions.onShift(cueIds); }}><MoveHorizontal />{t('studio:cue_structure.shift')}</DropdownMenuItem>
+    {cues.length > 0 && <>
+      <DropdownMenuItem data-testid="studio-cue-split" disabled={!!editBlocked || !single} onSelect={() => { onEditing(); if (single) actions.onSplit(single.id); }}><Scissors />{t('studio:cue_split.menu')}</DropdownMenuItem>
+      <DropdownMenuItem data-testid="studio-cue-insert-before" disabled={!!editBlocked} onSelect={() => { onEditing(); actions.onInsert(cues[0].id, 'before'); }}><ArrowUpToLine />{t('studio:cue_insert.menu_before')}</DropdownMenuItem>
+      <DropdownMenuItem data-testid="studio-cue-insert-after" disabled={!!editBlocked} onSelect={() => { onEditing(); actions.onInsert(cues.at(-1)!.id, 'after'); }}><ArrowDownToLine />{t('studio:cue_insert.menu_after')}</DropdownMenuItem>
+    </>}
     {(cues.length > 1 || !single) && <DropdownMenuSeparator />}
     <DropdownMenuItem data-testid="studio-cue-translate" disabled={!!editBlocked || !actions.canTranslate || !translatable} onSelect={() => actions.onTranslate(cueIds)}>
       <Languages />{t(track && translated ? 'studio:cue_menu.retranslate' : 'studio:cue_menu.translate')}

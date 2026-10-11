@@ -97,16 +97,20 @@ export function validateDocument(value: unknown): SubtitleDocument {
   if (doc.schemaVersion === 2) {
     const transcript = doc.preservation.transcript;
     if (doc.origin.displayName !== transcript.source.displayName || doc.origin.durationMs !== transcript.source.durationMs
-      || doc.cues.length > transcript.segments.length || doc.diagnostics.length) throw new StudioError('invalid_input');
+      || doc.diagnostics.length) throw new StudioError('invalid_input');
     // Cues follow the transcript in order. Deleted cues leave gaps; edited cues
     // (sourceRevision > 1) may change their text, and retimed or merged cues
-    // (timingRevision > 1) their times, within the media.
+    // (timingRevision > 1) their times, within the media. A split or inserted
+    // cue shares its neighbour's segment: neighbours may share one when either
+    // of them has both its text and its time edited.
     const segments = new Map(transcript.segments.map((segment, index) => [segment.id, index]));
+    const added = (cue: (typeof doc.cues)[number]) => cue.sourceRevision > 1 && cue.timingRevision > 1;
     let previous = -1;
+    let previousCue: (typeof doc.cues)[number] | undefined;
     for (const cue of doc.cues) {
       const index = segments.get(cue.segmentId);
-      if (index === undefined || index <= previous) throw new StudioError('invalid_input');
-      previous = index;
+      if (index === undefined || index < previous || (index === previous && !added(cue) && !added(previousCue!))) throw new StudioError('invalid_input');
+      previous = index; previousCue = cue;
       const segment = transcript.segments[index];
       if (cue.timingRevision === 1 ? cue.timing.startMs !== segment.startMs || cue.timing.endMs !== segment.endMs
         : cue.timing.endMs < cue.timing.startMs || cue.timing.endMs > doc.origin.durationMs) throw new StudioError('invalid_input');

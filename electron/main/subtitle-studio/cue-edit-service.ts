@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { StudioError, validateDocument, type SubtitleCue, type SubtitleText, type TranslationEntry } from '../../../src/subtitle-studio/domain';
 import { cueEditOperationSchema, storedTextProblem, type CueEditOperation, type RemovedCues, type SingleCueEditOperation } from '../../../src/subtitle-studio/cue-edit-contract';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
@@ -91,6 +92,38 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
     (cue.timing as { startMs: number; endMs: number | null }).endMs = endMs;
     cue.timingRevision++;
     return true;
+  };
+
+  /**
+   * Adds a cue at `index`, beside `anchor`: it shares the anchor's original-file node (its times
+   * are retimed, so the file is written anew) or transcript segment, and counts as edited.
+   */
+  const addCue = (index: number, anchor: SubtitleCue, startMs: number, endMs: number | null, source: SubtitleText): SubtitleCue => {
+    assertStoredText(source);
+    if (doc.schemaVersion === 2 && source.spans.some(span => span.marks.length)) throw new StudioError('invalid_input');
+    const id = randomUUID();
+    const cue = ('segmentId' in anchor
+      ? { id, sourceRevision: 2, timingRevision: 2, segmentId: anchor.segmentId, timing: { startMs, endMs, provenance: anchor.timing.provenance }, source: structuredClone(source) }
+      : { id, sourceRevision: 2, timingRevision: 2, nodeId: anchor.nodeId, timing: { startMs, endMs, provenance: anchor.timing.provenance }, source: structuredClone(source) }) as SubtitleCue;
+    (doc.cues as SubtitleCue[]).splice(index, 0, cue);
+    indices = null;
+    if (doc.schemaVersion === 1) {
+      const node = doc.preservation.nodes.find(item => item.id === (anchor as { nodeId: string }).nodeId);
+      if (!node) throw new StudioError('invalid_input');
+      node.cueIds = [...node.cueIds, id].sort((a, b) => positions().get(a)! - positions().get(b)!);
+    }
+    return cue;
+  };
+  /** Writes human translations of `cues` on the track and returns the entries they replace. */
+  const writeHumanTargets = (track: Track, targets: [SubtitleCue, SubtitleText][]) => {
+    const previous: Record<string, TranslationEntry | null> = {};
+    for (const [cue, text] of targets) {
+      assertStoredText(text);
+      previous[cue.id] = structuredClone(track.entries[cue.id] ?? null);
+      track.entries[cue.id] = { sourceRevision: cue.sourceRevision, sourceHash: sourceDigest(cue), text: structuredClone(text), origin: 'human', reviewStatus: 'reviewed' };
+    }
+    track.revision++;
+    return previous;
   };
 
   const applyOne = (operation: SingleCueEditOperation): AppliedCueEdit => { let applied: AppliedCueEdit;
@@ -210,6 +243,44 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
         cue.timingRevision++;
       }
       applied = { undo: { kind: 'shift', deltaMs: -operation.deltaMs, ...(operation.fromCueId ? { fromCueId: operation.fromCueId } : {}) }, changed: doc.cues.length - from, stoppedTasks: 0 };
+      break;
+    }
+    case 'split': {
+      const cue = cueOf(operation.cueId);
+      const index = positions().get(cue.id)!;
+      const { startMs, endMs } = cue.timing;
+      if (operation.splitMs <= startMs || (endMs !== null && operation.splitMs >= endMs)) throw new StudioError('invalid_input');
+      const track = operation.trackId ? trackOf(operation.trackId) : undefined;
+      const undo: SingleCueEditOperation[] = [];
+      const oldSource = structuredClone(cue.source);
+      const oldEntries = Object.fromEntries(doc.translationTracks.map(item => [item.id, structuredClone(item.entries[cue.id] ?? null)]));
+      writeSource(cue, operation.sources[0]);
+      writeTiming(cue, startMs, operation.splitMs);
+      undo.push({ kind: 'timing', changes: { [cue.id]: { startMs, endMs } } });
+      const added = addCue(index + 1, cue, operation.splitMs, endMs, operation.sources[1]);
+      if (track && operation.targets) writeHumanTargets(track, [[cue, operation.targets[0]], [added, operation.targets[1]]]);
+      // Undo puts back the text and every translation the cue had before.
+      undo.push({ kind: 'revise', sources: { [cue.id]: oldSource } });
+      for (const [trackId, entry] of Object.entries(oldEntries)) if (JSON.stringify(entry) !== JSON.stringify(trackOf(trackId).entries[cue.id] ?? null)) undo.push({ kind: 'entries', trackId, entries: { [cue.id]: entry } });
+      undo.push({ kind: 'delete', cueIds: [added.id] });
+      applied = { undo: { kind: 'batch', operations: undo.reverse() }, changed: 2, stoppedTasks: retireResumableTasks(snapshot) };
+      break;
+    }
+    case 'insert': {
+      const anchor = cueOf(operation.cueId);
+      const index = positions().get(anchor.id)! + (operation.position === 'after' ? 1 : 0);
+      const { startMs, endMs } = operation.timing;
+      const previous = doc.cues[index - 1]?.timing.startMs, next = doc.cues[index]?.timing.startMs;
+      // The same order rule as retiming: no start before the cue ahead or after the cue behind.
+      if ((previous !== undefined && startMs < previous) || (next !== undefined && startMs > next)) throw new StudioError('invalid_input');
+      if (endMs !== null && endMs < startMs) throw new StudioError('invalid_input');
+      if (doc.schemaVersion === 2 && (endMs === null || endMs <= 0 || endMs > doc.origin.durationMs)) throw new StudioError('invalid_input');
+      // An unknown end only where the format has one (LRC) or the neighbour has none, as when retiming.
+      if (doc.schemaVersion === 1 && endMs === null && doc.origin.format !== 'lrc' && anchor.timing.endMs !== null) throw new StudioError('invalid_input');
+      const track = operation.trackId ? trackOf(operation.trackId) : undefined;
+      const added = addCue(index, anchor, startMs, endMs, operation.source);
+      if (track && operation.target) writeHumanTargets(track, [[added, operation.target]]);
+      applied = { undo: { kind: 'delete', cueIds: [added.id] }, changed: 1, stoppedTasks: retireResumableTasks(snapshot) };
       break;
     }
     case 'merge': {

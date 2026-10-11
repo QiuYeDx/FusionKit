@@ -56,7 +56,8 @@ export function bindPreservedBodies(doc: TextSubtitleDocument, structure: Preser
   const bodies = new Map<string, PreservedBody>();
   structure.nodes.forEach((parsed, index) => {
     const node = doc.preservation.nodes[index];
-    if (parsed.start !== node.start || parsed.end !== node.end || node.cueIds.length > 1) throw new StudioError('invalid_input');
+    // A node keeps several cues after a split or insertion; such documents are retimed and written anew.
+    if (parsed.start !== node.start || parsed.end !== node.end) throw new StudioError('invalid_input');
     if (node.cueIds.length && !parsed.body) throw new StudioError('invalid_input');
     if (parsed.body && !node.cueIds.length && !pairedTargets.has(node.id) && !removed.has(node.id)) throw new StudioError('invalid_input');
     if (parsed.body) bodies.set(node.id, parsed.body);

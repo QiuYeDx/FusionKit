@@ -807,7 +807,9 @@
       "merge": "Merge {{count}} cue(s)",
       "timing": "Retime {{count}} cue(s)",
       "recognize": "recognize {{count}} lines again",
-      "shift": "shift {{count}} cue(s)"
+      "shift": "shift {{count}} cue(s)",
+      "split": "split a cue",
+      "insert": "insert a cue"
     }
   },
   "cue_help": {
@@ -1065,6 +1067,39 @@
     "shift_failed": "Could not check the shift; try again",
     "shift_document": "Shift the whole document…",
     "unknown": "Unknown"
+  },
+  "cue_split": {
+    "menu": "Split cue…",
+    "title": "Split cue",
+    "description": "Splits line {{number}} in two: click where the text should break.",
+    "source": "Text (click where to split)",
+    "target": "Translation (click where to split)",
+    "split_target": "Split the translation too",
+    "target_kept": "The translation stays with the first part and is marked as made for older text.",
+    "time": "Split at",
+    "basis_words": "from word times",
+    "basis_proportional": "estimated from the text",
+    "preview": "After splitting",
+    "play": "Play line {{number}}",
+    "problem_empty": "Both parts need some text.",
+    "problem_invalid": "Enter a time, such as 00:00:01.500.",
+    "problem_out_of_range": "The split must fall between the cue's start and end.",
+    "apply": "Split"
+  },
+  "cue_insert": {
+    "menu_before": "Insert cue above…",
+    "menu_after": "Insert cue below…",
+    "title": "Insert cue",
+    "description_before": "Adds a new cue before this one (it becomes line {{number}}).",
+    "description_after": "Adds a new cue after this one (it becomes line {{number}}).",
+    "start": "Start",
+    "end": "End",
+    "unknown_end": "Unknown",
+    "play": "Play this time",
+    "source": "Text",
+    "target": "Translation",
+    "target_optional": "Optional",
+    "apply": "Insert"
   },
   "cue_audio": {
     "play": "Play original audio",

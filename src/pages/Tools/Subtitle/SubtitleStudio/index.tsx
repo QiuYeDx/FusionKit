@@ -632,7 +632,9 @@ export default function SubtitleStudio() {
       if (mode === 'do') { if (result.changed) history.record(current.summary.id, current.summary.revision, result.summary.revision, { label, count, operation: result.undo }); }
       else history.step(mode, current.summary.id, current.summary.revision, result.summary.revision, result.undo);
       applied = true;
-      setCueNotice(operation.kind === 'delete' || result.stoppedTasks ? { deleted: operation.kind === 'delete' ? result.changed : 0, stopped: result.stoppedTasks } : null);
+      // Undoing a split or an insertion deletes a cue too, but nothing the user would want back.
+      const deleted = operation.kind === 'delete' && label === 'delete' ? result.changed : 0;
+      setCueNotice(deleted || result.stoppedTasks ? { deleted, stopped: result.stoppedTasks } : null);
       const lastPage = Math.max(0, Math.floor((result.summary.cueCount - 1) / LIMITS.pageSize) * LIMITS.pageSize);
       await select(result.summary, Math.min(current.offset, lastPage), current.nodeOffset);
       await load(currentOffset.current);
@@ -686,7 +688,7 @@ export default function SubtitleStudio() {
   const stepCueHistory = (direction: 'undo' | 'redo') => {
     cueHistory.current.sync(currentPage.current?.summary.id, currentPage.current?.summary.revision);
     const entry = cueHistory.current.peek(direction);
-    if (entry) void applyCueEdit(entry.operation, direction).then(applied => { if (applied) focusCueList(); });
+    if (entry) void applyCueEdit(entry.operation, direction, entry.label, entry.count).then(applied => { if (applied) focusCueList(); });
   };
   const batchActions = <>
     <span ref={setTranslationSlot} />

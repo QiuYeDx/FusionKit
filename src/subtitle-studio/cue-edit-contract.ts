@@ -61,6 +61,16 @@ const singleOperationSchema = z.discriminatedUnion('kind', [
     trackId: idSchema.optional(), target: textSchema.nullable().optional(), origin: z.enum(['human', 'ai']).optional(), targetStale: z.literal(true).optional() }).strict(),
   /** Every cue from `fromCueId` (or the whole document) moves earlier or later by `deltaMs`; its undo moves them back. */
   z.object({ kind: z.literal('shift'), deltaMs: cueShiftDeltaSchema, fromCueId: idSchema.optional() }).strict(),
+  /**
+   * The cue keeps the first text and ends at `splitMs`; a new cue after it takes the second text from
+   * `splitMs` to the old end. `targets` replaces both translations on `trackId` as human ones; without
+   * them the first keeps its translation and the second has none.
+   */
+  z.object({ kind: z.literal('split'), cueId: idSchema, sources: z.tuple([textSchema, textSchema]), splitMs: z.number().int().min(0).safe(),
+    trackId: idSchema.optional(), targets: z.tuple([textSchema, textSchema]).optional() }).strict().refine(value => !value.targets || value.trackId),
+  /** A new cue just before or after `cueId`, with an optional human translation on `trackId`. */
+  z.object({ kind: z.literal('insert'), cueId: idSchema, position: z.enum(['before', 'after']), timing: timingSchema, source: textSchema,
+    trackId: idSchema.optional(), target: textSchema.optional() }).strict().refine(value => !value.target || value.trackId),
 ]);
 /** Several operations applied in order as one edit, with one undo. */
 const batchOperationSchema = z.object({ kind: z.literal('batch'), operations: z.array(singleOperationSchema).min(1).max(CUE_BATCH_LIMIT) }).strict();

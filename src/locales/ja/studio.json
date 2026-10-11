@@ -807,7 +807,9 @@
       "merge": "{{count}} 件の字幕を結合",
       "timing": "{{count}} 件の字幕の時間を調整",
       "recognize": "{{count}} 行を再認識",
-      "shift": "{{count}} 件の字幕の時間をずらす"
+      "shift": "{{count}} 件の字幕の時間をずらす",
+      "split": "字幕を分割",
+      "insert": "字幕を挿入"
     }
   },
   "cue_help": {
@@ -1065,6 +1067,39 @@
     "shift_failed": "確認できませんでした。もう一度お試しください",
     "shift_document": "全体の時間をずらす…",
     "unknown": "不明"
+  },
+  "cue_split": {
+    "menu": "字幕を分割…",
+    "title": "字幕を分割",
+    "description": "{{number}} 行目を 2 つに分けます。テキストの分ける位置をクリックしてください。",
+    "source": "原文（分ける位置をクリック）",
+    "target": "訳文（分ける位置をクリック）",
+    "split_target": "訳文も分割する",
+    "target_kept": "訳文は最初の行に残り、原文が変更されたものとして示されます。",
+    "time": "分割時刻",
+    "basis_words": "単語の時刻から",
+    "basis_proportional": "文字数から推定",
+    "preview": "分割後",
+    "play": "{{number}} 行目を再生",
+    "problem_empty": "分けた両方にテキストが必要です。",
+    "problem_invalid": "00:00:01.500 のように時刻を入力してください。",
+    "problem_out_of_range": "分割時刻はこの字幕の開始と終了の間にしてください。",
+    "apply": "分割"
+  },
+  "cue_insert": {
+    "menu_before": "上に字幕を挿入…",
+    "menu_after": "下に字幕を挿入…",
+    "title": "字幕を挿入",
+    "description_before": "この行の前に新しい字幕を挿入します（{{number}} 行目になります）。",
+    "description_after": "この行の後に新しい字幕を挿入します（{{number}} 行目になります）。",
+    "start": "開始",
+    "end": "終了",
+    "unknown_end": "不明",
+    "play": "この時間を再生",
+    "source": "原文",
+    "target": "訳文",
+    "target_optional": "任意",
+    "apply": "挿入"
   },
   "cue_audio": {
     "play": "元の音声を再生",

@@ -807,7 +807,9 @@
       "merge": "合并 {{count}} 条字幕",
       "timing": "调整 {{count}} 条字幕的时间",
       "recognize": "重新识别 {{count}} 条字幕",
-      "shift": "平移 {{count}} 条字幕的时间"
+      "shift": "平移 {{count}} 条字幕的时间",
+      "split": "拆分字幕",
+      "insert": "插入字幕"
     }
   },
   "cue_help": {
@@ -1065,6 +1067,39 @@
     "shift_failed": "无法检查平移结果，请稍后重试",
     "shift_document": "平移整篇时间…",
     "unknown": "未知"
+  },
+  "cue_split": {
+    "menu": "拆分字幕…",
+    "title": "拆分字幕",
+    "description": "把第 {{number}} 条拆成两条：在文字中点击要拆开的位置。",
+    "source": "原文（点击放置拆分位置）",
+    "target": "译文（点击放置拆分位置）",
+    "split_target": "同时拆分译文",
+    "target_kept": "译文留在第一条，并标为原文已变更。",
+    "time": "拆分时刻",
+    "basis_words": "按字词时间",
+    "basis_proportional": "按字数估算",
+    "preview": "拆分后",
+    "play": "试听第 {{number}} 条",
+    "problem_empty": "拆开后的两部分都需要有文字。",
+    "problem_invalid": "请输入时间，例如 00:00:01.500。",
+    "problem_out_of_range": "拆分时刻需在这条字幕的开始与结束之间。",
+    "apply": "拆分"
+  },
+  "cue_insert": {
+    "menu_before": "在上方插入字幕…",
+    "menu_after": "在下方插入字幕…",
+    "title": "插入字幕",
+    "description_before": "在这条之前插入一条新字幕（成为第 {{number}} 条）。",
+    "description_after": "在这条之后插入一条新字幕（成为第 {{number}} 条）。",
+    "start": "开始",
+    "end": "结束",
+    "unknown_end": "未知",
+    "play": "试听这段时间",
+    "source": "原文",
+    "target": "译文",
+    "target_optional": "可选",
+    "apply": "插入"
   },
   "cue_audio": {
     "play": "播放原始音频",

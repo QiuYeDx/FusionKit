@@ -14,6 +14,7 @@ import { CueMediaService } from './cue-media-service';
 import { CueAudioClipper, readCueAudio } from './cue-audio-clip';
 import { recognizeCue } from './cue-recognize-service';
 import { shiftProblem, shiftStart } from '../../../src/subtitle-studio/cue-shift';
+import { suggestCueSplit } from '../../../src/subtitle-studio/cue-split';
 import { CUE_MEDIA_EXTENSIONS } from '../../../src/subtitle-studio/cue-audio';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
@@ -494,6 +495,10 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const from = shiftStart(doc.cues, fromCueId);
           const problem = shiftProblem(doc.cues, from, deltaMs, doc.schemaVersion === 2 ? doc.origin.durationMs : undefined);
           return { ok: true, value: { count: doc.cues.length - from, ...(problem ? { problem } : {}) } };
+        }
+        if (method === 'suggestCueSplit') {
+          const { cueId, offset } = requestSchemas.suggestCueSplit.parse(payload);
+          return { ok: true, value: suggestCueSplit(doc, cueId, offset) };
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
         if (!doc.capabilities.preserveSource) throw new StudioError('unsupported_feature');

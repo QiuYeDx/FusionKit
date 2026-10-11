@@ -90,7 +90,9 @@ export function planSubtitleExport(value: SubtitleDocument, input: ExportOptions
   const removedNodes = new Set(doc.schemaVersion === 1 ? doc.preservation.removedNodeIds : []);
   const bodies = doc.schemaVersion === 1 ? preservedBodies(doc) : undefined;
   // Patching the original file keeps its timing lines, so a document whose times were edited is written anew.
-  const retimed = doc.cues.some(cue => cue.timingRevision > 1);
+  const retimed = doc.cues.some(cue => cue.timingRevision > 1)
+    // A node with several cues (split or inserted) cannot be patched in place either.
+    || (doc.schemaVersion === 1 && doc.preservation.nodes.some(node => node.cueIds.length > 1));
   const preserve = !!bodies && options.format === doc.origin.format && !retimed;
   if (options.format === 'vtt' && options.encoding !== 'utf-8') issue('encoding_not_supported', 1, true);
   if (isAssFamily(options.format) && !preserve && options.encoding !== 'utf-8') issue('encoding_not_supported', 1, true);

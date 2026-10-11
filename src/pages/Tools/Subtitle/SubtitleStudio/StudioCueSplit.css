@@ -1,0 +1,18 @@
+/* Split and insert dialogs: a text box, the two halves or the new cue's times, and a note. */
+.studio-cue-split-text { display: block; width: 100%; min-height: 3.5rem; resize: vertical; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--background); padding: 6px 10px; font-size: 14px; line-height: 22px; color: var(--foreground); }
+.studio-cue-split-text:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.studio-cue-split-text[aria-readonly=true] { caret-color: var(--primary); cursor: text; }
+.studio-cue-split-check { display: flex; gap: 8px; align-items: center; margin: 12px 0 6px; font-size: 12px; font-weight: 500; }
+.studio-cue-split-time { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.studio-cue-split-parts { display: grid; gap: 4px; margin-top: 10px; padding: 0; list-style: none; }
+.studio-cue-split-parts > li { display: grid; grid-template-columns: auto auto minmax(0, 1fr); column-gap: 8px; row-gap: 2px; align-items: center;
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+.studio-cue-split-parts > li:not(:has(.studio-cue-audio-button)) { grid-template-columns: auto minmax(0, 1fr); }
+.studio-cue-split-number { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.studio-cue-split-range { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; color: var(--muted-foreground); }
+.studio-cue-split-part-text { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.studio-cue-insert-times { display: grid; grid-template-columns: auto minmax(0, 9rem) auto minmax(0, 9rem) auto; gap: 8px; align-items: center; }
+@media (max-width: 560px) {
+  .studio-cue-insert-times { grid-template-columns: auto minmax(0, 1fr); }
+}

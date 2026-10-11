@@ -30,7 +30,8 @@
 
 ## 字幕工作台：编辑能力
 
-- [ ] **拆分字幕、插入字幕**：`docs/features/studio-cue-structure/brd.md` 中列为后续批次；拆分可利用转写的字词时间定出拆开后的时间。
+- [x] **拆分字幕、插入字幕**：`docs/features/studio-cue-structure/brd.md` 中列为后续批次；拆分可利用转写的字词时间定出拆开后的时间。
+  - 2026-10-11 完成，见 `docs/features/studio-cue-split-insert/`：`split` / `insert` 编辑操作（新字幕与相邻字幕共用原文件节点或转写片段，撤销删除、重做恢复同一条），只读通道 `suggestCueSplit`；调整顺序与 Agent 工具未做。
 - [ ] **列表内查找替换（Ctrl+F）**：目前只有 Agent 能按文字查找字幕，人工校对没有搜索框。
 - [ ] **按文档保留撤销历史**：撤销记录只在内存中，切换到别的文档再回来就无法撤销；改为本次会话内按文档分别保留。
 
