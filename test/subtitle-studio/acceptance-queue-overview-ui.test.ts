@@ -98,7 +98,8 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       }, port);
       await page.reload(); await settled(page);
       const win = await app.browserWindow(page); await win.evaluate(win => win.setSize(1280, 860));
-      await uiExpect(page.getByTestId('studio-translation-overview')).toContainText(locale.translation.needs_configuration);
+      // The overview counts failed, interrupted and needs-configuration tasks as one "needs attention" figure.
+      await uiExpect(page.getByTestId('studio-translation-overview').locator('[data-state=attention] dd')).toHaveText('3');
       const initial = await page.evaluate(() => window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100 }));
       expect(initial.ok && initial.value.total).toBe(25);
       await page.getByRole('tab', { name: '转写', exact: true }).click();
@@ -121,6 +122,8 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       await control(app, { operation: 'task-state', taskId: cleaning.taskId, status: 'failed', cleanupPending: true });
       await control(app, { operation: 'task-state', taskId: running.taskId, status: 'transcribing', progress: 47 });
       const rows = page.getByTestId('studio-transcription-task-row');
+      // The menu item carries a hint line under its label, so match the label at the start of its name.
+      const clearTerminalItem = new RegExp(`^${locale.transcription.clear_terminal}`);
       await uiExpect(rows.filter({ hasText: 'Completed ·' })).toHaveAttribute('data-state', 'completed');
       await uiExpect(rows.filter({ hasText: 'Cleanup ·' }).getByRole('button', { name: new RegExp(locale.transcription.remove_task) })).toBeDisabled();
       native = await control(app, { operation: 'snapshot' }); const documentId = native.tasks.find(task => task.taskId === completed.taskId)!.documentId!;
@@ -130,7 +133,7 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       const saved = await page.evaluate(id => window.subtitleStudio.readDocumentPage({ documentId: id, revision: 1, offset: 0 }), documentId);
       expect(saved.ok).toBe(true);
       await page.getByRole('button', { name: locale.transcription.queue_actions, exact: true }).click();
-      await page.getByRole('menuitem', { name: locale.transcription.clear_terminal, exact: true }).click();
+      await page.getByRole('menuitem', { name: clearTerminalItem }).click();
       await uiExpect(rows).toHaveCount(3);
       expect((await control(app, { operation: 'snapshot' })).tasks.map(task => task.taskId)).toEqual([cleaning.taskId, queued.taskId, running.taskId]);
       await page.getByRole('button', { name: locale.transcription.queue_actions, exact: true }).click();
@@ -160,12 +163,15 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       await page.getByTestId('studio-library-select-all').click();
       await uiExpect(page.getByTestId('studio-library-select-all')).toBeChecked();
       await page.getByTestId('studio-batch-toolbar').getByRole('button', { name: locale.batch.translation, exact: true }).click();
+      // Settings, then a local check whose plan is a summary, then the submitted result (details on demand).
       const batch = page.getByRole('dialog', { name: locale.batch.translation, exact: true });
-      await batch.getByRole('button', { name: locale.translation.prepare, exact: true }).click();
-      await uiExpect(batch.getByTestId('studio-batch-plan').locator('[data-state=ready]')).toHaveCount(2);
-      await batch.getByRole('button', { name: locale.batch.start_ready.replace('{{count}}', '2'), exact: true }).click();
-      await uiExpect(batch.getByTestId('studio-batch-result').locator('[data-state=success]')).toHaveCount(2);
-      await batch.getByRole('button', { name: locale.batch.close, exact: true }).click();
+      await batch.getByTestId('studio-translation-check').click();
+      await uiExpect(page.getByTestId('studio-batch-plan')).toContainText(locale.batch.ready_count.replace('{{count}}', '2').replace('{{total}}', '2'));
+      await page.getByTestId('studio-translation-review-start').click();
+      const batchResult = page.getByTestId('studio-batch-result'); await uiExpect(batchResult).toBeVisible();
+      await batchResult.locator('[data-result-details] [data-slot="accordion-trigger"]').first().click();
+      await uiExpect(batchResult.locator('[data-state=success]')).toHaveCount(2);
+      await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
       await uiExpect(page.getByTestId('studio-translation-round')).toContainText('最近提交 2 项');
       await uiExpect(page.getByTestId('studio-translation-round')).toContainText('0%');
       const all = await page.evaluate(() => window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100 }));
@@ -209,7 +215,9 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       await uiExpect(overview).toHaveCount(0);
       await capture(page, fixture, 'i3-06-dark-narrow-keyboard-reader');
       releaseImmediately = true; for (const release of releases.splice(0)) release();
-      await uiExpect(page.getByTestId('studio-translation-round')).toContainText('100%', { timeout: 20000 });
+      // The round's progress bar is shown only while it runs (and not in the compact narrow overview): wait for the tasks.
+      await uiExpect.poll(async () => { const done = await page!.evaluate(ids => window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100, taskIds: ids }), submitted.map(task => task.taskId)); return done.ok && done.value.counts.completed; }, { timeout: 20000 }).toBe(2);
+      await uiExpect(page.getByTestId('studio-translation-round')).toHaveCount(0);
       const final = await page.evaluate(ids => window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100, taskIds: ids }), submitted.map(task => task.taskId));
       expect(final.ok && final.value.counts.completed).toBe(2);
       expect(final.ok && final.value.completedBatches).toBe(2);
@@ -217,7 +225,7 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       const queueActions = page.getByRole('button', { name: locale.transcription.queue_actions, exact: true });
       await queueActions.evaluate(element => element.scrollIntoView({ block: 'center' }));
       await queueActions.focus(); await page.keyboard.press('Enter');
-      await uiExpect(page.getByRole('menuitem', { name: locale.transcription.clear_terminal, exact: true })).toBeEnabled();
+      await uiExpect(page.getByRole('menuitem', { name: clearTerminalItem })).toBeEnabled();
       await capture(page, fixture, 'i3-07-dark-narrow-queue-actions');
       await page.keyboard.press('Escape'); await uiExpect(queueActions).toBeFocused();
       evidence.translation = { submitted, final, requestCount: requests.length, priorHistoryExcluded: true, reopenedFromFilteredPage: true };

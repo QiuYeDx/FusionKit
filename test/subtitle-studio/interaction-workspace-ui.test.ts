@@ -53,8 +53,9 @@ async function geometry(page: Page) {
       scrollTop: root.closest('[data-radix-scroll-area-viewport]')!.scrollTop,
       viewport: { ...measure(root.closest('[data-radix-scroll-area-viewport]')!), clientHeight: root.closest('[data-radix-scroll-area-viewport]')!.clientHeight, scrollHeight: root.closest('[data-radix-scroll-area-viewport]')!.scrollHeight },
       scrollMinHeight: getComputedStyle(document.querySelector('.app > [data-slot=scroll-area]')!).minHeight,
-      spacer: { ...measure(document.querySelector('.app > .h-10:not(.app-region-drag)')!), shrink: getComputedStyle(document.querySelector('.app > .h-10:not(.app-region-drag)')!).flexShrink },
-      headerPadding: [...active.querySelectorAll('[data-slot=tool-panel-header], [data-slot=tool-config-header]')].map(header => ({ top: getComputedStyle(header).paddingTop, bottom: getComputedStyle(header).paddingBottom })),
+      // The title bar spacer scrolls with the page, in block flow.
+      spacer: { ...measure(document.querySelector('.w-screen.overflow-x-clip > .h-10')!) },
+      headerPadding: [...active.querySelectorAll('[data-slot=tool-panel-header], [data-slot=tool-config-header]')].map(header => ({ library: !!header.closest('.studio-library'), top: getComputedStyle(header).paddingTop, bottom: getComputedStyle(header).paddingBottom })),
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth + 1 };
   });
 }
@@ -80,14 +81,15 @@ describe.runIf(enabled)('I6 actual Electron workspace layout and selection', () 
       for (const destination of ['/tools', '/tools/subtitle/studio']) {
         await page.waitForFunction(() => !document.getAnimations().some(a => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity));
         transitions.push(await page.evaluate(destination => new Promise<number[]>(resolve => {
-          const outgoing = document.querySelector('.app > [data-slot=scroll-area] .w-screen > div')!;
+          // The routed page, after the title bar spacer that scrolls with it.
+          const outgoing = document.querySelector('.app > [data-slot=scroll-area] .w-screen > div:not(.h-10)')!;
           const content = outgoing.firstElementChild!;
           const tops = [content.getBoundingClientRect().top];
           location.hash = destination;
           const sample = () => { if (!content.isConnected) return resolve(tops); tops.push(content.getBoundingClientRect().top); requestAnimationFrame(sample); };
           requestAnimationFrame(sample);
         }), destination));
-        if (destination.endsWith('studio')) await ready(page); else await page.locator('.max-w-5xl').waitFor();
+        if (destination.endsWith('studio')) await ready(page); else await page.getByTestId('tools-catalog').waitFor();
       }
       for (const tops of transitions) { expect(tops.length).toBeGreaterThan(2); expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(1); }
       evidence.routeExitTopFrames = transitions;
@@ -163,9 +165,10 @@ describe.runIf(enabled)('I6 actual Electron workspace layout and selection', () 
         await page.screenshot({ path: path.join(root, `${width}-transcription.png`), animations: 'disabled' });
         expect(transcription.header).toEqual(documents.header); expect(transcription.stage).toEqual(documents.stage); expect(transcription.contentTop).toBe(documents.contentTop);
         expect(transcription.headerPadding.every(item => item.top === '8px' && item.bottom === '8px')).toBe(true);
-        expect(documents.headerPadding.every(item => item.top === '8px' && item.bottom === '8px')).toBe(true);
+        // The library column's headers (translation tasks, documents) are compact; the others match the transcription view.
+        expect(documents.headerPadding.every(item => item.top === (item.library ? '6px' : '8px') && item.bottom === item.top)).toBe(true);
         expect(documents.horizontalOverflow || transcription.horizontalOverflow).toBe(false);
-        expect(transcription.scrollMinHeight).toBe('0px'); expect(transcription.spacer.height).toBe(40); expect(transcription.spacer.shrink).toBe('0');
+        expect(transcription.scrollMinHeight).toBe('0px'); expect(transcription.spacer.height).toBe(40);
         if (width < 1024) {
           await page.getByTestId('studio-transcription-advanced').click();
           await uiExpect(page.locator('#studio-transcription-beamSize')).toBeVisible();

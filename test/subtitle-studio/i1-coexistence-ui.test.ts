@@ -164,7 +164,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio I1 coe
       await uiExpect(emptyExport).toHaveAccessibleName(labels.export.review_title);
       await uiExpect(emptyExport.locator('[data-issue="empty_output"]')).toContainText(labels.export.change_types.empty_output);
       await emptyExport.getByTestId('studio-export-review-details').locator('[data-slot="accordion-trigger"]').first().click();
-      await uiExpect(emptyExport.getByText(labels.export.issues.empty_output, { exact: true })).toBeVisible();
+      // The reason is in the summary and again in the expanded file details; check the details.
+      await uiExpect(emptyExport.getByTestId('studio-export-review-details').getByText(labels.export.issues.empty_output, { exact: true })).toBeVisible();
       await assertLocalized(emptyExport);
       await page.keyboard.press('Escape');
       await uiExpect(emptyExport).toHaveCount(0);

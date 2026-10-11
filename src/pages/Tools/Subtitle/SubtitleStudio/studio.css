@@ -156,7 +156,8 @@
 .studio-tabs { display: grid; flex: 1; min-height: 0; height: 100%; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto minmax(0, 1fr); align-items: center; }
 /* An explicitly expanded diagnostic list uses the panel's outer scroll area,
    keeping a readable cue viewport reachable below its messages. */
-.studio-tabs:has(.studio-diagnostics[open]) { grid-template-rows: auto auto minmax(120px, 1fr); }
+/* The disclosure is an accordion: open is its item's data-state, not a <details> [open]. */
+.studio-tabs:has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto minmax(120px, 1fr); }
 .studio-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 2; margin: 6px 12px; }
 .studio-document-heading { grid-area: 1 / 1; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 6px 0 6px 12px; }
 .studio-document-heading h2 { flex: 1; min-width: 0; }

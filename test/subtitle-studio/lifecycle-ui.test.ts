@@ -62,8 +62,15 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio recove
     await app!.evaluate(({ dialog }, selected) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected }); }, exported);
     await page.getByRole('button', { name: '下载', exact: true }).click();
     await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
+    // The source folder was moved away, so the download dialog saves to another location (the save dialog above).
+    const download = page.getByRole('dialog', { name: '下载原文件' });
+    await download.getByRole('combobox').first().click();
+    await page.getByRole('option', { name: '选择其他位置', exact: true }).click();
+    await download.getByRole('button', { name: '保存原始文件…', exact: true }).click();
     await uiExpect(page.getByRole('status').filter({ hasText: '已下载' })).toBeVisible();
     expect(await readFile(exported, 'utf8')).toBe(source);
+    await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
+    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
     const window = await app!.browserWindow(page);
     await window.evaluate(win => win.setSize(1280, 860));
     await page.getByRole('button', { name: '删除文档', exact: true }).hover();

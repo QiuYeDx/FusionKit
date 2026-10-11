@@ -66,8 +66,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit cop
       const win = await app.browserWindow(page); await win.evaluate(window => window.setSize(1280, 860));
       await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, lrc);
       await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
-      const bilingual = page.getByRole('dialog', { name: '整理双语字幕', exact: true }); await uiExpect(bilingual).toBeVisible();
-      await bilingual.getByRole('button', { name: '确认整理', exact: true }).click();
+      // A bilingual LRC is recognized on import, without a confirmation step.
       await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(4);
       const trigger = page.locator('.studio-cue-table tbody tr').first().getByRole('button', { name: '字幕操作', exact: true });
       // Windows clipboard text uses CRLF; compare content without changing spaces or source lines.

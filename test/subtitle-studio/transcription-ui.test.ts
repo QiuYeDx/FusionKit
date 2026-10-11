@@ -40,13 +40,18 @@ async function capture(page: Page, fixture: Fixture, name: string) {
     const tabs = document.querySelector('.studio-workspace-tabs')!.getBoundingClientRect();
     const config = document.querySelector('[data-testid=studio-transcription-config]')?.getBoundingClientRect();
     const picker = document.querySelector('[data-testid=studio-transcription-picker]')?.getBoundingClientRect();
-    return { viewport: innerWidth, tabs: { left: tabs.left, width: tabs.width }, layout: config && picker ? { left: config.left, right: picker.right } : null };
+    const header = document.querySelector('.studio-workspace-header > div')!.getBoundingClientRect();
+    return { viewport: innerWidth, tabs: { left: tabs.left, width: tabs.width }, header: { left: header.left, right: header.right },
+      layout: config && picker ? { left: config.left, right: picker.right } : null };
   });
   expect(geometry.tabs.width).toBeGreaterThan(geometry.viewport - 65);
   if (geometry.viewport >= 1024 && geometry.layout) {
-    expect(geometry.layout.left).toBeGreaterThanOrEqual(28);
-    expect(geometry.layout.left).toBeLessThanOrEqual(36);
-    expect(geometry.layout.right).toBeGreaterThanOrEqual(geometry.viewport - 36);
+    // The settings and the picker line up with the page header, whose gutter is shared by every tool page
+    // (test/tool-navigation.electron.test.ts); it is no longer a fixed 28-36 px.
+    expect(Math.abs(geometry.layout.left - geometry.header.left)).toBeLessThanOrEqual(1);
+    // Equal gutters on both sides, give or take the page scrollbar when the view scrolls.
+    expect(Math.abs((geometry.viewport - geometry.layout.right) - geometry.layout.left)).toBeLessThanOrEqual(5);
+    expect(geometry.header.left).toBeLessThanOrEqual(48);
   }
   await writeFile(path.join(fixture.artifacts, `${name}-geometry.json`), JSON.stringify(geometry, null, 2));
   await page.screenshot({ path: path.join(fixture.artifacts, `${name}.png`), animations: 'disabled' });

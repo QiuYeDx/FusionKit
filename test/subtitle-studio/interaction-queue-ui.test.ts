@@ -102,11 +102,15 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
         await window.evaluate(window => { if (window.isMaximized()) window.unmaximize(); if (window.isMinimized()) window.restore(); });
         // Apply the requested geometry after reload as well as waiting for the renderer;
         // Windows can defer a resize while the native window is transitioning.
+        // The page fills the window's content area, which with the hidden title bar can include the resize
+        // borders on Windows (12 x 6 px off-screen under test); the small size is the minimum window.
+        const size: [number, number] = theme === 'light' ? [1280, 860] : [786, 540];
         await uiExpect.poll(async () => {
-          await window.evaluate((window, theme) => window.setSize(theme === 'light' ? 1281 : 787, theme === 'light' ? 860 : 540), theme);
-          return page!.evaluate(() => ({ width: innerWidth, height: innerHeight }));
-        })
-          .toEqual(theme === 'light' ? { width: 1280, height: 860 } : { width: 786, height: 540 });
+          await window.evaluate((window, size) => window.setSize(...size), size);
+          const native = await window.evaluate(window => ({ size: window.getSize(), content: window.getContentSize() }));
+          const inner = await page!.evaluate(() => [innerWidth, innerHeight]);
+          return native.size.join('x') === size.join('x') && Math.abs(inner[0] - native.content[0]) <= 1 && inner[1] === native.content[1];
+        }).toBe(true);
         await page.getByRole('tab', { name: locale.workspace_transcription, exact: true }).click();
         await control(app, { operation: 'resources-ready' });
         await page.getByTestId('studio-transcription-runtime-row').getByRole('button').click();
@@ -160,7 +164,7 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
           await page.keyboard.press('Escape'); await tag.evaluate(element => (element as HTMLElement).blur());
           await uiExpect(tooltip).toHaveCount(0);
         }
-        const longModel = rows[1].locator('.studio-transcription-task-model'); await longModel.scrollIntoViewIfNeeded(); await longModel.focus();
+        const longModel = rows[1].locator('.studio-task-model'); await longModel.scrollIntoViewIfNeeded(); await longModel.focus();
         await uiExpect(page.getByRole('tooltip')).toHaveText(`${modelLabel} · CPU`);
         await page.keyboard.press('Escape'); await longModel.evaluate(element => (element as HTMLElement).blur());
         const progress: Record<string, unknown> = {};
@@ -169,7 +173,7 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
           await rows[index].evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
           await page.mouse.move(0, 0);
           await uiExpect(rows[index].locator('progress')).toHaveAttribute('value', String(value));
-          await uiExpect(rows[index].locator('.studio-transcription-task-percentage')).toHaveText(`${value}%`);
+          await uiExpect(rows[index].locator('.studio-task-percentage')).toHaveText(`${value}%`);
           const idle = await pixels(app, rows[index]);
           await rows[index].hover({ position: { x: 6, y: 6 } }); const hover = await pixels(app, rows[index]);
           expect(colorDistance(idle.colors.row, hover.colors.row)).toBeGreaterThan(3);

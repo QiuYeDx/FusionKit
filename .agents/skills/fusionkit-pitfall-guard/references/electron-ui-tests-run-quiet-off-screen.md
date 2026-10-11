@@ -32,6 +32,9 @@ painting, running animation frames and timers. Playwright's focus emulation keep
 - Stub `document.fullscreenElement` / `requestFullscreen` / `exitFullscreen` in the page when a test covers
   full-screen behavior; never let a test cover the developer's screen.
 - Wait for entrance animations (`element.getAnimations()` finished) before measuring boxes.
+- Compare `innerWidth` / `innerHeight` with `win.getContentSize()`, not with the size passed to `setSize()`: the
+  window hides its title bar, and off-screen on Windows its content area includes the resize borders
+  (`setSize(786, 540)` gives a 798 x 546 page). Assert the outer size with `win.getSize()`.
 
 ## Avoid
 

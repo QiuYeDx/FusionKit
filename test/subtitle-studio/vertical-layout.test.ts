@@ -86,9 +86,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
     await nativeWindow.evaluate(win => win.setSize(786, 540));
     await page.locator('.studio-diagnostics [data-slot="accordion-trigger"]').first().click();
     await page.waitForTimeout(350);
+    await page.screenshot({ path: path.join(artifacts, 'narrow-diagnostics.png'), animations: 'disabled' });
     expect(await page.locator('.studio-reader').evaluate(element => element.getBoundingClientRect().height)).toBeGreaterThanOrEqual(120);
     expect(await page.locator('.studio-reader-footer').evaluate(element => element.getBoundingClientRect().bottom <= document.querySelector('.fixed.bottom-0')!.getBoundingClientRect().top)).toBe(true);
-    await page.screenshot({ path: path.join(artifacts, 'narrow-diagnostics.png'), animations: 'disabled' });
     await page.locator('.studio-preview-panel > [data-slot=tool-panel-body]').evaluate(element => { element.scrollTop = element.scrollHeight; });
     expect(await page.locator('.studio-cue-text').evaluate(element => {
       const body = element.closest('[data-slot=tool-panel-body]')!.getBoundingClientRect();
@@ -100,7 +100,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
     await page.locator('#cvt-tour-queue').waitFor();
     await page.locator('h1').evaluate(element => { element.closest('[data-radix-scroll-area-viewport]')!.scrollTop = 0; });
     await page.waitForTimeout(350);
-    await uiExpect(page.locator('.w-screen.overflow-x-clip')).toHaveCSS('padding-top', '40px');
+    // The title bar's 40 px is a spacer that scrolls with the page (so content passes under the transparent bar).
+    await uiExpect(page.locator('.w-screen.overflow-x-clip > .h-10')).toHaveCSS('height', '40px');
     await page.screenshot({ path: path.join(artifacts, 'reference-converter.png'), animations: 'disabled' });
     expect(errors).toEqual([]);
   }, 60000);

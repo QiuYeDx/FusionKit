@@ -128,7 +128,12 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('home and panel han
       expect(queued).toMatchObject({ success: true, data: { queuedCount: 1, appliedSettings: { targetLang: { value: 'EN', source: 'tool_page' }, translationOutputMode: { value: 'target_only', source: 'tool_page' }, sourceLang: { source: 'tool_page' } } } });
       await uiExpect(page.getByText('episode.srt').first()).toBeVisible();
       await page.screenshot({ path: path.join(artifacts, '02-translator-settings-and-task.png') });
-      // The panel's list uses an overlay scrollbar that appears while hovered, without a track.
+      // The panel's list uses an overlay scrollbar that appears while hovered, without a track. A long reply makes
+      // the list overflow whatever the panel's height (the conversation above can fit it exactly).
+      queue.push(text(Array.from({ length: 16 }, (_, index) => `第 ${index + 1} 条说明。`).join('\n\n')));
+      await page.getByTestId('agent-dock-input').fill('说明一下');
+      await page.getByTestId('agent-dock-input').press('Enter');
+      await uiExpect(panel.getByText('第 16 条说明。')).toBeVisible();
       const list = page.getByTestId('agent-dock-messages');
       await list.hover();
       await uiExpect(page.locator('.agent-dock-scroll [data-slot="scroll-area-scrollbar"]')).toBeVisible();

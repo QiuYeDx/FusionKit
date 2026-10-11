@@ -35,13 +35,16 @@ export function StudioRecovery({ open, onOpenChange, documents, onChanged, onErr
   const [result, setResult] = useState<{ count: number; failed: number } | null>(null);
   const [failed, setFailed] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const visible = documents.filter(doc => !removed.has(keyOf(doc)));
   const chosen = visible.filter(doc => selected.has(keyOf(doc)));
   useEffect(() => {
     if (open) { setSelected(new Set()); setRemoved(new Set()); setFailures(new Set()); setConfirm(null); setResult(null); setFailed(false); }
   }, [open]);
   useEffect(() => { if (confirm) cancelRef.current?.focus(); }, [confirm]);
-  useEffect(() => { if (result) document.getElementById('studio-recovery-close')?.focus(); }, [result]);
+  // Cancel is disabled while clearing, so the dialog's focus trap holds focus on its container; land the
+  // keyboard on Close afterwards. A ref, not the id: the content transition can keep an exiting copy around.
+  useEffect(() => { if (result && !pending) closeRef.current?.focus(); }, [result, pending]);
   const close = (value: boolean) => { if (!operation.current) { onOpenChange(value); setConfirm(null); setFailed(false); } };
   const requestRemoval = (docs: UnavailableDocument[]) => {
     if (operation.current || !docs.length) return;
@@ -104,7 +107,7 @@ export function StudioRecovery({ open, onOpenChange, documents, onChanged, onErr
           : result ? <p role={result.failed ? 'alert' : 'status'} className={result.failed ? 'text-destructive' : 'text-muted-foreground'}>{t(result.failed ? 'studio:recovery.batch_result' : 'studio:recovery.batch_success', result)}</p>
           : failed ? <p role="alert" className="text-destructive">{t('studio:recovery.failed')}</p> : null}
       </div>
-      <div className="studio-recovery-actions">{confirm ? <><Button ref={cancelRef} size="sm" variant="outline" disabled={!!pending} onClick={() => setConfirm(null)}>{t('studio:cancel')}</Button><Button size="sm" variant="destructive" disabled={!!pending} onClick={() => void removeConfirmed()}><Trash2 />{t('studio:recovery.confirm_remove')}</Button></> : <><Button id="studio-recovery-close" size="sm" variant="outline" disabled={!!pending} onClick={() => close(false)}>{t('studio:recovery.close')}</Button>{!!visible.length && <Button size="sm" variant="destructive" disabled={!!pending || !chosen.length} onClick={() => requestRemoval(chosen)}><Trash2 />{t('studio:recovery.remove_selected', { count: chosen.length })}</Button>}</>}</div>
+      <div className="studio-recovery-actions">{confirm ? <><Button ref={cancelRef} size="sm" variant="outline" disabled={!!pending} onClick={() => setConfirm(null)}>{t('studio:cancel')}</Button><Button size="sm" variant="destructive" disabled={!!pending} onClick={() => void removeConfirmed()}><Trash2 />{t('studio:recovery.confirm_remove')}</Button></> : <><Button ref={closeRef} id="studio-recovery-close" size="sm" variant="outline" disabled={!!pending} onClick={() => close(false)}>{t('studio:recovery.close')}</Button>{!!visible.length && <Button size="sm" variant="destructive" disabled={!!pending || !chosen.length} onClick={() => requestRemoval(chosen)}><Trash2 />{t('studio:recovery.remove_selected', { count: chosen.length })}</Button>}</>}</div>
       </DialogTransition>
     </ScrollableDialogFooter>
   </ScrollableDialog>;
