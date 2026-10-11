@@ -1,5 +1,5 @@
 import { StudioRevealSource } from './StudioRevealSource';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type DragEvent } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
@@ -25,7 +25,7 @@ import { StudioRefreshCoordinator } from '@/services/subtitle-studio/refresh-coo
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { encodingSchema, LIMITS, StudioError, type Diagnostic, type ErrorCode } from '@/subtitle-studio/domain';
 import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
-import { CueHistory, type CueEditLabel } from '@/services/subtitle-studio/cue-history';
+import { cueHistory as sessionCueHistory, type CueEditLabel } from '@/services/subtitle-studio/cue-history';
 import { StudioCueTable } from './StudioCueTable';
 import { StudioPreviewExpandControls, useStudioPreviewExpansion } from './StudioPreviewExpansion';
 import { StudioCueRecognize, type CueRecognizeRequestState } from './StudioCueRecognize';
@@ -193,11 +193,13 @@ export default function SubtitleStudio() {
   /** The document just imported and separated as bilingual, until the notice is dismissed. */
   const [bilingualNotice, setBilingualNotice] = useState('');
   const track = page?.translationTracks.find(item => item.id === trackId) ?? page?.translationTracks.at(-1);
-  const cueHistory = useRef(new CueHistory());
+  // One history per document for the session, kept when the studio page is left.
+  const cueHistory = useRef(sessionCueHistory);
   // Undo only covers edits made at the revision on screen; any other change ends it.
   // Synced when the page changes, not on every render: an edit records its new
   // revision before the page reloads, and renders in between still show the old one.
-  useEffect(() => { cueHistory.current.sync(page?.summary.id, page?.summary.revision); }, [page?.summary.id, page?.summary.revision]);
+  const [, showHistory] = useReducer((value: number) => value + 1, 0);
+  useEffect(() => { if (cueHistory.current.sync(page?.summary.id, page?.summary.revision)) showHistory(); }, [page?.summary.id, page?.summary.revision]);
   const [cueNotice, setCueNotice] = useState<{ deleted: number; stopped: number } | null>(null);
   /** Wordings an applied AI revision settled, offered for keeping until the document changes again. */
   const [knowledgeOffer, setKnowledgeOffer] = useState<{ documentId: string; revision: number; hints: CueRevisionHint[]; pair: Partial<LanguagePair>; preferredCollectionId?: string; instructions: string } | null>(null);
@@ -808,7 +810,7 @@ export default function SubtitleStudio() {
               <div className="studio-reader border-t" ref={reader}>
                 <ClipPathTabsContent value="preview">
                   {page.cues.length ? <StudioCueTable page={page} track={track} flaggedNodes={flaggedNodes} busy={busy} copied={copied} scrollRef={reader}
-                    history={{ undo: cueHistory.current.peek('undo'), redo: cueHistory.current.peek('redo') }}
+                    history={{ undo: cueHistory.current.peek('undo', page.summary.id), redo: cueHistory.current.peek('redo', page.summary.id) }}
                     onOperation={(operation, label, count) => applyCueEdit(operation, 'do', label, count)} onUndo={() => stepCueHistory('undo')} onRedo={() => stepCueHistory('redo')}
                     onTranslate={cueIds => setCueTranslation({ cueIds, ...(track ? { trackId: track.id } : {}), request: { restoreFocus: focusCueList } })}
                     onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })} onCheckConsistency={() => openConsistency(page ? [page.summary] : [])}
