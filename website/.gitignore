@@ -1,0 +1,5 @@
+node_modules
+dist
+.vercel
+# Generated from docs/assets/readme by scripts/screenshots.mjs
+public/shots

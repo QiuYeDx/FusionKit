@@ -1,0 +1,117 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Same neutral scale as the desktop app (src/index.css), plus the two identity
+   hues its Tools page gives Subtitle Studio (teal) and Translation materials (violet). */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --surface: oklch(0.985 0 0);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.52 0 0);
+  --border: oklch(0.922 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.708 0 0);
+  --grid: oklch(0.145 0 0 / 5%);
+  --studio: oklch(0.56 0.1 195);
+  --studio-soft: oklch(0.96 0.025 195);
+  --knowledge: oklch(0.55 0.13 290);
+  --knowledge-soft: oklch(0.965 0.02 290);
+  --shot-shadow: 0 1px 2px oklch(0 0 0 / 4%), 0 12px 40px -12px oklch(0 0 0 / 14%);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --surface: oklch(0.175 0 0);
+  --card: oklch(0.19 0 0);
+  --muted: oklch(0.24 0 0);
+  --muted-foreground: oklch(0.72 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --ring: oklch(0.556 0 0);
+  --grid: oklch(1 0 0 / 4.5%);
+  --studio: oklch(0.76 0.11 195);
+  --studio-soft: oklch(0.24 0.03 195);
+  --knowledge: oklch(0.76 0.12 290);
+  --knowledge-soft: oklch(0.24 0.035 290);
+  --shot-shadow: 0 1px 2px oklch(0 0 0 / 30%), 0 16px 48px -16px oklch(0 0 0 / 70%);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-studio: var(--studio);
+  --color-studio-soft: var(--studio-soft);
+  --color-knowledge: var(--knowledge);
+  --color-knowledge-soft: var(--knowledge-soft);
+  --font-sans: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    text-rendering: optimizeLegibility;
+  }
+  /* Break Chinese headings at spaces and punctuation (or the zero-width space hints in
+     content.ts) instead of between any two characters, so words stay whole. */
+  h1,
+  h2,
+  h3 {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--studio) 25%, transparent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/* The faint square grid from the README banner, faded out towards the edges. */
+.hero-grid {
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 30%, transparent 80%);
+}
+
+.hero-glow {
+  background:
+    radial-gradient(40% 50% at 70% 30%, color-mix(in oklch, var(--studio) 16%, transparent), transparent 70%),
+    radial-gradient(35% 45% at 25% 10%, color-mix(in oklch, var(--knowledge) 10%, transparent), transparent 70%);
+}
+
+.shot {
+  box-shadow: var(--shot-shadow);
+}

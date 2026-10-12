@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FusionKit · AI 驱动的字幕与翻译桌面工具集</title>
+    <meta
+      name="description"
+      content="本地转写音视频，AI 翻译与修订字幕，用对话完成整套流程。支持 macOS 与 Windows，接入你自己的模型服务。"
+    />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FusionKit" />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:title" content="FusionKit · AI 驱动的字幕与翻译桌面工具集" />
+    <meta
+      property="og:description"
+      content="本地转写音视频，AI 翻译与修订字幕，用对话完成整套流程。"
+    />
+    <meta property="og:image" content="%VITE_SITE_URL%/shots/og-zh.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Apply the theme before first paint so dark-mode visitors never see a white flash.
+      ;(function () {
+        var stored = null
+        try {
+          stored = localStorage.getItem('fk-theme')
+        } catch (e) {}
+        var dark = stored ? stored === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.classList.toggle('dark', dark)
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
