@@ -151,7 +151,7 @@ export const requestSchemas = {
   deleteUnavailable: z.object({ documentId: idSchema, token: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
   ...batchRequestSchemas,
   listDocuments: z.object({ offset: z.number().int().min(0).max(LIMITS.cues), query: z.string().max(500).optional(), format: z.enum(['all', ...SUBTITLE_TEXT_FORMATS, 'media']).optional(), status: z.enum(['all', 'untranslated', 'translated', 'active', 'attention']).optional(), sort: z.enum(['default', 'name-asc', 'name-desc', 'cue-count-asc', 'cue-count-desc', 'recent', 'oldest']).optional(), pageSize: z.number().int().min(1).max(LIMITS.pageSize).optional() }).strict(),
-  readDocumentPage: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), offset: z.number().int().min(0).max(LIMITS.cues), nodeOffset: z.number().int().min(0).max(LIMITS.nodes).optional() }).strict(),
+  readDocumentPage: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), offset: z.number().int().min(0).max(LIMITS.cues) }).strict(),
   exportSource: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), destination: exportDestinationSchema.optional() }).strict(),
   planExport: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), options: exportOptionsSchema }).strict(),
   exportDocument: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), planId: idSchema, acceptedLosses: z.array(exportIssueCodeSchema).max(32), destination: exportDestinationSchema.optional() }).strict(),
@@ -205,7 +205,7 @@ export type TranslationTasksSnapshot = {
   items: TranslationTaskSummary[];
 };
 export type DocumentTask = Omit<StoredTask, 'translation'> & { translation?: Omit<NonNullable<StoredTask['translation']>, 'checkpoint'> & { checkpoint?: { version: 1 | 2 } } };
-export type DocumentPage = { automaticKnowledgeReportTrackIds?: string[]; summary: DocumentSummary; offset: number; cues: SubtitleDocument['cues']; nodeOffset: number; nodeCount: number; rawNodes: { id: string; text: string }[]; translationTracks: SubtitleDocument['translationTracks']; tasks: DocumentTask[] };
+export type DocumentPage = { automaticKnowledgeReportTrackIds?: string[]; summary: DocumentSummary; offset: number; cues: SubtitleDocument['cues']; translationTracks: SubtitleDocument['translationTracks']; tasks: DocumentTask[] };
 export type StudioResult<T> = { ok: true; value: T } | { ok: false; error: ErrorCode };
 export type TranscriptionMediaSelection = { items: Array<
   { displayName: string; ok: true; media: LocalSubtitleAuthorizedMedia; probe: LocalSubtitleMediaProbeSummary }

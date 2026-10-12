@@ -30,7 +30,7 @@ async function capture(page: Page, fixture: Fixture, name: string) {
   await settled(page);
   const geometry = await page.evaluate(() => ({ viewport: { width: innerWidth, height: innerHeight },
     overflow: document.documentElement.scrollWidth > innerWidth + 1,
-    elements: [...document.querySelectorAll('.studio-workspace-header, .studio-document-layout, .studio-workspace, .studio-preview-panel, .studio-tabs, .studio-translation-toolbar, .studio-document-heading, .studio-translation-overview, .studio-transcription-queue, .studio-reader, .studio-library, .studio-reader-footer, [role=dialog]')].filter(element => !!element.getClientRects().length).map(element => {
+    elements: [...document.querySelectorAll('.studio-workspace-header, .studio-document-layout, .studio-workspace, .studio-preview-panel, .studio-document-view, .studio-translation-toolbar, .studio-document-heading, .studio-translation-overview, .studio-transcription-queue, .studio-reader, .studio-library, .studio-reader-footer, [role=dialog]')].filter(element => !!element.getClientRects().length).map(element => {
       const rect = element.getBoundingClientRect(), style = getComputedStyle(element), parent = element.parentElement;
       return { className: element.className, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, height: rect.height,
         scrollWidth: element.scrollWidth, clientWidth: element.clientWidth, scrollHeight: element.scrollHeight, clientHeight: element.clientHeight,

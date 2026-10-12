@@ -5,7 +5,7 @@ import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { readStudioNavigationView } from './navigation';
-import { AlertCircle, AudioLines, BookOpen, CheckCheck, Code2, Ellipsis, FilePlus2, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText, Columns2 } from 'lucide-react';
+import { AlertCircle, AudioLines, BookOpen, CheckCheck, Ellipsis, FilePlus2, Library, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText, Columns2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -182,7 +182,6 @@ export default function SubtitleStudio() {
   const [activity, setActivity] = useState<Activity | null>('load');
   const [error, setError] = useState<ErrorCode | null>(null);
   const [exported, setExported] = useState('');
-  const [view, setView] = useState('preview');
   const [copied, setCopied] = useState<string | null>(null);
   const [copyFailed, setCopyFailed] = useState(false);
   const [deleting, setDeleting] = useState<DocumentSummary | null>(null);
@@ -223,7 +222,7 @@ export default function SubtitleStudio() {
   const coordinator = useRef<StudioRefreshCoordinator | null>(null);
   const backgroundRead = useRef<() => Promise<void>>(async () => {});
   const refreshPending = useRef<() => void>(() => {});
-  const showPage = (value: DocumentPage | null) => { currentPage.current = value; setPage(value); if (value && !value.summary.capabilities.preserveSource) setView('preview'); };
+  const showPage = (value: DocumentPage | null) => { currentPage.current = value; setPage(value); };
   const mounted = useRef(true);
   const operation = useRef(false);
   const operationSettled = useRef<Promise<void>>(Promise.resolve());
@@ -280,18 +279,18 @@ export default function SubtitleStudio() {
     catch (failure) { if (readerIsCurrent(owner)) setError(failure instanceof StudioError ? failure.code : 'document_unavailable'); }
     finally { settle(); if (readerIsCurrent(owner)) { operation.current = false; setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); } }
   };
-  const select = async (doc: DocumentSummary, offset = 0, nodeOffset = 0, options: { silent?: boolean; query?: LibraryQuery; navigation?: number } = {}) => {
+  const select = async (doc: DocumentSummary, offset = 0, options: { silent?: boolean; query?: LibraryQuery; navigation?: number } = {}) => {
     const owner = coordinator.current;
     const generation = options.navigation ?? previewGeneration.current;
     const previous = currentPage.current;
     const revision = Math.max(doc.revision, observedRevisions.current.get(doc.id) ?? 0);
-    const result = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: doc.id, revision, offset, nodeOffset }));
+    const result = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: doc.id, revision, offset }));
     if (options.query && options.query !== queryRef.current) { dirty.current = true; return; }
     if (generation !== previewGeneration.current || (previewTarget.current && options.navigation === undefined)) return;
     if (readerIsCurrent(owner) && observations.current.acceptsDocument(result.summary)) {
       showPage(result);
       if (!options.silent) { setCopied(null); setCopyFailed(false); }
-      if (previous?.summary.id !== doc.id || previous.offset !== offset || previous.nodeOffset !== nodeOffset) reader.current?.scrollTo({ top: 0 });
+      if (previous?.summary.id !== doc.id || previous.offset !== offset) reader.current?.scrollTo({ top: 0 });
       return true;
     }
   };
@@ -333,10 +332,10 @@ export default function SubtitleStudio() {
     if (preview) {
       const refreshed = result.documents.find(doc => doc.id === preview.summary.id);
       const revision = observedRevisions.current.get(preview.summary.id);
-      if (refreshed && refreshed.revision > preview.summary.revision) await select(refreshed, preview.offset, preview.nodeOffset, { silent, query: requestedQuery });
-      else if (revision && revision > preview.summary.revision) await select({ ...preview.summary, revision }, preview.offset, preview.nodeOffset, { silent, query: requestedQuery });
+      if (refreshed && refreshed.revision > preview.summary.revision) await select(refreshed, preview.offset, { silent, query: requestedQuery });
+      else if (revision && revision > preview.summary.revision) await select({ ...preview.summary, revision }, preview.offset, { silent, query: requestedQuery });
     } else if (openFirst && result.documents[0]) {
-      await select(result.documents[0], 0, 0, { silent, query: requestedQuery });
+      await select(result.documents[0], 0, { silent, query: requestedQuery });
     }
   };
   backgroundRead.current = async () => {
@@ -367,7 +366,7 @@ export default function SubtitleStudio() {
     const added = result.items.flatMap(item => item.ok ? [item.document] : []);
     changeQuery(defaultLibraryQuery); clearSelection();
     await load(0);
-    if (added[0]) { await select(added[0]); setView('preview'); setBilingualNotice(added[0].bilingualImport ? added[0].id : ''); }
+    if (added[0]) { await select(added[0]); setBilingualNotice(added[0].bilingualImport ? added[0].id : ''); }
     if (result.items.length > 1 || result.items.some(item => !item.ok)) setResults({ kind: 'import', items: result.items.map(item => ({ name: item.fileName,
       ...(item.ok ? { documentId: item.document.id, ...(item.document.bilingualImport ? { bilingual: bilingualDirection(t, item.document.bilingualImport) } : {}) } : { error: item.error }) })) });
   };
@@ -409,7 +408,7 @@ export default function SubtitleStudio() {
       if (!isCurrent()) return;
       for (let attempt = 0; ; attempt++) {
         try {
-          if (await select(doc, 0, 0, { navigation: generation })) break;
+          if (await select(doc, 0, { navigation: generation })) break;
           if (!isCurrent()) return;
           throw new StudioError('revision_conflict');
         } catch (failure) {
@@ -419,7 +418,7 @@ export default function SubtitleStudio() {
       }
       if (!isCurrent()) return;
       if (currentPage.current?.summary.id !== doc.id) throw new StudioError('document_unavailable');
-      setView('preview'); setTrackId('');
+      setTrackId('');
       previewTarget.current = null; setPreviewRequest(null);
     }).catch(failure => {
       if (isCurrent()) setPreviewRequest({ document: doc, error: failure instanceof StudioError ? failure.code : 'document_unavailable' });
@@ -447,7 +446,7 @@ export default function SubtitleStudio() {
           await load(offset);
           await select(document);
           if (mounted.current && preferredTrackId) setTrackId(preferredTrackId);
-          if (mounted.current) { setError(null); setView('preview'); setLibraryOpen(false); changeWorkspaceView('documents'); }
+          if (mounted.current) { setError(null); setLibraryOpen(false); changeWorkspaceView('documents'); }
           return;
         }
         if (offset + LIBRARY_PAGE_SIZE >= snapshot.total || snapshot.documents.length === 0) break;
@@ -495,7 +494,6 @@ export default function SubtitleStudio() {
     const timeout = setTimeout(() => setCopied(null), 1800);
     return () => clearTimeout(timeout);
   }, [copied]);
-  useEffect(() => { reader.current?.scrollTo({ top: 0 }); }, [view]);
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1024px)');
     const change = () => { setWide(media.matches); if (media.matches) setLibraryOpen(false); };
@@ -639,7 +637,7 @@ export default function SubtitleStudio() {
       const deleted = operation.kind === 'delete' && label === 'delete' ? result.changed : 0;
       setCueNotice(deleted || result.stoppedTasks ? { deleted, stopped: result.stoppedTasks } : null);
       const lastPage = Math.max(0, Math.floor((result.summary.cueCount - 1) / LIMITS.pageSize) * LIMITS.pageSize);
-      await select(result.summary, Math.min(current.offset, lastPage), current.nodeOffset);
+      await select(result.summary, Math.min(current.offset, lastPage));
       await load(currentOffset.current);
     }, false).then(() => resolve(applied));
   });
@@ -787,43 +785,34 @@ export default function SubtitleStudio() {
           icon={Subtitles}
           actions={page ? <><StudioBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioRevertBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setBilingualNotice(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} recheckRequest={knowledgeRecheck} onRecheckClosed={requestId => setKnowledgeRecheck(current => current?.requestId === requestId ? undefined : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioRevealSource key={page.summary.id} kind="document" id={page.summary.id} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton><StudioPreviewExpandControls expansion={expansion} onPreviousDocument={previousDocument && (() => chooseDocument(previousDocument))} onNextDocument={nextDocument && (() => chooseDocument(nextDocument))} /></> : undefined}
           className="studio-preview-panel"
-          footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t(page.summary.capabilities.preserveSource ? 'studio:source_preserved' : 'studio:transcription_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
+          footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t(page.summary.capabilities.preserveSource ? 'studio:source_preserved' : 'studio:transcription_preserved')}</span><StudioPagination offset={page.offset} total={page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, offset))} /></div> : undefined}
         >
-          {page ? <>
-            {/* A document without its source file has only the preview, so the view tabs are hidden rather than offering one choice. */}
-            <ClipPathTabs value={view} onValueChange={setView} ariaLabel={t('studio:document_view')} shape="rounded" smoothCorners size="sm" className="studio-tabs w-full gap-0" data-single-view={!page.summary.capabilities.preserveSource || undefined} transitionDuration={200} transitionEasing="ease-out" items={[
-              { value: 'preview', label: t('studio:preview'), icon: <List /> },
-              ...(page.summary.capabilities.preserveSource ? [{ value: 'raw', label: t('studio:original_nodes'), icon: <Code2 /> }] : []),
-            ]}>
-              {track && <div className="studio-translation-toolbar">
-                <div className="studio-translation-track-controls">
-                <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} title={formatStudioTrackName(track.language, page.translationTracks.findIndex(item => item.id === track.id), t('studio:language_unknown'), track.name)} className="h-7 w-[148px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent className="studio-track-options">{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{formatStudioTrackName(item.language, index, t('studio:language_unknown'), item.name)}</SelectItem>)}</SelectContent></Select>
-                <StudioRenameTranslation key={`${page.summary.id}:${track.id}`} page={page} track={track} busy={busy} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
-                <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
-                </div>
-                <div className="studio-translation-progress-controls">
-                  <StudioTranslationStatus page={page} trackId={track.id} busy={busy} onRecheck={requestKnowledgeRecheck} />
-                  <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
-                </div>
-              </div>}
-              {diagnostics.length > 0 && <StudioDisclosure className="studio-diagnostics border-t bg-muted/30" key={page.summary.id} title={<span className="flex min-w-0 items-center gap-2"><AlertCircle className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" /><span>{t('studio:document_checks')}</span><Badge variant="secondary" className="font-mono text-[10px]">{page.summary.diagnostics.length}</Badge></span>}><ScrollArea viewportProps={{ className: 'studio-diagnostics-scroll' }}><ul>{diagnostics.map(([code, count]) => <li key={code}><span>{t(diagnosticKeys[code])}</span><span className="shrink-0 font-mono text-[10px]">{count}</span></li>)}</ul></ScrollArea></StudioDisclosure>}
-              <ScrollArea className="studio-reader-area" viewportRef={reader} viewportProps={{ className: 'studio-reader border-t' }}>
-                <ClipPathTabsContent value="preview">
-                  {page.cues.length ? <StudioCueTable page={page} track={track} flaggedNodes={flaggedNodes} busy={busy} copied={copied} scrollRef={reader}
-                    history={{ undo: cueHistory.current.peek('undo', page.summary.id), redo: cueHistory.current.peek('redo', page.summary.id) }}
-                    onOperation={(operation, label, count) => applyCueEdit(operation, 'do', label, count)} onUndo={() => stepCueHistory('undo')} onRedo={() => stepCueHistory('redo')}
-                    onTranslate={cueIds => setCueTranslation({ cueIds, ...(track ? { trackId: track.id } : {}), request: { restoreFocus: focusCueList } })}
-                    onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })} onCheckConsistency={() => openConsistency(page ? [page.summary] : [])}
-                    onSelectionChange={cueIds => { cueSelection.current = cueIds; }}
-                    onCopy={copyCue}
-                    onRecognize={cueIds => setCueRecognize({ cueIds, serial: ++cueRecognizeSerial.current })}
-                    onFollowPage={offset => void run('select', () => select(page.summary, offset, page.nodeOffset, { silent: true }))}
-                    onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
-                </ClipPathTabsContent>
-                <ClipPathTabsContent value="raw" className="studio-raw"><ol start={page.nodeOffset + 1}>{page.rawNodes.map((node, index) => <li key={node.id}><span aria-hidden="true">{page.nodeOffset + index + 1}</span><pre>{node.text}</pre></li>)}</ol>{!page.rawNodes.length && <div className="studio-content-empty"><Code2 /><p>{t('studio:no_source_content')}</p></div>}</ClipPathTabsContent>
-              </ScrollArea>
-            </ClipPathTabs>
-          </> : busy ? <div className="studio-content-empty py-14"><LoaderCircle className="studio-spin" /><p>{t('studio:loading')}</p></div>
+          {page ? <div className="studio-document-view">
+            {track && <div className="studio-translation-toolbar">
+              <div className="studio-translation-track-controls">
+              <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} title={formatStudioTrackName(track.language, page.translationTracks.findIndex(item => item.id === track.id), t('studio:language_unknown'), track.name)} className="h-7 w-[148px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent className="studio-track-options">{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{formatStudioTrackName(item.language, index, t('studio:language_unknown'), item.name)}</SelectItem>)}</SelectContent></Select>
+              <StudioRenameTranslation key={`${page.summary.id}:${track.id}`} page={page} track={track} busy={busy} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
+              <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
+              </div>
+              <div className="studio-translation-progress-controls">
+                <StudioTranslationStatus page={page} trackId={track.id} busy={busy} onRecheck={requestKnowledgeRecheck} />
+                <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
+              </div>
+            </div>}
+            {diagnostics.length > 0 && <StudioDisclosure className="studio-diagnostics border-t bg-muted/30" key={page.summary.id} title={<span className="flex min-w-0 items-center gap-2"><AlertCircle className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" /><span>{t('studio:document_checks')}</span><Badge variant="secondary" className="font-mono text-[10px]">{page.summary.diagnostics.length}</Badge></span>}><ScrollArea viewportProps={{ className: 'studio-diagnostics-scroll' }}><ul>{diagnostics.map(([code, count]) => <li key={code}><span>{t(diagnosticKeys[code])}</span><span className="shrink-0 font-mono text-[10px]">{count}</span></li>)}</ul></ScrollArea></StudioDisclosure>}
+            <ScrollArea className="studio-reader-area" viewportRef={reader} viewportProps={{ className: 'studio-reader border-t' }}>
+              {page.cues.length ? <StudioCueTable page={page} track={track} flaggedNodes={flaggedNodes} busy={busy} copied={copied} scrollRef={reader}
+                history={{ undo: cueHistory.current.peek('undo', page.summary.id), redo: cueHistory.current.peek('redo', page.summary.id) }}
+                onOperation={(operation, label, count) => applyCueEdit(operation, 'do', label, count)} onUndo={() => stepCueHistory('undo')} onRedo={() => stepCueHistory('redo')}
+                onTranslate={cueIds => setCueTranslation({ cueIds, ...(track ? { trackId: track.id } : {}), request: { restoreFocus: focusCueList } })}
+                onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })} onCheckConsistency={() => openConsistency(page ? [page.summary] : [])}
+                onSelectionChange={cueIds => { cueSelection.current = cueIds; }}
+                onCopy={copyCue}
+                onRecognize={cueIds => setCueRecognize({ cueIds, serial: ++cueRecognizeSerial.current })}
+                onFollowPage={offset => void run('select', () => select(page.summary, offset, { silent: true }))}
+                onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
+            </ScrollArea>
+          </div> : busy ? <div className="studio-content-empty py-14"><LoaderCircle className="studio-spin" /><p>{t('studio:loading')}</p></div>
             : <div className="studio-content-empty studio-import-empty py-14" data-testid="studio-import-empty"><FilePlus2 /><div><p className="studio-import-empty-title">{t('studio:import')}</p><p>{t('studio:library.import_hint')}</p></div><Button size="sm" variant="outline" onClick={importDocument}>{t('studio:choose_file')}</Button></div>}
         </ToolPanel>
         </div>

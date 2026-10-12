@@ -8,7 +8,7 @@ function documentPage(offset: number, lines: string[], cueCount = 250): Document
   const cues = lines.map((line, index) => ({ id: `cue-${offset + index + 1}`, source: text(line), sourceRevision: 1, timing: { startMs: (offset + index) * 1000, endMs: (offset + index) * 1000 + 800 } }));
   return {
     summary: { id: 'doc-1', revision: 7, origin: { format: 'srt', displayName: 'episode.srt' }, cueCount, translationStatus: 'partial', capabilities: { translate: true } },
-    offset, cues, nodeOffset: 0, nodeCount: 0, rawNodes: [], tasks: [],
+    offset, cues, tasks: [],
     translationTracks: [{ id: 'track-1', language: 'zh', entries: Object.fromEntries(cues.slice(0, 2).map((cue, index) => [cue.id, { text: text(`译${cue.source.plain}`), sourceRevision: index ? 0 : 1 }])) }],
   } as unknown as DocumentPage;
 }

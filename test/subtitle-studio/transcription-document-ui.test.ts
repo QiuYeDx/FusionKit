@@ -48,7 +48,6 @@ it.runIf(process.env.FUSIONKIT_STUDIO_TRANSCRIPTION_UI === '1')('renders stored 
       return window.subtitleStudio.readDocumentPage({ documentId: id, revision: doc.revision, offset: 100 });
     }, media.id);
     expect(paged.ok && paged.value.cues.length).toBe(5);
-    expect(paged.ok && paged.value.rawNodes).toEqual([]);
     const preview = page.locator('.studio-preview-panel');
     await preview.getByRole('button', { name: locale.next, exact: true }).click();
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(5);

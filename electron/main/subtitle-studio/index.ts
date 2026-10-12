@@ -483,13 +483,11 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
         const doc = snapshot.document;
         if (doc.revision !== request.revision) throw new StudioError('revision_conflict');
         if (method === 'readDocumentPage') {
-          const { offset, nodeOffset = 0 } = requestSchemas.readDocumentPage.parse(payload);
+          const { offset } = requestSchemas.readDocumentPage.parse(payload);
           const cues = doc.cues.slice(offset, offset + LIMITS.pageSize);
-          const raw = doc.schemaVersion === 1 ? doc.preservation : null;
-          const nodes = raw?.nodes.slice(nodeOffset, nodeOffset + LIMITS.pageSize) ?? [];
           const cueIds = new Set(cues.map(cue => cue.id));
           const translationTracks = doc.translationTracks.map(track => ({ ...track, entries: Object.fromEntries(Object.entries(track.entries).filter(([id]) => cueIds.has(id))) }));
-          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks, undefined, snapshot.automaticExport), cues, offset, nodeOffset, nodeCount: raw?.nodes.length ?? 0, rawNodes: nodes.map(node => ({ id: node.id, text: raw!.rawText.slice(node.start, node.end) })), translationTracks, automaticKnowledgeReportTrackIds: automaticKnowledgeReportTrackIds(snapshot), tasks: snapshot.tasks.map(summarizeTask) } };
+          return { ok: true, value: { summary: summarizeDocument(doc, snapshot.tasks, undefined, snapshot.automaticExport), cues, offset, translationTracks, automaticKnowledgeReportTrackIds: automaticKnowledgeReportTrackIds(snapshot), tasks: snapshot.tasks.map(summarizeTask) } };
         }
         if (method === 'previewCueShift') {
           const { deltaMs, fromCueId } = requestSchemas.previewCueShift.parse(payload);

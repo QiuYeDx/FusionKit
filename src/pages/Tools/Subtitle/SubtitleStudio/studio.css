@@ -154,21 +154,15 @@
 .studio-notice { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-width: 1px; font-size: 12px; }
 .studio-notice > svg { width: 15px; height: 15px; flex-shrink: 0; }
 .studio-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-/* Row 1 holds the view tabs and, beside them, the translation track toolbar. */
-.studio-tabs { display: grid; flex: 1; min-height: 0; height: 100%; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); align-items: center; }
+/* The open document: the translation track toolbar, document checks, then the cues. */
+.studio-document-view { display: grid; flex: 1; min-height: 0; height: 100%; grid-template-rows: auto auto minmax(0, 1fr); }
 /* An explicitly expanded diagnostic list uses the panel's outer scroll area,
    keeping a readable cue viewport reachable below its messages. */
 /* The disclosure is an accordion: open is its item's data-state, not a <details> [open]. */
-.studio-tabs:has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto minmax(120px, 1fr); }
-/* Top-aligned beside a toolbar that wraps onto a second line. */
-.studio-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; align-self: start; margin: 6px 12px; }
-/* With only the preview there is nothing to switch: no tabs, and the track toolbar takes the whole row. */
-.studio-tabs[data-single-view] > [data-slot=clip-path-tabs-stage] { display: none; }
-.studio-tabs[data-single-view] > .studio-translation-toolbar { grid-column: 1 / -1; padding-left: 12px; }
-.studio-tabs[data-single-view] .studio-translation-track-controls::before { display: none; }
-/* Nothing above the cues then, so the header's own border is the only divider. */
-.studio-tabs[data-single-view]:not(:has(> .studio-translation-toolbar)) > .studio-diagnostics,
-.studio-tabs[data-single-view]:not(:has(> .studio-translation-toolbar, > .studio-diagnostics)) > .studio-reader-area > .studio-reader { border-top-width: 0; }
+.studio-document-view:has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto minmax(120px, 1fr); }
+/* Whatever comes first sits right under the panel header, whose border already divides them. */
+.studio-document-view > .studio-diagnostics:first-child,
+.studio-document-view > .studio-reader-area:first-child > .studio-reader { border-top-width: 0; }
 /* The panel title is the open document: its name, then one line of facts. */
 .studio-preview-panel > [data-slot=tool-panel-header] { flex-wrap: nowrap; min-height: 52px; }
 .studio-preview-panel > [data-slot=tool-panel-header] > div:first-child { flex: 1 1 auto; }
@@ -181,14 +175,14 @@
 .studio-document-meta > span { display: inline-flex; align-items: center; gap: 6px; }
 .studio-document-meta > span + span::before { content: ''; width: 2px; height: 2px; border-radius: 1px; background: currentColor; opacity: .7; }
 .studio-document-format { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: .02em; }
-.studio-tabs > :is(.studio-diagnostics, .studio-reader-area) { grid-column: 1 / -1; min-width: 0; }
+.studio-document-view > .studio-diagnostics { grid-row: 2; min-width: 0; }
 .studio-preview-panel { container-type: inline-size; }
 .studio-diagnostics { font-size: 12px; }
 .studio-diagnostics-scroll { max-height: 160px; overscroll-behavior: contain; }
 .studio-diagnostics ul { display: grid; gap: 8px; padding: 0 12px 12px 34px; }
 .studio-diagnostics li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; color: var(--muted-foreground); overflow-wrap: anywhere; }
 /* .studio-reader is the ScrollArea viewport; its right padding is the gutter the overlay scrollbar sits in. */
-.studio-reader-area { grid-row: 3; min-height: 0; align-self: stretch; }
+.studio-reader-area { grid-row: 3; min-width: 0; min-height: 0; align-self: stretch; }
 .studio-reader { overscroll-behavior-y: contain; }
 .studio-reader > div { display: block !important; padding-right: 8px; }
 .studio-reader-area > [data-slot=scroll-area-scrollbar] { width: 8px; border: 0; }
@@ -209,14 +203,9 @@
 .studio-cue-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 20px; user-select: text; }
 .studio-cue-table .studio-cue-action { padding: 4px 8px 4px 0; }
 @media (hover: hover) and (pointer: fine) { .studio-copy { opacity: 0; } tr:hover .studio-copy, tr:focus-within .studio-copy, .studio-copy.is-copied { opacity: 1; } }
-.studio-raw li { display: grid; grid-template-columns: 36px minmax(0, 1fr); padding: 4px 12px 4px 0; border-bottom: 1px solid var(--border); }
-.studio-raw li:last-child { border-bottom: 0; }
-.studio-raw li > span { padding-right: 12px; font: 10px/16px ui-monospace, monospace; color: var(--muted-foreground); text-align: right; font-variant-numeric: tabular-nums; }
-.studio-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/16px ui-monospace, monospace; user-select: text; }
-/* Top-aligned so a wrapped second line grows downward; 8px puts the first line on the 32px tabs' center. */
-.studio-translation-toolbar { grid-area: 1 / 2; align-self: start; display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px 8px; min-width: 0; padding: 8px 12px 6px 0; }
+/* Top-aligned so a wrapped second line grows downward. */
+.studio-translation-toolbar { grid-row: 1; display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px 8px; min-width: 0; padding: 8px 12px; }
 .studio-translation-track-controls { display: flex; align-items: center; gap: 2px; height: 28px; min-width: 0; flex-shrink: 0; }
-.studio-translation-track-controls::before { content: ''; flex-shrink: 0; width: 1px; height: 16px; margin-right: 8px; background: var(--border); }
 .studio-translation-track-controls > [data-slot=select-trigger] { margin-right: 4px; }
 .studio-translation-track-controls [data-slot="select-value"], .studio-plan-document-track [data-slot="select-value"] { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-track-options { max-width: min(380px, calc(100vw - 32px)); }
@@ -234,19 +223,10 @@
 /* The toolbar's groups share their first 28px line; the 32px task buttons overhang it evenly. */
 .studio-translation-progress-controls .studio-translation-task-controls { flex-shrink: 0; max-width: 100%; margin-block: -2px; }
 .studio-translation-toolbar [data-slot=select-trigger] { height: 28px; min-height: 28px; }
-/* Narrower previews keep the track controls beside the view tabs and let the status wrap under them. */
+/* Narrower previews shorten the track selector; the status wraps under it when it still does not fit. */
 @container (max-width: 760px) {
   .studio-translation-toolbar [data-slot=select-trigger] { width: 124px; }
   .studio-translation-progress-controls .studio-translation-status { gap: 6px; }
-}
-/* Only where the tabs and track controls cannot share a line does the toolbar get its own row. */
-@container (max-width: 540px) {
-  .studio-tabs:not([data-single-view]) { grid-template-rows: auto auto auto minmax(0, 1fr); }
-  .studio-tabs:not([data-single-view]):has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto auto minmax(120px, 1fr); }
-  .studio-tabs:not([data-single-view]) > .studio-translation-toolbar { grid-area: 2 / 1 / auto / -1; padding: 0 12px 6px; }
-  .studio-tabs:not([data-single-view]) .studio-translation-track-controls::before { display: none; }
-  .studio-tabs:not([data-single-view]) > .studio-diagnostics { grid-row: 3; }
-  .studio-tabs:not([data-single-view]) > .studio-reader-area { grid-row: 4; }
 }
 .studio-parallel-text { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .studio-target-text { min-width: 0; }

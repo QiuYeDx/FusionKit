@@ -77,7 +77,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     await capture('empty-light');
     await importFile(name);
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(100);
-    await uiExpect(page.locator('.studio-tabs[data-slot=clip-path-tabs]')).toHaveAttribute('data-shape', 'rounded');
+    // The preview is the only document view, so there is nothing to switch.
+    await uiExpect(page.locator('.studio-preview-panel [role=tablist]')).toHaveCount(0);
     const density = await page.locator('.studio-cue-table tbody').evaluate(body => {
       const rows = [...body.querySelectorAll('tr')];
       const short = rows[0];
@@ -104,14 +105,14 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     expect(density.timeDelta).toBeLessThan(1);
     expect(density.aligned).toBe(true);
     expect(density.offsets.every(offset => offset < 1)).toBe(true);
-    // The panel title names the document; the view tabs alone form the row above the cues.
+    // The panel title names the document; without a translation track the cues start right under it.
     const toolbar = await page.locator('.studio-preview-panel').evaluate(panel => {
       const header = panel.querySelector(':scope > [data-slot=tool-panel-header]')!;
-      const tabs = panel.querySelector('.studio-tabs')!.getBoundingClientRect();
-      const reader = panel.querySelector('.studio-reader')!.getBoundingClientRect();
-      return { height: reader.top - tabs.top, headerHeight: header.getBoundingClientRect().height, headingInHeader: !!header.querySelector('.studio-document-heading h2 .studio-file-name') };
+      const reader = panel.querySelector('.studio-reader')!;
+      return { gap: reader.getBoundingClientRect().top - header.getBoundingClientRect().bottom, readerBorder: getComputedStyle(reader).borderTopWidth, headerHeight: header.getBoundingClientRect().height, headingInHeader: !!header.querySelector('.studio-document-heading h2 .studio-file-name') };
     });
-    expect(toolbar.height).toBeLessThanOrEqual(52);
+    expect(Math.abs(toolbar.gap)).toBeLessThan(1);
+    expect(toolbar.readerBorder).toBe('0px');
     expect(toolbar.headerHeight).toBeLessThanOrEqual(56);
     expect(toolbar.headingInHeader).toBe(true);
     /** The header has room for the whole name at this width; the library row has to truncate it. */
@@ -177,30 +178,6 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     await jump.fill('1'); await jump.press('Enter');
     await uiExpect(page.locator('.studio-cue-number').first()).toHaveText('1');
 
-    await page.getByRole('tab', { name: '原始内容' }).click();
-    await page.waitForTimeout(250);
-    expect(await page.locator('.studio-tabs [data-slot=clip-path-tabs-active-layer]').evaluate(element => getComputedStyle(element).clipPath)).toMatch(/^inset\(/);
-    await uiExpect(page.locator('.studio-raw pre').first()).toContainText('00:00:00,000');
-    expect(await page.locator('.studio-raw pre').first().textContent()).toBe(source.slice(0, source.indexOf('\n\n') + 2));
-    const rawDensity = await page.locator('.studio-raw li').evaluateAll(rows => ({
-      shortHeight: rows[0].getBoundingClientRect().height,
-      wrappedHeight: rows[2].getBoundingClientRect().height,
-      multilineHeight: rows[3].getBoundingClientRect().height,
-    }));
-    expect(rawDensity.shortHeight).toBeLessThanOrEqual(76);
-    expect(rawDensity.wrappedHeight).toBeGreaterThan(rawDensity.shortHeight);
-    expect(rawDensity.multilineHeight).toBeGreaterThan(rawDensity.shortHeight);
-    console.log('Raw content density:', rawDensity);
-    await capture('original-content-first-page');
-    await page.locator('.studio-preview-region').getByRole('button', { name: '下一页', exact: true }).click();
-    await uiExpect(page.locator('.studio-raw li > span').first()).toHaveText('101');
-    await capture('original-content');
-    await page.getByRole('tab', { name: '字幕预览' }).focus();
-    await page.keyboard.press('ArrowRight');
-    await uiExpect(page.getByRole('tab', { name: '原始内容' })).toBeFocused();
-    await page.keyboard.press('ArrowLeft');
-    await uiExpect(page.getByRole('tab', { name: '字幕预览' })).toHaveAttribute('aria-selected', 'true');
-
     await app.evaluate(({ dialog }, selected) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected }); }, path.join(root, 'export.srt'));
     await page.getByRole('button', { name: '下载', exact: true }).click();
     await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
@@ -255,9 +232,6 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
         await assertFilename('.studio-mobile-picker .studio-file-name');
       }
       await capture(`${theme}-${lang}-${width}`);
-      await page.locator('.studio-tabs').getByRole('tab').nth(1).click();
-      await capture(`original-content-${theme}-${lang}-${width}`);
-      await page.locator('.studio-tabs').getByRole('tab').first().click();
     }
     // The desktop application has a 786px minimum, but the view also survives a smaller renderer.
     await page.setViewportSize({ width: 390, height: 844 });

@@ -44,10 +44,8 @@ async function toolbarGeometry(page: Page) {
     const clear = left.querySelector('button[aria-label]:not([role=combobox])')!.getBoundingClientRect();
     const firstStatus = toolbar.querySelector('.studio-translation-status > span:first-child')!.getBoundingClientRect();
     const bounds = toolbar.getBoundingClientRect();
-    const tabs = document.querySelector('.studio-tabs > [data-slot=clip-path-tabs-stage]')!.getBoundingClientRect();
     return { gap: clear.left - selector.right, centerDifference: Math.abs((selector.top + selector.height / 2) - (clear.top + clear.height / 2)),
       firstStatusCenterDifference: Math.abs((selector.top + selector.height / 2) - (firstStatus.top + firstStatus.height / 2)),
-      tabsCenterDifference: Math.abs((selector.top + selector.height / 2) - (tabs.top + tabs.height / 2)), statusBelowSelector: firstStatus.top >= selector.bottom,
       within: Array.from(toolbar.querySelectorAll('.studio-translation-track-controls, .studio-translation-progress-controls, .studio-translation-task-controls')).every(element => { const rect = element.getBoundingClientRect(); return rect.left >= bounds.left && rect.right <= bounds.right + 1; }),
       emptyTaskControls: Array.from(toolbar.querySelectorAll('.studio-translation-task-controls')).some(element => !element.textContent?.trim() && !element.querySelector('button')) };
   });
@@ -139,15 +137,14 @@ describe.runIf(enabled)('I5 real Electron reader refresh and toolbar', () => {
       await reply(); await uiExpect(page.locator('.studio-translation-status')).toContainText('1 / 3');
       await uiExpect(page.locator('.studio-copy.is-copied')).toHaveCount(1);
       await uiExpect(page.locator('.studio-cue-number').first()).toHaveText('101');
-      await page.getByRole('tab', { name: '原始内容', exact: true }).click();
-      const rawScroll = await page.locator('.studio-reader').evaluate(element => { element.scrollTop = 180; return element.scrollTop; }); expect(rawScroll).toBeGreaterThan(0);
+      const readerScroll = await page.locator('.studio-reader').evaluate(element => { element.scrollTop = 180; return element.scrollTop; }); expect(readerScroll).toBeGreaterThan(0);
       const trackSelector = page.locator('.studio-translation-track-controls [role=combobox]'); await trackSelector.focus();
       await reply(); await uiExpect(page.locator('.studio-translation-status')).toContainText('2 / 3');
-      await uiExpect(trackSelector).toBeFocused(); await uiExpect(page.getByRole('tab', { name: '原始内容', exact: true })).toHaveAttribute('aria-selected', 'true');
-      expect(await page.locator('.studio-reader').evaluate(element => element.scrollTop)).toBe(rawScroll);
+      await uiExpect(trackSelector).toBeFocused();
+      expect(await page.locator('.studio-reader').evaluate(element => element.scrollTop)).toBe(readerScroll);
       evidence.wide = await toolbarGeometry(page);
       await page.screenshot({ path: path.join(root, '01-running-light-stable-toolbar.png'), animations: 'disabled' });
-      expect(evidence.wide).toMatchObject({ gap: 6, centerDifference: 0, firstStatusCenterDifference: 0, tabsCenterDifference: 0, within: true, emptyTaskControls: false });
+      expect(evidence.wide).toMatchObject({ gap: 6, centerDifference: 0, firstStatusCenterDifference: 0, within: true, emptyTaskControls: false });
       await page.getByRole('button', { name: '下载', exact: true }).click(); await page.getByRole('menuitem', { name: '导出字幕', exact: true }).click();
       await uiExpect(page.getByRole('dialog')).toBeVisible(); await reply();
       await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed'); await uiExpect(page.getByRole('dialog')).toBeVisible();
@@ -186,8 +183,7 @@ describe.runIf(enabled)('I5 real Electron reader refresh and toolbar', () => {
       await page.evaluate(() => { document.documentElement.classList.add('dark'); });
       evidence.narrow = await toolbarGeometry(page);
       await page.screenshot({ path: path.join(root, '02-failed-dark-narrow-toolbar.png'), animations: 'disabled' });
-      // The track controls stay beside the view tabs; the long failed status wraps onto the next line.
-      expect(evidence.narrow).toMatchObject({ gap: 6, centerDifference: 0, tabsCenterDifference: 0, statusBelowSelector: true, within: true, emptyTaskControls: false });
+      expect(evidence.narrow).toMatchObject({ gap: 6, centerDifference: 0, firstStatusCenterDifference: 0, within: true, emptyTaskControls: false });
       await nativeWindow.evaluate(win => win.setSize(1280, 860));
 
       // Query scope changes while a read is pending cannot commit the prior query's rows.

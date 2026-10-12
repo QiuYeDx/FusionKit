@@ -773,7 +773,6 @@ describe('production Subtitle Studio IPC handler composition', () => {
     const page = await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { ...request, revision: 2, offset: 0 });
     expect(page.ok).toBe(true);
     expect(page.value.translationTracks[0].origin).toBe('imported');
-    expect(page.value.rawNodes).toEqual(before.value.rawNodes);
     expect(page.value.cues.map((cue: { source: { plain: string } }) => cue.source.plain)).toEqual(['\u3053\u3093\u306b\u3061\u306f', '\u307e\u305f\u660e\u65e5']);
     const trackId = page.value.translationTracks[0].id;
     expect(await owner.invoke(STUDIO_CHANNELS.removeTranslationTrack, { ...request, revision: 2, trackId }))
@@ -781,7 +780,6 @@ describe('production Subtitle Studio IPC handler composition', () => {
     const cleared = await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { ...request, revision: 3, offset: 0 });
     expect(cleared.value.translationTracks).toEqual([]);
     expect(cleared.value.cues).toEqual(page.value.cues);
-    expect(cleared.value.rawNodes).toEqual(before.value.rawNodes);
     expect(await readFile(path.join(adapter.directory, 'sample.lrc'), 'utf8')).toBe(source);
     expect(owner.client.send).toHaveBeenCalledWith(STUDIO_CHANNELS.changed, expect.objectContaining({ event: expect.objectContaining({ documentId: request.documentId, revision: 3 }) }));
   });

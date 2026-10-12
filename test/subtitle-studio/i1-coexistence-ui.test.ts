@@ -178,11 +178,6 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio I1 coe
       await uiExpect(readerPagination.getByRole('button', { name: labels.next, exact: true })).toBeDisabled();
       await jump.fill('1'); await jump.press('Enter');
       await uiExpect(page.locator('.studio-cue-number').first()).toHaveText('1');
-      await page.getByRole('tab', { name: labels.preview, exact: true }).focus();
-      await page.keyboard.press('ArrowRight');
-      await uiExpect(page.getByRole('tab', { name: labels.original_nodes, exact: true })).toHaveAttribute('aria-selected', 'true');
-      await page.keyboard.press('ArrowLeft');
-      await uiExpect(page.getByRole('tab', { name: labels.preview, exact: true })).toHaveAttribute('aria-selected', 'true');
       if (language === 'ja' || language === 'zh-Hant') await window.evaluate(win => win.setSize(786, 540));
       await assertLocalized(page.getByTestId('subtitle-studio'));
       await page.getByRole('button', { name: labels.translation.resume, exact: true }).click();

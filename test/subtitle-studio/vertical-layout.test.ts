@@ -55,11 +55,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio vertic
       expect(measurements.pageOverflow).toBeLessThanOrEqual(1);
       expect(measurements.readerHeight).toBeGreaterThanOrEqual(width < 1024 ? 128 : 300);
     }
-    await page.getByRole('tab', { name: '原始内容' }).click();
-    await uiExpect(page.locator('.studio-raw pre').first()).toContainText('[00:00.00]');
     const before = await page.locator('.studio-reader').evaluate(element => element.clientHeight);
     await page.locator('.studio-reader-footer').getByRole('button', { name: '下一页', exact: true }).click();
-    await uiExpect(page.locator('.studio-raw li > span').first()).toHaveText('101');
+    await uiExpect(page.locator('.studio-cue-number').first()).toHaveText('101');
     expect(await page.locator('.studio-reader').evaluate(element => element.clientHeight)).toBe(before);
     await page.evaluate(async () => {
       for (let i = 0; i < 12; i++) {
