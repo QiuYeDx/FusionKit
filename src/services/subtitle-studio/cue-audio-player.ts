@@ -87,6 +87,8 @@ type Session = {
   nextMs?: number | null; endMs?: number; fetching?: boolean;
 };
 
+type PeaksRequest = { documentId: string; revision?: number; startMs: number; endMs: number };
+
 /**
  * One player for the whole studio: starting playback stops what played before.
  * Stretches are decoded by the main process on request and played through Web
@@ -102,6 +104,8 @@ export function createCueAudioPlayer(dependencies: CueAudioPlayerDependencies) {
   const cache = new Map<string, Clip>();
   const peaksCache = new Map<string, CueAudioPeaks>();
   const epochs = new Map<string, number>();
+  const peaksKey = (request: PeaksRequest, buckets: number) => request.revision === undefined ? undefined
+    : `${request.documentId}|${request.revision}|${epochs.get(request.documentId) ?? 0}|${request.startMs}|${request.endMs}|${buckets}`;
   let context: AudioContextLike | undefined;
   let state: CueAudioPlayback | null = null;
   let session: Session | null = null;
@@ -150,8 +154,12 @@ export function createCueAudioPlayer(dependencies: CueAudioPlayerDependencies) {
     if (current.serial !== serial) return;
     silence(current); session = null; stopTicking(); publish(null);
   }
-  function unavailable(current: Session, documentId: string, reason: CueAudioUnavailable) {
+  /** Media that went missing or moved has its status read again. */
+  function noteUnavailable(documentId: string, reason: CueAudioUnavailable) {
     if (reason === 'no_media' || reason === 'media_unavailable') dependencies.onMediaProblem?.(documentId);
+  }
+  function unavailable(current: Session, documentId: string, reason: CueAudioUnavailable) {
+    noteUnavailable(documentId, reason);
     if (reason === 'cancelled') { if (current.serial === serial) { session = null; stopTicking(); publish(null); } return; }
     fail(current, reason);
   }
@@ -289,18 +297,23 @@ export function createCueAudioPlayer(dependencies: CueAudioPlayerDependencies) {
      * The waveform of a stretch, decoded beside whatever plays (a waveform never stops playback);
      * null when the media cannot be read. The last few are kept for the document's revision.
      */
-    async peaks(request: { documentId: string; revision?: number; startMs: number; endMs: number }, buckets: number): Promise<CueAudioPeaks | null> {
-      const key = request.revision === undefined ? undefined
-        : `${request.documentId}|${request.revision}|${epochs.get(request.documentId) ?? 0}|${request.startMs}|${request.endMs}|${buckets}`;
+    async peaks(request: PeaksRequest, buckets: number): Promise<CueAudioPeaks | null> {
+      const key = peaksKey(request, buckets);
       const known = key ? peaksCache.get(key) : undefined;
       if (known) return known;
       let result: StudioResult<CueAudioResult>;
       try { result = await dependencies.read({ documentId: request.documentId, target: { range: { startMs: request.startMs, endMs: request.endMs } }, padMs: 0, tempo: 1, purpose: 'waveform' }); }
       catch { return null; }
-      if (!result.ok || result.value.kind !== 'clip') return null;
+      if (!result.ok) return null;
+      if (result.value.kind !== 'clip') { noteUnavailable(request.documentId, result.value.reason); return null; }
       const value = { startMs: result.value.clipStartMs, endMs: result.value.clipEndMs, peaks: pcmPeaks(result.value.bytes, buckets) };
       if (key) { peaksCache.set(key, value); while (peaksCache.size > PEAKS_CACHE_SIZE) peaksCache.delete(peaksCache.keys().next().value as string); }
       return value;
+    },
+    /** The kept waveform of a stretch, without reading the media; undefined when it has to be read. */
+    knownPeaks(request: PeaksRequest, buckets: number): CueAudioPeaks | undefined {
+      const key = peaksKey(request, buckets);
+      return key ? peaksCache.get(key) : undefined;
     },
     /** Where in the media the document's audio is right now, or null when it is not playing. */
     positionFor(documentId: string): number | null {

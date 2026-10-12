@@ -118,7 +118,10 @@
 @keyframes studio-wave-pulse { from { opacity: .35; } to { opacity: 1; } }
 @media (prefers-reduced-motion: no-preference) {
   .studio-cue-wave-playhead { transition: left 100ms linear; }
+  /* The strip appears once its audio is read, so it fades in rather than popping. */
+  .studio-cue-waveform { animation: studio-wave-in 140ms ease-out; }
 }
+@keyframes studio-wave-in { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .studio-cue-wave-loading { animation: none; }
 }

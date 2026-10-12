@@ -6,6 +6,8 @@ import { CueAudioButton } from './StudioCueAudio';
 /** What the time editor needs to show a cue's waveform: how to load it and how to play a stretch. */
 export type CueWaveformSource = {
   load: (startMs: number, endMs: number, buckets: number) => Promise<CueAudioPeaks | null>;
+  /** The waveform already loaded for the stretch, shown without waiting; undefined when it has to be read. */
+  known?: (startMs: number, endMs: number, buckets: number) => CueAudioPeaks | undefined;
   playKey: string;
   request: (startMs: number, endMs: number) => CueAudioRequest;
 };
@@ -16,6 +18,11 @@ const HEIGHT = 36;
 const BAR = 2, PITCH = 3;
 /** Dragged times snap to 10 ms. */
 const STEP_MS = 10;
+/**
+ * A stretch usually decodes in 0.1–0.2 s. Until then (or until it fails) nothing is shown, so media
+ * that turns out unreadable never flashes a strip in and out; a slower read shows a placeholder.
+ */
+const PLACEHOLDER_DELAY_MS = 300;
 
 /**
  * The waveform around a cue being retimed, with its start and end as bracket markers.
@@ -37,7 +44,9 @@ export function StudioCueWaveform({ source, viewStartMs, viewEndMs, startMs, end
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);
   // undefined while loading, null when the media could not be read.
-  const [peaks, setPeaks] = useState<CueAudioPeaks | null | undefined>(undefined);
+  const [peaks, setPeaks] = useState<CueAudioPeaks | null | undefined>(() => source.known?.(viewStartMs, viewEndMs, BUCKETS));
+  const [slow, setSlow] = useState(false);
+  const shown = !!peaks || (peaks === undefined && slow);
   const [dragging, setDragging] = useState<'start' | 'end' | null>(null);
   const playback = useCueAudio(source.playKey);
   const span = viewEndMs - viewStartMs;
@@ -52,7 +61,7 @@ export function StudioCueWaveform({ source, viewStartMs, viewEndMs, startMs, end
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [peaks === null]);
+  }, [shown]);
   // Loaded once per stretch: the list re-renders while it plays and passes a new source each time.
   const load = useRef(source.load);
   load.current = source.load;
@@ -61,6 +70,11 @@ export function StudioCueWaveform({ source, viewStartMs, viewEndMs, startMs, end
     void load.current(viewStartMs, viewEndMs, BUCKETS).then(value => { if (live) setPeaks(value); });
     return () => { live = false; };
   }, [viewStartMs, viewEndMs]);
+  useEffect(() => {
+    if (peaks !== undefined) return;
+    const timer = setTimeout(() => setSlow(true), PLACEHOLDER_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [peaks]);
 
   useEffect(() => {
     const element = canvas.current;
@@ -99,7 +113,7 @@ export function StudioCueWaveform({ source, viewStartMs, viewEndMs, startMs, end
     }
   }, [peaks, width, startMs, shownEnd, viewStartMs, viewEndMs, span]);
 
-  if (peaks === null) return null;
+  if (!shown) return null;
   const at = (event: PointerEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const ms = viewStartMs + Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * span;

@@ -484,6 +484,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
                 onSave={(startMs, endMs) => void saveTiming(cue, startMs, endMs)} onCancel={() => { setEditing(null); setEditError(undefined); focusList(); }}
                 waveform={media.ready ? { playKey: `edit:${documentId}:${cue.id}`,
                   load: (startMs, endMs, buckets) => cueAudioPlayer.peaks({ documentId, revision: page.summary.revision, startMs, endMs }, buckets),
+                  known: (startMs, endMs, buckets) => cueAudioPlayer.knownPeaks({ documentId, revision: page.summary.revision, startMs, endMs }, buckets),
                   request: (startMs, endMs) => ({ documentId, target: { range: { startMs, endMs } } }) } : undefined} waveformSlot={waveformSlot} />
               : <div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div>}</td>
             <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}>

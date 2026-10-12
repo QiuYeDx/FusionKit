@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCueAudioPlayer, FOLLOW_CHUNK_MS, pcmPeaks, type AudioContextLike, type AudioSourceLike, type CueAudioPlayerDependencies, type CueAudioSettings } from './cue-audio-player';
-import type { CueAudioResult, CueAudioTempo } from '@/subtitle-studio/cue-audio';
+import type { CueAudioResult, CueAudioTempo, CueAudioUnavailable } from '@/subtitle-studio/cue-audio';
 import type { StudioResult } from '@/subtitle-studio/ipc-contract';
 
 const doc = '00000000-0000-4000-8000-000000000001';
@@ -221,5 +221,27 @@ describe('waveforms', () => {
     expect(h.reader).toHaveBeenCalledTimes(1);
     // Asking for a waveform leaves what plays alone.
     expect(h.player.snapshot()).toBeNull();
+  });
+
+  it('hands back a kept waveform without reading, and reports media that went missing', async () => {
+    const h = harness();
+    const request = { documentId: doc, revision: 1, startMs: 4000, endMs: 5000 };
+    expect(h.player.knownPeaks(request, 10)).toBeUndefined();
+    const first = await h.player.peaks(request, 10);
+    expect(h.player.knownPeaks(request, 10)).toBe(first);
+    expect(h.player.knownPeaks({ ...request, revision: 2 }, 10)).toBeUndefined();
+    h.player.invalidate(doc);
+    expect(h.player.knownPeaks(request, 10)).toBeUndefined();
+    expect(h.reader).toHaveBeenCalledTimes(1);
+
+    const failing = (reason: CueAudioUnavailable) => harness(async () => ({ ok: true, value: { kind: 'unavailable', reason } }));
+    const missing = failing('media_unavailable');
+    expect(await missing.player.peaks(request, 10)).toBeNull();
+    expect(missing.problems).toEqual([doc]);
+    // A file that is there but does not decode keeps its status; the waveform is just not shown.
+    const undecodable = failing('decode_failed');
+    expect(await undecodable.player.peaks(request, 10)).toBeNull();
+    expect(undecodable.problems).toEqual([]);
+    expect(undecodable.player.knownPeaks(request, 10)).toBeUndefined();
   });
 });

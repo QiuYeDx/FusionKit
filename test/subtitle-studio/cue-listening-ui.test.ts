@@ -327,6 +327,30 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       await uiExpect(page.getByTestId('studio-cue-time-start')).toBeVisible();
       await uiExpect(page.getByTestId('studio-cue-waveform')).toHaveCount(0);
       await page.getByTestId('studio-cue-time-start').press('Escape');
+
+      // A same-named file that does not decode counts as found media, but its waveform never shows,
+      // not even for the moment the read takes: the row does not grow and shrink back.
+      const clips = path.join(root, 'clips');
+      await mkdir(clips, { recursive: true });
+      await writeFile(path.join(clips, 'Clip.mp4'), 'not a video');
+      const clip = path.join(clips, 'Clip.srt');
+      await writeFile(clip, '1\n00:00:01,000 --> 00:00:02,000\nA line beside a broken file\n');
+      await app.evaluate(({ dialog }, input) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [input] }); }, clip);
+      await page.getByRole('button', { name: '打开字幕文件', exact: true }).first().click();
+      await uiExpect(page.getByTestId('studio-cue-media')).toHaveAttribute('data-status', 'ready');
+      for (let open = 0; open < 2; open++) {
+        await page.evaluate(() => {
+          const host = window as unknown as { waveSeen: boolean; waveWatch: MutationObserver };
+          host.waveSeen = false;
+          host.waveWatch = new MutationObserver(() => { if (document.querySelector('[data-testid=studio-cue-waveform]')) host.waveSeen = true; });
+          host.waveWatch.observe(document.querySelector('.studio-cue-table')!, { subtree: true, childList: true });
+        });
+        await rows.nth(0).locator('.studio-cue-time').dblclick();
+        await uiExpect(page.getByTestId('studio-cue-time-start')).toBeVisible();
+        await page.waitForTimeout(800);
+        expect(await page.evaluate(() => { const host = window as unknown as { waveSeen: boolean; waveWatch: MutationObserver }; host.waveWatch.disconnect(); return host.waveSeen; })).toBe(false);
+        await page.getByTestId('studio-cue-time-start').press('Escape');
+      }
       expect(errors).toEqual([]);
     } finally { await app?.close().catch(() => undefined); }
   }, 120_000);
