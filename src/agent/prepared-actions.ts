@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import useAgentStore from "@/store/agent/useAgentStore";
+import { onSessionRemoved } from "./turn-context";
 import type { AgentCapabilityKey } from "./capability-catalog";
 import type { ProposalCounts, ProposalItem } from "@/translation-knowledge/proposal";
 
@@ -57,7 +58,8 @@ export const usePreparedActionsStore = create<PreparedActionsState>((set, get) =
   confirmAction: async (id, choice) => {
     const action = get().actions.find(item => item.id === id);
     if (!action || action.status !== "ready") return;
-    if (action.sessionId !== useAgentStore.getState().session.id) {
+    // A card is confirmed from its own session; a deleted session's cards are void.
+    if (!useAgentStore.getState().hasSession(action.sessionId)) {
       get().dismissAction(id);
       return;
     }
@@ -82,13 +84,13 @@ export const usePreparedActionsStore = create<PreparedActionsState>((set, get) =
     const entry = callbacks.get(id);
     callbacks.delete(id);
     set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "dismissed", updatedAt: Date.now() } : item) }));
-    if (action.sessionId === useAgentStore.getState().session.id) useAgentStore.getState().appendLog("status_change", "prepared_action_dismissed", { actionId: id });
+    useAgentStore.getState().forSession(action.sessionId).appendLog("status_change", "prepared_action_dismissed", { actionId: id });
     void cleanup(entry);
   },
 }));
 
 export function registerPreparedAction(input: Pick<PreparedAction, "sessionId" | "title" | "summary" | "toolKey" | "summaryKey" | "summaryValues" | "preparationReceipt" | "requiresConfirmation" | "knowledge"> & ActionCallbacks): PreparedAction {
-  if (input.sessionId !== useAgentStore.getState().session.id) throw new Error("agent_session_changed");
+  if (!useAgentStore.getState().hasSession(input.sessionId)) throw new Error("agent_session_changed");
   const current = usePreparedActionsStore.getState().actions;
   if (current.filter(item => item.status === "ready" || item.status === "running").length >= MAX_READY_ACTIONS) throw new Error("prepared_action_limit");
   const action: PreparedAction = { id: `prepared-${Date.now()}-${++sequence}`, sessionId: input.sessionId,
@@ -101,13 +103,13 @@ export function registerPreparedAction(input: Pick<PreparedAction, "sessionId" |
   const terminal = current.filter(item => item.status !== "ready" && item.status !== "running").slice(-(MAX_ACTION_HISTORY - active.length - 1));
   usePreparedActionsStore.setState({ actions: [...terminal, ...active, action] });
   // The session log keeps the action's life, so a card that never appeared can be traced.
-  useAgentStore.getState().appendLog("status_change", "prepared_action_registered", { actionId: action.id, sessionId: action.sessionId, toolKey: action.toolKey });
+  useAgentStore.getState().forSession(action.sessionId).appendLog("status_change", "prepared_action_registered", { actionId: action.id, sessionId: action.sessionId, toolKey: action.toolKey });
   return action;
 }
 
-useAgentStore.subscribe((state, previous) => {
-  if (state.session.id === previous.session.id) return;
+// Switching sessions keeps every card; deleting a session voids its own.
+onSessionRemoved((sessionId) => {
   for (const action of usePreparedActionsStore.getState().actions) {
-    if (action.sessionId !== state.session.id) usePreparedActionsStore.getState().dismissAction(action.id);
+    if (action.sessionId === sessionId) usePreparedActionsStore.getState().dismissAction(action.id);
   }
 });

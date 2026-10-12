@@ -45,6 +45,7 @@ const COPY = {
     steps: ['找出还没有译文的日语字幕', '按工作台当前设置准备中文翻译', '等你确认后开始翻译'],
     reply: '工作台里有 2 份还没有译文的字幕，其中日语的是 **灯台守の夜 第02話.ja.srt**（6 条），英文访谈这次先不处理。\n\n已按字幕工作台当前的设置准备好中文翻译，确认上面的卡片后就会开始，完成后我会告诉你结果。',
     replyMarker: '确认上面的卡片后就会开始',
+    title: '日语字幕翻译成中文',
   },
   en: {
     openFile: 'Open subtitle file',
@@ -54,6 +55,7 @@ const COPY = {
     steps: ['Find Japanese subtitles without a translation', 'Prepare an English translation with the Studio settings', 'Start once you confirm'],
     reply: 'Two documents in the Studio have no translation yet. The Japanese one is **灯台守の夜 第02話.ja.srt** (6 cues); I left the English interview alone.\n\nThe English translation is prepared with the Studio\'s current settings. It starts as soon as you confirm the card above, and I\'ll report back when it\'s done.',
     replyMarker: 'It starts as soon as you confirm',
+    title: 'Translate Japanese subtitles',
   },
 }[lang];
 
@@ -115,6 +117,8 @@ const server = createServer(async (request, response) => {
   }
   const body = JSON.parse(raw || '{}');
   if (request.url?.endsWith('/responses')) {
+    // The session title is a side request of its own; it does not take a scripted turn.
+    if (String(body.instructions ?? '').startsWith('You name conversations.')) { response.setHeader('Content-Type', 'text/event-stream'); response.end(sse(say(COPY.title))); return; }
     const next = script[turns.length] ?? (() => say('OK.'));
     turns.push(body);
     response.setHeader('Content-Type', 'text/event-stream');

@@ -50,6 +50,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('structure fixes from A
         let body = ''; for await (const part of request) body += part.toString();
         const parsed = JSON.parse(body);
         if (parsed.input) {
+          // The session title is a side request of its own; it does not take a scripted reply.
+          if (String(parsed.instructions ?? '').startsWith('You name conversations.')) { response.setHeader('Content-Type', 'text/event-stream'); response.end(stream(say('会话标题'))); return; }
           agentRequests.push(parsed);
           response.setHeader('Content-Type', 'text/event-stream');
           response.end(stream(agentQueue.shift() ?? say('好的。')));

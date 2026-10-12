@@ -15,6 +15,7 @@ interface Window {
   speechResources: import('./speech-resources/events').SpeechResourcesNotifications;
   nameTranslation: import('./name-translation/contract').NameTranslationRendererApi;
   webLookup: import('./web-lookup/contract').WebLookupApi;
+  agentSessions?: import('./agent/session-store-contract').AgentSessionsApi;
   // expose in the `electron/preload/index.ts`
   ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge
   audioApi: import('@/type/audioIpc').AudioRendererApi

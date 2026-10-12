@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_SESSION_BYTES, parseSessionJson } from "./session-schema";
+import { AGENT_LOG_ENTRY_TYPES, AGENT_UI_EVENT_KINDS } from "./types";
 const session = () => ({ version: 1, exportedAt: 1, executionMode: "queue_only", session: {
   id: "old-session", messages: [{ id: "one", role: "user", content: "Hello", timestamp: 1 }], status: "streaming", createdAt: 1, updatedAt: 1,
 }, tokenStats: { totalPromptTokens: 0, totalCompletionTokens: 0, totalTokens: 0, totalCost: 0, stepCount: 0, lastPromptTokens: 0, interactions: [] }, sessionLog: [] });
@@ -21,5 +22,15 @@ describe("Agent session import validation", () => {
     expect(parseSessionJson(JSON.stringify(extended))).not.toHaveProperty("pendingExecution");
     extended.session.plan.steps[0].dependsOn = ["missing"] as never;
     expect(() => parseSessionJson(JSON.stringify(extended))).toThrow(/plan/);
+  });
+  it("round-trips every interface event, every log entry type and the list fields", () => {
+    const data = session();
+    const messages = [...data.session.messages, ...AGENT_UI_EVENT_KINDS.map((kind, index) => ({ id: `event-${index}`, role: "user", content: kind, timestamp: 2, event: { kind, values: { n: index } } }))];
+    const sessionLog = AGENT_LOG_ENTRY_TYPES.map((type, index) => ({ id: `log-${index}`, timestamp: 3, type, summary: type }));
+    const saved = { ...data, session: { ...data.session, messages, title: "字幕翻译", titleSource: "manual", pinned: true }, sessionLog };
+    const parsed = parseSessionJson(JSON.stringify(saved));
+    expect(parsed.session.messages.map((message) => message.event?.kind).filter(Boolean)).toEqual([...AGENT_UI_EVENT_KINDS]);
+    expect(parsed.sessionLog.map((entry) => entry.type)).toEqual([...AGENT_LOG_ENTRY_TYPES]);
+    expect(parsed.session).toMatchObject({ title: "字幕翻译", titleSource: "manual", pinned: true });
   });
 });

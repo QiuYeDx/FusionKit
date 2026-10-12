@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useAgentStore from "@/store/agent/useAgentStore";
+import { useTestSession } from "@/store/agent/agent-store-test-utils";
 import useWebLookupStore, { DEFAULT_WEB_LOOKUP_SETTINGS, parseBiligameWikis, sanitizeWebLookupSettings } from "@/store/useWebLookupStore";
 import { KnowledgeService, KnowledgeServiceError } from "../../electron/main/translation-knowledge/service";
 import type { KnowledgeResult } from "@/translation-knowledge/ipc-contract";
@@ -18,7 +19,8 @@ async function call(name: keyof typeof tools, args: unknown = {}): Promise<any> 
   const execute = tools[name].execute as (input: unknown, options: unknown) => Promise<unknown>;
   return execute(args, { toolCallId: "call-web", messages: [] });
 }
-const setSession = (id: string) => useAgentStore.setState({ session: { ...useAgentStore.getState().session, id } });
+/** A new session replaces (deletes) the previous one, which voids its authority. */
+const setSession = (id: string) => useTestSession(id);
 const webLookup = { search: vi.fn(), read: vi.fn() };
 function installWindow(extra: Record<string, unknown> = {}) {
   Object.defineProperty(globalThis, "window", { configurable: true, value: { webLookup, dispatchEvent: () => true, ...extra } });

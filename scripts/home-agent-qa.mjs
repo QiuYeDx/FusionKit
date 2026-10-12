@@ -76,6 +76,12 @@ try {
     if (request.method === 'OPTIONS') { response.writeHead(204); response.end(); return; }
     let text = ''; for await (const chunk of request) text += chunk.toString();
     const body = JSON.parse(text || '{}'); requests.push({ url: request.url, body });
+    if (request.url?.endsWith('/responses') && String(body.instructions ?? '').startsWith('You name conversations.')) {
+      // The session title is a side request of its own; it does not take a queued reply.
+      response.setHeader('Content-Type', 'text/event-stream');
+      response.end(completion([{ type: 'response.output_text.delta', delta: '验收会话' }]));
+      return;
+    }
     if (request.url?.endsWith('/responses')) {
       response.setHeader('Content-Type', 'text/event-stream');
       const payload = completion(responseQueue.shift() ?? [{ type: 'response.output_text.delta', delta: '准备已完成，请检查本次操作摘要。' }]);

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import useAgentStore, { executeTasksInStores } from "@/store/agent/useAgentStore";
+import { patchActiveSlot, useTestSession } from "@/store/agent/agent-store-test-utils";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import { executeQueueConvert, executeApplyNameTranslationPlan, executeScan } from "./tool-executor";
 import { TaskStatus, SubtitleConvertFormat } from "@/type/subtitle";
@@ -40,7 +41,8 @@ describe("Agent exact queue receipts", () => {
     expect(all).not.toHaveBeenCalled();
   });
   it("does not count duplicate filenames or reuse an old resolved confirmation", async () => {
-    useAgentStore.setState({ executionMode: "ask_before_execute", pendingExecution: { stores: ["convert"], taskCounts: { convert: 9 }, taskRefs: [], timestamp: 1, resolvedAction: "dismiss" } });
+    useAgentStore.setState({ executionMode: "ask_before_execute" });
+    patchActiveSlot({ pendingExecution: { stores: ["convert"], taskCounts: { convert: 9 }, taskRefs: [], timestamp: 1, resolvedAction: "dismiss" } });
     const result = await executeQueueConvert({ ...args, filePaths: ["C:/old.srt", "C:/new.srt"] });
     expect(result.data.queuedCount).toBe(1);
     expect(useAgentStore.getState().pendingExecution?.taskCounts.convert).toBe(1);
@@ -78,7 +80,7 @@ describe("Agent exact queue receipts", () => {
     expect(useSubtitleConverterStore.getState().notStartedTasks.map(item => item.fileName)).toEqual(["old.srt"]);
   });
   it("does not accept a rename confirmation in the preview's creating turn", async () => {
-    useAgentStore.setState({ pendingNameTranslationPlan: { planId: "p", createdAt: 1, createdByUserMessageId: "u", summary: {} as never }, session: { ...useAgentStore.getState().session, messages: [{ id: "u", role: "user", content: "确认执行", timestamp: 1 }] } });
+    patchActiveSlot({ pendingNameTranslationPlan: { planId: "p", createdAt: 1, createdByUserMessageId: "u", summary: {} as never }, session: { messages: [{ id: "u", role: "user", content: "确认执行", timestamp: 1 }] } });
     const confirm = vi.spyOn(useAgentStore.getState(), "confirmNameTranslationPlan");
     expect(await executeApplyNameTranslationPlan({ planId: "p" })).toMatchObject({ success: false });
     expect(confirm).not.toHaveBeenCalled();

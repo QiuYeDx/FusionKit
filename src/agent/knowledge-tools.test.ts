@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useAgentStore from "@/store/agent/useAgentStore";
+import { useTestSession } from "@/store/agent/agent-store-test-utils";
 import { KnowledgeService, KnowledgeServiceError } from "../../electron/main/translation-knowledge/service";
 import type { KnowledgeResult, LibrarySnapshot } from "@/translation-knowledge/ipc-contract";
 import { KNOWLEDGE_CHANGED_EVENT } from "@/translation-knowledge/library-events";
@@ -22,7 +23,8 @@ async function call(name: keyof typeof knowledgeAgentTools, args: unknown = {}):
   const execute = knowledgeAgentTools[name].execute as (input: unknown, options: unknown) => Promise<unknown>;
   return execute(args, { toolCallId: "call-one", messages: [] });
 }
-const setSession = (id: string) => useAgentStore.setState({ session: { ...useAgentStore.getState().session, id } });
+/** A new session replaces (deletes) the previous one, which voids its authority. */
+const setSession = (id: string) => useTestSession(id);
 const events: Event[] = [];
 function installWindow(api: Record<string, unknown>) {
   Object.defineProperty(globalThis, "window", { configurable: true, value: { translationKnowledge: api, dispatchEvent: (event: Event) => { events.push(event); return true; } } });

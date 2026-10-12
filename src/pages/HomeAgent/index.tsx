@@ -11,7 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import {
   Send,
-  RotateCcw,
+  SquarePen,
   Sparkles,
   Square,
   Settings,
@@ -29,6 +29,10 @@ import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
 import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
 import { exportSession, importSession } from "@/agent/session-io";
 import SessionLogViewer from "./SessionLogViewer";
+import SessionSidebar from "./SessionSidebar";
+import { homeContentShift } from "./home-layout";
+import { newSession } from "@/agent/session-persistence";
+import { readSessionDraft, writeSessionDraft } from "@/agent/session-drafts";
 import AgentCapabilities from "./components/AgentCapabilities";
 import { registerHomeColumn } from "../AgentDock/handoff";
 import {
@@ -50,12 +54,6 @@ import { useFileDropInput, useInputHistory } from "./composer";
 import { InputHistoryHint } from "./components/InputHistoryHint";
 
 // ---------------------------------------------------------------------------
-// Persist draft input across in-app navigation (reset on full page reload)
-// ---------------------------------------------------------------------------
-
-let draftInputCache = "";
-
-// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -70,7 +68,10 @@ const EMPTY_STATE_LAYOUT_TRANSITION = {
 
 function HomeAgent() {
   const { t } = useTranslation();
-  const [input, setInput] = useState(draftInputCache);
+  // Each session keeps its own unsent text across switches and page changes (not across reloads).
+  const activeSessionId = useAgentStore((state) => state.activeSessionId);
+  const [input, setInput] = useState(() => readSessionDraft(useAgentStore.getState().activeSessionId));
+  const draftOwner = useRef(activeSessionId);
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollViewportRef = useRef<HTMLDivElement | null>(null);
   const isAtBottomRef = useRef(true);
@@ -82,10 +83,6 @@ function HomeAgent() {
   const bottomComposerRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
   const [bottomComposerHeight, setBottomComposerHeight] = useState(0);
-  const [confirmingReset, setConfirmingReset] = useState(false);
-  const confirmResetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
   const [logOpen, setLogOpen] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [sessionFeedback, setSessionFeedback] = useState<string | null>(null);
@@ -95,7 +92,6 @@ function HomeAgent() {
   const {
     session,
     isStreaming,
-    resetSession,
     executionMode,
     setExecutionMode,
     pendingExecution,
@@ -104,7 +100,6 @@ function HomeAgent() {
   } = useAgentStore(useShallow((state) => ({
     session: state.session,
     isStreaming: state.isStreaming,
-    resetSession: state.resetSession,
     executionMode: state.executionMode,
     setExecutionMode: state.setExecutionMode,
     pendingExecution: state.pendingExecution,
@@ -134,7 +129,7 @@ function HomeAgent() {
       ? t("home:api_format_responses")
       : t("home:api_format_chat_completions");
 
-  const [isMultiline, setIsMultiline] = useState(() => draftInputCache.includes("\n"));
+  const [isMultiline, setIsMultiline] = useState(() => input.includes("\n"));
   const [isAtBottom, setIsAtBottom] = useState(true);
 
   const setBottomState = useCallback((nextIsAtBottom: boolean) => {
@@ -186,8 +181,17 @@ function HomeAgent() {
   const { isDragOver, dropHandlers } = useFileDropInput(setInput, textareaRef);
 
   useEffect(() => {
-    draftInputCache = input;
+    writeSessionDraft(draftOwner.current, input);
   }, [input]);
+
+  // Another session on screen: its own draft, and its latest messages in view.
+  useEffect(() => {
+    if (draftOwner.current === activeSessionId) return;
+    draftOwner.current = activeSessionId;
+    setInput(readSessionDraft(activeSessionId));
+    setBottomState(true);
+    requestAnimationFrame(() => scrollToBottom("auto"));
+  }, [activeSessionId, setBottomState, scrollToBottom]);
 
   useEffect(() => {
     if (!isMultiline && input.includes("\n")) {
@@ -273,12 +277,6 @@ function HomeAgent() {
     updateScrollPosition,
   ]);
 
-  useEffect(() => {
-    return () => {
-      if (confirmResetTimer.current) clearTimeout(confirmResetTimer.current);
-    };
-  }, []);
-
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -322,20 +320,12 @@ function HomeAgent() {
     prevStreamingRef.current = isStreaming;
   }, [isStreaming]);
 
-  const handleResetClick = () => {
-    if (confirmingReset) {
-      setConfirmingReset(false);
-      if (confirmResetTimer.current) clearTimeout(confirmResetTimer.current);
-      resetSession();
-      setImportError(null);
-      setSessionFeedback(null);
-    } else {
-      setConfirmingReset(true);
-      confirmResetTimer.current = setTimeout(
-        () => setConfirmingReset(false),
-        3000,
-      );
-    }
+  // Nothing is lost: the current conversation stays in the session list.
+  const handleNewSession = () => {
+    newSession();
+    setImportError(null);
+    setSessionFeedback(null);
+    textareaRef.current?.focus();
   };
 
   const handleExport = async () => {
@@ -455,7 +445,6 @@ function HomeAgent() {
                 size="sm"
                 onClick={handleImport}
                 data-testid="agent-import"
-                disabled={isStreaming}
                 className="h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30"
                 title={t("home:import_session")}
               >
@@ -463,20 +452,16 @@ function HomeAgent() {
               </Button>
               <Button
                 variant="ghost"
-                onClick={handleResetClick}
-                disabled={isStreaming}
+                onClick={handleNewSession}
+                data-testid="agent-new-session"
                 className={cn(
-                  "h-7 px-2 text-xs text-muted-foreground/60 hover:text-foreground rounded-full disabled:opacity-30",
+                  "h-7 px-2 text-xs rounded-full disabled:opacity-30",
                   "dark:bg-background dark:hover:bg-accent shadow-none",
-                  confirmingReset
-                    ? "text-destructive hover:text-destructive/80"
-                    : "text-muted-foreground/80 hover:text-foreground",
+                  "text-muted-foreground/80 hover:text-foreground",
                 )}
               >
-                <RotateCcw className="h-3 w-3" />
-                {confirmingReset
-                  ? t("home:confirm_new_conversation")
-                  : t("home:new_conversation")}
+                <SquarePen className="h-3 w-3" />
+                {t("home:new_conversation")}
               </Button>
             </div>
           </div>
@@ -685,6 +670,8 @@ function HomeAgent() {
     >
       {/* ===== Empty State ===== */}
       {isEmpty && (
+        // Moves right with the docked session list, to stay centered beside it.
+        <motion.div className="flex flex-1 flex-col" style={{ x: homeContentShift }}>
         <motion.div
           layout
           transition={EMPTY_STATE_LAYOUT_TRANSITION}
@@ -778,6 +765,7 @@ function HomeAgent() {
           </motion.div>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2"><AgentCapabilities /><Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs text-muted-foreground" data-testid="agent-import-empty" onClick={handleImport}><Download className="size-3.5" />{t("home:import_session")}</Button></div>
         </motion.div>
+        </motion.div>
       )}
 
       {/* ===== Message List ===== */}
@@ -786,12 +774,12 @@ function HomeAgent() {
           <div className="pointer-events-none fixed inset-x-0 -top-2 z-20 h-12 bg-linear-to-b from-background via-background/80 to-transparent" />
           <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 h-28 bg-linear-to-t from-background via-background/90 to-transparent" />
 
-          <div className="px-4 pt-2 pb-2">
+          <motion.div className="px-4 pt-2 pb-2" style={{ x: homeContentShift }}>
             <div ref={columnRef} className="max-w-2xl mx-auto space-y-4 pt-1" style={{ paddingBottom: Math.max(176, bottomComposerHeight + 42 + 16) }}>
               <ConversationFeed contexts={widgetContexts} onCheckProgress={handleCheckProgress}
                 canCheckProgress={hasAgentConfig && !hasUnsupportedAgentApiFormat} />
             </div>
-          </div>
+          </motion.div>
 
           <AnimatePresence>
             {showScrollToBottomButton && (
@@ -801,7 +789,7 @@ function HomeAgent() {
                 exit={{ opacity: 0, y: 42, scale: 0.8 }}
                 transition={{ type: "spring", bounce: 0, duration: 0.3 }}
                 className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4"
-                style={{ bottom: Math.max(142, bottomComposerHeight + 42 + 8) }}
+                style={{ bottom: Math.max(142, bottomComposerHeight + 42 + 8), x: homeContentShift }}
               >
                 <Button
                   variant="outline"
@@ -845,15 +833,16 @@ function HomeAgent() {
             // }}
             className="fixed inset-x-0 bottom-[42px] z-20 pointer-events-none"
           >
-            <div className="relative px-4 pt-3 pb-4 pointer-events-none">
+            <motion.div className="relative px-4 pt-3 pb-4 pointer-events-none" style={{ x: homeContentShift }}>
               {agentConfigNotice}
               {inputCapsule}
-            </div>
+            </motion.div>
           </motion.div>
         </>
       )}
 
       <SessionLogViewer open={logOpen} onOpenChange={setLogOpen} />
+      <SessionSidebar />
     </div>
   );
 }

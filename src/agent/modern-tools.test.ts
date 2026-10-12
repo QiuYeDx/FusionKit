@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Model } from "@/type/model";
 import useAgentStore from "@/store/agent/useAgentStore";
+import { useTestSession } from "@/store/agent/agent-store-test-utils";
 import useModelStore from "@/store/useModelStore";
 import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSubtitleTranscriberStore";
 import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES } from "@/subtitle-studio/transcription/preferences-contract";
@@ -28,7 +29,8 @@ async function call(name: keyof typeof modernAgentTools, args: unknown = {}, abo
   const execute = modernAgentTools[name].execute as (input: unknown, options: unknown) => Promise<unknown>;
   return execute(args, { toolCallId: "call-one", messages: [], abortSignal });
 }
-const setSession = (id: string) => useAgentStore.setState({ session: { ...useAgentStore.getState().session, id } });
+/** A new session replaces (deletes) the previous one, which voids its authority. */
+const setSession = (id: string) => useTestSession(id);
 beforeEach(() => {
   vi.clearAllMocks(); setSession(`reset-${Math.random()}`); usePreparedActionsStore.setState({ actions: [] }); setSession("modern-test");
   useAgentStore.setState({ executionMode: "queue_only" });

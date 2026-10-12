@@ -8,8 +8,9 @@ const mocks = vi.hoisted(() => {
     setItem: (key: string, value: string) => { storage.set(key, value); },
     removeItem: (key: string) => { storage.delete(key); },
   });
-  return { chat: vi.fn(), responses: vi.fn(), execute: vi.fn(), actions: [] as unknown[] };
+  return { chat: vi.fn(), responses: vi.fn(), execute: vi.fn(), title: vi.fn(async (_sessionId: string) => {}), actions: [] as unknown[] };
 });
+vi.mock("./session-title-generator", () => ({ generateSessionTitle: mocks.title }));
 vi.mock("./runtime/chat-completions-agent-adapter", () => ({ ChatCompletionsAgentAdapter: class { streamTurn = mocks.chat; } }));
 vi.mock("./runtime/responses-agent-adapter", () => ({ ResponsesAgentAdapter: class { streamTurn = mocks.responses; } }));
 vi.mock("./tools", () => ({ agentTools: { echo: { execute: (...args: unknown[]) => mocks.execute(...args) } } }));
@@ -21,7 +22,9 @@ vi.mock("@/i18n", () => ({ default: { t: (key: string, args?: { error?: string }
 
 import useAgentStore from "@/store/agent/useAgentStore";
 import useWebLookupStore from "@/store/useWebLookupStore";
-import { abortCurrentStream, handleUserMessage, reportUiEvent } from "./orchestrator";
+import { patchActiveSlot } from "@/store/agent/agent-store-test-utils";
+import { abortCurrentStream, abortSessionTurn, handleUserMessage, isSessionRunning, onTurnEnd, reportUiEvent } from "./orchestrator";
+import { sessionOfSignal } from "./turn-context";
 import { registerPageContext, usePageContextStore } from "./page-context";
 
 function deferred() {
@@ -50,43 +53,125 @@ describe("Agent turn ownership and receipts", () => {
     gate.resolve(); await first;
   });
 
-  it("fences late old events and finally after reset while a new turn is active", async () => {
+  it("keeps an earlier session's turn running in that session after a new session starts", async () => {
     const oldGate = deferred();
     const newGate = deferred();
     mocks.chat.mockReturnValueOnce(turn((async function* () {
       yield { type: "text-delta", text: "old" } as const;
       await oldGate.promise;
-      yield { type: "text-delta", text: "late old" } as const;
+      yield { type: "text-delta", text: " and more" } as const;
+      yield { type: "finish", reason: "completed" } as const;
     })()));
     mocks.chat.mockReturnValueOnce(turn((async function* () {
       yield { type: "text-delta", text: "new" } as const;
       await newGate.promise;
       yield { type: "finish", reason: "completed" } as const;
     })()));
+    const oldSession = useAgentStore.getState().activeSessionId;
     const oldTurn = handleUserMessage("old user");
     await vi.waitFor(() => expect(useAgentStore.getState().streamingText).toBe("old"));
     useAgentStore.getState().resetSession();
-    expect(mocks.chat.mock.calls[0][0].abortSignal.aborted).toBe(true);
+    expect(mocks.chat.mock.calls[0][0].abortSignal.aborted).toBe(false);
+    expect(useAgentStore.getState()).toMatchObject({ isStreaming: false, streamingText: "" });
     const newTurn = handleUserMessage("new user");
     await vi.waitFor(() => expect(useAgentStore.getState().streamingText).toBe("new"));
+    expect(mocks.chat).toHaveBeenCalledTimes(2);
     oldGate.resolve(); await oldTurn;
+    expect(useAgentStore.getState().slots[oldSession].session.messages.map((m) => m.content)).toEqual(["old user", "old and more"]);
+    expect(useAgentStore.getState().slots[oldSession].unread).toBe(true);
     expect(useAgentStore.getState().isStreaming).toBe(true);
-    expect(useAgentStore.getState().streamingText).toBe("new");
     expect(useAgentStore.getState().session.messages.map((m) => m.content)).toEqual(["new user"]);
     newGate.resolve(); await newTurn;
     expect(useAgentStore.getState().isStreaming).toBe(false);
     expect(useAgentStore.getState().session.messages.at(-1)?.content).toBe("new");
   });
 
-  it("cancels a turn on import and does not append old errors into restored history", async () => {
+  it("stops only the shown session's turn", async () => {
+    const gates = [deferred(), deferred()];
+    for (const gate of gates) mocks.chat.mockReturnValueOnce(turn((async function* () { await gate.promise; yield { type: "text-delta", text: "done" } as const; yield { type: "finish", reason: "completed" } as const; })()));
+    const first = useAgentStore.getState().activeSessionId;
+    const a = handleUserMessage("A");
+    useAgentStore.getState().createSession();
+    const second = useAgentStore.getState().activeSessionId;
+    const b = handleUserMessage("B");
+    expect(isSessionRunning(first) && isSessionRunning(second)).toBe(true);
+    abortCurrentStream();
+    expect(mocks.chat.mock.calls[1][0].abortSignal.aborted).toBe(true);
+    expect(mocks.chat.mock.calls[0][0].abortSignal.aborted).toBe(false);
+    gates[1].resolve(); await b;
+    gates[0].resolve(); await a;
+    expect(useAgentStore.getState().slots[first].session.messages.at(-1)?.content).toBe("done");
+    expect(useAgentStore.getState().slots[second].session.messages.map((m) => m.content)).toEqual(["B"]);
+    expect(useAgentStore.getState().sessionLog.some((entry) => entry.type === "abort")).toBe(true);
+  });
+
+  it("cancels a turn when its session is deleted and writes nothing more anywhere", async () => {
+    const gate = deferred();
+    mocks.chat.mockReturnValue(turn((async function* () { await gate.promise; throw new Error("late error"); yield* []; })()));
+    const deleted = useAgentStore.getState().activeSessionId;
+    const ended = vi.fn();
+    const stop = onTurnEnd(ended);
+    const operation = handleUserMessage("old");
+    useAgentStore.getState().removeSession(deleted);
+    expect(mocks.chat.mock.calls[0][0].abortSignal.aborted).toBe(true);
+    gate.resolve(); await operation;
+    stop();
+    expect(useAgentStore.getState().hasSession(deleted)).toBe(false);
+    expect(useAgentStore.getState().session.messages).toEqual([]);
+    expect(isSessionRunning(deleted)).toBe(false);
+    expect(ended).not.toHaveBeenCalled();
+  });
+
+  it("an import opens a new session while the running turn finishes in its own", async () => {
     const gate = deferred();
     const data = useAgentStore.getState().getSessionExportData();
     mocks.chat.mockReturnValue(turn((async function* () { await gate.promise; throw new Error("late error"); yield* []; })()));
+    const running = useAgentStore.getState().activeSessionId;
     const operation = handleUserMessage("old");
     useAgentStore.getState().restoreSession(data);
     gate.resolve(); await operation;
     expect(useAgentStore.getState().session.messages).toEqual([]);
     expect(useAgentStore.getState().session.status).toBe("idle");
+    expect(useAgentStore.getState().slots[running].session.status).toBe("error");
+  });
+
+  it("gives tools the session of their turn while the user looks at another session", async () => {
+    const seen: string[] = [];
+    const gate = deferred();
+    mocks.execute.mockImplementation(async (_input, options) => { await gate.promise; seen.push(sessionOfSignal(options.abortSignal)); return { success: true }; });
+    mocks.chat.mockImplementation((request) => turn((async function* () {
+      await request.tools.echo.execute({}, { toolCallId: "late", messages: [] });
+      yield { type: "finish", reason: "completed" } as const;
+    })()));
+    const owner = useAgentStore.getState().activeSessionId;
+    const operation = handleUserMessage("work");
+    await vi.waitFor(() => expect(mocks.execute).toHaveBeenCalled());
+    useAgentStore.getState().createSession();
+    gate.resolve(); await operation;
+    expect(seen).toEqual([owner]);
+    expect(useAgentStore.getState().slots[owner].session.messages.some((m) => m.toolResult)).toBe(true);
+  });
+
+  it("follows up on a card decision in the card's own session", async () => {
+    useAgentStore.getState().addMessage({ id: "a-user", role: "user", content: "A", timestamp: 1 });
+    const owner = useAgentStore.getState().activeSessionId;
+    useAgentStore.getState().createSession();
+    reportUiEvent({ kind: "rename_applied", values: { planId: "plan-1", success: 3, failed: 0, skipped: 0 } }, owner);
+    await vi.waitFor(() => expect(isSessionRunning(owner)).toBe(false));
+    expect(mocks.chat).toHaveBeenCalledTimes(1);
+    expect(useAgentStore.getState().slots[owner].session.messages.some((m) => m.event?.kind === "rename_applied")).toBe(true);
+    expect(useAgentStore.getState().session.messages).toEqual([]);
+  });
+
+  it("names the session after a completed turn only", async () => {
+    await handleUserMessage("first");
+    const id = useAgentStore.getState().activeSessionId;
+    expect(mocks.title).toHaveBeenCalledWith(id);
+    mocks.title.mockClear();
+    mocks.chat.mockReturnValue(turn((async function* () { throw new Error("down"); yield* []; })()));
+    await handleUserMessage("again");
+    expect(mocks.title).not.toHaveBeenCalled();
+    abortSessionTurn(id);
   });
 
   it("retains completed tool facts and supplies unknown results for interrupted calls", async () => {
@@ -247,7 +332,7 @@ describe("Agent turn ownership and receipts", () => {
     store.addMessage({ id: "preview-user", role: "user", content: "ORIGINAL_PREVIEW_CONTEXT", timestamp: 1 });
     store.addMessage({ id: "long-one", role: "user", content: "x".repeat(60_000), timestamp: 2 });
     store.addMessage({ id: "long-two", role: "user", content: "y".repeat(60_000), timestamp: 3 });
-    useAgentStore.setState({
+    patchActiveSlot({
       pendingExecution: { stores: ["convert"], taskCounts: { convert: 100 }, taskRefs: Array.from({ length: 100 }, (_, i) => ({ store: "convert", taskId: `task-${i}` })), timestamp: 1, resolvedAction: "confirm" },
       pendingNameTranslationPlan: {
         planId: "rename-current", createdByUserMessageId: "preview-user", createdAt: 1, resolvedAction: null,

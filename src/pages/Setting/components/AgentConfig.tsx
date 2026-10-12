@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { Button } from "@/components/ui/button";
+import useAgentStore from "@/store/agent/useAgentStore";
+import { clearAllSessions } from "@/agent/session-persistence";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +59,34 @@ function BiligameWikis({ disabled }: { disabled: boolean }) {
   );
 }
 
+/** Saved conversations: how many there are, and deleting them all. */
+function SessionHistory() {
+  const { t } = useTranslation();
+  const count = useAgentStore((state) => Object.keys(state.catalog).length);
+  const [confirming, setConfirming] = useState(false);
+  const clear = async () => {
+    const cleared = await clearAllSessions();
+    if (cleared) toast.success(t("setting:agent.sessions.cleared"));
+    else toast.error(t("setting:agent.sessions.clear_failed"));
+  };
+  return (
+    <div className="flex items-start justify-between gap-6">
+      <div className="min-w-0 space-y-1">
+        <div className="text-sm font-medium">{t("setting:agent.sessions.label")}</div>
+        <p className="text-xs leading-relaxed text-muted-foreground" data-testid="setting-agent-sessions-count">{t("setting:agent.sessions.description", { count })}</p>
+      </div>
+      <Button type="button" variant="outline" size="sm" className="shrink-0 text-destructive hover:text-destructive" disabled={!count}
+        data-testid="setting-agent-sessions-clear" onClick={() => setConfirming(true)}>
+        {t("setting:agent.sessions.clear")}
+      </Button>
+      <ConfirmDialog open={confirming} onOpenChange={setConfirming}
+        title={t("setting:agent.sessions.clear_title")} description={t("setting:agent.sessions.clear_description")}
+        confirmText={t("setting:agent.sessions.clear_confirm")} cancelText={t("setting:agent.sessions.cancel")}
+        onConfirm={() => void clear()} />
+    </div>
+  );
+}
+
 function AgentConfig() {
   const { t } = useTranslation();
   const { enabled, sources, setEnabled, setSource } = useWebLookupStore();
@@ -96,6 +129,8 @@ function AgentConfig() {
           </div>
           <p className="text-[11px] leading-relaxed text-muted-foreground">{t("setting:agent.sources.note")}</p>
         </div>
+
+        <SessionHistory />
       </CardContent>
     </Card>
   );

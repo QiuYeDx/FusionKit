@@ -40,6 +40,8 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       server = createServer(async (request, response) => {
         let body = ''; for await (const part of request) body += part.toString();
         if (request.url?.endsWith('/responses')) {
+          // The session title is a side request of its own; it does not take a scripted reply.
+          if (String(JSON.parse(body).instructions ?? '').startsWith('You name conversations.')) { response.setHeader('Content-Type', 'text/event-stream'); response.end(stream(text('会话标题'))); return; }
           agentRequests.push(JSON.parse(body));
           response.setHeader('Content-Type', 'text/event-stream');
           const payload = stream(queue.shift() ?? text('好的。'));

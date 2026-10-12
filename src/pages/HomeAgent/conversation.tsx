@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { NavigateFunction } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
@@ -15,6 +15,7 @@ import { anchoredActionIds, buildFeed, type FeedItem, type ToolEntry } from "./f
 import type {
   AgentMessage,
   AgentToolResult,
+  AgentUiEvent,
   ExecutionMode,
   PendingExecution,
   TaskStoreType,
@@ -139,16 +140,17 @@ export function useAgentWidgetContexts(
     () => ({ ...widgetContext, isStreaming: true }),
     [widgetContext],
   );
-  // Decisions on the trusted cards are reported, so the agent follows up on them by itself.
+  // Decisions on the trusted cards are reported to the cards' session, so its agent follows up by itself.
+  const report = useCallback((event: AgentUiEvent) => reportUiEvent(event, sessionId), [sessionId]);
   const pendingWidgetContext = useMemo<MarkdownWidgetContext>(
     () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(sessionId, useAgentStore.getState, navigate,
-      pendingExecution ? { kind: "pending-execution", pending: pendingExecution } : { kind: "display" }, reportUiEvent) }),
-    [widgetContext, sessionId, navigate, pendingExecution],
+      pendingExecution ? { kind: "pending-execution", pending: pendingExecution } : { kind: "display" }, report) }),
+    [widgetContext, sessionId, navigate, pendingExecution, report],
   );
   const namePlanWidgetContext = useMemo<MarkdownWidgetContext>(
     () => ({ ...widgetContext, role: "tool", onWidgetAction: createWidgetActionHandler(sessionId, useAgentStore.getState, navigate,
-      pendingNameTranslationPlan ? { kind: "name-translation-plan", plan: pendingNameTranslationPlan } : { kind: "display" }, reportUiEvent) }),
-    [widgetContext, sessionId, navigate, pendingNameTranslationPlan],
+      pendingNameTranslationPlan ? { kind: "name-translation-plan", plan: pendingNameTranslationPlan } : { kind: "display" }, report) }),
+    [widgetContext, sessionId, navigate, pendingNameTranslationPlan, report],
   );
   return { widgetContext, streamingWidgetContext, pendingWidgetContext, namePlanWidgetContext };
 }

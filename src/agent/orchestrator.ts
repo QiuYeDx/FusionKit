@@ -16,13 +16,23 @@ import { AGENT_CAPABILITIES } from "./capability-catalog";
 import type { AgentToolSet } from "./guarded-tools";
 import { shouldFollowUpUiEvent, UI_EVENT_PREFIX, uiEventModelText } from "./ui-events";
 import useWebLookupStore from "@/store/useWebLookupStore";
+import { bindTurnSession } from "./turn-context";
+import { generateSessionTitle } from "./session-title-generator";
 
 // ---------------------------------------------------------------------------
 // Orchestrator — 驱动 Chat Completions / Responses 对话 + 工具循环
 // ---------------------------------------------------------------------------
 
 interface AgentTurn { id: string; sessionId: string; controller: AbortController }
-let activeTurn: AgentTurn | null = null;
+/** At most one turn per session; turns of different sessions run side by side. */
+const turns = new Map<string, AgentTurn>();
+export type TurnOutcome = "completed" | "error" | "aborted";
+const turnEndListeners = new Set<(sessionId: string, outcome: TurnOutcome) => void>();
+/** Called after every turn of any session has ended and released the session. */
+export function onTurnEnd(listener: (sessionId: string, outcome: TurnOutcome) => void): () => void {
+  turnEndListeners.add(listener);
+  return () => { turnEndListeners.delete(listener); };
+}
 const chatCompletionsAgentAdapter = new ChatCompletionsAgentAdapter();
 const responsesAgentAdapter = new ResponsesAgentAdapter();
 
@@ -31,8 +41,9 @@ const WEB_LOOKUP_OFF = `- **Looking things up online**: Web lookups are off. If 
 
 // Stable instructions come first and per-turn state last, so providers with prefix
 // caching can reuse the long static part of the prompt across turns.
-function buildSystemPrompt(page: PageContextSection, pageToolNames: readonly string[]): string {
-  const { executionMode, session, pendingExecution, pendingNameTranslationPlan } = useAgentStore.getState();
+function buildSystemPrompt(sessionId: string, page: PageContextSection, pageToolNames: readonly string[]): string {
+  const { executionMode, slots } = useAgentStore.getState();
+  const { session, pendingExecution, pendingNameTranslationPlan } = slots[sessionId];
   const preparedActions = usePreparedActionsStore.getState().actions
     .filter((action) => action.sessionId === session.id).slice(-12)
     .map(({ id, toolKey, status, summary, result, error }) => ({
@@ -268,63 +279,83 @@ function buildModelMessages(sessionMessages: AgentMessage[]): ModelMessage[] {
 }
 
 /**
- * Cancels the owned turn. Its identity remains claimed until cleanup completes.
+ * Cancels a session's turn. Its identity remains claimed until cleanup completes.
  */
-export function abortCurrentStream(): void {
-  const turn = activeTurn;
+export function abortSessionTurn(sessionId: string): void {
+  const turn = turns.get(sessionId);
   if (!turn) return;
   turn.controller.abort();
-  if (useAgentStore.getState().session.id === turn.sessionId) {
-    useAgentStore.getState().interruptPlan();
-  }
+  useAgentStore.getState().forSession(sessionId).interruptPlan();
 }
 
-export async function handleUserMessage(userContent: string): Promise<void> {
+/** Stops the reply of the session the user is looking at; other sessions keep going. */
+export function abortCurrentStream(): void {
+  abortSessionTurn(useAgentStore.getState().activeSessionId);
+}
+
+export function abortAllTurns(): void {
+  for (const sessionId of [...turns.keys()]) abortSessionTurn(sessionId);
+  queuedEvents.clear();
+}
+
+export function isSessionRunning(sessionId: string): boolean {
+  return turns.has(sessionId);
+}
+
+export async function handleUserMessage(userContent: string, sessionId = useAgentStore.getState().activeSessionId): Promise<void> {
   if (!userContent.trim()) return;
-  await runTurn({ id: generateId(), role: "user", content: userContent, timestamp: Date.now() });
+  await runTurn(sessionId, { id: generateId(), role: "user", content: userContent, timestamp: Date.now() });
 }
 
-/** Events reported while a turn runs; each starts its own turn once the agent is free. */
-const queuedEvents: { sessionId: string; message: AgentMessage }[] = [];
+/** Events reported while a session's turn runs; each starts its own turn once that session is free. */
+const queuedEvents = new Map<string, AgentMessage[]>();
 
-function runQueuedEvent(): void {
-  const sessionId = useAgentStore.getState().session.id;
-  let next = queuedEvents.shift();
-  while (next && next.sessionId !== sessionId) next = queuedEvents.shift();
-  if (next) void runTurn(next.message);
+function runQueuedEvent(sessionId: string): void {
+  const queue = queuedEvents.get(sessionId);
+  const next = queue?.shift();
+  if (!queue?.length) queuedEvents.delete(sessionId);
+  if (next && useAgentStore.getState().hasSession(sessionId)) void runTurn(sessionId, next);
 }
 
 /**
- * The user acted on a card (confirmed a rename, a prepared action...). The agent follows up on its own:
- * it learns the outcome, verifies it and updates its plan, so the user does not have to ask.
+ * The user acted on a card (confirmed a rename, a prepared action...). The agent of the card's session
+ * follows up on its own: it learns the outcome, verifies it and updates its plan, so the user does not
+ * have to ask. Without a session, the event belongs to the session the user is looking at.
  */
-export function reportUiEvent(event: AgentUiEvent): void {
-  const { session } = useAgentStore.getState();
+export function reportUiEvent(event: AgentUiEvent, sessionId = useAgentStore.getState().activeSessionId): void {
+  const slot = useAgentStore.getState().slots[sessionId];
+  if (!slot) return;
   const profile = useModelStore.getState().getAgentProfile();
   if (!profile?.apiKey || !isAgentProfileApiFormatSupported(profile)) return;
   const message: AgentMessage = { id: generateId(), role: "user", content: uiEventModelText(event), timestamp: Date.now(), event };
-  if (!shouldFollowUpUiEvent(event, session.plan)) {
+  if (!shouldFollowUpUiEvent(event, slot.session.plan)) {
     // An applied revision that needs no word is still recorded, so the agent knows what changed when the user writes next.
-    if (event.kind === "revision_applied") useAgentStore.getState().addMessage(message);
+    if (event.kind === "revision_applied") useAgentStore.getState().forSession(sessionId).addMessage(message);
     return;
   }
-  if (activeTurn) { queuedEvents.push({ sessionId: session.id, message }); return; }
-  void runTurn(message);
+  if (turns.has(sessionId)) { queuedEvents.set(sessionId, [...(queuedEvents.get(sessionId) ?? []), message]); return; }
+  void runTurn(sessionId, message);
 }
 
 // Pages report what the user did there (an applied revision) through the neutral page-context module.
 setPageEventSink(event => reportUiEvent(event as AgentUiEvent));
 
-async function runTurn(userMsg: AgentMessage): Promise<void> {
-  const store = useAgentStore.getState();
-  if (activeTurn?.sessionId === store.session.id) return;
-  activeTurn?.controller.abort();
-  const turn: AgentTurn = { id: generateId(), sessionId: store.session.id, controller: new AbortController() };
-  activeTurn = turn;
-  const ownsTurn = () => activeTurn === turn && useAgentStore.getState().session.id === turn.sessionId;
-  const unsubscribe = useAgentStore.subscribe((state) => {
-    if (state.session.id !== turn.sessionId) turn.controller.abort();
-  });
+// A deleted session takes its running turn and its waiting events with it.
+useAgentStore.subscribe((state, previous) => {
+  if (state.slots === previous.slots) return;
+  for (const [sessionId, turn] of turns) if (!state.slots[sessionId]) turn.controller.abort();
+  for (const sessionId of queuedEvents.keys()) if (!state.slots[sessionId]) queuedEvents.delete(sessionId);
+});
+
+async function runTurn(sessionId: string, userMsg: AgentMessage): Promise<void> {
+  if (turns.has(sessionId) || !useAgentStore.getState().hasSession(sessionId)) return;
+  const turn: AgentTurn = { id: generateId(), sessionId, controller: new AbortController() };
+  turns.set(sessionId, turn);
+  bindTurnSession(turn.controller.signal, sessionId);
+  /** This session's actions; writes stop once the session is deleted. */
+  const store = () => useAgentStore.getState().forSession(sessionId);
+  const slot = () => useAgentStore.getState().slots[sessionId];
+  const ownsTurn = () => turns.get(sessionId) === turn && !!slot();
   const calls = new Map<string, AgentToolCall>();
   const results = new Map<string, { toolName: string; output: unknown }>();
   const committed = new Set<string>();
@@ -333,17 +364,18 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
   // Fixed at the start of the turn, before the first await, like the session it belongs to.
   const turnPage = resolveTurnPage();
   let ended = false;
+  let outcome: TurnOutcome = "completed";
 
   const recordCall = (call: AgentToolCall) => {
     if (!ownsTurn() || ended || committed.has(call.toolCallId)) return;
     const previous = calls.get(call.toolCallId);
     calls.set(call.toolCallId, { ...previous, ...call, responseItemId: call.responseItemId ?? previous?.responseItemId });
-    if (!previous) useAgentStore.getState().appendLog("tool_call", call.toolName, { ...call });
+    if (!previous) store().appendLog("tool_call", call.toolName, { ...call });
   };
   const recordResult = (id: string, toolName: string, output: unknown) => {
     if (!ownsTurn() || ended || committed.has(id) || results.has(id)) return;
     results.set(id, { toolName, output });
-    useAgentStore.getState().appendLog("tool_result", toolName, { toolCallId: id, toolName, output });
+    store().appendLog("tool_result", toolName, { toolCallId: id, toolName, output });
   };
   // Coalesce token deltas into at most one store update per frame.
   let pendingText = "";
@@ -353,7 +385,7 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
     textFrame = null;
     const text = pendingText;
     pendingText = "";
-    if (text && ownsTurn() && !ended) useAgentStore.getState().appendStreamingText(text);
+    if (text && ownsTurn() && !ended) store().appendStreamingText(text);
   };
   const queueText = (text: string) => {
     pendingText += text;
@@ -362,8 +394,7 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
   const flush = (interrupted = false) => {
     drainText();
     if (!ownsTurn()) return;
-    const current = useAgentStore.getState();
-    const text = current.streamingText;
+    const text = slot()!.streamingText;
     if (calls.size) {
       const toolMessages: AgentMessage[] = [...calls.values()].map((call) => {
         const receipt = results.get(call.toolCallId);
@@ -378,23 +409,23 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
           toolResult: { callId: call.toolCallId, toolName: call.toolName, success: !missing && output?.success !== false, data: output?.data ?? receipt?.output, error },
         };
       });
-      current.commitStepBatch(text, [...calls.values()], toolMessages);
+      store().commitStepBatch(text, [...calls.values()], toolMessages);
       for (const id of calls.keys()) committed.add(id);
       calls.clear();
       results.clear();
     } else if (text) {
-      current.commitStreamingAsAssistant(text);
+      store().commitStreamingAsAssistant(text);
     }
-    if (text) useAgentStore.getState().appendLog("assistant_message", text.slice(0, 200), { content: text });
+    if (text) store().appendLog("assistant_message", text.slice(0, 200), { content: text });
   };
 
   try {
-    store.addMessage(userMsg);
-    store.clearStreamingText();
-    store.setStatus("thinking");
-    store.setStreaming(true);
-    store.appendLog("user_message", userMsg.content, { messageId: userMsg.id, turnId: turn.id, ...(userMsg.event ? { event: userMsg.event.kind } : {}) });
-    store.appendLog("status_change", "page_context", { turnId: turn.id, route: turnPage.section.route, title: turnPage.section.title,
+    store().addMessage(userMsg);
+    store().clearStreamingText();
+    store().setStatus("thinking");
+    store().setStreaming(true);
+    store().appendLog("user_message", userMsg.content, { messageId: userMsg.id, turnId: turn.id, ...(userMsg.event ? { event: userMsg.event.kind } : {}) });
+    store().appendLog("status_change", "page_context", { turnId: turn.id, route: turnPage.section.route, title: turnPage.section.title,
       pageTools: Object.keys(turnPage.tools).filter((name) => !(name in agentTools)),
       ...(turnPage.conflicts.length ? { pageToolConflicts: turnPage.conflicts } : {}),
       ...(turnPage.section.snapshotError ? { snapshotError: turnPage.section.snapshotError } : {}) });
@@ -404,9 +435,9 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
         format: i18n.t(agentProfile.apiFormat === "responses" ? "home:api_format_responses" : "home:api_format_chat_completions"),
       }));
     }
-    const context = buildConversationContext(useAgentStore.getState().session.messages);
+    const context = buildConversationContext(slot()!.session.messages);
     if (context.omittedMessages) {
-      useAgentStore.getState().appendLog("status_change", i18n.t("home:agent_context_trimmed"), {
+      store().appendLog("status_change", i18n.t("home:agent_context_trimmed"), {
         omittedMessages: context.omittedMessages, estimatedCharacters: context.estimatedCharacters,
       });
     }
@@ -416,7 +447,7 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
       onResult: (toolName, output, options) => recordResult(options.toolCallId, toolName, output),
     });
     const request = {
-      profile: agentProfile, system: buildSystemPrompt(turnPage.section, Object.keys(turnPage.tools).filter((name) => !(name in agentTools))), tools,
+      profile: agentProfile, system: buildSystemPrompt(sessionId, turnPage.section, Object.keys(turnPage.tools).filter((name) => !(name in agentTools))), tools,
       temperature: 0.3, maxOutputTokens: Math.min(agentProfile.maxOutputTokens ?? 4096, 8192),
       abortSignal: turn.controller.signal, maxSteps: 50,
     };
@@ -425,21 +456,21 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
       : chatCompletionsAgentAdapter.streamTurn({ ...request, messages: buildModelMessages(context.messages) });
     for await (const part of result.fullStream) {
       if (!ownsTurn() || turn.controller.signal.aborted) throw abortError();
-      const current = useAgentStore.getState();
       switch (part.type) {
         case "text-delta":
-          current.setStatus("streaming");
+          store().setStatus("streaming");
           queueText(part.text);
           break;
         case "tool-input-start": {
-          if (!current.activeToolCalls.some((call) => call.toolCallId === part.id)) {
-            current.setActiveToolCalls([...current.activeToolCalls, { toolCallId: part.id, toolName: part.toolName, args: {} }]);
+          const active = slot()!.activeToolCalls;
+          if (!active.some((call) => call.toolCallId === part.id)) {
+            store().setActiveToolCalls([...active, { toolCallId: part.id, toolName: part.toolName, args: {} }]);
           }
           break;
         }
         case "tool-call":
           recordCall({ toolCallId: part.toolCallId, toolName: part.toolName, args: part.input as Record<string, unknown>, responseItemId: part.responseItemId });
-          current.setActiveToolCalls([...calls.values()]);
+          store().setActiveToolCalls([...calls.values()]);
           break;
         case "tool-result":
           recordResult(part.toolCallId, part.toolName, part.output);
@@ -456,7 +487,7 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
           flush();
           // The step's text and tool cards are committed; until the next step streams,
           // the model is working again and the panel must say so.
-          if (ownsTurn()) current.setStatus("thinking");
+          if (ownsTurn()) store().setStatus("thinking");
           break;
         }
         case "finish":
@@ -464,9 +495,9 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
           if (part.reason === "incomplete") throw new Error(i18n.t("home:agent_response_incomplete"));
           if (part.reason === "step_limit") {
             flush();
-            current.addMessage({ id: generateId(), role: "assistant", content: i18n.t("home:agent_step_limit"), timestamp: Date.now() });
-            current.interruptPlan();
-            current.appendLog("status_change", "step_limit", { turnId: turn.id });
+            store().addMessage({ id: generateId(), role: "assistant", content: i18n.t("home:agent_step_limit"), timestamp: Date.now() });
+            store().interruptPlan();
+            store().appendLog("status_change", "step_limit", { turnId: turn.id });
           }
           break;
         case "error": throw part.error;
@@ -483,27 +514,26 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
     }
     // A normally finished turn may leave a step in progress while it waits for the
     // user (for example a confirmation); only interruptions mark steps blocked.
-    if (ownsTurn()) useAgentStore.getState().setStatus("idle");
+    if (ownsTurn()) store().setStatus("idle");
   } catch (error) {
+    outcome = turn.controller.signal.aborted || (error instanceof Error && error.name === "AbortError") ? "aborted" : "error";
     if (ownsTurn()) {
       flush(true);
-      const current = useAgentStore.getState();
-      current.interruptPlan();
-      if (turn.controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
-        current.appendLog("abort", "Stream aborted by user", { turnId: turn.id });
-        current.setStatus("idle");
+      store().interruptPlan();
+      if (outcome === "aborted") {
+        store().appendLog("abort", "Stream aborted by user", { turnId: turn.id });
+        store().setStatus("idle");
       } else {
         const raw = error instanceof Error ? error.message : String(error);
         const detail = agentProfile?.apiKey ? raw.split(agentProfile.apiKey).join("[redacted]") : raw;
-        current.addMessage({ id: generateId(), role: "assistant", content: i18n.t("home:agent_call_error", { error: detail }), timestamp: Date.now() });
-        current.appendLog("error", detail, { turnId: turn.id });
-        current.setStatus("error");
+        store().addMessage({ id: generateId(), role: "assistant", content: i18n.t("home:agent_call_error", { error: detail }), timestamp: Date.now() });
+        store().appendLog("error", detail, { turnId: turn.id });
+        store().setStatus("error");
       }
     }
   } finally {
     ended = true;
     drainText();
-    unsubscribe();
     if (ownsTurn()) {
       if (stepUsages.length && agentProfile) {
         const promptTokens = stepUsages.reduce((sum, usage) => sum + usage.promptTokens, 0);
@@ -511,15 +541,20 @@ async function runTurn(userMsg: AgentMessage): Promise<void> {
         const totalTokens = stepUsages.reduce((sum, usage) => sum + usage.totalTokens, 0);
         const pricing = agentProfile.tokenPricing;
         const cost = (promptTokens * pricing.inputTokensPerMillion + completionTokens * pricing.outputTokensPerMillion) / 1_000_000;
-        useAgentStore.getState().recordUsage({ promptTokens, completionTokens, totalTokens, cost, stepCount: stepUsages.length, lastPromptTokens: stepUsages[stepUsages.length - 1].promptTokens });
-        useAgentStore.getState().appendLog("usage", `${totalTokens} tokens / $${cost.toFixed(6)}`, { turnId: turn.id, promptTokens, completionTokens, totalTokens, cost });
+        store().recordUsage({ promptTokens, completionTokens, totalTokens, cost, stepCount: stepUsages.length, lastPromptTokens: stepUsages[stepUsages.length - 1].promptTokens });
+        store().appendLog("usage", `${totalTokens} tokens / $${cost.toFixed(6)}`, { turnId: turn.id, promptTokens, completionTokens, totalTokens, cost });
       }
-      useAgentStore.getState().clearActiveToolCalls();
-      useAgentStore.getState().setStreaming(false);
-      activeTurn = null;
-    } else if (activeTurn === turn) {
-      activeTurn = null;
+      store().clearActiveToolCalls();
+      store().setStreaming(false);
     }
-    if (!activeTurn && queuedEvents.length) setTimeout(runQueuedEvent, 0);
+    const settled = !!slot();
+    if (turns.get(sessionId) === turn) turns.delete(sessionId);
+    if (settled) {
+      for (const listener of turnEndListeners) {
+        try { listener(sessionId, outcome); } catch { /* A listener never breaks the turn's cleanup. */ }
+      }
+      if (outcome === "completed") void generateSessionTitle(sessionId);
+      if (queuedEvents.get(sessionId)?.length) setTimeout(() => runQueuedEvent(sessionId), 0);
+    }
   }
 }

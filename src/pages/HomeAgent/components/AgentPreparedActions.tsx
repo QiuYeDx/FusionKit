@@ -72,12 +72,13 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
   const confirm = async () => {
     await confirmAction(action.id, action.knowledge ? { adopt } : undefined);
     const after = usePreparedActionsStore.getState().actions.find(item => item.id === action.id);
-    if (after?.status === "completed") reportUiEvent({ kind: "action_completed", values: { title, actionId: action.id } });
-    else if (after?.status === "failed") reportUiEvent({ kind: "action_failed", values: { title, actionId: action.id, error: after.error ?? "prepared_action_failed" } });
+    // The card's own session follows up, even if the user moved to another session meanwhile.
+    if (after?.status === "completed") reportUiEvent({ kind: "action_completed", values: { title, actionId: action.id } }, action.sessionId);
+    else if (after?.status === "failed") reportUiEvent({ kind: "action_failed", values: { title, actionId: action.id, error: after.error ?? "prepared_action_failed" } }, action.sessionId);
   };
   const dismiss = () => {
     dismissAction(action.id);
-    reportUiEvent({ kind: "action_dismissed", values: { title, actionId: action.id } });
+    reportUiEvent({ kind: "action_dismissed", values: { title, actionId: action.id } }, action.sessionId);
   };
   const status = submitted ? t("home:result_submitted") : t(actionStatusKeys[action.status]);
   return <Surface className={cn(flat ? "border-t px-3 py-2.5" : "px-3 py-2.5", !flat && action.status === "ready" && "border-primary/30 ring-1 ring-primary/10")}

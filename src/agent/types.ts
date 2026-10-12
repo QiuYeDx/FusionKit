@@ -32,12 +32,16 @@ export interface AgentMessage {
   event?: AgentUiEvent;
 }
 
-export type AgentUiEventKind =
-  | "rename_applied" | "rename_failed" | "rename_dismissed"
-  | "action_completed" | "action_failed" | "action_dismissed"
-  | "execution_confirmed" | "execution_dismissed"
-  | "pipeline_completed"
-  | "revision_applied";
+/** Also the import/persistence schema's list: a kind missing there would make sessions unsavable. */
+export const AGENT_UI_EVENT_KINDS = [
+  "rename_applied", "rename_failed", "rename_dismissed",
+  "action_completed", "action_failed", "action_dismissed",
+  "execution_confirmed", "execution_dismissed",
+  "pipeline_completed",
+  "revision_applied",
+] as const;
+
+export type AgentUiEventKind = typeof AGENT_UI_EVENT_KINDS[number];
 
 export interface AgentUiEvent {
   kind: AgentUiEventKind;
@@ -120,6 +124,9 @@ export type AgentSessionStatus =
   | "streaming"
   | "error";
 
+/** auto: cut from the first message; generated: named by the agent model; manual: set by the user. */
+export type AgentTitleSource = "auto" | "generated" | "manual";
+
 export interface AgentSession {
   id: string;
   messages: AgentMessage[];
@@ -127,6 +134,24 @@ export interface AgentSession {
   createdAt: number;
   updatedAt: number;
   plan?: AgentPlan;
+  title?: string;
+  titleSource?: AgentTitleSource;
+  pinned?: boolean;
+}
+
+/** What the session list knows about a saved session, loaded or not. */
+export interface AgentSessionMeta {
+  id: string;
+  title: string;
+  titleSource: AgentTitleSource;
+  pinned: boolean;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  /** The latest text of the conversation, for search and the tooltip. */
+  preview: string;
+  /** The saved file could not be read; it can only be deleted. */
+  unreadable?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,21 +188,13 @@ export interface TokenStats {
 // Agent 会话日志
 // ---------------------------------------------------------------------------
 
-export type AgentLogEntryType =
-  | "user_message"
-  | "assistant_message"
-  | "status_change"
-  | "tool_call"
-  | "tool_result"
-  | "tool_result_committed"
-  | "name_translation_plan"
-  | "name_translation_apply"
-  | "subtitle_recovery_scan"
-  | "subtitle_recovery_queue"
-  | "usage"
-  | "error"
-  | "abort"
-  | "session_reset";
+export const AGENT_LOG_ENTRY_TYPES = [
+  "user_message", "assistant_message", "status_change", "tool_call", "tool_result", "tool_result_committed",
+  "name_translation_plan", "name_translation_apply", "subtitle_recovery_scan", "subtitle_recovery_queue",
+  "usage", "error", "abort", "session_reset",
+] as const;
+
+export type AgentLogEntryType = typeof AGENT_LOG_ENTRY_TYPES[number];
 
 export interface AgentLogEntry {
   id: string;

@@ -33,7 +33,7 @@
     },
     "agent": {
       "label": "Agent",
-      "hint": "連網查詢資料"
+      "hint": "連網查詢、會話記錄"
     }
   },
   "fields": {
@@ -302,6 +302,17 @@
       "hint": "代號是網址中的路徑，如 wiki.biligame.com/zzz；以逗號分隔，第一個作為預設。",
       "invalid": "代號格式不正確：{{codes}}。只能使用小寫字母、數字、底線和連字號。",
       "too_many": "最多填寫 {{count}} 個代號。"
+    },
+    "sessions": {
+      "label": "會話記錄",
+      "description": "Agent 會話會自動儲存在本機的應用程式資料目錄中，重新啟動後可在首頁左側的會話列表中繼續。目前已儲存 {{count}} 個會話。",
+      "clear": "清除全部會話",
+      "clear_title": "清除全部會話？",
+      "clear_description": "所有已儲存的 Agent 會話及其訊息將被永久刪除，無法復原；進行中的回覆會被停止。",
+      "clear_confirm": "清除",
+      "cancel": "取消",
+      "cleared": "已清除全部會話",
+      "clear_failed": "清除失敗，部分會話檔案可能仍在磁碟上"
     }
   }
 }

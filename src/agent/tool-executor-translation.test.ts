@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Model } from "@/type/model";
 import useAgentStore from "@/store/agent/useAgentStore";
+import { patchActiveSlot, useTestSession } from "@/store/agent/agent-store-test-utils";
 import useModelStore from "@/store/useModelStore";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useSubtitleTranslatorConfigStore, { DEFAULT_SUBTITLE_TRANSLATOR_CONFIG_PREFERENCES } from "@/store/tools/subtitle/useSubtitleTranslatorConfigStore";
@@ -52,22 +53,13 @@ beforeEach(() => {
     value: { subtitleTranslationApi: api },
   });
   useSubtitleTranslatorStore.getState().initializeSubtitleTranslatorStore();
-  useAgentStore.setState({
-    executionMode: "queue_only",
-    pendingExecution: null,
-    session: {
-      id: "agent-test-session",
-      messages: [{
-        id: "user-one",
-        role: "user",
-        content: "翻译我选择的字幕",
-        timestamp: 1,
-      }],
-      status: "idle",
-      createdAt: 1,
-      updatedAt: 1,
-    },
-  });
+  useAgentStore.setState({ executionMode: "queue_only" });
+  useTestSession("agent-test-session", { session: { messages: [{
+    id: "user-one",
+    role: "user",
+    content: "翻译我选择的字幕",
+    timestamp: 1,
+  }] } });
   useModelStore.setState({
     profiles: [{
       id: "task-profile",
@@ -224,8 +216,7 @@ describe("Agent subtitle translation producer", () => {
 
 describe("paths the user typed", () => {
   const folder = "D:/字幕/第一季";
-  const typed = (content: string) => useAgentStore.setState({ session: { ...useAgentStore.getState().session,
-    messages: [{ id: "user-typed", role: "user", content, timestamp: 2 }] } });
+  const typed = (content: string) => patchActiveSlot({ session: { messages: [{ id: "user-typed", role: "user", content, timestamp: 2 }] } });
   const base = { sliceType: "NORMAL" as const, sourceLang: "JA" as const, targetLang: "ZH" as const, translationOutputMode: "bilingual" as const, conflictPolicy: "index" as const, concurrentSlices: true };
 
   it("translates the subtitles under a typed folder and saves to a typed output folder, without a picker", async () => {
@@ -329,7 +320,7 @@ describe("Agent subtitle translation recovery", () => {
     expect(JSON.stringify(result)).not.toContain("/private/");
   });
 
-  it.each([false, true])("reauthorizes recovery and preserves its receipt across a session reset: %s", async (resetDuringCleanup) => {
+  it.each([false, true])("reauthorizes recovery and preserves its receipt when its session is deleted meanwhile: %s", async (resetDuringCleanup) => {
     api.selectOutputDirectory.mockResolvedValueOnce({
       ok: true,
       data: {
@@ -375,7 +366,7 @@ describe("Agent subtitle translation recovery", () => {
     });
 
     if (resetDuringCleanup) api.revokeRecoveryScan.mockImplementationOnce(async () => {
-      useAgentStore.getState().resetSession();
+      useAgentStore.getState().removeSession("agent-test-session");
       return { ok: true, data: { released: true } };
     });
     const result = await executeQueueRecoveredSubtitleTranslate({
@@ -458,7 +449,7 @@ describe("Agent subtitle translation recovery", () => {
     expect(api.revokeOutputDirectory).toHaveBeenCalledWith("shared-recovery-directory");
   });
 
-  it("releases a retained recovery directory when the session changes", async () => {
+  it("keeps a retained recovery directory while the user switches sessions and releases it when the session is deleted", async () => {
     api.selectOutputDirectory.mockResolvedValueOnce({
       ok: true,
       data: { cancelled: false, directoryToken: "retained-recovery-directory", displayLabel: "Output", expiresAt: Date.now() + 60_000 },
@@ -471,7 +462,10 @@ describe("Agent subtitle translation recovery", () => {
       recoveryScanId: "recovery-scan-retained", batchStart: 0, batchSize: 1, conflictPolicy: "index", concurrentSlices: true,
     });
     expect(api.revokeOutputDirectory).not.toHaveBeenCalled();
-    useAgentStore.getState().resetSession();
+    useAgentStore.getState().createSession();
+    await Promise.resolve();
+    expect(api.revokeOutputDirectory).not.toHaveBeenCalled();
+    useAgentStore.getState().removeSession("agent-test-session");
     await vi.waitFor(() => expect(api.revokeOutputDirectory).toHaveBeenCalledWith("retained-recovery-directory"));
   });
 

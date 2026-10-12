@@ -72,18 +72,19 @@ export function watchStudioPipeline(input: PipelineScope & { sessionId: string; 
   const stop = () => { stopped = true; clearInterval(timer); };
   async function tick() {
     if (stopped || busy) return;
-    if (useAgentStore.getState().session.id !== input.sessionId || Date.now() - started > GIVE_UP_MS) { stop(); return; }
+    if (!useAgentStore.getState().hasSession(input.sessionId) || Date.now() - started > GIVE_UP_MS) { stop(); return; }
     busy = true;
     try {
       const tasks = getStudioTranscriptionController().getState().tasks.filter(task => ids.has(task.taskId));
       if (tasks.length !== ids.size || tasks.some(task => TRANSCRIBING.has(task.status))) return;
       const documents = await readDocuments(new Set(tasks.flatMap(task => task.documentId ? [task.documentId] : [])));
       const event = pipelineOutcome(tasks, documents, input);
-      if (!event || stopped || useAgentStore.getState().session.id !== input.sessionId) return;
+      if (!event || stopped || !useAgentStore.getState().hasSession(input.sessionId)) return;
       stop();
       // Loaded on use: the orchestrator owns the tools that start this watch.
       const { reportUiEvent } = await import("./orchestrator");
-      reportUiEvent(event);
+      // Reported to the session that submitted the batch, even when the user is in another one.
+      reportUiEvent(event, input.sessionId);
     } catch { /* The next tick reads again. */ }
     finally { busy = false; }
   }

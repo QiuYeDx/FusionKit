@@ -17,12 +17,13 @@ export function dockPanelRect(viewport: Viewport): DockRect {
 
 /**
  * The home page's conversation column: the centered message column from below
- * the title bar to the bottom of its composer (see HomeAgent's layout).
+ * the title bar to the bottom of its composer (see HomeAgent's layout), moved right
+ * by `shift` while the session list is docked beside it.
  */
-export function predictHomeColumn(viewport: Viewport): DockRect {
+export function predictHomeColumn(viewport: Viewport, shift = 0): DockRect {
   const width = Math.min(672, viewport.width - 32);
   const top = TITLE_BAR + 8;
-  return { left: (viewport.width - width) / 2, top, width, height: Math.max(120, viewport.height - 58 - top) };
+  return { left: (viewport.width - width) / 2 + shift, top, width, height: Math.max(120, viewport.height - 58 - top) };
 }
 
 let homeColumn: (() => DockRect | null) | null = null;
@@ -50,9 +51,9 @@ export function readHomeColumn(): DockRect | null {
 }
 
 /** Where the home column will appear when returning: the last measurement in this window size, or the layout's prediction. */
-export function homeColumnTarget(viewport: Viewport): DockRect {
+export function homeColumnTarget(viewport: Viewport, shift = 0): DockRect {
   const last = lastHomeColumn;
-  return last && last.viewport.width === viewport.width && last.viewport.height === viewport.height ? last.rect : predictHomeColumn(viewport);
+  return last && last.viewport.width === viewport.width && last.viewport.height === viewport.height ? last.rect : predictHomeColumn(viewport, shift);
 }
 
 /** How far the user has dragged the open panel from where it rests. */

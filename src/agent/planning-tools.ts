@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import useAgentStore from "@/store/agent/useAgentStore";
+import { sessionOfSignal } from "./turn-context";
 import useSubtitleTranslatorStore from "@/store/tools/subtitle/useSubtitleTranslatorStore";
 import useSubtitleConverterStore from "@/store/tools/subtitle/useSubtitleConverterStore";
 import useSubtitleExtractorStore from "@/store/tools/subtitle/useSubtitleExtractorStore";
@@ -39,7 +40,8 @@ export const planningAgentTools = {
     execute: async (input, options) => {
       options.abortSignal?.throwIfAborted();
       try {
-        return { success: true, data: { plan: useAgentStore.getState().updatePlan(input) } };
+        // The plan of the session whose turn calls the tool, even while the user looks at another one.
+        return { success: true, data: { plan: useAgentStore.getState().forSession(sessionOfSignal(options.abortSignal)).updatePlan(input) } };
       } catch (error) {
         return { success: false, error: error instanceof Error ? error.message : String(error) };
       }

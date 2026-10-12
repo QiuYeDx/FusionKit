@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { agentPlanInputSchema } from "./plan";
-import type { SessionExportData } from "./types";
+import { AGENT_LOG_ENTRY_TYPES, AGENT_UI_EVENT_KINDS, type SessionExportData } from "./types";
 
 export const MAX_SESSION_BYTES = 8 * 1024 * 1024;
 const text = z.string().max(1_000_000);
@@ -15,7 +15,7 @@ const message = z.object({
   toolCalls: z.array(z.object({ toolCallId: id, toolName: id, args: data, responseItemId: id.optional() })).max(64).optional(),
   toolResult: z.object({ callId: id, toolName: id, success: z.boolean(), data: z.unknown().optional(), error: text.optional() }).optional(),
   event: z.object({
-    kind: z.enum(["rename_applied", "rename_failed", "rename_dismissed", "action_completed", "action_failed", "action_dismissed", "execution_confirmed", "execution_dismissed", "pipeline_completed"]),
+    kind: z.enum(AGENT_UI_EVENT_KINDS),
     values: z.record(z.string().max(100), z.union([z.string().max(2000), z.number().finite(), z.boolean()])).optional(),
   }).optional(),
 }).superRefine((value, context) => {
@@ -35,6 +35,7 @@ export const sessionExportSchema = z.object({
   session: z.object({
     id, messages: z.array(message).max(10_000), status: z.enum(["idle", "thinking", "streaming", "error"]),
     createdAt: time, updatedAt: time, plan: plan.optional(),
+    title: z.string().max(200).optional(), titleSource: z.enum(["auto", "generated", "manual"]).optional(), pinned: z.boolean().optional(),
   }),
   tokenStats: z.object({
     totalPromptTokens: count, totalCompletionTokens: count, totalTokens: count, totalCost: amount,
@@ -43,7 +44,7 @@ export const sessionExportSchema = z.object({
   }),
   sessionLog: z.array(z.object({
     id, timestamp: time,
-    type: z.enum(["user_message", "assistant_message", "status_change", "tool_call", "tool_result", "tool_result_committed", "name_translation_plan", "name_translation_apply", "subtitle_recovery_scan", "subtitle_recovery_queue", "usage", "error", "abort", "session_reset"]),
+    type: z.enum(AGENT_LOG_ENTRY_TYPES),
     summary: text, data: data.optional(),
   })).max(20_000),
 });

@@ -33,7 +33,7 @@
     },
     "agent": {
       "label": "Agent",
-      "hint": "Web lookups for materials"
+      "hint": "Web lookups, conversation history"
     }
   },
   "fields": {
@@ -302,6 +302,17 @@
       "hint": "A code is the path in the address, as in wiki.biligame.com/zzz. Separate with commas; the first is the default.",
       "invalid": "Not a valid code: {{codes}}. Use lowercase letters, digits, underscores and hyphens only.",
       "too_many": "Enter at most {{count}} codes."
+    },
+    "sessions": {
+      "label": "Conversation history",
+      "description": "Agent conversations are saved in the app's data folder on this computer, so you can continue them from the list on the home page after a restart. {{count}} saved.",
+      "clear": "Delete all conversations",
+      "clear_title": "Delete all conversations?",
+      "clear_description": "Every saved Agent conversation and its messages will be deleted permanently. This can't be undone, and replies in progress will stop.",
+      "clear_confirm": "Delete all",
+      "cancel": "Cancel",
+      "cleared": "All conversations deleted",
+      "clear_failed": "Couldn't delete everything; some conversation files may remain on disk"
     }
   }
 }

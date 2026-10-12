@@ -3,6 +3,8 @@ import type { MarkdownWidgetAction } from "@/lib/markdown-types";
 
 export interface WidgetActionState {
   session: { id: string };
+  /** Every session's own confirmations, so an outcome is read from the card's session after the user moved on. */
+  slots?: Record<string, { pendingNameTranslationPlan: PendingNameTranslationPlan | null }>;
   isStreaming: boolean;
   pendingExecution: PendingExecution | null;
   pendingNameTranslationPlan: PendingNameTranslationPlan | null;
@@ -74,8 +76,10 @@ export function createWidgetActionHandler(
       if (action.action === "confirm") {
         void state.confirmNameTranslationPlan(plan.planId).then(() => {
           const after = readState();
-          if (after.session.id !== sessionId || after.pendingNameTranslationPlan?.planId !== plan.planId) return;
-          const event = renamePlanEvent(after.pendingNameTranslationPlan);
+          const latest = after.slots ? after.slots[sessionId]?.pendingNameTranslationPlan
+            : after.session.id === sessionId ? after.pendingNameTranslationPlan : null;
+          if (latest?.planId !== plan.planId) return;
+          const event = renamePlanEvent(latest);
           if (event) report(event);
         });
       }

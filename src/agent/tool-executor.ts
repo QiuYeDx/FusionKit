@@ -55,6 +55,7 @@ import { createSubtitleTranslatorTask } from "@/services/subtitle/subtitleTransl
 import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 import i18n from "@/i18n";
 import { latestUserMessage, latestUserMessageText, userMentionedDirectory, userMentionedPath, userRequestedOverwrite } from "./user-intent-authority";
+import { onSessionRemoved, sessionOfSignal } from "./turn-context";
 
 // ---------------------------------------------------------------------------
 // Tool Executor — 工具执行函数（由 AI SDK tool() 的 execute 调用）
@@ -71,6 +72,7 @@ export interface ToolExecutionResult {
 // ---------------------------------------------------------------------------
 
 function handlePostQueue(
+  sessionId: string,
   storeType: TaskStoreType,
   taskIds: string[],
   result: ToolExecutionResult,
@@ -79,7 +81,8 @@ function handlePostQueue(
   const refs: AgentTaskReference[] = taskIds.map((taskId) => ({ store: storeType, taskId }));
   result.data = { ...result.data, taskRefs: refs, ...(cancelled ? { cancelled: true } : {}) };
   if (!taskIds.length) return result;
-  const { executionMode, pendingExecution } = useAgentStore.getState();
+  const { executionMode } = useAgentStore.getState();
+  const pendingExecution = useAgentStore.getState().slots[sessionId]?.pendingExecution ?? null;
   if (cancelled) {
     result.data = { ...result.data, executionMode, executionStatus: "queued_only" };
     return result;
@@ -92,7 +95,7 @@ function handlePostQueue(
     const taskRefs = [...(previous?.taskRefs ?? []), ...refs];
     const stores = [...new Set(taskRefs.map((ref) => ref.store))];
     const taskCounts = Object.fromEntries(stores.map((store) => [store, taskRefs.filter((ref) => ref.store === store).length]));
-    useAgentStore.getState().setPendingExecution({ stores, taskCounts, taskRefs, timestamp: Date.now() });
+    useAgentStore.getState().forSession(sessionId).setPendingExecution({ stores, taskCounts, taskRefs, timestamp: Date.now() });
     result.data = { ...result.data, executionMode, executionStatus: "pending_confirmation" };
   } else {
     result.data = { ...result.data, executionMode, executionStatus: "queued_only" };
@@ -100,14 +103,22 @@ function handlePostQueue(
   return result;
 }
 
-function executionFence(signal?: AbortSignal) {
-  const sessionId = useAgentStore.getState().session.id;
-  return () => {
+/** Checks that the tool's turn still runs, and tells which session the turn belongs to. */
+type ExecutionFence = (() => void) & { sessionId: string };
+
+function executionFence(signal?: AbortSignal): ExecutionFence {
+  const sessionId = sessionOfSignal(signal);
+  return Object.assign(() => {
     signal?.throwIfAborted();
-    if (useAgentStore.getState().session.id !== sessionId) {
+    if (!useAgentStore.getState().hasSession(sessionId)) {
       throw new DOMException("Agent session changed.", "AbortError");
     }
-  };
+  }, { sessionId });
+}
+
+/** What the user of this session wrote; another session's words never authorize anything here. */
+function sessionMessages(sessionId: string) {
+  return useAgentStore.getState().slots[sessionId]?.session.messages ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -244,13 +255,13 @@ export async function executeCreateNameTranslationPlan(
     const requiresConfirmation = summary.applyable;
     const executionStatus = summary.applyable ? "preview_created" : "nothing_to_apply";
 
-    const store = useAgentStore.getState();
+    const store = useAgentStore.getState().forSession(check.sessionId);
     if (requiresConfirmation) {
       check();
       store.setPendingNameTranslationPlan({
         planId: summary.planId,
         createdAt: Date.now(),
-        createdByUserMessageId: latestUserMessage(store.session.messages)?.id,
+        createdByUserMessageId: latestUserMessage(sessionMessages(check.sessionId))?.id,
         summary,
         resolvedAction: null,
       });
@@ -297,9 +308,9 @@ export async function executeApplyNameTranslationPlan(
 ): Promise<ToolExecutionResult> {
   const check = executionFence(signal);
   check();
-  const store = useAgentStore.getState();
-  const pending = store.pendingNameTranslationPlan;
-  const latestUser = latestUserMessage(store.session.messages);
+  const store = useAgentStore.getState().forSession(check.sessionId);
+  const pending = useAgentStore.getState().slots[check.sessionId]?.pendingNameTranslationPlan;
+  const latestUser = latestUserMessage(sessionMessages(check.sessionId));
   if (!pending || pending.planId !== args.planId || pending.resolvedAction || pending.isApplying ||
       !pending.createdByUserMessageId || !latestUser || latestUser.id === pending.createdByUserMessageId ||
       !isExplicitRenameConfirmation(latestUser.content, args.planId)) {
@@ -307,7 +318,7 @@ export async function executeApplyNameTranslationPlan(
   }
   const result = await store.confirmNameTranslationPlan(args.planId, signal);
   if (result) return { success: true, data: { ...result, executionStatus: "applied" } };
-  return { success: false, error: useAgentStore.getState().pendingNameTranslationPlan?.error ?? "rename_not_applied", data: { planId: args.planId, executionStatus: "not_applied" } };
+  return { success: false, error: useAgentStore.getState().slots[check.sessionId]?.pendingNameTranslationPlan?.error ?? "rename_not_applied", data: { planId: args.planId, executionStatus: "not_applied" } };
 }
 
 // ---------------------------------------------------------------------------
@@ -328,10 +339,10 @@ export async function executeQueueTranslate(
   if (!taskProfile?.apiKey) return { success: false, error: "task_model_not_configured" };
   const page = translatorPageSettings();
   const settings = new SettingsResolver();
-  const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
+  const conflict = resolveConflictPolicy(check.sessionId, args.conflictPolicy, page.conflictPolicy, settings);
   // The translator page's output folder needs a fresh authorization, so an omitted output location stays next to the inputs.
   // A typed path is the user's own choice of input or output, like a picker selection; nothing else is.
-  const messages = useAgentStore.getState().session.messages;
+  const messages = sessionMessages(check.sessionId);
   if ([...(args.paths ?? []), ...(args.outputDirectory ? [args.outputDirectory] : [])].some((item) => !userMentionedPath(messages, item))) {
     return { success: false, error: "translation_path_not_typed" };
   }
@@ -366,7 +377,7 @@ export async function executeQueueTranslate(
     if (selected.data.cancelled) return { success: false, error: args.paths ? "translation_no_subtitles_found" : "translation_input_selection_cancelled" };
     const selection = selected.data;
     totalFiles = selection.files.length;
-    const userMessage = latestUserMessageText(useAgentStore.getState().session.messages);
+    const userMessage = latestUserMessageText(sessionMessages(check.sessionId));
     const requestedSlice = args.sliceType !== undefined || args.customSliceLength !== undefined || detectCustomSliceLengthIntent(userMessage) !== undefined;
     const sliceConfig = requestedSlice ? resolveTranslationSliceConfig(args, userMessage)
       : { sliceType: page.sliceType ?? "NORMAL", ...(page.sliceType === "CUSTOM" && page.customSliceLength ? { customSliceLength: page.customSliceLength } : {}) };
@@ -416,7 +427,7 @@ export async function executeQueueTranslate(
     if (directoryToken) await scheduleAgentOutputDirectoryRevocation(directoryToken);
   }
   try { check(); } catch { cancelled = true; }
-  return handlePostQueue("translate", taskIds, {
+  return handlePostQueue(check.sessionId, "translate", taskIds, {
     success: taskIds.length > 0 || (!cancelled && errors.length === 0),
     ...(cancelled && !taskIds.length ? { error: "agent_stopped_before_queue" } : {}),
     data: { queuedCount: taskIds.length, totalFiles, ...(errors.length ? { errors } : {}), ...conflict.receipt, appliedSettings: settings.applied,
@@ -442,7 +453,7 @@ export async function executeQueueConvert(
   const to = settings.pick("to", args.to, page.to, "SRT") as SubtitleConvertFormat;
   const output = await resolvePageOutput("convert", args, page, settings, check);
   if (!output.ok) return { success: false, error: output.error };
-  const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
+  const conflict = resolveConflictPolicy(check.sessionId, args.conflictPolicy, page.conflictPolicy, settings);
   const taskIds: string[] = [];
   const errors: string[] = [];
   let cancelled = false;
@@ -469,7 +480,7 @@ export async function executeQueueConvert(
     cancelled = signal?.aborted === true || (error instanceof Error && error.name === "AbortError");
     if (!cancelled) throw error;
   }
-  return handlePostQueue("convert", taskIds, {
+  return handlePostQueue(check.sessionId, "convert", taskIds, {
     success: taskIds.length > 0 || (!cancelled && errors.length === 0),
     ...(cancelled && !taskIds.length ? { error: "agent_stopped_before_queue" } : {}),
     data: { ...createQueueResultData(selection, taskIds.length, errors), ...conflict.receipt, appliedSettings: settings.applied },
@@ -494,7 +505,7 @@ export async function executeQueueExtract(
   const keep = settings.pick("keep", args.keep, page.keep, "ZH") as TranslationLanguage;
   const output = await resolvePageOutput("extract", args, page, settings, check);
   if (!output.ok) return { success: false, error: output.error };
-  const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
+  const conflict = resolveConflictPolicy(check.sessionId, args.conflictPolicy, page.conflictPolicy, settings);
   const taskIds: string[] = [];
   const errors: string[] = [];
   let cancelled = false;
@@ -520,7 +531,7 @@ export async function executeQueueExtract(
     cancelled = signal?.aborted === true || (error instanceof Error && error.name === "AbortError");
     if (!cancelled) throw error;
   }
-  return handlePostQueue("extract", taskIds, {
+  return handlePostQueue(check.sessionId, "extract", taskIds, {
     success: taskIds.length > 0 || (!cancelled && errors.length === 0),
     ...(cancelled && !taskIds.length ? { error: "agent_stopped_before_queue" } : {}),
     data: { ...createQueueResultData(selection, taskIds.length, errors), ...conflict.receipt },
@@ -538,7 +549,7 @@ export async function executeScanSubtitleRecoveryTasks(
   const check = executionFence(signal);
   check();
   let payload;
-  if (args.path && !userMentionedPath(useAgentStore.getState().session.messages, args.path)) {
+  if (args.path && !userMentionedPath(sessionMessages(check.sessionId), args.path)) {
     return { success: false, error: "recovery_path_not_typed" };
   }
   try {
@@ -562,7 +573,7 @@ export async function executeScanSubtitleRecoveryTasks(
     return { success: false, error: "recovery_selection_cancelled" };
   }
 
-  useAgentStore.getState().appendLog(
+  useAgentStore.getState().forSession(check.sessionId).appendLog(
     "subtitle_recovery_scan",
     `Scanned ${payload.totalCount} candidates, ${payload.recoverableCount} recoverable`,
     {
@@ -600,7 +611,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
   check();
   let queuedCount = 0;
   let skippedCount = 0;
-  const sessionId = useAgentStore.getState().session.id;
+  const sessionId = check.sessionId;
   const retained = recoveryOutputDirectories.get(args.recoveryScanId);
   recoveryOutputDirectories.delete(args.recoveryScanId);
   let recoveryDirectoryToken: string | undefined;
@@ -642,7 +653,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
     };
   }
   // Main keeps the directory authority only while the scan has more batches.
-  if (prepared.hasMore && !args.candidateIds?.length && useAgentStore.getState().session.id === sessionId) {
+  if (prepared.hasMore && !args.candidateIds?.length && useAgentStore.getState().hasSession(sessionId)) {
     recoveryOutputDirectories.set(args.recoveryScanId, { sessionId, directoryToken: recoveryDirectoryToken });
   } else {
     await scheduleAgentOutputDirectoryRevocation(recoveryDirectoryToken);
@@ -654,7 +665,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
   }
   const page = translatorPageSettings();
   const settings = new SettingsResolver();
-  const conflict = resolveConflictPolicy(args.conflictPolicy, page.conflictPolicy, settings);
+  const conflict = resolveConflictPolicy(check.sessionId, args.conflictPolicy, page.conflictPolicy, settings);
   const concurrentSlices = settings.pick("concurrentSlices", args.concurrentSlices, page.concurrentSlices, true);
   const tasks: SubtitleTranslatorTask[] = prepared.tasks.map((draft) => ({
     taskId: draft.taskId,
@@ -737,7 +748,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
 
   let cancelled = false;
   try { check(); } catch { cancelled = true; }
-  if (!cancelled) useAgentStore.getState().appendLog(
+  if (!cancelled) useAgentStore.getState().forSession(sessionId).appendLog(
     "subtitle_recovery_queue",
     `Queued ${queuedCount} recovered tasks, skipped ${skippedCount}`,
     {
@@ -749,7 +760,7 @@ export async function executeQueueRecoveredSubtitleTranslate(
     },
   );
 
-  return handlePostQueue("translate", [...addResult.addedTaskIds], result, cancelled);
+  return handlePostQueue(sessionId, "translate", [...addResult.addedTaskIds], result, cancelled);
 }
 
 // ---------------------------------------------------------------------------
@@ -789,11 +800,11 @@ function sourceDirectoryOf(filePath: string): string {
  * Overwriting replaces user files, so it needs the user's own words in the latest
  * message; otherwise the safe indexed policy is used and reported to the model.
  */
-function resolveConflictPolicy(requested: "index" | "overwrite" | undefined, page?: "index" | "overwrite", settings?: SettingsResolver) {
+function resolveConflictPolicy(sessionId: string, requested: "index" | "overwrite" | undefined, page?: "index" | "overwrite", settings?: SettingsResolver) {
   // A policy the user set on the tool page is their own choice; a policy the model sends is checked below.
   if (requested === undefined) return { policy: settings ? settings.pick("conflictPolicy", undefined, page, "index" as const) : page ?? "index" as const, receipt: {} };
   if (requested !== "overwrite") return { policy: settings?.note("conflictPolicy", "index" as const, "user") ?? "index" as const, receipt: {} };
-  if (userRequestedOverwrite(latestUserMessageText(useAgentStore.getState().session.messages))) {
+  if (userRequestedOverwrite(latestUserMessageText(sessionMessages(sessionId)))) {
     return { policy: settings?.note("conflictPolicy", "overwrite" as const, "user") ?? "overwrite" as const, receipt: {} };
   }
   settings?.note("conflictPolicy", "index", "default");
@@ -809,7 +820,7 @@ async function resolvePageOutput(
   args: { outputMode?: "source" | "custom"; outputDir?: string; scanId?: string },
   page: { outputMode?: "source" | "custom"; outputDir?: string },
   settings: SettingsResolver,
-  check: () => void,
+  check: ExecutionFence,
 ): Promise<{ ok: true; directory?: string } | { ok: false; error: string }> {
   if (args.outputMode === undefined && page.outputMode === "custom" && page.outputDir) {
     settings.note("outputMode", "custom", "tool_page");
@@ -830,16 +841,16 @@ const legacyOutputDirectories = new Map<string, { sessionId: string; directory: 
 async function resolveLegacyOutputDirectory(
   kind: "convert" | "extract",
   args: { outputMode?: string; outputDir?: string; scanId?: string },
-  check: () => void,
+  check: ExecutionFence,
 ): Promise<{ ok: true; directory?: string } | { ok: false; error: string }> {
   if (args.outputMode !== "custom") return { ok: true };
-  const { session } = useAgentStore.getState();
-  if (args.outputDir && userMentionedDirectory(session.messages, args.outputDir)) {
+  const { sessionId } = check;
+  if (args.outputDir && userMentionedDirectory(sessionMessages(sessionId), args.outputDir)) {
     return { ok: true, directory: args.outputDir.trim() };
   }
   const cacheKey = args.scanId ? `${kind}:${args.scanId}` : undefined;
   const cached = cacheKey ? legacyOutputDirectories.get(cacheKey) : undefined;
-  if (cached?.sessionId === session.id) return { ok: true, directory: cached.directory };
+  if (cached?.sessionId === sessionId) return { ok: true, directory: cached.directory };
   const result = await getIpcRenderer().invoke("select-output-directory", {
     title: i18n.t("subtitle:converter.dialog.select_output_title"),
     buttonLabel: i18n.t("subtitle:converter.dialog.select_output_confirm"),
@@ -847,7 +858,7 @@ async function resolveLegacyOutputDirectory(
   check();
   const directory = result && !result.canceled ? result.filePaths?.[0] : undefined;
   if (!directory) return { ok: false, error: "output_selection_cancelled" };
-  if (cacheKey) legacyOutputDirectories.set(cacheKey, { sessionId: session.id, directory });
+  if (cacheKey) legacyOutputDirectories.set(cacheKey, { sessionId, directory });
   return { ok: true, directory };
 }
 
@@ -902,13 +913,11 @@ async function releaseRecoveryOutputDirectory(recoveryScanId: string): Promise<v
   await scheduleAgentOutputDirectoryRevocation(retained.directoryToken);
 }
 
-useAgentStore.subscribe((state, previous) => {
-  if (state.session.id === previous.session.id) return;
-  legacyOutputDirectories.clear();
+// Directories a session chose stay with it while it exists; a deleted session gives them back.
+onSessionRemoved((sessionId) => {
+  for (const [key, cached] of legacyOutputDirectories) if (cached.sessionId === sessionId) legacyOutputDirectories.delete(key);
   for (const [recoveryScanId, retained] of recoveryOutputDirectories) {
-    if (retained.sessionId !== state.session.id) {
-      void releaseRecoveryOutputDirectory(recoveryScanId).catch(() => {});
-    }
+    if (retained.sessionId === sessionId) void releaseRecoveryOutputDirectory(recoveryScanId).catch(() => {});
   }
 });
 

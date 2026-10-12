@@ -16,6 +16,7 @@ import i18n from "@/i18n";
 import { userMentionedPath } from "./user-intent-authority";
 import { watchStudioPipeline } from "./pipeline-watch";
 import { automaticExportFromPreferences, type AutomaticExportSpec } from "@/subtitle-studio/automatic-export-contract";
+import { sessionOfSignal } from "./turn-context";
 import { registerPreparedAction, usePreparedActionsStore, type PreparedAction, type PreparedActionReceipt, type PreparedActionResult } from "./prepared-actions";
 
 export interface Context { sessionId: string; signal?: AbortSignal; check: () => void }
@@ -40,10 +41,11 @@ function studio() {
   return window.subtitleStudio;
 }
 function context(signal?: AbortSignal): Context {
-  const sessionId = useAgentStore.getState().session.id;
+  // The session of the turn that called the tool, whichever session is on screen meanwhile.
+  const sessionId = sessionOfSignal(signal);
   return { sessionId, signal, check() {
     if (signal?.aborted) throw new ToolFailure("agent_cancelled");
-    if (sessionId !== useAgentStore.getState().session.id) throw new ToolFailure("agent_session_changed");
+    if (!useAgentStore.getState().hasSession(sessionId)) throw new ToolFailure("agent_session_changed");
   } };
 }
 export async function run<S extends z.ZodType>(schema: S, input: unknown, options: { abortSignal?: AbortSignal } | undefined,
@@ -57,11 +59,15 @@ export async function run<S extends z.ZodType>(schema: S, input: unknown, option
     if (options?.abortSignal?.aborted || (error instanceof Error && error.name === "AbortError")) return failed("agent_cancelled");
     // Keep the stable code for the UI, but retain a bounded, redacted cause for diagnosis.
     const reason = redactSecrets(error instanceof Error ? error.message : String(error)).slice(0, 600);
-    if (ctx.sessionId === useAgentStore.getState().session.id) {
-      useAgentStore.getState().appendLog("error", `tool_request_failed: ${reason}`, { source: "modern_tool", reason });
+    if (useAgentStore.getState().hasSession(ctx.sessionId)) {
+      useAgentStore.getState().forSession(ctx.sessionId).appendLog("error", `tool_request_failed: ${reason}`, { source: "modern_tool", reason });
     }
     return failed("tool_request_failed", { reason });
   }
+}
+/** What the user of this session wrote; another session's words never authorize anything here. */
+function sessionMessages(sessionId: string) {
+  return useAgentStore.getState().slots[sessionId]?.session.messages ?? [];
 }
 function redactSecrets(text: string): string {
   const { getAgentProfile, getTaskProfile } = useModelStore.getState();
@@ -155,7 +161,7 @@ export const modernAgentTools = {
   import_studio_subtitles: tool({ description: "Import subtitles into the studio. When the user typed subtitle file or folder paths, pass them exactly as typed in paths (folders give their SRT/LRC/VTT/ASS/SSA/SBV files in name order, up to 100; subfolders only with recursive=true when asked). Paths the user did not type are refused. Without paths, FusionKit's fixed native subtitle picker opens. Does not start translation.",
     inputSchema: importStudioSchema, execute: (args, options) => run(importStudioSchema, args, options, async (input, ctx) => {
       ctx.check();
-      if (input.paths && !input.paths.every(item => userMentionedPath(useAgentStore.getState().session.messages, item))) throw new ToolFailure("studio_import_path_not_typed");
+      if (input.paths && !input.paths.every(item => userMentionedPath(sessionMessages(ctx.sessionId), item))) throw new ToolFailure("studio_import_path_not_typed");
       const result = input.paths
         ? unwrap(await studio().importSubtitlePaths({ encoding: input.encoding, paths: input.paths, ...(input.recursive ? { recursive: true } : {}) }))
         : unwrap(await studio().importSubtitles({ encoding: input.encoding }));
@@ -205,7 +211,7 @@ export const modernAgentTools = {
         execute: async () => {
           const notSubmitted = (error: string) => failed(error, { receipt: receipt("submission", preparationReceipt.items.map(item => ({
             id: item.id, name: item.name, status: "failed", error: item.error ?? error }))) });
-          if (useAgentStore.getState().session.id !== sessionId) return notSubmitted("agent_session_changed");
+          if (!useAgentStore.getState().hasSession(sessionId)) return notSubmitted("agent_session_changed");
           let response: Awaited<ReturnType<ReturnType<typeof studio>["createTranslationBatch"]>>;
           try { response = await studio().createTranslationBatch({ batchId: plan.batchId, apiKey: profile.apiKey }); }
           // A lost IPC response may follow a committed admission. No per-file outcome is known.
@@ -266,7 +272,7 @@ export const modernAgentTools = {
       let page: { matched: number; nextOffset?: number } | undefined;
       if (input.paths) {
         // A typed path is the user's own choice of input, like a picker selection; anything else is not.
-        const messages = useAgentStore.getState().session.messages;
+        const messages = sessionMessages(ctx.sessionId);
         if (!input.paths.every(item => userMentionedPath(messages, item))) throw new ToolFailure("studio_transcription_path_not_typed");
         page = await controller.selectMediaFromPaths({ paths: input.paths, ...(input.recursive ? { recursive: true } : {}), ...(input.offset ? { offset: input.offset } : {}) });
         ctx.check();
@@ -303,7 +309,7 @@ export const modernAgentTools = {
             const notAdmitted = (error: string) => failed(error, { receipt: receipt("submission", preparationReceipt.items.map((item, index) => ({
               id: item.id, name: item.name, status: "failed",
               error: controller.getState().drafts.find(current => current.id === ownedIds[index])?.error ?? error }))) });
-            if (useAgentStore.getState().session.id !== sessionId) return notAdmitted("agent_session_changed");
+            if (!useAgentStore.getState().hasSession(sessionId)) return notAdmitted("agent_session_changed");
             const current = controller.getState();
             if (signature !== JSON.stringify({ config: current.config, automatic: current.autoTranslation, drafts: current.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) })) return notAdmitted("studio_transcription_draft_changed");
             const currentReadiness = getTranscriptionReadiness(current);

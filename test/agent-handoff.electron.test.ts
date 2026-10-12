@@ -57,6 +57,8 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('home and panel han
     try {
       server = createServer(async (request, response) => {
         let body = ''; for await (const part of request) body += part.toString();
+        // The session title is a side request of its own; it does not take a scripted reply.
+        if (String(JSON.parse(body).instructions ?? '').startsWith('You name conversations.')) { response.setHeader('Content-Type', 'text/event-stream'); response.end(stream(text('会话标题'))); return; }
         requests.push(JSON.parse(body));
         response.setHeader('Content-Type', 'text/event-stream');
         response.end(stream(queue.shift() ?? text('好的。')));
@@ -193,8 +195,9 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('home and panel han
       expect(returningNarrow[0]).toMatchObject({ left: 11, width: 400 });
       expect(returningNarrow.at(-1)!.left).toBeGreaterThan(40);
       await page.screenshot({ path: path.join(artifacts, '08-home-786-dark.png') });
-      const reset = page.getByRole('button', { name: '新对话' });
-      await reset.click(); await page.getByRole('button', { name: '确认新建?' }).click();
+      // A new conversation needs no confirmation: the current one stays in the session list.
+      await page.getByTestId('agent-new-session').click();
+      await uiExpect(page.locator('[data-message-role]')).toHaveCount(0);
       await page.getByRole('button', { name: '工具', exact: true }).click();
       await page.waitForURL(/#\/tools$/);
       await uiExpect(launcher).toHaveAttribute('aria-expanded', 'false');

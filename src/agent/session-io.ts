@@ -1,5 +1,6 @@
 import useAgentStore from "@/store/agent/useAgentStore";
 import { MAX_SESSION_BYTES, parseSessionJson } from "./session-schema";
+import type { SessionExportData } from "./types";
 
 export interface SessionExportResult {
   success: boolean;
@@ -7,11 +8,12 @@ export interface SessionExportResult {
   errorCode?: "too_large" | "invalid" | "save_failed";
 }
 
-export async function exportSession(): Promise<SessionExportResult> {
+/** Saves a session to a file the user picks; by default the session on screen. */
+export async function exportSession(read: () => SessionExportData = () => useAgentStore.getState().getSessionExportData()): Promise<SessionExportResult> {
   let json: string;
   let createdAt: number;
   try {
-    const data = useAgentStore.getState().getSessionExportData();
+    const data = read();
     json = JSON.stringify(data, null, 2);
     if (json.length > MAX_SESSION_BYTES || new TextEncoder().encode(json).byteLength > MAX_SESSION_BYTES) {
       return { success: false, errorCode: "too_large" };
@@ -46,6 +48,7 @@ export async function importSession(): Promise<{ success: boolean; error?: strin
     }
 
     const data = parseSessionJson(result.content);
+    // Opens as a new session beside the others; it is saved like any session with messages.
     useAgentStore.getState().restoreSession(data);
     return { success: true };
   } catch (err: any) {

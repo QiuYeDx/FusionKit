@@ -11,11 +11,14 @@ import { HashRouter } from "react-router-dom";
 import "@/renderer/subtitle";
 import { getLocalSubtitleEnvironmentService } from "@/services/local-subtitle/localSubtitleEnvironmentService";
 import { getLocalSubtitleRuntimeService } from "@/services/local-subtitle/localSubtitleRuntimeService";
+import { initAgentSessions } from "@/agent/session-persistence";
 
 // Local subtitle execution and its initial environment snapshot belong to the
 // renderer session, not to a route component. Both services are idempotent.
 void getLocalSubtitleRuntimeService().start();
 void getLocalSubtitleEnvironmentService().ensureInitialized();
+// Saved Agent conversations: the list is read once, changes are saved as they happen.
+void initAgentSessions();
 
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement

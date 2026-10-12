@@ -23,6 +23,7 @@ import { setupFsIPC } from "./fs/ipc";
 import { setupNativeFileSelectionIPC } from "./fs/native-file-selection-ipc";
 import { setupNameTranslationIPC } from "./name-translation/ipc";
 import { setupWebLookupIPC } from "./web-lookup";
+import { setupAgentSessionsIPC } from "./agent-sessions";
 import {
   emitTextTranslationEvent,
   setupTextTranslationIPC,
@@ -521,6 +522,7 @@ app.whenReady().then(async () => {
   setupFsIPC();
   setupNameTranslationIPC();
   setupWebLookupIPC();
+  setupAgentSessionsIPC();
   setupTextTranslationIPC(textTranslationService);
   setupAudioIPC();
   setupAudioRealtimeIPC();

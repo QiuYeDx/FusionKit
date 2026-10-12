@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useAgentStore from "@/store/agent/useAgentStore";
+import { useTestSession } from "@/store/agent/agent-store-test-utils";
 import { registerPreparedAction, usePreparedActionsStore } from "./prepared-actions";
 
+/** A new session replaces (deletes) the previous one, which voids its authority. */
 function setSession(id: string) {
-  useAgentStore.setState({ session: { ...useAgentStore.getState().session, id } });
+  useTestSession(id);
 }
 beforeEach(() => {
   setSession(`reset-${Math.random()}`);
@@ -58,7 +60,17 @@ describe("prepared action authority", () => {
     expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "completed", result: { executionStatus: "queued" } });
     expect(value.cleanup).toHaveBeenCalledTimes(1);
   });
-  it("dismisses previous-session authority and invokes cleanup once", async () => {
+  it("keeps a card confirmable while the user looks at other sessions", async () => {
+    const value = register();
+    useAgentStore.getState().addMessage({ id: "u", role: "user", content: "keep me", timestamp: 1 });
+    useAgentStore.getState().createSession();
+    expect(usePreparedActionsStore.getState().actions[0].status).toBe("ready");
+    useAgentStore.getState().activateSession("prepared-test");
+    await usePreparedActionsStore.getState().confirmAction(value.action.id);
+    expect(value.execute).toHaveBeenCalledTimes(1);
+    expect(usePreparedActionsStore.getState().actions[0].status).toBe("completed");
+  });
+  it("dismisses a deleted session's authority and invokes cleanup once", async () => {
     const value = register();
     setSession("new-session");
     await usePreparedActionsStore.getState().confirmAction(value.action.id);

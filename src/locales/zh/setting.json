@@ -33,7 +33,7 @@
     },
     "agent": {
       "label": "Agent",
-      "hint": "联网查询资料"
+      "hint": "联网查询、会话记录"
     }
   },
   "fields": {
@@ -302,6 +302,17 @@
       "hint": "代号是网址中的路径，如 wiki.biligame.com/zzz；用逗号分隔，第一个作为默认。",
       "invalid": "代号格式不正确：{{codes}}。只能使用小写字母、数字、下划线和短横线。",
       "too_many": "最多填写 {{count}} 个代号。"
+    },
+    "sessions": {
+      "label": "会话记录",
+      "description": "Agent 会话自动保存在本机的应用数据目录中，重启后可在主页左侧的会话列表里继续。当前已保存 {{count}} 个会话。",
+      "clear": "清空全部会话",
+      "clear_title": "清空全部会话？",
+      "clear_description": "所有已保存的 Agent 会话及其消息将被永久删除，无法恢复；正在进行的回复会被停止。",
+      "clear_confirm": "清空",
+      "cancel": "取消",
+      "cleared": "已清空全部会话",
+      "clear_failed": "清空失败，部分会话文件可能仍在磁盘上"
     }
   }
 }

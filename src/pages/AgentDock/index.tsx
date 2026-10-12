@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "motion/react";
-import { AlertTriangle, ArrowDown, Maximize2, Minus, Pin, RotateCcw, Send, Settings, Sparkles, Square } from "lucide-react";
+import { AlertTriangle, ArrowDown, ChevronDown, Maximize2, Minus, Pin, Send, Settings, Sparkles, Square, SquarePen } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { abortCurrentStream, handleUserMessage } from "@/agent/orchestrator";
@@ -24,10 +24,14 @@ import { CapsuleModeSelector, ConversationFeed, useAgentWidgetContexts } from ".
 import { dockClipPath, hasUnreadReply, isDockRoute } from "./dock-state";
 import { travel } from "./travel";
 import { clampDockOffset, DOCK_EDGE, DOCK_PANEL_BOTTOM, dockPanelRect, homeColumnTarget, readHomeColumn, type DockOffset, type DockRect, type Viewport } from "./handoff";
+import { newSession } from "@/agent/session-persistence";
+import { readSessionDraft, writeSessionDraft } from "@/agent/session-drafts";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SessionList, sessionDisplayTitle, useOtherSessionsActivity } from "../HomeAgent/components/SessionList";
+import { SessionSearch } from "../HomeAgent/SessionSidebar";
+import { predictHomeContentShift } from "../HomeAgent/home-layout";
 import "./AgentDock.css";
 
-/** Draft kept across closing the panel and page changes; cleared on reload like the home page draft. */
-let draftCache = "";
 const PIN_KEY = "fusionkit-agent-dock-pinned";
 const readPinned = () => { try { return localStorage.getItem(PIN_KEY) === "1"; } catch { return false; } };
 const OFFSET_KEY = "fusionkit-agent-dock-offset";
@@ -189,11 +193,11 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   const atBottom = useRef(true);
   const [showLatest, setShowLatest] = useState(false);
   const [size, setSize] = useState({ width: 400, height: 620 });
-  const [input, setInput] = useState(draftCache);
-  const [confirmingReset, setConfirmingReset] = useState(false);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => { draftCache = input; }, [input]);
+  // Each session keeps its own draft across closing the panel, page changes and switching sessions.
+  const activeSessionId = useAgentStore((state) => state.activeSessionId);
+  const [input, setInput] = useState(() => readSessionDraft(useAgentStore.getState().activeSessionId));
+  const draftOwner = useRef(activeSessionId);
+  useEffect(() => { writeSessionDraft(draftOwner.current, input); }, [input]);
   // Pinned, the panel stays open while the user works in the page (for example selecting cues to ask about).
   const [pinned, setPinned] = useState(readPinned);
   const togglePinned = () => setPinned((current) => {
@@ -219,12 +223,15 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
     // closePanel only uses state setters and refs.
   }, [open, arriving, pinned]);
-  useEffect(() => () => clearTimeout(resetTimer.current), []);
 
-  const { session, isStreaming, executionMode, setExecutionMode, pendingExecution, pendingNameTranslationPlan, resetSession } = useAgentStore(useShallow((state) => ({
+  const { session, isStreaming, executionMode, setExecutionMode, pendingExecution, pendingNameTranslationPlan } = useAgentStore(useShallow((state) => ({
     session: state.session, isStreaming: state.isStreaming, executionMode: state.executionMode, setExecutionMode: state.setExecutionMode,
-    pendingExecution: state.pendingExecution, pendingNameTranslationPlan: state.pendingNameTranslationPlan, resetSession: state.resetSession,
+    pendingExecution: state.pendingExecution, pendingNameTranslationPlan: state.pendingNameTranslationPlan,
   })));
+  const sessionTitle = useAgentStore((state) => state.catalog[state.activeSessionId]);
+  const otherActivity = useOtherSessionsActivity();
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [switcherQuery, setSwitcherQuery] = useState("");
   const { messages } = session;
   const widgetContexts = useAgentWidgetContexts(session.id, pendingExecution, pendingNameTranslationPlan, navigate);
 
@@ -237,8 +244,10 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   const pageName = titleKey ? t(titleKey) : undefined;
   const pageLabel = [pageName, page?.subject].filter(Boolean).join(" · ");
 
-  // Unread replies while closed.
+  // Unread replies while closed; another session starts from what it already has.
   const seen = useRef(messages.length);
+  const seenSession = useRef(session.id);
+  if (seenSession.current !== session.id) { seenSession.current = session.id; seen.current = messages.length; }
   if (open) seen.current = messages.length;
   const unread = !open && hasUnreadReply(messages, Math.min(seen.current, messages.length));
   useEffect(() => { if (seen.current > messages.length) seen.current = messages.length; }, [messages.length]);
@@ -317,16 +326,19 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     event.preventDefault(); event.stopPropagation();
     closePanel();
   };
-  const onReset = () => {
-    if (!confirmingReset) {
-      setConfirmingReset(true);
-      resetTimer.current = setTimeout(() => setConfirmingReset(false), 3000);
-      return;
-    }
-    clearTimeout(resetTimer.current); setConfirmingReset(false);
-    resetSession();
+  // Nothing is lost: the conversation stays in the session list.
+  const onNewSession = () => {
+    newSession();
+    setSwitcherOpen(false);
     requestAnimationFrame(() => inputRef.current?.focus());
   };
+  // Another session on screen: its own draft, its latest messages in view.
+  useEffect(() => {
+    if (draftOwner.current === activeSessionId) return;
+    draftOwner.current = activeSessionId;
+    setInput(readSessionDraft(activeSessionId));
+    requestAnimationFrame(() => scrollToEnd());
+  }, [activeSessionId, scrollToEnd]);
   // Like the home page: when a reply finishes, the open panel is ready for the next message.
   const wasStreaming = useRef(isStreaming);
   useEffect(() => {
@@ -345,7 +357,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
       initial={arrival && !reduceMotion ? shiftRect(arrival, place) : false}
       animate={rest}
       transition={arriving ? HANDOFF : { duration: 0 }}
-      exit={returningHome ? { ...shiftRect(homeColumnTarget(viewport), place), transition: HANDOFF } : undefined}
+      exit={returningHome ? { ...shiftRect(homeColumnTarget(viewport, predictHomeContentShift(viewport.width)), place), transition: HANDOFF } : undefined}
       onAnimationComplete={() => {
         if (!arriving) return;
         setArriving(false);
@@ -384,14 +396,40 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
             onPointerUp={onHeaderPointerUp} onLostPointerCapture={onHeaderPointerUp} onDoubleClick={onHeaderDoubleClick}>
             <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-medium leading-5">{t("home:agent_title")}</div>
+              {/* The title is the session: it opens the list of conversations to switch to. */}
+              <Popover open={switcherOpen} onOpenChange={(next) => { setSwitcherOpen(next); if (!next) setSwitcherQuery(""); }}>
+                <PopoverTrigger asChild>
+                  <button type="button" data-testid="agent-dock-switcher" aria-label={t("home:sessions_switcher")}
+                    className="-mx-1 flex max-w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[13px] font-medium leading-5 outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:bg-accent/60">
+                    <span className="min-w-0 truncate" data-testid="agent-dock-session-title">
+                      {sessionTitle ? sessionDisplayTitle(sessionTitle, t("home:sessions_untitled")) : t("home:sessions_new")}
+                    </span>
+                    <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    {otherActivity && <span aria-hidden data-testid="agent-dock-switcher-dot"
+                      className={cn("size-1.5 shrink-0 rounded-full", otherActivity === "running" ? "bg-muted-foreground animate-pulse motion-reduce:animate-none" : "bg-primary")} />}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" sideOffset={8} className="w-72 p-0" data-testid="agent-dock-switcher-panel"
+                  onOpenAutoFocus={(event) => { event.preventDefault(); (event.currentTarget as HTMLElement).querySelector("input")?.focus(); }}>
+                  <div className="flex flex-col gap-1 p-2">
+                    <SessionSearch value={switcherQuery} onChange={setSwitcherQuery} testId="agent-dock-switcher-search" />
+                    <button type="button" onClick={onNewSession} data-testid="agent-dock-switcher-new"
+                      className="flex h-[30px] items-center gap-2 rounded-[10px] px-2.5 text-left text-[13px] text-foreground/80 outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+                      <SquarePen className="size-3.5 text-muted-foreground" aria-hidden="true" />{t("home:sessions_new")}
+                    </button>
+                  </div>
+                  <ScrollArea className="max-h-[300px] border-t" viewportProps={{ className: "max-h-[300px] [&>div]:!block" }}>
+                    <SessionList variant="compact" className="p-2" query={switcherQuery}
+                      onPicked={() => { setSwitcherOpen(false); requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true })); }} />
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
               {pageLabel && <div className="truncate text-[11px] leading-4 text-muted-foreground" title={pageLabel} data-testid="agent-dock-page">{pageLabel}</div>}
             </div>
             <DockIconButton label={t(pinned ? "home:dock.unpin" : "home:dock.pin")} testId="agent-dock-pin" pressed={pinned} onClick={togglePinned}
               className={pinned ? "bg-accent text-foreground" : undefined}><Pin className={cn("size-3.5", pinned && "fill-current")} /></DockIconButton>
             <DockIconButton label={t("home:dock.open_home")} testId="agent-dock-open-home" onClick={() => navigate("/")}><Maximize2 className="size-3.5" /></DockIconButton>
-            <DockIconButton label={t(confirmingReset ? "home:confirm_new_conversation" : "home:new_conversation")} testId="agent-dock-reset" disabled={isStreaming || !messages.length} onClick={onReset}
-              className={confirmingReset ? "text-destructive hover:text-destructive" : undefined}><RotateCcw className="size-3.5" /></DockIconButton>
+            <DockIconButton label={t("home:new_conversation")} testId="agent-dock-reset" disabled={!messages.length && !isStreaming} onClick={onNewSession}><SquarePen className="size-3.5" /></DockIconButton>
             <DockIconButton label={t("home:dock.minimize")} testId="agent-dock-minimize" onClick={() => closePanel()}><Minus className="size-4" /></DockIconButton>
           </header>
 

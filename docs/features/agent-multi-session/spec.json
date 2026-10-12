@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "feature": "agent-multi-session",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "agent-multi-session",
+      "code": "SESSION",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "多会话、后台并发、本地持久化与会话管理",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前任务）",
+        "basis": "2026-10-12 用户：「目前的FusionKit Agent不支持多会话 需要支持一下多会话与会话管理和相关逻辑 可以先好好想一下设计清楚 然后写文档再开发」，并在问答中确定 Q-01..Q-04。按本规格自主实现 I1 并隔离验证；不代签用户验收，不提交推送、不发布，不调用付费 API。 2026-10-12 用户反馈后：侧栏常驻时主页对话内容居中于侧栏右侧并同步动画；随后用户确认「阈值降到 1000px 吧」，AC-07-1、AC-07-2 的常驻阈值由 1216px 改为 1000px，相应刷新摘要。",
+        "digest": "07bf2d7a3bc68a81e1088e05d891671b41d772b976c4e2938ab48e1a68602d9a"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "Q-01",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "切换会话时正在回复的会话如何处理",
+      "resolution": "2026-10-12 用户选择：后台继续，可多会话同时运行（每个会话最多一个进行中的回复）"
+    },
+    {
+      "id": "Q-02",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "会话列表入口放在哪里",
+      "resolution": "2026-10-12 用户选择：主页左侧可折叠侧栏 + 悬浮面板头部切换器"
+    },
+    {
+      "id": "Q-03",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "会话是否保存到本机",
+      "resolution": "2026-10-12 用户选择：保存到应用数据目录；授权与待确认卡片不跨重启"
+    },
+    {
+      "id": "Q-04",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "会话标题如何生成",
+      "resolution": "2026-10-12 用户：先取首条消息截取，首轮回复后用 Agent 模型生成短标题（token 用量可忽略），支持手动重命名"
+    },
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "启动时打开哪个会话",
+      "resolution": "可逆默认：启动显示空白新会话（保留现有欢迎界面），历史会话在侧栏；不自动打开上次会话"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "执行模式与 Agent 模型是否按会话设置",
+      "resolution": "可逆默认：仍为全局设置，范围外"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

@@ -4,6 +4,10 @@ import { clampDockOffset, dockPanelRect, homeColumnTarget, predictHomeColumn, re
 afterEach(() => vi.unstubAllGlobals());
 
 describe("home ↔ panel handoff geometry", () => {
+  it("predicts the home column moved right while the session list is docked", () => {
+    expect(predictHomeColumn({ width: 1440, height: 900 }, 132).left).toBe(predictHomeColumn({ width: 1440, height: 900 }).left + 132);
+    expect(homeColumnTarget({ width: 1777, height: 901 }, 132).left).toBe((1777 - 672) / 2 + 132);
+  });
   it("rests the panel above the launcher, aligned with it", () => {
     expect(dockPanelRect({ width: 1280, height: 860 })).toEqual({ left: 11, top: 860 - 58 - 620, width: 400, height: 620 });
     expect(dockPanelRect({ width: 786, height: 660 })).toEqual({ left: 11, top: 40 + 8, width: 400, height: 660 - 58 - 48 });
