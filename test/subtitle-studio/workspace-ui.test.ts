@@ -159,9 +159,11 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     await page.evaluate(() => {
       Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async (text: string) => { document.documentElement.dataset.copiedText = text; } });
     });
-    await page.getByRole('button', { name: '复制字幕', exact: true }).first().click();
-    await uiExpect(page.getByRole('button', { name: '已复制', exact: true })).toBeVisible();
-    expect(await page.locator('html').getAttribute('data-copied-text')).toBe(lines[0]);
+    // Copying goes through the row's menu, which names what is copied.
+    await page.locator('.studio-cue-table tbody tr').first().getByRole('button', { name: '字幕操作', exact: true }).click();
+    await page.getByRole('menuitem', { name: '复制原文', exact: true }).click();
+    await uiExpect.poll(() => page.locator('html').getAttribute('data-copied-text')).toBe(lines[0]);
+    await uiExpect(page.getByRole('status').filter({ hasText: '已复制' })).toHaveCount(1);
 
     await page.locator('.studio-preview-region').getByRole('button', { name: '下一页', exact: true }).click();
     await uiExpect(page.locator('.studio-cue-number').first()).toHaveText('101');
@@ -202,6 +204,14 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     await app.evaluate(({ dialog }, selected) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: selected }); }, path.join(root, 'export.srt'));
     await page.getByRole('button', { name: '下载', exact: true }).click();
     await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
+    // Saving the original file asks where; "choose another location" goes through the native save dialog.
+    const exportDialog = page.getByRole('dialog');
+    await exportDialog.getByRole('combobox', { name: '保存位置', exact: true }).click();
+    await page.getByRole('option', { name: '选择其他位置', exact: true }).click();
+    await exportDialog.getByRole('button', { name: '保存原始文件…', exact: true }).click();
+    await uiExpect(page.getByTestId('studio-export-result').locator('[data-result-id][data-state="success"]')).toHaveCount(1);
+    await exportDialog.getByRole('button', { name: '完成', exact: true }).click();
+    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
     await uiExpect(page.getByRole('status').filter({ hasText: '已下载' })).toBeVisible();
     expect(await readFile(path.join(root, 'export.srt'), 'utf8')).toBe(source);
     await page.getByRole('button', { name: '关闭提示' }).click();
