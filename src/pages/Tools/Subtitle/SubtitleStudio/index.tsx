@@ -37,7 +37,7 @@ import { STUDIO_BATCH_LIMIT, type UnavailableDocument, type BatchImportResult } 
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import useModelStore from '@/store/useModelStore';
 import { translationModelSchema, normalizeTranslationModel } from '@/subtitle-studio/translation-contract';
-import { formatStudioTrackName, StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
+import { formatStudioTrackName, StudioFileName, StudioIconButton, StudioNotice, StudioPagination } from './StudioControls';
 import { StudioTranslation, StudioTranslationStatus, StudioBatchTranslation } from './StudioTranslation';
 import { StudioTranslationTask } from './StudioTranslationTask';
 import type { AutomaticKnowledgeRecheckRequest } from './automatic-knowledge-recheck';
@@ -743,19 +743,19 @@ export default function SubtitleStudio() {
         <StudioIconButton id="studio-import-trigger" label={t('studio:open_file')} disabled={busy} onClick={importDocument}>{importIcon}</StudioIconButton>
         {refresh}{recoveryButton}
       </div>
-      {error && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span>{retry.current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button>}<StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></div>}
-      {unavailable.length > 0 && recoveryKey !== dismissedRecoveryKey && <div role="status" data-testid="studio-recovery-warning" className="studio-notice"><AlertCircle className="text-amber-600 dark:text-amber-400" /><span>{t('studio:unavailable_documents', { count: unavailable.length })}</span><Button variant="ghost" size="sm" onClick={() => setRecoveryOpen(true)}>{t('studio:recovery.view')}</Button><StudioIconButton label={t('studio:dismiss')} onClick={() => dismissRecovery(recoveryKey)}><X /></StudioIconButton></div>}
-      {exported && <div role="status" className="studio-notice"><CheckCheck className="text-emerald-600 dark:text-emerald-400" /><span>{t('studio:exported', { name: exported })}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setExported('')}><X /></StudioIconButton></div>}
-      {cleanupPending && <div role="status" className="studio-notice"><AlertCircle /><span>{t('studio:cleanup_pending')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCleanupPending(false)}><X /></StudioIconButton></div>}
+      {error && <StudioNotice role="alert" className="text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span>{retry.current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button>}<StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></StudioNotice>}
+      {unavailable.length > 0 && recoveryKey !== dismissedRecoveryKey && <StudioNotice role="status" data-testid="studio-recovery-warning"><AlertCircle className="text-amber-600 dark:text-amber-400" /><span>{t('studio:unavailable_documents', { count: unavailable.length })}</span><Button variant="ghost" size="sm" onClick={() => setRecoveryOpen(true)}>{t('studio:recovery.view')}</Button><StudioIconButton label={t('studio:dismiss')} onClick={() => dismissRecovery(recoveryKey)}><X /></StudioIconButton></StudioNotice>}
+      {exported && <StudioNotice role="status"><CheckCheck className="text-emerald-600 dark:text-emerald-400" /><span>{t('studio:exported', { name: exported })}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setExported('')}><X /></StudioIconButton></StudioNotice>}
+      {cleanupPending && <StudioNotice role="status"><AlertCircle /><span>{t('studio:cleanup_pending')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCleanupPending(false)}><X /></StudioIconButton></StudioNotice>}
       <span className="sr-only" role="status">{busy ? t('studio:loading') : copied ? t('studio:copied') : ''}</span>
-      {copyFailed && <div role="alert" className="studio-notice text-destructive"><AlertCircle /><span>{t('studio:copy_failed')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCopyFailed(false)}><X /></StudioIconButton></div>}
-      {cueNotice && page && <div role="status" data-testid="studio-cue-notice" className="studio-notice">
+      {copyFailed && <StudioNotice role="alert" className="text-destructive"><AlertCircle /><span>{t('studio:copy_failed')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCopyFailed(false)}><X /></StudioIconButton></StudioNotice>}
+      {cueNotice && page && <StudioNotice role="status" data-testid="studio-cue-notice">
         {cueNotice.deleted ? <Trash2 className="text-muted-foreground" /> : <AlertCircle className="text-amber-600 dark:text-amber-400" />}
         <span>{[cueNotice.deleted ? t('studio:cue_notice.deleted', { count: cueNotice.deleted }) : '', cueNotice.stopped ? t('studio:cue_notice.stopped', { count: cueNotice.stopped }) : ''].filter(Boolean).join(' ')}</span>
         {cueNotice.deleted > 0 && cueHistory.current.peek('undo')?.label === 'delete' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setCueNotice(null); stepCueHistory('undo'); }}><Undo2 />{t('studio:cue_history.undo_short')}</Button>}
         <StudioIconButton label={t('studio:dismiss')} onClick={() => setCueNotice(null)}><X /></StudioIconButton>
-      </div>}
-      {page && bilingualNotice === page.summary.id && page.summary.bilingualImport && <div role="status" data-testid="studio-bilingual-notice" className="studio-notice">
+      </StudioNotice>}
+      {page && bilingualNotice === page.summary.id && page.summary.bilingualImport && <StudioNotice role="status" data-testid="studio-bilingual-notice">
         <Columns2 className="text-muted-foreground" />
         <span>{t('studio:bilingual_import.notice', { direction: bilingualDirection(t, page.summary.bilingualImport), count: page.summary.cueCount })}</span>
         {page.summary.bilingualRevertible && <Button size="sm" variant="ghost" disabled={busy} data-testid="studio-bilingual-notice-revert" onClick={() => {
@@ -764,13 +764,13 @@ export default function SubtitleStudio() {
           void run('select', async () => { const reverted = await revertBilingualImport(summary); await select(reverted); await load(currentOffset.current); });
         }}><Undo2 />{t('studio:bilingual_import.revert')}</Button>}
         <StudioIconButton label={t('studio:dismiss')} onClick={() => setBilingualNotice('')}><X /></StudioIconButton>
-      </div>}
-      {knowledgeOffer && page && <div role="status" data-testid="studio-knowledge-offer" className="studio-notice">
+      </StudioNotice>}
+      {knowledgeOffer && page && <StudioNotice role="status" data-testid="studio-knowledge-offer">
         <BookOpen className="text-muted-foreground" />
         <span>{t('studio:knowledge_offer.text', { count: knowledgeOffer.hints.length })}</span>
         <Button size="sm" variant="ghost" data-testid="studio-knowledge-offer-open" onClick={() => setCaptureOpen(true)}>{t('studio:knowledge_offer.action')}</Button>
         <StudioIconButton label={t('studio:dismiss')} onClick={() => setKnowledgeOffer(null)}><X /></StudioIconButton>
-      </div>}
+      </StudioNotice>}
       <div aria-busy={busy || (!!previewRequest && !previewRequest.error)} className="studio-preview-region" data-preview-pending={!!previewRequest || undefined} data-reader-size={expansion.expanded ? expansion.readerSize : undefined}>
         <div className="studio-preview-surface" inert={!!previewRequest} aria-hidden={previewRequest ? true : undefined}>
         <ToolPanel

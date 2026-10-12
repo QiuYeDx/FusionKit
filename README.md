@@ -1,387 +1,233 @@
 <div align="center">
-  <img src="./public/banner.png" alt="FusionKit Banner" width="100%" />
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/zh/banner-dark.png">
+  <img alt="FusionKit：AI 驱动的字幕与翻译桌面工具集" src="docs/assets/readme/zh/banner-light.png" width="100%">
+</picture>
+
+<p>
+  <a href="https://github.com/QiuYeDx/FusionKit/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/QiuYeDx/FusionKit?style=flat-square&color=0f766e"></a>
+  <a href="https://github.com/QiuYeDx/FusionKit/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/QiuYeDx/FusionKit/total?style=flat-square&color=4f46e5"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-52525b?style=flat-square">
+  <img alt="Electron" src="https://img.shields.io/badge/Electron-41-47848f?style=flat-square&logo=electron&logoColor=white">
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-PolyForm%20Noncommercial-52525b?style=flat-square"></a>
+</p>
+
+<p>
+  <a href="#下载安装">下载安装</a> ·
+  <a href="#功能">功能</a> ·
+  <a href="#隐私与数据">隐私与数据</a> ·
+  <a href="#参与开发">参与开发</a> ·
+  <a href="CHANGELOG.md">更新日志</a> ·
+  <a href="README.en.md">English</a>
+</p>
+
 </div>
 
-<div align="center">
-  <h1>FusionKit</h1>
-  <p>AI 驱动的跨平台桌面工具集合</p>
-  <p>
-    <a href="https://github.com/QiuYeDx/FusionKit/releases/latest">
-      <img src="https://img.shields.io/github/v/release/QiuYeDx/FusionKit?style=flat-square&color=blue" alt="Latest Release" />
-    </a>
-    <a href="https://github.com/QiuYeDx/FusionKit/blob/main/LICENSE">
-      <img src="https://img.shields.io/github/license/QiuYeDx/FusionKit?style=flat-square" alt="License" />
-    </a>
-    <a href="https://github.com/QiuYeDx/FusionKit/releases">
-      <img src="https://img.shields.io/github/downloads/QiuYeDx/FusionKit/total?style=flat-square&color=green" alt="Downloads" />
-    </a>
-    <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey?style=flat-square" alt="Platform" />
-  </p>
-</div>
+**FusionKit** 是一款面向字幕与翻译工作的跨平台桌面应用。它把本地音视频转写、AI 字幕翻译与修订、格式转换和批量导出放进同一个工作台，并内置 **FusionKit Agent**：用一句话说明要做的事，Agent 会查找文件、准备任务，在你确认后完成整套流程。
 
----
+- **一站式字幕工作台**：转写、翻译、校对、试听原声、导出，全部在一个地方完成。
+- **本地优先**：音视频转写使用设备上的 Whisper 模型，媒体文件不会上传；字幕文档保存在本机。
+- **可审可撤**：AI 的每一次修改都先预览差异，由你确认后才写入，并且可以撤销。
+- **接入你自己的模型服务**：应用不提供模型 API，AI 功能需要配置你自己的 API Key；支持 DeepSeek、OpenAI 及任意 OpenAI 兼容接口，Token 用量与预估费用实时可见。
 
-## 简介
+> [!NOTE]
+> 当前分支为 **0.4.0 开发版本**，字幕工作台、翻译资料等功能尚未进入正式发行版。最新正式版本见 [Releases](https://github.com/QiuYeDx/FusionKit/releases/latest)，各版本变化见 [CHANGELOG](CHANGELOG.md)。
 
-**FusionKit** 是一款基于 Electron 的跨平台桌面工具集合应用，旨在将多种实用工具整合在一个优雅的界面中。内置 **FusionKit Agent**，可通过自然语言对话驱动字幕翻译、格式转换、语言提取、历史任务恢复，以及文件名 / 文件夹名翻译等操作；同时提供本地字幕转写工具，使用设备上的 Whisper 模型从音频或视频批量生成字幕，并支持将结果交接给字幕翻译流程。应用也提供完整的手动工具界面，适合逐项配置、预览和执行。
+## 功能
 
-> 首次使用本地字幕转写前，请在本地环境中下载受管模型，或导入兼容的 GGML 模型。
+### 字幕工作台
 
-## 0.4.0 开发版本亮点
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/zh/studio-dark.png">
+  <img alt="字幕工作台：左侧为字幕文档库，右侧为日语原文与中文译文的对照预览" src="docs/assets/readme/zh/studio-light.png">
+</picture>
 
-- **字幕工作台**：将本地音视频转写、持久字幕文档、AI 翻译和导出整合到同一工具，支持 SRT、LRC、VTT、ASS、SSA、SBV。
-- **文档与批量操作**：搜索、分页、跨页选择、批量翻译与导出；支持多个译文轨、双语整理和原译文对照。
-- **共享语音资源**：工作台与本地转写共用模型、VAD 和兼容 CUDA 安装，避免重复下载；业务任务与原生会话保持独立。
-- **AI 修订字幕**：在字幕预览中用自然语言修订所选字幕或整个文档（如统一人名写法、纠正转写误识别），逐条预览差异后确认应用，可整体撤销。
-- **随处可用的 Agent**：首页以外的页面左下角可展开 Agent 面板，与首页同一会话；Agent 了解当前页面与设置，可修改工具页设置、切换页面，未指定的任务设置按对应工具页当前设置执行。
-- **导出与反馈完善**：按译文内容选择可用导出模式，默认移除嵌入的媒体扩展名，支持来源目录、自动编号和显式覆盖。
+把字幕当作可以持续编辑的文档来管理，关闭应用后再打开也不会丢失。
 
-当前实施与验收状态见[字幕工作台进度](docs/features/subtitle-studio/README.md)。本地候选包、正式签名/公证和公开发布分别验证，版本号不代表发行验收已完成。
+- **导入与整理**：支持 SRT、LRC、VTT、ASS、SSA、SBV 的导入与导出；导入双语字幕时自动拆分为原文与译文，可保留多个译文轨。
+- **转写**：拖入音频或视频，选择音轨、模型与 VAD，在本机生成字幕；可设置转写完成后自动翻译、自动导出到媒体文件旁。
+- **翻译与修订**：整份或按所选字幕翻译，可选用翻译资料中的术语与要求；用自然语言描述要改的地方（如“统一人名写法”“纠正误识别的词”），AI 逐条给出修订和差异，确认后一次应用。
+- **校对**：行内编辑原文与译文，合并、拆分、插入字幕，修改与整体平移时间；试听每句对应的原声，边听边用快捷键重新定时间，或用本机模型重新识别某几句。
+- **批量操作**：搜索、筛选、跨页多选后批量翻译、导出或删除；所有编辑都支持撤销与重做。
 
-## 0.3.0 版本亮点
+### FusionKit Agent
 
-- **本地字幕转写完整工作流**：支持批量添加音频/视频、媒体探测、音轨选择、managed Whisper/VAD、CPU/CUDA 后端以及 SRT/LRC 导出。
-- **字幕翻译自动交接**：转写完成后可仅导出、加入字幕翻译队列或立即启动新增任务，并通过一次性 artifact 与冻结配置完成安全交接。
-- **Windows 文件拖拽与输出修复**：恢复资源管理器拖拽文件的原始身份，修复授权过期、错误自动编号、字幕未落盘及安全覆盖不可用等问题。
-- **任务队列与进度优化**：本地转写按 FIFO 稳定展示，只在转写阶段显示统一进度；字幕翻译任务按进行中、未开始、已完成排序。
-- **运行时与统计更新**：Electron 固定为 41.10.6；字幕翻译新增实际 Token/费用累计与 DeepSeek Thinking 配置。
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/zh/agent-dark.png">
+  <img alt="FusionKit Agent 根据一句话找到未翻译的字幕，并准备好待确认的翻译任务" src="docs/assets/readme/zh/agent-light.png">
+</picture>
 
-## 0.2.11 版本亮点
+在首页用对话驱动整个应用：
 
-- **本地字幕转写工作流**：新增独立的本地字幕工具，可批量处理音频/视频，使用 managed Whisper 模型生成 SRT/LRC，并按用户选择只导出、加入字幕翻译队列或确认后开始翻译。
-- **音频工具箱首版**：新增音频转文本、文本转音频、实时字幕和 Realtime/WebRTC 双向语音工具页。
-- **全局音频模型配置**：设置页集中管理音频 Profile、协议、模型和任务分配；工具页只读取全局生效配置，不再各自保存 API 配置。
-- **OpenAI / MiMo 音频 API 兼容**：文件 ASR/TTS 使用 OpenAI 官方音频 API 风格作为内部契约，MiMo ASR/TTS 通过 adapter 接入。
-- **MiMo TTS 三模式**：支持 `mimo-v2.5-tts` 预置音色、`mimo-v2.5-tts-voicedesign` 音色设计和 `mimo-v2.5-tts-voiceclone` 音色复刻，并接入低延迟流式播放链路。
-- **实时音频体验**：实时字幕支持 OpenAI Realtime/WebRTC；MiMo 或非 Realtime 配置下以分块近实时字幕呈现。双向语音首版面向 OpenAI Realtime/WebRTC。
-- **音频隐私边界**：本地音频文件、录音片段和麦克风内容会发送到用户选择的第三方音频 API；API Key、Base64 音频和 PCM chunk 不写入任务恢复、Zustand 持久化或错误详情。
+- 查询工作台文档、导入字幕、准备转写与翻译任务；可以一次交办“转写 → 翻译 → 保存字幕”，Agent 问清设置后自动完成并汇报结果。
+- 调用字幕翻译、格式转换、语言提取、文件名翻译等工具，读取任务的真实进度；复杂请求会生成可见的执行计划。
+- 三种执行模式：**仅添加**、**询问执行**、**自动执行**。除自动执行外，涉及写入的操作都会以卡片列出，确认后才生效。
+- 可整理翻译资料，并可选择开启联网查证译名（默认关闭，只发送检索词）。
+- 会话支持导出与导入，并实时显示上下文占用、Token 用量与费用。
 
-## 0.2.10 版本亮点
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/zh/dock-dark.png">
+  <img alt="在字幕工作台中展开的 Agent 悬浮面板，显示当前页面与相关建议" src="docs/assets/readme/zh/dock-light.png">
+</picture>
 
-- **长文本翻译 Beta**：新增面向小说、长文档和多 TXT 项目的翻译工具，Renderer 只传递文件路径，正文由主进程读取、分片和落盘。
-- **连贯串行翻译模式**：支持跨分片、跨文件的语义记忆，适合人物关系、术语和文风需要连续保持的长文本。
-- **可靠恢复与重翻**：长文本任务会写入独立工作区、事件日志和分片结果，支持暂停、取消、恢复、部分完成和从指定分片后重翻。
-- **TXT 输出模式**：支持仅译文、双语简洁模式和 `[Original]` / `[Translation]` 标签模式，并支持多个独立文件队列或有序项目。
-- **Markdown 结构保护能力**：已完成 Markdown parser、保护占位符、仅译文组装和 blockquote 双语组装；端到端 Markdown 执行仍处于后续开放范围。
+在其他页面，左下角的 Agent 入口会展开一个悬浮面板，与首页共享同一个会话。Agent 了解你所在的页面和当前状态：在工作台里可以直接说“文中的某个词都应该是另一个写法”，在工具页可以说“把目标语言改成英文”。
 
-## 0.2.9 版本亮点
+### 翻译资料
 
-- **文件名翻译性能全面优化**：引入翻译去重、快路径跳过、内存缓存、受控并发与自适应批次拆分，大幅缩短大批量文件名翻译的等待时间；新增规划进度可视化与取消入口。
-- **文件名翻译双语输出模式**：支持在翻译后的文件名中同时保留原语言和目标语言（如 `Episode 1 - 第01話.srt`），可自定义分隔符和语言顺序。
-- **全新启动加载页**：重新设计应用启动画面，新增 Reveal 过渡动画效果。
-- **繁体中文支持**：新增繁体中文（zh-Hant）界面语言。
-- **安全性增强**：修复 symlink 检测、路径权限错误处理、不完整计划误执行等多项安全与健壮性问题。
+按作品管理术语、背景、翻译要求和参考译文，翻译与修订时显式选用，保证人名、称谓和术语前后一致。资料保存在本地，支持 `.fktk.json` 导入导出、差异预览与冲突处理；任务会固定所用资料的版本，事后修改资料不会改写历史任务。
 
-## 功能特性
+### 更多工具
 
-### FusionKit Agent（AI 助手）
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/zh/tools-dark.png">
+  <img alt="工具页：字幕工作台、翻译资料与经典工具列表" src="docs/assets/readme/zh/tools-light.png">
+</picture>
 
-内置 AI 对话助手，通过自然语言即可完成字幕处理、历史恢复和名称翻译等任务。
-
-- 基于 **Vercel AI SDK** 的流式对话与工具调用循环
-- 自动扫描目录、发现字幕文件并分发到翻译 / 转换 / 提取队列
-- 支持扫描 `*.fusionkit.resume.json` 恢复清单，并将可恢复字幕任务加入翻译队列
-- 支持检查文件 / 文件夹路径，生成名称翻译 dry-run 预览，并在明确确认后应用重命名
-- 三种执行模式：**仅入队** / **确认后执行** / **自动执行**
-- 支持拖拽文件或文件夹到输入框，自动识别路径并追加到当前消息
-- 输入框草稿缓存，跨页面导航后仍可保留未发送内容
-- 会话导出与导入（JSON 格式）
-- 实时 Token 用量统计、上下文占用与费用追踪
-
-### 字幕翻译
-
-利用 AI 大模型实现高质量字幕翻译，支持多种模型和灵活配置。
-
-- 支持 **LRC / SRT** 格式字幕文件
-- 支持 **9 种语言**：中文、日文、英文、韩文、法文、德文、西班牙文、俄文、葡萄牙文
-- 支持 **DeepSeek / OpenAI** 及任意 OpenAI 兼容 API
-- 双语对照或仅译文两种输出模式
-- 分片并发翻译（最高 5 路并发）
-- 可配置分片策略（普通 / 敏感 / 自定义）
-- 实时进度显示、分片完成数（n/N）与 Token 用量预估
-- 支持编辑任务配置、输出路径选择与重名处理（覆盖 / 自动编号）
-- 支持失败恢复与历史任务续跑，自动生成并读取 `*.fusionkit.resume.json` 恢复清单
-- 支持源文件不可用时基于恢复清单内的原始分片继续翻译
-
-### 长文本翻译（Beta）
-
-面向整章小说、长文档和多 TXT 文件项目的 AI 翻译工具，重点优化大文本分片、恢复、输出与费用可见性。
-
-- 支持选择单个或多个 **TXT** 文件；多个文件可作为独立任务队列，也可作为有序项目串行翻译
-- Renderer 不读取整本正文，创建任务时只向主进程传递文件路径和配置
-- 主进程执行编码探测、资源限制检查、分片规划、模型请求、分片结果落盘和最终输出组装
-- 支持快速并发与连贯串行两种执行模式；串行模式会携带语义记忆以保持术语、人物关系和文风
-- 支持文档背景、翻译要求、风格要求、术语表和指定文件前重置语义记忆
-- 支持仅译文、TXT 双语简洁模式和 TXT 双语标签模式
-- 支持输出到源文件目录或自定义目录，并提供覆盖 / 自动编号冲突策略
-- 支持暂停、取消、恢复、部分完成、打开工作区和打开输出文件
-- 页面会显示分片数、输入 token 估算、费用估算和上下文预算校验
-- Markdown parser 与输出组装能力已完成，但端到端 Markdown 翻译入口仍处于 Beta 后续开放范围
-
-隐私与费用提示：
-
-- 文件正文会发送到用户配置的 OpenAI Compatible 模型服务；请确认模型服务的隐私和数据保留政策
-- API Key 只用于运行时请求，不写入长文本翻译工作区
-- 串行语义记忆会增加每个分片的输入 token，费用通常高于并发模式
-
-### 本地字幕转写
-
-面向本地音频/视频批量生成字幕的独立工具，不复用“音频转文本”的远端 API 配置或运行时。
-
-- 使用随应用提供并校验的 `whisper.cpp` runtime、FFmpeg 和 ffprobe；用户无需安装系统 FFmpeg，也不能配置任意 executable 或 backend 参数
-- managed 清单提供默认推荐的 `large-v3-q5_0` 与质量优先的 `large-v3` F16 GGML 模型，可选 Silero v6.2.0 VAD；模型和 VAD 按需下载，不进入默认安装包
-- 支持 1～100 个文件、媒体探测、多音轨选择、原文转写或翻译为英语、SRT/LRC、多格式部分成功、取消与逐文件失败隔离
-- 支持源目录或自定义目录、自动编号和受控覆盖；已提交字幕不会因取消、失败、更新或卸载而主动删除
-- 默认只导出；自动翻译必须由用户显式选择并确认当前翻译配置和外部 API 费用，只启动本次交接新增的任务
-- 本地转写默认离线，普通推理不上传媒体或字幕；只有资源下载会访问固定 allowlist，自动翻译才会调用用户配置的第三方文本模型 API
-- 支持 Windows x64 CPU/CUDA 与 macOS arm64 Metal/CPU；实际转写速度取决于设备性能、模型规格和媒体内容
-
-资源体积、磁盘需求、隐私、恢复、卸载保留、平台支持和第三方许可边界见[本地字幕转写说明](docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_release_notes.md)。
-
-### 音频工具箱
-
-面向音频内容处理和实时语音交互的工具集合，统一使用设置页中的全局音频模型配置。
-
-- 支持在设置页创建 OpenAI Audio、OpenAI Realtime 和 MiMo Chat Audio Profile，并分别分配给音频转文本、文本转音频、实时字幕和双向语音任务
-- 音频转文本支持本地音频文件 ASR；OpenAI 模式兼容官方 transcriptions 字段，MiMo 模式支持 `mimo-v2.5-asr` 并按能力禁用字幕格式、prompt 和时间戳等非支持选项
-- 文本转音频支持 OpenAI Audio TTS，也支持 MiMo `mimo-v2.5-tts`、`mimo-v2.5-tts-voicedesign`、`mimo-v2.5-tts-voiceclone` 三种模式
-- MiMo TTS 支持非流式保存和低延迟流式播放；流式链路使用 PCM16 chunk 播放，完成后保存为本地音频文件
-- 实时字幕支持 OpenAI Realtime/WebRTC 麦克风字幕；MiMo 或非 Realtime 配置下以短录音片段转写的“分块近实时”方式呈现
-- 双向语音首版支持 OpenAI Realtime/WebRTC 的连接、断开、静音、打断回复、远端音频播放和字幕 timeline
-- 工具页只展示当前全局音频 Profile、协议、模型和能力，不提供独立 provider、API Key、base URL 或模型 ID 配置入口
-
-隐私与能力提示：
-
-- 本地音频文件、录音片段和麦克风内容会发送到用户在设置页选择的 OpenAI、MiMo 或其他兼容音频 API 服务；请确认所选服务的隐私和数据保留政策
-- OpenAI Realtime 长期 API Key 仅在 Electron 主进程用于创建临时凭证，Renderer 只接收 ephemeral credentials
-- API Key、Authorization / `api-key` header、Base64 音频、PCM chunk 和完整请求体不会写入任务恢复文件、Zustand 持久化或错误详情
-- MiMo 的音色设计、音色复刻、音频标签和 `optimize_text_preview` 为 MiMo 专属能力；非 MiMo 音频配置下相关控件会禁用
-- MiMo Chat Audio 首版不提供原生 WebRTC 双向语音；双向语音页会要求使用具备 Realtime/WebRTC 能力的 OpenAI Realtime Profile
-- 真实供应商的音频格式、模型和低延迟流式能力可能变化，发布前仍建议用实际 API Key 做一次端到端验收
-
-### 字幕格式转换
-
-在主流字幕格式之间自由转换。
-
-- 支持 **LRC / SRT / VTT / ASS / SSA / SBV** 六种格式任意互转，ASS / SSA 的粗体、斜体、下划线与非默认对齐会尽量保留
-- 自定义输出路径与重名处理策略（覆盖 / 自动编号）
-- 可选去除媒体类型后缀（如 `song.wav.srt` → `song.srt`）
-
-### 字幕语言提取
-
-从多语言 / 双语字幕中提取指定语言的内容。
-
-- 支持从 **LRC / SRT / VTT / ASS / SSA / SBV** 字幕中提取指定语言文本，输出保持原格式；ASS / SSA 支持同一条对白内用 `\N` 分隔或同一时间分成多条对白的双语写法
-- 支持 **9 种语言**：中文、日文、英文、韩文、法文、德文、西班牙文、俄文、葡萄牙文
-- 基于假名、标点、虚词等多维度启发式语言识别
-- 自定义输出路径与重名处理策略
-
-### 文件名 / 文件夹名翻译
-
-面向批量整理文件和目录的安全重命名工具：添加 → 勾选 → 翻译并核对 → 确认重命名，完成后可撤销。
-
-- 拖入或选择文件、文件夹，在可展开的条目列表中逐项勾选要改名的条目
-- 文件夹自身与其中内容分开选择；可一键“选择内部全部”，或仅选文件、仅选文件夹、仅选直接子项
-- 支持自动识别源语言并翻译到 10 种语言，可填写补充要求（如人名保留罗马音）
-- 名称格式可选“仅译名 / 双语 / 自定义”：双语可选顺序与分隔样式，自定义格式用 `{translated}`、`{original}` 组合（如 `[{original}] {translated}`），切换时实时预览且无需重新翻译；扩展名始终保留且不交给模型处理
-- 新名称可直接编辑；非法字符、系统保留名、过长名称、同目录重名与已存在条目会实时标出，可一键自动编号
-- 有问题的条目自动跳过，不影响其余条目
-- 主进程权威校验后按“由深到浅”执行，文件夹与其中条目可同时改名；任一步失败会自动恢复原状，并支持撤销与中断后恢复
-
-### 更多工具（开发中）
-
-- 付费音乐解密转换
-
-## 其他特性
-
-- 🌓 深色 / 浅色 / 跟随系统主题
-- 🌐 多语言界面（简体中文 / 繁體中文 / English / 日本語）
-- 🔄 应用内检查更新与自动更新
-- 🌍 网络代理配置（无代理 / 系统代理 / 自定义代理）
-- 🔔 系统通知提醒（任务完成 / 失败）
-- 💤 防休眠管理（翻译等长时任务运行期间自动阻止系统休眠）
-- 🧭 工具页分步 Tour 引导
-- 🖥 跨平台支持（macOS / Windows）
-
-## 技术栈
-
-| 分类 | 技术 |
+| 工具 | 说明 |
 | --- | --- |
-| 框架 | Electron 41.10.6 + React 19.1.1 |
-| 语言 | TypeScript |
-| 构建工具 | Vite 5 |
-| 样式 | Tailwind CSS 4 |
-| UI 组件 | shadcn/ui (Radix UI) |
-| 状态管理 | Zustand |
-| AI 集成 | Vercel AI SDK + OpenAI Compatible Provider |
-| 国际化 | i18next |
-| 动画 | Motion |
-| 测试 | Vitest + Playwright |
-| 包管理器 | pnpm |
+| **字幕 AI 翻译** | 分片并发翻译 LRC / SRT，支持 9 种语言、双语或仅译文输出，任务中断后可从恢复清单继续 |
+| **字幕格式转换** | 在 SRT、VTT、LRC、ASS、SSA、SBV 之间互转，尽量保留 ASS / SSA 的样式与对齐 |
+| **字幕语言提取** | 从双语字幕中提取指定语言，输出保持原格式 |
+| **本地字幕转写** | 使用本地 Whisper 模型批量把音视频转写为 SRT / LRC，可交接给字幕翻译 |
+| **文件名 / 文件夹名翻译** | 勾选条目后由 AI 翻译名称，核对修改后重命名；按“由深到浅”执行，失败自动回滚，完成后可撤销 |
+| **长文本翻译**（Beta） | 面向小说和长文档的 TXT 翻译，支持连贯串行模式、暂停恢复与从指定分片重翻 |
+| **音频工具箱** | 音频转文本、文本转语音、实时字幕与实时双向语音，使用 OpenAI 或 MiMo 的音频接口 |
 
-## 快速开始
+此外：深色 / 浅色主题，简体中文、繁體中文、English、日本語界面，应用内自动更新，系统 / 自定义代理，任务完成通知，长任务期间防止系统休眠。
+
+## 下载安装
+
+前往 [Releases](https://github.com/QiuYeDx/FusionKit/releases/latest) 下载对应平台的安装包：
+
+| 平台 | 架构 | 安装包 |
+| --- | --- | --- |
+| macOS | Apple Silicon（arm64） | `.dmg` / `.zip` |
+| Windows | x64 | `.exe`（NSIS 安装程序） |
+
+首次使用：
+
+1. 打开 **设置 → AI 模型**，添加一个模型配置（填写 API 地址、Key 和模型名），并在“模型分配”中指定 Agent 与任务执行所用的模型。内置 DeepSeek 与 OpenAI 预设。
+2. 使用本地转写前，在转写页的资源管理中下载推荐的 Whisper 模型（或导入兼容的 GGML 模型）。模型与 VAD 按需下载，不包含在安装包中。
+3. 回到首页，直接告诉 Agent 你要做什么；或从 **工具** 页打开具体工具手动操作。
+
+本地转写支持 Windows x64（CPU / CUDA）与 macOS arm64（Metal / CPU），速度取决于设备性能、模型大小和媒体内容。资源体积、磁盘需求与平台支持详见[本地字幕转写说明](docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_release_notes.md)。
+
+## 隐私与数据
+
+FusionKit 没有自己的服务器，也不收集使用数据。除检查更新外，数据只会发往你自己配置的服务：
+
+| 场景 | 发送什么、发往哪里 |
+| --- | --- |
+| 本地转写 | 默认离线，媒体与字幕不出本机；仅下载模型资源时访问固定的下载地址 |
+| AI 翻译、修订与 Agent | 字幕或文本内容发送到你在设置中配置的模型服务 |
+| 音频工具箱 | 音频文件、录音或麦克风内容发送到你选择的音频服务 |
+| 联网查证（默认关闭） | 只发送检索词与网页链接，不发送字幕或翻译资料 |
+| 检查更新 | 访问 GitHub Releases 获取新版本信息 |
+
+API Key 保存在本机的应用设置中，只用于请求你配置的服务，不会写入字幕翻译恢复清单、长文本翻译工作区、音频任务数据或错误详情。使用第三方模型服务前，请确认其隐私与数据保留政策；长文本串行模式等功能会增加 Token 用量，费用以服务商账单为准。
+
+## 参与开发
 
 ### 环境要求
 
-- **Node.js** >= 18.0.0
-- **pnpm**（推荐使用 [corepack](https://nodejs.org/api/corepack.html) 启用）
+- Node.js 18 或更高版本
+- pnpm 8（仓库锁文件为 lockfile v6，建议通过 [Corepack](https://nodejs.org/api/corepack.html) 使用 pnpm 8.7.0，避免升级锁文件）
 
-### 安装与开发
+### 本地运行
 
 ```bash
-# 克隆仓库
 git clone https://github.com/QiuYeDx/FusionKit.git
 cd FusionKit
-
-# 安装依赖
 pnpm install
-
-# 启动开发服务器
 pnpm dev
 ```
 
-### 运行测试
+### 测试
 
 ```bash
-# 构建测试包并运行全部测试
 pnpm test
-
-# 只运行指定测试文件
-pnpm exec vitest run test/subtitle-studio/cue-editing-ui.test.ts
 ```
 
-许多测试会启动真实的 FusionKit（Electron）窗口。为了不打扰正在使用电脑的你，这些窗口默认以**静默模式**运行：在屏幕外渲染、不出现在任务栏、不抢占焦点，也不会最大化、全屏、弹出系统通知或发出声音（试听原始音频的测试照常播放，只是静音），页面渲染与动画照常进行。需要观看测试画面时可以切换模式：
+`pnpm test` 会先构建测试包，再用 Vitest 运行全部测试；也可以只运行单个文件，例如 `pnpm exec vitest run test/subtitle-studio/cue-editing-ui.test.ts`。
+
+许多测试会启动真实的 FusionKit 窗口。为了不打扰正在使用电脑的你，这些窗口默认以**静默模式**运行：在屏幕外渲染、不出现在任务栏、不抢占焦点，也不会全屏、弹出通知或发出声音。需要观看测试画面时可以切换：
 
 | 命令 | 窗口表现 |
 | --- | --- |
 | `pnpm test` | 静默模式（默认） |
-| `pnpm test:inactive [测试文件...]` | 窗口显示在屏幕上，但不抢占焦点、不全屏，同样静音 |
+| `pnpm test:inactive [测试文件...]` | 显示在屏幕上，但不抢占焦点、不全屏，同样静音 |
 | `pnpm test:visible [测试文件...]` | 与正常运行应用完全一致 |
 
-也可以直接设置环境变量 `FUSIONKIT_TEST_WINDOW`（`quiet` / `inactive` / `visible`）后运行 `vitest`。该变量只影响测试，未设置时应用行为不变；实现见 `electron/main/test-window-mode.ts`。部分界面测试需要额外的开关才会运行（如 `FUSIONKIT_STUDIO_E2E=1`），见各测试文件开头的 `describe.runIf` 条件。
+也可以直接设置环境变量 `FUSIONKIT_TEST_WINDOW`（`quiet` / `inactive` / `visible`）后运行 `vitest`，实现见 `electron/main/test-window-mode.ts`。部分界面测试需要额外的开关才会运行（如 `FUSIONKIT_STUDIO_E2E=1`），见各测试文件开头的 `describe.runIf` 条件。
 
-### 构建发布
+其他检查：
+
+```bash
+pnpm i18n:check
+```
+
+### 构建
 
 ```bash
 pnpm build
 ```
 
-构建产物将输出到 `release` 目录。
+产物输出到 `release` 目录。构建会校验并打包本地转写与字幕工作台所需的原生资源（`build/*-resources`，不随 Git 同步），缺失或校验失败时会拒绝继续。macOS 签名与公证步骤见[发布签名与许可说明](docs/features/subtitle-studio/records/2026-09-14-release-signing-readiness.md)。
 
-本项目现有依赖使用 pnpm 8.7.0、lockfile v6；请使用兼容版本，避免安装时升级锁文件。默认构建显式选择 `electron-builder.subtitle-studio.json`，同时验证并打包旧本地转写与新版工作台的原生资源。两套 `build/*-resources` 不随 Git 同步，缺失或校验失败时构建会拒绝继续。
+### 技术栈
 
-macOS 本地签名候选、双资源完整性检查与正式公证的步骤见[发布签名与许可说明](docs/features/subtitle-studio/records/2026-09-14-release-signing-readiness.md)。正式发行还需对应平台的真实安装、升级与签名验收。
+| 分类 | 技术 |
+| --- | --- |
+| 应用框架 | Electron 41 · React 19 · TypeScript |
+| 构建 | Vite 5 · electron-builder |
+| 界面 | Tailwind CSS 4 · shadcn/ui（Radix UI）· Motion |
+| 状态与国际化 | Zustand · i18next |
+| AI | Vercel AI SDK · OpenAI Compatible Provider |
+| 本地转写 | whisper.cpp · Silero VAD · FFmpeg |
+| 测试 | Vitest · Playwright |
 
-## 项目结构
+### 目录结构
 
 ```
 FusionKit/
-├── electron/                  # Electron 主进程
-│   ├── main/                  # 主进程核心逻辑
-│   │   ├── index.ts           # 窗口管理与 IPC 注册
-│   │   ├── translation/       # AI 翻译引擎
-│   │   ├── text-translation/  # 长文本翻译执行、分片、记忆、恢复与输出
-│   │   ├── audio/             # 音频 ASR/TTS、流式音频与 Realtime IPC
-│   │   ├── conversion/        # 字幕格式转换
-│   │   ├── extraction/        # 字幕语言提取
-│   │   ├── name-translation/  # 文件 / 文件夹名称翻译：列目录、翻译、校验、执行、撤销与日志
-│   │   ├── fs/                # 文件系统操作（扫描、读取、元数据）
-│   │   ├── proxy.ts           # 代理配置
-│   │   ├── power.ts           # 防休眠管理
-│   │   └── update.ts          # 自动更新
-│   └── preload/               # 预加载脚本（Context Bridge）
-├── src/                       # 渲染进程（前端）
-│   ├── agent/                 # AI 助手核心（orchestrator、工具定义、会话管理）
-│   ├── pages/                 # 页面组件
-│   │   ├── HomeAgent/         # AI 助手主页
-│   │   ├── Tools/             # 工具页（字幕 / 重命名 / 长文本 / 音频工具箱）
-│   │   ├── Setting/           # 设置页（通用 / 代理 / 模型）
-│   │   └── About/             # 关于页
-│   ├── components/            # UI 组件库
-│   │   ├── ui/                # shadcn/ui 基础组件
-│   │   └── qiuye-ui/          # 自定义组件
-│   ├── services/              # 业务服务（字幕队列、名称翻译计划、冲突处理等）
-│   ├── store/                 # Zustand 状态管理
-│   ├── locales/               # i18n 多语言资源
-│   ├── constants/             # 常量定义
-│   ├── type/                  # TypeScript 类型
-│   └── utils/                 # 工具函数
-├── docs/                      # 开发文档
-├── build/                     # 应用图标资源
-├── public/                    # 静态资源
-└── test/                      # E2E 测试
+├── electron/
+│   ├── main/        # 主进程：窗口、IPC、翻译 / 转写 / 转换引擎、文件系统与更新
+│   └── preload/     # 预加载脚本（Context Bridge）
+├── src/
+│   ├── agent/       # FusionKit Agent：编排、工具定义与会话
+│   ├── pages/       # 页面：首页 Agent、工具页、字幕工作台、翻译资料、设置
+│   ├── components/  # UI 组件（shadcn/ui 与自定义组件）
+│   ├── subtitle-studio/ · translation-knowledge/ · services/ · store/
+│   └── locales/     # 界面多语言资源
+├── scripts/         # 构建检查、i18n 检查与 README 截图脚本
+├── test/            # 单元、集成与 Electron 界面测试
+└── docs/            # 设计与开发文档
 ```
 
-## 配置说明
+### 提交贡献
 
-### AI 模型配置
+欢迎提交 Issue 与 Pull Request：
 
-在设置页面可分别配置**字幕翻译**、**长文本翻译**、**文件名翻译**和 **AI 助手**所用的文本模型参数：
+1. 提交前请先搜索已有 [Issues](https://github.com/QiuYeDx/FusionKit/issues)，描述问题时附上系统、版本与复现步骤。
+2. 从 `main` 创建分支开发，提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)（如 `feat(subtitle-studio): ...`、`fix: ...`）。
+3. 涉及界面文案时同步更新 `src/locales` 下的各语言资源，并运行 `pnpm i18n:check`。
+4. 确认 `pnpm test` 通过后发起 Pull Request，按模板说明改动与验证方式。
 
-- **API Endpoint** — OpenAI 兼容的 Chat Completions 端点
-- **API Key** — 访问密钥
-- **Model** — 模型名称
-- **Token 价格** — 输入/输出单价（每百万 token），用于费用预估
+README 中的截图由 `scripts/readme-screenshots` 在真实应用中生成，界面变化后可以重新运行：
 
-可创建多个模型配置，并在“模型分配”中分别指定 **Agent 模型** 与 **任务执行模型**。内置 DeepSeek 和 OpenAI 预设，也支持任意 OpenAI 兼容 API；配置 API Key 后可从接口拉取可用模型列表，或手动填写自定义 Model Key。
-
-### 音频模型配置
-
-音频工具箱使用独立的全局音频 Profile，但复用现有模型连接 Profile 中的 API Key、Base URL 和代理设置。
-
-- 音频协议支持 `openai_audio`、`openai_realtime` 和 `mimo_chat_audio`
-- 可分别配置 ASR、TTS、Realtime 模型 ID、默认 voice、默认语言、默认输出格式和默认流式行为
-- 可为音频转文本、文本转音频、实时字幕和双向语音分别选择全局生效的音频 Profile
-- 工具页会按当前 Profile 的 capability 自动启用或禁用 OpenAI-only、MiMo-only 和 Realtime-only 控件
-- 使用音频工具时，本地音频文件或麦克风内容会发送到当前分配的第三方音频 API 服务
-
-### 翻译分片策略
-
-翻译时会将字幕按 Token 上限拆分为多个分片，每个分片独立调用一次 LLM。
-
-| 模式 | 分片上限 | 适用场景 |
-| --- | --- | --- |
-| 普通模式 | ~3000 tokens | 大多数字幕文件 |
-| 敏感模式 | ~100 tokens | 特殊内容，需更精细控制 |
-| 自定义模式 | 用户指定 | 按需调整 |
-
-### 字幕恢复清单
-
-字幕翻译过程中会保存恢复清单与分片进度，任务失败、中断或应用退出后，可通过“恢复历史任务”重新加入队列。
-
-- 扫描当前输出目录：适合恢复当前工具页配置的输出位置
-- 选择目录扫描：适合批量查找某个目录下的历史恢复清单
-- 导入恢复清单：适合直接选择单个 `*.fusionkit.resume.json`
-- 源文件一致时优先基于源文件续跑；源文件缺失或变化时，可基于恢复清单内的分片继续处理
-
-### 名称翻译安全机制
-
-文件名 / 文件夹名翻译遵循“先核对，再确认执行，可撤销”的流程：
-
-1. 渲染进程只提交原路径、条目身份和新名称；目标路径由主进程计算，确认前与执行前都会重新校验
-2. 按父目录深度由深到浅执行，每一步使用的都是仍然有效的原始路径；链式、互换和仅大小写变化通过临时名两步完成
-3. 每一步改名前都检查目标不存在，绝不覆盖已有文件
-4. 每一步都追加写入操作日志；任一步失败时按相反顺序自动恢复已完成的步骤
-5. 完成后可在工具页撤销；若应用中途退出，下次打开工具时会提示恢复原名
-
-## 贡献指南
-
-欢迎任何形式的贡献！
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/your-feature`)
-3. 提交更改 (`git commit -m 'feat: add your feature'`)
-4. 推送到分支 (`git push origin feature/your-feature`)
-5. 发起 Pull Request
+```bash
+node scripts/readme-screenshots/capture.mjs zh
+```
 
 ## 许可证
 
-本项目采用 [PolyForm Noncommercial License 1.0.0](LICENSE) 发布，仅允许非商业使用，禁止用于任何商业目的。
+FusionKit 以 [PolyForm Noncommercial License 1.0.0](LICENSE) 发布：可以自由查看、使用、修改和分发源码，但**仅限非商业用途**。随应用分发的第三方组件遵循各自的许可证。
 
-## 相关链接
+## 致谢
 
-- **项目主页**：[github.com/QiuYeDx/FusionKit](https://github.com/QiuYeDx/FusionKit)
-- **问题反馈**：[Issues](https://github.com/QiuYeDx/FusionKit/issues)
-- **版本发布**：[Releases](https://github.com/QiuYeDx/FusionKit/releases)
-- **更新日志**：[CHANGELOG.md](CHANGELOG.md)
-- **作者主页**：[qiuvision.com](https://qiuvision.com)
+FusionKit 构建在许多优秀的开源项目之上，包括 [Electron](https://www.electronjs.org/)、[React](https://react.dev/)、[whisper.cpp](https://github.com/ggml-org/whisper.cpp)、[FFmpeg](https://ffmpeg.org/)、[Silero VAD](https://github.com/snakers4/silero-vad)、[Vercel AI SDK](https://ai-sdk.dev/)、[shadcn/ui](https://ui.shadcn.com/) 与 [Radix UI](https://www.radix-ui.com/)。
+
+<div align="center">
+<sub>由 <a href="https://qiuvision.com">QiuYeDx</a> 制作 · <a href="https://github.com/QiuYeDx/FusionKit/issues">反馈问题</a></sub>
+</div>

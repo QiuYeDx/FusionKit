@@ -27,7 +27,7 @@ import { getStudioTranscriptionController, getTranscriptionReadiness } from '@/s
 import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '@/subtitle-studio/transcription/task-contract';
 import { LOCAL_SUBTITLE_LIMITS, LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '@/subtitle-studio/transcription/domain';
 import { SUBTITLE_TEXT_FORMATS } from '@/subtitle-studio/domain';
-import { StudioFileName, StudioIconButton } from './StudioControls';
+import { StudioFileName, StudioIconButton, StudioNotice } from './StudioControls';
 import { StudioScrollFade } from './StudioScrollFade';
 import { StudioTaskQueue, StudioTaskQueueRow } from './StudioTaskQueue';
 import { StudioAutomaticKnowledge } from './StudioAutomaticKnowledge';
@@ -204,8 +204,8 @@ export function StudioTranscription({ header, onOpenDocument }: { header: ReactN
       </div>}>
       <div {...dropProps} data-testid="studio-transcription" className="studio-transcription-workspace">
         <ToolFilePickerSurface data-testid="studio-transcription-picker" dragging={dragging} title={t('studio:transcription.media_title')} description={t(dragging ? mediaBusy ? 'studio:transcription.media_drop_busy' : 'studio:transcription.media_drop_hint' : 'studio:transcription.media_hint')} actionLabel={t('studio:transcription.choose_media')} icon={state.selecting ? <LoaderCircle className="size-5 studio-spin" /> : <AudioLines className="size-5" />} disabled={mediaBusy} onSelect={() => void controller.selectMedia()} />
-        {(state.error || openError) && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(openError ? 'studio:errors.document_unavailable' : errorMessage)}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => { controller.clearError(); setOpenError(false); }}><X /></StudioIconButton></div>}
-        {state.cleanupPendingCount > 0 && <div role="status" className="studio-notice"><AlertCircle /><span>{t('studio:transcription.cleanup_pending')}</span><Button variant="ghost" size="sm" onClick={() => void controller.retryCleanup()}>{t('studio:transcription.retry_cleanup')}</Button></div>}
+        {(state.error || openError) && <StudioNotice role="alert" className="text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(openError ? 'studio:errors.document_unavailable' : errorMessage)}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => { controller.clearError(); setOpenError(false); }}><X /></StudioIconButton></StudioNotice>}
+        {state.cleanupPendingCount > 0 && <StudioNotice role="status"><AlertCircle /><span>{t('studio:transcription.cleanup_pending')}</span><Button variant="ghost" size="sm" onClick={() => void controller.retryCleanup()}>{t('studio:transcription.retry_cleanup')}</Button></StudioNotice>}
         <ToolPanel title={t('studio:transcription.selected_media')} icon={AudioLines} badge={<Badge variant="secondary" className="font-mono text-[11px]">{state.drafts.length}</Badge>}
           actions={state.drafts.length ? <Button variant="ghost" size="sm" disabled={state.submitting} onClick={() => void controller.clearDrafts()}><X />{t('studio:transcription.clear_media')}</Button> : undefined}
           className="studio-transcription-media-panel"

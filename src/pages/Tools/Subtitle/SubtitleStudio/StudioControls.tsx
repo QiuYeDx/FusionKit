@@ -2,6 +2,7 @@ import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { SmoothCorners } from '@/components/qiuye-ui/smooth-corners';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { LIMITS } from '@/subtitle-studio/domain';
 
@@ -30,6 +31,11 @@ export function StudioIconButton({ label, children, ...props }: ComponentProps<t
     <TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label={label} {...props}>{children}</Button></TooltipTrigger>
     <TooltipContent sideOffset={6}>{label}</TooltipContent>
   </Tooltip>;
+}
+
+/** A status or error strip above the Studio panels, with the same smooth corners as the panels around it. */
+export function StudioNotice({ className, ...props }: ComponentProps<typeof SmoothCorners>) {
+  return <SmoothCorners radius={16} smoothing={0.72} className={className ? `studio-notice ${className}` : 'studio-notice'} {...props} />;
 }
 
 export function StudioPagination({ offset, total, busy, onChange, compact = false, pageSize = LIMITS.pageSize }: {

@@ -151,7 +151,7 @@
 .studio-mobile-controls { align-items: center; flex-wrap: wrap; gap: 8px; }
 .studio-mobile-picker [data-slot=select-value] { display: block; flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
 .studio-mobile-picker .studio-file-name { pointer-events: auto; }
-.studio-notice { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-width: 1px; border-radius: 8px; font-size: 12px; }
+.studio-notice { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-width: 1px; font-size: 12px; }
 .studio-notice > svg { width: 15px; height: 15px; flex-shrink: 0; }
 .studio-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 /* Row 1 holds the view tabs and, beside them, the translation track toolbar. */
