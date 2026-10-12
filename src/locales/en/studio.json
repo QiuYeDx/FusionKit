@@ -48,6 +48,7 @@
   "no_source_content": "No original content",
   "empty_title": "Start with a subtitle file",
   "open_file": "Open subtitle file",
+  "choose_file": "Choose files",
   "select_document": "Select a document",
   "target": "Translation",
   "translation_track": "Translation track",
@@ -137,7 +138,8 @@
       "en": "English",
       "ja": "Japanese",
       "zh-Hant": "Traditional Chinese"
-    }
+    },
+    "usage_total": "{{value}} tokens"
   },
   "export": {
     "action": "Export subtitles",
@@ -287,7 +289,7 @@
   },
   "library": {
     "batch_actions": "Batch actions",
-    "import_hint": "Drop subtitle files or click to select · SRT / LRC / VTT / ASS / SSA / SBV",
+    "import_hint": "Drop subtitle files anywhere in the window to import · SRT / LRC / VTT / ASS / SSA / SBV",
     "search": "Search documents",
     "clear_search": "Clear search",
     "open": "Open document library",
@@ -548,7 +550,6 @@
   },
   "overview": {
     "title": "Translation tasks",
-    "details": "View all",
     "empty": "No translation tasks",
     "loading": "Loading tasks…",
     "description": "Translation tasks across all documents, independent of library pages and filters. Progress counts saved batches only.",
@@ -562,10 +563,6 @@
     "open_document": "Open document",
     "can_resume": "Review and resume in the document",
     "view_progress": "View translation progress",
-    "active": "Active",
-    "done": "Completed",
-    "attention": "Needs attention",
-    "cancelled_count": "{{count}} cancelled",
     "actual_tokens": "Actual tokens",
     "input_tokens": "Input",
     "output_tokens": "Output",

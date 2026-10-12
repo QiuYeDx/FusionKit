@@ -85,7 +85,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('subtitle studio list i
       expect(Math.abs(library.left - library.right)).toBeLessThanOrEqual(1);
 
       // Task list inside the overview dialog.
-      await page.getByRole('button', { name: '查看全部' }).first().click();
+      await page.locator('.studio-library-panel [data-testid=studio-translation-overview-details]').click();
       const overview = page.getByTestId('studio-translation-overview-list');
       await uiExpect(overview.locator('li')).toHaveCount(3);
       await page.waitForTimeout(400);

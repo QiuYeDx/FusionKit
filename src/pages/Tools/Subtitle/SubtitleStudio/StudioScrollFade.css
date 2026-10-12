@@ -1,12 +1,18 @@
-/* The viewport keeps a stable right gutter for its scrollbar. Lists inside subtract it from their
-   right padding (var(--studio-scroll-gutter)) so their visual insets stay equal on both sides. */
+/* The content keeps a stable right gutter, and the overlay scrollbar sits inside it. Lists inside subtract it
+   from their right padding (var(--studio-scroll-gutter)) so their visual insets stay equal on both sides. */
 .studio-scroll-fade { --studio-scroll-gutter: 6px; position: relative; isolation: isolate; min-width: 0; }
-.studio-scroll-fade-viewport { min-width: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.studio-scroll-fade-content { min-width: 0; display: flow-root; }
-.studio-scroll-fade-viewport::-webkit-scrollbar { width: var(--studio-scroll-gutter); }
-.studio-scroll-fade-viewport::-webkit-scrollbar-thumb { border-radius: 3px; background: color-mix(in srgb, var(--muted-foreground) 25%, transparent); }
-.studio-scroll-fade-viewport::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--muted-foreground) 40%, transparent); }
-.studio-scroll-fade-edge { position: absolute; left: 0; right: var(--studio-scroll-gutter); height: 16px; z-index: 1; pointer-events: none; opacity: 0; transition: opacity 150ms ease; }
+.studio-scroll-fade-viewport { min-width: 0; overscroll-behavior: contain; }
+/* Radix wraps the content in display: table, which would let wide rows widen the whole list. */
+.studio-scroll-fade-viewport > div { display: block !important; padding-right: var(--studio-scroll-gutter); }
+/* :where keeps a list's own display (grid, flex) from contentClassName in charge. */
+:where(.studio-scroll-fade-content) { min-width: 0; display: flow-root; }
+/* Fill mode: a flex column hands its remaining height down to the viewport (also when capped by max-height). */
+.studio-scroll-fade[data-fill], .studio-scroll-fade[data-fill] > .studio-scroll-fade-area { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+.studio-scroll-fade[data-fill] > .studio-scroll-fade-area > .studio-scroll-fade-viewport { flex: 1 1 auto; height: auto; min-height: 0; }
+.studio-scroll-fade-area > [data-slot="scroll-area-scrollbar"] { width: var(--studio-scroll-gutter); padding: 1px 0; border: 0; }
+.studio-scroll-fade-area > [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"] { background: color-mix(in srgb, var(--muted-foreground) 25%, transparent); }
+.studio-scroll-fade-area > [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"]:hover { background: color-mix(in srgb, var(--muted-foreground) 40%, transparent); }
+.studio-scroll-fade-edge { position: absolute; left: 0; right: var(--studio-scroll-gutter); height: var(--studio-scroll-fade-size, 16px); z-index: 1; pointer-events: none; opacity: 0; transition: opacity 150ms ease; }
 .studio-scroll-fade-edge[data-edge="top"] { top: 0; background: linear-gradient(to bottom, var(--studio-scroll-fade-surface, var(--background)), transparent); }
 .studio-scroll-fade-edge[data-edge="bottom"] { bottom: 0; background: linear-gradient(to top, var(--studio-scroll-fade-surface, var(--background)), transparent); }
 .studio-scroll-fade[data-fade-top="true"] > [data-edge="top"], .studio-scroll-fade[data-fade-bottom="true"] > [data-edge="bottom"] { opacity: 1; }

@@ -9,7 +9,6 @@ import { getStudioTranslationOverviewController, getTranslationRoundProgress } f
 import type { TranslationTasksSnapshot, TranslationTaskStatus, TranslationTaskSummary } from '@/subtitle-studio/ipc-contract';
 import { StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioTaskQueue, StudioTaskQueueRow } from './StudioTaskQueue';
-import { ToolPanel } from '../../_shared/ui/ToolPanel';
 import './StudioTranslationOverview.css';
 
 const statusKeys = {
@@ -50,7 +49,8 @@ function TaskUsage({ usage }: { usage: TranslationTaskSummary['usage'] }) {
   </Tooltip>;
 }
 
-export function StudioTranslationOverview({ onOpenDocument, compact = false }: { onOpenDocument: (documentId: string, trackId?: string) => void | Promise<void>; compact?: boolean }) {
+/** A header button: idle shows the icon, running work its progress, failures their count; the dialog lists every task. */
+export function StudioTranslationOverview({ onOpenDocument }: { onOpenDocument: (documentId: string, trackId?: string) => void | Promise<void> }) {
   const { t } = useTranslation();
   const controller = getStudioTranslationOverviewController();
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
@@ -85,26 +85,13 @@ export function StudioTranslationOverview({ onOpenDocument, compact = false }: {
   const summary = snapshot?.total ? statuses.filter(status => snapshot.counts[status] > 0).map(status => `${t(statusKeys[status])} ${snapshot.counts[status]}`).join(' · ') : t(snapshot ? 'studio:overview.empty' : 'studio:overview.loading');
   const showDetails = () => { setOpenError(false); controller.setDetailsOpen(true); };
   return <>
-    {compact ? <Tooltip><TooltipTrigger asChild><Button ref={trigger} variant="ghost" size="sm" className="studio-translation-overview-compact" data-testid="studio-translation-overview-details" aria-label={t('studio:overview.title')} onClick={showDetails}><Languages />{activeCount + attentionCount > 0 && <span className={attentionCount ? 'text-destructive' : undefined}>{activeCount + attentionCount}</span>}{(state.error || !!snapshot?.unavailableDocuments) && <AlertCircle className="text-destructive" />}</Button></TooltipTrigger><TooltipContent><span>{t('studio:overview.title')} · {summary}</span></TooltipContent></Tooltip> : <section className="studio-translation-overview" data-testid="studio-translation-overview" aria-label={t('studio:overview.title')}>
-      <ToolPanel title={t('studio:overview.title')} icon={Languages} actions={<Button ref={trigger} variant="ghost" size="sm" data-testid="studio-translation-overview-details" onClick={showDetails}>{t('studio:overview.details')}</Button>}>
-      {snapshot?.total ? <>
-        <dl className="studio-overview-board" data-testid="studio-overview-board">
-          <div data-state="active"><dd>{activeCount}</dd><dt>{t('studio:overview.active')}</dt></div>
-          <div><dd>{snapshot.counts.completed}</dd><dt>{t('studio:overview.done')}</dt></div>
-          <div data-state={attentionCount ? 'attention' : 'idle'}><dd>{attentionCount}</dd><dt>{t('studio:overview.attention')}</dt></div>
-        </dl>
-        {snapshot.counts.cancelled > 0 && <p className="studio-overview-cancelled">{t('studio:overview.cancelled_count', { count: snapshot.counts.cancelled })}</p>}
-        {roundActive && round && percent !== null && <div className="studio-translation-overview-round" data-testid="studio-translation-round">
-          <span>{t('studio:overview.round_submitted', { count: state.roundTaskIds.length })}</span><strong>{percent}%</strong>
-          <progress max={100} value={percent} aria-label={t('studio:overview.confirmed_progress')} />
-        </div>}
-        <UsageSummary snapshot={snapshot} />
-      </> : <p className="studio-overview-idle">{t(snapshot ? 'studio:overview.empty' : 'studio:overview.loading')}</p>}
-      {(state.error || !!snapshot?.unavailableDocuments) && <p className="studio-translation-overview-warning" role="status"><AlertCircle className="size-3.5" />{state.error ? t('studio:overview.read_error') : t('studio:overview.unavailable', { count: snapshot?.unavailableDocuments })}</p>}
-      </ToolPanel>
-    </section>}
+    <Tooltip><TooltipTrigger asChild><Button ref={trigger} variant="ghost" size="sm" className="studio-translation-overview-compact" data-testid="studio-translation-overview-details" data-overview-state={activeCount ? 'active' : attentionCount ? 'attention' : 'idle'} aria-label={t('studio:overview.title')} onClick={showDetails}>
+      {activeCount ? <LoaderCircle className="studio-spin" /> : attentionCount ? <AlertCircle /> : <Languages />}
+      {activeCount ? <span data-testid="studio-translation-round">{roundActive && percent !== null ? `${percent}%` : activeCount}</span> : attentionCount ? <span>{attentionCount}</span> : null}
+      {(state.error || !!snapshot?.unavailableDocuments) && <AlertCircle className="text-destructive" />}
+    </Button></TooltipTrigger><TooltipContent><span>{t('studio:overview.title')} · {summary}</span>{roundActive && percent !== null && <div>{t('studio:overview.round_submitted', { count: state.roundTaskIds.length })} · {percent}%</div>}</TooltipContent></Tooltip>
     <ScrollableDialog animateSize open={state.detailsOpen} onOpenChange={controller.setDetailsOpen} maxWidth="sm:max-w-[720px]" contentClassName="studio-translation-overview-dialog" onCloseAutoFocus={event => { event.preventDefault(); trigger.current?.focus({ preventScroll: true }); }}>
-      <ScrollableDialogHeader><DialogTitle className="flex items-center gap-2 text-sm"><Languages className="size-4" />{t('studio:overview.title')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:overview.description')}</DialogDescription></ScrollableDialogHeader>
+      <ScrollableDialogHeader><DialogTitle className="flex items-center gap-2 text-sm"><Languages className="size-4" />{t('studio:overview.title')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:overview.description')}</DialogDescription>{snapshot && <UsageSummary snapshot={snapshot} />}</ScrollableDialogHeader>
       <ScrollableDialogContent fadeMaskHeight={16}><div className="studio-translation-overview-content">
         {(state.error || openError) && <p role="alert" className="studio-translation-overview-warning"><AlertCircle className="size-4" />{t(openError ? 'studio:overview.open_error' : 'studio:overview.read_error')}</p>}
         {!!snapshot?.unavailableDocuments && <p role="status" className="studio-translation-overview-warning">{t('studio:overview.unavailable', { count: snapshot.unavailableDocuments })}</p>}

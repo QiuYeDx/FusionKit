@@ -1,9 +1,12 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type ReactNode } from 'react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import './StudioScrollFade.css';
 
-/** The overlays belong to the viewport, never to its scrolling content. */
-export function StudioScrollFade({ children, className = '', viewportClassName = '', contentClassName = '', maxHeight = 250 }: {
-  children: ReactNode; className?: string; viewportClassName?: string; contentClassName?: string; maxHeight?: CSSProperties['maxHeight'];
+/** The overlays belong to the viewport, never to its scrolling content.
+ *  fill=true lets the viewport take the space a flex column gives it instead of a maxHeight. */
+export function StudioScrollFade({ children, className = '', viewportClassName = '', contentClassName = '', maxHeight = 250, fill = false, viewportProps }: {
+  children: ReactNode; className?: string; viewportClassName?: string; contentClassName?: string; maxHeight?: CSSProperties['maxHeight']; fill?: boolean;
+  viewportProps?: Omit<HTMLAttributes<HTMLDivElement>, 'className' | 'style'>;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -23,10 +26,11 @@ export function StudioScrollFade({ children, className = '', viewportClassName =
     measure();
     return () => { observer.disconnect(); viewport.removeEventListener('scroll', measure); };
   }, []);
-  return <div className={`studio-scroll-fade ${className}`} data-fade-top={edges.top} data-fade-bottom={edges.bottom}>
-    <div ref={viewportRef} className={`studio-scroll-fade-viewport ${viewportClassName}`} style={{ maxHeight }}>
+  return <div className={`studio-scroll-fade ${className}`} data-fill={fill || undefined} data-fade-top={edges.top} data-fade-bottom={edges.bottom}>
+    <ScrollArea className="studio-scroll-fade-area" viewportRef={viewportRef}
+      viewportProps={{ ...viewportProps, className: `studio-scroll-fade-viewport ${viewportClassName}`, style: fill ? undefined : { maxHeight } }}>
       <div ref={contentRef} className={`studio-scroll-fade-content ${contentClassName}`}>{children}</div>
-    </div>
+    </ScrollArea>
     <div className="studio-scroll-fade-edge" data-edge="top" aria-hidden="true" />
     <div className="studio-scroll-fade-edge" data-edge="bottom" aria-hidden="true" />
   </div>;

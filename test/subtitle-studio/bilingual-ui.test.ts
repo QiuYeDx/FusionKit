@@ -96,7 +96,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio biling
     await uiExpect(candidates.locator(':scope > li')).toHaveCount(5);
     const firstSource = candidates.locator('.studio-bilingual-pair').first().locator('dd').first();
     await uiExpect(firstSource).toHaveText('今日は道具を使います0 旧译文0');
-    const dialogViewport = dialog.locator('[data-slot="scroll-area-viewport"]');
+    // The dialog's own viewport, not the candidate list's inner one.
+    const dialogViewport = dialog.locator('[data-slot="scroll-area-viewport"]:not(.studio-scroll-fade-viewport)');
     await uiExpect.poll(() => dialogViewport.evaluate(element => element.scrollTop)).toBe(0);
     const splitSwitch = dialog.getByRole('switch', { name: '按空格拆分单行双语' });
     const reviewSwitch = dialog.getByRole('switch', { name: '只看需确认' });

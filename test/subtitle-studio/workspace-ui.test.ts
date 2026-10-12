@@ -66,11 +66,9 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
       const style = getComputedStyle(element);
       return { radius: style.borderRadius, cornerShape: style.getPropertyValue('corner-shape'), border: style.borderTopWidth, background: style.backgroundColor, shadow: style.boxShadow, padding: style.padding };
     });
-    const pickerStyle = await visualSignature('.studio-import');
     const panelStyle = await visualSignature('.studio-preview-panel');
     await page.evaluate(() => { localStorage.setItem('subtitle-converter-tour-done', '1'); location.hash = '/tools/subtitle/converter'; });
     await page.locator('#cvt-tour-queue').waitFor();
-    expect(await visualSignature('#cvt-tour-upload')).toEqual(pickerStyle);
     expect(await visualSignature('#cvt-tour-queue')).toEqual(panelStyle);
     await page.waitForTimeout(350);
     await page.screenshot({ path: path.join(artifacts, 'baseline-converter.png') });
@@ -106,16 +104,18 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
     expect(density.timeDelta).toBeLessThan(1);
     expect(density.aligned).toBe(true);
     expect(density.offsets.every(offset => offset < 1)).toBe(true);
-    const toolbar = await page.locator('.studio-tabs').evaluate(element => {
-      const heading = element.querySelector('.studio-document-heading')!.getBoundingClientRect();
-      const tabs = element.querySelector('[data-slot=clip-path-tabs-stage]')!.getBoundingClientRect();
-      const reader = element.querySelector('.studio-reader')!.getBoundingClientRect();
-      return { height: reader.top - element.getBoundingClientRect().top, sharedRow: heading.top < tabs.bottom && tabs.top < heading.bottom, separateColumns: heading.right <= tabs.left };
+    // The panel title names the document; the view tabs alone form the row above the cues.
+    const toolbar = await page.locator('.studio-preview-panel').evaluate(panel => {
+      const header = panel.querySelector(':scope > [data-slot=tool-panel-header]')!;
+      const tabs = panel.querySelector('.studio-tabs')!.getBoundingClientRect();
+      const reader = panel.querySelector('.studio-reader')!.getBoundingClientRect();
+      return { height: reader.top - tabs.top, headerHeight: header.getBoundingClientRect().height, headingInHeader: !!header.querySelector('.studio-document-heading h2 .studio-file-name') };
     });
-    expect(toolbar.height).toBeLessThanOrEqual(60);
-    expect(toolbar.sharedRow).toBe(true);
-    expect(toolbar.separateColumns).toBe(true);
-    const assertFilename = async (selector: string) => {
+    expect(toolbar.height).toBeLessThanOrEqual(52);
+    expect(toolbar.headerHeight).toBeLessThanOrEqual(56);
+    expect(toolbar.headingInHeader).toBe(true);
+    /** The header has room for the whole name at this width; the library row has to truncate it. */
+    const assertFilename = async (selector: string, truncated = true) => {
       const filename = page.locator(selector);
       const layout = await filename.evaluate(element => {
         const start = element.querySelector('.studio-file-name-start')!;
@@ -128,7 +128,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
           sameLine: Math.abs(start.getBoundingClientRect().top - end.getBoundingClientRect().top) < 1,
         };
       });
-      expect(layout).toEqual({ truncated: true, ellipsis: 'ellipsis', endVisible: true, fits: true, sameLine: true });
+      expect(layout).toEqual({ truncated, ellipsis: 'ellipsis', endVisible: true, fits: true, sameLine: true });
       await uiExpect(filename.locator('.studio-file-name-end')).toHaveText(name.slice(-12));
       await page.locator('.studio-cue-table th').first().hover();
       await filename.hover();
@@ -146,7 +146,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio worksp
       await page.locator('.studio-cue-table th').nth(1).hover();
       await uiExpect(page.getByRole('tooltip')).toHaveCount(0);
     };
-    await assertFilename('.studio-document-heading .studio-file-name');
+    await assertFilename('.studio-document-heading .studio-file-name', false);
     await assertFilename('.studio-document[aria-current=true] .studio-file-name');
     await page.locator('.studio-document-heading .studio-file-name').focus();
     await uiExpect(page.getByRole('tooltip', { name, exact: true })).toBeVisible();

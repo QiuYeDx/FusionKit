@@ -16,6 +16,7 @@ import { STUDIO_BATCH_LIMIT } from '@/subtitle-studio/batch-contract';
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import { StudioFileName, StudioIconButton, StudioPagination } from './StudioControls';
 import { StudioLibraryContextMenu, type LibraryContextAction, type LibraryContextScope } from './StudioLibraryContextMenu';
+import { StudioScrollFade } from './StudioScrollFade';
 
 export const LIBRARY_PAGE_SIZE = 20;
 
@@ -110,7 +111,7 @@ export function StudioLibrary(props: Props) {
       <span className="studio-library-selection-scope">{props.selectionPending && <span role="status" data-testid="studio-library-selection-pending"><LoaderCircle aria-hidden="true" className="studio-spin size-3" /><span className="sr-only">{t('studio:library.selecting')}</span></span>}{!filtered && t('studio:library.scope_count', { count: total })}</span>
     </div>
     {props.selectionLimit && <div role="status" data-testid="studio-library-selection-limit" className="studio-library-selection-notice"><span>{t('studio:library.limit', { count: STUDIO_BATCH_LIMIT })}</span><StudioIconButton size="icon-xs" label={t('studio:dismiss')} onClick={props.onDismissLimit}><X /></StudioIconButton></div>}
-    <div className="studio-library-scroll" aria-busy={busy}>
+    <StudioScrollFade fill className="studio-library-fade" viewportClassName="studio-library-scroll" viewportProps={{ 'aria-busy': busy }}>
       {documents.length ? <ul className="studio-document-list studio-library-items">{documents.map(doc => {
         const active = doc.task?.status === 'queued' || doc.task?.status === 'running';
         const attention = doc.task && ['failed', 'interrupted', 'needs_configuration'].includes(doc.task.status);
@@ -127,7 +128,7 @@ export function StudioLibrary(props: Props) {
           </button>
         </li>;
       })}</ul> : <p className="studio-library-empty">{t(filtered ? 'studio:library.no_matches' : 'studio:empty')}</p>}
-    </div>
+    </StudioScrollFade>
     <StudioLibraryContextMenu scope={context?.query === query && context.offset === offset ? context : null} disabled={busy || props.selectionPending}
       onClose={() => setContext(null)} onAction={props.onContextAction} />
     <div className="studio-library-footer" data-has-selection={!!selected.length || undefined}>

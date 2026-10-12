@@ -125,7 +125,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await uiExpect(failedStatus).toHaveAttribute('data-state', 'failed', { timeout: 15000 });
     await uiExpect(failedStatus).toContainText('已达每批输出上限，本批译文未保存。请减少每批字幕或提高输出上限。');
     await uiExpect(failedStatus).toContainText('0 / 2 批');
-    await uiExpect(failedStatus).toContainText('实际 tokens：输入 121 · 输出 4,096');
+    await uiExpect(failedStatus).toContainText('4,217 tokens');
+    await failedStatus.locator('.studio-translation-usage').hover();
+    await uiExpect(page.getByRole('tooltip', { name: /实际 tokens/ })).toContainText('实际 tokens：输入 121 · 输出 4,096');
+    await page.mouse.move(1, 1);
     await uiExpect(page.locator('.studio-target-text').filter({ hasText: '未翻译' })).toHaveCount(52);
     await uiExpect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0);
     await uiExpect(page.getByRole('button', { name: '翻译', exact: true })).toBeEnabled();

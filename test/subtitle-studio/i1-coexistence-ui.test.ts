@@ -113,7 +113,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio I1 coe
 
     await route('/tools/subtitle/studio');
     await uiExpect(page.getByTestId('subtitle-studio')).toBeVisible();
-    await uiExpect(page.locator('.studio-preview-region .studio-content-empty')).toHaveText(locale.zh.empty);
+    await uiExpect(page.getByTestId('studio-import-empty')).toContainText(locale.zh.import);
     await uiExpect(page.locator('.studio-document')).toHaveCount(0);
     const openSubtitle = async (file: string) => {
       await app!.evaluate(({ dialog }, input) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [input] }); }, file);

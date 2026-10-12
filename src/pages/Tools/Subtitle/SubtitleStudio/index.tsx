@@ -5,18 +5,18 @@ import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 import { readStudioNavigationView } from './navigation';
-import { AlertCircle, AudioLines, BookOpen, CheckCheck, Code2, Ellipsis, FolderOpen, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText, Columns2 } from 'lucide-react';
+import { AlertCircle, AudioLines, BookOpen, CheckCheck, Code2, Ellipsis, FilePlus2, Library, List, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText, Columns2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ClipPathTabs, ClipPathTabsContent } from '@/components/qiuye-ui/clip-path-tabs';
 import ToolPageHeader from '../../_shared/ToolPageHeader';
 import { TOOL_META } from '../../_shared/toolMeta';
 import { ToolDetailLayout } from '../../_shared/ui/ToolDetailLayout';
 import { ToolPanel } from '../../_shared/ui/ToolPanel';
-import { ToolFilePickerSurface } from '../../_shared/ui/ToolFilePickerSurface';
 import { useToolFileDropTarget } from '../../_shared/ui/ToolFileDropScope';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
@@ -155,7 +155,7 @@ export default function SubtitleStudio() {
     if (resultReturnAction.current) { resultReturnAction.current(); return; }
     const fallbackSelectors = resultOrigin.current === 'batch'
       ? ['#studio-library-batch-actions', '[data-testid=studio-library-select-all]', '#studio-library-trigger']
-      : ['#studio-import-trigger', '.studio-import button'];
+      : ['#studio-library-import', '#studio-import-trigger'];
     const candidates = [resultReturnTarget.current, ...fallbackSelectors.map(selector => document.querySelector<HTMLElement>(selector)), workspaceRoot.current?.querySelector<HTMLElement>('[role=tab][aria-selected=true]')];
     const target = candidates.find(candidate => candidate?.isConnected && candidate.getClientRects().length && !candidate.matches(':disabled, [aria-disabled=true]'));
     target?.focus({ preventScroll: true });
@@ -390,7 +390,7 @@ export default function SubtitleStudio() {
       await acceptImportResult(await unwrapStudio(Promise.resolve(result.value)));
     }, false);
   };
-  const { dragging, dropProps } = useToolFileDropTarget({
+  const { dropProps } = useToolFileDropTarget({
     onDrop: dropFiles,
     enabled: workspaceView === 'documents',
     disabled: busy,
@@ -618,6 +618,7 @@ export default function SubtitleStudio() {
     <SelectTrigger aria-label={t('studio:select_document')} className="h-8 w-full min-w-0 text-xs"><SelectValue placeholder={t('studio:select_document')}>{activeDocument && documents.some(doc => doc.id === activeDocument.id) ? <StudioFileName name={activeDocument.origin.displayName} /> : undefined}</SelectValue></SelectTrigger>
     <SelectContent className="max-w-[calc(100vw-2rem)]">{documents.map(doc => <SelectItem key={doc.id} value={doc.id} className="whitespace-normal break-all">{doc.origin.displayName}</SelectItem>)}</SelectContent>
   </Select>;
+  const importIcon = activity === 'import' ? <LoaderCircle className="studio-spin" /> : <FilePlus2 />;
   const refresh = <StudioIconButton label={t('studio:refresh')} disabled={busy} onClick={() => void run('load', () => load(listOffset, !page))}><RefreshCw className={activity === 'load' ? 'studio-spin' : ''} /></StudioIconButton>;
   const onBatchChanged = () => { dirty.current = true; refreshPending.current(); };
   /** Applies a cue edit, records its inverse and reloads the page; resolves whether it was applied. */
@@ -732,15 +733,14 @@ export default function SubtitleStudio() {
       header={null}
       asideClassName="hidden lg:block"
       mainClassName={expansion.expanded ? 'studio-main studio-main-expanded' : 'studio-main'}
-      aside={wide ? <div className="studio-library">{workspaceView === 'documents' && <StudioTranslationOverview onOpenDocument={openTranscriptionDocument} />}<ToolPanel className="studio-library-panel" title={t('studio:documents')} icon={Library} badge={<Badge variant="secondary" className="font-mono text-[11px]">{allTotal}</Badge>} actions={refresh}>{recoveryButton}{library}</ToolPanel></div> : undefined}
+      aside={wide ? <div className="studio-library"><ToolPanel className="studio-library-panel" title={t('studio:documents')} icon={Library} badge={<Badge variant="secondary" className="font-mono text-[11px]">{allTotal}</Badge>} actions={<>{workspaceView === 'documents' && <StudioTranslationOverview onOpenDocument={openTranscriptionDocument} />}<StudioIconButton id="studio-library-import" label={t('studio:open_file')} disabled={busy} onClick={importDocument}>{importIcon}</StudioIconButton>{refresh}</>}>{recoveryButton}{library}</ToolPanel></div> : undefined}
     >
-      <ToolFilePickerSurface title={t('studio:import')} description={t('studio:library.import_hint')} dragging={dragging && !busy} actionLabel={t('studio:open_file')} disabled={busy} onSelect={importDocument} icon={activity === 'import' ? <LoaderCircle className="h-5 w-5 studio-spin" /> : undefined} className="studio-import" />
       <div className="studio-mobile-controls lg:hidden">
         <StudioIconButton id="studio-library-trigger" label={t('studio:library.open')} onClick={() => setLibraryOpen(true)}><Library /></StudioIconButton>
-        {!wide && workspaceView === 'documents' && <StudioTranslationOverview compact onOpenDocument={openTranscriptionDocument} />}
+        {!wide && workspaceView === 'documents' && <StudioTranslationOverview onOpenDocument={openTranscriptionDocument} />}
         <div className="min-w-0 flex-1 studio-mobile-picker">{documentPicker}</div>
         <div className="w-[116px] shrink-0">{encodingField}</div>
-        {page && <StudioIconButton id="studio-import-trigger" label={t('studio:open_file')} disabled={busy} onClick={importDocument}>{activity === 'import' ? <LoaderCircle className="studio-spin" /> : <FolderOpen />}</StudioIconButton>}
+        <StudioIconButton id="studio-import-trigger" label={t('studio:open_file')} disabled={busy} onClick={importDocument}>{importIcon}</StudioIconButton>
         {refresh}{recoveryButton}
       </div>
       {error && <div role="alert" className="studio-notice text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span>{retry.current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button>}<StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></div>}
@@ -774,40 +774,39 @@ export default function SubtitleStudio() {
       <div aria-busy={busy || (!!previewRequest && !previewRequest.error)} className="studio-preview-region" data-preview-pending={!!previewRequest || undefined} data-reader-size={expansion.expanded ? expansion.readerSize : undefined}>
         <div className="studio-preview-surface" inert={!!previewRequest} aria-hidden={previewRequest ? true : undefined}>
         <ToolPanel
-          title={t('studio:preview')}
+          title={page ? <div className="studio-document-heading">
+            <h2><StudioFileName name={page.summary.origin.displayName} focusable /></h2>
+            <div className="studio-document-meta">
+              <span className="studio-document-format">{page.summary.origin.format.toUpperCase()}</span>
+              {'encoding' in page.summary.origin && <span>{page.summary.origin.encoding.toUpperCase()}</span>}
+              <span>{t('studio:cue_count', { count: page.summary.cueCount })}</span>
+              {page.summary.bilingualImport && <span data-testid="studio-bilingual-label">{t('studio:bilingual_import.label', { direction: bilingualDirection(t, page.summary.bilingualImport) })}</span>}
+              <span>{t(track?.origin === 'imported' ? 'studio:translation_imported' : track && page.summary.translationStatus !== 'none' ? 'studio:translation_unreviewed' : 'studio:source_only')}</span>
+            </div>
+          </div> : t('studio:preview')}
           icon={Subtitles}
-          badge={page ? <Badge variant="secondary" className="font-mono text-[11px]">{page.summary.cueCount}</Badge> : undefined}
           actions={page ? <><StudioBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioRevertBilingual page={page} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setBilingualNotice(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} /><StudioTranslation page={page} recheckRequest={knowledgeRecheck} onRecheckClosed={requestId => setKnowledgeRecheck(current => current?.requestId === requestId ? undefined : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} /><StudioExport page={page} trackId={track?.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} /><StudioRevealSource key={page.summary.id} kind="document" id={page.summary.id} /><StudioIconButton id="studio-delete-trigger" label={t('studio:delete_document')} disabled={busy} onClick={() => setDeleting(page.summary)}><Trash2 /></StudioIconButton><StudioPreviewExpandControls expansion={expansion} onPreviousDocument={previousDocument && (() => chooseDocument(previousDocument))} onNextDocument={nextDocument && (() => chooseDocument(nextDocument))} /></> : undefined}
           className="studio-preview-panel"
           footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t(page.summary.capabilities.preserveSource ? 'studio:source_preserved' : 'studio:transcription_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
           {page ? <>
-            {track && <div className="studio-translation-toolbar">
-              <div className="studio-translation-track-controls">
-              <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} title={formatStudioTrackName(track.language, page.translationTracks.findIndex(item => item.id === track.id), t('studio:language_unknown'), track.name)} className="h-7 w-[160px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent className="studio-track-options">{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{formatStudioTrackName(item.language, index, t('studio:language_unknown'), item.name)}</SelectItem>)}</SelectContent></Select>
-              <StudioRenameTranslation key={`${page.summary.id}:${track.id}`} page={page} track={track} busy={busy} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
-              <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
-              </div>
-              <div className="studio-translation-progress-controls">
-                <StudioTranslationStatus page={page} trackId={track.id} busy={busy} onRecheck={requestKnowledgeRecheck} />
-                <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
-              </div>
-            </div>}
             <ClipPathTabs value={view} onValueChange={setView} ariaLabel={t('studio:document_view')} shape="rounded" smoothCorners size="sm" className="studio-tabs w-full gap-0" transitionDuration={200} transitionEasing="ease-out" items={[
               { value: 'preview', label: t('studio:preview'), icon: <List /> },
               ...(page.summary.capabilities.preserveSource ? [{ value: 'raw', label: t('studio:original_nodes'), icon: <Code2 /> }] : []),
             ]}>
-              <div className="studio-document-heading">
-                <h2 className="text-sm font-medium"><StudioFileName name={page.summary.origin.displayName} focusable /></h2>
-                <div className="studio-document-meta text-[11px] text-muted-foreground">
-                  <Badge variant="outline" className="font-mono text-[10px] font-normal">{page.summary.origin.format.toUpperCase()}</Badge>
-                  {'encoding' in page.summary.origin && <span>{page.summary.origin.encoding.toUpperCase()}</span>}
-                  {page.summary.bilingualImport && <span data-testid="studio-bilingual-label">{t('studio:bilingual_import.label', { direction: bilingualDirection(t, page.summary.bilingualImport) })}</span>}
-                  <span>{t(track?.origin === 'imported' ? 'studio:translation_imported' : track && page.summary.translationStatus !== 'none' ? 'studio:translation_unreviewed' : 'studio:source_only')}</span>
+              {track && <div className="studio-translation-toolbar">
+                <div className="studio-translation-track-controls">
+                <Select value={track.id} onValueChange={setTrackId}><SelectTrigger aria-label={t('studio:translation_track')} title={formatStudioTrackName(track.language, page.translationTracks.findIndex(item => item.id === track.id), t('studio:language_unknown'), track.name)} className="h-7 w-[148px] shrink-0 text-xs"><SelectValue /></SelectTrigger><SelectContent className="studio-track-options">{page.translationTracks.map((item, index) => <SelectItem key={item.id} value={item.id}>{formatStudioTrackName(item.language, index, t('studio:language_unknown'), item.name)}</SelectItem>)}</SelectContent></Select>
+                <StudioRenameTranslation key={`${page.summary.id}:${track.id}`} page={page} track={track} busy={busy} onChanged={doc => { void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
+                <StudioRemoveTranslation page={page} track={track} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={doc => { setTrackId(''); void run('select', async () => { await select(doc); await load(currentOffset.current); }); }} />
                 </div>
-              </div>
-              {diagnostics.length > 0 && <StudioDisclosure className="studio-diagnostics border-t bg-muted/30" key={page.summary.id} title={<span className="flex min-w-0 items-center gap-2"><AlertCircle className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" /><span>{t('studio:document_checks')}</span><Badge variant="secondary" className="font-mono text-[10px]">{page.summary.diagnostics.length}</Badge></span>}><ul>{diagnostics.map(([code, count]) => <li key={code}><span>{t(diagnosticKeys[code])}</span><span className="shrink-0 font-mono text-[10px]">{count}</span></li>)}</ul></StudioDisclosure>}
-              <div className="studio-reader border-t" ref={reader}>
+                <div className="studio-translation-progress-controls">
+                  <StudioTranslationStatus page={page} trackId={track.id} busy={busy} onRecheck={requestKnowledgeRecheck} />
+                  <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
+                </div>
+              </div>}
+              {diagnostics.length > 0 && <StudioDisclosure className="studio-diagnostics border-t bg-muted/30" key={page.summary.id} title={<span className="flex min-w-0 items-center gap-2"><AlertCircle className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" /><span>{t('studio:document_checks')}</span><Badge variant="secondary" className="font-mono text-[10px]">{page.summary.diagnostics.length}</Badge></span>}><ScrollArea viewportProps={{ className: 'studio-diagnostics-scroll' }}><ul>{diagnostics.map(([code, count]) => <li key={code}><span>{t(diagnosticKeys[code])}</span><span className="shrink-0 font-mono text-[10px]">{count}</span></li>)}</ul></ScrollArea></StudioDisclosure>}
+              <ScrollArea className="studio-reader-area" viewportRef={reader} viewportProps={{ className: 'studio-reader border-t' }}>
                 <ClipPathTabsContent value="preview">
                   {page.cues.length ? <StudioCueTable page={page} track={track} flaggedNodes={flaggedNodes} busy={busy} copied={copied} scrollRef={reader}
                     history={{ undo: cueHistory.current.peek('undo', page.summary.id), redo: cueHistory.current.peek('redo', page.summary.id) }}
@@ -821,9 +820,10 @@ export default function SubtitleStudio() {
                     onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
                 </ClipPathTabsContent>
                 <ClipPathTabsContent value="raw" className="studio-raw"><ol start={page.nodeOffset + 1}>{page.rawNodes.map((node, index) => <li key={node.id}><span aria-hidden="true">{page.nodeOffset + index + 1}</span><pre>{node.text}</pre></li>)}</ol>{!page.rawNodes.length && <div className="studio-content-empty"><Code2 /><p>{t('studio:no_source_content')}</p></div>}</ClipPathTabsContent>
-              </div>
+              </ScrollArea>
             </ClipPathTabs>
-          </> : <div className="studio-content-empty py-14">{busy ? <LoaderCircle className="studio-spin" /> : <Subtitles />}<p>{busy ? t('studio:loading') : t('studio:empty')}</p></div>}
+          </> : busy ? <div className="studio-content-empty py-14"><LoaderCircle className="studio-spin" /><p>{t('studio:loading')}</p></div>
+            : <div className="studio-content-empty studio-import-empty py-14" data-testid="studio-import-empty"><FilePlus2 /><div><p className="studio-import-empty-title">{t('studio:import')}</p><p>{t('studio:library.import_hint')}</p></div><Button size="sm" variant="outline" onClick={importDocument}>{t('studio:choose_file')}</Button></div>}
         </ToolPanel>
         </div>
         <div className="studio-preview-loading" data-testid="studio-preview-loading" data-visible={!!previewRequest} aria-hidden={!previewRequest} inert={!previewRequest}>

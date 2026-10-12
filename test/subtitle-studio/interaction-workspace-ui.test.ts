@@ -148,7 +148,7 @@ describe.runIf(enabled)('I6 actual Electron workspace layout and selection', () 
         await page.evaluate(theme => document.documentElement.classList.toggle('dark', theme === 'dark'), theme);
         await frames(page);
         const documents = await geometry(page);
-        if (width >= 1024) await uiExpect(page.locator('.studio-library > [data-testid=studio-translation-overview]')).toBeVisible();
+        if (width >= 1024) await uiExpect(page.locator('.studio-library-panel [data-testid=studio-translation-overview-details]')).toBeVisible();
         else {
           const overview = page.locator('.studio-mobile-controls [data-testid=studio-translation-overview-details]');
           await overview.focus(); await page.keyboard.press('Enter');

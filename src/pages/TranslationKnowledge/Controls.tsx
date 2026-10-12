@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -144,7 +145,8 @@ export function MultiChoice({
       <legend className="mb-1.5 text-[11px] font-medium text-muted-foreground">
         {label}
       </legend>
-      <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
+      <ScrollArea className="rounded-md border" viewportProps={{ className: "max-h-40 overscroll-contain [&>div]:block!" }}>
+        <div className="space-y-2 p-3">
         {options.length ? (
           options.map((item) => (
             <Check
@@ -163,7 +165,8 @@ export function MultiChoice({
         ) : (
           <p className="text-xs text-muted-foreground">{t("empty.options")}</p>
         )}
-      </div>
+        </div>
+      </ScrollArea>
     </fieldset>
   );
 }

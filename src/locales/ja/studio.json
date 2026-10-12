@@ -48,6 +48,7 @@
   "no_source_content": "元の内容はありません",
   "empty_title": "字幕ファイルから始める",
   "open_file": "字幕ファイルを開く",
+  "choose_file": "ファイルを選択",
   "select_document": "字幕ドキュメントを選択",
   "target": "訳文",
   "translation_track": "翻訳トラック",
@@ -137,7 +138,8 @@
       "en": "英語",
       "ja": "日本語",
       "zh-Hant": "繁体字中国語"
-    }
+    },
+    "usage_total": "{{value}} tokens"
   },
   "export": {
     "action": "字幕を書き出す",
@@ -287,7 +289,7 @@
   },
   "library": {
     "batch_actions": "一括操作",
-    "import_hint": "字幕ファイルをドロップ、またはクリックして選択 · SRT / LRC / VTT / ASS / SSA / SBV",
+    "import_hint": "字幕ファイルをウィンドウ内のどこにでもドロップして読み込めます · SRT / LRC / VTT / ASS / SSA / SBV",
     "search": "ドキュメントを検索",
     "clear_search": "検索をクリア",
     "open": "ドキュメントライブラリを開く",
@@ -548,7 +550,6 @@
   },
   "overview": {
     "title": "翻訳タスク",
-    "details": "すべて表示",
     "empty": "翻訳タスクはありません",
     "loading": "タスクを読み込み中…",
     "description": "ライブラリのページや絞り込みに関係なく、すべての文書の翻訳タスクを表示します。進捗は保存済みのバッチのみを数えます。",
@@ -562,10 +563,6 @@
     "open_document": "文書を開く",
     "can_resume": "文書で確認して再開できます",
     "view_progress": "翻訳の進捗を表示",
-    "active": "処理中",
-    "done": "完了",
-    "attention": "要確認",
-    "cancelled_count": "キャンセル {{count}} 件",
     "actual_tokens": "実測 tokens",
     "input_tokens": "入力",
     "output_tokens": "出力",

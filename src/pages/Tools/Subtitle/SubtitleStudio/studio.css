@@ -36,7 +36,7 @@
 .studio-library-selection-notice { display: flex; align-items: flex-start; gap: 6px; margin: 0 var(--studio-library-inset) 6px; padding: 8px; border-radius: 8px; background: var(--muted); font-size: 11px; line-height: 18px; }
 .studio-library-selection-notice > span { flex: 1; }
 /* The scroll gutter is part of the right inset, so rows keep equal side insets whether or not the list scrolls. */
-.studio-library-items { padding: 4px calc(var(--studio-library-inset) - 8px) var(--studio-library-inset) var(--studio-library-inset); }
+.studio-library-items { padding: 4px calc(var(--studio-library-inset) - var(--studio-scroll-gutter)) var(--studio-library-inset) var(--studio-library-inset); }
 .studio-library-selection [data-state=indeterminate] [data-slot=checkbox-indicator] > svg { display: none; }
 .studio-library-selection [data-state=indeterminate] [data-slot=checkbox-indicator]::after { content: ''; width: 8px; height: 2px; border-radius: 1px; background: currentColor; }
 .studio-library-selection button:not([role=checkbox]), .studio-library-filter-summary button { height: 28px; padding: 0 6px; font-size: 11px; }
@@ -45,7 +45,7 @@
 .studio-library-selected-count:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 2px; }
 .studio-library-batch-actions { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
 .studio-library-batch-actions > span { display: flex; }
-.studio-library-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.studio-scroll-fade.studio-library-fade { --studio-scroll-gutter: 8px; --studio-scroll-fade-size: 24px; --studio-scroll-fade-surface: var(--card); }
 .studio-library-row { display: grid; grid-template-columns: calc(var(--studio-row-inset) + 16px) minmax(0, 1fr); align-items: start; border-radius: 8px; transition: background-color 150ms ease-out; }
 .studio-library-row:hover { background: var(--muted); }
 .studio-library-row:is([data-selected], [data-current]) { background: var(--accent); }
@@ -105,7 +105,6 @@
    title bar and above the bottom navigation, so its state and tools stay.
    The bottom band keeps the floating assistant button clear of the footer. */
 .studio-main.studio-main-expanded { position: fixed; inset: 0; z-index: 41; padding: 44px max(16px, calc((100vw - 1680px) / 2)) 60px; background: var(--background); }
-.studio-main-expanded > .studio-import { display: none; }
 /* Expanding and collapsing morph the preview with a view transition: the
    card frame grows or shrinks between the two places while its content fades
    through (old out, then new in), so rows of different sizes never overlap.
@@ -134,6 +133,7 @@
 .studio-library :is([data-slot=tool-panel-header]) { padding-block: 6px; }
 .studio-library-panel [data-slot=tool-panel-header] { padding-right: 6px; }
 .studio-library-panel [data-slot=tool-panel-header] button { width: 28px; height: 28px; }
+.studio-library-panel [data-slot=tool-panel-header] > div:last-child { gap: 2px; }
 .studio-library > .studio-translation-overview { flex-shrink: 0; }
 .studio-library > [data-slot=tool-panel] { min-height: 0; }
 .studio-library [data-slot=tool-panel-header], .studio-library [data-slot=tool-panel-footer] { flex-shrink: 0; }
@@ -153,25 +153,36 @@
 .studio-notice { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-width: 1px; border-radius: 8px; font-size: 12px; }
 .studio-notice > svg { width: 15px; height: 15px; flex-shrink: 0; }
 .studio-notice > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.studio-tabs { display: grid; flex: 1; min-height: 0; height: 100%; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto minmax(0, 1fr); align-items: center; }
+/* Row 1 holds the view tabs and, beside them, the translation track toolbar. */
+.studio-tabs { display: grid; flex: 1; min-height: 0; height: 100%; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); align-items: center; }
 /* An explicitly expanded diagnostic list uses the panel's outer scroll area,
    keeping a readable cue viewport reachable below its messages. */
 /* The disclosure is an accordion: open is its item's data-state, not a <details> [open]. */
 .studio-tabs:has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto minmax(120px, 1fr); }
-.studio-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 2; margin: 6px 12px; }
-.studio-document-heading { grid-area: 1 / 1; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 6px 0 6px 12px; }
-.studio-document-heading h2 { flex: 1; min-width: 0; }
-.studio-document-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; flex-shrink: 0; }
-.studio-tabs > :is(.studio-diagnostics, .studio-reader) { grid-column: 1 / -1; min-width: 0; }
+.studio-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; margin: 6px 12px; }
+/* The panel title is the open document: its name, then one line of facts. */
+.studio-preview-panel > [data-slot=tool-panel-header] { flex-wrap: nowrap; min-height: 52px; }
+.studio-preview-panel > [data-slot=tool-panel-header] > div:first-child { flex: 1 1 auto; }
+.studio-preview-panel > [data-slot=tool-panel-header] > div:first-child > .truncate { flex: 1; min-width: 0; overflow: visible; }
+.studio-preview-panel > [data-slot=tool-panel-header] > div:last-child { flex-shrink: 0; flex-wrap: nowrap; gap: 2px; }
+.studio-document-heading { display: grid; gap: 1px; min-width: 0; }
+.studio-document-heading h2 { display: flex; min-width: 0; font-size: 13px; line-height: 20px; font-weight: 600; }
+.studio-document-heading h2 > .studio-file-name { flex: 1 1 auto; }
+.studio-document-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; min-width: 0; color: var(--muted-foreground); font-size: 11px; line-height: 17px; font-weight: 400; white-space: normal; }
+.studio-document-meta > span { display: inline-flex; align-items: center; gap: 6px; }
+.studio-document-meta > span + span::before { content: ''; width: 2px; height: 2px; border-radius: 1px; background: currentColor; opacity: .7; }
+.studio-document-format { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: .02em; }
+.studio-tabs > :is(.studio-diagnostics, .studio-reader-area) { grid-column: 1 / -1; min-width: 0; }
 .studio-preview-panel { container-type: inline-size; }
-@container (max-width: 760px) {
-  .studio-document-heading { flex-direction: column; align-items: stretch; gap: 3px; }
-  .studio-document-meta { font-size: 10px; }
-}
 .studio-diagnostics { font-size: 12px; }
-.studio-diagnostics ul { display: grid; gap: 8px; max-height: 160px; overflow-y: auto; padding: 0 12px 12px 34px; }
+.studio-diagnostics-scroll { max-height: 160px; overscroll-behavior: contain; }
+.studio-diagnostics ul { display: grid; gap: 8px; padding: 0 12px 12px 34px; }
 .studio-diagnostics li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; color: var(--muted-foreground); overflow-wrap: anywhere; }
-.studio-reader { grid-row: 3; min-height: 0; align-self: stretch; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+/* .studio-reader is the ScrollArea viewport; its right padding is the gutter the overlay scrollbar sits in. */
+.studio-reader-area { grid-row: 3; min-height: 0; align-self: stretch; }
+.studio-reader { overscroll-behavior-y: contain; }
+.studio-reader > div { display: block !important; padding-right: 8px; }
+.studio-reader-area > [data-slot=scroll-area-scrollbar] { width: 8px; border: 0; }
 .studio-cue-table { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; text-align: left; }
 .studio-cue-table th { position: sticky; top: 0; z-index: 1; background: var(--card); border-bottom: 1px solid var(--border); padding: 9px 8px; font-size: 11px; font-weight: 500; color: var(--muted-foreground); }
 .studio-cue-table th:first-child { width: 54px; padding-left: 12px; }
@@ -193,23 +204,36 @@
 .studio-raw li:last-child { border-bottom: 0; }
 .studio-raw li > span { padding-right: 12px; font: 10px/16px ui-monospace, monospace; color: var(--muted-foreground); text-align: right; font-variant-numeric: tabular-nums; }
 .studio-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/16px ui-monospace, monospace; user-select: text; }
-.studio-translation-toolbar { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding: 6px 12px; border-bottom: 1px solid var(--border); }
-.studio-translation-track-controls { display: flex; align-items: center; gap: 6px; min-width: 0; flex-shrink: 0; }
+/* Top-aligned so a wrapped second line grows downward; 8px puts the first line on the 32px tabs' center. */
+.studio-translation-toolbar { grid-area: 1 / 2; align-self: start; display: flex; align-items: flex-start; flex-wrap: wrap; gap: 4px 8px; min-width: 0; padding: 8px 12px 6px 0; }
+.studio-translation-track-controls { display: flex; align-items: center; gap: 2px; height: 28px; min-width: 0; flex-shrink: 0; }
+.studio-translation-track-controls::before { content: ''; flex-shrink: 0; width: 1px; height: 16px; margin-right: 8px; background: var(--border); }
+.studio-translation-track-controls > [data-slot=select-trigger] { margin-right: 4px; }
 .studio-translation-track-controls [data-slot="select-value"], .studio-plan-document-track [data-slot="select-value"] { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-track-options { max-width: min(380px, calc(100vw - 32px)); }
 .studio-track-options [data-slot="select-item"] { white-space: normal; overflow-wrap: anywhere; }
-.studio-translation-progress-controls { display: flex; align-items: center; justify-content: flex-end; flex: 1 1 0; gap: 6px; min-width: 0; margin-left: auto; }
+.studio-translation-progress-controls { display: flex; align-items: flex-start; justify-content: flex-end; flex: 1 1 auto; gap: 6px; min-width: 0; margin-left: auto; }
 .studio-translation-progress-controls:empty { display: none; }
-.studio-translation-progress-controls .studio-translation-status { flex: 1; flex-wrap: nowrap; justify-content: flex-end; gap: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.studio-translation-progress-controls .studio-translation-status { flex: 1; flex-wrap: wrap; justify-content: flex-end; gap: 0 8px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A failure message takes its own wrapping line under the status, so the counts never get squeezed out;
+   inline-size containment keeps its length from pushing the whole status group onto another line. */
+.studio-translation-progress-controls .studio-translation-status > .studio-translation-error { order: 1; flex: 1 0 100%; min-width: 0; contain: inline-size; white-space: normal; text-align: right; text-wrap: balance; overflow-wrap: anywhere; line-height: 18px; }
 .studio-translation-progress-controls .studio-translation-status > span { flex-shrink: 0; }
 .studio-translation-progress-controls .studio-translation-status > .studio-translation-usage { display: block; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
 .studio-translation-progress-controls .studio-translation-status > span:first-child { min-height: 28px; }
 .studio-translation-progress-controls .studio-translation-status > button { flex-shrink: 0; }
-.studio-translation-progress-controls .studio-translation-task-controls { flex-shrink: 0; max-width: 100%; }
+/* The toolbar's groups share their first 28px line; the 32px task buttons overhang it evenly. */
+.studio-translation-progress-controls .studio-translation-task-controls { flex-shrink: 0; max-width: 100%; margin-block: -2px; }
 .studio-translation-toolbar [data-slot=select-trigger] { height: 28px; min-height: 28px; }
-@container (max-width: 640px) {
+/* Narrow previews give the track toolbar its own row under the view tabs. */
+@container (max-width: 760px) {
+  .studio-tabs { grid-template-rows: auto auto auto minmax(0, 1fr); }
+  .studio-tabs:has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto auto minmax(120px, 1fr); }
+  .studio-translation-toolbar { grid-area: 2 / 1 / auto / -1; padding: 0 12px 6px; }
+  .studio-translation-track-controls::before { display: none; }
+  .studio-tabs > .studio-diagnostics { grid-row: 3; }
+  .studio-tabs > .studio-reader-area { grid-row: 4; }
   .studio-translation-toolbar [data-slot=select-trigger] { width: 124px; }
-  .studio-translation-track-controls { gap: 2px; }
   .studio-translation-progress-controls .studio-translation-status { gap: 6px; }
 }
 .studio-parallel-text { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
@@ -225,23 +249,23 @@
 .studio-page-jump input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .studio-content-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 180px; padding-inline: 20px; text-align: center; font-size: 13px; color: var(--muted-foreground); }
 .studio-content-empty > svg { width: 26px; height: 26px; opacity: .6; }
+.studio-import-empty > div { display: grid; gap: 4px; max-width: 420px; text-wrap: balance; font-size: 12px; line-height: 19px; }
+.studio-import-empty-title { color: var(--foreground); font-size: 14px; line-height: 20px; font-weight: 500; }
 .studio-spin { animation: studio-spin 1s linear infinite; }
 @keyframes studio-spin { to { transform: rotate(360deg); } }
 @media (max-width: 1023px) {
-  .studio-translation-toolbar { padding-block: 6px; }
-  .studio-translation-toolbar + .studio-tabs > [data-slot=clip-path-tabs-stage] { margin-block: 6px; }
   .studio-translated-table th:nth-child(2) { width: 170px; }
   .studio-translated-table .studio-time-range { flex-wrap: wrap; gap: 0 4px; }
   .studio-parallel-text { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   th .studio-parallel-text { display: flex; gap: 8px; }
   .studio-target-text { padding-top: 4px; border-top: 1px dashed var(--border); }
   .studio-mobile-controls { display: flex; }
-  .studio-has-document .studio-import, .studio-document-heading { display: none; }
-  .studio-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1 / auto / -1; margin: 6px 12px; }
+  /* The document picker above already names the open file. */
+  .studio-document-heading h2 { display: none; }
+  .studio-preview-panel > [data-slot=tool-panel-header] { min-height: 44px; }
 }
 @media (max-width: 520px) {
   .studio-translated-table th:nth-child(2) { width: 88px; }
-  .studio-import > div:last-child { width: 100%; }
   .studio-mobile-picker { flex-basis: 100%; }
   .studio-footer-status { display: none; }
   .studio-reader-footer { justify-content: flex-end; }

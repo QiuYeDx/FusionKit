@@ -48,6 +48,7 @@
   "no_source_content": "暂无原始内容",
   "empty_title": "开始一份字幕工作",
   "open_file": "打开字幕文件",
+  "choose_file": "选择文件",
   "select_document": "选择字幕文档",
   "target": "译文",
   "translation_track": "译文轨",
@@ -137,7 +138,8 @@
       "en": "英语",
       "ja": "日语",
       "zh-Hant": "繁体中文"
-    }
+    },
+    "usage_total": "{{value}} tokens"
   },
   "export": {
     "action": "导出字幕",
@@ -287,7 +289,7 @@
   },
   "library": {
     "batch_actions": "批量操作",
-    "import_hint": "拖入字幕文件，或点击选择；支持 SRT / LRC / VTT / ASS / SSA / SBV",
+    "import_hint": "把字幕文件拖到窗口任意位置即可导入，支持 SRT / LRC / VTT / ASS / SSA / SBV",
     "search": "搜索文档",
     "clear_search": "清空搜索",
     "open": "打开文档库",
@@ -548,7 +550,6 @@
   },
   "overview": {
     "title": "翻译任务",
-    "details": "查看全部",
     "empty": "暂无翻译任务",
     "loading": "正在读取任务…",
     "description": "所有文档的翻译任务，不受文档库分页或筛选影响。进度只统计已保存的批次。",
@@ -562,10 +563,6 @@
     "open_document": "打开文档",
     "can_resume": "可在文档中检查并继续",
     "view_progress": "查看翻译进度",
-    "active": "进行中",
-    "done": "已完成",
-    "attention": "需处理",
-    "cancelled_count": "已取消 {{count}} 项",
     "actual_tokens": "实际 tokens",
     "input_tokens": "输入",
     "output_tokens": "输出",

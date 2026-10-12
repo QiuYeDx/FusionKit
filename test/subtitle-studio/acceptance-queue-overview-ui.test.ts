@@ -99,7 +99,8 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       await page.reload(); await settled(page);
       const win = await app.browserWindow(page); await win.evaluate(win => win.setSize(1280, 860));
       // The overview counts failed, interrupted and needs-configuration tasks as one "needs attention" figure.
-      await uiExpect(page.getByTestId('studio-translation-overview').locator('[data-state=attention] dd')).toHaveText('3');
+      const overviewButton = page.locator('.studio-library-panel [data-testid=studio-translation-overview-details]');
+      await uiExpect(overviewButton).toHaveAttribute('data-overview-state', 'attention'); await uiExpect(overviewButton).toHaveText('3');
       const initial = await page.evaluate(() => window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100 }));
       expect(initial.ok && initial.value.total).toBe(25);
       await page.getByRole('tab', { name: '转写', exact: true }).click();
@@ -172,8 +173,8 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       await batchResult.locator('[data-result-details] [data-slot="accordion-trigger"]').first().click();
       await uiExpect(batchResult.locator('[data-state=success]')).toHaveCount(2);
       await page.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
-      await uiExpect(page.getByTestId('studio-translation-round')).toContainText('最近提交 2 项');
-      await uiExpect(page.getByTestId('studio-translation-round')).toContainText('0%');
+      await uiExpect(page.getByTestId('studio-translation-round')).toHaveText('0%');
+      await overviewButton.hover(); await uiExpect(page.getByRole('tooltip')).toContainText('最近提交 2 项'); await page.mouse.move(0, 0);
       const all = await page.evaluate(() => window.subtitleStudio.listTranslationTasks({ offset: 0, pageSize: 100 }));
       if (!all.ok) throw new Error('Actual translation overview failed');
       const submitted = all.value.items.filter(item => !historical.includes(item.taskId)); expect(submitted).toHaveLength(2);
@@ -182,7 +183,7 @@ describe.runIf(enabled)('I3 queue maintenance and global translation progress in
       await uiExpect(page.getByTestId('studio-library-row')).toHaveCount(5);
       await page.evaluate(() => { location.hash = '/tools/subtitle/converter'; }); await page.locator('#cvt-tour-queue').waitFor();
       await page.evaluate(() => { location.hash = '/tools/subtitle/studio'; }); await settled(page);
-      await uiExpect(page.getByTestId('studio-translation-round')).toContainText('最近提交 2 项');
+      await uiExpect(page.getByTestId('studio-translation-round')).toHaveText('0%');
       await page.getByTestId('studio-library-search').fill('');
       await page.getByTestId('studio-library-search').fill('Archive');
       await uiExpect(page.getByTestId('studio-library-row')).toHaveCount(20);

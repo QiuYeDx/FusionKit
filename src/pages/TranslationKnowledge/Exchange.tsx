@@ -8,6 +8,7 @@ import { optionKey, protocolKey, diagnosticKey } from "./labels";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type {
   ImportPreview,
   KnowledgeErrorCode,
@@ -222,14 +223,16 @@ export function ImportDialog({
                     ? "import.differences"
                     : "import.contents",
                 )}>
-              <div className="max-h-72 overflow-y-auto rounded-md bg-muted/30 p-3">
-                <RecordDetails
-                  record={item.incoming}
-                  changedFrom={
-                    item.status === "conflict" ? item.local : undefined
-                  }
-                />
-              </div>
+              <ScrollArea className="rounded-md bg-muted/30" viewportProps={{ className: "max-h-72 overscroll-contain [&>div]:block!" }}>
+                <div className="p-3">
+                  <RecordDetails
+                    record={item.incoming}
+                    changedFrom={
+                      item.status === "conflict" ? item.local : undefined
+                    }
+                  />
+                </div>
+              </ScrollArea>
             </KnowledgeDisclosure>
           </div>
         ))}
@@ -630,13 +633,15 @@ export function ExportDialog({
           </section>
           {preview.excluded.length > 0 && (
             <KnowledgeDisclosure title={t("export.excluded_count", { count: preview.excluded.length })}>
-              <ul className="max-h-48 space-y-2 overflow-y-auto text-xs">
-                {preview.excluded.map((item) => (
-                  <li key={item.id} className="break-words">
-                    {item.title} · {t(`export.excluded_reason.${item.reason}`)}
-                  </li>
-                ))}
-              </ul>
+              <ScrollArea viewportProps={{ className: "max-h-48 overscroll-contain [&>div]:block!" }}>
+                <ul className="space-y-2 pr-3 text-xs">
+                  {preview.excluded.map((item) => (
+                    <li key={item.id} className="break-words">
+                      {item.title} · {t(`export.excluded_reason.${item.reason}`)}
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
             </KnowledgeDisclosure>
           )}
           </div>
