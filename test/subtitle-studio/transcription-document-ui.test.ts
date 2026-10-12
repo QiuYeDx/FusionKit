@@ -59,16 +59,25 @@ it.runIf(process.env.FUSIONKIT_STUDIO_TRANSCRIPTION_UI === '1')('renders stored 
     await uiExpect(page.getByTestId('studio-download-menu').getByRole('menuitem', { name: locale.export_source, exact: true })).toHaveCount(0);
     await page.getByRole('menuitem', { name: locale.export.action, exact: true }).click();
     const dialog = page.getByRole('dialog');
-    await uiExpect(dialog.getByLabel(locale.export.format, { exact: true })).toHaveText('SRT');
+    // A transcript of audio (.wav) defaults to LRC; this export is checked as SRT.
+    const format = dialog.getByLabel(locale.export.format, { exact: true });
+    await uiExpect(format).toHaveText('LRC');
+    await format.click();
+    await page.getByRole('option', { name: 'SRT', exact: true }).click();
+    await uiExpect(format).toHaveText('SRT');
+    // The stored .wav was never on disk, so there is no source directory to save beside.
+    await dialog.getByRole('combobox', { name: locale.export.destination, exact: true }).click();
+    await page.getByRole('option', { name: locale.export.destination_choose, exact: true }).click();
     await dialog.getByRole('button', { name: locale.export.prepare, exact: true }).click();
+    // Speaker and confidence stay in the document; the review lists their omission as a change, not a blocker.
     await uiExpect(dialog.locator('[data-issue="transcription_evidence_omitted"]')).toBeVisible();
-    const save = dialog.getByRole('button', { name: locale.export.save, exact: true });
-    await uiExpect(save).toBeDisabled();
+    await uiExpect(dialog.locator('[data-issue="transcription_evidence_omitted"]')).toHaveAttribute('data-blocking', 'false');
     await page.screenshot({ path: path.join(artifacts, 'media-export-loss.png'), animations: 'disabled' });
-    await dialog.getByRole('checkbox', { name: locale.export.accept_losses, exact: true }).check();
     const output = path.join(root, 'interview.srt');
     await app.evaluate(({ dialog }, filePath) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath }); }, output);
-    await save.click();
+    await dialog.getByRole('button', { name: locale.export.review_confirm.replace('{{count}}', '1'), exact: true }).click();
+    await uiExpect(page.getByTestId('studio-export-result')).toContainText(locale.operation_result.export.count.replace('{{count}}', '1'));
+    await dialog.getByRole('button', { name: locale.operation_result.done, exact: true }).click();
     await uiExpect(dialog).toHaveCount(0);
     expect(await readFile(output, 'utf8')).toContain('Interview sentence 105.');
     await page.getByTestId('studio-library-row').filter({ hasText: subtitle.origin.displayName }).locator('button.studio-document').click();
