@@ -70,9 +70,9 @@
   "catalog": {
     "intro": "Good tools. More freedom to create.",
     "featured": "Featured",
-    "knowledge_description": "Keep context, terminology and reference translations together in a reusable library.",
+    "knowledge_description": "Keep context, terminology and translation requirements together in a reusable library.",
     "terms": "Terminology",
-    "references": "References",
+    "requirements": "Requirements",
     "background": "Context",
     "file_sharing": "File sharing",
     "workflow_label": "Workflow",

@@ -70,9 +70,9 @@
   "catalog": {
     "intro": "便利なツールで、ひらめきをもっと自由に。",
     "featured": "おすすめ",
-    "knowledge_description": "作品の背景、用語、参考訳をまとめて、繰り返し使える翻訳資料ライブラリに。",
+    "knowledge_description": "作品の背景、用語、翻訳の指示をまとめて、繰り返し使える翻訳資料ライブラリに。",
     "terms": "用語集",
-    "references": "参考訳",
+    "requirements": "翻訳の指示",
     "background": "作品背景",
     "file_sharing": "ファイル共有",
     "workflow_label": "文字起こしと翻訳",

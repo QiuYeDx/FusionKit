@@ -111,7 +111,7 @@ export const content: Record<Lang, Content> = {
       skip: '跳到正文',
     },
     hero: {
-      notice: '开发中：字幕工作台、翻译资料等功能将随下一个正式版发布',
+      notice: '新版发布：字幕工作台、翻译资料与多会话 Agent',
       noticeLink: '查看更新日志',
       title: 'AI 驱动的\u200b字幕与翻译\u200b桌面工具集',
       subtitle:
@@ -256,7 +256,7 @@ export const content: Record<Lang, Content> = {
       skip: 'Skip to content',
     },
     hero: {
-      notice: 'In development: Subtitle Studio and translation materials arrive with the next stable release',
+      notice: 'Now available: Subtitle Studio, translation materials and multi-session Agent',
       noticeLink: 'Read the changelog',
       title: 'The AI-powered desktop toolkit for subtitles and translation',
       subtitle:

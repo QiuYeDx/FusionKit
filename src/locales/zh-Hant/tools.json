@@ -70,9 +70,9 @@
   "catalog": {
     "intro": "讓靈感更自由，用好工具，完成更好的作品。",
     "featured": "核心推薦",
-    "knowledge_description": "整理作品背景、術語與參考譯文，建立可重複使用的翻譯資料庫。",
+    "knowledge_description": "整理作品背景、術語與翻譯要求，建立可重複使用的翻譯資料庫。",
     "terms": "術語庫",
-    "references": "參考譯文",
+    "requirements": "翻譯要求",
     "background": "作品背景",
     "file_sharing": "檔案分享",
     "workflow_label": "轉寫與翻譯",

@@ -128,7 +128,7 @@ const FEATURED_TOOLS = [
     kind: "knowledge",
     titleKey: "knowledge:title",
     descKey: "tools:catalog.knowledge_description",
-    chipKeys: ["tools:catalog.terms", "tools:catalog.references", "tools:catalog.background", "tools:catalog.file_sharing"],
+    chipKeys: ["tools:catalog.terms", "tools:catalog.requirements", "tools:catalog.background", "tools:catalog.file_sharing"],
     details: [
       ["tools:catalog.organize_label", "tools:catalog.organize_value"],
       ["tools:catalog.reuse_label", "tools:catalog.reuse_value"],
