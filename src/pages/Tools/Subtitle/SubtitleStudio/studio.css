@@ -160,7 +160,15 @@
    keeping a readable cue viewport reachable below its messages. */
 /* The disclosure is an accordion: open is its item's data-state, not a <details> [open]. */
 .studio-tabs:has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto minmax(120px, 1fr); }
-.studio-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; margin: 6px 12px; }
+/* Top-aligned beside a toolbar that wraps onto a second line. */
+.studio-tabs > [data-slot=clip-path-tabs-stage] { grid-area: 1 / 1; align-self: start; margin: 6px 12px; }
+/* With only the preview there is nothing to switch: no tabs, and the track toolbar takes the whole row. */
+.studio-tabs[data-single-view] > [data-slot=clip-path-tabs-stage] { display: none; }
+.studio-tabs[data-single-view] > .studio-translation-toolbar { grid-column: 1 / -1; padding-left: 12px; }
+.studio-tabs[data-single-view] .studio-translation-track-controls::before { display: none; }
+/* Nothing above the cues then, so the header's own border is the only divider. */
+.studio-tabs[data-single-view]:not(:has(> .studio-translation-toolbar)) > .studio-diagnostics,
+.studio-tabs[data-single-view]:not(:has(> .studio-translation-toolbar, > .studio-diagnostics)) > .studio-reader-area > .studio-reader { border-top-width: 0; }
 /* The panel title is the open document: its name, then one line of facts. */
 .studio-preview-panel > [data-slot=tool-panel-header] { flex-wrap: nowrap; min-height: 52px; }
 .studio-preview-panel > [data-slot=tool-panel-header] > div:first-child { flex: 1 1 auto; }
@@ -226,16 +234,19 @@
 /* The toolbar's groups share their first 28px line; the 32px task buttons overhang it evenly. */
 .studio-translation-progress-controls .studio-translation-task-controls { flex-shrink: 0; max-width: 100%; margin-block: -2px; }
 .studio-translation-toolbar [data-slot=select-trigger] { height: 28px; min-height: 28px; }
-/* Narrow previews give the track toolbar its own row under the view tabs. */
+/* Narrower previews keep the track controls beside the view tabs and let the status wrap under them. */
 @container (max-width: 760px) {
-  .studio-tabs { grid-template-rows: auto auto auto minmax(0, 1fr); }
-  .studio-tabs:has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto auto minmax(120px, 1fr); }
-  .studio-translation-toolbar { grid-area: 2 / 1 / auto / -1; padding: 0 12px 6px; }
-  .studio-translation-track-controls::before { display: none; }
-  .studio-tabs > .studio-diagnostics { grid-row: 3; }
-  .studio-tabs > .studio-reader-area { grid-row: 4; }
   .studio-translation-toolbar [data-slot=select-trigger] { width: 124px; }
   .studio-translation-progress-controls .studio-translation-status { gap: 6px; }
+}
+/* Only where the tabs and track controls cannot share a line does the toolbar get its own row. */
+@container (max-width: 540px) {
+  .studio-tabs:not([data-single-view]) { grid-template-rows: auto auto auto minmax(0, 1fr); }
+  .studio-tabs:not([data-single-view]):has(.studio-diagnostics [data-state=open]) { grid-template-rows: auto auto auto minmax(120px, 1fr); }
+  .studio-tabs:not([data-single-view]) > .studio-translation-toolbar { grid-area: 2 / 1 / auto / -1; padding: 0 12px 6px; }
+  .studio-tabs:not([data-single-view]) .studio-translation-track-controls::before { display: none; }
+  .studio-tabs:not([data-single-view]) > .studio-diagnostics { grid-row: 3; }
+  .studio-tabs:not([data-single-view]) > .studio-reader-area { grid-row: 4; }
 }
 .studio-parallel-text { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .studio-target-text { min-width: 0; }

@@ -790,7 +790,8 @@ export default function SubtitleStudio() {
           footer={page ? <div className="studio-reader-footer"><span className="flex items-center gap-1.5 text-[11px] text-muted-foreground studio-footer-status">{busy ? <LoaderCircle className="h-3.5 w-3.5 studio-spin" /> : <CheckCheck className="h-3.5 w-3.5" />}{busy ? t('studio:loading') : t(page.summary.capabilities.preserveSource ? 'studio:source_preserved' : 'studio:transcription_preserved')}</span><StudioPagination offset={view === 'raw' ? page.nodeOffset : page.offset} total={view === 'raw' ? page.nodeCount : page.summary.cueCount} busy={busy} onChange={offset => void run('select', () => select(page.summary, view === 'raw' ? page.offset : offset, view === 'raw' ? offset : page.nodeOffset))} /></div> : undefined}
         >
           {page ? <>
-            <ClipPathTabs value={view} onValueChange={setView} ariaLabel={t('studio:document_view')} shape="rounded" smoothCorners size="sm" className="studio-tabs w-full gap-0" transitionDuration={200} transitionEasing="ease-out" items={[
+            {/* A document without its source file has only the preview, so the view tabs are hidden rather than offering one choice. */}
+            <ClipPathTabs value={view} onValueChange={setView} ariaLabel={t('studio:document_view')} shape="rounded" smoothCorners size="sm" className="studio-tabs w-full gap-0" data-single-view={!page.summary.capabilities.preserveSource || undefined} transitionDuration={200} transitionEasing="ease-out" items={[
               { value: 'preview', label: t('studio:preview'), icon: <List /> },
               ...(page.summary.capabilities.preserveSource ? [{ value: 'raw', label: t('studio:original_nodes'), icon: <Code2 /> }] : []),
             ]}>
