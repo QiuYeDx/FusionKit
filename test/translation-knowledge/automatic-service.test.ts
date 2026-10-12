@@ -1,4 +1,4 @@
-// Cross-domain integration: joins Studio translation and knowledge maintenance.
+// Cross-domain integration: joins Studio translation and the knowledge library.
 // Kept outside the standalone Studio dependency/deletion isolation test roots.
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -7,8 +7,9 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { knowledgeFixture } from './fixtures';
 import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
-import { LEGACY_AUTOMATIC_KNOWLEDGE_POLICY, buildFrozenAutomaticKnowledge, type FrozenAutomaticKnowledge } from '../../src/translation-knowledge/automatic-snapshot-contract';
-import { KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY } from '../../src/translation-knowledge/execution';
+import { buildFrozenAutomaticKnowledge, type FrozenAutomaticKnowledge } from '../../src/translation-knowledge/automatic-snapshot-contract';
+import { KNOWLEDGE_EXECUTION_POLICY } from '../../src/translation-knowledge/execution';
+import { entrySummary } from '../../src/translation-knowledge/summary';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
 import type { AutomaticTranslationIntent } from '../../src/subtitle-studio/automatic-translation-contract';
 import type { TranslationConfig } from '../../src/subtitle-studio/translation-contract';
@@ -18,8 +19,8 @@ import { createTranscriptionDocumentSink } from '../../electron/main/subtitle-st
 import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
 import { TranslationScheduler } from '../../electron/main/subtitle-studio/translation-recovery';
 import { createAutomaticTranslationCoordinator } from '../../electron/main/subtitle-studio/automatic-translation';
-import { KnowledgeTaskSerialGate } from '../../electron/main/translation-knowledge/task-gate';
 import { KnowledgeService } from '../../electron/main/translation-knowledge/service';
+import { AutomaticKnowledgeService } from '../../electron/main/subtitle-studio/automatic-knowledge';
 import { resolveExecutionRecord } from '../../electron/main/subtitle-studio/execution-records';
 import * as records from '../../electron/main/subtitle-studio/execution-records';
 import * as preparation from '../../electron/main/subtitle-studio/knowledge-translation';
@@ -35,31 +36,48 @@ const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const cleanup of cleanups.splice(0)) await cleanup(); });
 const reply = async (request: ModelRuntimeTextRequest): Promise<ModelRuntimeTextResult> => ({ apiFormat: request.model.apiFormat,
   content: JSON.stringify({ items: JSON.parse(request.messages[1].content).items.map((item: { id: string }) => ({ id: item.id, text: `存档点 ${item.id}` })) }), finishReason: 'stop', rawStatus: 'completed', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } });
-async function fixture(options: { apiFormat?: TranslationConfig['model']['apiFormat']; language?: string; mutate?: (library: LibrarySnapshot) => void; damage?: (frozen: FrozenAutomaticKnowledge) => void; send?: typeof reply; fault?: (stage: CommitStage) => void } = {}) {
+const languagePair = { source: 'en', target: 'zh-Hans' };
+async function fixture(options: { apiFormat?: TranslationConfig['model']['apiFormat']; language?: string; mutate?: (library: LibrarySnapshot) => void; damage?: (frozen: FrozenAutomaticKnowledge) => void; knowledge?: FrozenAutomaticKnowledge; send?: typeof reply; fault?: (stage: CommitStage) => void } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'automatic-knowledge-'));
   const repository = new DocumentRepository(root, { fault: options.fault });
   const data = knowledgeFixture(), term = data.entries.find(entry => entry.kind === 'term')!;
-  data.entries = [term]; data.recipes = []; data.styles = []; data.preferenceTemplates = [];
-  term.state = 'ready'; term.scope.condition = { mode: 'none' }; term.scope.requiredSubjects = [{ subjectId: data.subjects[0].id, role: 'topic' }];
+  data.entries = [term]; data.presets = [];
+  term.enabled = true;
   if (term.kind === 'term') term.payload.strength = 'required';
-  const library: LibrarySnapshot = { generation: 3, data, imports: [], approvals: {} };
+  const library: LibrarySnapshot = { generation: 3, data };
   options.mutate?.(library);
-  for (const entry of data.entries) library.approvals[entry.id] = { revision: entry.revision, digest: sha256Canonical(entry), method: 'human', approvedAt: '2026-09-15T00:00:00Z' };
-  const frozen = buildFrozenAutomaticKnowledge(library, { knowledgeGeneration: 3,
-    selection: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [term.collectionId], disabledEntryIds: [], instructions: undefined }, documentTopicIds: [data.subjects[0].id] });
+  const frozen = options.knowledge ?? buildFrozenAutomaticKnowledge(library, { knowledgeGeneration: 3,
+    selection: { version: 2, languagePair, collectionIds: [term.collectionId], disabledEntryIds: [], instructions: undefined } });
   options.damage?.(frozen);
   const taskId = randomUUID();
   const intent: AutomaticTranslationIntent = { intentId: randomUUID(), sourceTaskId: taskId, generation: 1, state: 'pending', knowledge: frozen,
     config: { model: { profileId: 'p', modelKey: 'fixture', endpoint: 'https://example.invalid/v1', apiFormat: options.apiFormat ?? 'chat_completions' },
       language: options.language ?? 'zh', instructions: '', contextWindow: 8192, maxOutputTokens: 2048, maxBatchCues: 20 } };
   const sink = createTranscriptionDocumentSink({ repository, owner: { webContentsId: 7, ownerSessionId: 'owner' }, taskId, generation: 1, assertActive: () => {}, automaticTranslation: intent });
-  const gate = new KnowledgeTaskSerialGate(), send = vi.fn(options.send ?? reply), translation = new TranslationService(repository, send, new TranslationScheduler(1), gate);
+  const send = vi.fn(options.send ?? reply), translation = new TranslationService(repository, send, new TranslationScheduler(1));
   const coordinator = createAutomaticTranslationCoordinator({ repository, translation });
   cleanups.push(async () => { await coordinator.shutdown(); await translation.dispose(); await rm(root, { recursive: true, force: true }); });
   const publish = (count = 24) => sink.publish({ schemaVersion: 1, source: { displayName: 'synthetic.wav', durationMs: (count + 1) * 1000 },
     model: { engine: 'whisper_cpp', modelId: 'base', modelHash: 'a'.repeat(64), backend: 'cpu' },
     segments: Array.from({ length: count }, (_, index) => ({ id: `segment-${index}`, startMs: index * 1000, endMs: index * 1000 + 900, text: `The checkpoint ${index + 1}.` })) });
-  return { root, repository, library, term, frozen, intent, sink, publish, gate, send, translation, coordinator };
+  return { root, repository, library, term, frozen, intent, sink, publish, send, translation, coordinator };
+}
+/** A real library holding the fixture's first collection, plus materials captured from it before transcription. */
+async function capturedFromLibrary() {
+  const knowledgeRoot = await mkdtemp(path.join(tmpdir(), 'automatic-knowledge-library-'));
+  const service = new KnowledgeService(knowledgeRoot);
+  cleanups.push(async () => { await service.dispose(); await rm(knowledgeRoot, { recursive: true, force: true }); });
+  const data = knowledgeFixture(), game = data.collections[0], entries = data.entries.filter(entry => entry.collectionId === game.id);
+  const saved = await service.saveRecords({ generation: (await service.read()).generation, items: [{ group: 'collections', record: game },
+    ...entries.map(record => ({ group: 'entries' as const, record }))] });
+  const lease = await new AutomaticKnowledgeService(() => service.read()).capture({ knowledgeGeneration: saved.generation,
+    selection: { version: 2, languagePair, collectionIds: [game.id], disabledEntryIds: [] } });
+  const deleteCollection = async () => {
+    const result = await service.deleteRecords({ generation: (await service.read()).generation, items: [{ group: 'collections', id: game.id }] });
+    expect(result.snapshot.data.collections).toEqual([]); expect(result.snapshot.data.entries).toEqual([]);
+    expect(result.deleted.entries.map(entry => entry.id).sort()).toEqual(entries.map(entry => entry.id).sort());
+  };
+  return { service, game, entries, lease, deleteCollection };
 }
 const addConflict = (library: LibrarySnapshot) => {
   const conflicting = structuredClone(library.data.entries[0]); conflicting.id = randomUUID();
@@ -84,28 +102,24 @@ async function rewriteCurrent(root: string, id: string, mutate: (snapshot: Docum
 }
 
 describe('automatic translation from frozen knowledge', () => {
-  it.each(['current', 'legacy'] as const)('recovers a %s pending preparation with its original rule policy and no live-library reinterpretation', async version => {
+  it('recovers a pending preparation with its rules and no live-library reinterpretation', async () => {
     const f = await fixture({
       mutate: library => {
         const base = library.data.entries[0];
         library.data.entries.push(...['Use natural speech.', 'Keep subtitles concise.'].map(text => ({
-          ...structuredClone(base), id: randomUUID(), kind: 'rule' as const,
-          payload: { dimension: 'register' as const, text, strength: 'preferred' as const },
+          id: randomUUID(), revision: 1, collectionId: base.collectionId, enabled: true, kind: 'rule' as const,
+          payload: { text, required: false },
         })));
       },
-      damage: version === 'legacy' ? frozen => {
-        frozen.policyVersion = LEGACY_AUTOMATIC_KNOWLEDGE_POLICY;
-        const { digest: _digest, ...base } = frozen; frozen.digest = sha256Canonical(base);
-      } : undefined,
     });
-    await f.publish(2); f.library.data.entries = []; f.library.approvals = {}; f.library.generation++;
+    await f.publish(2); f.library.data.entries = []; f.library.generation++;
     await f.translation.initialize();
     const prepared = await f.repository.readSnapshot(f.sink.documentId), task = prepared.tasks[0];
     expect(task.status).toBe('needs_configuration'); expect(f.send).not.toHaveBeenCalled();
     const before = resolveExecutionRecord(prepared, task.id);
-    expect(before.knowledge!.policyVersion).toBe(version === 'legacy' ? LEGACY_KNOWLEDGE_EXECUTION_POLICY : KNOWLEDGE_EXECUTION_POLICY);
-    expect(before.knowledge!.batches.b1.items.filter(item => item.kind === 'rule')).toHaveLength(version === 'legacy' ? 0 : 2);
-    expect(before.knowledge!.batches.b1.issues.some(issue => issue.code === 'rule_conflict')).toBe(version === 'legacy');
+    expect(before.knowledge!.policyVersion).toBe(KNOWLEDGE_EXECUTION_POLICY);
+    expect(before.knowledge!.batches.b1.items.filter(item => item.kind === 'rule')).toHaveLength(2);
+    expect(before.knowledge!.batches.b1.issues.filter(issue => issue.severity === 'error')).toEqual([]);
     vi.spyOn(preparation, 'prepareKnowledgeTranslation').mockRejectedValue(new Error('must not recompile'));
     await f.translation.resume(prepared.document.id, prepared.document.revision, task.id, task.translation!.config.model, 'key');
     await f.translation.settled(task.id);
@@ -116,31 +130,10 @@ describe('automatic translation from frozen knowledge', () => {
     expect(resolveExecutionRecord(completed, task.id).knowledge).toEqual(before.knowledge);
   });
 
-  it('retains required rule conflicts for an old pending preparation instead of silently adopting v2 semantics', async () => {
-    const f = await fixture({
-      mutate: library => {
-        const base = library.data.entries[0];
-        library.data.entries.push(...['Use natural speech.', 'Keep subtitles concise.'].map(text => ({
-          ...structuredClone(base), id: randomUUID(), kind: 'rule' as const,
-          payload: { dimension: 'register' as const, text, strength: 'required' as const },
-        })));
-      },
-      damage: frozen => {
-        frozen.policyVersion = LEGACY_AUTOMATIC_KNOWLEDGE_POLICY;
-        const { digest: _digest, ...base } = frozen; frozen.digest = sha256Canonical(base);
-      },
-    });
-    await f.publish(1); await f.translation.initialize();
-    const snapshot = await f.repository.readSnapshot(f.sink.documentId);
-    expect(snapshot.tasks[0]).toMatchObject({ status: 'failed', translation: { error: 'knowledge_check_failed' } });
-    expect(readAutomaticKnowledgeReportPage(snapshot, snapshot.tasks[0].trackId)).toMatchObject({ state: 'available', issues: expect.arrayContaining([expect.objectContaining({ code: 'rule_conflict', severity: 'error' })]) });
-    expect(f.send).not.toHaveBeenCalled();
-  });
-
   it.each(['chat_completions', 'responses'] as const)('checks the generated transcript and persists independent %s requests from pre-transcription material', async apiFormat => {
     const f = await fixture({ apiFormat }); await f.coordinator.initialize();
     const original = structuredClone(f.term);
-    f.library.generation++; f.term.state = 'archived'; if (f.term.kind === 'term') f.term.payload.target = 'Changed live target'; f.library.approvals = {};
+    f.library.generation++; f.term.enabled = false; f.library.data.collections[0].archived = true; if (f.term.kind === 'term') f.term.payload.target = 'Changed live target';
     await f.publish();
     const ordinary = vi.spyOn(planner, 'planTranslation');
     const started = await f.coordinator.handoff(f.sink.documentId, f.intent.intentId, 'SECRET_RUNTIME_KEY');
@@ -166,7 +159,7 @@ describe('automatic translation from frozen knowledge', () => {
   it('recovers a durable pending intent without live knowledge or provider calls, then resumes the frozen record', async () => {
     const f = await fixture(); await f.publish(2);
     f.library.data.entries = []; f.library.generation++;
-    const restarted = new TranslationService(f.repository, f.send, new TranslationScheduler(1), f.gate);
+    const restarted = new TranslationService(f.repository, f.send, new TranslationScheduler(1));
     try {
       await restarted.initialize();
       const snapshot = await f.repository.readSnapshot(f.sink.documentId), task = snapshot.tasks[0], frozen = resolveExecutionRecord(snapshot, task.id);
@@ -195,29 +188,29 @@ describe('automatic translation from frozen knowledge', () => {
     const report = readAutomaticKnowledgeReportPage(snapshot, snapshot.tasks[0].trackId);
     expect(report).toMatchObject({ state: 'available', documentRevision: snapshot.document.revision, stale: false, sourceChanged: false,
       error: 'knowledge_check_failed', issues: expect.arrayContaining([expect.objectContaining({ code: 'term_conflict', severity: 'error',
-        entries: expect.arrayContaining([expect.objectContaining({ entryId: f.term.id, title: f.term.title })]),
+        entries: expect.arrayContaining([expect.objectContaining({ entryId: f.term.id, title: entrySummary(f.term) })]),
         cues: expect.arrayContaining([expect.objectContaining({ cueId: snapshot.document.cues[0].id, number: 1, text: 'The checkpoint 1.' })]) })]),
-      seed: { documentId: snapshot.document.id, taskId: result.taskId, selection: { bindings: [], confirmations: [] } } });
-    expect(JSON.stringify(report)).not.toMatch(/"data"|"approvals"|"payload"|"apiKey"|"httpBody"/);
+      seed: { documentId: snapshot.document.id, taskId: result.taskId, selection: f.frozen.selection } });
+    expect(JSON.stringify(report)).not.toMatch(/"data"|"payload"|"apiKey"|"httpBody"/);
     expect(await f.coordinator.handoff(f.sink.documentId, f.intent.intentId, 'key')).toEqual(result);
   });
 
-  it.each(['digest', 'policy', 'missing_source'] as const)('materializes damaged %s knowledge as failure instead of blocking initialization or dropping knowledge', async damage => {
+  it.each(['digest', 'archived_collection', 'missing_collection', 'older_version'] as const)('materializes damaged %s knowledge as failure instead of blocking initialization or dropping knowledge', async damage => {
     const f = await fixture({ damage: frozen => {
       if (damage === 'digest') frozen.digest = '0'.repeat(64);
-      if (damage === 'policy') frozen.policyVersion = 'automatic-knowledge-preparation/99';
-      if (damage === 'missing_source') frozen.data.sources = [];
+      if (damage === 'archived_collection') frozen.data.collections[0].archived = true;
+      if (damage === 'missing_collection') frozen.data.collections = [];
+      if (damage === 'older_version') Object.assign(frozen, { version: 1, policyVersion: 'automatic-knowledge-preparation/1;fktk-execution/2', approvals: {} });
       if (damage !== 'digest') { const { digest: _digest, ...base } = frozen; frozen.digest = sha256Canonical(base); }
     } });
     await f.publish(1);
-    expect((await f.repository.inspectKnowledgeReferences()).unknownDocuments).toBe(1);
     await f.translation.initialize(); await f.translation.initialize();
     const snapshot = await f.repository.readSnapshot(f.sink.documentId);
     expect(snapshot.tasks).toHaveLength(1); expect(snapshot.tasks[0]).toMatchObject({ status: 'failed', translation: { error: 'knowledge_check_failed' } });
     expect(snapshot.automaticTranslation!.knowledge).toEqual(f.frozen); expect(snapshot.document.cues).toHaveLength(1);
     expect(snapshot.executionRecords).toBeUndefined(); expect(f.send).not.toHaveBeenCalled();
-    expect(readAutomaticKnowledgeReportPage(snapshot, snapshot.tasks[0].trackId)).toMatchObject({ state: 'available', seed: null, error: 'knowledge_check_failed', issues: [] });
-    expect((await f.repository.inspectKnowledgeReferences()).unknownDocuments).toBe(1);
+    // Materials this version cannot read produce no report; the failed task stays visible and the document opens.
+    expect(readAutomaticKnowledgeReportPage(snapshot, snapshot.tasks[0].trackId)).toEqual({ state: 'legacy', seed: null });
   });
 
   it('reports an inconsistent durable target language as knowledge failure without hiding the source document', async () => {
@@ -229,23 +222,19 @@ describe('automatic translation from frozen knowledge', () => {
     expect(readAutomaticKnowledgeReportPage(snapshot, snapshot.tasks[0].trackId)).toMatchObject({ state: 'available', error: 'knowledge_check_failed', issues: [] });
   });
 
-  it('blocks actual permanent clearing when a pending knowledge snapshot cannot be verified', async () => {
-    const f = await fixture({ damage: frozen => { frozen.digest = '0'.repeat(64); } }); await f.publish(1);
-    const knowledgeRoot = await mkdtemp(path.join(tmpdir(), 'damaged-automatic-maintenance-'));
-    const service = new KnowledgeService(knowledgeRoot, {}, { gate: f.gate, inspect: () => f.repository.inspectKnowledgeReferences() });
-    try {
-      const imported = await service.planImport('owner', JSON.stringify(f.library.data));
-      await service.commitImport('owner', { planId: imported.planId, decisions: [], adoptReady: false });
-      const targets = [{ group: 'entries' as const, id: f.term.id }];
-      const archive = await service.planMaintenance('owner', { generation: (await service.read()).generation, action: 'archive', targets });
-      await service.commitMaintenance('owner', { planId: archive.planId });
-      const before = await service.read();
-      const purge = await service.planMaintenance('owner', { generation: before.generation, action: 'purge', targets });
-      expect(purge).toMatchObject({ canCommit: false, tasks: { total: 0, unknownDocuments: 1 } });
-      expect(purge.blockers).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'PURGE_TASK_SCAN_INCOMPLETE' })]));
-      await expect(service.commitMaintenance('owner', { planId: purge.planId, confirmHistoryRemoval: true })).rejects.toMatchObject({ code: 'import_conflict' });
-      expect(await service.read()).toEqual(before);
-    } finally { await service.dispose(); await rm(knowledgeRoot, { recursive: true, force: true }); }
+  it('keeps the frozen materials when the selected collection is deleted while the automatic translation is pending', async () => {
+    const library = await capturedFromLibrary();
+    const f = await fixture({ knowledge: library.lease.snapshot }); await f.coordinator.initialize();
+    await f.publish(); library.lease.release();
+    await library.deleteCollection();
+    const started = await f.coordinator.handoff(f.sink.documentId, f.intent.intentId, 'key');
+    await f.translation.settled(started.taskId);
+    const snapshot = await f.repository.readSnapshot(f.sink.documentId), record = resolveExecutionRecord(snapshot, started.taskId);
+    expect(snapshot.tasks[0].status).toBe('completed'); expect(f.send).toHaveBeenCalledTimes(2);
+    expect(snapshot.automaticTranslation!.knowledge).toEqual(library.lease.snapshot);
+    expect(record.knowledge!.data.collections).toEqual([library.game]);
+    expect(record.knowledge!.data.entries).toEqual(library.entries);
+    for (const [request] of f.send.mock.calls) expect(request.messages[1].content).toContain('存档点');
   });
 
   it('retains the frozen intent and source when future request capacity cannot fit', async () => {
@@ -274,18 +263,24 @@ describe('automatic translation from frozen knowledge', () => {
     expect(resolveExecutionRecord(await f.repository.readSnapshot(current.document.id), started.taskId).knowledge).toEqual(saved.knowledge);
   });
 
-  it('does not wait for an active provider while checking other operations through the knowledge gate', async () => {
+  it('lets the library delete a collection while a provider request is in flight without changing the running translation', async () => {
     let release!: (value: ModelRuntimeTextResult) => void;
     const pending = new Promise<ModelRuntimeTextResult>(resolve => { release = resolve; });
     let request!: ModelRuntimeTextRequest;
-    const f = await fixture({ send: async value => { request = value; return pending; } });
+    const library = await capturedFromLibrary();
+    const f = await fixture({ knowledge: library.lease.snapshot, send: async value => { request = value; return pending; } });
     try {
       await f.coordinator.initialize(); await f.publish(1);
       const task = await f.coordinator.handoff(f.sink.documentId, f.intent.intentId, 'key');
       await vi.waitFor(() => expect(f.send).toHaveBeenCalledTimes(1));
-      expect(await f.gate.run(async () => 'available')).toBe('available');
-      expect(f.translation.activeKnowledgeReferences()).toEqual(expect.arrayContaining([expect.objectContaining({ taskId: task.taskId })]));
+      library.lease.release();
+      const before = resolveExecutionRecord(await f.repository.readSnapshot(f.sink.documentId), task.taskId);
+      await library.deleteCollection();
       release(await reply(request)); await f.translation.settled(task.taskId);
+      const snapshot = await f.repository.readSnapshot(f.sink.documentId);
+      expect(snapshot.tasks[0].status).toBe('completed');
+      expect(resolveExecutionRecord(snapshot, task.taskId).knowledge).toEqual(before.knowledge);
+      expect(snapshot.automaticTranslation!.knowledge).toEqual(library.lease.snapshot);
     } finally { if (request) release(await reply(request)); }
   });
 });
@@ -325,7 +320,7 @@ describe('automatic knowledge preparation reports', () => {
     delete copy.automaticTranslation!.preparationReport;
     expect(readAutomaticKnowledgeReportPage(copy, f.task.trackId)).toMatchObject({ state: 'legacy', seed: {
       documentId: copy.document.id, trackId: f.task.trackId, intentId: f.intent.intentId, taskId: f.task.id,
-      config: f.intent.config, selection: { ...f.frozen.selection, bindings: [], confirmations: [] }, documentTopicIds: f.frozen.documentTopicIds } });
+      config: f.intent.config, selection: f.frozen.selection } });
     const trackId = randomUUID(); copy.document.translationTracks.push({ id: trackId, revision: 1, language: 'ja', entries: {} });
     expect(readAutomaticKnowledgeReportPage(copy, trackId)).toEqual({ state: 'none' });
     expect(() => readAutomaticKnowledgeReportPage(copy, randomUUID())).toThrow('revision_conflict');
@@ -420,26 +415,30 @@ describe('automatic knowledge preparation reports', () => {
     expect(f.send).not.toHaveBeenCalled();
   });
 
-  it('disables reuse of an oversized selection instead of silently truncating choices', async () => {
+  it('reuses a maximum-size selection whole and bounds collection names in the material summary', async () => {
     const f = await failedFixture(), library = structuredClone(f.library);
     const collection = library.data.collections[0];
-    library.data.collections.push(...Array.from({ length: 7000 }, () => ({ ...collection, id: randomUUID() })));
+    library.data.collections = [collection, ...Array.from({ length: 49 }, (_, index) => ({ ...collection, id: randomUUID(), name: `${'名'.repeat(200)} ${index}` }))];
     const selection = { ...f.frozen.selection, collectionIds: library.data.collections.map(item => item.id) };
-    const frozen = buildFrozenAutomaticKnowledge(library, { knowledgeGeneration: library.generation, selection, documentTopicIds: f.frozen.documentTopicIds });
+    const frozen = buildFrozenAutomaticKnowledge(library, { knowledgeGeneration: library.generation, selection });
     const snapshot = structuredClone(f.snapshot); snapshot.automaticTranslation!.knowledge = frozen;
     delete snapshot.automaticTranslation!.preparationReport;
-    expect(Buffer.byteLength(JSON.stringify(selection))).toBeGreaterThan(AUTOMATIC_KNOWLEDGE_REPORT_LIMITS.seedBytes);
-    expect(readAutomaticKnowledgeReportPage(snapshot, f.task.trackId)).toEqual({ state: 'legacy', seed: null });
+    expect(readAutomaticKnowledgeReportPage(snapshot, f.task.trackId)).toMatchObject({ state: 'legacy', seed: { selection } });
     const report = createAutomaticKnowledgeReport(snapshot, f.task.id, 'knowledge_check_failed');
-    expect(report.material.collectionCount).toBe(7001); expect(report.material.collections).toHaveLength(20);
+    expect(report.material).toMatchObject({ resourceCount: 52, collectionCount: 50 });
+    expect(report.material.collections).toHaveLength(AUTOMATIC_KNOWLEDGE_REPORT_LIMITS.references);
+    expect(report.material.collections[0]).toBe(collection.name);
+    expect(report.material.collections.every(name => name.length <= AUTOMATIC_KNOWLEDGE_REPORT_LIMITS.name)).toBe(true);
   });
 
   it('bounds issue counts, references, names, excerpts and total UTF-8 bytes without claiming a truncated report is complete', async () => {
     const f = await failedFixture(), snapshot = structuredClone(f.snapshot), intent = snapshot.automaticTranslation!;
-    const entry = intent.knowledge!.data.entries[0]; entry.title = '界'.repeat(500);
-    intent.knowledge!.data.entries = Array.from({ length: 25 }, () => ({ ...structuredClone(entry), id: randomUUID() }));
+    const knowledge = intent.knowledge as FrozenAutomaticKnowledge;
+    const entry = knowledge.data.entries[0]; if (entry.kind === 'term') entry.payload.source = '界'.repeat(500);
+    knowledge.data.entries = Array.from({ length: 25 }, () => ({ ...structuredClone(entry), id: randomUUID() }));
+    knowledge.digest = sha256Canonical((({ digest: _digest, ...base }) => base)(knowledge));
     for (const cue of snapshot.document.cues) cue.source.plain = '界'.repeat(1000);
-    const issue: KnowledgeIssue = { code: 'term_conflict', severity: 'error', entryIds: intent.knowledge!.data.entries.map(item => item.id), cueIds: snapshot.document.cues.map(cue => cue.id) };
+    const issue: KnowledgeIssue = { code: 'term_conflict', severity: 'error', entryIds: knowledge.data.entries.map(item => item.id), cueIds: snapshot.document.cues.map(cue => cue.id) };
     const report = createAutomaticKnowledgeReport(snapshot, f.task.id, 'knowledge_check_failed', Array.from({ length: 101 }, () => issue));
     expect(report.issueCount).toBe(101); expect(report.issuesTruncated).toBe(true);
     expect(report.issues.length).toBeGreaterThan(0); expect(report.issues.length).toBeLessThanOrEqual(100);

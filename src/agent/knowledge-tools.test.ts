@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import useAgentStore from "@/store/agent/useAgentStore";
 import { useTestSession } from "@/store/agent/agent-store-test-utils";
 import { KnowledgeService, KnowledgeServiceError } from "../../electron/main/translation-knowledge/service";
-import type { KnowledgeResult, LibrarySnapshot } from "@/translation-knowledge/ipc-contract";
+import type { KnowledgeResult } from "@/translation-knowledge/ipc-contract";
 import { KNOWLEDGE_CHANGED_EVENT } from "@/translation-knowledge/library-events";
 import { knowledgeAgentTools } from "./knowledge-tools";
 import { usePreparedActionsStore } from "./prepared-actions";
@@ -39,82 +39,89 @@ afterEach(() => { setSession(`cleanup-${Math.random()}`); Object.defineProperty(
 describe("translation knowledge search", () => {
   const knowledge = { read: vi.fn() };
   beforeEach(() => installWindow(knowledge));
+  const term = (id: string, source: string, target: string, collection = collectionId, extra: Record<string, unknown> = {}) => ({ id, revision: 1, collectionId: collection,
+    enabled: true, kind: "term", payload: { source, target, aliases: [], note: "" }, ...extra });
+  const ids = (items: { id: string }[]) => items.map(item => item.id);
 
-  it("paginates matched entries, collections and recipes independently beyond the first page", async () => {
-    const entries = Array.from({ length: 3 }, (_, index) => ({ id: `entry-${index}`, revision: 1, title: `Match entry ${index}`, collectionId,
-      state: "candidate", kind: "term", scope: { languagePair: pair }, payload: { source: "source", target: "target" } }));
-    const collections = Array.from({ length: 4 }, (_, index) => ({ id: `collection-${index}`, name: `Match collection ${index}`, archived: false }));
-    const recipes = Array.from({ length: 2 }, (_, index) => ({ id: `recipe-${index}`, name: `Match recipe ${index}`, archived: false, languagePair: pair }));
-    knowledge.read.mockResolvedValue({ ok: true, value: { generation: 1, approvals: {}, data: { entries, subjects: [],
-      collections: [...collections, { id: "archived", name: "Match archived", archived: true }, { id: "other", name: "Unrelated", archived: false }], recipes } } });
+  it("paginates matched entries, collections and presets independently beyond the first page", async () => {
+    const entries = Array.from({ length: 3 }, (_, index) => term(`entry-${index}`, `Match source ${index}`, "target"));
+    const collections = Array.from({ length: 4 }, (_, index) => ({ id: index ? `collection-${index}` : collectionId, name: `Match collection ${index}`, description: "", languagePair: pair, archived: false }));
+    const presets = Array.from({ length: 2 }, (_, index) => ({ id: `preset-${index}`, name: `Match preset ${index}`, languagePair: pair, collectionIds: [collectionId], instructions: "", context: "" }));
+    knowledge.read.mockResolvedValue({ ok: true, value: { generation: 1, data: { entries, presets,
+      collections: [...collections, { id: "archived", name: "Match archived", description: "", languagePair: pair, archived: true }, { id: "other", name: "Unrelated", description: "", languagePair: pair, archived: false }] } } });
     const first = (await call("search_translation_knowledge", { query: "Match", limit: 2 })).data;
     const second = (await call("search_translation_knowledge", { query: "Match", limit: 2, offset: 2 })).data;
     const last = (await call("search_translation_knowledge", { query: "Match", limit: 2, offset: 4 })).data;
     expect(first.pagination).toMatchObject({ offset: 0, limit: 2,
-      entries: { total: 3, hasMore: true, nextOffset: 2 }, collections: { total: 4, hasMore: true, nextOffset: 2 }, recipes: { total: 2, hasMore: false, nextOffset: null } });
+      entries: { total: 3, hasMore: true, nextOffset: 2 }, collections: { total: 4, hasMore: true, nextOffset: 2 }, presets: { total: 2, hasMore: false, nextOffset: null } });
     expect(second.pagination).toMatchObject({ offset: 2, limit: 2,
-      entries: { total: 3, hasMore: false, nextOffset: null }, collections: { total: 4, hasMore: false, nextOffset: null }, recipes: { total: 2, hasMore: false, nextOffset: null } });
-    for (const key of ["entries", "collections", "recipes"] as const) {
-      const ids = [...first[key], ...second[key]].map((item: { id: string }) => item.id);
-      expect(new Set(ids).size).toBe(ids.length);
-      expect(ids).toEqual(({ entries, collections, recipes })[key].map(item => item.id));
+      entries: { total: 3, hasMore: false, nextOffset: null }, collections: { total: 4, hasMore: false, nextOffset: null }, presets: { total: 2, hasMore: false, nextOffset: null } });
+    for (const key of ["entries", "collections", "presets"] as const) {
+      const found = ids([...first[key], ...second[key]]);
+      expect(new Set(found).size).toBe(found.length);
+      expect(found).toEqual(ids(({ entries, collections, presets })[key]));
       expect(last[key]).toEqual([]);
     }
     expect(second.total).toBe(3); expect(second.offset).toBe(2);
   });
 
-  it("returns bounded matched summaries and review state without raw library evidence", async () => {
-    const entry = { id: documentId, revision: 2, title: "Test term", collectionId, state: "ready", kind: "term", scope: { languagePair: pair }, payload: { source: "source", target: "x".repeat(800) }, evidence: [{ sourceId: "private-evidence" }] };
-    knowledge.read.mockResolvedValueOnce({ ok: true, value: { generation: 1, approvals: {}, data: { entries: [entry, entry], subjects: [], collections: [{ id: collectionId, name: "Test collection", archived: false }], recipes: [], sources: [{ excerpt: "PRIVATE RAW EVIDENCE" }] } } });
+  it("returns bounded summaries with the entry's collection and enabled state", async () => {
+    const entry = term(documentId, "Test source", "x".repeat(800), collectionId, { revision: 2, enabled: false });
+    knowledge.read.mockResolvedValueOnce({ ok: true, value: { generation: 1, data: { entries: [entry, entry], presets: [],
+      collections: [{ id: collectionId, name: "Test collection", description: "", languagePair: pair, archived: false }] } } });
     const result = await call("search_translation_knowledge", { query: "Test", limit: 1 });
-    expect(result.data.entries).toHaveLength(1); expect(result.data.entries[0].state).toBe("unconfirmed");
+    expect(result.data.entries).toHaveLength(1);
+    expect(result.data.entries[0]).toMatchObject({ id: documentId, revision: 2, enabled: false, collection: "Test collection" });
     expect(result.data.entries[0].summary.length).toBeLessThanOrEqual(400);
-    expect(JSON.stringify(result)).not.toMatch(/PRIVATE RAW EVIDENCE|private-evidence/);
   });
 
   function zzzLibrary() {
-    const subjectId = randomUUID(), otherSubject = randomUUID(), otherCollection = randomUUID();
-    const term = (id: string, source: string, target: string, collection = collectionId, extra: Record<string, unknown> = {}) => ({ id, revision: 1, title: source, collectionId: collection,
-      aboutSubjectIds: [], state: "ready", kind: "term", scope: { languagePair: pair }, payload: { source, target, aliases: [], sense: "" }, ...extra });
-    return { subjectId, otherSubject, value: { generation: 3, approvals: { "t-1": { revision: 1 } }, data: {
-      subjects: [{ id: subjectId, kind: "work", name: "绝区零", aliases: ["ZZZ", "ゼンゼロ"], tags: [], archived: false },
-        { id: otherSubject, kind: "work", name: "原神", aliases: [], tags: [], archived: false }],
-      collections: [{ id: collectionId, name: "人物与称谓", description: "角色名", aboutSubjectIds: [subjectId], archived: false, defaultLanguagePair: pair },
-        { id: otherCollection, name: "提瓦特", description: "", aboutSubjectIds: [otherSubject], archived: false, defaultLanguagePair: pair }],
-      entries: [term("t-1", SOURCE, TARGET), term("t-2", "ホロウ", "空洞", collectionId, { state: "candidate", payload: { source: "ホロウ", target: "空洞", aliases: ["空洞（ホロウ）"], sense: "城市灾害" } }),
-        term("t-3", "モンド", "蒙德", otherCollection)],
-      recipes: [], sources: [] } } };
+    const otherCollection = randomUUID(), english = randomUUID();
+    return { otherCollection, value: { generation: 3, data: {
+      collections: [{ id: collectionId, name: "绝区零", description: "ZZZ · ゼンゼロ 角色名", archived: false, languagePair: pair },
+        { id: otherCollection, name: "原神", description: "", archived: false, languagePair: pair },
+        { id: english, name: "Zenless Zone Zero", description: "ZZZ", archived: false, languagePair: { source: "en", target: "zh-Hans" } }],
+      entries: [term("t-1", SOURCE, TARGET), term("t-2", "ホロウ", "空洞", collectionId, { enabled: false, payload: { source: "ホロウ", target: "空洞", aliases: ["空洞（ホロウ）"], note: "城市灾害" } }),
+        term("t-3", "モンド", "蒙德", otherCollection), { id: "t-4", revision: 1, collectionId, enabled: true, kind: "rule", payload: { text: "称呼保留敬称", required: false } }],
+      presets: [{ id: "p-1", name: "绝区零全套", languagePair: pair, collectionIds: [collectionId, otherCollection], instructions: "", context: "" }] } } };
   }
 
-  it("finds a work's collections and entries by its nickname", async () => {
-    const { value, subjectId } = zzzLibrary();
+  it("finds a work's collection and entries by its name or nickname", async () => {
+    const { value, otherCollection } = zzzLibrary();
     knowledge.read.mockResolvedValue({ ok: true, value });
-    const result = (await call("search_translation_knowledge", { query: "ZZZ" })).data;
-    expect(result.subjects).toEqual([expect.objectContaining({ id: subjectId, name: "绝区零", kind: "work" })]);
-    expect(result.collections).toEqual([expect.objectContaining({ id: collectionId, name: "人物与称谓", entryCount: 2, subjects: ["绝区零"], languagePair: pair })]);
-    expect(result.entries.map((entry: { id: string }) => entry.id)).toEqual(["t-1", "t-2"]);
-    expect((await call("search_translation_knowledge", { query: "", subjectId })).data.entries.map((entry: { id: string }) => entry.id)).toEqual(["t-1", "t-2"]);
-    expect((await call("search_translation_knowledge", { query: "城市灾害" })).data.entries.map((entry: { id: string }) => entry.id)).toEqual(["t-2"]);
-    expect((await call("search_translation_knowledge", { query: "", state: "usable" })).data.entries.map((entry: { id: string }) => entry.id)).toEqual(["t-1"]);
-    expect((await call("search_translation_knowledge", { query: "", state: "review" })).data.entries.map((entry: { id: string }) => entry.id)).toEqual(["t-2", "t-3"]);
+    const result = (await call("search_translation_knowledge", { query: "ZZZ", languagePair: { source: "ja" } })).data;
+    expect(result.collections).toEqual([expect.objectContaining({ id: collectionId, name: "绝区零", entryCount: 3, languagePair: pair })]);
+    expect(ids(result.entries)).toEqual(["t-1", "t-2", "t-4"]);
+    // An entry carries its collection's name, so a work's name narrows a wording search.
+    expect(ids((await call("search_translation_knowledge", { query: "绝区零 大小姐" })).data.entries)).toEqual(["t-1"]);
+    expect(ids((await call("search_translation_knowledge", { query: "城市灾害" })).data.entries)).toEqual(["t-2"]);
+    expect(ids((await call("search_translation_knowledge", { query: "敬称", kind: "rule" })).data.entries)).toEqual(["t-4"]);
+    expect(ids((await call("search_translation_knowledge", { query: "", enabled: "disabled" })).data.entries)).toEqual(["t-2"]);
+    expect((await call("search_translation_knowledge", { query: "全套" })).data.presets).toEqual([expect.objectContaining({ id: "p-1", collectionIds: [collectionId, otherCollection] })]);
   });
 
   it("requires every word of a multi-word query", async () => {
     const { value } = zzzLibrary();
     knowledge.read.mockResolvedValue({ ok: true, value });
-    expect((await call("search_translation_knowledge", { query: "泰姆菲尔德 大小姐" })).data.entries.map((entry: { id: string }) => entry.id)).toEqual(["t-1"]);
+    expect(ids((await call("search_translation_knowledge", { query: "泰姆菲尔德 大小姐" })).data.entries)).toEqual(["t-1"]);
     expect((await call("search_translation_knowledge", { query: "泰姆菲尔德 不存在" })).data.entries).toEqual([]);
   });
 
-  it("lists the catalog with counts, language pairs and works, but no evidence", async () => {
-    const { value } = zzzLibrary();
-    (value.data.sources as unknown[]).push({ id: "s", excerpt: "PRIVATE EXCERPT" });
+  it("lists the catalog with language pairs, counts and presets", async () => {
+    const { value, otherCollection } = zzzLibrary();
     knowledge.read.mockResolvedValue({ ok: true, value });
     const result = await call("list_translation_knowledge_catalog", { limit: 1 });
-    expect(result.data.collections).toEqual([{ id: collectionId, name: "人物与称谓", description: "角色名", languagePair: pair, entryCount: 2, usableCount: 1, reviewCount: 1, subjects: ["绝区零"] }]);
-    expect(result.data.pagination.collections).toEqual({ total: 2, hasMore: true, nextOffset: 1 });
-    expect(result.data.subjects).toHaveLength(1);
-    expect(JSON.stringify(result)).not.toContain("PRIVATE");
+    expect(result.data.collections).toEqual([{ id: collectionId, name: "绝区零", description: "ZZZ · ゼンゼロ 角色名", languagePair: pair, entryCount: 3, enabledCount: 2 }]);
+    expect(result.data.pagination.collections).toEqual({ total: 3, hasMore: true, nextOffset: 1 });
+    expect(result.data.presets).toEqual([{ id: "p-1", name: "绝区零全套", languagePair: pair, collectionIds: [collectionId, otherCollection], collections: ["绝区零", "原神"] }]);
+  });
+
+  it("tells the model what was wrong with its arguments", async () => {
+    const result = await call("prepare_knowledge_changes", { subjects: [{ ref: "zzz", name: "绝区零", kind: "work" }], entries: [] });
+    expect(result).toMatchObject({ success: false, error: "invalid_tool_arguments" });
+    expect(result.data.issues.join(" ")).toContain("a collection is the work itself");
+    expect((await call("search_translation_knowledge", { state: "review" })).data.issues[0]).toMatch(/state/);
+    expect(knowledge.read).not.toHaveBeenCalled();
   });
 
   it("reports an unavailable library with a stable code", async () => {
@@ -142,9 +149,8 @@ describe("prepared translation knowledge changes", () => {
 
   const proposal = {
     languagePair: pair,
-    subjects: [{ ref: "zzz", name: "绝区零", kind: "work", aliases: ["ZZZ"] }],
-    collections: [{ ref: "names", name: "绝区零 · 人物与称谓", subjects: [{ ref: "zzz" }] }],
-    entries: [{ action: "create", collection: { ref: "names" }, kind: "term", source: SOURCE, target: TARGET, basis: "user_stated", evidence: "应该是泰姆菲尔德家的大小姐" }],
+    collections: [{ ref: "zzz", name: "绝区零" }],
+    entries: [{ action: "create", collection: { ref: "zzz" }, kind: "term", source: SOURCE, target: TARGET, basis: "user_stated", evidence: "应该是泰姆菲尔德家的大小姐" }],
   };
   const action = (id: string) => usePreparedActionsStore.getState().actions.find(item => item.id === id)!;
 
@@ -153,10 +159,10 @@ describe("prepared translation knowledge changes", () => {
     for (const mode of ["queue_only", "auto_execute"] as const) {
       useAgentStore.setState({ executionMode: mode });
       const result = await call("prepare_knowledge_changes", proposal);
-      expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared", enabledByDefault: true,
-        items: [{ status: "new", group: "subjects" }, { status: "new", group: "collections" }, { status: "new", group: "entries", kind: "term", label: `${SOURCE} → ${TARGET}`, collection: "绝区零 · 人物与称谓" }] } });
+      expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared",
+        items: [{ status: "new", group: "collections" }, { status: "new", group: "entries", kind: "term", label: `${SOURCE} → ${TARGET}`, collection: "绝区零" }] } });
       expect(action(result.data.actionId)).toMatchObject({ status: "ready", requiresConfirmation: true, toolKey: "translationKnowledge", summaryKey: "home:prepared_knowledge_summary",
-        knowledge: { adoptDefault: true, adoptable: 1, counts: { subjects: 1, collections: 1, created: 1 } } });
+        knowledge: { counts: { collections: 1, created: 1 } } });
     }
     expect((await service.read()).generation).toBe(before.generation);
     expect(api.saveRecords).not.toHaveBeenCalled();
@@ -167,7 +173,7 @@ describe("prepared translation knowledge changes", () => {
   it("refuses invalid proposals with reasons and reports already saved wording as unchanged", async () => {
     const invalid = await call("prepare_knowledge_changes", { entries: [{ action: "create", collection: { id: randomUUID() }, kind: "term", source: "a", target: "b", basis: "user_stated" }] });
     expect(invalid).toMatchObject({ success: false, error: "knowledge_proposal_invalid", data: { items: [{ status: "invalid", reason: "unknown_collection" }] } });
-    expect(await call("prepare_knowledge_changes", { entries: [] })).toEqual({ success: false, error: "invalid_tool_arguments" });
+    expect(await call("prepare_knowledge_changes", { entries: [] })).toMatchObject({ success: false, error: "invalid_tool_arguments" });
     expect(usePreparedActionsStore.getState().actions).toEqual([]);
     const prepared = await call("prepare_knowledge_changes", proposal);
     await usePreparedActionsStore.getState().confirmAction(prepared.data.actionId);
@@ -176,29 +182,32 @@ describe("prepared translation knowledge changes", () => {
     expect(again).toMatchObject({ success: true, data: { executionStatus: "unchanged", items: [{ status: "exists" }] } });
   });
 
-  it("saves everything once on confirmation, enabled or for review as chosen", async () => {
-    const enabled = await call("prepare_knowledge_changes", proposal);
-    await usePreparedActionsStore.getState().confirmAction(enabled.data.actionId);
-    expect(action(enabled.data.actionId)).toMatchObject({ status: "completed", result: { executionStatus: "saved", adopted: 1, counts: { created: 1 } } });
+  it("saves everything once on confirmation, enabled at once", async () => {
+    const prepared = await call("prepare_knowledge_changes", proposal);
+    await usePreparedActionsStore.getState().confirmAction(prepared.data.actionId);
+    expect(action(prepared.data.actionId)).toMatchObject({ status: "completed", result: { executionStatus: "saved", counts: { collections: 1, created: 1 } } });
     const saved = await service.read();
     expect(api.saveRecords).toHaveBeenCalledTimes(1);
-    const entry = saved.data.entries[0];
-    expect(entry).toMatchObject({ state: "ready", payload: { source: SOURCE, target: TARGET } });
-    expect(saved.approvals[entry.id]).toMatchObject({ method: "human" });
-    expect(saved.data.sources[0]).toMatchObject({ kind: "user_note", title: "home:knowledge_source_user_stated" });
-    expect(action(enabled.data.actionId).result).toMatchObject({ focusCollectionId: saved.data.collections[0].id });
+    expect(saved.data.collections[0]).toMatchObject({ name: "绝区零", languagePair: pair });
+    expect(saved.data.entries[0]).toMatchObject({ enabled: true, origin: { kind: "manual", note: "应该是泰姆菲尔德家的大小姐" }, payload: { source: SOURCE, target: TARGET } });
+    expect(action(prepared.data.actionId).result).toMatchObject({ focusCollectionId: saved.data.collections[0].id });
     expect(events.map(event => event.type)).toEqual([KNOWLEDGE_CHANGED_EVENT]);
 
-    const review = await call("prepare_knowledge_changes", { entries: [{ action: "create", collection: { id: saved.data.collections[0].id }, kind: "term", source: "ホロウ", target: "空洞", basis: "agent_inferred" }] });
-    expect(review.data.enabledByDefault).toBe(false);
-    await usePreparedActionsStore.getState().confirmAction(review.data.actionId);
-    const candidate = (await service.read()).data.entries.find(item => item.kind === "term" && item.payload.source === "ホロウ")!;
-    expect(candidate.state).toBe("candidate");
-    // The card's switch decides when the user turns it on.
-    const chosen = await call("prepare_knowledge_changes", { entries: [{ action: "create", collection: { id: saved.data.collections[0].id }, kind: "term", source: "エーテル", target: "以太", basis: "agent_inferred" }] });
-    await usePreparedActionsStore.getState().confirmAction(chosen.data.actionId, { adopt: true });
-    const adopted = (await service.read()).data.entries.find(item => item.kind === "term" && item.payload.source === "エーテル")!;
-    expect(adopted.state).toBe("ready");
+    // An inferred wording is marked as such on the card, and is enabled like any confirmed entry.
+    const inferred = await call("prepare_knowledge_changes", { entries: [{ action: "create", collection: { id: saved.data.collections[0].id }, kind: "term", source: "ホロウ", target: "空洞", basis: "agent_inferred" }] });
+    expect(action(inferred.data.actionId).knowledge!.items[0]).toMatchObject({ aiSourced: true, basis: "agent_inferred" });
+    await usePreparedActionsStore.getState().confirmAction(inferred.data.actionId);
+    const entry = (await service.read()).data.entries.find(item => item.kind === "term" && item.payload.source === "ホロウ")!;
+    expect(entry).toMatchObject({ enabled: true, origin: { kind: "agent" } });
+
+    // Disabling goes through the same card.
+    const library = await service.read();
+    const disable = await call("prepare_knowledge_changes", { entries: [{ action: "disable", entryId: entry.id, revision: entry.revision, basis: "user_stated" }] });
+    expect(disable.data.items).toEqual([expect.objectContaining({ status: "disable" })]);
+    await usePreparedActionsStore.getState().confirmAction(disable.data.actionId);
+    const after = await service.read();
+    expect(after.data.entries.find(item => item.id === entry.id)).toMatchObject({ enabled: false, revision: entry.revision + 1 });
+    expect(after.generation).toBe(library.generation + 1);
   });
 
   it("fails without writing when an edited entry changed after preparation", async () => {
@@ -208,7 +217,7 @@ describe("prepared translation knowledge changes", () => {
     const entry = library.data.entries[0];
     const edit = await call("prepare_knowledge_changes", { entries: [{ action: "update", entryId: entry.id, revision: entry.revision, target: "泰姆菲尔德大小姐", basis: "user_stated" }] });
     // Someone edits the same entry first.
-    await service.saveRecords({ generation: library.generation, items: [{ group: "entries", record: { ...entry, title: "changed elsewhere" } }] });
+    await service.saveRecords({ generation: library.generation, items: [{ group: "entries", record: { ...entry, enabled: false } }] });
     const before = await service.read();
     await usePreparedActionsStore.getState().confirmAction(edit.data.actionId);
     expect(action(edit.data.actionId)).toMatchObject({ status: "failed", error: "knowledge_changed" });
@@ -218,18 +227,18 @@ describe("prepared translation knowledge changes", () => {
   it("saves after an unrelated change and treats a repeated save of the same records as done", async () => {
     const prepared = await call("prepare_knowledge_changes", proposal);
     const library = await service.read();
-    await service.saveRecords({ generation: library.generation, items: [{ group: "subjects", record: { id: randomUUID(), revision: 1, archived: false, kind: "domain", name: "Other", aliases: [], tags: [], description: "" } }] });
+    await service.saveRecords({ generation: library.generation, items: [{ group: "collections", record: { id: randomUUID(), revision: 1, archived: false, name: "Other", description: "", languagePair: pair } }] });
     // A first attempt whose answer was lost: the records are already there.
     api.saveRecords.mockImplementationOnce(async (request: never) => { await service.saveRecords(request); return { ok: false, error: "write_failed" }; });
     await usePreparedActionsStore.getState().confirmAction(prepared.data.actionId);
     expect(action(prepared.data.actionId)).toMatchObject({ status: "failed", error: "write_failed" });
-    // Asking again finds the work, collection and term already saved.
+    // Asking again finds the collection and term already saved.
     const retry = await call("prepare_knowledge_changes", proposal);
     expect(retry).toMatchObject({ success: true, data: { executionStatus: "unchanged" } });
-    expect(retry.data.items.map((item: { status: string }) => item.status)).toEqual(["exists", "exists", "exists"]);
+    expect(retry.data.items.map((item: { status: string }) => item.status)).toEqual(["exists", "exists"]);
     const after = await service.read();
     expect(after.data.entries).toHaveLength(1);
-    expect(after.data.collections).toHaveLength(1);
+    expect(after.data.collections.map(item => item.name).sort()).toEqual(["Other", "绝区零"]);
   });
 
   it("leaves the library unchanged when dismissed", async () => {

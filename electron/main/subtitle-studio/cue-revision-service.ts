@@ -76,7 +76,7 @@ export class CueRevisionService {
    * revision, so an unreadable library or selection revises without them instead of failing.
    */
   private async materials(selection: KnowledgeSelection | undefined, document: SubtitleDocument, cueIds: string[]): Promise<KnowledgeEnvironment | undefined> {
-    if (!selection || !this.readKnowledge || !selection.languagePair.source || (!selection.recipeId && !selection.collectionIds.length)) return undefined;
+    if (!selection || !this.readKnowledge || !selection.languagePair.source || !selection.collectionIds.length) return undefined;
     try {
       const library = await this.readKnowledge();
       const cues = new Map(document.cues.map(cue => [cue.id, cue]));
@@ -143,8 +143,7 @@ export class CueRevisionService {
         const compiled = compileKnowledge(selectBatchKnowledge(environment, chunk.map(item => item.cueId)));
         const ids = new Map(chunk.map(item => [item.cueId, item.id]));
         const items = compiled.items.map(item => ({ kind: item.kind, required: item.required, payload: item.payload,
-          applicableItemIds: item.applicableCueIds.map(id => ids.get(id)).filter((id): id is string => id !== undefined),
-          ...(item.condition ? { condition: item.condition } : {}) }));
+          applicableItemIds: item.applicableCueIds.map(id => ids.get(id)).filter((id): id is string => id !== undefined) }));
         knowledgeItems += items.length;
         return items.length || compiled.context || compiled.instructions
           ? { translationKnowledge: { background: compiled.context, items }, ...(compiled.instructions ? { translationRequirements: compiled.instructions } : {}) } : {};

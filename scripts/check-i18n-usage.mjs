@@ -690,6 +690,14 @@ export function checkI18nUsage(options = {}) {
     });
   }
 
+  // Keys a namespace defines that no call can reach; opt-in per namespace while catalogs are cleaned up.
+  for (const namespace of options.unusedNamespaces ?? []) {
+    const defined = new Set([...catalogs.values()].flatMap((keys) => [...keys].filter((key) => key.startsWith(`${namespace}:`))));
+    for (const key of [...defined].sort()) {
+      if (!stats.resolvedKeys.has(key)) errors.push({ code: "UNUSED_KEY", key, message: `${key} is not used by any source call` });
+    }
+  }
+
   for (const selector of preparedManifest.bySelector.keys()) {
     if (!usedManifest.has(selector)) {
       errors.push({
@@ -719,6 +727,7 @@ export function checkI18nUsage(options = {}) {
       manifestCalls: stats.manifestCalls,
       resolvedKeys: stats.resolvedKeys.size,
     },
+    ...(options.returnKeys ? { keys: [...stats.resolvedKeys].sort() } : {}),
   };
 }
 
@@ -748,7 +757,8 @@ export function formatI18nUsageReport(report) {
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
 if (isMain) {
   try {
-    const report = checkI18nUsage();
+    const unused = process.argv.find((arg) => arg.startsWith("--unused="));
+    const report = checkI18nUsage(unused ? { unusedNamespaces: unused.slice("--unused=".length).split(",").filter(Boolean) } : {});
     console.log(formatI18nUsageReport(report));
     if (!report.ok) process.exitCode = 1;
   } catch (error) {

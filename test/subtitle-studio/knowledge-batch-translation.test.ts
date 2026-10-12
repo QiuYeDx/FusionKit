@@ -7,9 +7,7 @@ import { StudioError } from '../../src/subtitle-studio/domain';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
 import type { TranslationConfig } from '../../src/subtitle-studio/translation-contract';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
-import type { KnowledgeTaskGate } from '../../src/translation-knowledge/task-reference-contract';
-import type { Entry } from '../../src/translation-knowledge/schemas';
-import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
+import type { TermEntry } from '../../src/translation-knowledge/schemas';
 import type { ModelRuntimeTextRequest, ModelRuntimeTextResult } from '../../electron/main/ai/model-runtime-client';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { KnowledgeTranslationService } from '../../electron/main/subtitle-studio/knowledge-translation';
@@ -26,14 +24,9 @@ const lines = (count: number) => Array.from({ length: count }, (_, index) => `[0
 const payload = (request: ModelRuntimeTextRequest) => JSON.parse(request.messages[1].content) as { items: { id: string; text: string }[]; context: { precedingSource: string[]; followingSource: string[]; priorModelTranslations: string[] }; translationKnowledge: { items: { applicableItemIds: string[]; payload: unknown }[] } };
 const success = (request: ModelRuntimeTextRequest, text?: string): ModelRuntimeTextResult => ({ apiFormat: request.model.apiFormat, finishReason: 'stop', rawStatus: 'completed', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }, content: JSON.stringify({ items: payload(request).items.map(item => ({ id: item.id, text: text ?? `译文 ${item.id}` })) }) });
 const defer = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; };
-class Gate implements KnowledgeTaskGate {
-  calls = 0; active = false; private tail: Promise<unknown> = Promise.resolve();
-  run<T>(operation: () => Promise<T>): Promise<T> {
-    this.calls++;
-    const result = this.tail.then(async () => { expect(this.active).toBe(false); this.active = true; try { return await operation(); } finally { this.active = false; } });
-    this.tail = result.catch(() => {}); return result;
-  }
-}
+const pair = { source: 'en', target: 'zh-Hans' };
+const termEntry = (collectionId: string, source = 'starport', target = '星港'): TermEntry => ({ id: randomUUID(), revision: 1, collectionId, enabled: true, kind: 'term',
+  payload: { source, target, aliases: [], note: '', strength: 'required', match: { mode: 'whole_term', caseSensitive: false } } });
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const cleanup of cleanups.splice(0)) await cleanup(); });
 async function fixture(count = 3, send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = async request => success(request), cueCount = 2) {
@@ -44,25 +37,22 @@ async function fixture(count = 3, send: (request: ModelRuntimeTextRequest) => Pr
     const document = importSubtitleText(lines(cueCount), { format: 'lrc', displayName: `batch-${index + 1}.lrc`, encoding: 'utf-8', digest: 'a'.repeat(64) }, randomUUID);
     await repository.create(document); documents.push(document);
   }
-  const topicId = randomUUID(), collectionId = randomUUID(), sourceId = randomUUID();
-  const term: Entry = { id: randomUUID(), revision: 1, kind: 'term', title: 'Starport', collectionId, aboutSubjectIds: [], state: 'ready', scope: { languagePair: { source: 'en', target: 'zh-Hans' }, requiredSubjects: [{ subjectId: topicId, role: 'topic' }], condition: { mode: 'none' } }, evidence: [{ sourceId, support: 'direct' }], derivedFrom: [], payload: { source: 'starport', target: '星港', aliases: [], sense: '', match: { mode: 'whole_term', caseSensitive: false }, strength: 'required' } };
-  const library: LibrarySnapshot = { generation: 1, data: { format: 'fusionkit.translation-knowledge', schemaVersion: 1, package: { id: randomUUID(), revision: 1, name: 'Formal fixture', description: '', purpose: 'backup', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'Test' } },
-    subjects: [{ id: topicId, revision: 1, archived: false, kind: 'person', name: 'Topic subject', aliases: [], tags: [], description: '' }],
-    collections: [{ id: collectionId, revision: 1, archived: false, name: 'Glossary', description: '', aboutSubjectIds: [] }], sources: [{ id: sourceId, revision: 1, kind: 'user_note', title: 'Evidence', excerpt: 'PRIVATE_EVIDENCE' }], entries: [term], styles: [], recipes: [], preferenceTemplates: [] }, approvals: {}, imports: [] };
-  const approve = () => { for (const entry of library.data.entries) library.approvals[entry.id] = { revision: entry.revision, digest: sha256Canonical(entry), method: 'human', approvedAt: '2026-09-14T00:00:00Z' }; };
-  approve();
-  const gate = new Gate(), sent = vi.fn(send), read = vi.fn(async () => library);
-  const translation = new TranslationService(repository, sent, new TranslationScheduler(1), gate);
-  const service = new KnowledgeTranslationService(repository, translation, read, gate);
-  const batch = new KnowledgeBatchTranslationService(repository, translation, read, gate);
+  const collectionId = randomUUID(), term = termEntry(collectionId);
+  const library: LibrarySnapshot = { generation: 1, data: { format: 'fusionkit.translation-knowledge', schemaVersion: 2,
+    package: { id: randomUUID(), revision: 1, name: 'Formal fixture', description: '', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'Test' } },
+    collections: [{ id: collectionId, revision: 1, name: 'Glossary', description: '', languagePair: { ...pair }, archived: false }], entries: [term], presets: [] } };
+  const sent = vi.fn(send), read = vi.fn(async () => library);
+  const translation = new TranslationService(repository, sent, new TranslationScheduler(1));
+  const service = new KnowledgeTranslationService(repository, translation, read);
+  const batch = new KnowledgeBatchTranslationService(repository, translation, read);
   const releases: (() => void)[] = [];
   cleanups.push(async () => { for (const release of releases) release(); await batch.dispose(); await service.dispose(); await translation.dispose(); for (const document of documents) for (const task of (await repository.readSnapshot(document.id).catch(() => ({ tasks: [] }))).tasks) await translation.settled(task.id); await rm(root, { recursive: true, force: true }); });
-  const request = (overrides: Partial<KnowledgeBatchTranslationRequest> = {}): KnowledgeBatchTranslationRequest => ({ documents: documents.map(document => ({ documentId: document.id, revision: document.revision })), knowledgeGeneration: library.generation, config: config(), knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [collectionId], disabledEntryIds: [] }, documentTopicIds: [topicId], ...overrides });
-  return { root, repository, documents, library, term, topicId, sourceId, approve, service, batch, translation, gate, sent, read, request, releases };
+  const request = (overrides: Partial<KnowledgeBatchTranslationRequest> = {}): KnowledgeBatchTranslationRequest => ({ documents: documents.map(document => ({ documentId: document.id, revision: document.revision })), knowledgeGeneration: library.generation, config: config(), knowledge: { version: 2, languagePair: { ...pair }, collectionIds: [collectionId], disabledEntryIds: [] }, ...overrides });
+  return { root, repository, documents, library, collectionId, term, service, batch, translation, sent, read, request, releases };
 }
 
 describe('formal knowledge batch admission', () => {
-  it.each(['instructions', 'context', 'recipeId'] as const)('treats explicit undefined %s from IPC as an absent choice and still admits the frozen plan', async field => {
+  it.each(['instructions', 'context'] as const)('treats explicit undefined %s from IPC as an absent choice and still admits the frozen plan', async field => {
     const f = await fixture(1), input = f.request();
     const absent = await f.batch.plan(1, input);
     input.knowledge[field] = undefined;
@@ -82,7 +72,7 @@ describe('formal knowledge batch admission', () => {
     const f = await fixture(); const input = f.request({ config: config({ trackName: '批量校订版', model: { ...config().model, apiFormat } }) });
     const first = f.documents[0];
     const singlePreview = await f.service.plan(1, { documentId: first.id, revision: first.revision, knowledgeGeneration: 1, config: input.config,
-      knowledge: { ...input.knowledge, bindings: [], confirmations: [] }, documentTopicIds: input.documentTopicIds });
+      knowledge: input.knowledge });
     f.read.mockClear();
     const preview = await f.batch.plan(1, { ...input, documents: input.documents.slice(1) });
     expect(f.read).toHaveBeenCalledTimes(1); expect(preview.readyCount).toBe(2);
@@ -111,7 +101,7 @@ describe('formal knowledge batch admission', () => {
     const original = single.prepareKnowledgeTranslation; let calls = 0;
     vi.spyOn(single, 'prepareKnowledgeTranslation').mockImplementation(async (...args) => {
       const prepared = await original(...args);
-      if (!calls++ && f.term.kind === 'term') { f.term.payload.target = 'live mutation'; f.approve(); }
+      if (!calls++) f.term.payload.target = 'live mutation';
       return prepared;
     });
     const preview = await f.batch.plan(1, f.request()); expect(f.read).toHaveBeenCalledTimes(1);
@@ -137,12 +127,12 @@ describe('formal knowledge batch admission', () => {
 
   it('returns knowledge conflicts as blocked previews while retaining runnable documents', async () => {
     const f = await fixture();
-    const conflicting = structuredClone(f.term); conflicting.id = randomUUID(); conflicting.scope.requiredSubjects = [];
-    if (conflicting.kind !== 'term') throw new Error('fixture'); conflicting.payload.target = '其他术语'; conflicting.payload.source = 'conflict';
-    const matching = structuredClone(conflicting); matching.id = randomUUID(); matching.payload.target = '另一个术语';
-    f.library.data.entries.push(conflicting, matching); f.approve();
+    // Two required terms in two collections of the selection disagree only where "conflict" occurs.
+    const otherCollectionId = randomUUID();
+    f.library.data.collections.push({ id: otherCollectionId, revision: 1, name: 'Other glossary', description: '', languagePair: { ...pair }, archived: false });
+    f.library.data.entries.push(termEntry(f.collectionId, 'conflict', '其他术语'), termEntry(otherCollectionId, 'conflict', '另一个术语'));
     const doc = f.documents[1]; await f.repository.transact(doc.id, 1, value => { const cue = value.document.cues[0]; cue.source = { plain: 'conflict', spans: [{ text: 'conflict', marks: [] }] }; cue.sourceRevision++; });
-    const input = f.request(); input.documents[1].revision++;
+    const input = f.request(); input.documents[1].revision++; input.knowledge.collectionIds.push(otherCollectionId);
     const preview = await f.batch.plan(1, input); expect(preview.readyCount).toBe(2);
     expect(preview.items[1]).toMatchObject({ ok: true, plan: { canRun: false, issues: expect.arrayContaining([expect.objectContaining({ code: 'term_conflict' })]) } });
     const result = await f.batch.start(1, { planId: preview.planId, apiKey: 'key' }); expect(result.items[1]).toMatchObject({ ok: false, error: 'invalid_input' });
@@ -189,13 +179,12 @@ describe('formal knowledge batch admission', () => {
     await expect(f.batch.start(1, { planId: preview.planId, apiKey: 'key' })).rejects.toMatchObject({ code: 'access_denied' });
   });
 
-  it('finishes admission without waiting for the provider and allows other gate operations', async () => {
+  it('finishes admission without waiting for the provider', async () => {
     const release = defer<ModelRuntimeTextResult>(), entered = defer<ModelRuntimeTextRequest>();
     const f = await fixture(3, request => { entered.resolve(request); return release.promise; });
     const preview = await f.batch.plan(1, f.request()), result = await f.batch.start(1, { planId: preview.planId, apiKey: 'key' });
     const request = await entered.promise; f.releases.push(() => release.resolve(success(request)));
     expect(result.items.every(item => item.ok)).toBe(true);
-    expect(await f.gate.run(async () => 'available')).toBe('available');
     for (const item of result.items) if (item.ok) {
       const snapshot = await f.repository.readSnapshot(item.documentId);
       expect(resolveExecutionRecord(snapshot, item.taskId).knowledge).toBeDefined();
@@ -312,7 +301,7 @@ describe('formal knowledge batch admission', () => {
     const cueIds = f.documents[0].cues.map(cue => cue.id).reverse();
     vi.spyOn(single, 'prepareKnowledgeTranslation').mockImplementation(async (...args) => {
       const result = await prepare(...args);
-      result.preview.issues = Array.from({ length: 130 }, () => ({ code: 'untrusted', severity: 'warning', entryIds: [f.term.id], cueIds }));
+      result.preview.issues = Array.from({ length: 130 }, () => ({ code: 'no_match' as const, severity: 'warning' as const, entryIds: [f.term.id], cueIds }));
       return result;
     });
     const preview = await f.batch.plan(1, f.request()), item = preview.items[0];
@@ -323,17 +312,20 @@ describe('formal knowledge batch admission', () => {
     if (result.items[0].ok) { await f.translation.settled(result.items[0].taskId); expect(resolveExecutionRecord(await f.repository.readSnapshot(f.documents[0].id), result.items[0].taskId).knowledge).toBeDefined(); }
   });
 
-  it('rejects more than twenty files, duplicate files and file-scoped roles in shared batch choices', async () => {
+  it('rejects more than twenty files, duplicate files, document topics and removed v1 selection fields in shared batch choices', async () => {
     const f = await fixture(1), input = f.request();
     for (const request of [
       { ...input, documents: Array.from({ length: 21 }, () => ({ documentId: randomUUID(), revision: 1 })) },
       { ...input, documents: [input.documents[0], input.documents[0]] },
+      { ...input, documentTopicIds: [] },
       { ...input, knowledge: { ...input.knowledge, bindings: [] } },
       { ...input, knowledge: { ...input.knowledge, confirmations: [] } },
+      { ...input, knowledge: { ...input.knowledge, recipeId: randomUUID() } },
+      { ...input, knowledge: { ...input.knowledge, version: 1 } },
     ]) {
       expect(knowledgeBatchRequestSchemas.planKnowledgeTranslationBatch.safeParse(request).success).toBe(false);
       await expect(f.batch.plan(1, request as never)).rejects.toMatchObject({ code: 'invalid_input' });
     }
-    expect(f.sent).not.toHaveBeenCalled();
+    expect(f.read).not.toHaveBeenCalled(); expect(f.sent).not.toHaveBeenCalled();
   });
 });

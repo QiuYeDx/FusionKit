@@ -1,9 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { StudioError } from '../../../src/subtitle-studio/domain';
 import type { AutomaticTranslationRequest } from '../../../src/subtitle-studio/automatic-translation-contract';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
-import { automaticKnowledgeResourceReferences, buildFrozenAutomaticKnowledge, type FrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
-import type { AutomaticKnowledgeReference, KnowledgeTaskGate } from '../../../src/translation-knowledge/task-reference-contract';
+import { buildFrozenAutomaticKnowledge, type FrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
 
 export interface AutomaticKnowledgeCapture {
   capture(request: NonNullable<AutomaticTranslationRequest['knowledge']>, guard?: () => void): Promise<{
@@ -21,29 +19,22 @@ function freezeMaterial(snapshot: FrozenAutomaticKnowledge): FrozenAutomaticKnow
   return snapshot;
 }
 
-/** Owns references from pre-transcription capture until publication or cancellation.
- * The shared gate serializes the live read + lease with final permanent clearing. */
+/** Freezes materials before transcription and bounds what pending captures may hold in memory. */
 export class AutomaticKnowledgeService implements AutomaticKnowledgeCapture {
-  private leases = new Map<string, { bytes: number; reference: AutomaticKnowledgeReference }>();
+  private held = new Set<{ bytes: number }>();
   private closed = false;
-  constructor(private readLibrary: () => Promise<LibrarySnapshot>, private gate: KnowledgeTaskGate) {}
+  constructor(private readLibrary: () => Promise<LibrarySnapshot>) {}
   async capture(request: NonNullable<AutomaticTranslationRequest['knowledge']>, guard: () => void = () => {}) {
     const alive = () => { if (this.closed) throw new StudioError('interrupted'); guard(); };
     alive();
-    return this.gate.run(async () => {
-      alive();
-      const library = await this.readLibrary(); alive();
-      const snapshot = freezeMaterial(buildFrozenAutomaticKnowledge(library, request));
-      const bytes = Buffer.byteLength(JSON.stringify(snapshot), 'utf8');
-      if (this.leases.size >= AUTOMATIC_KNOWLEDGE_CAPTURE_LIMITS.captures
-        || bytes + [...this.leases.values()].reduce((sum, lease) => sum + lease.bytes, 0) > AUTOMATIC_KNOWLEDGE_CAPTURE_LIMITS.bytes) throw new StudioError('limit_exceeded');
-      const preparationId = randomUUID();
-      this.leases.set(preparationId, { bytes, reference: { kind: 'automatic_preparation', preparationId,
-        displayName: '', status: 'active', resources: automaticKnowledgeResourceReferences(snapshot) } });
-      return { snapshot, release: () => { this.leases.delete(preparationId); } };
-    });
+    const library = await this.readLibrary(); alive();
+    const snapshot = freezeMaterial(buildFrozenAutomaticKnowledge(library, request));
+    const capture = { bytes: Buffer.byteLength(JSON.stringify(snapshot), 'utf8') };
+    if (this.held.size >= AUTOMATIC_KNOWLEDGE_CAPTURE_LIMITS.captures
+      || capture.bytes + [...this.held].reduce((sum, item) => sum + item.bytes, 0) > AUTOMATIC_KNOWLEDGE_CAPTURE_LIMITS.bytes) throw new StudioError('limit_exceeded');
+    this.held.add(capture);
+    return { snapshot, release: () => { this.held.delete(capture); } };
   }
-  activeKnowledgeReferences(): AutomaticKnowledgeReference[] { return [...this.leases.values()].map(lease => structuredClone(lease.reference)); }
-  /** Existing leases remain until their task owners finish cleanup. */
+  /** Existing captures remain until their task owners finish cleanup. */
   close(): void { this.closed = true; }
 }

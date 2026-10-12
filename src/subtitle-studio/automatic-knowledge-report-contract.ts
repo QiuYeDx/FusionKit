@@ -13,17 +13,14 @@ export type AutomaticKnowledgeFailureCode = typeof AUTOMATIC_KNOWLEDGE_FAILURE_C
  * This is never an execution capability, approval, or frozen knowledge payload. */
 export type AutomaticKnowledgeRecheckSeed = {
   documentId: string; trackId: string; intentId: string; taskId: string;
-  config: TranslationConfig; selection: KnowledgeSelection; documentTopicIds: string[];
+  config: TranslationConfig; selection: KnowledgeSelection;
 };
 export type AutomaticKnowledgeReportIssue = Pick<KnowledgeIssue, 'code' | 'severity'> & {
   entryCount: number; cueCount: number;
   entries: { entryId: string; title: string }[];
   cues: { cueId: string; number: number; text: string }[];
 };
-export type AutomaticKnowledgeMaterialSummary = {
-  recipeName?: string; resourceCount: number; collectionCount: number; collections: string[];
-  documentTopicCount: number; documentTopics: string[];
-};
+export type AutomaticKnowledgeMaterialSummary = { resourceCount: number; collectionCount: number; collections: string[] };
 /** Saved issues are the ones discovered before preparation stopped, not a claim
  * that every possible issue in the entire document has been checked. */
 export type AutomaticKnowledgeReportPage = { state: 'none' | 'unavailable' } | {

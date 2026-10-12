@@ -55,7 +55,6 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
   const title = action.summaryKey === "home:prepared_translation_summary" ? t("home:prepared_translation_title")
     : action.summaryKey === "home:prepared_transcription_summary" ? t("home:prepared_transcription_title")
     : action.knowledge ? t("home:prepared_knowledge_title") : labels ? t(labels.title) : action.title;
-  const [adopt, setAdopt] = useState(action.knowledge?.adoptDefault ?? false);
   // The files are the receipt's items; the summary keeps to one line of what will happen.
   const values = action.summaryValues ? { ...action.summaryValues, language: languageName(action.summaryValues.language, i18n.resolvedLanguage || i18n.language) } : undefined;
   const summary = action.knowledge ? knowledgeSavedSummary(action, t) ?? knowledgeChangesSummary(action.knowledge, t)
@@ -70,10 +69,10 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
   const Surface = flat ? "div" : AgentCard;
   // What the user decided goes back to the agent, which then follows up on its own.
   const confirm = async () => {
-    await confirmAction(action.id, action.knowledge ? { adopt } : undefined);
+    await confirmAction(action.id);
     const after = usePreparedActionsStore.getState().actions.find(item => item.id === action.id);
     // The card's own session follows up, even if the user moved to another session meanwhile.
-    if (after?.status === "completed") reportUiEvent({ kind: "action_completed", values: { title, actionId: action.id } }, action.sessionId);
+    if (after?.status === "completed") reportUiEvent({ kind: "action_completed", values: { title, actionId: action.id, ...(action.knowledge ? { saved: true } : {}) } }, action.sessionId);
     else if (after?.status === "failed") reportUiEvent({ kind: "action_failed", values: { title, actionId: action.id, error: after.error ?? "prepared_action_failed" } }, action.sessionId);
   };
   const dismiss = () => {
@@ -104,7 +103,7 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
         <div className="min-w-0 [overflow-wrap:anywhere]">{pipeline.map((line, index) => <p key={index} className={index ? "text-muted-foreground" : undefined}>{line}</p>)}</div>
       </div>}
       {action.error && <p className="text-xs leading-5 text-destructive [overflow-wrap:anywhere]">{actionErrorMessage(action.error, t)}</p>}
-      {action.knowledge && <AgentKnowledgeChanges action={action} adopt={adopt} onAdoptChange={setAdopt} disabled={busy} />}
+      {action.knowledge && <AgentKnowledgeChanges action={action} />}
       {preparationFailures && <AgentActionReceipt receipt={preparationFailures} />}
       {receipt && <AgentActionReceipt receipt={receipt} />}
       {action.status === "ready" && <div className="flex flex-wrap items-center gap-2 pt-1">

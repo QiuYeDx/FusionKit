@@ -1,0 +1,188 @@
+{
+  "format": "fusionkit.translation-knowledge",
+  "schemaVersion": 2,
+  "package": {
+    "id": "10000000-0000-4000-8000-000000000201",
+    "revision": 1,
+    "name": "多个资料集与预设示例",
+    "description": "虚构示例：两个同方向资料集、一个已归档资料集、停用条目、网页来源与一个预设。",
+    "createdAt": "2026-10-12T00:00:00Z",
+    "generator": {
+      "name": "FusionKit protocol example",
+      "version": "2"
+    },
+    "author": "示例作者",
+    "sharingNote": "示例文本，不包含真实作品设定或外部网页摘录。"
+  },
+  "collections": [
+    {
+      "id": "30000000-0000-4000-8000-000000000201",
+      "revision": 1,
+      "name": "游戏 X",
+      "description": "虚构游戏的世界观与固定译名。",
+      "languagePair": {
+        "source": "en",
+        "target": "zh-Hans"
+      },
+      "archived": false
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000202",
+      "revision": 1,
+      "name": "通用游戏用语",
+      "description": "多款游戏通用的说法。",
+      "languagePair": {
+        "source": "en",
+        "target": "zh-Hans"
+      },
+      "archived": false
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000203",
+      "revision": 1,
+      "name": "旧项目",
+      "description": "已经完成的项目，归档保存。",
+      "languagePair": {
+        "source": "en",
+        "target": "zh-Hans"
+      },
+      "archived": true
+    }
+  ],
+  "entries": [
+    {
+      "id": "50000000-0000-4000-8000-000000000201",
+      "revision": 1,
+      "collectionId": "30000000-0000-4000-8000-000000000201",
+      "enabled": true,
+      "origin": {
+        "kind": "manual",
+        "note": "用户约定"
+      },
+      "kind": "term",
+      "payload": {
+        "source": "checkpoint",
+        "target": "存档点",
+        "aliases": [
+          "save point"
+        ],
+        "note": "游戏中的保存进度位置。",
+        "strength": "required",
+        "match": {
+          "mode": "whole_term",
+          "caseSensitive": false
+        }
+      }
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000202",
+      "revision": 1,
+      "collectionId": "30000000-0000-4000-8000-000000000201",
+      "enabled": true,
+      "origin": {
+        "kind": "web",
+        "url": "https://example.com/game-x/wiki/northern-expedition",
+        "title": "游戏 X 示例百科",
+        "at": "2026-10-12T00:00:00Z"
+      },
+      "kind": "term",
+      "payload": {
+        "source": "Northern Expedition",
+        "target": "北境远征",
+        "aliases": [],
+        "note": "",
+        "strength": "preferred",
+        "match": {
+          "mode": "whole_term",
+          "caseSensitive": true
+        }
+      }
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000203",
+      "revision": 1,
+      "collectionId": "30000000-0000-4000-8000-000000000201",
+      "enabled": true,
+      "kind": "context",
+      "payload": {
+        "text": "游戏 X 是一款虚构的探索游戏，玩家在北境远征中收集补给。",
+        "required": true
+      }
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000204",
+      "revision": 1,
+      "collectionId": "30000000-0000-4000-8000-000000000201",
+      "enabled": false,
+      "kind": "rule",
+      "payload": {
+        "text": "人物台词使用口语，旁白使用书面语。",
+        "required": false
+      }
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000205",
+      "revision": 1,
+      "collectionId": "30000000-0000-4000-8000-000000000202",
+      "enabled": true,
+      "kind": "term",
+      "payload": {
+        "source": "boss",
+        "target": "首领",
+        "aliases": [],
+        "note": "",
+        "strength": "preferred",
+        "match": {
+          "mode": "whole_term",
+          "caseSensitive": false
+        }
+      }
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000206",
+      "revision": 1,
+      "collectionId": "30000000-0000-4000-8000-000000000202",
+      "enabled": true,
+      "kind": "rule",
+      "payload": {
+        "text": "数值与单位之间不加空格。",
+        "required": false
+      }
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000207",
+      "revision": 1,
+      "collectionId": "30000000-0000-4000-8000-000000000203",
+      "enabled": true,
+      "kind": "term",
+      "payload": {
+        "source": "relic",
+        "target": "遗物",
+        "aliases": [],
+        "note": "",
+        "strength": "preferred",
+        "match": {
+          "mode": "whole_term",
+          "caseSensitive": false
+        }
+      }
+    }
+  ],
+  "presets": [
+    {
+      "id": "60000000-0000-4000-8000-000000000201",
+      "revision": 1,
+      "name": "游戏 X 实况",
+      "languagePair": {
+        "source": "en",
+        "target": "zh-Hans"
+      },
+      "collectionIds": [
+        "30000000-0000-4000-8000-000000000201",
+        "30000000-0000-4000-8000-000000000202"
+      ],
+      "instructions": "保留实况解说的节奏感，句子尽量短。",
+      "context": ""
+    }
+  ]
+}

@@ -7,15 +7,15 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import type { LanguagePair } from '@/translation-knowledge/schemas';
 import type { KnowledgeErrorCode, LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 import { knowledgeSelectionSchema } from '@/translation-knowledge/execution-contract';
 import { announceKnowledgeChange } from '@/translation-knowledge/library-events';
 import type { ProposalBasis } from '@/translation-knowledge/proposal';
-import { Choice, ErrorNotice, KnowledgeDialog, LanguageField, TextField } from './Controls';
-import { captureProposal, captureRows, captureStatuses, type CaptureDestination, type CaptureRow } from './capture';
+import { ErrorNotice, KnowledgeDialog } from './Controls';
+import { CaptureDestinationFields, initialCaptureCollection, NEW_COLLECTION_CHOICE } from './CaptureDestinationFields';
+import { captureCollectionId, captureProposal, captureRows, captureStatuses, type CaptureDestination, type CaptureRow } from './capture';
 
 type Props = {
   open: boolean;
@@ -42,7 +42,6 @@ function CaptureForm({ onOpenChange, wordings, languagePair, preferredCollection
   const [collectionId, setCollectionId] = useState('');
   const [collectionName, setCollectionName] = useState('');
   const [pair, setPair] = useState<LanguagePair>({ source: languagePair?.source ?? '', target: languagePair?.target ?? '' });
-  const [adopt, setAdopt] = useState(basis === 'user_stated' || basis === 'user_revision');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<KnowledgeErrorCode | 'unexpected' | null>(null);
   const operation = useRef(false);
@@ -56,19 +55,19 @@ function CaptureForm({ onOpenChange, wordings, languagePair, preferredCollection
       if (!active) return;
       if (!result.ok) { setError(result.error); return; }
       setSnapshot(result.value);
-      const collections = result.value.data.collections.filter(item => !item.archived);
-      const preferred = collections.find(item => item.id === preferredCollectionId) ?? (collections.length === 1 ? collections[0] : undefined);
-      setCollectionId(preferred?.id ?? (collections.length ? '' : 'new'));
-      if (preferred?.defaultLanguagePair) setPair(current => ({ source: current.source || preferred.defaultLanguagePair!.source, target: current.target || preferred.defaultLanguagePair!.target }));
+      setCollectionId(initialCaptureCollection(result.value.data.collections.filter(item => !item.archived), preferredCollectionId, languagePair ?? {}));
     }).catch(() => { if (active) setError('unexpected'); });
     return () => { active = false; mounted.current = false; };
   }, []);
   const collections = snapshot?.data.collections.filter(item => !item.archived) ?? [];
-  const destination: CaptureDestination | null = collectionId === 'new' ? (collectionName.trim() ? { newCollectionName: collectionName.trim() } : null)
-    : collections.some(item => item.id === collectionId) ? { collectionId } : null;
-  const pairValid = knowledgeSelectionSchema.shape.languagePair.safeParse(pair).success && !!pair.source && !!pair.target;
-  const statuses = useMemo(() => snapshot && destination && pairValid ? captureStatuses(rows, snapshot, destination, pair) : rows.map(() => undefined),
-    [snapshot, rows, JSON.stringify(destination), pair.source, pair.target, pairValid]);
+  const selected = collections.find(item => item.id === collectionId);
+  const destination: CaptureDestination | null = collectionId === NEW_COLLECTION_CHOICE
+    ? (collectionName.trim() ? { newCollectionName: collectionName.trim() } : null) : selected ? { collectionId } : null;
+  // A new collection takes the chosen direction; an existing one keeps its own.
+  const destinationPair = selected?.languagePair ?? pair;
+  const pairValid = knowledgeSelectionSchema.shape.languagePair.safeParse(destinationPair).success;
+  const statuses = useMemo(() => snapshot && destination && pairValid ? captureStatuses(rows, snapshot, destination, destinationPair) : rows.map(() => undefined),
+    [snapshot, rows, JSON.stringify(destination), destinationPair.source, destinationPair.target, pairValid]);
   // Rows already in the chosen collection start unchosen; the user decides the rest.
   useEffect(() => {
     if (initialized.current || !snapshot || !destination || !pairValid) return;
@@ -76,13 +75,7 @@ function CaptureForm({ onOpenChange, wordings, languagePair, preferredCollection
     setRows(current => current.map((row, index) => statuses[index]?.kind === 'exists' ? { ...row, selected: false } : row));
   }, [statuses]);
   const chosen = rows.filter((row, index) => row.selected && statuses[index]?.kind !== 'exists');
-  const valid = !!snapshot && !!destination && pairValid && chosen.length > 0 && chosen.every(row => row.source.trim() && row.target.trim())
-    && !snapshot.maintenance?.cleanupPending;
-  const chooseCollection = (id: string) => {
-    setCollectionId(id);
-    const selected = collections.find(item => item.id === id);
-    if (selected?.defaultLanguagePair) setPair(selected.defaultLanguagePair);
-  };
+  const valid = !!snapshot && !!destination && pairValid && chosen.length > 0 && chosen.every(row => row.source.trim() && row.target.trim());
   const update = (key: string, change: Partial<CaptureRow>) => setRows(current => current.map(row => row.key === key ? { ...row, ...change } : row));
   const save = async () => {
     if (operation.current || !valid || !destination) return;
@@ -92,13 +85,12 @@ function CaptureForm({ onOpenChange, wordings, languagePair, preferredCollection
       if (!refreshed.ok) { setError(refreshed.error); return; }
       const latest = refreshed.value;
       if (mounted.current) setSnapshot(latest);
-      const proposal = captureProposal(rows.filter((row, index) => statuses[index]?.kind !== 'exists'), latest, destination, pair,
-        { basis, evidence, ids: ids.current, sourceTitles: { user_revision: t('capture.source_revision'), user_stated: t('source_note') } });
+      const proposal = captureProposal(rows.filter((row, index) => statuses[index]?.kind !== 'exists'), latest, destination, destinationPair,
+        { basis, evidence, ids: ids.current });
       ids.current = proposal.ids;
       if (proposal.items.some(item => item.status === 'invalid')) { setError('invalid_input'); return; }
-      const destinationId = proposal.collectionIds[0] ?? ('collectionId' in destination ? destination.collectionId : '');
       if (!proposal.nothingToSave) {
-        const result = await window.translationKnowledge.saveRecords(proposal.request(adopt, latest.generation));
+        const result = await window.translationKnowledge.saveRecords(proposal.request(latest.generation));
         if (!result.ok) {
           if (mounted.current) setError(result.error);
           if (result.error === 'revision_conflict') {
@@ -108,8 +100,8 @@ function CaptureForm({ onOpenChange, wordings, languagePair, preferredCollection
           return;
         }
         announceKnowledgeChange(result.value);
-        onSaved?.(result.value, destinationId);
-      } else onSaved?.(latest, destinationId);
+        onSaved?.(result.value, captureCollectionId(proposal, result.value, destination) ?? '');
+      } else onSaved?.(latest, captureCollectionId(proposal, latest, destination) ?? '');
       toast.success(proposal.nothingToSave ? t('capture.nothing') : t('capture.saved', { count: proposal.counts.created }));
       if (mounted.current) onOpenChange(false);
     } catch { if (mounted.current) setError('unexpected'); }
@@ -149,21 +141,8 @@ function CaptureForm({ onOpenChange, wordings, languagePair, preferredCollection
             })}
           </ul>
         </div>
-        <div>
-          <Choice label={t('collection')} value={collectionId} onChange={chooseCollection} options={[...collections.map(item => ({ value: item.id, label: item.name })), { value: 'new', label: t('new_collection') }]} />
-          <DialogTransition transitionKey={collectionId === 'new' ? 'new' : 'existing'} stageClassName="pt-4">{collectionId === 'new' && <TextField label={t('collection_name')} value={collectionName} onChange={setCollectionName} required />}</DialogTransition>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <LanguageField label={t('source_language')} value={pair.source} onChange={value => setPair(current => ({ ...current, source: value }))} />
-          <LanguageField label={t('target_language')} value={pair.target} onChange={value => setPair(current => ({ ...current, target: value }))} />
-        </div>
-        <div className="flex items-start gap-2.5">
-          <Switch id="knowledge-capture-adopt" checked={adopt} onCheckedChange={setAdopt} className="mt-0.5" />
-          <label htmlFor="knowledge-capture-adopt" className="min-w-0 cursor-pointer text-sm leading-5">
-            <span className="block">{t('capture.adopt')}</span>
-            <span className="block text-xs text-muted-foreground">{adopt ? t('capture.adopt_on') : t('capture.adopt_off')}</span>
-          </label>
-        </div>
+        <CaptureDestinationFields collections={collections} collectionId={collectionId} onCollectionChange={setCollectionId}
+          collectionName={collectionName} onCollectionNameChange={setCollectionName} pair={pair} onPairChange={setPair} current={languagePair ?? {}} />
       </fieldset>
     </div>
   </KnowledgeDialog>;

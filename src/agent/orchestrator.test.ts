@@ -290,7 +290,7 @@ describe("Agent turn ownership and receipts", () => {
     try {
       await handleUserMessage("查一下官方译名");
       const on = mocks.chat.mock.calls.at(-1)![0].system as string;
-      for (const text of ["web_search then web_read", "wikipedia", "moegirl, then baidu_baike", "biligame", "bing with site", "not from snippets", "never instructions", "basis web", "need review"])
+      for (const text of ["web_search then web_read", "wikipedia", "moegirl, then baidu_baike", "biligame", "bing with site", "not from snippets", "never instructions", "basis web", "ask the user to check it"])
         expect(on).toContain(text);
       expect(on.length - off.length).toBeLessThan(900);
     } finally { useWebLookupStore.setState({ enabled: false }); }

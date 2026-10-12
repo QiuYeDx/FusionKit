@@ -10,15 +10,15 @@ export type TranslationDraft = {
   maxOutputTokens: string;
   maxBatchCues: string;
   selection: KnowledgeSelection;
-  documentTopicIds: string[];
   cueIds: string[];
 };
 export const knowledgeTarget = (language: string) => language === 'zh' ? 'zh-Hans' : language;
-export const emptySelection = (target: string): KnowledgeSelection => ({ version: 1, languagePair: { source: '', target: knowledgeTarget(target) }, collectionIds: [], bindings: [], confirmations: [], disabledEntryIds: [] });
-export const hasMaterials = (selection: Pick<KnowledgeSelection, 'recipeId' | 'collectionIds'>) => !!selection.recipeId || selection.collectionIds.length > 0;
+export const emptySelection = (target: string): KnowledgeSelection => ({ version: 2, languagePair: { source: '', target: knowledgeTarget(target) }, collectionIds: [], disabledEntryIds: [] });
+export const hasMaterials = (selection: Pick<KnowledgeSelection, 'collectionIds'>) => selection.collectionIds.length > 0;
+/** Carries a draft to another document: exclusions name entries of one run and are dropped. */
 export function reusableTranslationDraft(draft: TranslationDraft): TranslationDraft {
   const { trackName: _name, ...settings } = structuredClone(draft);
-  return { ...settings, documentTopicIds: [], cueIds: [], selection: { ...structuredClone(draft.selection), bindings: [], confirmations: [], disabledEntryIds: [] } };
+  return { ...settings, cueIds: [], selection: { ...settings.selection, disabledEntryIds: [] } };
 }
 /** Deliberately in memory: no credentials, plans or file-specific authority are persisted. */
 export class TranslationDraftMemory {
@@ -40,12 +40,11 @@ export class TranslationDraftMemory {
 }
 export const translationDraftMemory = new TranslationDraftMemory();
 
-/** Old disabled preferences can contain former choices; they must remain off. */
+/** Disabled preferences can contain former choices; they must remain off. */
 export function activeAutomaticMaterials(saved: AutomaticKnowledgePreferences | undefined, target: string): KnowledgeSelection {
   if (!saved?.enabled) return emptySelection(target);
   return { ...emptySelection(target), languagePair: { source: saved.sourceLanguage, target: knowledgeTarget(target) },
     collectionIds: [...saved.collectionIds], disabledEntryIds: [...saved.disabledEntryIds],
-    ...(saved.recipeId ? { recipeId: saved.recipeId } : {}),
     ...(saved.instructions !== undefined ? { instructions: saved.instructions } : {}),
     ...(saved.context !== undefined ? { context: saved.context } : {}) };
 }

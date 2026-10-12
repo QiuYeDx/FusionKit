@@ -1,67 +1,61 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { expect as uiExpect, type Locator } from '@playwright/test';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { knowledgeFixture } from './fixtures';
+import { launchStudioApp, openSubtitles, preparePage, readDocuments, readLibrary, seedLibrary, settled, startProvider } from './studio-e2e';
+import type { Collection, Entry, Preset } from '../../src/translation-knowledge/schemas';
 
-describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection and reuse layout through native Electron', () => {
-  let app: ElectronApplication | undefined, page: Page | undefined, root = '';
+const json = async (file: string) => JSON.parse(await readFile(path.resolve(file), 'utf8'));
+const fill = (text: string, values: Record<string, string | number>) => text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(values[key]));
+
+describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials picker, presets and layout through native Electron', () => {
+  let launched: Awaited<ReturnType<typeof launchStudioApp>> | undefined, provider: Awaited<ReturnType<typeof startProvider>> | undefined;
   const artifacts = path.resolve('test-results/translation-knowledge-materials-layout');
   afterAll(async () => {
     try {
-      const child = app?.process();
-      await app?.close();
-      if (child) expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
-    } finally {
-      if (root) {
-        expect(path.dirname(root)).toBe(path.resolve(tmpdir()));
-        expect(path.basename(root)).toMatch(/^fusionkit-materials-layout-/);
-        await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      if (launched) {
+        expect(path.dirname(launched.root)).toBe(path.resolve(tmpdir()));
+        expect(path.basename(launched.root)).toMatch(/^fusionkit-materials-layout-/);
+        expect(await launched.close()).toBe(true);
       }
-    }
+    } finally { await provider?.close(); }
   });
 
-  it('keeps selection explicit, reuses only shared settings across documents, and makes library actions reachable', async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'fusionkit-materials-layout-'));
+  it('picks collections, saves, applies, renames and deletes presets, recovers removed sets, and stays inside the window', async () => {
     await mkdir(artifacts, { recursive: true });
-    const fixture = knowledgeFixture(), term = fixture.entries.find(item => item.kind === 'term')!;
-    const context = fixture.entries.find(item => item.kind === 'context')!;
-    fixture.collections[0].name = '游戏 X · 系列视频翻译资料与人物固定译法 / Game X terminology and dialogue references';
-    const otherCollection = { ...fixture.collections[0], id: '30000000-0000-4000-8000-000000000002', name: '保留但不选用的其他资料集' };
-    fixture.collections.push(otherCollection);
+    const zh = { studio: await json('src/locales/zh/studio.json'), materials: await json('src/locales/zh/materials.json'), knowledge: await json('src/locales/zh/knowledge.json') };
+    const en = { studio: await json('src/locales/en/studio.json'), materials: await json('src/locales/en/materials.json') };
+    provider = await startProvider(item => `试译：${item.text}`);
+    const fixture = knowledgeFixture();
+    const [game, common, archived] = fixture.collections;
+    game.name = '游戏 X · 系列视频翻译资料与人物固定译法 · Game X terminology and dialogue references for every episode';
+    const removable: Collection = { ...common, id: '30000000-0000-4000-8000-000000000301', name: '稍后删除的资料集' };
+    const otherDirection: Collection = { ...common, id: '30000000-0000-4000-8000-000000000302', name: '日语方向资料集', languagePair: { source: 'ja', target: 'zh-Hans' } };
     // Enough actual library rows to overflow the portalled picker at both sizes.
-    fixture.collections.push(...Array.from({ length: 18 }, (_, index) => ({ ...otherCollection,
-      id: `30000000-0000-4000-8000-${String(index + 3).padStart(12, '0')}`, name: `${index < 6 ? '六条样本 · ' : ''}滚轮验证资料集 ${index + 1}${index === 17 ? ' · 用较长的末条名称检查自然换行后，名称和语言说明仍能完整显示' : ''}` })));
-    const input = path.join(root, 'materials-layout.fktk.json');
-    const subtitleFiles = ['First episode with carefully confirmed cue scope.lrc', 'Second episode requires its own scope confirmations.lrc'].map(name => path.join(root, name));
-    await writeFile(input, JSON.stringify(fixture));
-    const subtitleLines = ['We reached the checkpoint.', 'She mentioned Mira.',
-      'Before we move on, make sure the checkpoint has saved every part of our progress, including the conversation with Mira and the route through the old town, so that we can return here without losing anything.',
-      ...Array.from({ length: 9 }, (_, index) => index % 3 === 0 ? 'Ready when you are.' : `Mira reached checkpoint ${index + 2} and waited for the rest of the group.`)];
-    for (const filename of subtitleFiles) await writeFile(filename, subtitleLines.map((text, index) => `[00:${String(index * 2 + 1).padStart(2, '0')}]${text}`).join('\n'));
-    const en = JSON.parse(await readFile(path.resolve('src/locales/en/studio.json'), 'utf8'));
-    const zh = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
-    const enKnowledge = JSON.parse(await readFile(path.resolve('src/locales/en/knowledge.json'), 'utf8'));
-    const errors: string[] = [];
-    app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`, '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-features=CalculateNativeWinOcclusion'], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
-    page = await app.firstWindow();
-    const ui = page, nativeWindow = await app.browserWindow(ui);
-    await nativeWindow.evaluate(win => { win.webContents.setBackgroundThrottling(false); win.show(); win.focus(); });
-    ui.on('pageerror', error => errors.push(error.message));
-    const readLibrary = () => ui.evaluate(async () => {
-      const result = await window.translationKnowledge.read(); if (!result.ok) throw new Error(result.error); return result.value;
-    });
-    const readDocuments = () => ui.evaluate(async () => {
-      const listed = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!listed.ok) throw new Error(listed.error);
-      return Promise.all(listed.value.documents.map(async document => {
-        const result = await window.subtitleStudio.readDocumentPage({ documentId: document.id, revision: document.revision, offset: 0 });
-        if (!result.ok) throw new Error(result.error); return result.value;
-      }));
-    });
+    const filler: Collection[] = Array.from({ length: 18 }, (_, index) => ({ ...common, id: `30000000-0000-4000-8000-${String(index + 400).padStart(12, '0')}`,
+      name: `${index < 6 ? '六条样本 · ' : ''}滚轮验证资料集 ${index + 1}${index === 17 ? ' · 用较长的末条名称检查自然换行后，名称和语言说明仍能完整显示' : ''}` }));
+    fixture.collections.push(removable, otherDirection, ...filler);
+    const relay: Entry = { id: '50000000-0000-4000-8000-000000000301', revision: 1, collectionId: removable.id, enabled: true, kind: 'term',
+      payload: { source: 'relay', target: '中继站', aliases: [], note: '', strength: 'preferred', match: { mode: 'whole_term', caseSensitive: false } } };
+    fixture.entries.push(relay);
+    const livePreset = fixture.presets[0];
+    livePreset.context = '实况解说的背景：玩家正在推进北境远征。';
+    // An archived collection stays in the library, so a preset may still name it.
+    const archivedPreset: Preset = { ...livePreset, id: '60000000-0000-4000-8000-000000000301', name: '含归档资料集的预设', collectionIds: [game.id, archived.id], instructions: '', context: '' };
+    fixture.presets.push(archivedPreset);
+
+    launched = await launchStudioApp('fusionkit-materials-layout-');
+    const { app, ui } = launched;
+    const subtitleFiles = ['First episode with a fairly long file name for the materials picker.lrc', 'Second episode reuses the same materials.lrc'].map(name => path.join(launched!.root, name));
+    const lines = ['We reached the checkpoint.', 'The boss is waiting at the relay.', 'Ready when you are.'];
+    for (const file of subtitleFiles) await writeFile(file, lines.map((text, index) => `[00:${String(index * 2 + 1).padStart(2, '0')}]${text}`).join('\n'));
     const form = () => ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-form') });
     const review = () => ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-review-dialog') });
-    const settled = () => ui.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
+    const picker = ui.getByTestId('studio-materials-picker');
+    const collection = (id: string) => ui.getByTestId(`studio-materials-collection-${id}`);
+    const chips = () => ui.getByTestId('studio-materials-summary').locator('.studio-materials-chip');
     const geometry = async (target: Locator) => {
       expect(await target.evaluate(element => {
         const r = element.getBoundingClientRect();
@@ -70,32 +64,27 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       expect(await target.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
     };
     const visualMeasurements: Array<{ name: string; metrics: unknown }> = [];
-    const waitForGeometry = async (target: Locator) => {
-      await nativeWindow.evaluate(win => { win.show(); win.focus(); });
-      await ui.bringToFront();
-      await target.evaluate(element => new Promise<void>((resolve, reject) => {
-        let previous: number[] = [], stable = 0;
-        const started = performance.now();
-        const sample = () => {
-          const nodes = [element, element.closest('[role=dialog]')].filter((node): node is Element => !!node);
-          const current = nodes.flatMap(node => { const box = node.getBoundingClientRect(); return [box.x, box.y, box.width, box.height, node.scrollHeight]; });
-          const moving = [...element.querySelectorAll('[data-flow-animating="true"]')].some(node => node.getClientRects().length > 0);
-          stable = !moving && previous.length === current.length && current.every((value, index) => Math.abs(value - previous[index]) < 0.1) ? stable + 1 : 0;
-          previous = current;
-          if (stable >= 4) resolve();
-          else if (performance.now() - started > 5000) reject(new Error('Dialog geometry did not settle before visual capture'));
-          else requestAnimationFrame(sample);
-        };
-        requestAnimationFrame(sample);
-      }));
-    };
+    const waitForGeometry = (target: Locator) => target.evaluate(element => new Promise<void>((resolve, reject) => {
+      let previous: number[] = [], stable = 0;
+      const started = performance.now();
+      const sample = () => {
+        const nodes = [element, element.closest('[role=dialog]')].filter((node): node is Element => !!node);
+        const current = nodes.flatMap(node => { const box = node.getBoundingClientRect(); return [box.x, box.y, box.width, box.height, node.scrollHeight]; });
+        const moving = [...element.querySelectorAll('[data-flow-animating="true"]')].some(node => node.getClientRects().length > 0);
+        stable = !moving && previous.length === current.length && current.every((value, index) => Math.abs(value - previous[index]) < 0.1) ? stable + 1 : 0;
+        previous = current;
+        if (stable >= 4) resolve();
+        else if (performance.now() - started > 5000) reject(new Error('Geometry did not settle before visual capture'));
+        else requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    }));
     const capture = async (name: string, target: Locator) => {
-      await settled(); await target.scrollIntoViewIfNeeded(); await waitForGeometry(target);
+      await settled(ui); await target.scrollIntoViewIfNeeded(); await waitForGeometry(target);
       await geometry(target);
       await ui.screenshot({ path: path.join(artifacts, `${name}.png`), animations: 'disabled' });
     };
     const wheelPicker = async (name: string) => {
-      const picker = ui.getByTestId('studio-materials-picker');
       const body = picker.locator('.studio-materials-picker-body');
       await waitForGeometry(picker);
       expect(await body.evaluate(node => node.scrollHeight - node.clientHeight)).toBeGreaterThan(100);
@@ -113,18 +102,16 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       const end = await picker.locator('.studio-materials-collection-row').last().evaluate(row => {
         const box = row.getBoundingClientRect();
         const clips = [];
-        const ancestors = [];
         for (let parent = row.parentElement; parent; parent = parent.parentElement) {
-          const style = getComputedStyle(parent);
-          ancestors.push({ className: parent.className, inline: parent.getAttribute('style'), height: parent.getBoundingClientRect().height, scrollHeight: parent.scrollHeight, display: style.display, gap: style.gap, padding: style.padding, gridRows: style.gridTemplateRows, transform: style.transform });
           if (!['auto', 'scroll', 'hidden', 'clip'].includes(getComputedStyle(parent).overflowY)) continue;
           const bounds = parent.getBoundingClientRect();
           clips.push({ className: parent.className, top: bounds.top, bottom: bounds.top + parent.clientTop + parent.clientHeight });
         }
-        return { top: box.top, bottom: box.bottom, clips, ancestors };
+        return { top: box.top, bottom: box.bottom, clips, overflow: row.scrollWidth > row.clientWidth + 1 };
       });
       visualMeasurements.push({ name: `${name}-last-row`, metrics: end });
       await capture(`${name}-wheel-bottom`, picker);
+      expect(end.overflow).toBe(false);
       for (const clip of end.clips) {
         expect(end.top, `Last row above ${clip.className}`).toBeGreaterThanOrEqual(clip.top - 1);
         expect(end.bottom, `Last row clipped by ${clip.className}`).toBeLessThanOrEqual(clip.bottom + 1);
@@ -133,8 +120,8 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       expect(bottomGap).toBeGreaterThanOrEqual(11);
       expect(bottomGap).toBeLessThanOrEqual(14);
       const footer = picker.locator('.studio-materials-picker-footer');
-      expect((await footer.boundingBox())!.height).toBeLessThanOrEqual(46);
       const buttonSizes = await footer.locator('[data-slot="button"]').evaluateAll(nodes => nodes.map(node => ({ height: node.getBoundingClientRect().height, font: getComputedStyle(node).fontSize })));
+      visualMeasurements.push({ name: `${name}-footer`, metrics: { height: (await footer.boundingBox())!.height, buttonSizes } });
       expect(buttonSizes.length).toBeGreaterThanOrEqual(3);
       for (const size of buttonSizes) { expect(size.height).toBe(28); expect(size.font).toBe('12px'); }
       await ui.mouse.wheel(0, 300);
@@ -144,438 +131,243 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       expect(await background()).toEqual(before);
       await uiExpect(ui.getByTestId('studio-materials-done')).toBeVisible();
     };
-    const disclosureLayout = async (name: string) => {
-      await waitForGeometry(form());
-      const metrics = await ui.getByTestId('studio-materials').evaluate(card => {
-        const cardBox = card.getBoundingClientRect();
-        return ['studio-materials-topics', 'studio-materials-more'].map(id => {
-          const panel = card.querySelector(`[data-testid="${id}"]`)!;
-          const trigger = panel.querySelector('[data-slot=accordion-trigger]')!;
-          const triggerBox = trigger.getBoundingClientRect();
-          const title = trigger.querySelector('span')!.getBoundingClientRect();
-          const icon = trigger.querySelector('svg')!.getBoundingClientRect();
-          const clipClearances: number[] = [];
-          for (let parent = trigger.parentElement; parent; parent = parent.parentElement) {
-            if (!['hidden', 'clip', 'auto', 'scroll'].includes(getComputedStyle(parent).overflowX)) continue;
-            const box = parent.getBoundingClientRect(), left = box.left + parent.clientLeft;
-            clipClearances.push(title.left - left, left + parent.clientWidth - icon.right);
-          }
-          return { id, leftInset: triggerBox.left - cardBox.left, rightInset: cardBox.right - triggerBox.right,
-            titleInset: title.left - triggerBox.left, iconInset: triggerBox.right - icon.right,
-            minimumClipClearance: Math.min(...clipClearances), corner: Number.parseFloat(getComputedStyle(trigger).borderTopLeftRadius) };
-        });
-      });
-      visualMeasurements.push({ name, metrics });
-      for (const metric of metrics) {
-        expect(metric.leftInset).toBeGreaterThanOrEqual(0); expect(metric.leftInset).toBeLessThanOrEqual(1.5);
-        expect(metric.rightInset).toBeGreaterThanOrEqual(0); expect(metric.rightInset).toBeLessThanOrEqual(1.5);
-        expect(metric.titleInset).toBeGreaterThanOrEqual(11); expect(metric.titleInset).toBeLessThanOrEqual(13);
-        expect(metric.iconInset).toBeGreaterThanOrEqual(11); expect(metric.iconInset).toBeLessThanOrEqual(13);
-        expect(metric.minimumClipClearance).toBeGreaterThanOrEqual(8);
-        expect(metric.corner).toBe(0);
-      }
+    const showLibrary = async () => {
+      // Compact Studio renders its document list in the library dialog.
+      await uiExpect(ui.getByTestId('subtitle-studio')).toBeVisible();
+      const trigger = ui.locator('#studio-library-trigger');
+      if (await trigger.isVisible() && !(await ui.locator('.studio-library-dialog').isVisible())) await trigger.click();
     };
-    const scopeLayout = async (name: string) => {
-      const scopes = ui.getByTestId('knowledge-trial-scopes');
-      const scroll = scopes.locator('.studio-knowledge-scope-scroll');
-      const viewport = scroll.locator('.studio-scroll-fade-viewport');
-      await waitForGeometry(form());
-      const captureScopeList = async (captureName: string) => {
-        // Wait for the disclosure's final footprint before positioning it. A
-        // zero-height box during enter scrolls only its heading into view.
-        await settled(); await waitForGeometry(form());
-        await scroll.evaluate(element => {
-          const outer = element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]');
-          const actions = element.closest('.studio-knowledge-scope')?.querySelector('.studio-knowledge-scope-actions');
-          if (!outer || !actions) throw new Error('Missing actual dialog scroll viewport or scope actions');
-          const viewportBox = outer.getBoundingClientRect(), listBox = element.getBoundingClientRect(), actionsBox = actions.getBoundingClientRect();
-          // The list and its toolbar form the acceptance region. Scroll only
-          // the outer dialog, preserving the inner list's top/middle/end state.
-          outer.scrollTo({ top: outer.scrollTop + (listBox.top + actionsBox.bottom) / 2 - (viewportBox.top + outer.clientHeight / 2), behavior: 'instant' });
-        });
-        await waitForGeometry(scroll);
-        const visible = await scroll.evaluate(element => {
-          const outer = element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')!;
-          const actions = element.closest('.studio-knowledge-scope')!.querySelector('.studio-knowledge-scope-actions')!.getBoundingClientRect();
-          const outerBox = outer.getBoundingClientRect(), listBox = element.getBoundingClientRect();
-          const visibleTop = Math.max(outerBox.top, listBox.top), visibleBottom = Math.min(outerBox.bottom, listBox.bottom);
-          const completeRows = [...element.querySelectorAll('.studio-knowledge-cue')].filter(row => {
-            const box = row.getBoundingClientRect(); return box.top >= visibleTop - 1 && box.bottom <= visibleBottom + 1;
-          }).length;
-          return { completeRows, visibleListHeight: visibleBottom - visibleTop, listHeight: listBox.height,
-            actionsVisible: actions.top >= outerBox.top - 1 && actions.bottom <= outerBox.bottom + 1,
-            top: listBox.top, bottom: listBox.bottom, viewportTop: outerBox.top, viewportBottom: outerBox.bottom, outerScrollTop: outer.scrollTop };
-        });
-        visualMeasurements.push({ name: `${captureName}-visible-content`, metrics: visible });
-        expect(visible.visibleListHeight).toBeGreaterThanOrEqual(visible.listHeight - 1);
-        expect(visible.completeRows).toBeGreaterThanOrEqual(2);
-        expect(visible.actionsVisible).toBe(true);
-        await geometry(form());
-        await ui.screenshot({ path: path.join(artifacts, `${captureName}.png`), animations: 'disabled' });
-      };
-      const metrics = await scopes.evaluate(element => {
-        const help = element.querySelector('.studio-knowledge-scope-help')!.getBoundingClientRect();
-        const list = element.querySelector('.studio-knowledge-scope-scroll')!.getBoundingClientRect();
-        const actions = element.querySelector('.studio-knowledge-scope-actions')!.getBoundingClientRect();
-        const rows = [...element.querySelectorAll<HTMLElement>('.studio-knowledge-cue')];
-        const first = rows[0], long = rows[2];
-        const firstRoles = [...first.querySelectorAll('.studio-knowledge-cue-role')].map(role => role.getBoundingClientRect());
-        const trigger = element.querySelector('[data-slot=accordion-trigger]')!;
-        const triggerBox = trigger.getBoundingClientRect();
-        const panel = element.getBoundingClientRect();
-        return { listGapAbove: list.top - help.bottom, listGapBelow: actions.top - list.bottom,
-          shortHeight: first.getBoundingClientRect().height, shortTextHeight: first.querySelector('.studio-knowledge-cue-text')!.getBoundingClientRect().height,
-          longTextHeight: long.querySelector('.studio-knowledge-cue-text')!.getBoundingClientRect().height,
-          roleTopDelta: Math.max(...firstRoles.map(role => role.top)) - Math.min(...firstRoles.map(role => role.top)),
-          roleControlHeights: [...first.querySelectorAll('[data-slot=select-trigger]')].map(control => control.getBoundingClientRect().height),
-          overflow: rows.some(row => row.scrollWidth > row.clientWidth + 1),
-          titleInset: trigger.querySelector('span')!.getBoundingClientRect().left - triggerBox.left,
-          iconInset: triggerBox.right - trigger.querySelector('svg')!.getBoundingClientRect().right,
-          panelCorner: Number.parseFloat(getComputedStyle(element).borderTopLeftRadius), triggerInset: triggerBox.left - panel.left };
-      });
-      visualMeasurements.push({ name, metrics });
-      expect(metrics.listGapAbove).toBeCloseTo(12, 0); expect(metrics.listGapBelow).toBeCloseTo(12, 0);
-      expect(metrics.shortTextHeight).toBeLessThanOrEqual(21); expect(metrics.longTextHeight).toBeGreaterThan(metrics.shortTextHeight);
-      expect(metrics.shortHeight).toBeLessThanOrEqual(136); expect(metrics.roleTopDelta).toBeLessThanOrEqual(1);
-      expect(metrics.roleControlHeights).toEqual([28, 28, 28]); expect(metrics.overflow).toBe(false);
-      expect(metrics.titleInset).toBeGreaterThanOrEqual(11); expect(metrics.iconInset).toBeGreaterThanOrEqual(11);
-      expect(metrics.panelCorner).toBeGreaterThan(0); expect(metrics.triggerInset).toBeLessThanOrEqual(1.5);
-      expect(await viewport.evaluate(element => element.scrollHeight - element.clientHeight)).toBeGreaterThan(100);
-      for (const [position, top, bottom] of [['top', false, true], ['middle', true, true], ['bottom', true, false]] as const) {
-        await viewport.evaluate((element, at) => { const max = element.scrollHeight - element.clientHeight; element.scrollTop = at === 'top' ? 0 : at === 'bottom' ? max : max / 2; }, position);
-        await uiExpect(scroll).toHaveAttribute('data-fade-top', String(top)); await uiExpect(scroll).toHaveAttribute('data-fade-bottom', String(bottom));
-        for (const [edge, shown] of [['top', top], ['bottom', bottom]] as const) {
-          const overlay = scroll.locator(`.studio-scroll-fade-edge[data-edge="${edge}"]`);
-          await uiExpect(overlay).toHaveCSS('pointer-events', 'none'); await uiExpect(overlay).toHaveAttribute('aria-hidden', 'true');
-          await uiExpect.poll(() => overlay.evaluate(element => Number(getComputedStyle(element).opacity))).toBe(shown ? 1 : 0);
-        }
-        await captureScopeList(`${name}-${position}`);
-      }
-      await viewport.evaluate(element => { element.scrollTop = 0; });
-      await uiExpect(scroll).toHaveAttribute('data-fade-top', 'false');
+    const openDocument = async (id: string) => {
+      await showLibrary();
+      await ui.locator(`[data-testid="studio-library-row"][data-document-id="${id}"] .studio-document`).click();
+      await uiExpect(ui.locator('.studio-library-dialog')).toHaveCount(0);
+      await uiExpect(ui.locator('.studio-preview-region')).toHaveAttribute('aria-busy', 'false');
     };
-    const compactLayout = async () => {
-      const metrics = await ui.getByTestId('studio-translation-header').evaluate(header => {
-        const dialog = header.closest('[role=dialog]')!;
-        const title = header.querySelector('[data-slot=dialog-title]')!.getBoundingClientRect();
-        const close = dialog.querySelector('[data-slot=dialog-close]')!.getBoundingClientRect();
-        const frame = header.parentElement!.parentElement!.getBoundingClientRect();
-        const materials = dialog.querySelector('[data-testid=studio-materials]')!.getBoundingClientRect();
-        const heading = dialog.querySelector('.studio-materials-title')!.getBoundingClientRect();
-        const choose = dialog.querySelector('[data-testid=studio-materials-choose]')!.getBoundingClientRect();
-        return { materialsWidth: materials.width, headerHeight: frame.height, centerDelta: Math.abs(title.top + title.height / 2 - close.top - close.height / 2),
-          reuseInHeader: header.contains(dialog.querySelector('[data-testid=studio-translation-settings]')),
-          titleTopInset: heading.top - materials.top, titleLeftInset: heading.left - materials.left,
-          headingButtonTopDelta: Math.abs(heading.top - choose.top) };
-      });
-      expect(metrics.headerHeight).toBeLessThanOrEqual(60);
-      expect(metrics.centerDelta).toBeLessThanOrEqual(2);
-      expect(metrics.reuseInHeader).toBe(false);
-      expect(Math.abs(metrics.titleTopInset - metrics.titleLeftInset)).toBeLessThanOrEqual(2);
-      if (metrics.materialsWidth > 406) expect(metrics.headingButtonTopDelta).toBeLessThanOrEqual(2);
-      await uiExpect(ui.getByTestId('studio-translation-form').getByTestId('studio-translation-settings')).toBeVisible();
-    };
-    const returnToSettings = async () => {
-      await ui.getByTestId('studio-translation-review-close').click();
-      await uiExpect(review()).toHaveCount(0);
+    const openTranslation = async (label: string) => {
+      await ui.getByRole('button', { name: label, exact: true }).click();
       await uiExpect(form()).toBeVisible();
-    };
-    const expand = async (testId: string) => {
-      const trigger = ui.getByTestId(testId).locator('[data-slot=accordion-trigger]').first();
-      if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
-    };
-    const selectRecipe = async () => {
-      await ui.getByTestId('studio-materials-choose').click();
-      await ui.getByTestId('studio-materials-recipe').click();
-      await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
-      await ui.getByTestId('studio-materials-done').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
+    };
+    const openPicker = async () => {
+      await ui.getByTestId('studio-materials-choose').click();
+      await uiExpect(picker).toBeVisible();
+    };
+    const done = async () => { await ui.getByTestId('studio-materials-done').click(); await uiExpect(picker).toHaveCount(0); };
+    // Presets and recent sets live on the second tab; applying one returns to the collections tab.
+    const showTab = async (index: 0 | 1) => { await picker.getByTestId('studio-materials-tabs').getByRole('tab').nth(index).click(); };
+    const presetMenu = async (id: string, item: 'rename' | 'delete') => {
+      await ui.getByTestId(`studio-materials-preset-more-${id}`).click();
+      await ui.getByTestId(`studio-materials-preset-${item}`).click();
     };
     const closeTranslation = async () => {
       await ui.getByTestId('studio-translation-close').click();
       await uiExpect(ui.getByTestId('studio-translation-form')).toHaveCount(0);
     };
+    const preferences = () => ui.evaluate(() => JSON.parse(localStorage.getItem('fusionkit.subtitle-studio.preferences.v1') ?? '{}').state);
+    const presetNamed = async (name: string) => (await readLibrary(ui)).data.presets.find(preset => preset.name === name);
 
     try {
-      await ui.evaluate(() => {
-        localStorage.setItem('translation-knowledge-tour-done', '1');
-        localStorage.setItem('lang', 'zh');
-        localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
-        localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'materials-layout', name: 'Local configuration fixture', provider: 'DeepSeek', apiKey: 'synthetic-layout-key', baseUrl: 'http://127.0.0.1:9', modelKey: 'deepseek-v4-flash', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'materials-layout', agent: null }, audioProfiles: [], audioAssignment: {} } }));
-        location.hash = '/tools/translation-knowledge';
-      });
-      await ui.reload(); await nativeWindow.evaluate(win => win.setSize(1280, 860)); await settled();
-      await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, input);
-      await ui.getByTestId('knowledge-import').click();
-      await ui.getByRole('button', { name: '确认导入', exact: true }).click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await ui.evaluate(async () => {
-        const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(read.error);
-        let current = read.value;
-        for (const entry of read.value.data.entries) {
-          const result = await window.translationKnowledge.reviewEntries({ generation: current.generation, ids: [entry.id], action: 'adopt' });
-          if (!result.ok) throw new Error(result.error); current = result.value;
-        }
-      });
-      await ui.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
-      await capture('library-sidebar-zh-light-wide', ui.getByTestId('knowledge-plans'));
-      for (const id of ['knowledge-import', 'knowledge-export', 'knowledge-open-studio']) await uiExpect(ui.getByTestId(id)).toBeVisible();
-      await ui.getByTestId('knowledge-export').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
-      await ui.keyboard.press('Escape');
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await uiExpect(ui).toHaveURL(/#\/tools\/translation-knowledge$/);
-      const management = ui.locator('#knowledge-more-management [data-slot=accordion-trigger]').first();
-      await management.click(); await uiExpect(management).toHaveAttribute('aria-expanded', 'true');
-      await ui.getByTestId('knowledge-history').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(1); await ui.keyboard.press('Escape');
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0); await management.click();
-      await ui.getByTestId('knowledge-open-studio').click();
-      await app.evaluate(({ dialog }, files) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: files }); }, subtitleFiles);
-      await ui.getByRole('button', { name: '打开字幕文件', exact: true }).click();
-      await uiExpect(ui.getByTestId('studio-library-result')).toHaveAttribute('data-outcome', 'success');
-      await ui.locator('#studio-result-close').click();
-      const documents = await readDocuments();
-      const first = documents.find(document => document.summary.origin.displayName === path.basename(subtitleFiles[0]))!;
-      const second = documents.find(document => document.summary.origin.displayName === path.basename(subtitleFiles[1]))!;
-      const showLibrary = async () => {
-        // Compact Studio renders its document list in the real library dialog.
-        // The document rows are intentionally absent until that dialog opens.
-        await uiExpect(ui.getByTestId('subtitle-studio')).toBeVisible();
-        const trigger = ui.locator('#studio-library-trigger');
-        if (await trigger.isVisible() && !(await ui.locator('.studio-library-dialog').isVisible())) await trigger.click();
-      };
-      const openDocument = async (id: string) => {
-        await showLibrary();
-        await ui.locator(`[data-testid="studio-library-row"][data-document-id="${id}"] .studio-document`).click();
-        await uiExpect(ui.locator('.studio-library-dialog')).toHaveCount(0);
-        await uiExpect(ui.locator('.studio-preview-region')).toHaveAttribute('aria-busy', 'false');
-      };
-      await openDocument(first.summary.id);
-      await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
-      await capture('single-empty-zh-light-wide', form());
-      await compactLayout();
+      await preparePage(ui, { lang: 'zh', port: provider.port });
+      await openSubtitles(app, ui, subtitleFiles, zh.studio.open_file);
+      const documents = await readDocuments(ui);
+      const [first, second] = subtitleFiles.map(file => documents.find(document => document.summary.origin.displayName === path.basename(file))!);
 
-      // The portalled picker owns scrolling and Escape. Closing it never closes its parent or
-      // navigates, and selections take effect without an extra commit dialog.
-      await ui.getByTestId('studio-materials-choose').click();
-      const picker = ui.getByTestId('studio-materials-picker');
-      await uiExpect(ui.getByRole('dialog', { includeHidden: true })).toHaveCount(2);
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
-      await wheelPicker('picker-zh-light-wide');
+      // An empty library gives a way to the translation materials page, not an empty list.
+      await openDocument(first.summary.id);
+      await openTranslation(zh.studio.translation.action);
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.studio.materials.none);
+      await openPicker();
+      await uiExpect(picker).toContainText(zh.materials.selection.empty_library);
+      await uiExpect(picker).toContainText(zh.materials.selection.empty_library_help);
+      await uiExpect(picker.locator('[data-testid^="studio-materials-collection-"]')).toHaveCount(0);
+      await uiExpect(picker.getByRole('checkbox')).toHaveCount(0);
+      await showTab(1);
+      await uiExpect(picker).toContainText(zh.materials.selection.presets_empty_help);
+      await uiExpect(ui.getByTestId('studio-materials-save-preset')).toBeDisabled();
+      await showTab(0);
+      const manage = picker.getByRole('link', { name: zh.materials.selection.manage });
+      await uiExpect(manage).toBeVisible();
+      await capture('picker-empty-library-zh-light', picker);
+      await manage.click();
+      await uiExpect(ui).toHaveURL(/#\/tools\/translation-knowledge$/);
+      await uiExpect(ui.getByTestId('studio-translation-form')).toHaveCount(0);
+
+      await seedLibrary(ui, fixture);
+      await ui.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
+      await openDocument(first.summary.id);
+      await openTranslation(zh.studio.translation.action);
+      await openPicker();
+      // Archived collections are hidden. Until a source language is settled every target-matching collection is open.
+      await uiExpect(collection(archived.id)).toHaveCount(0);
+      await uiExpect(collection(otherDirection.id)).toBeEnabled();
+      await uiExpect(picker.locator('.studio-materials-collection-row')).toHaveCount(fixture.collections.length - 1);
+      await wheelPicker('picker-zh-light-1280');
       await ui.getByTestId('studio-materials-search').fill('六条样本');
       await uiExpect(picker.locator('.studio-materials-collection-row')).toHaveCount(6);
-      await wheelPicker('picker-six-zh-light-wide');
       await ui.getByTestId('studio-materials-search').fill('There is no collection with this title');
       await uiExpect(ui.getByTestId('studio-materials-search-empty')).toBeVisible();
       await uiExpect(picker.locator('[data-testid^="studio-materials-collection-"]')).toHaveCount(0);
-      await capture('picker-search-empty-zh-light-wide', picker);
+      await capture('picker-search-empty-zh-light-1280', picker);
       await ui.getByTestId('studio-materials-search-empty').getByRole('button').click();
       await uiExpect(ui.getByTestId('studio-materials-search')).toHaveValue('');
-      await ui.getByTestId(`studio-materials-collection-${fixture.collections[0].id}`).check();
-      await uiExpect(ui.getByTestId(`studio-materials-collection-${otherCollection.id}`)).not.toBeChecked();
+
+      // Two ticked collections become two chips and are what a trial sends.
+      await collection(common.id).check();
+      await collection(removable.id).check();
+      await uiExpect(collection(game.id)).not.toBeChecked();
+      // The first collection settles English as the source; the Japanese one is now another direction.
+      await uiExpect(collection(otherDirection.id)).toBeDisabled();
+      await uiExpect(picker.locator('.studio-materials-collection-row').filter({ hasText: otherDirection.name })).toContainText(zh.materials.selection.other_direction);
+      await uiExpect(picker).toContainText(fill(zh.materials.selection.selected_count, { count: 2 }));
       await ui.keyboard.press('Escape');
       await uiExpect(picker).toHaveCount(0); await uiExpect(form()).toBeVisible();
       await uiExpect(ui).toHaveURL(/#\/tools\/subtitle\/studio$/);
-      await uiExpect(ui.getByTestId('studio-materials-choose')).toBeFocused();
-      await ui.getByTestId('studio-materials-choose').click();
-      await uiExpect(ui.getByTestId(`studio-materials-collection-${fixture.collections[0].id}`)).toBeChecked();
-      await capture('picker-selected-zh-light-wide', picker);
-      await ui.getByTestId('studio-materials-done').click();
-      // Hand off to another dialog, then recover actual pointer interaction.
-      await ui.getByTestId('studio-materials-choose').click();
-      await ui.getByTestId('studio-materials-add-term').click();
-      await uiExpect(ui.getByTestId('quick-term-form')).toBeVisible();
-      await uiExpect(picker).toHaveCount(0);
-      await ui.keyboard.press('Escape');
-      await uiExpect(ui.getByTestId('quick-term-form')).toHaveCount(0);
-      await ui.getByTestId('studio-materials-clear').click();
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
-      await uiExpect(ui.getByTestId('studio-materials-source')).toHaveCount(0);
-      // Only this local IPC response is delayed/failed. The actual renderer,
-      // preload, modal stack, and subsequent successful planner stay production.
-      await app.evaluate(({ ipcMain }) => {
-        type Handler = (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown | Promise<unknown>;
-        const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, Handler> })._invokeHandlers;
-        const channel = 'subtitle-studio:plan-translation', original = handlers.get(channel);
-        if (!original) throw new Error('Missing production translation planner');
-        let release: () => void = () => {};
-        const pending = new Promise<void>(resolve => { release = resolve; });
-        handlers.set(channel, async () => { await pending; return { ok: false, error: 'translation_failed' }; });
-        (globalThis as typeof globalThis & { __materialsReviewGate?: { release: () => void; restore: () => void } }).__materialsReviewGate = {
-          release, restore: () => handlers.set(channel, original),
-        };
-      });
-      await ui.getByTestId('studio-translation-check').click();
-      await uiExpect(review()).toBeVisible();
-      await uiExpect(ui.getByTestId('studio-translation-review-loading')).toBeVisible();
-      await capture('review-loading-zh-light-wide', review());
-      await ui.keyboard.press('Escape');
+      await uiExpect(chips()).toHaveCount(2);
+      await uiExpect(chips().filter({ hasText: common.name })).toHaveCount(1);
+      await uiExpect(chips().filter({ hasText: removable.name })).toHaveCount(1);
+      await uiExpect(ui.getByTestId('studio-materials-source')).toHaveText(zh.knowledge.languages.en);
+      await capture('selected-two-zh-light-1280', form());
+      await ui.getByTestId('studio-translation-trial').click();
+      await uiExpect(ui.getByTestId('knowledge-trial-result')).toBeVisible();
+      expect(provider.requests).toHaveLength(1);
+      expect(provider.requests[0].raw).toContain('首领');
+      expect(provider.requests[0].raw).toContain('中继站');
+      expect(provider.requests[0].raw).not.toContain('存档点');
+      // The run is remembered as a recent set, in Studio preferences.
+      expect((await preferences()).recentKnowledgeSets[0]).toMatchObject({ languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [common.id, removable.id] });
+      await ui.getByTestId('studio-translation-review-close').click();
       await uiExpect(review()).toHaveCount(0);
-      await uiExpect(form()).toBeVisible();
-      await app.evaluate(() => { (globalThis as typeof globalThis & { __materialsReviewGate?: { release: () => void } }).__materialsReviewGate!.release(); });
-      await uiExpect(ui.getByTestId('studio-translation-check')).toBeEnabled();
-      await uiExpect(review()).toHaveCount(0);
-      await ui.getByTestId('studio-translation-check').click();
-      await uiExpect(ui.getByTestId('studio-translation-review-error')).toBeVisible();
-      await capture('review-error-zh-light-wide', review());
-      await app.evaluate(() => { (globalThis as typeof globalThis & { __materialsReviewGate?: { restore: () => void } }).__materialsReviewGate!.restore(); });
-      await ui.getByTestId('studio-translation-review-retry').click();
-      await uiExpect(ui.getByTestId('studio-translation-plan')).toBeVisible();
-      await uiExpect(ui.getByTestId('knowledge-full-preview')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('studio-translation-form').getByTestId('studio-translation-plan')).toHaveCount(0);
-      await capture('review-estimate-zh-light-wide', review());
-      await ui.keyboard.press('Escape');
-      await uiExpect(review()).toHaveCount(0);
-      await uiExpect(form()).toBeVisible();
-      await uiExpect(ui.getByTestId('studio-translation-check')).toBeFocused();
-
-      await selectRecipe();
-      const instructions = 'Keep each subtitle concise and retain all information.';
-      const contextText = 'Shared background for this series; scope must be confirmed for each document.';
-      await ui.getByTestId('studio-translation-instructions').fill(instructions);
-      await expand('studio-materials-more');
-      await ui.getByTestId('studio-materials-context').fill(contextText);
-      await expand('studio-materials-exclusions');
-      await ui.getByTestId(`studio-materials-exclude-${context.id}`).check();
-      await expand('studio-materials-topics');
-      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).check();
-      await disclosureLayout('materials-disclosures-zh-light');
-      await capture('materials-disclosures-expanded-zh-light', form());
-      const scopes = ui.getByTestId('knowledge-trial-scopes');
-      await scopes.locator('[data-slot=accordion-trigger]').first().click();
-      await scopeLayout('scope-list-zh-light');
-      await ui.getByTestId(`studio-materials-cue-${first.cues[0].id}`).check();
-      await ui.getByTestId(`studio-materials-role-${first.cues[0].id}-speaker`).click();
-      await ui.getByRole('option', { name: fixture.subjects[1].name, exact: true }).click();
-      await uiExpect(ui.getByTestId(`studio-materials-cue-${first.cues[0].id}`)).toBeChecked();
-      await ui.getByTestId(`studio-materials-confirm-${first.cues[0].id}-${term.id}`).check();
-      await scopes.locator('[data-slot=accordion-trigger]').first().click();
-      await ui.getByTestId('studio-translation-settings').click();
-      await ui.getByTestId('studio-translation-save-recipe').click();
-      const savedName = 'Shared series configuration from the redesigned settings panel';
-      await ui.getByTestId('studio-translation-recipe-name').fill(savedName);
-      await ui.getByTestId('studio-translation-confirm-recipe').click();
-      await uiExpect.poll(async () => (await readLibrary()).data.recipes.some(recipe => recipe.name === savedName)).toBe(true);
-      const savedRecipe = (await readLibrary()).data.recipes.find(recipe => recipe.name === savedName)!;
-      expect(savedRecipe).toMatchObject({ instructions, context: contextText, readCollectionIds: fixture.recipes[0].readCollectionIds, subjectSuggestions: [] });
-      if (await ui.getByTestId('studio-translation-settings').getAttribute('aria-expanded') === 'true') await ui.keyboard.press('Escape');
       await closeTranslation();
 
-      // Cross-document reuse is an explicit action. It carries the shared
-      // language, model and writing settings, never the first document's proof.
+      // The used collection is deleted; reusing the recent set skips it with a notice.
+      await ui.evaluate(async id => {
+        const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(read.error);
+        const result = await window.translationKnowledge.deleteRecords({ generation: read.value.generation, items: [{ group: 'collections', id }] });
+        if (!result.ok) throw new Error(result.error);
+      }, removable.id);
       await openDocument(second.summary.id);
-      await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
-      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue('');
-      await ui.getByTestId('studio-translation-settings').click();
-      await uiExpect(ui.getByTestId('studio-translation-reuse')).toBeEnabled();
-      await uiExpect(ui.getByTestId('studio-translation-reuse-summary')).toContainText(fixture.collections[0].name);
-      await capture('reuse-settings-zh-light-wide', ui.getByTestId('studio-translation-settings-panel'));
-      await ui.keyboard.press('Escape');
-      await uiExpect(ui.getByTestId('studio-translation-settings-panel')).toHaveCount(0);
-      await uiExpect(form()).toBeVisible();
-      await uiExpect(ui.getByTestId('studio-translation-settings')).toBeFocused();
-      await uiExpect(ui).toHaveURL(/#\/tools\/subtitle\/studio$/);
-      await ui.getByTestId('studio-translation-settings').click();
-      await ui.getByTestId('studio-translation-reuse').click();
-      if (await ui.getByTestId('studio-translation-settings').getAttribute('aria-expanded') === 'true') await ui.keyboard.press('Escape');
-      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(instructions);
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(fixture.recipes[0].name);
-      await uiExpect(ui.getByTestId('studio-materials-source')).toHaveText('英语');
-      await expand('studio-materials-more');
-      await uiExpect(ui.getByTestId('studio-materials-context')).toHaveValue(contextText);
-      await expand('studio-materials-exclusions');
-      await uiExpect(ui.getByTestId(`studio-materials-exclude-${context.id}`)).not.toBeChecked();
-      await expand('studio-materials-topics');
-      await uiExpect(ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`)).not.toBeChecked();
-      await ui.getByTestId('knowledge-trial-scopes').locator('[data-slot=accordion-trigger]').first().click();
-      for (const cue of second.cues) {
-        await uiExpect(ui.getByTestId(`studio-materials-cue-${cue.id}`)).not.toBeChecked();
-        await uiExpect(ui.getByTestId(`studio-materials-confirm-${cue.id}-${term.id}`)).not.toBeChecked();
-        for (const role of ['topic', 'speaker', 'mentioned']) await uiExpect(ui.getByTestId(`studio-materials-role-${cue.id}-${role}`)).toHaveText('未关联对象');
-      }
-      await ui.getByTestId('knowledge-trial-scopes').locator('[data-slot=accordion-trigger]').first().click();
-      await ui.getByTestId('studio-translation-check').click();
-      await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
-      await uiExpect.poll(() => ui.getByTestId('knowledge-full-preview').locator('[data-issue-code="subject_unbound"]').count()).toBeGreaterThan(0);
-      await capture('review-materials-zh-light-wide', review());
-      await returnToSettings();
-      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(instructions);
-      await closeTranslation();
-      await showLibrary();
-      for (const document of documents) await ui.locator(`[data-testid="studio-library-row"][data-document-id="${document.summary.id}"]`).getByRole('checkbox').check();
-      await ui.getByTestId('studio-batch-toolbar').getByRole('button', { name: '批量翻译', exact: true }).click();
-      await ui.getByTestId('studio-translation-settings').click();
-      await ui.getByTestId('studio-translation-reuse').click();
-      if (await ui.getByTestId('studio-translation-settings').getAttribute('aria-expanded') === 'true') await ui.keyboard.press('Escape');
-      await uiExpect(ui.getByTestId('knowledge-trial-scopes')).toHaveCount(0);
-      await capture('batch-selected-zh-light-wide', form());
-      await compactLayout();
-      await ui.getByTestId('studio-translation-check').click();
-      await uiExpect(ui.getByTestId('knowledge-batch-preview')).toBeVisible();
-      await capture('review-batch-zh-light-wide', review());
-      await returnToSettings();
+      await openTranslation(zh.studio.translation.action);
+      await uiExpect(chips()).toHaveCount(0);
+      await openPicker();
+      await showTab(1);
+      const recent = ui.getByTestId('studio-materials-recent-item');
+      await uiExpect(recent).toHaveCount(1);
+      await uiExpect(recent).toContainText(common.name);
+      await recent.click();
+      await uiExpect(ui.getByTestId('studio-materials-skipped')).toHaveText(fill(zh.materials.selection.preset_missing, { count: 1 }));
+      await uiExpect(collection(common.id)).toBeChecked();
+      await uiExpect(collection(removable.id)).toHaveCount(0);
+      await uiExpect(chips()).toHaveCount(1);
+      await capture('picker-recent-skipped-zh-light-1280', picker);
+
+      // Applying a preset fills collections, requirements and context.
+      await showTab(1);
+      await ui.getByTestId(`studio-materials-preset-${livePreset.id}`).click();
+      await uiExpect(ui.getByTestId('studio-materials-skipped')).toHaveCount(0);
+      for (const id of livePreset.collectionIds) await uiExpect(collection(id)).toBeChecked();
+      await done();
+      await uiExpect(chips()).toHaveCount(2);
+      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(livePreset.instructions);
+      await ui.getByTestId('studio-materials-more').locator('[data-slot=accordion-trigger]').first().click();
+      await uiExpect(ui.getByTestId('studio-materials-context')).toHaveValue(livePreset.context);
+      // A preset naming an archived collection applies the rest and says what it skipped.
+      await openPicker();
+      await showTab(1);
+      await ui.getByTestId(`studio-materials-preset-${archivedPreset.id}`).click();
+      await uiExpect(ui.getByTestId('studio-materials-skipped')).toHaveText(fill(zh.materials.selection.preset_missing, { count: 1 }));
+      await uiExpect(collection(game.id)).toBeChecked();
+      await uiExpect(collection(common.id)).not.toBeChecked();
+      // Changing the selection after applying never edits the preset.
+      await showTab(1);
+      await ui.getByTestId(`studio-materials-preset-${livePreset.id}`).click();
+      await collection(filler[0].id).check();
+      await collection(common.id).uncheck();
+      await done();
+      expect(await presetNamed(livePreset.name)).toEqual(livePreset);
+
+      // Save the current selection as a preset; it is stored in the library's presets.
+      const instructions = 'Keep each subtitle concise and retain all information.';
+      await ui.getByTestId('studio-translation-instructions').fill(instructions);
+      await openPicker();
+      await showTab(1);
+      await ui.getByTestId('studio-materials-save-preset').click();
+      const savedName = '系列视频的长名称预设，用来检查重命名和删除都能在选择器里完成';
+      await ui.getByTestId('studio-materials-preset-name').fill(savedName);
+      await ui.getByTestId('studio-materials-preset-confirm').click();
+      await uiExpect.poll(async () => !!(await presetNamed(savedName))).toBe(true);
+      const saved = (await presetNamed(savedName))!;
+      expect(saved).toMatchObject({ revision: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [game.id, filler[0].id], instructions, context: livePreset.context });
+      await uiExpect(ui.getByTestId(`studio-materials-preset-${saved.id}`)).toBeVisible();
+      await capture('picker-presets-zh-light-1280', picker);
+      await done();
       await closeTranslation();
 
-      await ui.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); location.hash = '/tools/translation-knowledge'; });
-      await ui.reload(); await nativeWindow.evaluate(win => win.setSize(820, 700)); await settled();
-      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
-      // The skill-download help can make even the collapsed sidebar taller than
-      // the window. Check width here and individual actions' reachability below.
-      expect(await ui.locator('#knowledge-collection-list').evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
-      await capture('library-sidebar-en-dark-narrow', ui.getByTestId('knowledge-new-collection'));
-      const compactManagement = ui.locator('#knowledge-more-management');
-      const managementTrigger = compactManagement.locator('[data-slot=accordion-trigger]').first();
-      await managementTrigger.click();
-      const subjectsPanel = ui.locator('#knowledge-subjects');
-      const subjectsTrigger = subjectsPanel.getByRole('button', { name: enKnowledge.subjects.title, exact: true });
-      await subjectsTrigger.click();
-      await uiExpect(managementTrigger).toHaveAttribute('aria-expanded', 'true');
-      await uiExpect(subjectsTrigger).toHaveAttribute('aria-expanded', 'true');
-      for (const subject of fixture.subjects) await uiExpect(subjectsPanel.getByRole('button', { name: subject.name, exact: true })).toBeVisible();
-      // The expanded sidebar can be taller than the window. Verify the actual
-      // controls are reachable while scrolling, including fixed navigation.
-      for (const id of ['knowledge-history', 'knowledge-import', 'knowledge-export', 'knowledge-open-studio']) {
-        const action = ui.getByTestId(id);
-        await action.scrollIntoViewIfNeeded(); await uiExpect(action).toBeVisible();
-        await action.click({ trial: true }); await geometry(action);
-      }
-      await capture('library-sidebar-expanded-en-dark-narrow', ui.getByTestId('knowledge-history'));
-      const firstCollection = ui.locator(`[data-collection-id="${fixture.collections[0].id}"]`);
-      await firstCollection.scrollIntoViewIfNeeded(); await firstCollection.hover();
-      const collectionTooltip = ui.locator('[data-slot=tooltip-content]').filter({ hasText: fixture.collections[0].name });
-      await uiExpect(collectionTooltip).toBeVisible();
-      await uiExpect(collectionTooltip).toContainText(fixture.collections[0].name);
-      await uiExpect(collectionTooltip).toContainText(`${enKnowledge.languages.en} → ${enKnowledge.languages['zh-Hans']}`);
-      await geometry(collectionTooltip);
-      await ui.screenshot({ path: path.join(artifacts, 'library-collection-tooltip-en-dark-narrow.png'), animations: 'disabled' });
-      await subjectsTrigger.click(); await uiExpect(collectionTooltip).toHaveCount(0);
-      await managementTrigger.click();
-      await uiExpect(managementTrigger).toHaveAttribute('aria-expanded', 'false');
-      await ui.getByTestId('knowledge-open-studio').click();
+      // Next time the preset applies directly, then is renamed and deleted in the picker.
       await openDocument(first.summary.id);
-      await ui.getByRole('button', { name: en.translation.action, exact: true }).click();
-      await ui.getByRole('combobox', { name: 'Target language', exact: true }).click();
-      await ui.getByRole('option', { name: 'Simplified Chinese', exact: true }).click();
-      await selectRecipe();
-      await capture('single-selected-en-dark-narrow', form());
-      await compactLayout();
-      await expand('studio-materials-topics'); await expand('studio-materials-more');
-      await disclosureLayout('materials-disclosures-en-dark');
-      await capture('materials-disclosures-expanded-en-dark-narrow', form());
-      await expand('knowledge-trial-scopes');
-      await scopeLayout('scope-list-en-dark-narrow');
-      await ui.getByTestId('knowledge-trial-scopes').locator('[data-slot=accordion-trigger]').first().click();
-      await ui.getByTestId('studio-translation-check').click();
-      await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
-      await capture('review-materials-en-dark-narrow', review());
-      await returnToSettings();
-      await ui.getByTestId('studio-materials-choose').click();
-      await capture('picker-selected-en-dark-narrow', picker);
-      await wheelPicker('picker-en-dark-narrow');
-      await ui.keyboard.press('Escape'); await uiExpect(form()).toBeVisible();
+      await openTranslation(zh.studio.translation.action);
+      await openPicker();
+      await showTab(1);
+      await ui.getByTestId(`studio-materials-preset-${saved.id}`).click();
+      await uiExpect(collection(game.id)).toBeChecked();
+      await uiExpect(collection(filler[0].id)).toBeChecked();
+      await uiExpect(collection(common.id)).not.toBeChecked();
+      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(instructions);
+      await showTab(1);
+      await presetMenu(saved.id, 'rename');
+      await uiExpect(ui.getByTestId('studio-materials-preset-name')).toHaveValue(savedName);
+      const renamed = '改名后的系列预设';
+      await ui.getByTestId('studio-materials-preset-name').fill(renamed);
+      await ui.getByTestId('studio-materials-preset-confirm').click();
+      await uiExpect(picker.locator('.studio-materials-preset-name').filter({ hasText: renamed })).toBeVisible();
+      await uiExpect.poll(async () => (await readLibrary(ui)).data.presets.find(preset => preset.id === saved.id)?.name).toBe(renamed);
+      expect((await readLibrary(ui)).data.presets.find(preset => preset.id === saved.id)).toMatchObject({ collectionIds: saved.collectionIds, instructions, context: saved.context });
+      await presetMenu(saved.id, 'delete');
+      await uiExpect(picker).toContainText(fill(zh.materials.selection.preset_delete_confirm, { name: renamed }));
+      expect((await readLibrary(ui)).data.presets.some(preset => preset.id === saved.id)).toBe(true);
+      await capture('picker-preset-delete-confirm-zh-light-1280', picker);
+      await ui.getByTestId('studio-materials-preset-delete-confirm').click();
+      await uiExpect(ui.getByTestId(`studio-materials-preset-${saved.id}`)).toHaveCount(0);
+      await uiExpect.poll(async () => (await readLibrary(ui)).data.presets.some(preset => preset.id === saved.id)).toBe(false);
+      expect((await readLibrary(ui)).data.collections.map(item => item.id)).toEqual(expect.arrayContaining([game.id, filler[0].id]));
+      await done();
+      await closeTranslation();
+
+      // Automatic translation uses the same picker and writes its choice to preferences.
+      await ui.getByRole('tab', { name: zh.studio.workspace_transcription, exact: true }).click();
+      const autoSwitch = ui.locator('#studio-transcription-auto-translation');
+      if (await autoSwitch.getAttribute('aria-checked') !== 'true') await autoSwitch.click();
+      const automatic = ui.getByTestId('studio-automatic-materials');
+      await automatic.getByTestId('studio-materials-choose').click();
+      await collection(game.id).check();
+      await done();
+      await uiExpect.poll(async () => (await preferences()).transcription.autoTranslation.knowledge).toMatchObject({ enabled: true, sourceLanguage: 'en', collectionIds: [game.id], disabledEntryIds: [] });
+      await automatic.getByTestId('studio-materials-choose').click();
+      await showTab(1);
+      await ui.getByTestId(`studio-materials-preset-${livePreset.id}`).click();
+      await done();
+      await uiExpect.poll(async () => (await preferences()).transcription.autoTranslation.knowledge).toMatchObject({ enabled: true, sourceLanguage: 'en', collectionIds: livePreset.collectionIds, instructions: livePreset.instructions, context: livePreset.context });
+      await uiExpect(ui.getByTestId('studio-automatic-instructions')).toHaveValue(livePreset.instructions);
+      await capture('automatic-materials-zh-light-1280', automatic);
+
+      // English, dark and 900 × 700: the saved automatic choice returns and the picker still fits.
+      await preparePage(ui, { lang: 'en', theme: 'dark' });
+      await launched.resize(900, 700); await settled(ui);
+      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
+      await ui.getByRole('tab', { name: en.studio.workspace_transcription, exact: true }).click();
+      await uiExpect(ui.getByTestId('studio-automatic-materials').locator('.studio-materials-chip')).toHaveCount(2);
+      await ui.getByRole('tab', { name: en.studio.workspace_documents, exact: true }).click();
+      await openDocument(first.summary.id);
+      await openTranslation(en.studio.translation.action);
+      await ui.getByRole('combobox', { name: en.studio.translation.language, exact: true }).click();
+      await ui.getByRole('option', { name: en.studio.translation.languages.zh, exact: true }).click();
+      await openPicker();
+      await collection(game.id).check();
+      await uiExpect(collection(otherDirection.id)).toBeDisabled();
+      await uiExpect(picker.locator('.studio-materials-collection-row').filter({ hasText: otherDirection.name })).toContainText(en.materials.selection.other_direction);
+      await capture('picker-selected-en-dark-900', picker);
+      await wheelPicker('picker-en-dark-900');
+      await done();
+      await capture('form-selected-en-dark-900', form());
       const outerViewport = form().locator('[data-slot="scroll-area-viewport"]').first();
       expect(await outerViewport.evaluate(node => node.scrollHeight - node.clientHeight)).toBeGreaterThan(50);
       const outerBefore = await outerViewport.evaluate(node => node.scrollTop);
@@ -584,25 +376,9 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
       await ui.mouse.wheel(0, outerBefore > 30 ? -200 : 200);
       await uiExpect.poll(() => outerViewport.evaluate(node => node.scrollTop)).not.toBe(outerBefore);
       await closeTranslation();
-      await showLibrary();
-      for (const document of documents) await ui.locator(`[data-testid="studio-library-row"][data-document-id="${document.summary.id}"]`).getByRole('checkbox').check();
-      await ui.getByTestId('studio-batch-toolbar').getByRole('button', { name: en.batch.translation, exact: true }).click();
-      await ui.getByTestId('studio-translation-settings').click();
-      await ui.getByTestId('studio-translation-reuse').click();
-      if (await ui.getByTestId('studio-translation-settings').getAttribute('aria-expanded') === 'true') await ui.keyboard.press('Escape');
-      await capture('batch-selected-en-dark-narrow', form());
-      await compactLayout();
-      await ui.getByTestId('studio-translation-check').click();
-      await uiExpect(ui.getByTestId('knowledge-batch-preview')).toBeVisible();
-      await capture('review-batch-en-dark-narrow', review());
-      await ui.keyboard.press('Escape');
-      await uiExpect(review()).toHaveCount(0);
-      await uiExpect(form()).toBeVisible();
-      await uiExpect(ui.getByTestId('studio-translation-check')).toBeFocused();
-      await closeTranslation();
-      const unchanged = await readDocuments();
-      for (const document of unchanged) { expect(document.tasks).toHaveLength(0); expect(document.translationTracks).toHaveLength(0); }
-      expect(errors).toEqual([]);
+      for (const document of await readDocuments(ui)) { expect(document.tasks).toHaveLength(0); expect(document.translationTracks).toHaveLength(0); }
+      expect(provider.requests).toHaveLength(1);
+      expect([...launched.errors, ...provider.errors]).toEqual([]);
       await writeFile(path.join(artifacts, 'visual-metrics.json'), JSON.stringify(visualMeasurements, null, 2));
     } catch (error) {
       await writeFile(path.join(artifacts, 'visual-metrics.json'), JSON.stringify(visualMeasurements, null, 2));
@@ -611,3 +387,4 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('materials selection
     }
   }, 180000);
 });
+

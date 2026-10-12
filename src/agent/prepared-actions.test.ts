@@ -18,17 +18,17 @@ const register = (execute = vi.fn().mockResolvedValue({ success: true, data: { t
 });
 
 describe("prepared action authority", () => {
-  it("passes the card's choice to the action and keeps confirmation-only actions and their details", async () => {
+  it("runs the action on confirmation and keeps confirmation-only actions and their details", async () => {
     const execute = vi.fn().mockResolvedValue({ success: true, data: { executionStatus: "saved" } });
-    const knowledge = { items: [], counts: { subjects: 0, collections: 0, created: 1, updated: 0, archived: 0, existing: 0 }, adoptDefault: false, adoptable: 1 };
+    const knowledge = { items: [], counts: { collections: 0, created: 1, updated: 0, disabled: 0, enabled: 0, existing: 0 } };
     const action = registerPreparedAction({ sessionId: "prepared-test", toolKey: "translationKnowledge", title: "Save", summary: "One term", requiresConfirmation: true, knowledge, execute });
     expect(action).toMatchObject({ requiresConfirmation: true, knowledge });
-    await usePreparedActionsStore.getState().confirmAction(action.id, { adopt: true });
-    expect(execute).toHaveBeenCalledWith({ adopt: true });
+    await usePreparedActionsStore.getState().confirmAction(action.id);
+    expect(execute).toHaveBeenCalledWith();
     const plain = register();
     expect(plain.action.requiresConfirmation).toBeUndefined();
     await usePreparedActionsStore.getState().confirmAction(plain.action.id);
-    expect(plain.execute).toHaveBeenCalledWith(undefined);
+    expect(plain.execute).toHaveBeenCalledTimes(1);
   });
   it("timestamps actual state changes when an older preparation completes after newer actions", async () => {
     const now = vi.spyOn(Date, "now").mockReturnValue(1000);

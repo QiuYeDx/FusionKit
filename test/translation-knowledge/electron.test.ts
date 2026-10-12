@@ -1,26 +1,28 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { knowledgeFixture } from './fixtures';
-import { parseKnowledgePackage } from '../../src/translation-knowledge/validation';
-import { KnowledgeService } from '../../electron/main/translation-knowledge/service';
+import type { SaveItem } from '../../src/translation-knowledge/ipc-contract';
+import type { TermEntry } from '../../src/translation-knowledge/schemas';
+import zh from '../../src/locales/zh/knowledge.json';
 import en from '../../src/locales/en/knowledge.json';
 
-describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowledge in Electron', () => {
+const fill = (text: string, values: Record<string, string | number>) => text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key: string) => String(values[key]));
+
+describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materials page in Electron', () => {
   let application: ElectronApplication | undefined;
   let page: Page;
   let root: string;
-  const screenshots = path.resolve('test-results/translation-knowledge');
+  const screenshots = path.resolve('test-results/translation-knowledge-page');
   const errors: string[] = [];
   afterAll(async () => {
     try {
       const process = application?.process();
       await application?.close();
-      if (process) {
-        expect(process.exitCode !== null || process.signalCode !== null).toBe(true);
-      }
+      if (process) expect(process.exitCode !== null || process.signalCode !== null).toBe(true);
     }
     finally { if (root) await rm(root, { recursive: true, force: true }); }
   });
@@ -29,355 +31,295 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation knowled
     if (!result.ok) throw new Error(result.error);
     return result.value;
   });
-  const openHistory = async () => {
-    const management = page.locator('#knowledge-more-management');
-    const trigger = management.locator('[data-slot=accordion-trigger]').first();
-    if (await trigger.getAttribute('aria-expanded') === 'false') await trigger.click();
-    await page.getByTestId('knowledge-history').click();
-  };
+  /** Writes behind the page's back, the way another window or the assistant would. */
+  const saveBehind = (items: SaveItem[]) => page.evaluate(async items => {
+    const current = await window.translationKnowledge.read();
+    if (!current.ok) throw new Error(current.error);
+    const result = await window.translationKnowledge.saveRecords({ generation: current.value.generation, items });
+    if (!result.ok) throw new Error(`${result.error} ${JSON.stringify(result.diagnostics ?? [])}`);
+  }, items);
+  const termBySource = async (collectionId: string, source: string) => (await read()).data.entries.find((entry): entry is TermEntry => entry.kind === 'term' && entry.collectionId === collectionId && entry.payload.source === source);
   const capture = async (name: string, target?: Locator) => {
     await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
-    if (target) {
-      await target.evaluate(element => element.scrollIntoView({ block: 'center' }));
-      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    }
+    if (target) await target.evaluate(element => element.scrollIntoView({ block: 'center' }));
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     await page.screenshot({ path: path.join(screenshots, `${name}.png`), animations: 'disabled' });
   };
+  /** Soft so the rest of the journey still runs; a miss still fails the test. */
+  const focusReturnsTo = async (target: Locator) => {
+    try { await uiExpect(target).toBeFocused({ timeout: 3000 }); return true; } catch { return false; }
+  };
+  const setPreferences = async (lang: 'zh' | 'en', theme: 'light' | 'dark') => {
+    await page.evaluate(({ lang, theme }) => {
+      localStorage.setItem('lang', lang);
+      localStorage.setItem('translation-knowledge-tour-done', '1');
+      localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme }, version: 0 }));
+      location.hash = '/tools/translation-knowledge';
+    }, { lang, theme });
+    await page.reload();
+    await page.waitForFunction(dark => document.documentElement.classList.contains('dark') === dark, theme === 'dark');
+  };
 
-  it('uses native import, explicit review, structured editing, export and isolated restore', async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'fusionkit-knowledge-e2e-'));
+  it('creates, edits, pastes, searches and pages terms and notes with immediate saves', async ({ onTestFailed }) => {
+    onTestFailed(async () => { await page?.screenshot({ path: path.join(screenshots, 'failure.png') }).catch(() => undefined); });
+    root = await mkdtemp(path.join(tmpdir(), 'fusionkit-knowledge-page-e2e-'));
     await mkdir(screenshots, { recursive: true });
-    const fixture = knowledgeFixture();
-    const input = path.join(root, 'all-types.fktk.json');
-    const output = path.join(root, 'backup.fktk.json');
-    await writeFile(input, JSON.stringify(fixture));
     application = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
     page = await application.firstWindow();
     page.on('pageerror', error => errors.push(error.message));
-    await page.evaluate(() => {
-      localStorage.setItem('lang', 'zh');
-      // The consumer journey covers the actual first-visit Tour. This scenario
-      // starts after onboarding so it can exercise native library maintenance.
-      localStorage.setItem('translation-knowledge-tour-done', '1');
-      localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
-      location.hash = '/tools/translation-knowledge';
-    });
-    await page.reload();
     const nativeWindow = await application.browserWindow(page);
-    await nativeWindow.evaluate(win => win.setSize(1280, 860));
-    await uiExpect(page.getByTestId('knowledge-import')).toBeEnabled();
-    await capture('empty-light');
-    await openHistory();
-    await uiExpect(page.getByTestId('knowledge-history-empty')).toBeVisible();
-    await uiExpect(page.getByTestId('knowledge-history-previous')).toBeDisabled();
-    await uiExpect(page.getByTestId('knowledge-history-next')).toBeDisabled();
-    await capture('history-empty-light');
-    const cleanup = page.getByTestId('knowledge-history-cleanup');
-    const cleanupTrigger = cleanup.locator('[data-slot=accordion-trigger]').first();
-    await uiExpect(cleanupTrigger).toHaveAttribute('aria-expanded', 'false');
-    await cleanupTrigger.focus();
-    await page.keyboard.press('Enter');
-    await uiExpect(cleanupTrigger).toHaveAttribute('aria-expanded', 'true');
-    await uiExpect(page.getByTestId('knowledge-history-no-sources')).toBeVisible();
-    await capture('history-empty-cleanup');
-    await cleanupTrigger.focus();
-    await page.keyboard.press('Space');
-    await uiExpect(cleanupTrigger).toHaveAttribute('aria-expanded', 'false');
-    await uiExpect(cleanup.locator('[data-slot=accordion-content]').first()).toHaveAttribute('inert', '');
-    await uiExpect(page.getByTestId('knowledge-history-no-sources')).toBeHidden();
-    await application.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] }); });
-    await page.getByTestId('knowledge-history-import').click();
-    await uiExpect(page.getByTestId('knowledge-history-import')).toBeEnabled();
-    await uiExpect(page.getByTestId('knowledge-history-empty')).toBeVisible();
-    await page.getByTestId('knowledge-history-close').click();
-    await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
-    await page.reload(); await nativeWindow.evaluate(win => win.setSize(820, 700));
-    await uiExpect(page.getByTestId('knowledge-history')).toBeEnabled();
-    await openHistory();
-    await uiExpect(page.locator('html')).toHaveClass(/dark/);
-    await capture('history-empty-dark-english');
-    const emptyGeometry = await page.getByRole('dialog').evaluate(element => ({ width: element.clientWidth, scrollWidth: element.scrollWidth, bottom: element.getBoundingClientRect().bottom, height: innerHeight }));
-    expect(emptyGeometry.scrollWidth).toBeLessThanOrEqual(emptyGeometry.width + 1);
-    expect(emptyGeometry.bottom).toBeLessThanOrEqual(emptyGeometry.height);
-    await page.getByTestId('knowledge-history-dismiss').click();
-    await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); });
-    await page.reload(); await nativeWindow.evaluate(win => win.setSize(1280, 860));
-    await uiExpect(page.getByTestId('knowledge-history')).toBeEnabled();
-    await openHistory();
-    await application.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, input);
-    await page.getByTestId('knowledge-history-import').click();
-    await uiExpect(page.getByTestId('knowledge-history-content')).toHaveCount(0);
-    await uiExpect(page.getByRole('dialog')).toBeVisible();
-    await capture('import-preview');
-    await page.getByRole('button', { name: '确认导入', exact: true }).click();
-    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-    let stored = await read();
-    expect(stored.data.entries).toHaveLength(5);
-    expect(Object.keys(stored.approvals)).toHaveLength(0);
-    const term = stored.data.entries.find(entry => entry.kind === 'term')!;
-    await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
-    await uiExpect(page.getByRole('button', { name: '采纳此条', exact: true })).toBeVisible();
-    await capture('review-detail');
-    await page.getByRole('button', { name: '采纳此条', exact: true }).click();
-    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-    stored = await read(); expect(stored.approvals[term.id]?.method).toBe('human');
+    await nativeWindow.evaluate(win => win.setSize(1280, 800));
+    await setPreferences('zh', 'light');
+    const sidebar = page.locator('#knowledge-collection-list');
+    const header = page.getByTestId('knowledge-collection-header');
+    const table = page.getByTestId('knowledge-term-table');
+    const rowOf = (id: string) => table.locator(`[role=row][data-entry-id="${id}"]`);
+    const collectionRow = (id: string) => sidebar.locator(`[data-collection-id="${id}"]`);
+    const toastText = (text: string) => page.locator('[data-sonner-toast]').filter({ hasText: text });
 
-    await page.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
-    await page.getByTestId('knowledge-new-entry').click();
-    const editor = page.getByRole('dialog');
-    await capture('editor-empty');
-    await editor.getByRole('textbox', { name: '原文', exact: true }).fill('starport');
-    await editor.getByRole('textbox', { name: '译文', exact: true }).fill('星际港口');
-    const options = editor.getByRole('tab', { name: '译法与匹配', exact: true });
-    const language = editor.getByRole('tab', { name: '翻译方向', exact: true });
-    const scope = editor.getByRole('tab', { name: '适用范围', exact: true });
-    await uiExpect(options).toHaveAttribute('aria-selected', 'true');
-    const aliases = editor.getByLabel('别名（每行一个）', { exact: true });
-    const rawAliases = 'star port\n\n  stellar port  \n';
-    await aliases.fill(rawAliases);
-    await options.focus();
-    await options.press('ArrowRight');
-    await uiExpect(language).toBeFocused();
-    await uiExpect(language).toHaveAttribute('aria-selected', 'true');
-    await uiExpect(aliases).toBeHidden();
-    await language.press('ArrowLeft');
-    await uiExpect(aliases).toHaveValue(rawAliases);
-    await capture('editor-tabs-options-light', editor.getByTestId('knowledge-entry-wording'));
-    await language.click();
-    const sourceLanguage = editor.getByRole('combobox', { name: '原文语言', exact: true });
-    await uiExpect(sourceLanguage).toContainText('英语');
-    await sourceLanguage.click();
-    await page.getByRole('option', { name: '其他语言…', exact: true }).click();
-    const customLanguage = editor.getByRole('textbox', { name: '自定义语言标签', exact: true });
-    await uiExpect(customLanguage).toHaveValue('');
-    await scope.click();
-    await uiExpect(customLanguage).toBeHidden();
-    await language.click();
-    await uiExpect(sourceLanguage).toContainText('其他语言…');
-    await uiExpect(customLanguage).toBeVisible();
-    await uiExpect(customLanguage).toHaveValue('');
-    await customLanguage.fill('it');
-    await options.click();
-    await language.click();
-    await uiExpect(customLanguage).toHaveValue('it');
-    await capture('editor-tabs-language-light', editor.getByTestId('knowledge-entry-language'));
-    await sourceLanguage.click();
-    await page.getByRole('option', { name: '英语', exact: true }).click();
-    await editor.getByRole('tab', { name: '标题与来源', exact: true }).click();
-    await editor.getByLabel('标题（可选）', { exact: true }).fill('星际港口 · 跨语言内容与来源范围示例');
-    await capture('editor-light');
-    await editor.getByTestId('knowledge-save-draft').click();
-    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-    stored = await read(); expect(stored.data.entries).toHaveLength(6);
-    expect(stored.data.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'starport')?.state).toBe('candidate');
-    await capture('library-light');
+    // AC-PAGE-01-4: an empty library explains collections and offers create / import.
+    const empty = page.getByTestId('knowledge-empty-library');
+    await uiExpect(empty).toContainText(zh.empty.title);
+    await uiExpect(empty).toContainText(zh.empty.help);
+    await uiExpect(page.getByTestId('knowledge-empty-import')).toBeEnabled();
+    await capture('01-empty-zh-light');
 
-    await application.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, output);
-    await page.getByTestId('knowledge-export').click();
-    await page.getByRole('dialog').getByRole('combobox').click();
-    await page.getByRole('option', { name: '备份全部翻译资料', exact: true }).click();
-    await uiExpect(page.getByTestId('knowledge-export-save')).toBeDisabled();
-    await page.getByTestId('knowledge-export-preview').click();
-    await uiExpect(page.getByTestId('knowledge-export-preview-content')).toBeVisible();
-    await capture('export-backup');
-    await page.getByTestId('knowledge-export-save').click();
-    // Accessibility closes immediately; the following OS drop starts only after
-    // the visual shell and its modal interaction lock have actually unmounted.
-    await uiExpect(page.locator('[role="dialog"]')).toHaveCount(0);
-    const bytes = await readFile(output, 'utf8');
-    const validated = parseKnowledgePackage(bytes);
-    expect(validated.valid, JSON.stringify(validated.errors)).toBe(true);
-    expect(validated.data!.entries).toHaveLength(6);
-    const restored = new KnowledgeService(path.join(root, 'restore'));
-    try {
-      const plan = await restored.planImport('restore-owner', bytes);
-      await restored.commitImport('restore-owner', { planId: plan.planId, decisions: [], adoptReady: false });
-      const roundtrip = await restored.read();
-      expect(roundtrip.data.entries).toEqual(validated.data!.entries);
-      expect(roundtrip.data.styles).toEqual(validated.data!.styles);
-      expect(Object.keys(roundtrip.approvals)).toHaveLength(0);
-    } finally { await restored.dispose(); }
+    // AC-PAGE-04-1: name and direction are enough; the new collection is selected with its add row.
+    await page.getByTestId('knowledge-empty-create').click();
+    const form = page.getByTestId('knowledge-collection-form');
+    await form.getByRole('textbox', { name: zh.collection.name, exact: true }).fill('字幕测试集');
+    await form.getByRole('combobox', { name: zh.collection.source_language, exact: true }).click();
+    await page.getByRole('option', { name: zh.languages.en, exact: true }).click();
+    await form.getByRole('combobox', { name: zh.collection.target_language, exact: true }).click();
+    await page.getByRole('option', { name: zh.languages['zh-Hans'], exact: true }).click();
+    await capture('02-collection-dialog-zh-light');
+    await page.getByTestId('knowledge-collection-save').click();
+    await uiExpect(form).toHaveCount(0);
+    const created = (await read()).data.collections.find(item => item.name === '字幕测试集')!;
+    expect(created).toMatchObject({ languagePair: { source: 'en', target: 'zh-Hans' }, archived: false });
+    await uiExpect(collectionRow(created.id)).toHaveAttribute('aria-current', 'true');
+    await uiExpect(header.getByRole('heading')).toHaveText('字幕测试集');
+    await uiExpect(table).toContainText(zh.terms.empty);
+    const addSource = page.getByTestId('knowledge-add-source'), addTarget = page.getByTestId('knowledge-add-target');
+    await uiExpect(addSource).toBeVisible();
 
-    // Actual OS-backed File drop, then a compensating undo that preserves earlier work.
-    const dropped = knowledgeFixture();
-    dropped.package.id = '10000000-0000-4000-8000-000000000099';
-    dropped.package.name = '可撤销的独立导入';
-    const droppedEntry = structuredClone(dropped.entries.find(entry => entry.kind === 'term')!);
-    droppedEntry.id = '50000000-0000-4000-8000-000000000099';
-    droppedEntry.title = '临时维护示例';
-    dropped.entries = [droppedEntry];
-    dropped.styles = []; dropped.recipes = []; dropped.preferenceTemplates = [];
-    const dropInput = path.join(root, 'dropped.fktk.json');
-    await writeFile(dropInput, JSON.stringify(dropped));
-    expect(await page.evaluate(async () => window.translationKnowledge.importDroppedFile(new File(['{}'], 'forged.fktk.json')))).toEqual({ ok: false, error: 'invalid_input' });
-    await page.evaluate(() => {
-      const input = document.createElement('input'); input.type = 'file'; input.hidden = true;
-      input.dataset.knowledgeDropTest = ''; document.body.append(input);
-    });
-    await page.locator('[data-knowledge-drop-test]').setInputFiles(dropInput);
-    await page.evaluate(() => {
-      const input = document.querySelector('[data-knowledge-drop-test]') as HTMLInputElement;
-      const transfer = new DataTransfer(); transfer.items.add(input.files![0]);
-      const target = document.querySelector('[data-testid=translation-knowledge]')!;
-      for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }));
-      input.remove();
-    });
-    await uiExpect(page.getByRole('dialog')).toBeVisible();
-    await page.getByRole('button', { name: '确认导入', exact: true }).click();
-    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-    expect((await read()).data.entries).toHaveLength(7);
-    await openHistory();
-    await capture('maintenance-history');
-    await page.getByTestId('knowledge-undo-import').first().click();
-    await uiExpect(page.getByRole('dialog')).toContainText('撤销导入预览');
-    await capture('undo-import-preview');
-    await page.getByTestId('knowledge-maintenance-confirm').click();
-    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-    stored = await read();
-    expect(stored.data.entries.find(entry => entry.id === droppedEntry.id)?.state).toBe('archived');
-    expect(stored.approvals[term.id]?.method).toBe('human');
-    expect(stored.data.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'starport')).toBeDefined();
-    expect(stored.maintenance?.undoneImportIds).toHaveLength(1);
-
-    for (const action of ['restore', 'archive'] as const) {
-      await page.getByTestId(action === 'restore' ? 'knowledge-archive' : 'knowledge-all').click();
-      await page.getByTestId(`knowledge-entry-details-${droppedEntry.id}`).click();
-      if (action === 'archive') await page.getByTestId('knowledge-entry-actions').click();
-      await page.getByTestId('knowledge-entry-maintenance').click();
-      await uiExpect(page.getByRole('dialog')).toContainText(action === 'restore' ? '恢复影响预览' : '归档影响预览');
-      await capture(`${action}-preview`);
-      await page.getByTestId('knowledge-maintenance-confirm').click();
-      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-      stored = await read();
-      expect(stored.data.entries.find(entry => entry.id === droppedEntry.id)?.state).toBe(action === 'restore' ? 'needs_review' : 'archived');
-      expect(stored.approvals[droppedEntry.id]).toBeUndefined();
+    // AC-PAGE-02-1: Enter adds an enabled manual term, clears the row and returns to the source input.
+    for (const [source, target, from] of [['save slot', '存档槽', addTarget], ['starport', '星港', addSource], ['hub', '枢纽', addTarget]] as const) {
+      await addSource.fill(source);
+      await addTarget.fill(target);
+      await from.press('Enter');
+      await uiExpect(table.locator('[role=row][data-entry-id]').filter({ hasText: source })).toHaveCount(1);
+      await uiExpect(addSource).toHaveValue('');
+      await uiExpect(addTarget).toHaveValue('');
+      await uiExpect(addSource).toBeFocused();
     }
+    const slot = (await termBySource(created.id, 'save slot'))!;
+    expect(slot).toMatchObject({ enabled: true, origin: { kind: 'manual' }, payload: { target: '存档槽', strength: 'preferred' } });
+    const starport = (await termBySource(created.id, 'starport'))!, hub = (await termBySource(created.id, 'hub'))!;
 
-    await page.getByTestId('knowledge-archive').click();
-    await page.getByTestId(`knowledge-entry-details-${droppedEntry.id}`).click();
-    await page.getByTestId('knowledge-entry-actions').click();
-    await page.getByTestId('knowledge-entry-purge').click();
-    await uiExpect(page.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
-    await capture('purge-history-confirmation');
-    await page.getByRole('checkbox', { name: '我理解本地全部资料历史与相关撤销能力将一并清除，并确认永久清除', exact: true }).check();
-    await page.getByTestId('knowledge-maintenance-confirm').click();
-    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-    stored = await read();
-    expect(stored.data.entries).toHaveLength(6);
-    expect(stored.data.entries.some(entry => entry.id === droppedEntry.id)).toBe(false);
-    expect(stored.maintenance?.cleanupPending).toBe(false);
-    expect(stored.maintenance?.undoableImportIds).toEqual([]);
-    expect(stored.approvals[term.id]?.method).toBe('human');
+    // AC-PAGE-02-2: click the target, type, Enter saves.
+    const hubRow = rowOf(hub.id);
+    await hubRow.getByRole('button', { name: `${zh.terms.target}: 枢纽`, exact: true }).click();
+    await hubRow.getByRole('textbox', { name: zh.terms.target, exact: true }).fill('中枢');
+    await page.keyboard.press('Enter');
+    await uiExpect(hubRow.getByRole('button', { name: `${zh.terms.target}: 中枢`, exact: true })).toBeVisible();
+    await uiExpect.poll(async () => (await termBySource(created.id, 'hub'))?.payload.target).toBe('中枢');
+    // A revision conflict keeps nothing of the attempt: the error shows and the newest library replaces the stale row.
+    const hubSaved = (await termBySource(created.id, 'hub'))!;
+    await saveBehind([{ group: 'entries', record: { ...hubSaved, payload: { ...hubSaved.payload, target: '别处译法' } } }]);
+    await hubRow.getByRole('button', { name: `${zh.terms.target}: 中枢`, exact: true }).click();
+    await hubRow.getByRole('textbox', { name: zh.terms.target, exact: true }).fill('冲突译法');
+    await page.keyboard.press('Enter');
+    await uiExpect(hubRow.getByRole('alert')).toHaveText(zh.errors.changed_elsewhere);
+    await uiExpect(toastText(zh.errors.changed_elsewhere)).toBeVisible();
+    await uiExpect(hubRow.getByRole('button', { name: `${zh.terms.target}: 别处译法`, exact: true })).toBeVisible();
+    await uiExpect(hubRow).not.toContainText('冲突译法');
+    expect((await termBySource(created.id, 'hub'))?.payload.target).toBe('别处译法');
+    await capture('03-revision-conflict-zh-light', hubRow);
 
-    const sharedOutput = path.join(root, 'recipe-share.fktk.json');
-    await application.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, sharedOutput);
-    await page.getByTestId('knowledge-export').click();
-    await page.getByRole('checkbox', { name: fixture.recipes[0].name, exact: true }).check();
-    await page.getByRole('checkbox', { name: '包含尚未采纳、待审核或需重新审核的条目', exact: true }).check();
-    await page.getByTestId('knowledge-export-preview').click();
-    await uiExpect(page.getByTestId('knowledge-export-save')).toBeEnabled();
-    await uiExpect(page.getByTestId('knowledge-export-preview-content')).toContainText(fixture.sources[0].excerpt!);
-    await uiExpect(page.getByTestId('knowledge-export-preview-content')).not.toContainText(fixture.sources[2].excerpt!);
-    await page.getByTestId('knowledge-export-preview-content').scrollIntoViewIfNeeded();
-    await capture('recipe-export-dependencies');
-    await page.getByRole('button', { name: '排除此来源并重新预览', exact: true }).first().click();
-    await uiExpect(page.getByTestId('knowledge-export-save')).toBeDisabled();
-    await page.getByTestId('knowledge-export-preview').click();
-    await uiExpect(page.getByRole('alert')).toBeVisible();
-    await uiExpect(page.getByTestId('knowledge-export-save')).toBeDisabled();
-    await page.getByRole('dialog').locator('[data-slot=accordion-trigger]').filter({ hasText: '选择不带出的来源' }).click();
-    await page.getByRole('checkbox', { name: fixture.sources[0].title, exact: true }).uncheck();
-    await page.getByTestId('knowledge-export-preview').click();
-    await page.getByTestId('knowledge-export-save').click();
-    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-    const shared = parseKnowledgePackage(await readFile(sharedOutput, 'utf8'));
-    expect(shared.valid, JSON.stringify(shared.errors)).toBe(true);
-    expect(shared.data!.recipes).toHaveLength(1);
-    expect(shared.data!.styles).toHaveLength(1);
-    expect(shared.data!.entries.some(entry => entry.kind === 'memory')).toBe(false);
-    expect(shared.data!.sources.some(source => source.id === fixture.sources[2].id)).toBe(false);
+    // AC-PAGE-02-3: the requirement and the switch save at once (also proves the refresh above took effect).
+    await hubRow.getByTestId('knowledge-term-strength').click();
+    await page.getByRole('option', { name: zh.strength.required, exact: true }).click();
+    await uiExpect(hubRow.getByTestId('knowledge-term-strength')).toHaveText(zh.strength.required);
+    await uiExpect.poll(async () => (await termBySource(created.id, 'hub'))?.payload.strength).toBe('required');
+    await hubRow.getByTestId('knowledge-term-enabled').click();
+    await uiExpect(hubRow).toHaveAttribute('data-enabled', 'false');
+    await uiExpect(hubRow.getByText(zh.terms.disabled, { exact: true })).toBeVisible();
+    await uiExpect(hubRow.getByTestId('knowledge-term-enabled')).toHaveAttribute('aria-checked', 'false');
+    await uiExpect.poll(async () => (await termBySource(created.id, 'hub'))?.enabled).toBe(false);
+    // Only the earlier cell message remains; the immediate saves themselves reported nothing.
+    await uiExpect(hubRow.getByRole('alert')).toHaveCount(1);
 
-    const invalid = path.join(root, 'invalid.fktk.json');
-    await writeFile(invalid, '{"schemaVersion":1,"schemaVersion":2}');
-    await application.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, invalid);
-    await page.getByTestId('knowledge-import').click();
-    await uiExpect(page.getByRole('alert')).toBeVisible();
-    expect((await read()).data.entries).toHaveLength(6);
-    await capture('invalid-import');
+    // AC-PAGE-02-4: the drawer edits aliases, note and matching; closing returns focus to the same "more" button.
+    const starRow = rowOf(starport.id);
+    const starMore = starRow.getByTestId('knowledge-term-more');
+    await starMore.click();
+    const drawer = page.getByTestId('knowledge-entry-drawer');
+    await uiExpect(drawer).toBeVisible();
+    await uiExpect(drawer.getByTestId('knowledge-drawer-origin')).toContainText(zh.origin.manual);
+    await drawer.getByLabel(zh.drawer.aliases, { exact: true }).fill('star port\nspace port\n');
+    await drawer.getByLabel(zh.drawer.note, { exact: true }).fill('太空港口');
+    await drawer.getByRole('combobox', { name: zh.drawer.match, exact: true }).click();
+    await page.getByRole('option', { name: zh.match.whole_term, exact: true }).click();
+    await capture('04-drawer-zh-light');
+    await drawer.getByTestId('knowledge-drawer-save').click();
+    await uiExpect(drawer).toHaveCount(0);
+    await uiExpect(starRow).toContainText(`${fill(zh.terms.aliases_count, { count: 2 })} · 太空港口`);
+    expect.soft(await focusReturnsTo(starMore), 'focus returns to the "more" button after the drawer saves').toBe(true);
+    expect((await termBySource(created.id, 'starport'))?.payload).toMatchObject({ aliases: ['star port', 'space port'], note: '太空港口', match: { mode: 'whole_term' }, target: '星港' });
 
-    await nativeWindow.evaluate(win => win.setSize(820, 700));
-    await capture('library-narrow');
-    await page.evaluate(() => { localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
+    // AC-PAGE-02-5: the preview tells new / same / different apart; only new rows are written unless overwrite is chosen.
+    const pasted = 'save slot\t存档槽\nstarport\t星际港口\nwarp gate\t跃迁门';
+    const pasteDialog = page.getByRole('dialog').filter({ has: page.getByTestId('knowledge-paste-preview').or(page.getByTestId('knowledge-paste-save')) });
+    const paste = async () => {
+      await page.getByTestId('knowledge-paste-open').click();
+      await page.getByTestId('knowledge-paste-input').fill(pasted);
+      await page.getByTestId('knowledge-paste-preview').click();
+      await uiExpect(page.getByTestId('knowledge-paste-rows')).toBeVisible();
+    };
+    await paste();
+    const statuses = () => page.getByTestId('knowledge-paste-rows').locator('[data-paste-status]').evaluateAll(rows => rows.map(row => row.getAttribute('data-paste-status')));
+    expect(await statuses()).toEqual(['same', 'conflict', 'new']);
+    await uiExpect(page.getByTestId('knowledge-paste-summary')).toHaveText(fill(zh.paste.summary, { added: 1, same: 1, conflict: 1, invalid: 0 }));
+    await uiExpect(page.getByTestId('knowledge-paste-save')).toHaveText(fill(zh.paste.save, { count: 1 }));
+    await capture('05-paste-preview-zh-light');
+    await page.getByTestId('knowledge-paste-save').click();
+    await uiExpect(pasteDialog).toHaveCount(0);
+    expect(await termBySource(created.id, 'warp gate')).toMatchObject({ enabled: true, payload: { target: '跃迁门' } });
+    expect((await termBySource(created.id, 'starport'))?.payload.target).toBe('星港');
+    await paste();
+    expect(await statuses()).toEqual(['same', 'conflict', 'same']);
+    await uiExpect(page.getByTestId('knowledge-paste-save')).toBeDisabled();
+    await page.getByRole('checkbox', { name: fill(zh.paste.overwrite, { count: 1 }), exact: true }).check();
+    await uiExpect(page.getByTestId('knowledge-paste-save')).toHaveText(fill(zh.paste.save, { count: 1 }));
+    await page.getByTestId('knowledge-paste-save').click();
+    await uiExpect(pasteDialog).toHaveCount(0);
+    await uiExpect(starRow.getByRole('button', { name: `${zh.terms.target}: 星际港口`, exact: true })).toBeVisible();
+    const afterPaste = await read();
+    expect(afterPaste.data.entries.filter(entry => entry.collectionId === created.id && entry.kind === 'term')).toHaveLength(4);
+    expect((await termBySource(created.id, 'starport'))?.payload).toMatchObject({ target: '星际港口', aliases: ['star port', 'space port'] });
+    await capture('06-terms-zh-light', table);
+
+    // AC-PAGE-03-1..3: requirements with 重要, editing, empty text, and the enable switch.
+    await page.getByRole('tab', { name: new RegExp(`^${zh.views.notes}`) }).click();
+    const rules = page.getByTestId('knowledge-notes-rule');
+    const addRule = page.getByTestId('knowledge-add-rule');
+    await addRule.getByRole('textbox', { name: zh.notes.new_rule, exact: true }).fill('称呼保留敬称');
+    await addRule.getByRole('checkbox', { name: zh.notes.required, exact: true }).check();
+    await addRule.getByRole('textbox', { name: zh.notes.new_rule, exact: true }).press('Control+Enter');
+    const ruleRow = rules.locator('li[data-entry-id]').filter({ hasText: '称呼保留敬称' });
+    await uiExpect(ruleRow.getByTestId('knowledge-note-required')).toHaveText(zh.notes.required_badge);
+    await uiExpect(ruleRow).toHaveAttribute('data-enabled', 'true');
+    await uiExpect(addRule.getByRole('textbox', { name: zh.notes.new_rule, exact: true })).toHaveValue('');
+    await uiExpect(addRule.getByRole('checkbox', { name: zh.notes.required, exact: true })).not.toBeChecked();
+    const ruleId = (await ruleRow.getAttribute('data-entry-id'))!;
+    expect((await read()).data.entries.find(entry => entry.id === ruleId)).toMatchObject({ kind: 'rule', enabled: true, origin: { kind: 'manual' }, payload: { text: '称呼保留敬称', required: true } });
+    const ruleById = rules.locator(`li[data-entry-id="${ruleId}"]`);
+    await ruleById.getByTestId('knowledge-note-more').click();
+    await page.getByTestId('knowledge-note-edit-action').click();
+    const noteEditor = ruleById.getByTestId('knowledge-note-edit').getByRole('textbox');
+    await noteEditor.fill('   ');
+    await noteEditor.press('Control+Enter');
+    await uiExpect(ruleById.getByRole('alert')).toHaveText(zh.notes.empty_text);
+    expect((await read()).data.entries.find(entry => entry.id === ruleId)).toMatchObject({ payload: { text: '称呼保留敬称' } });
+    await noteEditor.fill('称呼保留「さん」等敬称');
+    await noteEditor.press('Control+Enter');
+    await uiExpect(ruleById.getByTestId('knowledge-note-edit')).toHaveCount(0);
+    await uiExpect(ruleById).toContainText('称呼保留「さん」等敬称');
+    await uiExpect.poll(async () => (await read()).data.entries.find(entry => entry.id === ruleId)).toMatchObject({ enabled: true, payload: { text: '称呼保留「さん」等敬称', required: true } });
+    await ruleById.getByTestId('knowledge-note-enabled').click();
+    await uiExpect(ruleById).toHaveAttribute('data-enabled', 'false');
+    await uiExpect(ruleById.getByText(zh.terms.disabled, { exact: true })).toBeVisible();
+    await uiExpect.poll(async () => (await read()).data.entries.find(entry => entry.id === ruleId)?.enabled).toBe(false);
+    await capture('07-notes-disabled-zh-light', rules);
+    await ruleById.getByTestId('knowledge-note-enabled').click();
+    await uiExpect(ruleById).toHaveAttribute('data-enabled', 'true');
+    await uiExpect(ruleById.getByText(zh.terms.disabled, { exact: true })).toHaveCount(0);
+    await uiExpect.poll(async () => (await read()).data.entries.find(entry => entry.id === ruleId)?.enabled).toBe(true);
+
+    // Seed a larger library: the multi-collection example (two live, one archived) plus 300 terms for paging.
+    const fixture = knowledgeFixture();
+    const paging = { id: randomUUID(), revision: 1, name: '分页术语', description: '', languagePair: { source: 'en', target: 'zh-Hans' }, archived: false };
+    const many: TermEntry[] = Array.from({ length: 300 }, (_, index) => ({ id: randomUUID(), revision: 1, kind: 'term', collectionId: paging.id, enabled: true, origin: { kind: 'import' },
+      payload: { source: `item ${String(index + 1).padStart(3, '0')}`, target: `条目 ${index + 1}`, aliases: [], note: '', strength: 'preferred', match: { mode: 'literal_phrase', caseSensitive: false } } }));
+    await saveBehind([...fixture.collections.map(record => ({ group: 'collections' as const, record })), { group: 'collections', record: paging },
+      ...fixture.entries.map(record => ({ group: 'entries' as const, record })), ...fixture.presets.map(record => ({ group: 'presets' as const, record }))]);
+    await saveBehind(many.slice(0, 200).map(record => ({ group: 'entries', record })));
+    await saveBehind(many.slice(200).map(record => ({ group: 'entries', record })));
     await page.reload();
-    await uiExpect(page.getByTestId('knowledge-import')).toBeEnabled();
-    await page.waitForFunction(() => document.documentElement.classList.contains('dark'));
-    await capture('library-dark-narrow');
-    const columns = await page.locator('.translation-knowledge').evaluate(element => {
-      const aside = element.querySelector('aside')!.getBoundingClientRect();
-      const main = element.querySelector('main')!.getBoundingClientRect();
-      return { asideRight: aside.right, mainLeft: main.left, asideTop: aside.top, mainTop: main.top };
-    });
-    expect(columns.mainLeft).toBeGreaterThan(columns.asideRight);
-    expect(Math.abs(columns.mainTop - columns.asideTop)).toBeLessThan(2);
-    await page.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
-    await page.getByTestId('knowledge-new-entry').click();
-    await capture('editor-dark-narrow');
-    const geometry = await page.getByRole('dialog').evaluate(element => ({ width: element.clientWidth, scrollWidth: element.scrollWidth, bottom: element.getBoundingClientRect().bottom, height: innerHeight }));
-    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width + 1);
-    expect(geometry.bottom).toBeLessThanOrEqual(geometry.height);
-    await page.getByRole('dialog').getByTestId('knowledge-record-close').click();
-    await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
-    await page.getByTestId('knowledge-entry-actions').click();
-    await page.getByTestId('knowledge-entry-maintenance').click();
-    await uiExpect(page.getByRole('dialog')).toContainText('归档影响预览');
-    await capture('maintenance-dark-narrow');
-    await uiExpect(page.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
-    await page.getByRole('dialog').getByTestId('knowledge-record-close').click();
-    await openHistory();
-    await capture('history-dark-narrow');
-    await uiExpect(page.getByTestId('knowledge-undo-import').first()).toBeDisabled();
-    await page.getByTestId('knowledge-history-close').click();
-    await page.getByTestId('knowledge-export').click();
-    await page.getByRole('dialog').getByRole('combobox').click();
-    await page.getByRole('option', { name: '备份全部翻译资料', exact: true }).click();
-    await page.getByTestId('knowledge-export-preview').click();
-    await uiExpect(page.getByTestId('knowledge-export-save')).toBeEnabled();
-    await page.getByTestId('knowledge-export-preview-content').scrollIntoViewIfNeeded();
-    await capture('export-dark-narrow');
-    const exportGeometry = await page.getByRole('dialog').evaluate(element => ({ width: element.clientWidth, scrollWidth: element.scrollWidth, bottom: element.getBoundingClientRect().bottom, height: innerHeight }));
-    expect(exportGeometry.scrollWidth).toBeLessThanOrEqual(exportGeometry.width + 1);
-    expect(exportGeometry.bottom).toBeLessThanOrEqual(exportGeometry.height);
-    await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click();
-    await page.evaluate(() => { localStorage.setItem('lang', 'en'); });
-    await page.reload();
-    await uiExpect(page.getByTestId('knowledge-import')).toBeEnabled();
-    await capture('library-english-narrow');
-    await openHistory();
-    await capture('history-english-narrow');
-    await page.getByTestId('knowledge-history-close').click();
-    await page.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
-    await page.getByTestId('knowledge-new-entry').click();
-    const englishEditor = page.getByRole('dialog');
-    await uiExpect(page.locator('html')).toHaveClass(/dark/);
-    await englishEditor.getByRole('textbox', { name: en.fields.source_text, exact: true }).fill('A long source phrase with several words to check the editor layout');
-    await englishEditor.getByRole('textbox', { name: en.fields.target_text, exact: true }).fill('用于检查编辑面板布局的较长译文');
-    await capture('editor-tabs-english-dark-narrow', englishEditor.getByRole('tablist'));
-    const englishLanguage = englishEditor.getByTestId('knowledge-entry-language');
-    await englishEditor.getByRole('tab', { name: en.record.tab_language, exact: true }).click();
-    await englishEditor.getByRole('combobox', { name: en.fields.source_language, exact: true }).click();
-    await page.getByRole('option', { name: en.languages.custom, exact: true }).click();
-    await englishEditor.getByRole('textbox', { name: en.languages.custom_tag, exact: true }).fill('it');
-    await capture('editor-tabs-language-english-dark-narrow', englishLanguage);
-    expect(await englishEditor.locator('[data-slot=scroll-area-viewport]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
-    await englishEditor.getByTestId('knowledge-record-close').click();
-    await page.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('subtitle-translator-tour-done', '1'); });
-    await page.reload();
-    await page.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
-    const link = page.getByRole('link', { name: '翻译资料', exact: true });
-    await uiExpect(link).toBeVisible();
-    await capture('studio-knowledge-entry-narrow');
-    await link.click();
-    await uiExpect(page.getByTestId('knowledge-import')).toBeEnabled();
+
+    // AC-PAGE-01-2: live collections by name, archived ones apart; the first live one opens.
+    const library = await read();
+    const liveNames = await page.evaluate(names => [...names].sort((a, b) => a.localeCompare(b)), library.data.collections.filter(item => !item.archived).map(item => item.name));
+    const firstLive = library.data.collections.find(item => item.name === liveNames[0])!;
+    await uiExpect(page.locator('#knowledge-tour-collections [data-collection-id]').first()).toBeVisible();
+    expect(await page.getByTestId('knowledge-collections-scroll').locator('[data-collection-id]').evaluateAll(rows => rows.map(row => row.getAttribute('data-collection-id'))))
+      .toEqual(liveNames.map(name => library.data.collections.find(item => item.name === name)!.id));
+    await uiExpect(collectionRow(firstLive.id)).toHaveAttribute('aria-current', 'true');
+    await uiExpect(header.getByRole('heading')).toHaveText(firstLive.name);
+    await uiExpect(page.getByTestId('knowledge-archived')).toContainText(fill(zh.sidebar.archived, { count: 1 }));
+    await capture('08-library-zh-light-1280x800');
+
+    // AC-PAGE-01-3: results grouped by collection; choosing one opens its collection and tab and highlights the row.
+    const search = page.getByTestId('knowledge-global-search');
+    const results = page.getByTestId('knowledge-search-results');
+    await search.fill('存档');
+    const groups = await results.getByRole('group').evaluateAll(items => items.map(item => item.getAttribute('aria-label')));
+    expect([...groups].sort()).toEqual(['字幕测试集', '游戏 X'].sort());
+    expect(groups).toEqual(liveNames.filter(name => groups.includes(name)));
+    const checkpoint = fixture.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'checkpoint')!;
+    await uiExpect(results.getByRole('group', { name: '游戏 X', exact: true }).locator(`[data-entry-id="${checkpoint.id}"]`)).toContainText('存档点');
+    await uiExpect(results.getByRole('group', { name: '字幕测试集', exact: true }).locator(`[data-entry-id="${slot.id}"]`)).toContainText('存档槽');
+    await capture('09-global-search-zh-light');
+    const pick = firstLive.id === created.id ? { entry: checkpoint.id, collection: checkpoint.collectionId } : { entry: slot.id, collection: created.id };
+    await results.locator(`[data-entry-id="${pick.entry}"]`).click();
+    await uiExpect(results).toHaveCount(0);
+    await uiExpect(collectionRow(pick.collection)).toHaveAttribute('aria-current', 'true');
+    await uiExpect(page.getByRole('tab', { name: new RegExp(`^${zh.views.terms}`) })).toHaveAttribute('aria-selected', 'true');
+    await uiExpect(rowOf(pick.entry)).toHaveAttribute('data-highlighted', 'true');
+    await uiExpect(rowOf(pick.entry)).toBeInViewport();
+    // A note result in another collection opens the notes tab there.
+    const unitRule = fixture.entries.find(entry => entry.kind === 'rule' && entry.payload.text.includes('数值'))!;
+    await search.fill('数值 单位');
+    await results.locator(`[data-entry-id="${unitRule.id}"]`).click();
+    await uiExpect(collectionRow(unitRule.collectionId)).toHaveAttribute('aria-current', 'true');
+    await uiExpect(page.getByRole('tab', { name: new RegExp(`^${zh.views.notes}`) })).toHaveAttribute('aria-selected', 'true');
+    await uiExpect(page.locator(`[data-testid=knowledge-notes-rule] li[data-entry-id="${unitRule.id}"]`)).toHaveAttribute('data-highlighted', 'true');
+
+    // AC-PAGE-02-6: 300 terms page at 100.
+    await collectionRow(paging.id).click();
+    await uiExpect(header.getByRole('heading')).toHaveText(paging.name);
+    await page.getByRole('tab', { name: new RegExp(`^${zh.views.terms}`) }).click();
+    await uiExpect(page.getByRole('tab', { name: new RegExp(`^${zh.views.terms}`) })).toHaveText(`${zh.views.terms} 300`);
+    const pageRows = table.locator('[role=row][data-entry-id]');
+    await uiExpect(pageRows).toHaveCount(100);
+    await uiExpect(table).toContainText(fill(zh.pagination, { count: 300, page: 1, pages: 3 }));
+    await uiExpect(pageRows.first()).toHaveAttribute('data-entry-id', many[0].id);
+    await table.getByRole('button', { name: zh.actions.next, exact: true }).click();
+    await uiExpect(table).toContainText(fill(zh.pagination, { count: 300, page: 2, pages: 3 }));
+    await uiExpect(pageRows).toHaveCount(100);
+    await uiExpect(pageRows.first()).toHaveAttribute('data-entry-id', many[100].id);
+    await table.getByRole('button', { name: zh.actions.next, exact: true }).click();
+    await uiExpect(pageRows.last()).toHaveAttribute('data-entry-id', many[299].id);
+    await uiExpect(table.getByRole('button', { name: zh.actions.next, exact: true })).toBeDisabled();
+    await capture('10-pagination-zh-light', table.getByRole('button', { name: zh.actions.next, exact: true }));
+
+    // English, dark: the same library reads in English.
+    await setPreferences('en', 'dark');
+    await uiExpect(sidebar).toContainText(en.sidebar.collections);
+    await collectionRow(created.id).click();
+    await uiExpect(page.getByRole('tab', { name: new RegExp(`^${en.views.terms}`) })).toBeVisible();
+    await uiExpect(rowOf(hub.id).getByText(en.terms.disabled, { exact: true })).toBeVisible();
+    await capture('11-terms-en-dark');
+    await rowOf(starport.id).getByTestId('knowledge-term-more').click();
+    await uiExpect(page.getByTestId('knowledge-entry-drawer')).toContainText(en.drawer.title);
+    await capture('12-drawer-en-dark');
+    await page.keyboard.press('Escape');
+    await uiExpect(page.getByTestId('knowledge-entry-drawer')).toHaveCount(0);
+    expect.soft(await focusReturnsTo(rowOf(starport.id).getByTestId('knowledge-term-more')), 'focus returns to the "more" button after Esc').toBe(true);
+    await page.getByRole('tab', { name: new RegExp(`^${en.views.notes}`) }).click();
+    await uiExpect(page.getByTestId('knowledge-notes-rule')).toContainText(en.notes.rules);
+    await capture('13-notes-en-dark');
     expect(errors).toEqual([]);
-  }, 180000);
+  }, 240000);
 });

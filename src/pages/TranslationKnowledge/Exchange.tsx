@@ -1,685 +1,141 @@
-import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
-import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
-import type {
-  ExportPreview,
-  ExportSelectionRequest,
-} from "@/translation-knowledge/export-contract";
-import { optionKey, protocolKey, diagnosticKey } from "./labels";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AlertTriangle, LoaderCircle } from "lucide-react";
+import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import type {
-  ImportPreview,
-  KnowledgeErrorCode,
-  LibrarySnapshot,
-  TranslationKnowledgeApi,
-  KnowledgeEntity,
-} from "@/translation-knowledge/ipc-contract";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { ExportPreview } from "@/translation-knowledge/export-contract";
+import type { CommitImportRequest, ExportReceipt, ImportCollectionAction, ImportPreview, ImportReceipt, KnowledgeErrorCode, LibrarySnapshot, TranslationKnowledgeApi } from "@/translation-knowledge/ipc-contract";
 import type { Diagnostic } from "@/translation-knowledge/validation";
-import {
-  Choice,
-  Check,
-  ErrorNotice,
-  KnowledgeDialog,
-  MultiChoice,
-  Pagination,
-} from "./Controls";
-import {
-  defaultImportDecisions,
-  importActions,
-  PAGE_SIZE,
-  recordFields,
-  exportPreviewCurrent,
-} from "./model";
+import { Check, Choice, ErrorNotice, KnowledgeDialog } from "./Controls";
+import { KnowledgeScrollList } from "./KnowledgeScrollList";
+import { diagnosticText, languagePairLabel } from "./labels";
+import { orderedCollections } from "./model";
 
-export function RecordDetails({
-  record,
-  changedFrom,
-}: {
-  record: KnowledgeEntity;
-  changedFrom?: KnowledgeEntity;
-}) {
+type Failure = KnowledgeErrorCode | "unexpected";
+
+function Warnings({ warnings, testId }: { warnings: Diagnostic[]; testId: string }) {
   const { t } = useTranslation("knowledge");
-  const fields = recordFields(record);
-  const old = changedFrom ? recordFields(changedFrom) : {};
-  const keys = [
-    ...new Set([...Object.keys(fields), ...Object.keys(old)]),
-  ].filter((key) => !changedFrom || fields[key] !== old[key]);
-  const label = (key: string) =>
-    key
-      .split(".")
-      .map((part) =>
-        /^\d+$/.test(part) ? part : t(protocolKey(`protocol.${part}`)),
-      )
-      .join(" / ");
-  return (
-    <dl className="space-y-2 text-xs">
-      {keys.length ? (
-        keys.map((key) => (
-          <div
-            key={key}
-            className="grid gap-1 border-b pb-2 last:border-0 last:pb-0"
-          >
-            <dt className="font-medium text-muted-foreground break-words">
-              {label(key)}
-            </dt>
-            {changedFrom && (
-              <dd className="break-words whitespace-pre-wrap text-muted-foreground">
-                {t("import.local")}: {old[key] ?? "—"}
-              </dd>
-            )}
-            <dd className="break-words whitespace-pre-wrap">
-              {changedFrom && `${t("import.incoming")}: `}
-              {fields[key] ?? "—"}
-            </dd>
-          </div>
-        ))
-      ) : (
-        <p className="text-muted-foreground">{t("import.no_difference")}</p>
-      )}
-    </dl>
-  );
+  if (!warnings.length) return null;
+  return <div data-testid={testId} role="status" className="space-y-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5">
+    <p className="flex items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300"><AlertTriangle className="size-3.5" />{t("exchange.warnings", { count: warnings.length })}</p>
+    <ul className="space-y-1">{warnings.slice(0, 20).map((warning, index) => <li key={index} className="[overflow-wrap:anywhere]">
+      {diagnosticText(t, warning)}{warning.path && <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">{warning.path}</span>}
+    </li>)}</ul>
+  </div>;
 }
-export function ImportDialog({
-  preview,
-  api,
-  onClose,
-  onImported,
-  blocked = false,
-}: {
-  preview: ImportPreview;
-  api: TranslationKnowledgeApi;
-  onClose: () => void;
-  onImported: (message: string) => Promise<void>;
-  blocked?: boolean;
+
+const actionsFor = (status: ImportPreview["collections"][number]["status"]): ImportCollectionAction[] => status === "new" ? ["add", "copy", "skip"] : ["merge", "copy", "skip"];
+
+/** What a package would add, per collection, with a choice for each; nothing is written before Import. */
+export function ImportDialog({ preview, api, onClose, onImported }: {
+  preview: ImportPreview; api: TranslationKnowledgeApi; onClose: () => void; onImported: (receipt: ImportReceipt) => void;
 }) {
   const { t } = useTranslation("knowledge");
-  const [decisions, setDecisions] = useState(() =>
-    defaultImportDecisions(preview.items),
-  );
-  const [adoptReady, setAdoptReady] = useState(false);
-  const [page, setPage] = useState(0);
+  const [actions, setActions] = useState<Record<string, ImportCollectionAction>>(() => Object.fromEntries(preview.collections.map(item => [item.id, actionsFor(item.status)[0]])));
+  const [conflict, setConflict] = useState<CommitImportRequest["conflict"]>("keep_local");
+  const [presets, setPresets] = useState(true);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<KnowledgeErrorCode | "unexpected" | null>(
-    null,
-  );
-  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
-  const ready = preview.items.filter(
-    (item) =>
-      item.group === "entries" &&
-      "state" in item.incoming &&
-      item.incoming.state === "ready",
-  ).length;
-  const ordered = [...preview.items].sort(
-    (a, b) => Number(b.status === "conflict") - Number(a.status === "conflict"),
-  );
-  const submit = async () => {
-    if (pending || blocked) return;
-    setPending(true);
-    setError(null);
+  const [error, setError] = useState<Failure | null>(null);
+  const lock = useRef(false);
+  const existing = preview.collections.some(item => item.status === "existing");
+  const chosen = preview.collections.filter(item => actions[item.id] !== "skip");
+  const commit = async () => {
+    if (lock.current || !chosen.length) return;
+    lock.current = true; setPending(true); setError(null);
     try {
-      const result = await api.commitImport({
-        planId: preview.planId,
-        decisions,
-        adoptReady,
-      });
-      if (!result.ok) {
-        setError(result.error);
-        setDiagnostics(result.diagnostics ?? []);
-        return;
-      }
-      await onImported(t("import.success", { ...result.value }));
-      onClose();
-    } catch {
-      setError("unexpected");
-    } finally {
-      setPending(false);
-    }
+      const result = await api.commitImport({ planId: preview.planId, collections: preview.collections.map(item => ({ id: item.id, action: actions[item.id] })), conflict, presets: presets ? "add" : "skip" });
+      if (result.ok) onImported(result.value); else setError(result.error);
+    } catch { setError("unexpected"); }
+    finally { lock.current = false; setPending(false); }
   };
-  return (
-    <KnowledgeDialog
-      title={t("import.title")}
-      description={preview.packageName}
-      wide
-      pending={pending}
-      onClose={onClose}
-      footer={
-        <Button
-          size="sm"
-          disabled={pending || blocked}
-          onClick={() => void submit()}
-        >
-          {t(pending ? "actions.importing" : "actions.confirm_import")}
-        </Button>
-      }
-    >
-      <div><div className="space-y-4">
-      <p className="text-sm">{t("import.counts", preview.counts)}</p>
-      <p className="text-xs text-muted-foreground">{t("import.trust_help")}</p>
-      {preview.warnings.length > 0 && (
-        <KnowledgeDisclosure title={t("import.warnings", { count: preview.warnings.length })}>
-          <ul className="list-inside list-disc space-y-1 text-xs text-muted-foreground">
-            {preview.warnings.map((warning, index) => (
-              <li key={index}>
-                {t(diagnosticKey(`diagnostic.${warning.code}`))}
-              </li>
-            ))}
-          </ul>
-        </KnowledgeDisclosure>
-      )}
-      <DialogTransition transitionKey={page}>
-      <div className="space-y-2">
-        {ordered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((item) => (
-          <div key={item.id} className="space-y-3 rounded-lg border p-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="break-words text-sm font-medium">{item.title}</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t(`group.${item.group}`)} ·{" "}
-                  {t(`import.status.${item.status}`)}
-                  {"state" in item.incoming &&
-                    ` · ${t(item.incoming.state === "ready" ? "import.declared_ready" : `status.${item.incoming.state}`)}`}
-                </p>
-              </div>
-              <div className="w-40 shrink-0">
-                <Choice
-                  label={t("import.decision")}
-                  value={
-                    decisions.find((decision) => decision.id === item.id)
-                      ?.action ?? "keep"
-                  }
-                  disabled={pending || blocked}
-                  options={importActions(item).map((value) => ({
-                    value,
-                    label: t(
-                      value === "replace" && item.status === "new"
-                        ? "import.action.add"
-                        : `import.action.${value}`,
-                    ),
-                  }))}
-                  onChange={(action) =>
-                    setDecisions(
-                      decisions.map((decision) =>
-                        decision.id === item.id
-                          ? {
-                              ...decision,
-                              action: action as typeof decision.action,
-                            }
-                          : decision,
-                      ),
-                    )
-                  }
-                />
-              </div>
-            </div>
-            {item.sameRevision && item.status === "conflict" && (
-              <p className="text-xs text-muted-foreground">
-                {t("import.same_revision")}
-              </p>
-            )}
-            <KnowledgeDisclosure variant="inline" title={t(
-                  item.status === "conflict"
-                    ? "import.differences"
-                    : "import.contents",
-                )}>
-              <ScrollArea className="rounded-md bg-muted/30" viewportProps={{ className: "max-h-72 overscroll-contain [&>div]:block!" }}>
-                <div className="p-3">
-                  <RecordDetails
-                    record={item.incoming}
-                    changedFrom={
-                      item.status === "conflict" ? item.local : undefined
-                    }
-                  />
-                </div>
-              </ScrollArea>
-            </KnowledgeDisclosure>
-          </div>
-        ))}
-      </div>
-      </DialogTransition>
-      <Pagination page={page} total={ordered.length} onChange={setPage} />
-      {ready > 0 && (
-        <Check
-          label={t("import.adopt_ready", { count: ready })}
-          checked={adoptReady}
-          disabled={pending || blocked}
-          onChange={setAdoptReady}
-        />
-      )}
-      </div>
-      <ErrorNotice error={error} diagnostics={diagnostics} stageClassName="pt-4" />
-      </div>
-    </KnowledgeDialog>
-  );
-}
-export function ExportDialog({
-  snapshot,
-  api,
-  onClose,
-  onExported,
-  initialCollection,
-}: {
-  snapshot: LibrarySnapshot;
-  api: TranslationKnowledgeApi;
-  onClose: () => void;
-  onExported: (message: string) => void;
-  initialCollection?: string;
-}) {
-  const { t } = useTranslation("knowledge");
-  const [selection, setSelection] = useState<ExportSelectionRequest>({
-    generation: snapshot.generation,
-    purpose: "share",
-    collectionIds: initialCollection ? [initialCollection] : [],
-    recipeIds: [],
-    includeMemories: false,
-    includeUnreviewed: false,
-    includeInactive: false,
-    excludedSourceIds: [],
-  });
-  const [preview, setPreview] = useState<ExportPreview | null>(null);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<KnowledgeErrorCode | "unexpected" | null>(
-    null,
-  );
-  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
-  const [sourcePage, setSourcePage] = useState(0);
-  const [memoryPage, setMemoryPage] = useState(0);
-  const blocked = snapshot.maintenance?.cleanupPending === true;
-  const current = exportPreviewCurrent(preview, snapshot.generation);
-  const update = (patch: Partial<ExportSelectionRequest>) => {
-    setSelection((previous) => ({ ...previous, ...patch }));
-    setPreview(null);
-    setError(null);
-    setDiagnostics([]);
-    setSourcePage(0);
-    setMemoryPage(0);
-  };
-  useEffect(() => {
-    setPreview(null);
-    setSelection((previous) => ({
-      ...previous,
-      generation: snapshot.generation,
-    }));
-  }, [snapshot.generation]);
-  const plan = async () => {
-    if (pending || blocked) return;
-    setPending(true);
-    setError(null);
-    setDiagnostics([]);
-    try {
-      const request =
-        selection.purpose === "backup"
-          ? {
-              ...selection,
-              generation: snapshot.generation,
-              collectionIds: [],
-              recipeIds: [],
-              includeMemories: true,
-              includeUnreviewed: true,
-              includeInactive: true,
-              excludedSourceIds: [],
-            }
-          : { ...selection, generation: snapshot.generation };
-      const result = await api.planExport(request);
-      if (result.ok) {
-        setPreview(result.value);
-        setSourcePage(0);
-        setMemoryPage(0);
-      } else {
-        setError(result.error);
-        setDiagnostics(result.diagnostics ?? []);
-      }
-    } catch {
-      setError("unexpected");
-    } finally {
-      setPending(false);
-    }
-  };
-  const save = async () => {
-    if (!preview || !current || !preview.canExport || blocked || pending)
-      return;
-    setPending(true);
-    setError(null);
-    setDiagnostics([]);
-    try {
-      const result = await api.exportFile({ planId: preview.planId });
-      if (!result.ok) {
-        setError(result.error);
-        setDiagnostics(result.diagnostics ?? []);
-        return;
-      }
-      if (result.value) {
-        onExported(
-          t("export.success", {
-            name: result.value.fileName,
-            count: result.value.entries,
-          }),
-        );
-        onClose();
-      }
-    } catch {
-      setError("unexpected");
-    } finally {
-      setPending(false);
-    }
-  };
-  const names = new Map(
-    Object.values(snapshot.data)
-      .filter(Array.isArray)
-      .flat()
-      .filter(
-        (item): item is { id: string; name?: string; title?: string } =>
-          !!item && typeof item === "object" && "id" in item,
-      )
-      .map((item) => [item.id, item.name ?? item.title ?? ""]),
-  );
-  return (
-    <KnowledgeDialog
-      title={t("export.title")}
-      description={t("export.preview_workflow")}
-      wide
-      pending={pending}
-      onClose={onClose}
-      footer={
-        <>
-          <Button
-            data-testid="knowledge-export-preview"
-            size="sm"
-            variant="outline"
-            disabled={
-              pending ||
-              blocked ||
-              (selection.purpose === "share" &&
-                !selection.collectionIds.length &&
-                !selection.recipeIds.length)
-            }
-            onClick={() => void plan()}
-          >
-            {t(pending ? "export.preparing" : "export.preview_action")}
-          </Button>
-          <Button
-            data-testid="knowledge-export-save"
-            size="sm"
-            disabled={pending || blocked || !current || !preview?.canExport}
-            onClick={() => void save()}
-          >
-            {t("actions.choose_save")}
-          </Button>
-        </>
-      }
-    >
-      <div>
-      <fieldset disabled={pending || blocked} className="space-y-4">
-        <Choice
-          label={t("export.purpose")}
-          value={selection.purpose}
-          onChange={(value) => update({ purpose: value as "share" | "backup" })}
-          options={(["share", "backup"] as const).map((value) => ({
-            value,
-            label: t(`export.${value}`),
-          }))}
-        />
-        <div>
-        <p className="text-xs text-muted-foreground">
-          {t(`export.${selection.purpose}_help`)}
-        </p>
-        <DialogTransition transitionKey={selection.purpose} stageClassName="pt-4">{selection.purpose === "share" && (
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <MultiChoice
-                label={t("fields.collections")}
-                options={snapshot.data.collections.filter(
-                  (item) => selection.includeInactive || !item.archived,
-                )}
-                value={selection.collectionIds}
-                onChange={(collectionIds) => update({ collectionIds })}
-              />
-              <MultiChoice
-                label={t("export.recipes")}
-                options={snapshot.data.recipes.filter(
-                  (item) => selection.includeInactive || !item.archived,
-                )}
-                value={selection.recipeIds}
-                onChange={(recipeIds) => update({ recipeIds })}
-              />
-            </div>
-            <Check
-              label={t("export.memories")}
-              checked={selection.includeMemories}
-              onChange={(includeMemories) => update({ includeMemories })}
-            />
-            <Check
-              label={t("export.unreviewed")}
-              checked={selection.includeUnreviewed}
-              onChange={(includeUnreviewed) => update({ includeUnreviewed })}
-            />
-            <Check
-              label={t("export.inactive")}
-              checked={selection.includeInactive}
-              onChange={(includeInactive) => update({ includeInactive })}
-            />
-            <KnowledgeDisclosure title={t("export.exclude_sources")}>
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">
-                  {t("export.exclude_sources_help")}
-                </p>
-                <MultiChoice
-                  label={t("export.excluded_sources")}
-                  options={snapshot.data.sources.map((source) => ({
-                    id: source.id,
-                    name: source.title,
-                  }))}
-                  value={selection.excludedSourceIds}
-                  onChange={(excludedSourceIds) =>
-                    update({ excludedSourceIds })
-                  }
-                />
-              </div>
-            </KnowledgeDisclosure>
-          </div>
-        )}</DialogTransition>
+  return <KnowledgeDialog wide title={t("import.title")} description={t("import.description", { name: preview.packageName })} pending={pending} onClose={onClose} footer={
+    <Button data-testid="knowledge-import-commit" size="sm" disabled={pending || !chosen.length} onClick={() => void commit()}>{pending && <LoaderCircle className="animate-spin" />}{t("import.commit", { count: chosen.length })}</Button>
+  }>
+    <Warnings warnings={preview.warnings} testId="knowledge-import-warnings" />
+    <ul data-testid="knowledge-import-collections" className="divide-y rounded-md border">
+      {preview.collections.map(item => <li key={item.id} data-import-collection={item.id} data-status={item.status} className="grid gap-x-3 gap-y-1.5 p-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
+        <div className="min-w-0 space-y-0.5">
+          <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm font-medium">
+            <span className="[overflow-wrap:anywhere]">{item.name}</span>
+            <Badge variant={item.status === "new" ? "secondary" : "outline"} className="h-4 px-1 text-[10px] font-normal">{t(`import.status_${item.status}`)}</Badge>
+          </p>
+          <p className="text-xs leading-5 text-muted-foreground">{languagePairLabel(t, item.languagePair)} · {item.status === "new"
+            ? t("import.entries", { count: item.entries })
+            : t("import.compare", { added: item.added, changed: item.changed, unchanged: item.unchanged })}</p>
         </div>
-      </fieldset>
-      <DialogTransition transitionKey={preview && current ? preview.planId : preview ? 'expired' : 'unplanned'} stageClassName="pt-4">
-      {preview && current && (
-        <section
-          className="border-t pt-4"
-          data-testid="knowledge-export-preview-content"
-        >
-          <div className="space-y-4">
-          <h3 className="text-sm font-semibold">
-            {t("export.preview_title", {
-              count: preview.counts.entries,
-              bytes: preview.bytes.toLocaleString(),
-            })}
-          </h3>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {(
-              Object.keys(preview.counts) as (keyof typeof preview.counts)[]
-            ).map((group) => (
-              <span key={group}>
-                {t(`group.${group}`)}: {preview.counts[group]}
-              </span>
-            ))}
-          </div>
-          <section className="space-y-2">
-            <h4 className="text-sm font-medium">
-              {t("export.collection_impacts")}
-            </h4>
-            {preview.collectionImpacts.map((collection) => (
-              <div key={collection.id} className="rounded-md border p-3">
-                <p className="break-words text-sm font-medium">
-                  {collection.name}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t(
-                    preview.purpose === "backup"
-                      ? "export.backup_collection"
-                      : collection.destinationOnly
-                        ? "export.destination_only"
-                        : collection.explicit
-                          ? "export.selected_collection"
-                          : "export.dependency_collection",
-                  )}{" "}
-                  ·{" "}
-                  {t("export.entry_counts", {
-                    included: collection.includedEntries,
-                    excluded: collection.excludedEntries,
-                  })}
-                </p>
-                {collection.viaIds.length > 0 && (
-                  <p className="mt-1 break-words text-xs text-muted-foreground">
-                    {t("export.required_by", {
-                      names: collection.viaIds
-                        .map(
-                          (id) => names.get(id) || t("export.related_record"),
-                        )
-                        .join(" / "),
-                    })}
-                  </p>
-                )}
-              </div>
-            ))}
-          </section>
-          <KnowledgeDisclosure title={t("export.dependencies")}>
-            <div className="space-y-2">
-              {preview.included
-                .filter(
-                  (item) =>
-                    item.group !== "entries" && item.group !== "sources",
-                )
-                .map((item) => (
-                  <p key={item.id} className="break-words text-xs">
-                    {item.title} · {t(`group.${item.group}`)} ·{" "}
-                    {t(`export.reason.${item.reason}`)}
-                  </p>
-                ))}
-            </div>
-          </KnowledgeDisclosure>
-          <section className="space-y-2">
-            <h4 className="text-sm font-medium">
-              {t("export.sources_preview", {
-                count: preview.sourceExcerpts.length,
-              })}
-            </h4>
-            <DialogTransition transitionKey={sourcePage}><div className="space-y-2">{preview.sourceExcerpts
-              .slice(sourcePage * PAGE_SIZE, (sourcePage + 1) * PAGE_SIZE)
-              .map((source) => (
-                <div key={source.id} className="space-y-2 rounded-md border p-3">
-                  <p className="break-words text-sm font-medium">
-                    {source.title}
-                  </p>
-                  <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
-                    {source.excerpt}
-                  </p>
-                  {source.attribution && (
-                    <p className="break-words text-xs">{source.attribution}</p>
-                  )}
-                  {selection.purpose === "share" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={pending}
-                      onClick={() =>
-                        update({
-                          excludedSourceIds: [
-                            ...selection.excludedSourceIds,
-                            source.id,
-                          ],
-                        })
-                      }
-                    >
-                      {t("export.exclude_this_source")}
-                    </Button>
-                  )}
-                </div>
-              ))}</div></DialogTransition>
-            <Pagination
-              page={sourcePage}
-              total={preview.sourceExcerpts.length}
-              onChange={setSourcePage}
-            />
-          </section>
-          <section className="space-y-2">
-            <h4 className="text-sm font-medium">
-              {t("export.memories_preview", {
-                count: preview.memoryExcerpts.length,
-              })}
-            </h4>
-            <DialogTransition transitionKey={memoryPage}><div className="space-y-2">{preview.memoryExcerpts
-              .slice(memoryPage * PAGE_SIZE, (memoryPage + 1) * PAGE_SIZE)
-              .map((memory) => (
-                <div
-                  key={memory.id}
-                  className="space-y-2 rounded-md border p-3"
-                >
-                  <p className="break-words text-sm font-medium">
-                    {memory.title}
-                  </p>
-                  <p className="whitespace-pre-wrap break-words text-xs">
-                    {memory.source}
-                  </p>
-                  <p className="whitespace-pre-wrap break-words text-xs text-muted-foreground">
-                    {memory.target}
-                  </p>
-                </div>
-              ))}</div></DialogTransition>
-            <Pagination
-              page={memoryPage}
-              total={preview.memoryExcerpts.length}
-              onChange={setMemoryPage}
-            />
-          </section>
-          {preview.excluded.length > 0 && (
-            <KnowledgeDisclosure title={t("export.excluded_count", { count: preview.excluded.length })}>
-              <ScrollArea viewportProps={{ className: "max-h-48 overscroll-contain [&>div]:block!" }}>
-                <ul className="space-y-2 pr-3 text-xs">
-                  {preview.excluded.map((item) => (
-                    <li key={item.id} className="break-words">
-                      {item.title} · {t(`export.excluded_reason.${item.reason}`)}
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            </KnowledgeDisclosure>
-          )}
-          </div>
-          <ErrorNotice
-            error={preview.errors.length ? "invalid_input" : null}
-            diagnostics={preview.errors}
-            stageClassName="pt-4"
-          />
-          {preview.warnings.length > 0 && (
-            <div className="pt-4">
-            <KnowledgeDisclosure title={t("import.warnings", { count: preview.warnings.length })}>
-              <ul className="space-y-2 text-xs">
-                {preview.warnings.map((warning, index) => (
-                  <li key={index}>
-                    <p>{t(diagnosticKey(`diagnostic.${warning.code}`))}</p>
-                    <p className="break-all text-muted-foreground">
-                      {warning.path} · {warning.message}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </KnowledgeDisclosure>
-            </div>
-          )}
-        </section>
-      )}
-      {!preview && (
-        <p className="text-xs text-muted-foreground">
-          {t("export.preview_required")}
-        </p>
-      )}
-      </DialogTransition>
-      <ErrorNotice
-        error={preview && !current ? "plan_expired" : error}
-        diagnostics={diagnostics}
-        stageClassName="pt-4"
-      />
-      </div>
-    </KnowledgeDialog>
-  );
+        <Select value={actions[item.id]} onValueChange={value => setActions(current => ({ ...current, [item.id]: value as ImportCollectionAction }))}>
+          <SelectTrigger size="sm" aria-label={t("import.action_for", { name: item.name })} className="w-full text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>{actionsFor(item.status).map(action => <SelectItem key={action} value={action} className="text-xs">{t(`import.action_${action}`)}</SelectItem>)}</SelectContent>
+        </Select>
+      </li>)}
+    </ul>
+    {existing && <div>
+      <Choice label={t("import.conflict")} value={conflict} onChange={value => setConflict(value as typeof conflict)}
+        options={[{ value: "keep_local", label: t("import.keep_local") }, { value: "use_incoming", label: t("import.use_incoming") }]} />
+      <p className="pt-1.5 text-[11px] leading-4 text-muted-foreground">{t("import.conflict_help")}</p>
+    </div>}
+    {preview.presets.length > 0 && <Check label={t("import.presets", { count: preview.presets.length })} checked={presets} onChange={setPresets} />}
+    <ErrorNotice error={error} />
+  </KnowledgeDialog>;
+}
+
+/** Chooses what goes into a package file, shows anything that should not be shared, then saves it. */
+export function ExportDialog({ snapshot, api, initialCollectionIds, onClose, onExported }: {
+  snapshot: LibrarySnapshot; api: TranslationKnowledgeApi; initialCollectionIds: string[]; onClose: () => void; onExported: (receipt: ExportReceipt) => void;
+}) {
+  const { t } = useTranslation("knowledge");
+  const collections = orderedCollections(snapshot);
+  const [selected, setSelected] = useState<string[]>(initialCollectionIds.filter(id => collections.some(item => item.id === id)));
+  const [includeDisabled, setIncludeDisabled] = useState(true);
+  const [includePresets, setIncludePresets] = useState(true);
+  const [plan, setPlan] = useState<ExportPreview | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<Failure | null>(null);
+  const lock = useRef(false);
+  const changed = () => { setPlan(null); setError(null); };
+  const save = async (preview: ExportPreview) => {
+    const result = await api.exportFile({ planId: preview.planId });
+    if (!result.ok) { setError(result.error); return; }
+    if (result.value) onExported(result.value);
+  };
+  const run = async () => {
+    if (lock.current || !selected.length) return;
+    lock.current = true; setPending(true); setError(null);
+    try {
+      // A shown warning was the user's to see; the second press saves with the same plan.
+      if (plan) { await save(plan); return; }
+      const result = await api.planExport({ generation: snapshot.generation, collectionIds: selected, includeDisabled, includePresets });
+      if (!result.ok) { setError(result.error); return; }
+      if (result.value.warnings.length) { setPlan(result.value); return; }
+      await save(result.value);
+    } catch { setError("unexpected"); }
+    finally { lock.current = false; setPending(false); }
+  };
+  const toggle = (id: string, checked: boolean) => { setSelected(current => checked ? [...current, id] : current.filter(item => item !== id)); changed(); };
+  return <KnowledgeDialog title={t("export.title")} description={t("export.description")} pending={pending} onClose={onClose} footer={
+    <Button data-testid="knowledge-export-save" size="sm" disabled={pending || !selected.length} onClick={() => void run()}>{pending && <LoaderCircle className="animate-spin" />}{t(plan ? "export.save_anyway" : "export.save")}</Button>
+  }>
+    <fieldset className="space-y-2">
+      <legend className="flex w-full items-center justify-between gap-2 pb-1.5 text-[11px] font-medium text-muted-foreground">
+        <span>{t("export.collections", { count: selected.length })}</span>
+        <button type="button" className="rounded text-[11px] text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => { setSelected(selected.length === collections.length ? [] : collections.map(item => item.id)); changed(); }}>{t(selected.length === collections.length ? "export.select_none" : "export.select_all")}</button>
+      </legend>
+      <div className="rounded-md border"><KnowledgeScrollList testId="knowledge-export-collections" maxHeight="min(16rem, 40vh)" contentClassName="space-y-2 p-3">
+        {collections.map(item => <Check key={item.id} label={`${item.name} · ${languagePairLabel(t, item.languagePair)}${item.archived ? ` · ${t("collection.archived")}` : ""}`}
+          checked={selected.includes(item.id)} onChange={checked => toggle(item.id, checked)} />)}
+      </KnowledgeScrollList></div>
+    </fieldset>
+    <div className="space-y-2">
+      <Check label={t("export.include_disabled")} checked={includeDisabled} onChange={value => { setIncludeDisabled(value); changed(); }} />
+      <Check label={t("export.include_presets")} checked={includePresets} onChange={value => { setIncludePresets(value); changed(); }} />
+    </div>
+    <DialogTransition transitionKey={plan ? `plan-${plan.planId}` : "none"}>{plan && <div className="space-y-2">
+      <Warnings warnings={plan.warnings} testId="knowledge-export-warnings" />
+      <p className="text-xs leading-5 text-muted-foreground">{t("export.warnings_help")}</p>
+    </div>}</DialogTransition>
+    <ErrorNotice error={error} />
+  </KnowledgeDialog>;
 }

@@ -1,9 +1,10 @@
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ExecutionRecordPage } from '@/subtitle-studio/execution-view-contract';
-import { entrySummary } from '@/translation-knowledge/ipc-contract';
+import { entrySummary } from '@/translation-knowledge/summary';
 import { KnowledgeDisclosure } from '@/pages/TranslationKnowledge/KnowledgeDisclosure';
 import { StudioPagination } from './StudioControls';
+import { compiledSummary } from './StudioKnowledgeTrial';
 
 type Knowledge = NonNullable<Extract<ExecutionRecordPage, { state: 'available' }>['knowledge']>;
 const pageSize = 20;
@@ -21,9 +22,8 @@ export function StudioExecutionKnowledge({ knowledge }: { knowledge: Knowledge }
       <span>{t('studio:execution.knowledge_resources', { count: knowledge.resourceCount })}</span>
     </div>
     <p className="studio-execution-help">{t('studio:execution.knowledge_help')}</p>
-    {(!!knowledge.recipeName || !!knowledge.documentTopics.length) && <dl className="studio-execution-facts">
-      {!!knowledge.recipeName && <div><dt>{t('knowledge:trial.recipe')}</dt><dd>{knowledge.recipeName}</dd></div>}
-      {!!knowledge.documentTopics.length && <div><dt>{t('studio:execution.knowledge_topics')}</dt><dd>{knowledge.documentTopics.join(' / ')}</dd></div>}
+    {!!knowledge.collections.length && <dl className="studio-execution-facts">
+      <div><dt>{t('materials:selection.collections')}</dt><dd>{knowledge.collections.join(' / ')}</dd></div>
     </dl>}
     <div className="studio-execution-entries">
       <div className="studio-execution-group-label">
@@ -31,22 +31,21 @@ export function StudioExecutionKnowledge({ knowledge }: { knowledge: Knowledge }
         <span className="studio-execution-count">{items.length}</span>
       </div>
       {items.length ? items.slice(offset, offset + pageSize).map(item => <KnowledgeDisclosure key={item.entryId} variant="section"
-        title={item.title} description={t(item.required ? 'studio:execution.knowledge_required' : 'studio:execution.knowledge_reference')}
+        title={compiledSummary(item)} description={t(item.required ? 'studio:execution.knowledge_required' : 'studio:execution.knowledge_reference')}
         contentClassName="studio-execution-entry">
-        <p className="whitespace-pre-wrap">{entrySummary(entries.get(item.entryId)!)}</p>
+        {item.kind !== 'term' && <p className="whitespace-pre-wrap">{'text' in item.payload ? item.payload.text : ''}</p>}
+        {item.kind === 'term' && 'note' in item.payload && !!item.payload.note && <p className="whitespace-pre-wrap">{item.payload.note}</p>}
         <p className="studio-execution-muted">{t('studio:execution.knowledge_scope', { count: item.applicableCueIds.length, revision: item.revision })}</p>
-        {!!item.condition && <p>{item.condition}</p>}
         <ol className="studio-execution-entry-cues">
           {knowledge.cues.filter(cue => item.applicableCueIds.includes(cue.cueId)).map(cue => <li key={cue.cueId}>
             <span>{cue.number}</span><span>{cue.text}</span>
           </li>)}
         </ol>
-        {item.evidence.map(source => <blockquote key={source.id}>
-          <p className="font-medium">{source.title}</p>
-          <p className="whitespace-pre-wrap studio-execution-muted">{source.excerpt}</p>
-          {!!source.attribution && <p className="studio-execution-muted">{source.attribution}</p>}
-          {!!source.url && <p className="studio-execution-muted">{source.url}</p>}
-        </blockquote>)}
+        {!!item.origin && (item.origin.note || item.origin.url) && <blockquote>
+          {!!item.origin.title && <p className="font-medium">{item.origin.title}</p>}
+          {!!item.origin.note && <p className="whitespace-pre-wrap studio-execution-muted">{item.origin.note}</p>}
+          {!!item.origin.url && <p className="studio-execution-muted">{item.origin.url}</p>}
+        </blockquote>}
       </KnowledgeDisclosure>) : <p className="studio-execution-empty">{t('studio:execution.knowledge_none')}</p>}
       {items.length > pageSize && <div className="studio-execution-entries-footer"><StudioPagination compact offset={offset} total={items.length} pageSize={pageSize} busy={false} onChange={setOffset} /></div>}
       {!!issues.length && <>
@@ -56,9 +55,9 @@ export function StudioExecutionKnowledge({ knowledge }: { knowledge: Knowledge }
         </div>
         <ul className="studio-execution-issues">
           {issues.slice(issueOffset, issueOffset + pageSize).map((issue, index) => <li key={issueOffset + index}>
-            <p>{t(`knowledge:trial.issue.${issue.code}`)}</p>
+            <p>{t(`knowledge:trial.issue.${issue.code}`, { defaultValue: t('knowledge:trial.issue_unknown', { code: issue.code }) })}</p>
             {(!!issue.entryIds.length || !!issue.cueIds.length) && <p className="studio-execution-muted">
-              {[issue.entryIds.map(id => entries.get(id)?.title ?? id).join(' / '),
+              {[issue.entryIds.map(id => { const entry = entries.get(id); return entry ? entrySummary(entry) : id; }).join(' / '),
                 issue.cueIds.length ? t('studio:execution.knowledge_cue_count', { count: issue.cueIds.length }) : ''].filter(Boolean).join(' · ')}
             </p>}
           </li>)}

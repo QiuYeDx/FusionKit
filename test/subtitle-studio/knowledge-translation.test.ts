@@ -8,11 +8,10 @@ import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
 import type { TranslationConfig } from '../../src/subtitle-studio/translation-contract';
 import { knowledgeTranslationRequestSchemas, type KnowledgeTranslationRequest } from '../../src/subtitle-studio/knowledge-translation-contract';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
-import type { KnowledgeTaskGate } from '../../src/translation-knowledge/task-reference-contract';
-import type { Entry } from '../../src/translation-knowledge/schemas';
+import type { Entry, TermEntry } from '../../src/translation-knowledge/schemas';
 import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 import { validateFrozenKnowledgeSnapshot } from '../../src/translation-knowledge/snapshot-contract';
-import { KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY } from '../../src/translation-knowledge/execution';
+import { KNOWLEDGE_EXECUTION_POLICY } from '../../src/translation-knowledge/execution';
 import type { ModelRuntimeTextRequest, ModelRuntimeTextResult } from '../../electron/main/ai/model-runtime-client';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { KnowledgeTranslationService, KNOWLEDGE_TRANSLATION_LIMITS, prepareKnowledgeTranslation } from '../../electron/main/subtitle-studio/knowledge-translation';
@@ -26,15 +25,9 @@ const config = (overrides: Partial<TranslationConfig> = {}): TranslationConfig =
 const lines = (count: number) => Array.from({ length: count }, (_, index) => `[00:${String(index % 60).padStart(2, '0')}]starport ${index + 1}`).join('\n');
 const payload = (request: ModelRuntimeTextRequest) => JSON.parse(request.messages[1].content) as { items: { id: string; text: string }[]; context: { precedingSource: string[]; followingSource: string[]; priorModelTranslations: string[] }; translationKnowledge: { items: { applicableItemIds: string[]; payload: unknown }[] } };
 const success = (request: ModelRuntimeTextRequest, text?: string): ModelRuntimeTextResult => ({ apiFormat: request.model.apiFormat, finishReason: 'stop', rawStatus: 'completed', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }, content: JSON.stringify({ items: payload(request).items.map(item => ({ id: item.id, text: text ?? `译文 ${item.id}` })) }) });
-const defer = <T>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; };
-class Gate implements KnowledgeTaskGate {
-  calls = 0; active = false; private tail: Promise<unknown> = Promise.resolve();
-  run<T>(operation: () => Promise<T>): Promise<T> {
-    this.calls++;
-    const result = this.tail.then(async () => { expect(this.active).toBe(false); this.active = true; try { return await operation(); } finally { this.active = false; } });
-    this.tail = result.catch(() => {}); return result;
-  }
-}
+const pair = { source: 'en', target: 'zh-Hans' };
+const termEntry = (collectionId: string, source = 'starport', target = '星港'): TermEntry => ({ id: randomUUID(), revision: 1, collectionId, enabled: true, kind: 'term',
+  payload: { source, target, aliases: [], note: '', strength: 'required', match: { mode: 'whole_term', caseSensitive: false } } });
 const cleanups: (() => Promise<void>)[] = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const cleanup of cleanups.splice(0)) await cleanup(); });
 async function fixture(count = 43, send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = async request => success(request)) {
@@ -42,20 +35,19 @@ async function fixture(count = 43, send: (request: ModelRuntimeTextRequest) => P
   const repository = new DocumentRepository(path.join(root, 'documents'));
   const document = importSubtitleText(lines(count), { format: 'lrc', displayName: 'formal-fixture.lrc', encoding: 'utf-8', digest: 'a'.repeat(64) }, randomUUID);
   await repository.create(document);
-  const topicId = randomUUID(), collectionId = randomUUID(), sourceId = randomUUID();
-  const term: Entry = { id: randomUUID(), revision: 1, kind: 'term', title: 'Starport', collectionId, aboutSubjectIds: [], state: 'ready', scope: { languagePair: { source: 'en', target: 'zh-Hans' }, requiredSubjects: [{ subjectId: topicId, role: 'topic' }], condition: { mode: 'none' } }, evidence: [{ sourceId, support: 'direct' }], derivedFrom: [], payload: { source: 'starport', target: '星港', aliases: [], sense: '', match: { mode: 'whole_term', caseSensitive: false }, strength: 'required' } };
-  const library: LibrarySnapshot = { generation: 1, data: { format: 'fusionkit.translation-knowledge', schemaVersion: 1, package: { id: randomUUID(), revision: 1, name: 'Formal fixture', description: '', purpose: 'backup', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'Test' } },
-    subjects: [{ id: topicId, revision: 1, archived: false, kind: 'person', name: 'Topic subject', aliases: [], tags: [], description: '' }],
-    collections: [{ id: collectionId, revision: 1, archived: false, name: 'Glossary', description: '', aboutSubjectIds: [] }], sources: [{ id: sourceId, revision: 1, kind: 'user_note', title: 'Evidence', excerpt: 'PRIVATE_EVIDENCE' }], entries: [term], styles: [], recipes: [], preferenceTemplates: [] }, approvals: {}, imports: [] };
-  const approve = () => { for (const entry of library.data.entries) library.approvals[entry.id] = { revision: entry.revision, digest: sha256Canonical(entry), method: 'human', approvedAt: '2026-09-14T00:00:00Z' }; };
-  approve();
-  const gate = new Gate(), sent = vi.fn(send), read = vi.fn(async () => library);
-  const translation = new TranslationService(repository, sent, new TranslationScheduler(1), gate);
-  const service = new KnowledgeTranslationService(repository, translation, read, gate);
+  const collectionId = randomUUID();
+  // Origin is record-only provenance; it must never reach the provider request.
+  const term: TermEntry = { ...termEntry(collectionId), origin: { kind: 'web', url: 'https://example.invalid/private-origin', title: 'Private origin', note: 'PRIVATE_ORIGIN' } };
+  const library: LibrarySnapshot = { generation: 1, data: { format: 'fusionkit.translation-knowledge', schemaVersion: 2,
+    package: { id: randomUUID(), revision: 1, name: 'Formal fixture', description: '', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'Test' } },
+    collections: [{ id: collectionId, revision: 1, name: 'Glossary', description: '', languagePair: { ...pair }, archived: false }], entries: [term], presets: [] } };
+  const sent = vi.fn(send), read = vi.fn(async () => library);
+  const translation = new TranslationService(repository, sent, new TranslationScheduler(1));
+  const service = new KnowledgeTranslationService(repository, translation, read);
   const releases: (() => void)[] = [];
   cleanups.push(async () => { for (const release of releases) release(); await service.dispose(); await translation.dispose(); for (const task of (await repository.readSnapshot(document.id).catch(() => ({ tasks: [] }))).tasks) await translation.settled(task.id); await rm(root, { recursive: true, force: true }); });
-  const request = (overrides: Partial<KnowledgeTranslationRequest> = {}): KnowledgeTranslationRequest => ({ documentId: document.id, revision: document.revision, knowledgeGeneration: library.generation, config: config(), knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [collectionId], bindings: [], confirmations: [], disabledEntryIds: [] }, documentTopicIds: [topicId], ...overrides });
-  return { root, repository, document, library, term, topicId, sourceId, approve, service, translation, gate, sent, read, request, releases };
+  const request = (overrides: Partial<KnowledgeTranslationRequest> = {}): KnowledgeTranslationRequest => ({ documentId: document.id, revision: document.revision, knowledgeGeneration: library.generation, config: config(), knowledge: { version: 2, languagePair: { ...pair }, collectionIds: [collectionId], disabledEntryIds: [] }, ...overrides });
+  return { root, repository, document, library, collectionId, term, service, translation, sent, read, request, releases };
 }
 
 describe('formal document knowledge translation', () => {
@@ -63,7 +55,7 @@ describe('formal document knowledge translation', () => {
     const f = await fixture(1);
     const input = f.request({ config: config({ instructions, trackName: '资料翻译初稿' }) });
     const absent = await prepareKnowledgeTranslation(f.repository, input, f.library);
-    input.knowledge = { ...input.knowledge, recipeId: undefined, instructions: undefined, context: undefined };
+    input.knowledge = { ...input.knowledge, instructions: undefined, context: undefined };
     const preview = await f.service.plan(1, input);
     expect(preview).toEqual({ ...absent.preview, planId: preview.planId, expiresAt: preview.expiresAt });
     expect(preview.canRun).toBe(true);
@@ -74,7 +66,6 @@ describe('formal document knowledge translation', () => {
     expect(snapshot.document.translationTracks[0].name).toBe('资料翻译初稿');
     expect(JSON.stringify(f.sent.mock.calls)).not.toContain('资料翻译初稿');
     expect(record.knowledge).toEqual(absent.prepared!.knowledge);
-    expect(record.knowledge!.selection).not.toHaveProperty('recipeId');
     expect(record.knowledge!.selection).not.toHaveProperty('context');
     if (instructions) expect(record.knowledge!.selection.instructions).toBe(instructions);
     else expect(record.knowledge!.selection).not.toHaveProperty('instructions');
@@ -84,20 +75,18 @@ describe('formal document knowledge translation', () => {
     expect(planner.serializeTranslationRequest(f.sent.mock.calls[0][0])).toBe(absent.prepared!.baseRequests.b1.httpBody);
   });
 
-  it('preserves explicitly empty instructions and context through frozen admission without falling back to recipe or form guidance', async () => {
-    const f = await fixture(1), recipeId = randomUUID();
+  it('preserves explicitly empty instructions and context through frozen admission without falling back to form guidance', async () => {
+    const f = await fixture(1);
     const input = f.request({ config: config({ instructions: 'Parent form instructions.' }) });
-    f.library.data.recipes.push({ id: recipeId, revision: 1, archived: false, name: 'Formal recipe', description: '',
-      languagePair: input.knowledge.languagePair, readCollectionIds: [], subjectSuggestions: [], modifierStyleIds: [],
-      instructions: 'Recipe instructions.', context: 'Recipe context.', inheritGlobalPreferences: false, learningSuggestion: 'off' });
-    input.knowledge = { ...input.knowledge, recipeId, instructions: '', context: '' };
+    input.knowledge = { ...input.knowledge, instructions: '', context: '' };
     const preview = await f.service.plan(1, input);
     expect(preview.canRun).toBe(true);
     const started = await f.service.start(1, { planId: preview.planId, apiKey: 'key' });
     await f.translation.settled(started.taskId);
     const snapshot = await f.repository.readSnapshot(f.document.id), record = resolveExecutionRecord(snapshot, started.taskId);
     expect(snapshot.tasks[0].status).toBe('completed');
-    expect(record.knowledge!.selection).toMatchObject({ recipeId, instructions: '', context: '' });
+    expect(record.knowledge!.selection).toMatchObject({ instructions: '', context: '' });
+    expect(JSON.stringify(f.sent.mock.calls)).not.toContain('Parent form instructions.');
     expect(record.knowledge!.batches.b1).toMatchObject({ instructions: '', context: '' });
     expect(JSON.parse(f.sent.mock.calls[0][0].messages[1].content)).toMatchObject({ translationRequirements: '', translationKnowledge: { background: '' } });
   });
@@ -105,7 +94,8 @@ describe('formal document knowledge translation', () => {
   it.each(['chat_completions', 'responses'] as const)('translates all windows with global IDs and frozen %s knowledge, retaining cross-window source and AI context', async apiFormat => {
     const f = await fixture();
     const preview = await f.service.plan(1, f.request({ config: config({ model: { ...config().model, apiFormat } }) }));
-    expect(preview).toMatchObject({ canRun: true, cueCount: 43, batchCount: 3, includedEntryCount: 1, resourceCount: 4 });
+    // One frozen collection plus its one entry.
+    expect(preview).toMatchObject({ canRun: true, cueCount: 43, batchCount: 3, includedEntryCount: 1, resourceCount: 2 });
     expect(f.sent).not.toHaveBeenCalled(); expect((await f.repository.readSnapshot(f.document.id)).tasks).toEqual([]);
     const started = await f.service.start(1, { planId: preview.planId, apiKey: 'PRIVATE_KEY' }); await f.translation.settled(started.taskId);
     expect(f.sent).toHaveBeenCalledTimes(3);
@@ -117,38 +107,50 @@ describe('formal document knowledge translation', () => {
     expect(snapshot.document.translationTracks[0].origin).toBe('ai');
     expect(snapshot.tasks[0].status).toBe('completed'); expect(record.policyVersion).toBe(records.KNOWLEDGE_TRANSLATION_POLICY_VERSION);
     expect(validateFrozenKnowledgeSnapshot(record.knowledge).data.entries[0]).toEqual(f.term);
-    expect(record.knowledge!.data.sources[0].excerpt).toBe('PRIVATE_EVIDENCE');
+    expect(record.knowledge!.data.entries[0].origin).toMatchObject({ kind: 'web', note: 'PRIVATE_ORIGIN' });
     for (const [index, request] of requests.entries()) {
       expect(record.requests[`b${index + 1}`].httpBody).toBe(planner.serializeTranslationRequest(request));
       expect(planner.requestTokenEstimate(request)).toBeLessThanOrEqual(record.plan.batches[index].estimatedInputTokens);
-      expect(planner.serializeTranslationRequest(request)).not.toMatch(new RegExp(`PRIVATE_EVIDENCE|${f.sourceId}|${f.term.id}|${f.document.id}`));
+      expect(planner.serializeTranslationRequest(request)).not.toMatch(new RegExp(`PRIVATE_ORIGIN|private-origin|${f.collectionId}|${f.term.id}|${f.document.id}`));
     }
     expect(JSON.stringify(record)).not.toMatch(/PRIVATE_KEY|apiKey|signal|proxy/);
-    expect(f.gate.calls).toBe(1); expect(f.translation.activeKnowledgeReferences()).toEqual([]);
   });
 
-  it('projects explicit confirmations across the boundary while a whole-document topic never supplies a speaker identity', async () => {
+  it('applies enabled entries without approval, skips library-disabled ones silently and reports per-run exclusions', async () => {
     const f = await fixture(21);
-    f.term.scope.requiredSubjects = [{ subjectId: f.topicId, role: 'speaker' }];
-    f.term.scope.condition = { mode: 'requires_confirmation', text: 'Confirmed scene.' }; f.approve();
-    const input = f.request();
-    input.knowledge.bindings = [{ subjectId: f.topicId, role: 'speaker', cueIds: [f.document.cues[0].id, f.document.cues[20].id] }];
-    input.knowledge.confirmations = [{ entryId: f.term.id, cueIds: [f.document.cues[0].id, f.document.cues[20].id] }];
-    const preview = await f.service.plan(1, input); expect(preview.canRun).toBe(true);
+    const rule: Entry = { id: randomUUID(), revision: 1, collectionId: f.collectionId, enabled: true, kind: 'rule', payload: { text: 'Keep station names short.', required: true } };
+    const off: TermEntry = { ...termEntry(f.collectionId, 'starport', '停用译名'), enabled: false };
+    f.library.data.entries.push(rule, off);
+    const input = f.request(); input.knowledge.disabledEntryIds = [rule.id];
+    const preview = await f.service.plan(1, input);
+    // Every entry of the selected collection is frozen, including excluded and disabled ones.
+    expect(preview).toMatchObject({ canRun: true, includedEntryCount: 1, resourceCount: 4 });
+    expect(preview.issues).toEqual([{ code: 'disabled', severity: 'warning', entryIds: [rule.id], cueIds: [] }]);
     const started = await f.service.start(1, { planId: preview.planId, apiKey: 'key' }); await f.translation.settled(started.taskId);
-    expect(f.sent.mock.calls.map(([request]) => payload(request).translationKnowledge.items[0].applicableItemIds)).toEqual([['u1'], ['u21']]);
+    expect(f.sent.mock.calls.map(([request]) => payload(request).translationKnowledge.items.map(item => item.payload))).toEqual([[f.term.payload], [f.term.payload]]);
+    expect(JSON.stringify(f.sent.mock.calls)).not.toMatch(/停用译名|Keep station names short/);
     const knowledge = resolveExecutionRecord(await f.repository.readSnapshot(f.document.id), started.taskId).knowledge!;
-    expect(knowledge.batches.b1.items[0].applicableCueIds).toEqual([f.document.cues[0].id]);
-    expect(knowledge.batches.b2.items[0].applicableCueIds).toEqual([f.document.cues[20].id]);
-    expect(knowledge.batches.b1.issues.some(issue => issue.code === 'subject_unbound')).toBe(true);
+    expect(Object.values(knowledge.batches).flatMap(batch => batch.items.map(item => item.entryId))).toEqual([f.term.id, f.term.id]);
+    expect(knowledge.data.entries.map(entry => entry.id)).toEqual([f.term.id, rule.id, off.id]);
+    expect(knowledge.selection.disabledEntryIds).toEqual([rule.id]);
+  });
+
+  it.each(['archived', 'language-mismatched'] as const)('blocks a selected collection that is %s before creating any task', async kind => {
+    const f = await fixture(1);
+    const collection = f.library.data.collections[0];
+    if (kind === 'archived') collection.archived = true; else collection.languagePair = { source: 'ja', target: 'zh-Hans' };
+    const preview = await f.service.plan(1, f.request());
+    expect(preview.canRun).toBe(false);
+    expect(preview.issues).toContainEqual(expect.objectContaining({ code: kind === 'archived' ? 'resource_archived' : 'language_mismatch', severity: 'error' }));
+    await expect(f.service.start(1, { planId: preview.planId, apiKey: 'key' })).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(f.sent).not.toHaveBeenCalled(); expect((await f.repository.readSnapshot(f.document.id)).tasks).toEqual([]);
   });
 
   it('blocks the whole document when a later window contains conflicting required knowledge', async () => {
     const f = await fixture(21);
-    const conflicting = structuredClone(f.term); conflicting.id = randomUUID(); conflicting.scope.condition = { mode: 'requires_confirmation', text: 'Last scene.' };
-    if (conflicting.kind !== 'term') throw new Error('fixture'); conflicting.payload.target = '另一个译法'; f.library.data.entries.push(conflicting); f.approve();
-    const input = f.request(); input.knowledge.confirmations = [{ entryId: conflicting.id, cueIds: [f.document.cues[20].id] }];
-    const preview = await f.service.plan(1, input);
+    // Only the last cue contains the partly overlapping phrase ("port 21" crosses the end of "starport"), so the conflict appears in the second window.
+    const conflicting = termEntry(f.collectionId, 'port 21', '另一个译法'); conflicting.payload.match.mode = 'literal_phrase'; f.library.data.entries.push(conflicting);
+    const preview = await f.service.plan(1, f.request());
     expect(preview.canRun).toBe(false); expect(preview.issues).toContainEqual(expect.objectContaining({ code: 'term_conflict', severity: 'error', cueIds: [f.document.cues[20].id] }));
     await expect(f.service.start(1, { planId: preview.planId, apiKey: 'key' })).rejects.toMatchObject({ code: 'invalid_input' });
     expect(f.sent).not.toHaveBeenCalled(); expect((await f.repository.readSnapshot(f.document.id)).tasks).toEqual([]);
@@ -165,22 +167,16 @@ describe('formal document knowledge translation', () => {
     const blocked = await f.service.plan(1, next); expect(blocked.canRun).toBe(false); expect(blocked.issues.some(issue => issue.code === 'budget_required')).toBe(true);
   });
 
-  it.each([KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY])('resumes %s frozen knowledge and exact failed HTTP bytes after live knowledge and prompt builders change', async policy => {
+  it('resumes frozen knowledge and exact failed HTTP bytes after live knowledge and prompt builders change', async () => {
     let stop = true;
     const f = await fixture(43, async request => { if (stop && payload(request).items[0].id === 'u21') throw new Error('controlled provider stop'); return success(request); });
-    const started = await (async () => {
-      if (policy === KNOWLEDGE_EXECUTION_POLICY) {
-        const preview = await f.service.plan(1, f.request());
-        return f.service.start(1, { planId: preview.planId, apiKey: 'key' });
-      }
-      const prepared = await prepareKnowledgeTranslation(f.repository, f.request(), f.library, undefined, undefined, policy);
-      return f.gate.run(() => f.translation.startPreparedKnowledge(prepared.prepared!, 'key'));
-    })();
+    const preview = await f.service.plan(1, f.request());
+    const started = await f.service.start(1, { planId: preview.planId, apiKey: 'key' });
     await f.translation.settled(started.taskId);
     const failed = await f.repository.readSnapshot(f.document.id), frozen = resolveExecutionRecord(failed, started.taskId);
     expect(failed.tasks[0].status).toBe('failed'); expect(frozen.requests.b3).toBeUndefined();
-    expect(frozen.knowledge!.policyVersion).toBe(policy);
-    f.library.data.entries = []; f.library.approvals = {}; f.library.generation++; stop = false;
+    expect(frozen.knowledge!.policyVersion).toBe(KNOWLEDGE_EXECUTION_POLICY);
+    f.library.data.entries = []; f.library.generation++; stop = false;
     const rebuilt = vi.spyOn(planner, 'buildTranslationRequest').mockImplementation(() => { throw new Error('do not rebuild'); });
     f.read.mockClear();
     await f.translation.resume(f.document.id, failed.document.revision, started.taskId, config().model, 'rotated-key'); await f.translation.settled(started.taskId);
@@ -188,35 +184,20 @@ describe('formal document knowledge translation', () => {
     expect(planner.serializeTranslationRequest(replayed)).toBe(frozen.requests.b2.httpBody);
     expect(last.messages[0]).toEqual(frozen.baseRequests.b3.request.messages[0]);
     expect(payload(last).translationKnowledge).toEqual(JSON.parse(frozen.baseRequests.b3.request.messages[1].content).translationKnowledge);
-    expect(last.model.apiKey).toBe('rotated-key'); expect(f.read).not.toHaveBeenCalled(); expect(rebuilt).not.toHaveBeenCalled(); expect(f.gate.calls).toBe(2);
+    expect(last.model.apiKey).toBe('rotated-key'); expect(f.read).not.toHaveBeenCalled(); expect(rebuilt).not.toHaveBeenCalled();
     expect((await f.repository.readSnapshot(f.document.id)).tasks[0].status).toBe('completed');
   });
 
-  it('rejects an unknown knowledge execution policy even with a valid frozen snapshot digest', async () => {
+  it('rejects a knowledge execution policy other than the current one even with a recomputed frozen snapshot digest', async () => {
     const f = await fixture(1), result = await prepareKnowledgeTranslation(f.repository, f.request(), f.library);
     const prepared = result.prepared!, knowledge = prepared.knowledge;
-    knowledge.policyVersion = 'fktk-execution/99';
+    expect(knowledge.policyVersion).toBe(KNOWLEDGE_EXECUTION_POLICY);
+    knowledge.policyVersion = 'fktk-execution/99' as typeof KNOWLEDGE_EXECUTION_POLICY;
     for (const batch of Object.values(knowledge.batches)) batch.policyVersion = knowledge.policyVersion;
     const { digest: _digest, ...base } = knowledge; knowledge.digest = sha256Canonical(base);
-    expect(validateFrozenKnowledgeSnapshot(knowledge)).toEqual(knowledge);
-    expect(() => records.createExecutionRecord(prepared.plan, prepared.sourceDigest, randomUUID(), randomUUID(), prepared)).toThrow('translation_record_unavailable');
+    expect(() => validateFrozenKnowledgeSnapshot(knowledge)).toThrow('Invalid frozen knowledge snapshot');
+    expect(() => records.createExecutionRecord(prepared.plan, prepared.sourceDigest, randomUUID(), randomUUID(), prepared)).toThrow();
     expect(f.sent).not.toHaveBeenCalled();
-  });
-
-  it.each(['task', 'document'] as const)('retains physical knowledge references after %s removal until a cancelled supplier settles without holding the purge gate', async removal => {
-    const entered = defer<ModelRuntimeTextRequest>(), release = defer<ModelRuntimeTextResult>();
-    const f = await fixture(1, request => { entered.resolve(request); return release.promise; });
-    const preview = await f.service.plan(1, f.request()), started = await f.service.start(1, { planId: preview.planId, apiKey: 'key' });
-    const request = await entered.promise; f.releases.push(() => release.resolve(success(request)));
-    expect(await f.gate.run(async () => 'purge gate remains available')).toBe('purge gate remains available');
-    let current = await f.repository.readSnapshot(f.document.id);
-    await f.translation.cancel(f.document.id, current.document.revision, started.taskId);
-    current = await f.repository.readSnapshot(f.document.id);
-    if (removal === 'task') await f.repository.removeTask(f.document.id, current.document.revision, started.taskId);
-    else await f.repository.delete(f.document.id, current.document.revision);
-    expect(f.translation.activeKnowledgeReferences()).toEqual([expect.objectContaining({ taskId: started.taskId, status: 'active', resources: expect.arrayContaining([expect.objectContaining({ id: f.term.id })]) })]);
-    release.resolve(success(request)); await f.translation.settled(started.taskId);
-    expect(f.translation.activeKnowledgeReferences()).toEqual([]);
   });
 
   it('bounds escaped dynamic prior growth against the storage capacity reserved at admission', async () => {
@@ -238,9 +219,19 @@ describe('formal document knowledge translation', () => {
     expect(knowledgeTranslationRequestSchemas.createKnowledgeTranslation.safeParse({ ...input, prepared: {} }).success).toBe(false);
   });
 
-  it('rejects foreign explicit cue references rather than dropping them during window projection', async () => {
-    const f = await fixture(21), input = f.request(); input.knowledge.bindings = [{ subjectId: f.topicId, role: 'topic', cueIds: [randomUUID()] }];
-    await expect(f.service.plan(1, input)).rejects.toMatchObject({ code: 'invalid_input' }); expect(f.sent).not.toHaveBeenCalled();
+  it('rejects removed v1 selection fields and document topics as invalid input before reading knowledge', async () => {
+    const f = await fixture(1), input = f.request();
+    for (const forged of [
+      { ...input, documentTopicIds: [randomUUID()] },
+      { ...input, knowledge: { ...input.knowledge, bindings: [] } },
+      { ...input, knowledge: { ...input.knowledge, confirmations: [] } },
+      { ...input, knowledge: { ...input.knowledge, recipeId: randomUUID() } },
+      { ...input, knowledge: { ...input.knowledge, version: 1 } },
+    ]) {
+      expect(knowledgeTranslationRequestSchemas.planKnowledgeTranslation.safeParse(forged).success).toBe(false);
+      await expect(f.service.plan(1, forged as never)).rejects.toMatchObject({ code: 'invalid_input' });
+    }
+    expect(f.read).not.toHaveBeenCalled(); expect(f.sent).not.toHaveBeenCalled();
   });
 
   it('invalidates in-progress window planning on cancellation and owner loss without creating tasks', async () => {

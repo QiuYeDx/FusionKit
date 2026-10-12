@@ -19,7 +19,6 @@ import { createAutomaticTranslationCoordinator } from '../../electron/main/subti
 import type { AutomaticTranslationRequest } from '../../src/subtitle-studio/automatic-translation-contract';
 import { buildFrozenAutomaticKnowledge } from '../../src/translation-knowledge/automatic-snapshot-contract';
 import { knowledgeFixture } from '../translation-knowledge/fixtures';
-import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 
 const disposals: (() => Promise<void>)[] = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const dispose of disposals.splice(0)) await dispose(); });
@@ -224,11 +223,10 @@ it('rejects enabled automatic translation without a coordinator before creating 
 
 const automaticKnowledgeRequest = (): AutomaticTranslationRequest => ({ ...automaticRequest(), knowledge: {
   knowledgeGeneration: 1,
-  selection: { version: 1, languagePair: { source: 'en', target: 'ja' }, collectionIds: [], disabledEntryIds: [] },
-  documentTopicIds: [],
+  selection: { version: 2, languagePair: { source: 'en', target: 'ja' }, collectionIds: [], disabledEntryIds: [] },
 } });
 const automaticKnowledgeSnapshot = () => buildFrozenAutomaticKnowledge({
-  generation: 1, data: knowledgeFixture(), approvals: {}, imports: [],
+  generation: 1, data: knowledgeFixture(),
 }, automaticKnowledgeRequest().knowledge!);
 
 it('rejects automatic knowledge without capture support before any native admission instead of dropping its selection', async () => {
@@ -347,13 +345,12 @@ it('transfers knowledge before a delayed handoff and joins a late owner release 
 it('shows a knowledge conflict as automatic translation needing attention while retaining the successful transcription', async () => {
   const f = await fixture(), data = knowledgeFixture(), release = vi.fn(), automatic = automaticKnowledgeRequest();
   automatic.config.language = 'zh-Hans'; automatic.knowledge!.selection.languagePair.target = 'zh-Hans';
-  automatic.knowledge!.selection.collectionIds = [data.collections[0].id]; automatic.knowledge!.documentTopicIds = [data.subjects[0].id];
+  automatic.knowledge!.selection.collectionIds = [data.collections[0].id];
   const term = data.entries.find(entry => entry.kind === 'term')!;
-  term.state = 'ready'; term.scope.condition = { mode: 'none' }; if (term.kind === 'term') term.payload.strength = 'required';
+  term.enabled = true; if (term.kind === 'term') term.payload.strength = 'required';
   const conflicting = { ...structuredClone(term), id: '50000000-0000-4000-8000-000000000011', payload: { ...term.payload, target: '检查站' } };
   data.entries.push(conflicting);
-  const approvals = Object.fromEntries([term, conflicting].map(entry => [entry.id, { revision: entry.revision, digest: sha256Canonical(entry), method: 'human' as const, approvedAt: '2026-09-14T00:00:00Z' }]));
-  const snapshot = buildFrozenAutomaticKnowledge({ generation: 1, data, approvals, imports: [] }, automatic.knowledge!);
+  const snapshot = buildFrozenAutomaticKnowledge({ generation: 1, data }, automatic.knowledge!);
   f.transcript.segments[0].text = 'We reached the checkpoint.';
   const send = vi.fn(), translation = new TranslationService(f.repository, send);
   const coordinator = createAutomaticTranslationCoordinator({ repository: f.repository, translation });

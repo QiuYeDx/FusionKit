@@ -56,7 +56,7 @@ async function main() {
     console.log(JSON.stringify({ id: entity.id, revision: entity.revision, digest: sha256Canonical(entity) }, null, json ? undefined : 2))
   } else if (json) console.log(JSON.stringify(report))
   else {
-    console.log(report.valid ? `FK-TK/1 valid: ${report.stats.entities} entities, ${report.stats.warningCount} warnings. Protocol validity does not verify sources or confer local acceptance.` : `Invalid: ${report.stats.errorCount} errors, ${report.stats.warningCount} warnings.`)
+    console.log(report.valid ? `FK-TK/2 valid: ${report.stats.entities} entities, ${report.stats.warningCount} warnings. Protocol validity does not verify the accuracy of the content.` : `Invalid: ${report.stats.errorCount} errors, ${report.stats.warningCount} warnings.`)
     for (const item of [...report.errors, ...report.warnings]) console.log(`${item.code} ${item.path || '/'}: ${item.message}`)
   }
   process.exitCode = report.valid ? 0 : 1

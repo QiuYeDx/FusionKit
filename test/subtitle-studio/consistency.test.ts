@@ -11,9 +11,9 @@ import type { ModelRuntimeTextRequest, ModelRuntimeTextResult } from '../../elec
 import { ConsistencyService } from '../../electron/main/subtitle-studio/consistency-service';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
-import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
-import type { Entry } from '../../src/translation-knowledge/schemas';
+import type { Collection, Entry, TermEntry } from '../../src/translation-knowledge/schemas';
+import type { KnowledgeSelection } from '../../src/translation-knowledge/execution-contract';
 
 const SOURCE = 'テイムフィールド家のお嬢様';
 const RIGHT = '泰姆菲尔德家的大小姐';
@@ -147,29 +147,46 @@ describe('consistency service', () => {
     expect(result.usage.totalTokens).toBe(15);
   });
 
+  const COLLECTION_ID = '40000000-0000-4000-8000-000000000001';
+  const ENTRY_ID = '40000000-0000-4000-8000-000000000003';
+  const hollowTerm = (patch: Partial<TermEntry> = {}): TermEntry => ({ id: ENTRY_ID, revision: 1, collectionId: COLLECTION_ID, enabled: true, kind: 'term',
+    payload: { source: 'ホロウ', target: '空洞', aliases: [], note: '', match: { mode: 'literal_phrase', caseSensitive: false }, strength: 'preferred' }, ...patch });
+  const knowledgeLibrary = (entries: Entry[] = [hollowTerm()], collection: Partial<Collection> = {}): LibrarySnapshot => ({ generation: 1, data: {
+    format: 'fusionkit.translation-knowledge', schemaVersion: 2,
+    package: { id: '40000000-0000-4000-8000-000000000009', revision: 1, name: 'F', description: '', createdAt: '2026-10-10T00:00:00.000Z', generator: { name: 'F' } },
+    collections: [{ id: COLLECTION_ID, revision: 1, name: 'C', description: '', languagePair: { source: 'ja', target: 'zh-Hans' }, archived: false, ...collection }],
+    entries, presets: [],
+  } });
+  const selection = (patch: Partial<KnowledgeSelection> = {}): KnowledgeSelection => ({ version: 2, languagePair: { source: 'ja', target: 'zh-Hans' }, collectionIds: [COLLECTION_ID], disabledEntryIds: [], ...patch });
+
   it('follows the chosen materials, refuses stale or oversized requests and reports bad responses', async () => {
     const doc = lrc(['ホロウへ', 'ホロウだ']);
-    const library = (): LibrarySnapshot => {
-      const collectionId = '40000000-0000-4000-8000-000000000001', sourceId = '40000000-0000-4000-8000-000000000002';
-      const entry: Entry = { id: '40000000-0000-4000-8000-000000000003', revision: 1, title: 'ホロウ', kind: 'term', collectionId, aboutSubjectIds: [], state: 'ready',
-        scope: { languagePair: { source: 'ja', target: 'zh-Hans' }, requiredSubjects: [], condition: { mode: 'none' } }, evidence: [{ sourceId, support: 'direct' }], derivedFrom: [],
-        payload: { source: 'ホロウ', target: '空洞', aliases: [], sense: '', match: { mode: 'literal_phrase', caseSensitive: false }, strength: 'preferred' } };
-      return { generation: 1, imports: [], approvals: { [entry.id]: { revision: 1, digest: sha256Canonical(entry), method: 'human', approvedAt: '2026-10-10T00:00:00.000Z' } },
-        data: { format: 'fusionkit.translation-knowledge', schemaVersion: 1, package: { id: '40000000-0000-4000-8000-000000000009', revision: 1, name: 'F', description: '', purpose: 'backup', createdAt: '2026-10-10T00:00:00.000Z', generator: { name: 'F' } },
-          subjects: [], collections: [{ id: collectionId, revision: 1, archived: false, name: 'C', description: '', aboutSubjectIds: [] }], sources: [], entries: [entry], styles: [], recipes: [], preferenceTemplates: [] } };
-    };
     let content: unknown = { terms: [] };
-    const { service, translate } = await fixture([doc], async () => reply(content), async () => library());
+    const { service, translate } = await fixture([doc], async () => reply(content), async () => knowledgeLibrary());
     const translated = await translate(doc);
-    const selection = { version: 1 as const, languagePair: { source: 'ja', target: 'zh-Hans' }, collectionIds: ['40000000-0000-4000-8000-000000000001'], bindings: [], confirmations: [], disabledEntryIds: [] };
-    const result = await service.check(7, request([translated], { knowledge: selection }));
+    const result = await service.check(7, request([translated], { knowledge: selection() }));
     expect(result.groups).toEqual([expect.objectContaining({ kind: 'knowledge', source: 'ホロウ', recommended: '空洞' })]);
+    await expect(service.check(7, request([translated], { knowledge: { ...selection(), bindings: [] } }))).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(service.check(7, request([translated], { knowledge: { ...selection(), version: 1 } }))).rejects.toMatchObject({ code: 'invalid_input' });
     await expect(service.check(7, request([{ ...translated, revision: translated.revision + 1 }]))).rejects.toMatchObject({ code: 'revision_conflict' });
     content = { nothing: true };
     await expect(service.check(7, request([translated]))).rejects.toMatchObject({ code: 'translation_protocol_invalid' });
     await expect(service.check(7, { ...request([translated]), documents: Array.from({ length: 21 }, () => ({ documentId: randomUUID(), revision: 1 })) })).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
+  it.each([
+    ['a disabled entry', () => knowledgeLibrary([hollowTerm({ enabled: false })]), selection()],
+    ['an entry excluded for this run', () => knowledgeLibrary(), selection({ disabledEntryIds: [ENTRY_ID] })],
+    ['an archived collection', () => knowledgeLibrary(undefined, { archived: true }), selection()],
+    ['a collection in another language pair', () => knowledgeLibrary(undefined, { languagePair: { source: 'en', target: 'zh-Hans' } }), selection()],
+    ['an unselected collection', () => knowledgeLibrary(), selection({ collectionIds: [] })],
+  ] as const)('ignores the terms of %s', async (_case, library, knowledge) => {
+    const doc = lrc(['ホロウへ', 'ホロウだ']);
+    const { service, translate } = await fixture([doc], async () => reply({ terms: [] }), async () => library());
+    const translated = await translate(doc);
+    const result = await service.check(7, request([translated], { knowledge }));
+    expect(result.groups).toEqual([]);
+  });
   it('is cancelled by its owner', async () => {
     const doc = lrc(['a', 'b']);
     let release!: () => void;

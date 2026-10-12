@@ -4,6 +4,6 @@ import type { KnowledgePackage } from '../../src/translation-knowledge/schemas'
 
 export const exampleDirectory = fileURLToPath(new URL('../../.agents/skills/fusionkit-translation-knowledge/examples/', import.meta.url))
 export function knowledgeFixture(): KnowledgePackage {
-  return JSON.parse(readFileSync(`${exampleDirectory}/multi-subject.fktk.json`, 'utf8')) as KnowledgePackage
+  return JSON.parse(readFileSync(`${exampleDirectory}/multi-collection.fktk.json`, 'utf8')) as KnowledgePackage
 }
 export const createKnowledgePackage = knowledgeFixture

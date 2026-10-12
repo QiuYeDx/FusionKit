@@ -1,0 +1,190 @@
+{
+  "schema_version": 2,
+  "feature": "knowledge-v2",
+  "tier": "L",
+  "risk": "high",
+  "current_increment": "I3",
+  "modules": [
+    {
+      "slug": "data",
+      "code": "DATA",
+      "path": "modules/module-data"
+    },
+    {
+      "slug": "studio",
+      "code": "STUDIO",
+      "path": "modules/module-studio"
+    },
+    {
+      "slug": "agent",
+      "code": "AGENT",
+      "path": "modules/module-agent"
+    },
+    {
+      "slug": "page",
+      "code": "PAGE",
+      "path": "modules/module-page"
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "数据层 v2：协议、迁移、存储服务、执行解析、冻结快照、导入导出",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-12 用户审阅文档后回复「基本同意，但其实可以不用管历史版本的数据……历史数据可以直接作废……旧的那些资料可以全部移动到一个待处理的归档文件夹下」，并在此前要求「先写文档，然后再开始实际的开发和改造工作」。已按其补充改写文档（Q-04）后开始 I1。不提交推送、不发布；不在真实 userData 上运行（A-06）。 实施中按 records/i1/changes.md 澄清 AC-DATA-07-2（同原词不同译法改为警告、仍可保存）与 AC-DATA-07-4（过期以 invalid+stale_revision 表达），未扩大写入范围或产品范围；相应刷新摘要。",
+        "digest": "72e95050f20144282cbace046c633afe0c15bc91cde1d8d51e85df0c55695640"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "消费方接入：字幕工作台与 Agent",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-12 用户审阅整体设计（I1–I4 路线图与各模块需求）后回复「基本同意」，并要求「彻底重构……相关的需要改动的地方也都梳理清楚并逐一改造」「先写文档，然后再开始实际的开发和改造工作」。I1 完成后按同一授权继续 I2；范围与 AC 即文档中已评审的 R-STUDIO-02..05、R-AGENT-01..03（I2 开始时只补了边界与异常说明、细化任务）。不提交推送、不发布、不在真实 userData 上运行。",
+        "digest": "f7db8a1048df3d11449ba1c00093c16f91508506338c366ea6e29a88422e47ed"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I3",
+      "title": "翻译资料页重做",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-12 用户审阅整体设计（I1–I4 路线图与 R-PAGE 需求）后回复「基本同意」，并要求「彻底重构……相关的需要改动的地方也都梳理清楚并逐一改造」「先写文档，然后再开始实际的开发和改造工作」。I2 完成后按同一授权继续 I3；开工前补写设计基准与任务（module-page/tasks.md），需求只移除了导入接口不支持的「全部导入为停用」。不提交推送、不发布、不在真实 userData 上运行。 收尾时为 R-PAGE-01..08 补写「边界与异常」（只描述已实现的行为，不扩大范围），因此刷新摘要。",
+        "digest": "1f9feeb2c3e433f9af6b3208cfbc6c50fecb37ce5c153aaae750751312cb1a62"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I4",
+      "title": "收尾：Skill 文档、文案、文档、测试清理与全量回归",
+      "status": "planning",
+      "approval": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": ""
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "Q-01",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "是否保留审核流程（手动内容直接生效）？",
+      "resolution": "2026-10-12 用户回答「1. 不用留」：删除审核流程与批准记录；卡片、记入对话框、导入预览即确认，确认后直接生效。"
+    },
+    {
+      "id": "Q-02",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "翻译方案并入资料集还是改为工作台预设？",
+      "resolution": "2026-10-12 用户回答「2. 两者都做吧」：资料集自带要求（即其说明中的要求条目），工作台提供预设与最近使用；方案迁移为同 id 预设。"
+    },
+    {
+      "id": "Q-03",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "内容对象 / 说话人范围是否保留？",
+      "resolution": "2026-10-12 用户回答「3. 删掉吧」：删除对象、作用范围、使用条件、绑定、确认与 documentTopicIds；有内容的对象迁移为停用的背景说明。"
+    },
+    {
+      "id": "Q-04",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "旧版资料库、冻结记录、偏好、旧资料包是否需要迁移或兼容？",
+      "resolution": "2026-10-12 用户回答：「可以不用管历史版本的数据……历史数据可以直接作废，不要引入一些关于历史数据的额外逻辑，把新版的代码变脏。旧的那些资料可以全部移动到一个待处理的归档文件夹下，后续用 AI agent 帮忙根据这些历史的资料直接创建符合新版格式和规范的资料」。存储层只认当前格式，版本不符时整体移入 archive/<时间戳>/ 后以空库开始；其余旧数据作废；I4 在 Skill 文档中说明如何从归档重建。"
+    },
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "每个资料集只有一个翻译方向，条目不再单独带方向。",
+      "resolution": "2026-10-12 用户「基本同意」文档所列默认项。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "删除改为直接删除（10 秒内可撤销），不再有「清除全部历史」与维护预览；磁盘保留最近 20 代用于故障恢复。",
+      "resolution": "2026-10-12 用户「基本同意」文档所列默认项。"
+    },
+    {
+      "id": "A-03",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "资料集保留「归档」开关（不出现在工作台选择器）；条目只有启用 / 停用；导入撤销与「维护与导入记录」删除。",
+      "resolution": "2026-10-12 用户「基本同意」文档所列默认项。"
+    },
+    {
+      "id": "A-04",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "预设存于资料库（随导出），只在工作台选择器中管理；最近使用组合存于工作台偏好（最多 5 组）。",
+      "resolution": "2026-10-12 用户「基本同意」文档所列默认项。"
+    },
+    {
+      "id": "A-05",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "来源实体、证据、派生关系删除，改为条目上可选的 origin；分享与备份两种导出合并为一种。",
+      "resolution": "2026-10-12 用户「基本同意」文档所列默认项。"
+    },
+    {
+      "id": "A-06",
+      "increment": "I4",
+      "blocking": true,
+      "state": "open",
+      "text": "首次在用户真实资料库上运行新版会把旧库移入归档文件夹（移动不删除），由用户自己启动应用并在 I4 验收中确认；开发与测试只使用隔离 userData。",
+      "resolution": ""
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

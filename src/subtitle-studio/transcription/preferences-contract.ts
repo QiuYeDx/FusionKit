@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from './domain';
 import { transcriptionTaskConfigSchema } from './task-contract';
 import { knowledgeSelectionSchema } from '../../translation-knowledge/execution-contract';
-import { documentTopicIdsSchema } from '../knowledge-translation-contract';
 import { automaticExportPreferencesSchema } from '../automatic-export-contract';
 
 export const DEFAULT_STUDIO_TRANSCRIPTION_CONFIG = Object.freeze({
@@ -11,10 +10,10 @@ export const DEFAULT_STUDIO_TRANSCRIPTION_CONFIG = Object.freeze({
     vadMinSilenceMs: 500, maxCueDurationMs: 7000, maxCueChars: 84, maxLineChars: 42 }),
 });
 /** Durable choices only. The library generation and prepared contents stay out of preferences. */
-export const automaticKnowledgePreferencesSchema = knowledgeSelectionSchema.pick({ recipeId: true, collectionIds: true, disabledEntryIds: true, instructions: true, context: true })
-  .extend({ enabled: z.boolean(), sourceLanguage: z.union([z.literal(''), knowledgeSelectionSchema.shape.languagePair.shape.source]), documentTopicIds: documentTopicIdsSchema }).strict();
+export const automaticKnowledgePreferencesSchema = knowledgeSelectionSchema.pick({ collectionIds: true, disabledEntryIds: true, instructions: true, context: true })
+  .extend({ enabled: z.boolean(), sourceLanguage: z.union([z.literal(''), knowledgeSelectionSchema.shape.languagePair.shape.source]) }).strict();
 export type AutomaticKnowledgePreferences = z.infer<typeof automaticKnowledgePreferencesSchema>;
-export const DEFAULT_AUTOMATIC_KNOWLEDGE: AutomaticKnowledgePreferences = { enabled: false, sourceLanguage: '', collectionIds: [], disabledEntryIds: [], documentTopicIds: [] };
+export const DEFAULT_AUTOMATIC_KNOWLEDGE: AutomaticKnowledgePreferences = { enabled: false, sourceLanguage: '', collectionIds: [], disabledEntryIds: [] };
 export const automaticTranslationPreferencesSchema = z.object({
   enabled: z.boolean(), profileId: z.string().max(200), language: z.string().trim().min(1).max(100), instructions: z.string().max(4000),
   contextWindow: z.number().int().min(2048).max(1000000), maxOutputTokens: z.number().int().min(256).max(32768),

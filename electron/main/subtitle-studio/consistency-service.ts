@@ -43,15 +43,13 @@ export class ConsistencyService {
 
   /** Enabled terms of the chosen materials in the documents' language pair; none when unreadable. */
   private async knowledgeTerms(selection: KnowledgeSelection | undefined): Promise<ConsistencyKnowledgeTerm[]> {
-    if (!selection || !this.readKnowledge || (!selection.recipeId && !selection.collectionIds.length)) return [];
+    if (!selection || !this.readKnowledge || !selection.collectionIds.length) return [];
     try {
       const library = await this.readKnowledge();
-      const recipe = selection.recipeId ? library.data.recipes.find(item => item.id === selection.recipeId) : undefined;
-      const collections = new Set([...selection.collectionIds, ...(recipe?.readCollectionIds ?? [])]);
-      const archived = new Set(library.data.collections.filter(item => item.archived).map(item => item.id));
-      return library.data.entries.flatMap(entry => entry.kind === 'term' && entry.state === 'ready' && library.approvals[entry.id]?.revision === entry.revision
-        && collections.has(entry.collectionId) && !archived.has(entry.collectionId) && !selection.disabledEntryIds.includes(entry.id)
-        && entry.scope.languagePair.target === selection.languagePair.target && (!selection.languagePair.source || entry.scope.languagePair.source === selection.languagePair.source)
+      const pair = selection.languagePair;
+      const usable = new Set(library.data.collections.filter(item => selection.collectionIds.includes(item.id) && !item.archived
+        && item.languagePair.source === pair.source && item.languagePair.target === pair.target).map(item => item.id));
+      return library.data.entries.flatMap(entry => entry.kind === 'term' && entry.enabled && usable.has(entry.collectionId) && !selection.disabledEntryIds.includes(entry.id)
         ? [{ source: entry.payload.source, aliases: entry.payload.aliases, target: entry.payload.target }] : []);
     } catch { return []; }
   }

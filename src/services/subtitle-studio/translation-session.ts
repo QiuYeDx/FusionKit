@@ -11,7 +11,7 @@ import { unwrapStudio } from './client';
 
 export type TranslationSessionInput = {
   documents: DocumentReference[]; batch: boolean; config: TranslationConfig;
-  knowledge?: KnowledgeSelection; generation?: number; documentTopicIds: string[]; cueIds: string[];
+  knowledge?: KnowledgeSelection; generation?: number; cueIds: string[];
   /** Single document only: translate these cues, optionally into an existing track. */
   scope?: TranslationScope;
 };
@@ -74,28 +74,9 @@ export class TranslationSession {
     owners.set(kind, claim); this.claims.set(kind, claim);
     const common = { config: input.config, knowledgeGeneration: input.generation!, knowledge: input.knowledge! };
     const operation = (async (): Promise<TranslationCheck> => {
-      if (trial) {
-        const ids = new Set(input.cueIds);
-        const project = <T extends { cueIds: string[] }>(values: T[]) => values.flatMap(value => { const cueIds = value.cueIds.filter(id => ids.has(id)); return cueIds.length ? [{ ...value, cueIds }] : []; });
-        if (input.documentTopicIds.length && !ids.size) throw new StudioError('invalid_input');
-        const topics = new Set(input.documentTopicIds);
-        const bindings = input.cueIds.length ? project(common.knowledge.bindings).filter(binding => binding.role !== 'topic' || !topics.has(binding.subjectId)) : common.knowledge.bindings;
-        for (const subjectId of topics) bindings.push({ subjectId, role: 'topic', cueIds: [...ids] });
-        if (bindings.length > 100) throw new StudioError('limit_exceeded');
-        const knowledge = input.cueIds.length ? { ...common.knowledge, bindings, confirmations: project(common.knowledge.confirmations) } : common.knowledge;
-        return { kind: 'trial', value: await unwrapStudio(this.api.planKnowledgeTrial({ ...input.documents[0], ...common, knowledge, ...(input.cueIds.length ? { cueIds: input.cueIds } : {}) })) };
-      }
-      if (input.knowledge && input.batch) {
-        const { bindings: _bindings, confirmations: _confirmations, ...knowledge } = input.knowledge;
-        return { kind: 'knowledge-batch', value: await unwrapStudio(this.api.planKnowledgeTranslationBatch({ ...common, knowledge, documents: input.documents, documentTopicIds: input.documentTopicIds })) };
-      }
-      if (input.knowledge) {
-        // Per-cue material choices outside a selection do not apply to it.
-        const scoped = input.scope && new Set(input.scope.cueIds);
-        const within = <T extends { cueIds: string[] }>(values: T[]) => !scoped ? values : values.flatMap(value => { const cueIds = value.cueIds.filter(id => scoped.has(id)); return cueIds.length ? [{ ...value, cueIds }] : []; });
-        const knowledge = scoped ? { ...common.knowledge, bindings: within(common.knowledge.bindings), confirmations: within(common.knowledge.confirmations) } : common.knowledge;
-        return { kind: 'knowledge', value: await unwrapStudio(this.api.planKnowledgeTranslation({ ...input.documents[0], ...common, knowledge, documentTopicIds: input.documentTopicIds, ...(input.scope ? { scope: input.scope } : {}) })) };
-      }
+      if (trial) return { kind: 'trial', value: await unwrapStudio(this.api.planKnowledgeTrial({ ...input.documents[0], ...common, ...(input.cueIds.length ? { cueIds: input.cueIds } : {}) })) };
+      if (input.knowledge && input.batch) return { kind: 'knowledge-batch', value: await unwrapStudio(this.api.planKnowledgeTranslationBatch({ ...common, documents: input.documents })) };
+      if (input.knowledge) return { kind: 'knowledge', value: await unwrapStudio(this.api.planKnowledgeTranslation({ ...input.documents[0], ...common, ...(input.scope ? { scope: input.scope } : {}) })) };
       if (input.batch) return { kind: 'plain-batch', value: await unwrapStudio(this.api.planTranslationBatch({ documents: input.documents, config: input.config })) };
       return { kind: 'plain', value: await unwrapStudio(this.api.planTranslation({ ...input.documents[0], config: input.config, ...(input.scope ? { scope: input.scope } : {}) })) };
     })();

@@ -5,9 +5,9 @@ import { AUTOMATIC_KNOWLEDGE_FAILURE_CODES, AUTOMATIC_KNOWLEDGE_REPORT_LIMITS as
   type AutomaticKnowledgeFailureCode, type AutomaticKnowledgeMaterialSummary, type AutomaticKnowledgeRecheckSeed,
   type AutomaticKnowledgeReportIssue, type AutomaticKnowledgeReportPage } from '../../../src/subtitle-studio/automatic-knowledge-report-contract';
 import { KNOWLEDGE_ISSUE_CODES, normalizeKnowledgeSelection, type KnowledgeIssue } from '../../../src/translation-knowledge/execution-contract';
-import { validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
+import { validateFrozenAutomaticKnowledge, type FrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
 import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
-import { ENTITY_ARRAYS } from '../../../src/translation-knowledge/schemas';
+import { entrySummary } from '../../../src/translation-knowledge/summary';
 import { documentSourceDigest } from './translation-recovery';
 
 const count = z.number().int().nonnegative().safe();
@@ -20,9 +20,7 @@ const issueSchema = z.object({ code: z.enum(KNOWLEDGE_ISSUE_CODES), severity: z.
 }).strict().refine(issue => issue.entryCount >= issue.entries.length && issue.cueCount >= issue.cues.length
   && new Set(issue.entries.map(entry => entry.entryId)).size === issue.entries.length
   && new Set(issue.cues.map(cue => cue.cueId)).size === issue.cues.length);
-const materialSchema = z.object({ recipeName: name.optional(), resourceCount: count, collectionCount: count,
-  collections: z.array(name).max(LIMITS.references), documentTopicCount: count, documentTopics: z.array(name).max(LIMITS.references),
-}).strict();
+const materialSchema = z.object({ resourceCount: count, collectionCount: count, collections: z.array(name).max(LIMITS.references) }).strict();
 /** The private envelope is deliberately not part of the document read schema.
  * A damaged diagnostic must never select an older document generation. */
 const reportSchema = z.object({ version: z.literal(1), createdAt: z.string().datetime(), documentId: idSchema,
@@ -42,17 +40,15 @@ const bounded = (value: string, limit: number) => value.length <= limit ? value 
 const timingDigest = (snapshot: DocumentSnapshot) => sha256Canonical(snapshot.document.cues.map(cue => [cue.id, cue.timingRevision, cue.timing]));
 function invalid(): never { throw new StudioError('invalid_input'); }
 
-function materialSummary(snapshot: DocumentSnapshot): AutomaticKnowledgeMaterialSummary {
-  const frozen = snapshot.automaticTranslation!.knowledge!;
-  const recipe = frozen.data.recipes.find(item => item.id === frozen.selection.recipeId);
-  const collectionIds = [...new Set([...frozen.selection.collectionIds, ...recipe?.readCollectionIds ?? []])];
+/** The intent's frozen materials, or invalid_input when this version cannot read them. */
+function frozenKnowledge(snapshot: DocumentSnapshot): FrozenAutomaticKnowledge {
+  try { return validateFrozenAutomaticKnowledge(snapshot.automaticTranslation?.knowledge); } catch { return invalid(); }
+}
+function materialSummary(frozen: FrozenAutomaticKnowledge): AutomaticKnowledgeMaterialSummary {
+  const collectionIds = frozen.selection.collectionIds;
   const collections = new Map(frozen.data.collections.map(item => [item.id, item.name]));
-  const subjects = new Map(frozen.data.subjects.map(item => [item.id, item.name]));
-  return { ...(recipe ? { recipeName: bounded(recipe.name, LIMITS.name) } : {}),
-    resourceCount: ENTITY_ARRAYS.reduce((sum, group) => sum + frozen.data[group].length, 0),
-    collectionCount: collectionIds.length, collections: collectionIds.slice(0, LIMITS.references).map(id => bounded(collections.get(id) ?? id, LIMITS.name)),
-    documentTopicCount: frozen.documentTopicIds.length,
-    documentTopics: frozen.documentTopicIds.slice(0, LIMITS.references).map(id => bounded(subjects.get(id) ?? id, LIMITS.name)) };
+  return { resourceCount: frozen.data.collections.length + frozen.data.entries.length,
+    collectionCount: collectionIds.length, collections: collectionIds.slice(0, LIMITS.references).map(id => bounded(collections.get(id) ?? id, LIMITS.name)) };
 }
 
 /** Called only while atomically admitting the failed automatic task. */
@@ -60,14 +56,15 @@ export function createAutomaticKnowledgeReport(snapshot: DocumentSnapshot, taskI
   error: AutomaticKnowledgeFailureCode, input: KnowledgeIssue[] = []): AutomaticKnowledgePreparationReport {
   const intent = snapshot.automaticTranslation!, task = snapshot.tasks.find(item => item.id === taskId)!;
   if (!intent?.knowledge || !task?.translation || task.status !== 'failed' || task.attempts !== 0) invalid();
-  const entries = new Map(intent.knowledge.data.entries.map(entry => [entry.id, entry]));
+  const frozen = frozenKnowledge(snapshot);
+  const entries = new Map(frozen.data.entries.map(entry => [entry.id, entry]));
   const cues = new Map(snapshot.document.cues.map((cue, index) => [cue.id, { cue, number: index + 1 }]));
   const issues: AutomaticKnowledgeReportIssue[] = input.slice(0, LIMITS.issues).map(issue => {
     const entryIds = [...new Set(issue.entryIds)], cueIds = [...new Set(issue.cueIds)];
     // Refuse invented references instead of preserving compiler/provider strings.
     if (entryIds.some(id => !entries.has(id)) || cueIds.some(id => !cues.has(id))) invalid();
     return { code: issue.code, severity: issue.severity, entryCount: entryIds.length, cueCount: cueIds.length,
-      entries: entryIds.slice(0, LIMITS.references).map(entryId => ({ entryId, title: bounded(entries.get(entryId)!.title, LIMITS.name) })),
+      entries: entryIds.slice(0, LIMITS.references).map(entryId => ({ entryId, title: bounded(entrySummary(entries.get(entryId)!), LIMITS.name) })),
       cues: cueIds.slice(0, LIMITS.references).map(cueId => ({ cueId, number: cues.get(cueId)!.number,
         text: bounded(cues.get(cueId)!.cue.source.plain, LIMITS.excerpt) })) };
   });
@@ -77,7 +74,7 @@ export function createAutomaticKnowledgeReport(snapshot: DocumentSnapshot, taskI
     sourceDigest: documentSourceDigest(snapshot.document), timingDigest: timingDigest(snapshot),
     knowledgeDigest: sha256Canonical(intent.knowledge), configDigest: sha256Canonical(intent.config),
     taskConfigDigest: sha256Canonical(task.translation.config), trackLanguage: snapshot.document.translationTracks.find(track => track.id === task.trackId)!.language,
-    error, issueCount: input.length, issuesTruncated: false, issues, material: materialSummary(snapshot) };
+    error, issueCount: input.length, issuesTruncated: false, issues, material: materialSummary(frozen) };
   // Account for each omitted issue once; repeated hashing of shrinking reports
   // would block the main process on large conflict sets. `false` is one byte
   // longer than `true`, so this provisional envelope conservatively fits both.
@@ -103,16 +100,16 @@ export function validateAutomaticKnowledgeReport(value: unknown, snapshot: Docum
     || report.documentId !== snapshot.document.id || report.intentId !== intent.intentId || report.taskId !== intent.translationTaskId
     || task && (task.trackId !== report.trackId || !task.translation) || sha256Canonical(intent.knowledge) !== report.knowledgeDigest
     || !admission && report.documentRevision > snapshot.document.revision
-    || sha256Canonical(materialSummary(snapshot)) !== sha256Canonical(report.material)) invalid();
+    || sha256Canonical(materialSummary(frozenKnowledge(snapshot))) !== sha256Canonical(report.material)) invalid();
   if (admission && (!task?.translation || task.status !== 'failed' || task.attempts !== 0 || task.translation.error !== report.error
     || report.documentRevision !== snapshot.document.revision + 1 || report.sourceDigest !== documentSourceDigest(snapshot.document)
     || report.timingDigest !== timingDigest(snapshot) || report.configDigest !== sha256Canonical(intent.config)
     || report.taskConfigDigest !== sha256Canonical(task.translation.config) || report.trackLanguage !== track.language)) invalid();
-  const entries = new Map(intent.knowledge.data.entries.map(entry => [entry.id, entry]));
+  const entries = new Map(frozenKnowledge(snapshot).data.entries.map(entry => [entry.id, entry]));
   const sourceUnchanged = report.sourceDigest === documentSourceDigest(snapshot.document);
   const cues = new Map(snapshot.document.cues.map((cue, index) => [cue.id, { cue, number: index + 1 }]));
   for (const issue of report.issues) {
-    for (const ref of issue.entries) if (!entries.has(ref.entryId) || bounded(entries.get(ref.entryId)!.title, LIMITS.name) !== ref.title) invalid();
+    for (const ref of issue.entries) if (!entries.has(ref.entryId) || bounded(entrySummary(entries.get(ref.entryId)!), LIMITS.name) !== ref.title) invalid();
     if (sourceUnchanged) for (const ref of issue.cues) {
       const current = cues.get(ref.cueId);
       if (!current || current.number !== ref.number || bounded(current.cue.source.plain, LIMITS.excerpt) !== ref.text) invalid();
@@ -125,8 +122,7 @@ function recheckSeed(snapshot: DocumentSnapshot, taskId: string, trackId: string
   try {
     const intent = snapshot.automaticTranslation!, frozen = validateFrozenAutomaticKnowledge(intent.knowledge);
     const seed: AutomaticKnowledgeRecheckSeed = { documentId: snapshot.document.id, trackId, intentId: intent.intentId, taskId,
-      config: structuredClone(intent.config), selection: normalizeKnowledgeSelection({ ...frozen.selection, bindings: [], confirmations: [] }),
-      documentTopicIds: [...frozen.documentTopicIds] };
+      config: structuredClone(intent.config), selection: normalizeKnowledgeSelection(frozen.selection) };
     sha256Canonical(seed); // Reject legacy strings that cannot enter a canonical new request.
     // Reuse is all-or-nothing; a partial list would silently change the user's choices.
     return bytes(seed) <= LIMITS.seedBytes ? seed : null;

@@ -1,5 +1,7 @@
 # FK-PIT-0177: Expose batch review for imported candidate packs
 
+> 已失效（2026-10-12，knowledge-v2）：资料不再有候选 / 待审核状态，确认即保存并启用，导入按资料集预览。仅作历史参考。
+
 ## Area
 Translation knowledge / import usability / batch review / transaction identity.
 

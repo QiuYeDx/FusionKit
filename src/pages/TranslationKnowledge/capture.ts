@@ -45,9 +45,19 @@ export function captureStatuses(rows: readonly CaptureRow[], snapshot: LibrarySn
  * after an uncertain result reuses them instead of writing a second copy.
  */
 export function captureProposal(rows: readonly CaptureRow[], snapshot: LibrarySnapshot, destination: CaptureDestination, pair: LanguagePair,
-  options: { basis?: ProposalBasis; evidence?: string; ids?: Record<string, string>; sourceTitles?: Partial<Record<ProposalBasis, string>> } = {}): KnowledgeProposal {
+  options: { basis?: ProposalBasis; evidence?: string; ids?: Record<string, string> } = {}): KnowledgeProposal {
   return buildKnowledgeProposal(input(rows.filter(row => row.selected), destination, pair, options.basis ?? 'user_revision', options.evidence), snapshot,
-    { ids: options.ids, sourceTitles: options.sourceTitles });
+    { ids: options.ids });
+}
+
+/** The collection the rows went to, also when an earlier attempt already saved them and nothing is left to write. */
+export function captureCollectionId(proposal: KnowledgeProposal, snapshot: LibrarySnapshot, destination: CaptureDestination): string | undefined {
+  if (proposal.collectionIds[0]) return proposal.collectionIds[0];
+  if ('collectionId' in destination) return destination.collectionId;
+  const name = destination.newCollectionName.normalize('NFC').trim().toLowerCase();
+  const collections = snapshot.data.collections;
+  return (collections.find(item => item.id === proposal.ids[`collection:${NEW_COLLECTION}`])
+    ?? collections.find(item => !item.archived && item.name.normalize('NFC').trim().toLowerCase() === name))?.id;
 }
 
 /** Rows from suggested wordings: trimmed, de-duplicated, at most CAPTURE_ROW_LIMIT, and chosen unless already kept. */

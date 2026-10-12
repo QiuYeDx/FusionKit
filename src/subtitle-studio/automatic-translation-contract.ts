@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { translationConfigSchema } from './translation-contract';
-import { automaticKnowledgeRequestSchema, frozenAutomaticKnowledgeSchema } from '../translation-knowledge/automatic-snapshot-contract';
+import { automaticKnowledgeRequestSchema } from '../translation-knowledge/automatic-snapshot-contract';
 
 const uuid = z.string().uuid();
 export const automaticTranslationRequestSchema = z.object({
@@ -13,9 +13,10 @@ export const automaticTranslationRequestSchema = z.object({
 export const automaticTranslationIntentSchema = z.object({
   intentId: uuid, sourceTaskId: uuid, generation: z.literal(1), config: translationConfigSchema,
   state: z.enum(['pending', 'admitted', 'cancelled']), translationTaskId: uuid.optional(),
-  knowledge: frozenAutomaticKnowledgeSchema.optional(),
-  // Private diagnostics are validated on admission/inspection. An unreadable
-  // historical report must not roll the document back to an older generation.
+  // Frozen materials and private diagnostics are validated where they are used
+  // (validateFrozenAutomaticKnowledge / validateAutomaticKnowledgeReport). A payload
+  // this version cannot read must never make the whole document unreadable.
+  knowledge: z.unknown().optional(),
   preparationReport: z.unknown().optional(),
 }).strict().refine(value => value.state === 'pending' ? !value.translationTaskId : !!value.translationTaskId);
 export type AutomaticTranslationIntent = z.infer<typeof automaticTranslationIntentSchema>;

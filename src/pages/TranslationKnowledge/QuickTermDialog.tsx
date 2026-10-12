@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { DialogTransition } from '@/components/qiuye-ui/dialog-motion';
 import { useTranslation } from 'react-i18next';
 import { BookOpen, LoaderCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import type { Collection, Entry, LanguagePair, Source } from '@/translation-knowledge/schemas';
+import type { LanguagePair } from '@/translation-knowledge/schemas';
 import type { KnowledgeErrorCode, LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 import { knowledgeSelectionSchema } from '@/translation-knowledge/execution-contract';
-import { Choice, ErrorNotice, KnowledgeDialog, LanguageField, TextField } from './Controls';
+import { announceKnowledgeChange } from '@/translation-knowledge/library-events';
+import { ErrorNotice, KnowledgeDialog, TextField } from './Controls';
+import { CaptureDestinationFields, initialCaptureCollection, NEW_COLLECTION_CHOICE } from './CaptureDestinationFields';
+import { captureCollectionId, captureProposal, captureStatuses, type CaptureDestination, type CaptureRow } from './capture';
 
 type Props = {
   open: boolean;
@@ -36,11 +39,10 @@ function QuickTermForm({ onOpenChange, initialSource = '', initialTarget = '', i
     source: '', target: i18n.resolvedLanguage === 'zh' ? 'zh-Hans' : i18n.resolvedLanguage ?? 'zh-Hans',
   });
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<KnowledgeErrorCode | 'unexpected' | 'required' | null>(null);
+  const [error, setError] = useState<KnowledgeErrorCode | 'unexpected' | null>(null);
   const operation = useRef(false);
-  const entryId = useRef(crypto.randomUUID());
-  const sourceId = useRef(crypto.randomUUID());
-  const newCollectionId = useRef(crypto.randomUUID());
+  // Kept across attempts so a retry after an uncertain write rebuilds the same records.
+  const ids = useRef<Record<string, string>>({});
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -49,84 +51,49 @@ function QuickTermForm({ onOpenChange, initialSource = '', initialTarget = '', i
       if (!active) return;
       if (!result.ok) { setError(result.error); return; }
       setSnapshot(result.value);
-      const collections = result.value.data.collections.filter(item => !item.archived);
-      const preferred = collections.find(item => item.id === preferredCollectionId) ?? (collections.length === 1 ? collections[0] : undefined);
-      setCollectionId(preferred?.id ?? (collections.length ? '' : 'new'));
-      if (!initialLanguagePair && preferred?.defaultLanguagePair) setPair(preferred.defaultLanguagePair);
+      setCollectionId(initialCaptureCollection(result.value.data.collections.filter(item => !item.archived), preferredCollectionId, initialLanguagePair ?? {}));
     }).catch(() => { if (active) setError('unexpected'); });
     return () => { active = false; mounted.current = false; };
   }, []);
   const collections = snapshot?.data.collections.filter(item => !item.archived) ?? [];
-  const matchingTerms = snapshot?.data.entries.filter(entry => entry.kind === 'term'
-    && entry.state !== 'archived' && entry.state !== 'rejected'
-    && entry.collectionId === collectionId
-    && entry.scope.languagePair.source === pair.source && entry.scope.languagePair.target === pair.target
-    && entry.payload.source === source.trim()) ?? [];
-  const duplicate = matchingTerms.some(entry => entry.kind === 'term' && entry.payload.target === target.trim());
-  const chooseCollection = (id: string) => {
-    setCollectionId(id);
-    const selected = collections.find(item => item.id === id);
-    if (selected?.defaultLanguagePair) setPair(selected.defaultLanguagePair);
-  };
-  const valid = !!snapshot && !!source.trim() && !!target.trim() && knowledgeSelectionSchema.shape.languagePair.safeParse(pair).success
-    && (collectionId === 'new' ? !!collectionName.trim() : collections.some(item => item.id === collectionId))
-    && !duplicate && !snapshot.maintenance?.cleanupPending;
+  const selected = collections.find(item => item.id === collectionId);
+  const destination: CaptureDestination | null = collectionId === NEW_COLLECTION_CHOICE
+    ? (collectionName.trim() ? { newCollectionName: collectionName.trim() } : null) : selected ? { collectionId } : null;
+  // A new collection takes the chosen direction; an existing one keeps its own.
+  const destinationPair = selected?.languagePair ?? pair;
+  const pairValid = knowledgeSelectionSchema.shape.languagePair.safeParse(destinationPair).success;
+  const rows: CaptureRow[] = useMemo(() => [{ key: 'term', source, target, selected: true }], [source, target]);
+  const status = snapshot && destination && pairValid && source.trim() && target.trim()
+    ? captureStatuses(rows, snapshot, destination, destinationPair)[0] : undefined;
+  const valid = !!status && (status.kind === 'new' || status.kind === 'conflict');
   const save = async () => {
-    if (operation.current || !valid || !snapshot) return;
+    if (operation.current || !valid || !destination) return;
     operation.current = true; setPending(true); setError(null);
-    let latest = snapshot;
     try {
-      // Reconcile uncertain writes before retrying with stable entity IDs.
       const refreshed = await window.translationKnowledge.read();
       if (!refreshed.ok) { setError(refreshed.error); return; }
-      latest = refreshed.value;
+      const latest = refreshed.value;
       if (mounted.current) setSnapshot(latest);
-      const alreadySaved = latest.data.entries.find(item => item.id === entryId.current);
-      if (alreadySaved) {
-        if (alreadySaved.kind !== 'term' || alreadySaved.payload.source !== source.trim() || alreadySaved.payload.target !== target.trim()
-          || alreadySaved.scope.languagePair.source !== pair.source || alreadySaved.scope.languagePair.target !== pair.target
-          || alreadySaved.collectionId !== (collectionId === 'new' ? newCollectionId.current : collectionId)
-          || alreadySaved.state !== 'ready' || latest.approvals[alreadySaved.id]?.revision !== alreadySaved.revision) {
-          if (mounted.current) setError('revision_conflict');
+      const proposal = captureProposal(rows, latest, destination, destinationPair,
+        { basis: 'user_stated', evidence: `${source.trim()} → ${target.trim()}`, ids: ids.current });
+      ids.current = proposal.ids;
+      if (!proposal.saveable && !proposal.nothingToSave) { setError('invalid_input'); return; }
+      let saved = latest;
+      if (proposal.saveable) {
+        const result = await window.translationKnowledge.saveRecords(proposal.request(latest.generation));
+        if (!result.ok) {
+          if (mounted.current) setError(result.error);
+          if (result.error === 'revision_conflict') {
+            const again = await window.translationKnowledge.read();
+            if (mounted.current && again.ok) setSnapshot(again.value);
+          }
           return;
         }
-        onSaved?.(latest, alreadySaved.collectionId);
-        if (mounted.current) onOpenChange(false);
-        toast.success(t('saved'));
-        return;
-      }
-      let destinationId = collectionId;
-      if (destinationId === 'new') {
-        const existing = latest.data.collections.find(item => item.id === newCollectionId.current);
-        if (existing) destinationId = existing.id;
-        else {
-          const collection: Collection = { id: newCollectionId.current, revision: 1, archived: false, name: collectionName.trim(), description: '', aboutSubjectIds: [], defaultLanguagePair: pair };
-          const result = await window.translationKnowledge.saveRecord({ generation: latest.generation, group: 'collections', record: collection });
-          if (!result.ok) { setError(result.error); return; }
-          latest = result.value; destinationId = collection.id;
-        }
-        // A subsequent term failure must reuse this collection on retry.
-        if (mounted.current) { setSnapshot(latest); setCollectionId(destinationId); }
-      }
-      const evidence: Source = { id: sourceId.current, revision: 1, kind: 'user_note', title: t('source_note'), excerpt: `${source.trim()} → ${target.trim()}` };
-      const entry: Entry = {
-        id: entryId.current, revision: 1, title: source.trim().slice(0, 120), kind: 'term',
-        collectionId: destinationId, aboutSubjectIds: [], state: 'ready',
-        scope: { languagePair: pair, requiredSubjects: [], condition: { mode: 'none' } },
-        evidence: [{ sourceId: evidence.id, support: 'direct' }], derivedFrom: [],
-        payload: { source: source.trim(), target: target.trim(), aliases: [], sense: '', match: { mode: 'literal_phrase', caseSensitive: true }, strength: 'preferred' },
-      };
-      const result = await window.translationKnowledge.saveRecord({ generation: latest.generation, group: 'entries', record: entry, source: evidence, adopt: true });
-      if (!result.ok) {
-        if (mounted.current) setError(result.error);
-        if (result.error === 'revision_conflict') {
-          const refreshed = await window.translationKnowledge.read();
-          if (mounted.current && refreshed.ok) setSnapshot(refreshed.value);
-        }
-        return;
+        saved = result.value;
+        announceKnowledgeChange(saved);
       }
       toast.success(t('saved'));
-      onSaved?.(result.value, destinationId);
+      onSaved?.(saved, captureCollectionId(proposal, saved, destination) ?? '');
       if (mounted.current) onOpenChange(false);
     } catch { if (mounted.current) setError('unexpected'); }
     finally { operation.current = false; if (mounted.current) setPending(false); }
@@ -143,16 +110,13 @@ function QuickTermForm({ onOpenChange, initialSource = '', initialTarget = '', i
           <TextField label={t('target')} value={target} onChange={setTarget} required />
         </div>
         <p className="text-xs leading-5 text-muted-foreground">{t('boundary_hint')}</p>
-        <div>
-          <Choice label={t('collection')} value={collectionId} onChange={chooseCollection} options={[...collections.map(item => ({ value: item.id, label: item.name })), { value: 'new', label: t('new_collection') }]} />
-          <DialogTransition transitionKey={collectionId === 'new' ? 'new' : 'existing'} stageClassName="pt-4">{collectionId === 'new' && <TextField label={t('collection_name')} value={collectionName} onChange={setCollectionName} required />}</DialogTransition>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <LanguageField label={t('source_language')} value={pair.source} onChange={value => setPair(current => ({ ...current, source: value }))} />
-          <LanguageField label={t('target_language')} value={pair.target} onChange={value => setPair(current => ({ ...current, target: value }))} />
-        </div>
+        <CaptureDestinationFields collections={collections} collectionId={collectionId} onCollectionChange={setCollectionId}
+          collectionName={collectionName} onCollectionNameChange={setCollectionName} pair={pair} onPairChange={setPair} current={initialLanguagePair ?? {}} />
       </fieldset>
-      <DialogTransition transitionKey={duplicate ? 'duplicate' : matchingTerms.length ? 'conflict' : 'clear'} stageClassName="pt-4">{duplicate ? <p role="status" className="text-xs leading-5 text-muted-foreground">{t('duplicate')}</p> : !!matchingTerms.length && <p role="status" className="text-xs leading-5 text-amber-700 dark:text-amber-400">{t('conflict')}</p>}</DialogTransition>
+      <DialogTransition transitionKey={status?.kind ?? 'none'} stageClassName="pt-4">
+        {status?.kind === 'exists' && <p role="status" className="text-xs leading-5 text-muted-foreground">{t('duplicate')}</p>}
+        {status?.kind === 'conflict' && <p role="status" className="text-xs leading-5 text-amber-700 dark:text-amber-400">{t('conflict', { collection: status.collectionName, target: status.target })}</p>}
+      </DialogTransition>
       <p className="pt-4 text-xs leading-5 text-muted-foreground">{t('future_hint')}</p>
     </div>
   </KnowledgeDialog>;

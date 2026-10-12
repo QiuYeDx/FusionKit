@@ -5,10 +5,10 @@ import { deflateRawSync } from 'node:zlib'
 export const skillDirectory = '.agents/skills/fusionkit-translation-knowledge'
 export const skillFiles = [
   'SKILL.md', 'agents/openai.yaml', 'scripts/validate.mjs',
-  'references/knowledge-v1.schema.json', 'references/protocol-v1.md',
+  'references/knowledge-v2.schema.json', 'references/protocol-v2.md', 'references/rebuild-from-archive.md',
   'references/research-and-evidence.md', 'references/organization-and-matching.md',
   'references/application-usage.md', 'examples/ja-starter.fktk.json',
-  'examples/minimal.fktk.json', 'examples/multi-subject.fktk.json', 'examples/update.fktk.json',
+  'examples/minimal.fktk.json', 'examples/multi-collection.fktk.json',
 ]
 
 function crc32(bytes) {

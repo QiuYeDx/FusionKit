@@ -23,23 +23,21 @@ export interface PreparedAction {
   toolKey: AgentCapabilityKey;
   /** Only the user confirms it, in every execution mode (writes the user must see first). */
   requiresConfirmation?: boolean;
-  /** A translation materials change: what the card lists and the default of its enable switch. */
+  /** A translation materials change: what the card lists. Confirming saves it, enabled at once. */
   knowledge?: PreparedKnowledgeChanges;
   status: "ready" | "running" | "completed" | "failed" | "dismissed";
   updatedAt?: number;
   error?: string;
   result?: unknown;
 }
-export interface PreparedKnowledgeChanges { items: ProposalItem[]; counts: ProposalCounts; adoptDefault: boolean; adoptable: number }
-/** What the user chose on the card when confirming. */
-export interface PreparedActionChoice { adopt?: boolean }
+export interface PreparedKnowledgeChanges { items: ProposalItem[]; counts: ProposalCounts }
 interface ActionCallbacks {
-  execute: (choice?: PreparedActionChoice) => Promise<PreparedActionResult>;
+  execute: () => Promise<PreparedActionResult>;
   cleanup?: () => void | Promise<void>;
 }
 interface PreparedActionsState {
   actions: PreparedAction[];
-  confirmAction: (id: string, choice?: PreparedActionChoice) => Promise<void>;
+  confirmAction: (id: string) => Promise<void>;
   dismissAction: (id: string) => void;
 }
 const callbacks = new Map<string, ActionCallbacks>();
@@ -55,7 +53,7 @@ async function cleanup(entry: ActionCallbacks | undefined): Promise<void> {
 /** No persist middleware: authority and callbacks must never survive an application restart. */
 export const usePreparedActionsStore = create<PreparedActionsState>((set, get) => ({
   actions: [],
-  confirmAction: async (id, choice) => {
+  confirmAction: async (id) => {
     const action = get().actions.find(item => item.id === id);
     if (!action || action.status !== "ready") return;
     // A card is confirmed from its own session; a deleted session's cards are void.
@@ -68,7 +66,7 @@ export const usePreparedActionsStore = create<PreparedActionsState>((set, get) =
     // Claim before the first await. UI clicks and automatic execution share this path.
     set(state => ({ actions: state.actions.map(item => item.id === id ? { ...item, status: "running", updatedAt: Date.now() } : item) }));
     try {
-      const result = entry ? await entry.execute(choice) : { success: false, error: "prepared_action_expired" };
+      const result = entry ? await entry.execute() : { success: false, error: "prepared_action_expired" };
       set(state => ({ actions: state.actions.map(item => item.id === id ? {
         ...item, status: result.success ? "completed" : "failed", updatedAt: Date.now(),
         ...(result.data !== undefined ? { result: result.data } : {}),

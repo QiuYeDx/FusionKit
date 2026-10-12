@@ -1,0 +1,49 @@
+{
+  "format": "fusionkit.translation-knowledge",
+  "schemaVersion": 1,
+  "package": {
+    "id": "10000000-0000-4000-8000-000000000001",
+    "revision": 1,
+    "name": "游戏 X 英中字幕资料示例",
+    "description": "虚构示例，仅用于验证文件协议与导入流程。",
+    "createdAt": "2026-10-12T00:00:00Z",
+    "generator": {
+      "name": "FusionKit protocol example",
+      "version": "2"
+    }
+  },
+  "collections": [
+    {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "revision": 1,
+      "name": "游戏 X",
+      "description": "虚构游戏的固定译名。",
+      "languagePair": {
+        "source": "en",
+        "target": "zh-Hans"
+      },
+      "archived": false
+    }
+  ],
+  "entries": [
+    {
+      "id": "50000000-0000-4000-8000-000000000001",
+      "revision": 1,
+      "collectionId": "30000000-0000-4000-8000-000000000001",
+      "enabled": true,
+      "kind": "term",
+      "payload": {
+        "source": "checkpoint",
+        "target": "存档点",
+        "aliases": [],
+        "note": "游戏中的保存进度位置，不包含软件调试含义。",
+        "strength": "preferred",
+        "match": {
+          "mode": "whole_term",
+          "caseSensitive": false
+        }
+      }
+    }
+  ],
+  "presets": []
+}

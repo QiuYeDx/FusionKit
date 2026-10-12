@@ -61,15 +61,15 @@ afterEach(async () => {
 
 function trialLibrary(): LibrarySnapshot {
   return { generation: 1, data: {
-    format: 'fusionkit.translation-knowledge', schemaVersion: 1,
-    package: { id: randomUUID(), revision: 1, name: 'IPC trial fixture', description: '', purpose: 'backup', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'IPC test' } },
-    subjects: [], collections: [], sources: [], entries: [], styles: [], recipes: [], preferenceTemplates: [],
-  }, approvals: {}, imports: [] };
+    format: 'fusionkit.translation-knowledge', schemaVersion: 2,
+    package: { id: randomUUID(), revision: 1, name: 'IPC trial fixture', description: '', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'IPC test' } },
+    collections: [], entries: [], presets: [],
+  } };
 }
 function trialInput(document: { documentId: string; revision: number }): KnowledgeTrialRequest {
   return { ...document, knowledgeGeneration: 1,
     config: { model: { profileId: 'trial-profile', modelKey: 'fixture-model', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' }, language: 'zh-Hans', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 20 },
-    knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], bindings: [], confirmations: [], disabledEntryIds: [] },
+    knowledge: { version: 2, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [] },
   };
 }
 function mockTrialProvider() {
@@ -133,8 +133,8 @@ describe('production Subtitle Studio IPC handler composition', () => {
     const api = createSubtitleStudioApi(ipc);
     const input: KnowledgeBatchTranslationRequest = {
       documents: [first, { documentId: second.id, revision: second.revision }], knowledgeGeneration: 1,
-      config: trialInput(first).config, documentTopicIds: [],
-      knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [] },
+      config: trialInput(first).config,
+      knowledge: { version: 2, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [] },
     };
     const planned = await api.planKnowledgeTranslationBatch(input);
     expect(planned).toMatchObject({ ok: true, value: { readyCount: 2, items: [{ ok: true }, { ok: true }] } });
@@ -168,18 +168,22 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(Object.keys(api)).not.toContain('capability');
   });
 
-  it('rejects shared batch bindings, forged document access, and stale knowledge generation before reads or model calls', async () => {
+  it('rejects removed v1 selection fields, forged document access, and stale knowledge generation before reads or model calls', async () => {
     const send = mockTrialProvider();
     const read = vi.fn(async () => trialLibrary());
     const { owner, request } = await setup('[00:01]One sentence.', read);
-    const invalid = {
-      documents: [request], knowledgeGeneration: 1, config: trialInput(request).config, documentTopicIds: [],
-      knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [], bindings: [], confirmations: [] },
+    const validShared = {
+      documents: [request], knowledgeGeneration: 1, config: trialInput(request).config,
+      knowledge: { version: 2, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [] },
     };
-    expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, invalid)).toEqual({ ok: false, error: 'invalid_input' });
+    for (const invalid of [
+      { ...validShared, documentTopicIds: [] },
+      { ...validShared, knowledge: { ...validShared.knowledge, bindings: [], confirmations: [] } },
+      { ...validShared, knowledge: { ...validShared.knowledge, recipeId: randomUUID() } },
+      { ...validShared, knowledge: { ...validShared.knowledge, version: 1 } },
+    ]) expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, invalid)).toEqual({ ok: false, error: 'invalid_input' });
     expect(read).not.toHaveBeenCalled(); expect(send).not.toHaveBeenCalled();
     const other = attach();
-    const validShared = { ...invalid, knowledge: { version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [], disabledEntryIds: [] } };
     expect(await other.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, validShared)).toEqual({ ok: false, error: 'access_denied' });
     expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslationBatch, validShared, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
     for (const payload of [
@@ -197,13 +201,13 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('admits whole-file knowledge plans only through the owner-bound fixed bridge and exposes retained references', async () => {
+  it('admits whole-file knowledge plans only through the owner-bound fixed bridge', async () => {
     const send = mockTrialProvider(), library = trialLibrary();
     const { owner, request } = await setup(Array.from({ length: 21 }, (_, i) => `[00:${String(i + 1).padStart(2, '0')}]Sentence ${i + 1}.`).join('\n'), async () => library);
     const ipc = { sendSync: () => owner.capability,
       invoke: vi.fn((channel: string, envelope: unknown) => adapter.handlers.get(channel)!({ sender: owner.client, senderFrame: owner.client.mainFrame }, envelope)),
       on: vi.fn(), removeListener: vi.fn() };
-    const api = createSubtitleStudioApi(ipc), input = { ...trialInput(request), documentTopicIds: [] };
+    const api = createSubtitleStudioApi(ipc), input = trialInput(request);
     const planned = await api.planKnowledgeTranslation(input);
     expect(planned).toMatchObject({ ok: true, value: { canRun: true, cueCount: 21, batchCount: 2 } });
     if (!planned.ok) throw new Error('Formal plan unavailable');
@@ -220,7 +224,6 @@ describe('production Subtitle Studio IPC handler composition', () => {
     const detail = await api.readExecutionRecord({ documentId: request.documentId, trackId: snapshot.document.translationTracks[0].id, batchOffset: 1 });
     expect(detail).toMatchObject({ ok: true, value: { state: 'available', knowledge: { generation: 1 }, batch: { items: [{ id: 'u21', text: 'Sentence 21.' }] } } });
     expect(JSON.stringify(detail)).not.toContain('PRIVATE_FORMAL_KEY');
-    expect((await registration!.inspectKnowledgeReferences()).unknownDocuments).toBe(0);
     await api.cancelKnowledgeTranslationPlan({});
     for (const method of ['planKnowledgeTranslation', 'createKnowledgeTranslation', 'cancelKnowledgeTranslationPlan'] as const) {
       expect(isPublicStudioChannel(STUDIO_CHANNELS[method])).toBe(true);
@@ -231,10 +234,11 @@ describe('production Subtitle Studio IPC handler composition', () => {
   it('rejects forged formal plan data, subframes and revoked owners before knowledge reads or model calls', async () => {
     const send = mockTrialProvider(), read = vi.fn(async () => trialLibrary());
     const { owner, request } = await setup('[00:01]One sentence.', read), other = attach();
-    const input = { ...trialInput(request), documentTopicIds: [] };
+    const input = trialInput(request);
     expect(await other.invoke(STUDIO_CHANNELS.planKnowledgeTranslation, input)).toEqual({ ok: false, error: 'access_denied' });
     expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslation, input, { senderFrame: { url: rendererUrl } })).toEqual({ ok: false, error: 'access_denied' });
-    for (const invalid of [{ ...input, prepared: {} }, { ...input, path: '/tmp/forged' }, { ...input, documentTopicIds: Array(21).fill(randomUUID()) }])
+    for (const invalid of [{ ...input, prepared: {} }, { ...input, path: '/tmp/forged' }, { ...input, documentTopicIds: [] },
+      { ...input, knowledge: { ...input.knowledge, recipeId: randomUUID() } }, { ...input, knowledge: { ...input.knowledge, bindings: [], confirmations: [] } }])
       expect(await owner.invoke(STUDIO_CHANNELS.planKnowledgeTranslation, invalid)).toEqual({ ok: false, error: 'invalid_input' });
     expect(await owner.invoke(STUDIO_CHANNELS.createKnowledgeTranslation, { planId: randomUUID(), apiKey: 'fixture', knowledge: {} })).toEqual({ ok: false, error: 'invalid_input' });
     expect(read).not.toHaveBeenCalled(); expect(send).not.toHaveBeenCalled();

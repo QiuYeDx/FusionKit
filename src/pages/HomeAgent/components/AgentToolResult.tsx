@@ -68,7 +68,7 @@ export function toolResultSummary(result: ToolResult, t: TFunction): string | un
   if (TASK_QUERIES.includes(result.toolName) && typeof data.total === "number") return t("home:result_tasks", { count: data.total });
   if (result.toolName === "search_translation_knowledge") return t("home:result_knowledge", { entries: Number(data.pagination?.entries?.total ?? (Array.isArray(data.entries) ? data.entries.length : 0)),
     collections: Number(data.pagination?.collections?.total ?? (Array.isArray(data.collections) ? data.collections.length : 0)) });
-  if (result.toolName === "list_translation_knowledge_catalog") return t("home:result_knowledge_catalog", { collections: Number(data.pagination?.collections?.total ?? 0), subjects: Number(data.pagination?.subjects?.total ?? 0) });
+  if (result.toolName === "list_translation_knowledge_catalog") return t("home:result_knowledge_catalog", { collections: Number(data.pagination?.collections?.total ?? 0), presets: Number(data.pagination?.presets?.total ?? 0) });
   if (typeof data.total === "number") return t("home:result_found", { count: data.total });
   if (Array.isArray(data.tools)) return t("home:result_capabilities", { count: data.tools.length });
   return undefined;
@@ -128,9 +128,9 @@ export default function ToolResultDetails({ result }: { result: ToolResult }) {
     </li>)}</ul>,
     rows.length > visibleRows.length && <p key="more" className="text-[11px] text-muted-foreground">{t("home:result_more_items", { count: rows.length - visibleRows.length })}</p>,
     typeof data.taskReadError === "string" && <p key="read-error" className="text-destructive [overflow-wrap:anywhere]">{actionErrorMessage(data.taskReadError, t)}</p>,
-    ...(result.toolName === "search_translation_knowledge" ? ["collections", "recipes"].map(kind => {
+    ...(result.toolName === "search_translation_knowledge" ? ["collections", "presets"].map(kind => {
       const names = Array.isArray(data[kind]) ? (data[kind] as unknown[]).map(value => objectValue(value).name).filter((name): name is string => typeof name === "string") : [];
-      return names.length > 0 && <p key={kind} className="text-muted-foreground [overflow-wrap:anywhere]">{t(kind === "collections" ? "home:result_collections" : "home:result_recipes")}: {names.slice(0, 5).join(" · ")}</p>;
+      return names.length > 0 && <p key={kind} className="text-muted-foreground [overflow-wrap:anywhere]">{t(kind === "collections" ? "home:result_collections" : "home:result_presets")}: {names.slice(0, 5).join(" · ")}</p>;
     }) : []),
     result.toolName === "web_search" && Array.isArray(data.results) && data.results.length > 0 && <ul key="web" className="space-y-1">
       {(data.results as unknown[]).slice(0, 5).map((value, index) => { const hit = objectValue(value);

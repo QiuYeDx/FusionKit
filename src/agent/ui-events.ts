@@ -21,7 +21,10 @@ function describe(event: AgentUiEvent): string {
     case "rename_dismissed":
       return `The user cancelled rename plan ${text(v.planId)} on the preview card. Nothing was renamed.`;
     case "action_completed":
-      return `The user confirmed the prepared action "${text(v.title)}" (${text(v.actionId)}) and it was submitted. Submission is not completion.`;
+      // A materials change is finished once confirmed; queued work is only submitted.
+      return v.saved
+        ? `The user confirmed the prepared action "${text(v.title)}" (${text(v.actionId)}) and it was saved; the entries are in use now.`
+        : `The user confirmed the prepared action "${text(v.title)}" (${text(v.actionId)}) and it was submitted. Submission is not completion.`;
     case "action_failed":
       return `The user confirmed the prepared action "${text(v.title)}" (${text(v.actionId)}), but it was not submitted (${text(v.error)}).`;
     case "action_dismissed":

@@ -1,6 +1,6 @@
 import { KnowledgeDisclosure } from "./KnowledgeDisclosure";
 import { DialogTransition } from "@/components/qiuye-ui/dialog-motion";
-import { diagnosticKey } from "./labels";
+import { diagnosticText } from "./labels";
 import { useId, useState, useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -37,6 +36,7 @@ export function TextField({
   required,
   hint,
   disabled,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -45,11 +45,13 @@ export function TextField({
   required?: boolean;
   hint?: string;
   disabled?: boolean;
+  placeholder?: string;
 }) {
   const id = useId();
   const props = {
     id,
     value,
+    placeholder,
     onChange: (
       event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
     ) => onChange(event.target.value),
@@ -128,48 +130,6 @@ export function Check({
     </label>
   );
 }
-export function MultiChoice({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: { id: string; name: string }[];
-  value: string[];
-  onChange: (ids: string[]) => void;
-}) {
-  const { t } = useTranslation("knowledge");
-  return (
-    <fieldset className="space-y-2">
-      <legend className="mb-1.5 text-[11px] font-medium text-muted-foreground">
-        {label}
-      </legend>
-      <ScrollArea className="rounded-md border" viewportProps={{ className: "max-h-40 overscroll-contain [&>div]:block!" }}>
-        <div className="space-y-2 p-3">
-        {options.length ? (
-          options.map((item) => (
-            <Check
-              key={item.id}
-              label={item.name}
-              checked={value.includes(item.id)}
-              onChange={(checked) =>
-                onChange(
-                  checked
-                    ? [...value, item.id]
-                    : value.filter((id) => id !== item.id),
-                )
-              }
-            />
-          ))
-        ) : (
-          <p className="text-xs text-muted-foreground">{t("empty.options")}</p>
-        )}
-        </div>
-      </ScrollArea>
-    </fieldset>
-  );
-}
 export function ErrorNotice({
   error,
   diagnostics = [],
@@ -193,9 +153,8 @@ export function ErrorNotice({
             <ul className="space-y-2 text-xs">
               {diagnostics.map((item, index) => (
                 <li key={index}>
-                  <p>{t(diagnosticKey(`diagnostic.${item.code}`))}</p>
+                  <p>{diagnosticText(t, item)}</p>
                   <p className="break-all font-mono">{item.path}</p>
-                  <p className="whitespace-pre-wrap">{item.message}</p>
                 </li>
               ))}
             </ul>

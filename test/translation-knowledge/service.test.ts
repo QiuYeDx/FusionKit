@@ -1,493 +1,122 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { KnowledgeService } from '../../electron/main/translation-knowledge/service';
-import { emptyPackage, type PublicationStage, type RepositoryOptions } from '../../electron/main/translation-knowledge/repository';
-import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
-import { validatePackage } from '../../src/translation-knowledge/validation';
-import type { KnowledgePackage } from '../../src/translation-knowledge/schemas';
+import type { Collection, Entry, Preset } from '../../src/translation-knowledge/schemas';
+import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
 
 const roots: string[] = [];
 const services: KnowledgeService[] = [];
-afterEach(async () => { await Promise.all(services.splice(0).map(service => service.dispose())); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
-async function fixture(options: RepositoryOptions = {}) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'fk-knowledge-')); roots.push(root);
-  const service = new KnowledgeService(root, options); services.push(service);
-  await service.read();
-  return { service, root };
-}
-function example(): KnowledgePackage {
-  const data = emptyPackage();
-  const subjectId = randomUUID(), collectionId = randomUUID(), sourceId = randomUUID();
-  const languagePair = { source: 'en', target: 'zh-Hans' };
-  data.subjects = [{ id: subjectId, revision: 1, kind: 'work', name: 'Example', aliases: [], tags: [], description: '', archived: false }];
-  data.collections = [{ id: collectionId, revision: 1, name: 'Example collection', description: '', aboutSubjectIds: [subjectId], archived: false, defaultLanguagePair: languagePair }];
-  data.sources = [{ id: sourceId, revision: 1, kind: 'user_note', title: 'Editorial note', excerpt: 'Reviewed wording for this example.' }];
-  const base = { revision: 1, title: 'Example', collectionId, aboutSubjectIds: [subjectId], scope: { languagePair, requiredSubjects: [{ subjectId, role: 'topic' as const }], condition: { mode: 'none' as const } }, state: 'ready' as const, evidence: [{ sourceId, support: 'direct' as const }], derivedFrom: [] };
-  data.entries = [
-    { ...base, id: randomUUID(), kind: 'term', payload: { source: 'Council', target: '议会', aliases: [], sense: '', match: { mode: 'whole_term', caseSensitive: false }, strength: 'preferred' } },
-    { ...base, id: randomUUID(), kind: 'context', payload: { text: 'The council meets in winter.', assertion: 'reported', core: false } },
-    { ...base, id: randomUUID(), kind: 'expression', payload: { sourcePhrase: 'the long winter', interpretation: 'a difficult period', targetExamples: ['漫长寒冬'], mustNotInventOccurrences: true } },
-    { ...base, id: randomUUID(), kind: 'memory', payload: { source: 'Winter has come.', target: '冬天到了。', alignment: 'one_to_one', directReuseAllowed: false } },
-    { ...base, id: randomUUID(), kind: 'rule', payload: { dimension: 'register', text: 'Use concise spoken language.', strength: 'preferred' } },
-  ];
-  data.styles = [{ id: randomUUID(), revision: 1, name: 'Concise', description: '', archived: false, languagePair, ruleEntryIds: [data.entries[4].id] }];
-  data.recipes = [{ id: randomUUID(), revision: 1, name: 'Winter', description: '', archived: false, languagePair, readCollectionIds: [collectionId], subjectSuggestions: [{ subjectId, role: 'topic' }], baseStyleId: data.styles[0].id, modifierStyleIds: [], instructions: '', context: '', inheritGlobalPreferences: true, learningSuggestion: 'save_reviewed', suggestedDestinationCollectionId: collectionId }];
-  data.preferenceTemplates = [{ id: randomUUID(), revision: 1, archived: true, name: 'Example preference', instructions: 'Keep punctuation consistent.' }];
-  data.extensions = { 'org.example.metadata': { verified: false, labels: ['portable'] } };
-  data.entries[0].extensions = { 'org.example.editorial': { color: 'blue' } };
-  expect(validatePackage(data).errors).toEqual([]);
-  return data;
-}
-async function importData(service: KnowledgeService, data = example(), adoptReady = false, owner = 'owner-a') {
-  const preview = await service.planImport(owner, JSON.stringify(data));
-  const request = { planId: preview.planId, decisions: [], adoptReady };
-  const receipt = await service.commitImport(owner, request);
-  return { data, preview, request, receipt };
-}
-
-describe('translation knowledge service', () => {
-  it('keeps the whole review batch unchanged after a failed write and permits a retry', async () => {
-    let fail = false;
-    const { service } = await fixture({ publicationHook: stage => { if (fail && stage === 'before_pointer_rename') throw new Error('Injected review write failure'); } });
-    const data = example();
-    data.entries.forEach(entry => { entry.state = 'candidate'; });
-    await importData(service, data);
-    const before = await service.read(), request = { generation: before.generation, ids: data.entries.map(entry => entry.id), action: 'adopt' as const };
-    fail = true;
-    await expect(service.reviewEntries(request)).rejects.toMatchObject({ code: 'write_failed' });
-    expect(await service.read()).toEqual(before);
-    fail = false;
-    expect(Object.keys((await service.reviewEntries(request)).approvals)).toHaveLength(data.entries.length);
-  });
-
-  it('reviews a whole candidate pack atomically and treats repeated same-state review as a no-op', async () => {
-    const { service } = await fixture(), data = example();
-    const template = data.entries[0];
-    data.entries = Array.from({ length: 125 }, (_, index) => ({ ...structuredClone(template), id: randomUUID(), title: `Candidate ${index}`, state: 'candidate' }));
-    data.styles = []; data.recipes = [];
-    data.sources[0].kind = 'ai_proposal';
-    await importData(service, data);
-    const before = await service.read(), ids = data.entries.map(entry => entry.id);
-    const after = await service.reviewEntries({ generation: before.generation, ids, action: 'adopt' });
-    expect(after.generation).toBe(before.generation + 1);
-    expect(after.data.entries.every(entry => entry.state === 'ready' && entry.revision === 2)).toBe(true);
-    expect(Object.keys(after.approvals)).toHaveLength(125);
-    for (const entry of after.data.entries) expect(after.approvals[entry.id]).toMatchObject({ method: 'human', revision: entry.revision, digest: sha256Canonical(entry) });
-    expect(await service.reviewEntries({ generation: after.generation, ids, action: 'adopt' })).toEqual(after);
-    await expect(service.reviewEntries({ generation: before.generation, ids, action: 'reject' })).rejects.toMatchObject({ code: 'revision_conflict' });
-    await expect(service.reviewEntries({ generation: after.generation, ids: [ids[0], randomUUID()], action: 'reject' })).rejects.toMatchObject({ code: 'not_found' });
-    expect(await service.read()).toEqual(after);
-    const rejected = await service.reviewEntries({ generation: after.generation, ids: ids.slice(0, 100), action: 'reject' });
-    expect(rejected.data.entries.filter(entry => entry.state === 'rejected')).toHaveLength(100);
-    expect(Object.keys(rejected.approvals)).toHaveLength(25);
-    expect(rejected.data.entries).toHaveLength(125);
-  });
-
-  it('round-trips every v1 entity, status, reference and inert extension without exporting approval credentials', async () => {
-    const first = await fixture(), second = await fixture();
-    const data = example(); data.entries[1].state = 'candidate'; data.entries[2].state = 'archived';
-    await importData(first.service, data, true);
-    const original = await first.service.read();
-    expect(Object.keys(original.approvals)).toHaveLength(3);
-    const backup = await first.service.exportPackage({ generation: original.generation, purpose: 'backup', collectionIds: [], includeMemories: false });
-    expect(backup).not.toHaveProperty('approvals');
-    expect(backup.entries).toEqual(data.entries);
-    expect(backup.extensions).toMatchObject(data.extensions!);
-    await importData(second.service, backup);
-    const restored = await second.service.read();
-    for (const group of ['subjects', 'collections', 'sources', 'entries', 'styles', 'recipes', 'preferenceTemplates'] as const) expect(restored.data[group]).toEqual(original.data[group]);
-    expect(restored.approvals).toEqual({});
-  });
-
-  it('persists one import receipt across concurrent retries and restart; owner and decisions remain bound', async () => {
-    const { service, root } = await fixture();
-    const preview = await service.planImport('owner-a', JSON.stringify(example()));
-    const request = { planId: preview.planId, decisions: [], adoptReady: true };
-    const results = await Promise.all([service.commitImport('owner-a', request), service.commitImport('owner-a', request)]);
-    expect(results[0]).toEqual(results[1]); expect((await service.read()).generation).toBe(1);
-    await service.dispose();
-    const restarted = new KnowledgeService(root); services.push(restarted);
-    expect(await restarted.commitImport('owner-a', request)).toEqual(results[0]);
-    await expect(restarted.commitImport('other-owner', request)).rejects.toMatchObject({ code: 'access_denied' });
-    await expect(restarted.commitImport('owner-a', { ...request, adoptReady: false })).rejects.toMatchObject({ code: 'import_conflict' });
-    expect((await restarted.read()).imports).toHaveLength(1);
-  });
-
-  it('does not trust candidates, strong rules, or core facts through bulk import acceptance', async () => {
-    const { service } = await fixture(); const data = example();
-    data.entries[0].state = 'candidate';
-    if (data.entries[1].kind === 'context') data.entries[1].payload.core = true;
-    if (data.entries[4].kind === 'rule') data.entries[4].payload.strength = 'required';
-    await importData(service, data, true);
-    const current = await service.read();
-    expect(Object.keys(current.approvals).sort()).toEqual([data.entries[2].id, data.entries[3].id].sort());
-    await expect(service.reviewEntries({ generation: current.generation, ids: [data.entries[0].id, data.entries[1].id], action: 'adopt' })).rejects.toMatchObject({ code: 'import_conflict' });
-    const reviewed = await service.reviewEntries({ generation: current.generation, ids: [data.entries[0].id], action: 'adopt' });
-    expect(reviewed.approvals[data.entries[0].id].method).toBe('human');
-    expect(reviewed.data.entries[0].revision).toBe(2);
-  });
-
-  it('shares only selected trusted ready entries and their evidence; memories require explicit opt-in', async () => {
-    const { service } = await fixture(); const { data } = await importData(service, example(), true);
-    const current = await service.read();
-    const shared = await service.exportPackage({ generation: current.generation, purpose: 'share', collectionIds: [data.collections[0].id], includeMemories: false });
-    expect(shared.entries).toHaveLength(4); expect(shared.entries.some(entry => entry.kind === 'memory')).toBe(false);
-    expect(shared.styles).toEqual([]); expect(shared.recipes).toEqual([]); expect(shared.preferenceTemplates).toEqual([]);
-    expect(validatePackage(shared).valid).toBe(true);
-    const including = await service.exportPackage({ generation: current.generation, purpose: 'share', collectionIds: [data.collections[0].id], includeMemories: true });
-    expect(including.entries).toHaveLength(5); expect((await service.read()).generation).toBe(current.generation);
-  });
-
-  it('preserves local conflicts by default, rejects same-revision overwrite, and advances explicitly replaced revisions', async () => {
-    const { service } = await fixture(); const { data } = await importData(service, example(), true);
-    const external = structuredClone(data); external.entries[0].title = 'External title';
-    let preview = await service.planImport('owner-a', JSON.stringify(external));
-    expect(preview.counts.conflicts).toBe(1);
-    await expect(service.commitImport('owner-a', { planId: preview.planId, decisions: [{ id: external.entries[0].id, action: 'replace' }], adoptReady: true })).rejects.toMatchObject({ code: 'import_conflict' });
-    await service.commitImport('owner-a', { planId: preview.planId, decisions: [], adoptReady: true });
-    expect((await service.read()).data.entries[0].title).toBe(data.entries[0].title);
-    external.entries[0].revision = 7;
-    preview = await service.planImport('owner-a', JSON.stringify(external));
-    await service.commitImport('owner-a', { planId: preview.planId, decisions: [{ id: external.entries[0].id, action: 'replace' }], adoptReady: true });
-    const current = await service.read();
-    expect(current.data.entries[0].revision).toBe(8); expect(current.data.entries[0].title).toBe('External title');
-    expect(current.approvals[external.entries[0].id]).toBeUndefined();
-  });
-
-  it('copies the entire selected dependency graph with new identities and correct derived parent digests', async () => {
-    const { service } = await fixture(); const data = example();
-    data.entries[1].derivedFrom = [{ entryId: data.entries[0].id, revision: 1, digest: sha256Canonical(data.entries[0]), evidenceSourceId: data.sources[0].id }];
-    await importData(service, data);
-    const preview = await service.planImport('owner-a', JSON.stringify(data));
-    const receipt = await service.commitImport('owner-a', { planId: preview.planId, decisions: preview.items.map(item => ({ id: item.id, action: 'copy' })), adoptReady: false });
-    expect(receipt.added).toBe(preview.items.length);
-    const current = await service.read(); expect(validatePackage(current.data).errors).toEqual([]);
-    const copied = current.data.entries.filter(entry => !data.entries.some(original => original.id === entry.id));
-    expect(copied).toHaveLength(5); expect(copied.every(entry => entry.collectionId !== data.collections[0].id)).toBe(true);
-    const child = copied.find(entry => entry.kind === 'context')!;
-    const parent = copied.find(entry => entry.kind === 'term')!;
-    expect(child.derivedFrom[0]).toMatchObject({ entryId: parent.id, revision: parent.revision, digest: sha256Canonical(parent) });
-    expect(current.data.recipes[1].baseStyleId).toBe(current.data.styles[1].id);
-  });
-
-  it('rejects skipped dependencies as one transaction without silently filling from the network', async () => {
-    const { service } = await fixture(); const data = example();
-    const preview = await service.planImport('owner-a', JSON.stringify(data));
-    await expect(service.commitImport('owner-a', { planId: preview.planId, decisions: [{ id: data.sources[0].id, action: 'skip' }], adoptReady: false })).rejects.toMatchObject({ code: 'invalid_input' });
-    expect((await service.read()).generation).toBe(0);
-  });
-
-  it('uses optimistic generations and revisions for atomic evidence creation and manual approval', async () => {
-    const { service } = await fixture(); const { data } = await importData(service);
-    let current = await service.read();
-    const entry = structuredClone(current.data.entries[0]);
-    const source = { ...data.sources[0], id: randomUUID(), title: 'My explicit correction' };
-    entry.evidence = [{ sourceId: source.id, support: 'direct' }];
-    current = await service.saveRecord({ generation: current.generation, group: 'entries', record: entry, source, adopt: true });
-    expect(current.data.entries[0].revision).toBe(2); expect(current.approvals[entry.id].digest).toBe(sha256Canonical(current.data.entries[0]));
-    expect(current).toEqual(await service.read());
-    await expect(service.saveRecord({ generation: current.generation, group: 'entries', record: entry })).rejects.toMatchObject({ code: 'revision_conflict' });
-    const updated = structuredClone(current.data.entries[0]); updated.title = 'Edited again';
-    const requests = [service.saveRecord({ generation: current.generation, group: 'entries', record: updated }), service.saveRecord({ generation: current.generation, group: 'entries', record: updated })];
-    const results = await Promise.allSettled(requests); expect(results.filter(item => item.status === 'fulfilled')).toHaveLength(1);
-    expect((await service.read()).approvals[entry.id]).toBeUndefined();
-  });
-
-  it('keeps an unchanged save fully idempotent, including exact trust, revisions and generation', async () => {
-    const { service } = await fixture(); await importData(service, example(), true);
-    const before = await service.read();
-    expect(await service.saveRecord({ generation: before.generation, group: 'sources', record: before.data.sources[0] })).toEqual(before);
-    expect(await service.saveRecord({ generation: before.generation, group: 'entries', record: before.data.entries[0] })).toEqual(before);
-    expect(await service.read()).toEqual(before);
-  });
-
-  it('keeps confirmed entries and their explicit scopes intact when collection display metadata changes', async () => {
-    const { service } = await fixture(); await importData(service, example(), true);
-    const before = await service.read(), original = before.data.collections[0];
-    const record = { ...original, name: 'Renamed collection', description: 'New description', aboutSubjectIds: [], defaultLanguagePair: { source: 'ja', target: 'en' } };
-    const after = await service.saveRecord({ generation: before.generation, group: 'collections', record });
-    expect(after.generation).toBe(before.generation + 1);
-    expect(after.data.collections[0]).toEqual({ ...record, revision: original.revision + 1 });
-    expect(after.data.entries).toEqual(before.data.entries);
-    expect(after.approvals).toEqual(before.approvals);
-    expect(await service.read()).toEqual(after);
-  });
-
-  it('preserves entry approvals when explicitly importing only collection metadata changes', async () => {
-    const { service } = await fixture(); await importData(service, example(), true);
-    const before = await service.read(), incoming = structuredClone(before.data), collection = incoming.collections[0];
-    collection.revision++; collection.name = 'Imported display name'; collection.defaultLanguagePair = { source: 'ja', target: 'en' };
-    const preview = await service.planImport('owner-a', JSON.stringify(incoming));
-    await service.commitImport('owner-a', { planId: preview.planId, decisions: [{ id: collection.id, action: 'replace' }], adoptReady: false });
-    const after = await service.read();
-    expect(after.data.collections[0].name).toBe(collection.name);
-    expect(after.data.entries).toEqual(before.data.entries);
-    expect(after.approvals).toEqual(before.approvals);
-  });
-
-  it('still revokes dependent approval when a collection is archived and does not restore it on unarchive', async () => {
-    const { service } = await fixture(); await importData(service, example(), true);
-    const before = await service.read();
-    const archived = await service.saveRecord({ generation: before.generation, group: 'collections', record: { ...before.data.collections[0], archived: true } });
-    expect(archived.approvals).toEqual({});
-    expect(archived.data.entries.every(entry => entry.state === 'needs_review')).toBe(true);
-    const restored = await service.saveRecord({ generation: archived.generation, group: 'collections', record: { ...archived.data.collections[0], archived: false } });
-    expect(restored.approvals).toEqual({});
-    expect(restored.data.entries).toEqual(archived.data.entries);
-  });
-
-  it('atomically approves an edited ready revision and only removes its approval for an explicit draft save', async () => {
-    const { service } = await fixture(); await importData(service, example(), true);
-    const before = await service.read(), original = before.data.entries[0];
-    expect(before.approvals[original.id]).toBeDefined();
-    const applied = await service.saveRecord({ generation: before.generation, group: 'entries', record: { ...original, title: 'My corrected term' }, adopt: true });
-    const current = applied.data.entries.find(entry => entry.id === original.id)!;
-    expect(current).toMatchObject({ state: 'ready', revision: original.revision + 1 });
-    expect(applied.approvals[current.id]).toMatchObject({ revision: current.revision, digest: sha256Canonical(current), method: 'human' });
-    expect(applied.approvals[current.id].digest).not.toBe(before.approvals[current.id].digest);
-    const draft = await service.saveRecord({ generation: applied.generation, group: 'entries', record: { ...current, state: 'candidate' }, adopt: false });
-    expect(draft.approvals[current.id]).toBeUndefined();
-    expect(draft.data.entries.find(entry => entry.id === current.id)).toMatchObject({ state: 'candidate', revision: current.revision + 1 });
-  });
-
-  it('allows identical terms with different meanings in separate collections and subject scopes', async () => {
-    const { service } = await fixture(); const data = example();
-    const alternativeSubject = { ...data.subjects[0], id: randomUUID(), name: 'A different work' };
-    const alternativeCollection = { ...data.collections[0], id: randomUUID(), name: 'A different translation', aboutSubjectIds: [alternativeSubject.id] };
-    data.subjects.push(alternativeSubject); data.collections.push(alternativeCollection);
-    const term = structuredClone(data.entries[0]);
-    term.id = randomUUID(); term.collectionId = alternativeCollection.id; term.aboutSubjectIds = [alternativeSubject.id]; term.scope.requiredSubjects = [{ subjectId: alternativeSubject.id, role: 'topic' }];
-    if (term.kind === 'term') term.payload.target = '理事会';
-    data.entries.push(term);
-    const result = await importData(service, data, true);
-    expect(result.preview.warnings.some(item => item.code === 'TERM_TRANSLATION_CONFLICT')).toBe(true);
-    let current = await service.read();
-    expect(current.approvals[data.entries[0].id]).toBeDefined(); expect(current.approvals[term.id]).toBeDefined();
-    current = await service.reviewEntries({ generation: current.generation, ids: [data.entries[0].id, term.id], action: 'adopt' });
-    expect(current.approvals[data.entries[0].id]).toBeDefined(); expect(current.approvals[term.id]).toBeDefined();
-  });
-
-  it('does not let an archived display-only subject change an entry’s applicability', async () => {
-    const { service } = await fixture(); const data = example();
-    data.subjects[0].archived = true;
-    data.entries.forEach(entry => { entry.scope.requiredSubjects = []; });
-    await importData(service, data, true);
-    const current = await service.read(); expect(Object.keys(current.approvals)).toHaveLength(5);
-    const shared = await service.exportPackage({ generation: current.generation, purpose: 'share', collectionIds: [data.collections[0].id], includeMemories: true });
-    expect(shared.entries).toHaveLength(5); expect(shared.subjects[0].archived).toBe(true);
-  });
-
-  it('publishes a new revision when a new imported entry changes through copied dependencies', async () => {
-    const { service } = await fixture(); const { data } = await importData(service);
-    const incoming = structuredClone(data);
-    incoming.entries = [{ ...structuredClone(data.entries[0]), id: randomUUID(), title: 'New term in copied collection' }];
-    incoming.styles = []; incoming.recipes = [];
-    const preview = await service.planImport('owner-a', JSON.stringify(incoming));
-    await service.commitImport('owner-a', { planId: preview.planId, decisions: [{ id: data.collections[0].id, action: 'copy' }], adoptReady: false });
-    const inserted = (await service.read()).data.entries.find(entry => entry.id === incoming.entries[0].id)!;
-    expect(inserted.collectionId).not.toBe(incoming.entries[0].collectionId);
-    expect(inserted.revision).toBe(incoming.entries[0].revision + 1);
-  });
-
-  it('retains author, sharing and package-extension claims as inert package provenance across backup restore', async () => {
-    const first = await fixture(), second = await fixture(); const data = example();
-    data.package.author = 'A declared author'; data.package.sharingNote = 'Use with attribution'; data.package.extensions = { 'org.example.rights': { license: 'example' } };
-    await importData(first.service, data);
-    const current = await first.service.read();
-    const backup = await first.service.exportPackage({ generation: current.generation, purpose: 'backup', collectionIds: [], includeMemories: true });
-    expect(backup.package.author).toBeUndefined();
-    expect(backup.extensions?.['org.fusionkit.package-provenance']).toMatchObject({ version: 1, packages: expect.arrayContaining([data.package]) });
-    await importData(second.service, backup);
-    expect((await second.service.read()).data.extensions?.['org.fusionkit.package-provenance']).toMatchObject({ packages: expect.arrayContaining([data.package]) });
-    expect((await second.service.read()).approvals).toEqual({});
-  });
-
-  it('shows conflicting root extension values in preview and never silently overwrites or discards them', async () => {
-    const { service } = await fixture(); const { data } = await importData(service);
-    const changed = structuredClone(data); changed.extensions = { 'org.example.metadata': { verified: true } };
-    const before = await service.read();
-    const preview = await service.planImport('owner-a', JSON.stringify(changed));
-    expect(preview.warnings.some(item => item.code === 'IMPORT_METADATA_CONFLICT')).toBe(true);
-    await expect(service.commitImport('owner-a', { planId: preview.planId, decisions: [], adoptReady: false })).rejects.toMatchObject({ code: 'import_conflict' });
-    expect(await service.read()).toEqual(before);
-  });
-
-  it('revokes source-dependent and derived trust when evidence changes, while preserving archive state', async () => {
-    const { service } = await fixture(); const data = example();
-    data.entries[1].derivedFrom = [{ entryId: data.entries[0].id, revision: 1, digest: sha256Canonical(data.entries[0]), evidenceSourceId: data.sources[0].id }];
-    data.entries[2].state = 'archived';
-    await importData(service, data, true);
-    const current = await service.read();
-    const changed = await service.saveRecord({ generation: current.generation, group: 'sources', record: { ...data.sources[0], excerpt: 'Corrected supporting evidence.' } });
-    expect(changed.approvals).toEqual({});
-    expect(changed.data.entries[0]).toMatchObject({ state: 'needs_review', revision: 2 });
-    expect(changed.data.entries[1]).toMatchObject({ state: 'needs_review', revision: 2 });
-    expect(changed.data.entries[2]).toMatchObject({ state: 'archived', revision: 1 });
-  });
-
-  it('does not revive an archived local entry by importing its older ready declaration', async () => {
-    const { service } = await fixture(); const { data } = await importData(service, example(), true);
-    const current = await service.read();
-    await service.reviewEntries({ generation: current.generation, ids: [data.entries[0].id], action: 'archive' });
-    await importData(service, data, true);
-    const after = await service.read(); expect(after.data.entries[0].state).toBe('archived'); expect(after.approvals[data.entries[0].id]).toBeUndefined();
-  });
-
-  it('expires stale and superseded plans and fences released owners immediately before publication', async () => {
-    let blocked = false, reached!: () => void, release!: () => void;
-    const reachedPromise = new Promise<void>(resolve => { reached = resolve; });
-    const wait = new Promise<void>(resolve => { release = resolve; });
-    const { service } = await fixture({ publicationHook: async stage => { if (blocked && stage === 'before_pointer_rename') { reached(); await wait; } } });
-    const data = example();
-    const old = await service.planImport('owner-a', JSON.stringify(data));
-    const preview = await service.planImport('owner-a', JSON.stringify(data));
-    await expect(service.commitImport('owner-a', { planId: old.planId, decisions: [], adoptReady: false })).rejects.toMatchObject({ code: 'plan_expired' });
-    blocked = true;
-    const pending = service.commitImport('owner-a', { planId: preview.planId, decisions: [], adoptReady: false });
-    await reachedPromise; service.releaseOwner('owner-a'); release();
-    await expect(pending).rejects.toMatchObject({ code: 'access_denied' });
-    expect((await service.read()).generation).toBe(0);
-  });
-
-  it.each<PublicationStage>(['generation_synced', 'generation_directory_synced', 'before_pointer_rename'])('preserves the complete old generation after a %s failure', async stageToFail => {
-    let fail = false;
-    const { service, root } = await fixture({ publicationHook: stage => { if (fail && stage === stageToFail) throw Object.assign(new Error('Injected disk failure'), { code: 'ENOSPC' }); } });
-    const before = await readFile(path.join(root, 'current.json'), 'utf8');
-    const preview = await service.planImport('owner-a', JSON.stringify(example()));
-    const request = { planId: preview.planId, decisions: [], adoptReady: true }; fail = true;
-    await expect(service.commitImport('owner-a', request)).rejects.toMatchObject({ code: 'write_failed' });
-    expect(await readFile(path.join(root, 'current.json'), 'utf8')).toBe(before);
-    expect((await service.read()).data.entries).toEqual([]);
-    fail = false; await service.commitImport('owner-a', request); expect((await service.read()).generation).toBe(1);
-  });
-
-  it('preserves a published receipt after late sync failure and reconciles it after restart', async () => {
-    let fail = false;
-    const { service, root } = await fixture({ publicationHook: stage => { if (fail && stage === 'pointer_renamed') throw new Error('Injected directory fsync failure'); } });
-    const preview = await service.planImport('owner-a', JSON.stringify(example()));
-    const request = { planId: preview.planId, decisions: [], adoptReady: true }; fail = true;
-    await expect(service.commitImport('owner-a', request)).rejects.toMatchObject({ code: 'write_failed', diagnostics: [expect.objectContaining({ code: 'PUBLICATION_UNCERTAIN' })] });
-    expect((await service.read()).generation).toBe(1); await service.dispose();
-    const restarted = new KnowledgeService(root); services.push(restarted);
-    const receipt = await restarted.commitImport('owner-a', request); expect(receipt.generation).toBe(1);
-    expect((await restarted.read()).imports).toEqual([receipt]);
-    expect((await readdir(root)).filter(name => name.startsWith('generation-'))).toHaveLength(2);
-  });
-
-  it('fails closed on corrupt persisted data, retaining all generations', async () => {
-    const { service, root } = await fixture(); await importData(service);
-    const current = JSON.parse(await readFile(path.join(root, 'current.json'), 'utf8')) as { file: string };
-    await writeFile(path.join(root, current.file), '{"corrupt":true}');
-    await expect(service.read()).rejects.toMatchObject({ code: 'storage_unavailable' });
-    expect((await readdir(root)).filter(name => name.startsWith('generation-'))).toHaveLength(2);
-  });
-
-  it('blocks identifiable private paths during export without rewriting local records', async () => {
-    const { service } = await fixture(); const data = example(); data.sources[0].attribution = '/Users/example/private/subtitles.srt';
-    await importData(service, data);
-    const current = await service.read();
-    await expect(service.exportPackage({ generation: current.generation, purpose: 'backup', collectionIds: [], includeMemories: true })).rejects.toMatchObject({ code: 'invalid_input', diagnostics: [expect.objectContaining({ code: 'EXPORT_PRIVATE_CONTENT' })] });
-    expect((await service.read()).data.sources).toEqual(data.sources);
-  });
-
-  it('rejects two active repository owners and allows a new owner after disposal', async () => {
-    const { service, root } = await fixture();
-    const second = new KnowledgeService(root); services.push(second);
-    await expect(second.read()).rejects.toMatchObject({ code: 'storage_unavailable' });
-    await service.dispose(); expect((await second.read()).generation).toBe(0);
-  });
+afterEach(async () => {
+  await Promise.all(services.splice(0).map(service => service.dispose()));
+  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })));
 });
+export async function knowledgeService() {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'fk-knowledge-')); roots.push(root);
+  const service = new KnowledgeService(root); services.push(service);
+  return { service, root, snapshot: await service.read() };
+}
+const pair = { source: 'en', target: 'zh-Hans' };
+export const collection = (name = 'Game X', overrides: Partial<Collection> = {}): Collection => ({ id: randomUUID(), revision: 1, name, description: '', languagePair: pair, archived: false, ...overrides });
+export const term = (collectionId: string, source = 'checkpoint', target = '存档点'): Entry => ({ id: randomUUID(), revision: 1, collectionId, enabled: true, kind: 'term', payload: { source, target, aliases: [], note: '', strength: 'preferred', match: { mode: 'whole_term', caseSensitive: false } } });
+export const rule = (collectionId: string, text = 'Keep it short.'): Entry => ({ id: randomUUID(), revision: 1, collectionId, enabled: true, kind: 'rule', payload: { text, required: false } });
+export const preset = (collectionIds: string[], name = 'Daily'): Preset => ({ id: randomUUID(), revision: 1, name, languagePair: pair, collectionIds, instructions: '', context: '' });
+async function seeded() {
+  const fixture = await knowledgeService();
+  const game = collection('Game X'), common = collection('Common');
+  const entries = [term(game.id), rule(game.id), term(common.id, 'boss', '首领')];
+  const daily = preset([game.id, common.id]);
+  const snapshot = await fixture.service.saveRecords({ generation: fixture.snapshot.generation, items: [
+    { group: 'collections', record: game }, { group: 'collections', record: common },
+    ...entries.map(record => ({ group: 'entries' as const, record })), { group: 'presets', record: daily },
+  ] });
+  return { ...fixture, snapshot, game, common, entries, daily };
+}
+const find = (snapshot: LibrarySnapshot, id: string) => [...snapshot.data.collections, ...snapshot.data.entries, ...snapshot.data.presets].find(item => item.id === id);
 
-describe('translation knowledge batch saves', () => {
-  const pair = { source: 'ja', target: 'zh-Hans' };
-  function batch() {
-    const subjectId = randomUUID(), collectionId = randomUUID(), sourceId = randomUUID(), entryId = randomUUID();
-    return { subjectId, collectionId, sourceId, entryId, items: [
-      { group: 'subjects' as const, record: { id: subjectId, revision: 1, archived: false, kind: 'work' as const, name: '绝区零', aliases: ['ZZZ'], tags: [], description: '' } },
-      { group: 'collections' as const, record: { id: collectionId, revision: 1, archived: false, name: '绝区零 · 人物与称谓', description: '', aboutSubjectIds: [subjectId], defaultLanguagePair: pair } },
-      { group: 'entries' as const, adopt: true,
-        source: { id: sourceId, revision: 1, kind: 'user_note' as const, title: 'Conversation', excerpt: '应该是泰姆菲尔德家的大小姐' },
-        record: { id: entryId, revision: 1, title: 'テイムフィールド家のお嬢様', kind: 'term' as const, collectionId, aboutSubjectIds: [subjectId],
-          scope: { languagePair: pair, requiredSubjects: [], condition: { mode: 'none' as const } }, state: 'ready' as const,
-          evidence: [{ sourceId, support: 'direct' as const }], derivedFrom: [],
-          payload: { source: 'テイムフィールド家のお嬢様', target: '泰姆菲尔德家的大小姐', aliases: [], sense: '', match: { mode: 'literal_phrase' as const, caseSensitive: false }, strength: 'preferred' as const } } },
-    ] };
-  }
-
-  it('saves dependent records in one generation and approves adopted entries', async () => {
-    const { service } = await fixture();
-    const before = await service.read();
-    const { items, entryId, sourceId, collectionId, subjectId } = batch();
-    const after = await service.saveRecords({ generation: before.generation, items });
-    expect(after.generation).toBe(before.generation + 1);
-    expect(after.data.subjects.map(item => item.id)).toEqual([subjectId]);
-    expect(after.data.collections.map(item => item.id)).toEqual([collectionId]);
-    expect(after.data.sources.map(item => item.id)).toEqual([sourceId]);
-    const entry = after.data.entries.find(item => item.id === entryId)!;
-    expect(entry.state).toBe('ready');
-    expect(after.approvals[entryId]).toMatchObject({ revision: entry.revision, method: 'human', digest: sha256Canonical(entry) });
+describe('knowledge service records', () => {
+  it('saves collections, entries and presets in one transaction and keeps them as sent', async () => {
+    const { snapshot, game, entries, daily } = await seeded();
+    expect(snapshot.generation).toBe(1);
+    expect(snapshot.data.collections.map(item => item.id)).toContain(game.id);
+    expect(snapshot.data.entries).toEqual(entries);
+    expect(snapshot.data.presets).toEqual([daily]);
+    expect(Object.keys(snapshot)).toEqual(['generation', 'data']);
   });
 
-  it('publishes nothing when any item is invalid and reports the item path', async () => {
-    const { service } = await fixture();
-    const before = await service.read();
-    const { items } = batch();
-    const broken = structuredClone(items);
-    (broken[2].record as { collectionId: string }).collectionId = randomUUID();
-    await expect(service.saveRecords({ generation: before.generation, items: broken })).rejects.toMatchObject({ code: 'invalid_input' });
-    const languageBroken = structuredClone(items);
-    languageBroken[1].record = { ...languageBroken[1].record, defaultLanguagePair: { source: 'ja', target: 'zh' } } as typeof languageBroken[1]['record'];
-    await expect(service.saveRecords({ generation: before.generation, items: languageBroken })).rejects.toMatchObject({ code: 'invalid_input' });
-    const revisionBroken = structuredClone(items);
-    revisionBroken[0].record = { ...revisionBroken[0].record, revision: 2 };
-    await expect(service.saveRecords({ generation: before.generation, items: revisionBroken })).rejects.toMatchObject({
-      code: 'invalid_input', diagnostics: [expect.objectContaining({ code: 'NEW_RECORD_REVISION' })] });
-    const malformed = structuredClone(items) as unknown as Record<string, unknown>[];
-    malformed[1] = { ...malformed[1], record: { name: 'missing fields' } };
-    await expect(service.saveRecords({ generation: before.generation, items: malformed as never })).rejects.toMatchObject({
-      code: 'invalid_input', diagnostics: expect.arrayContaining([expect.objectContaining({ path: expect.stringMatching(/^\/items\/1/) })]) });
-    const after = await service.read();
-    expect(after.generation).toBe(before.generation);
-    expect(after.data).toEqual(before.data);
+  it('saves disabled entries as disabled and never queues manual content for review', async () => {
+    const { service, snapshot, game } = await seeded();
+    const disabled = { ...term(game.id, 'relic', '遗物'), enabled: false };
+    const next = await service.saveRecords({ generation: snapshot.generation, items: [{ group: 'entries', record: disabled }] });
+    expect(find(next, disabled.id)).toEqual(disabled);
   });
 
-  it('rejects a stale generation and duplicate identities without writing', async () => {
-    const { service } = await fixture();
-    const before = await service.read();
-    const { items } = batch();
-    await expect(service.saveRecords({ generation: before.generation + 1, items })).rejects.toMatchObject({ code: 'revision_conflict' });
-    await expect(service.saveRecords({ generation: before.generation, items: [items[0], items[0]] })).rejects.toMatchObject({
-      code: 'invalid_input', diagnostics: [expect.objectContaining({ code: 'DUPLICATE_BATCH_RECORD' })] });
-    expect((await service.read()).generation).toBe(before.generation);
+  it('requires the current revision, increments it on change and ignores identical saves', async () => {
+    const { service, snapshot, entries } = await seeded();
+    const edited = { ...entries[0], payload: { ...entries[0].payload, target: '检查点' } } as Entry;
+    const next = await service.saveRecords({ generation: snapshot.generation, items: [{ group: 'entries', record: edited }] });
+    expect(find(next, edited.id)).toMatchObject({ revision: 2, payload: { target: '检查点' } });
+    const same = await service.saveRecords({ generation: next.generation, items: [{ group: 'entries', record: find(next, edited.id) as Entry }] });
+    expect(same.generation).toBe(next.generation);
+    await expect(service.saveRecords({ generation: next.generation, items: [{ group: 'entries', record: edited }] })).rejects.toMatchObject({ code: 'revision_conflict' });
+    await expect(service.saveRecords({ generation: snapshot.generation, items: [{ group: 'entries', record: find(next, edited.id) as Entry }] })).rejects.toMatchObject({ code: 'revision_conflict' });
+    await expect(service.saveRecords({ generation: next.generation, items: [{ group: 'entries', record: { ...term(entries[0].collectionId), revision: 2 } }] })).rejects.toMatchObject({ code: 'invalid_input', diagnostics: [expect.objectContaining({ code: 'NEW_RECORD_REVISION' })] });
   });
 
-  it('treats an identical replay after success as unchanged', async () => {
-    const { service } = await fixture();
-    const before = await service.read();
-    const { items, entryId } = batch();
-    const saved = await service.saveRecords({ generation: before.generation, items });
-    const entry = saved.data.entries.find(item => item.id === entryId)!;
-    const replay = items.map(item => item.group === 'entries' ? { ...item, record: entry } : item);
-    const again = await service.saveRecords({ generation: saved.generation, items: replay });
-    expect(again.generation).toBe(saved.generation);
-    expect(again.approvals[entryId]).toEqual(saved.approvals[entryId]);
+  it('writes nothing when any item in a batch is invalid and reports its index', async () => {
+    const { service, snapshot, game } = await seeded();
+    const good = term(game.id, 'boss', '头目');
+    const orphan = term(randomUUID());
+    await expect(service.saveRecords({ generation: snapshot.generation, items: [{ group: 'entries', record: good }, { group: 'entries', record: orphan }] })).rejects.toMatchObject({ code: 'invalid_input', diagnostics: [expect.objectContaining({ code: 'MISSING_REFERENCE' })] });
+    await expect(service.saveRecords({ generation: snapshot.generation, items: [{ group: 'entries', record: good }, { group: 'entries', record: { ...good, kind: 'memory' } as never }] })).rejects.toMatchObject({ code: 'invalid_input', diagnostics: [expect.objectContaining({ path: expect.stringMatching(/^\/items\/1\/record/) })] });
+    await expect(service.saveRecords({ generation: snapshot.generation, items: [{ group: 'entries', record: good }, { group: 'entries', record: good }] })).rejects.toMatchObject({ diagnostics: [expect.objectContaining({ code: 'DUPLICATE_BATCH_RECORD' })] });
+    await expect(service.saveRecords({ generation: snapshot.generation, items: Array.from({ length: 201 }, () => ({ group: 'entries' as const, record: term(game.id) })) })).rejects.toMatchObject({ code: 'invalid_input' });
+    expect((await service.read()).generation).toBe(snapshot.generation);
   });
 
-  it('updates an existing entry by revision in a batch and keeps the single-record API unchanged', async () => {
-    const { service } = await fixture();
-    const { items, entryId } = batch();
-    const saved = await service.saveRecords({ generation: (await service.read()).generation, items });
-    const entry = saved.data.entries.find(item => item.id === entryId)!;
-    if (entry.kind !== 'term') throw new Error('expected a term');
-    const edited = { ...entry, state: 'candidate' as const, payload: { ...entry.payload, target: '泰姆菲尔德家大小姐' } };
-    const updated = await service.saveRecords({ generation: saved.generation, items: [{ group: 'entries', record: edited }] });
-    const after = updated.data.entries.find(item => item.id === entryId)!;
-    expect(after.revision).toBe(entry.revision + 1);
-    expect(after.state).toBe('candidate');
-    expect(updated.approvals[entryId]).toBeUndefined();
-    await expect(service.saveRecords({ generation: updated.generation, items: [{ group: 'entries', record: edited }] })).rejects.toMatchObject({ code: 'revision_conflict' });
+  it('deletes a collection with its entries and its place in presets, returning everything for undo', async () => {
+    const { service, snapshot, game, common, entries, daily } = await seeded();
+    const result = await service.deleteRecords({ generation: snapshot.generation, items: [{ group: 'collections', id: game.id }] });
+    expect(result.snapshot.data.collections.map(item => item.id)).toEqual([common.id]);
+    expect(result.snapshot.data.entries.map(item => item.id)).toEqual([entries[2].id]);
+    expect(result.snapshot.data.presets[0]).toMatchObject({ id: daily.id, collectionIds: [common.id], revision: 2 });
+    expect(result.deleted).toEqual({ collections: [game], entries: [entries[0], entries[1]], presets: [daily] });
+
+    const restored = await service.restoreRecords({ generation: result.snapshot.generation, records: result.deleted });
+    expect(find(restored, game.id)).toEqual(game);
+    expect(restored.data.entries).toEqual(expect.arrayContaining([entries[0], entries[1]]));
+    expect(find(restored, daily.id)).toEqual({ ...daily, revision: 3 });
+  });
+
+  it('deletes and restores individual entries and presets', async () => {
+    const { service, snapshot, entries, daily } = await seeded();
+    const result = await service.deleteRecords({ generation: snapshot.generation, items: [{ group: 'entries', id: entries[0].id }, { group: 'presets', id: daily.id }] });
+    expect(find(result.snapshot, entries[0].id)).toBeUndefined();
+    expect(result.snapshot.data.presets).toEqual([]);
+    const restored = await service.restoreRecords({ generation: result.snapshot.generation, records: result.deleted });
+    expect(find(restored, entries[0].id)).toEqual(entries[0]);
+    expect(find(restored, daily.id)).toEqual(daily);
+  });
+
+  it('refuses unknown deletions and undo that would collide or orphan entries', async () => {
+    const { service, snapshot, game, entries } = await seeded();
+    await expect(service.deleteRecords({ generation: snapshot.generation, items: [{ group: 'collections', id: entries[0].id }] })).rejects.toMatchObject({ code: 'not_found' });
+    await expect(service.deleteRecords({ generation: snapshot.generation, items: [{ group: 'entries', id: randomUUID() }] })).rejects.toMatchObject({ code: 'not_found' });
+    const result = await service.deleteRecords({ generation: snapshot.generation, items: [{ group: 'entries', id: entries[0].id }] });
+    const recreated = await service.saveRecords({ generation: result.snapshot.generation, items: [{ group: 'entries', record: entries[0] }] });
+    await expect(service.restoreRecords({ generation: recreated.generation, records: result.deleted })).rejects.toMatchObject({ code: 'import_conflict', diagnostics: [expect.objectContaining({ code: 'RESTORE_ID_EXISTS' })] });
+    const removed = await service.deleteRecords({ generation: recreated.generation, items: [{ group: 'collections', id: game.id }] });
+    await expect(service.restoreRecords({ generation: removed.snapshot.generation, records: { collections: [], entries: removed.deleted.entries, presets: [] } })).rejects.toMatchObject({ code: 'invalid_input', diagnostics: expect.arrayContaining([expect.objectContaining({ code: 'MISSING_REFERENCE' })]) });
+    expect((await service.read()).generation).toBe(removed.snapshot.generation);
+  });
+
+  it('rejects stale generations for every write', async () => {
+    const { service, snapshot, game, entries } = await seeded();
+    await service.saveRecords({ generation: snapshot.generation, items: [{ group: 'entries', record: rule(game.id, 'New') }] });
+    await expect(service.saveRecords({ generation: snapshot.generation, items: [{ group: 'entries', record: rule(game.id) }] })).rejects.toMatchObject({ code: 'revision_conflict' });
+    await expect(service.deleteRecords({ generation: snapshot.generation, items: [{ group: 'entries', id: entries[0].id }] })).rejects.toMatchObject({ code: 'revision_conflict' });
+    await expect(service.restoreRecords({ generation: snapshot.generation, records: { collections: [], entries: [rule(game.id)], presets: [] } })).rejects.toMatchObject({ code: 'revision_conflict' });
   });
 });

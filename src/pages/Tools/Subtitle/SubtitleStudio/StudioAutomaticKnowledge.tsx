@@ -18,16 +18,14 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
   const englishOutput = state.config.taskMode === 'translate_to_english';
   const value = activeAutomaticMaterials(saved, state.autoTranslation.language);
   if (englishOutput) value.languagePair.source = 'en';
-  const topics = saved.enabled ? saved.documentTopicIds : [];
   const instructions = saved.enabled && saved.instructions !== undefined ? saved.instructions : state.autoTranslation.instructions;
   const active = hasMaterials(value);
   useEffect(() => { void controller.refreshAutomaticKnowledge(); }, [controller]);
-  const update = (selection: KnowledgeSelection, documentTopicIds = topics) => {
+  const update = (selection: KnowledgeSelection) => {
     if (state.submitting) return;
     const enabled = hasMaterials(selection);
     const next = { enabled, sourceLanguage: englishOutput ? 'en' : selection.languagePair.source,
-      collectionIds: selection.collectionIds, disabledEntryIds: selection.disabledEntryIds, documentTopicIds: enabled ? documentTopicIds : [],
-      ...(selection.recipeId ? { recipeId: selection.recipeId } : {}),
+      collectionIds: selection.collectionIds, disabledEntryIds: selection.disabledEntryIds,
       instructions: selection.instructions ?? instructions, ...(selection.context !== undefined ? { context: selection.context } : {}) };
     // Incomplete inline edits are real drafts and disable admission; they do not
     // silently revert to the previous saved setup while the user is editing.
@@ -44,7 +42,7 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
   };
   return <div data-testid="studio-automatic-materials" className="studio-transcription-wide-field min-w-0 space-y-3">
     <StudioMaterialsFields value={value} library={state.autoKnowledgeLibrary} disabled={state.submitting} loading={state.autoKnowledgeLoading}
-      onChange={update} topics={topics} onTopicsChange={next => update(value, next)} onRefresh={() => void refresh()} mode="automatic" sourceLocked={englishOutput} />
+      onChange={update} onLibraryChange={() => void refresh()} onRefresh={() => void refresh()} sourceLocked={englishOutput} />
     <ToolField label={t('studio:translation.instructions')} htmlFor={`${id}-instructions`}><Textarea id={`${id}-instructions`} data-testid="studio-automatic-instructions" className="min-h-16 text-xs" maxLength={4000} disabled={state.submitting} value={instructions} onChange={event => {
       if (active) update({ ...value, instructions: event.target.value });
       else controller.setAutoTranslation({ ...state.autoTranslation, instructions: event.target.value });

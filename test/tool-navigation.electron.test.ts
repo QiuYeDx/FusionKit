@@ -104,7 +104,17 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool navigation in na
     await nativeWindow.evaluate(win => win.setSize(1280, 860));
     const knowledge = '/tools/translation-knowledge';
     await openTool(knowledge);
-    const search = page.locator('#knowledge-content input').first();
+    // The empty library has no collection workspace; create one through the UI first.
+    const dialog = page.getByRole('dialog');
+    await page.getByTestId('knowledge-new-collection').click();
+    await uiExpect(dialog).toBeVisible();
+    await dialog.getByRole('textbox').first().fill('Escape QA');
+    await page.getByTestId('knowledge-collection-save').click();
+    await uiExpect(dialog).toHaveCount(0);
+    await uiExpect(page.getByTestId('knowledge-collection-header').locator('h2')).toHaveText('Escape QA');
+    await staysOn(knowledge);
+
+    const search = page.getByTestId('knowledge-collection-search');
     await search.fill('unsaved search');
     await page.keyboard.press('Escape');
     await staysOn(knowledge);
@@ -124,7 +134,6 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool navigation in na
     await staysOn(knowledge);
 
     await page.getByTestId('knowledge-new-collection').click();
-    const dialog = page.getByRole('dialog');
     await uiExpect(dialog).toBeVisible();
     const choice = dialog.getByRole('combobox').first();
     await choice.click();
@@ -143,12 +152,6 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool navigation in na
     await uiExpect(dialog).toHaveCount(0);
     await staysOn(knowledge);
 
-    // Create a temporary collection through the UI to exercise its real menu.
-    await page.getByTestId('knowledge-new-collection').click();
-    await dialog.getByRole('textbox').first().fill('Escape QA');
-    await dialog.getByRole('button', { name: /^(保存|Save)$/ }).click();
-    await uiExpect(dialog).toHaveCount(0);
-    await page.locator('[data-collection-id]').filter({ hasText: 'Escape QA' }).click();
     await page.getByTestId('knowledge-collection-actions').click();
     await uiExpect(page.getByRole('menu')).toBeVisible();
     await page.keyboard.press('Escape');

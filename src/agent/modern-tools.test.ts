@@ -254,6 +254,27 @@ describe("transcription preparation ownership", () => {
     expect(mocks.state.autoTranslation).toEqual(saved);
     expect(mocks.watch).toHaveBeenCalledWith({ sessionId: "modern-test", taskIds: ["transcription-task"], translate: true, exportFiles: true, removeAfterExport: false });
   });
+  it("expands a preset into the batch's translation materials and refuses an unknown one", async () => {
+    const otherCollection = "00000000-0000-4000-8000-000000000005", presetId = "00000000-0000-4000-8000-000000000006";
+    const library = { generation: 4, data: { collections: [], entries: [], presets: [{ id: presetId, name: "绝区零", languagePair: { source: "ja", target: "zh-Hans" },
+      collectionIds: [collectionId], instructions: "保留敬称", context: "" }] } };
+    mocks.controller.refreshAutomaticKnowledge = vi.fn().mockResolvedValue(library);
+    mocks.controller.setAutomaticKnowledge = vi.fn(value => { mocks.state.autoTranslation = { ...mocks.state.autoTranslation, knowledge: value }; return true; });
+    const result = await call("prepare_studio_transcription", { translation: { language: "zh", knowledge: { presetId, collectionIds: [otherCollection] } } });
+    expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared" } });
+    expect(mocks.controller.setAutomaticKnowledge).toHaveBeenCalledWith({ enabled: true, collectionIds: [collectionId, otherCollection], disabledEntryIds: [],
+      instructions: "保留敬称", sourceLanguage: "ja" }, 4);
+    usePreparedActionsStore.getState().dismissAction(result.data.actionId);
+
+    mocks.controller.setAutomaticKnowledge.mockClear();
+    const saved = structuredClone(mocks.state.autoTranslation);
+    expect(await call("prepare_studio_transcription", { translation: { language: "zh", knowledge: { presetId: otherCollection } } }))
+      .toMatchObject({ success: false, error: "studio_translation_knowledge_invalid" });
+    expect(mocks.controller.setAutomaticKnowledge).not.toHaveBeenCalled();
+    expect(mocks.state.autoTranslation).toEqual(saved);
+    expect(await call("prepare_studio_transcription", { translation: { language: "zh", knowledge: { recipeId: presetId, collectionIds: [] } } }))
+      .toMatchObject({ success: false, error: "invalid_tool_arguments" });
+  });
   it("follows the Studio export setting when the user did not mention export, and fills what a requested export leaves open", async () => {
     mocks.state.autoExport = { ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, enabled: true, format: "srt", conflictPolicy: "overwrite", removeAfterExport: true };
     const result = await call("prepare_studio_transcription");
@@ -368,7 +389,7 @@ describe("settings follow the Studio", () => {
   afterEach(() => { (translationDraftMemory as unknown as { previous?: unknown }).previous = undefined; });
   it("prepares translation with the last translation dialog settings unless the user named them", async () => {
     translationDraftMemory.remember(undefined, undefined, { profileId: "task-profile", language: "ja", instructions: "Keep honorifics.",
-      contextWindow: "16384", maxOutputTokens: "2048", maxBatchCues: "20", selection: emptySelection("ja"), documentTopicIds: [], cueIds: [] });
+      contextWindow: "16384", maxOutputTokens: "2048", maxBatchCues: "20", selection: emptySelection("ja"), cueIds: [] });
     const result = await call("prepare_studio_translation", { documents: [{ documentId, revision: 1 }], maxBatchCues: 10 });
     expect(api.planTranslationBatch).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({
       language: "ja", instructions: "Keep honorifics.", contextWindow: 16384, maxOutputTokens: 2048, maxBatchCues: 10 }) }));

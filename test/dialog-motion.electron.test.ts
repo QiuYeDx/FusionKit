@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator } from '@playwright/test';
 import { knowledgeFixture } from './translation-knowledge/fixtures';
+import type { TermEntry } from '../src/translation-knowledge/schemas';
 import knowledgeLabels from '../src/locales/zh/knowledge.json';
 
 const artifacts = path.resolve('test-results/dialog-motion');
@@ -116,7 +117,7 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_MOTION_E2E === '1')('measured dialog
     const names = ['01-弹窗动画与原文导出验证.srt', '02-第二份真实字幕.srt'];
     const source = '1\n00:00:01,000 --> 00:00:02,000\nA real source subtitle.\n\n2\n00:00:03,000 --> 00:00:04,000\nThe second source line.\n';
     const files = names.map(name => path.join(root, name));
-    const fixture = knowledgeFixture(), term = fixture.entries.find(entry => entry.kind === 'term')!;
+    const fixture = knowledgeFixture(), term = fixture.entries.find((entry): entry is TermEntry => entry.kind === 'term' && entry.collectionId === fixture.collections[0].id)!;
     const knowledgeFile = path.join(root, 'motion-materials.fktk.json');
     await Promise.all([...files.map(file => writeFile(file, source)), writeFile(knowledgeFile, JSON.stringify(fixture))]);
     let app: ElectronApplication | undefined;
@@ -264,39 +265,38 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_MOTION_E2E === '1')('measured dialog
       await page.reload(); await page.getByTestId('knowledge-import').waitFor(); await ready();
       await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, knowledgeFile);
       await page.getByTestId('knowledge-import').click();
-      await page.getByRole('button', { name: knowledgeLabels.actions.confirm_import, exact: true }).click();
+      await uiExpect(dialog()).toContainText(knowledgeLabels.import.title);
+      await page.getByTestId('knowledge-import-commit').click();
       await uiExpect(page.locator(dialogSelector)).toHaveCount(0);
+      await uiExpect(page.getByTestId('knowledge-collection-header').locator('h2')).toHaveText(fixture.collections[0].name);
       const before = await page.evaluate(async () => { const result = await window.translationKnowledge.read(); if (!result.ok) throw new Error(result.error); return result.value; });
-      await page.getByTestId('knowledge-all').click();
-      await page.getByTestId('knowledge-views').getByRole('tab', { name: knowledgeLabels.workspace.terms, exact: true }).click();
-      await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
-      await page.getByTestId('knowledge-entry-edit').click();
-      await uiExpect(page.getByTestId('knowledge-entry-editor')).toBeVisible();
-      const rawAliases = 'checkpoint\n\n  save point  \n';
-      const aliases = page.getByTestId('knowledge-entry-wording').getByLabel(knowledgeLabels.fields.aliases_lines, { exact: true });
-      await aliases.fill(rawAliases);
+      // The bulk paste dialog swaps its input for the review between two measured stages; the draft survives going back.
+      await page.getByTestId('knowledge-paste-open').click();
+      const pasteInput = page.getByTestId('knowledge-paste-input');
+      await uiExpect(pasteInput).toBeVisible();
+      const rawPaste = `motion alpha\t动画甲\nmotion beta\t动画乙\n${term.payload.source}\t${term.payload.target}\n`;
+      await pasteInput.fill(rawPaste);
       for (let cycle = 0; cycle < 2; cycle++) {
-        const language = await trace(`knowledge-language-${cycle}`, () => dialog().getByRole('tab', { name: knowledgeLabels.record.tab_language, exact: true }).click());
-        assertInterpolated(language, 'height');
-        expect(language.some(frame => frame.exits.length > 0)).toBe(true);
-        await trace(`knowledge-wording-${cycle}`, () => dialog().getByRole('tab', { name: knowledgeLabels.record.tab_wording, exact: true }).click());
-        await uiExpect(aliases).toHaveValue(rawAliases);
+        const review = await trace(`knowledge-paste-review-${cycle}`, () => page.getByTestId('knowledge-paste-preview').click());
+        assertInterpolated(review, 'height');
+        expect(review.some(frame => frame.exits.length > 0)).toBe(true);
+        await uiExpect(page.getByTestId('knowledge-paste-rows').locator('[data-paste-status]')).toHaveCount(3);
+        const input = await trace(`knowledge-paste-input-${cycle}`, () => dialog().getByRole('button', { name: knowledgeLabels.paste.back, exact: true }).click());
+        assertInterpolated(input, 'height');
+        await uiExpect(pasteInput).toHaveValue(rawPaste);
       }
-      await capture('05-knowledge-editor-draft-light');
+      await capture('05-knowledge-paste-draft-light');
       await nativeWindow.evaluate(win => win.setSize(786, 540));
       await page.evaluate(() => document.documentElement.classList.add('dark'));
-      await dialog().getByRole('tab', { name: knowledgeLabels.record.tab_metadata, exact: true }).click();
-      const note = page.getByTestId('knowledge-entry-metadata').locator('textarea');
-      await note.evaluate(element => { element.style.height = '800px'; });
-      const knowledgeNarrow = await capture('06-knowledge-editor-narrow-dark');
+      await pasteInput.evaluate(element => { element.style.height = '800px'; });
+      const knowledgeNarrow = await capture('06-knowledge-paste-narrow-dark');
+      expect(knowledgeNarrow.scroller!.scrollHeight).toBeGreaterThan(knowledgeNarrow.scroller!.clientHeight);
       await dialog().locator('[data-slot="scroll-area-viewport"]').first().evaluate(element => { element.scrollTop = element.scrollHeight; });
-      const knowledgeScrolled = await capture('07-knowledge-editor-scrolled-dark');
+      const knowledgeScrolled = await capture('07-knowledge-paste-scrolled-dark');
       expect(knowledgeScrolled.scroller!.top).toBeGreaterThan(0);
       expect(knowledgeScrolled.footer!.y).toBeCloseTo(knowledgeNarrow.footer!.y, 1);
       expect(knowledgeScrolled.header!.y).toBeCloseTo(knowledgeNarrow.header!.y, 1);
-      await dialog().getByTestId('knowledge-record-close').click();
-      await uiExpect(page.getByTestId('knowledge-entry-detail')).toBeVisible();
-      await dialog().getByTestId('knowledge-record-close').click();
+      await dialog().getByRole('button', { name: knowledgeLabels.actions.close, exact: true }).click();
       await uiExpect(page.locator(dialogSelector)).toHaveCount(0);
       const after = await page.evaluate(async () => { const result = await window.translationKnowledge.read(); if (!result.ok) throw new Error(result.error); return result.value; });
       expect(after).toEqual(before);
@@ -335,13 +335,13 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_MOTION_E2E === '1')('measured dialog
           await sampler.dispose();
         }
       };
-      await uiExpect(tour.getByRole('heading', { name: knowledgeLabels.tour.collection_title, exact: true })).toBeVisible();
-      const tourGrow = await tourTrace('knowledge-tour-materials-grow', () => page.getByTestId('knowledge-tour-next').click());
+      await uiExpect(tour.getByRole('heading', { name: knowledgeLabels.tour.collections_title, exact: true })).toBeVisible();
+      const tourGrow = await tourTrace('knowledge-tour-entries-grow', () => page.getByTestId('knowledge-tour-next').click());
       assertInterpolated(tourGrow, 'height');
       expect(tourGrow.some(frame => frame.exits.length > 0)).toBe(true);
-      const tourShrink = await tourTrace('knowledge-tour-collection-shrink', () => page.getByTestId('knowledge-tour-previous').click());
+      const tourShrink = await tourTrace('knowledge-tour-collections-shrink', () => page.getByTestId('knowledge-tour-previous').click());
       assertInterpolated(tourShrink, 'height');
-      for (const name of ['materials', 'review', 'plans', 'studio'] as const) {
+      for (const name of ['entries', 'studio'] as const) {
         await tourTrace(`knowledge-tour-step-${name}`, () => page.getByTestId('knowledge-tour-next').click());
         await uiExpect(tour.getByRole('heading', { name: knowledgeLabels.tour[`${name}_title`], exact: true })).toBeVisible();
       }

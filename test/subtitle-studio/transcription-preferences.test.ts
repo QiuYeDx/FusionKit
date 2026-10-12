@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { DEFAULT_AUTOMATIC_KNOWLEDGE, DEFAULT_TRANSCRIPTION_PREFERENCES, readTranscriptionPreferences, transcriptionPreferencesSchema } from '../../src/subtitle-studio/transcription/preferences-contract';
 import { useStudioPreferences } from '../../src/store/tools/subtitle-studio/preferences';
 
-afterEach(() => { vi.unstubAllGlobals(); useStudioPreferences.setState({ encoding: 'utf-8', dismissedRecoveryKey: '', transcription: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES) }); });
+afterEach(() => { vi.unstubAllGlobals(); useStudioPreferences.setState({ encoding: 'utf-8', dismissedRecoveryKey: '', transcription: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), recentKnowledgeSets: [] }); });
 it('defaults automatic translation off and rejects unknown credentials or inconsistent acoustic settings', () => {
   expect(readTranscriptionPreferences(undefined)).toEqual(DEFAULT_TRANSCRIPTION_PREFERENCES);
   expect(DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation.enabled).toBe(false);
@@ -20,7 +20,7 @@ it('hydrates the existing preference key and persists only valid settings alongs
   const settings = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES); settings.config.language = 'ja'; settings.config.advanced.beamSize = 7; settings.autoTranslation.enabled = true; settings.autoTranslation.profileId = 'profile';
   useStudioPreferences.getState().setTranscription(settings);
   const persisted = JSON.parse(storage.get(key)!);
-  expect(Object.keys(persisted.state).sort()).toEqual(['cueAudioLoop', 'cueAudioPadMs', 'cueAudioTempo', 'dismissedRecoveryKey', 'encoding', 'transcription']);
+  expect(Object.keys(persisted.state).sort()).toEqual(['cueAudioLoop', 'cueAudioPadMs', 'cueAudioTempo', 'dismissedRecoveryKey', 'encoding', 'recentKnowledgeSets', 'transcription']);
   // An older store without the original-audio padding gets the default.
   expect(persisted.state.cueAudioPadMs).toBe(300);
   expect(persisted.state.cueAudioTempo).toBe(1); expect(persisted.state.cueAudioLoop).toBe(false);
@@ -42,13 +42,38 @@ it('reads older transcription settings without resetting ASR or automatic model 
   expect(readTranscriptionPreferences(saved)).toEqual(saved);
   expect(readTranscriptionPreferences(saved).autoTranslation).not.toHaveProperty('knowledge');
 });
-it('persists only shared automatic knowledge choices, including explicitly cleared recipe defaults', () => {
+it('persists only shared automatic knowledge choices, including explicitly cleared instructions', () => {
   const knowledge = { ...DEFAULT_AUTOMATIC_KNOWLEDGE, enabled: true, sourceLanguage: 'ja', instructions: '', context: 'Shared episode background',
-    collectionIds: ['11111111-1111-4111-8111-111111111111'], documentTopicIds: ['22222222-2222-4222-8222-222222222222'] };
+    collectionIds: ['11111111-1111-4111-8111-111111111111'], disabledEntryIds: ['33333333-3333-4333-8333-333333333333'] };
   const saved = { ...DEFAULT_TRANSCRIPTION_PREFERENCES, autoTranslation: { ...DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, knowledge } };
   expect(readTranscriptionPreferences(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
   for (const extra of [{ knowledgeGeneration: 12 }, { apiKey: 'secret' }, { snapshot: {} }, { bindings: [] }, { confirmations: [] }, { targetLanguage: 'en' }]) {
     expect(transcriptionPreferencesSchema.safeParse({ ...saved, autoTranslation: { ...saved.autoTranslation, knowledge: { ...knowledge, ...extra } } }).success).toBe(false);
   }
   expect(transcriptionPreferencesSchema.safeParse({ ...saved, autoTranslation: { ...saved.autoTranslation, knowledge: { ...knowledge, sourceLanguage: 'auto' } } }).success).toBe(false);
+  for (const duplicate of [{ collectionIds: [knowledge.collectionIds[0], knowledge.collectionIds[0]] }, { disabledEntryIds: [knowledge.disabledEntryIds[0], knowledge.disabledEntryIds[0]] }]) {
+    expect(transcriptionPreferencesSchema.safeParse({ ...saved, autoTranslation: { ...saved.autoTranslation, knowledge: { ...knowledge, ...duplicate } } }).success).toBe(false);
+  }
+});
+it('falls back to defaults for earlier automatic knowledge choices instead of migrating removed recipe or topic fields', () => {
+  const knowledge = { ...DEFAULT_AUTOMATIC_KNOWLEDGE, enabled: true, sourceLanguage: 'ja', collectionIds: ['11111111-1111-4111-8111-111111111111'] };
+  for (const removed of [{ recipeId: '44444444-4444-4444-8444-444444444444' }, { documentTopicIds: ['22222222-2222-4222-8222-222222222222'] }]) {
+    const saved = { ...DEFAULT_TRANSCRIPTION_PREFERENCES, autoTranslation: { ...DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, enabled: true, knowledge: { ...knowledge, ...removed } } };
+    expect(readTranscriptionPreferences(JSON.parse(JSON.stringify(saved)))).toEqual(DEFAULT_TRANSCRIPTION_PREFERENCES);
+  }
+});
+
+it('remembers the five most recent distinct collection combinations, newest first', async () => {
+  const pair = { source: 'en', target: 'zh-Hans' };
+  const id = (n: number) => `30000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const { rememberKnowledgeSet } = useStudioPreferences.getState();
+  for (let n = 1; n <= 6; n++) rememberKnowledgeSet({ languagePair: pair, collectionIds: [id(n)] });
+  rememberKnowledgeSet({ languagePair: pair, collectionIds: [id(3)] });
+  rememberKnowledgeSet({ languagePair: pair, collectionIds: [id(9), id(9)] });
+  rememberKnowledgeSet({ languagePair: pair, collectionIds: [] });
+  const recent = useStudioPreferences.getState().recentKnowledgeSets;
+  expect(recent.map(item => item.collectionIds)).toEqual([[id(9)], [id(3)], [id(6)], [id(5)], [id(4)]]);
+  vi.stubGlobal('localStorage', { getItem: () => JSON.stringify({ state: { recentKnowledgeSets: [{ languagePair: pair, collectionIds: ['not-a-uuid'], usedAt: 1 }] }, version: 2 }), setItem: () => {}, removeItem: () => {} });
+  await useStudioPreferences.persist.rehydrate();
+  expect(useStudioPreferences.getState().recentKnowledgeSets).toEqual([]);
 });

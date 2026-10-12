@@ -3,11 +3,10 @@ import { idSchema } from './domain';
 import { translationConfigSchema, translationScopeSchema } from './translation-contract';
 import { knowledgeSelectionSchema, type KnowledgeIssue } from '../translation-knowledge/execution-contract';
 
-export const documentTopicIdsSchema = z.array(idSchema).max(20).refine(ids => new Set(ids).size === ids.length);
 export const knowledgeTranslationRequestSchemas = {
   planKnowledgeTranslation: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(),
     knowledgeGeneration: z.number().int().nonnegative().safe(), config: translationConfigSchema,
-    knowledge: knowledgeSelectionSchema, documentTopicIds: documentTopicIdsSchema, scope: translationScopeSchema.optional() }).strict(),
+    knowledge: knowledgeSelectionSchema, scope: translationScopeSchema.optional() }).strict(),
   createKnowledgeTranslation: z.object({ planId: idSchema, apiKey: z.string().min(1).max(8000) }).strict(),
   cancelKnowledgeTranslationPlan: z.object({}).strict(),
 };

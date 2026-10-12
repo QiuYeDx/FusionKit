@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { ExportCommit, ExportPreview, ExportSelectionRequest } from '../../../src/translation-knowledge/export-contract';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
 import { KnowledgeServiceError } from './errors';
-import { buildExportSelection } from './export-selection';
+import { buildExportPackage, privacyWarnings } from './export-selection';
 
 const PLAN_TTL_MS = 15 * 60 * 1000;
 interface FrozenExport { owner: string; expires: number; preview: ExportPreview; text: string }
@@ -22,14 +22,15 @@ export class KnowledgeExportPlans {
     const snapshot = await this.read(); alive(); this.assertOpen();
     if (revision !== this.revision || ownerRevision !== this.ownerRevisions.get(owner)) throw new KnowledgeServiceError('plan_expired');
     if (snapshot.generation !== request.generation) throw new KnowledgeServiceError('revision_conflict');
-    if (snapshot.maintenance?.cleanupPending) throw new KnowledgeServiceError('storage_unavailable');
-    const result = buildExportSelection(snapshot, request, {
-      id: randomUUID(), revision: 1, name: request.purpose === 'backup' ? 'Translation knowledge backup' : 'Translation knowledge selection',
-      description: '', purpose: request.purpose, createdAt: new Date(this.now()).toISOString(), generator: { name: 'FusionKit', version: '0.4.0' },
+    const collections = snapshot.data.collections.filter(item => request.collectionIds.includes(item.id));
+    const data = buildExportPackage(snapshot, request, {
+      id: randomUUID(), revision: 1, name: collections.length === 1 ? collections[0].name : 'Translation knowledge',
+      description: '', createdAt: new Date(this.now()).toISOString(), generator: { name: 'FusionKit' },
     });
-    const text = result.data && !result.preview.errors.length ? `${JSON.stringify(result.data, null, 2)}\n` : '';
-    const preview: ExportPreview = { ...result.preview, planId: randomUUID(), generation: snapshot.generation, purpose: request.purpose,
-      bytes: Buffer.byteLength(text), digest: text ? createHash('sha256').update(text).digest('hex') : '', canExport: !!text };
+    const text = `${JSON.stringify(data, null, 2)}\n`;
+    const preview: ExportPreview = { planId: randomUUID(), generation: snapshot.generation,
+      counts: { collections: data.collections.length, entries: data.entries.length, presets: data.presets.length },
+      warnings: privacyWarnings(data), bytes: Buffer.byteLength(text), digest: createHash('sha256').update(text).digest('hex') };
     if (preview.bytes > 32 * 1024 * 1024) throw new KnowledgeServiceError('limit_exceeded');
     this.plans.set(preview.planId, { owner, expires: this.now() + PLAN_TTL_MS, preview, text });
     return structuredClone(preview);
@@ -39,7 +40,6 @@ export class KnowledgeExportPlans {
     this.assertOpen();
     const plan = this.plans.get(planId);
     if (!plan || plan.owner !== owner || plan.expires < this.now()) throw new KnowledgeServiceError('plan_expired');
-    if (!plan.preview.canExport) throw new KnowledgeServiceError('invalid_input', plan.preview.errors);
   }
 
   async prepare(owner: string, request: ExportCommit, alive: () => void): Promise<{ text: string; preview: ExportPreview }> {
@@ -48,7 +48,6 @@ export class KnowledgeExportPlans {
     const snapshot = await this.read();
     alive(); this.guard(owner, request.planId);
     if (snapshot.generation !== plan.preview.generation) throw new KnowledgeServiceError('revision_conflict');
-    if (snapshot.maintenance?.cleanupPending) throw new KnowledgeServiceError('storage_unavailable');
     return { text: plan.text, preview: structuredClone(plan.preview) };
   }
   releaseOwner(owner: string): void {

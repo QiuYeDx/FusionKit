@@ -1,10 +1,15 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
+import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { SaveRecordRequest } from '../../src/translation-knowledge/ipc-contract';
-import type { Collection, Entry, Recipe, Source } from '../../src/translation-knowledge/schemas';
+import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
+import type { Collection, Entry, Preset, TermEntry } from '../../src/translation-knowledge/schemas';
+import { KNOWLEDGE_CHANGED_EVENT } from '../../src/translation-knowledge/library-events';
+import zh from '../../src/locales/zh/knowledge.json';
+
+const fill = (template: string, values: Record<string, string | number>) => template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(values[key]));
+const withoutRevision = <T extends { revision: number }>(record: T) => ({ ...record, revision: expect.any(Number) });
 
 describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintenance in native Electron', () => {
   let application: ElectronApplication | undefined;
@@ -22,7 +27,7 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
     }
   });
 
-  it('previews direct deletion, preserves cancelled changes and sources, and distinguishes archive from deletion', async () => {
+  it('selects, disables, moves and deletes entries with undo, and manages, archives and deletes collections with undo', async () => {
     root = await mkdtemp(path.join(tmpdir(), 'fusionkit-collection-maintenance-'));
     await mkdir(screenshots, { recursive: true });
     application = await electron.launch({
@@ -40,65 +45,25 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       if (!result.ok) throw new Error(result.error);
       return result.value;
     });
-    const capture = async (name: string, target: Locator) => {
+    const capture = async (name: string) => {
       await ui.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
-      await uiExpect(target).toBeVisible();
-      // CSS screenshot animation disabling does not settle the dialog's Motion
-      // layout. Sample the actual target until its geometry has stopped moving.
-      await target.evaluate(element => new Promise<void>((resolve, reject) => {
-        const started = performance.now();
-        let previous: number[] = [], stable = 0;
-        const sample = () => {
-          const nodes = [element, ...element.querySelectorAll('div')];
-          const values = nodes.flatMap(node => {
-            const rect = node.getBoundingClientRect();
-            return [rect.x, rect.y, rect.width, rect.height];
-          });
-          stable = previous.length === values.length && values.every((value, index) => Math.abs(value - previous[index]) < 0.1) ? stable + 1 : 0;
-          previous = values;
-          if (stable >= 8 && performance.now() - started > 250) { resolve(); return; }
-          if (performance.now() - started > 5000) { reject(new Error('Collection maintenance layout did not settle')); return; }
-          requestAnimationFrame(sample);
-        };
-        requestAnimationFrame(sample);
-      }));
-      const geometry = await target.evaluate(element => {
-        const rect = element.getBoundingClientRect();
-        return {
-          fits: rect.left >= 0 && rect.top >= 0 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1,
-          overflow: element.scrollWidth > element.clientWidth + 1,
-          scrollingContentOverflows: [...element.querySelectorAll('[data-slot="scroll-area-viewport"]')].some(viewport => viewport.scrollWidth > viewport.clientWidth + 1),
-        };
-      });
-      expect(geometry).toEqual({ fits: true, overflow: false, scrollingContentOverflows: false });
+      await ui.waitForTimeout(250);
+      expect(await ui.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       await ui.screenshot({ path: path.join(screenshots, `${name}.png`), animations: 'disabled' });
     };
-    const selectCollection = async (id: string, name: string) => {
-      await ui.locator(`[data-collection-id="${id}"]`).click();
-      await uiExpect(ui.locator('#knowledge-content-heading h2')).toHaveText(name);
+    const heading = ui.getByTestId('knowledge-collection-header').locator('h2');
+    const selectCollection = async (collection: Collection) => {
+      await ui.locator(`[data-collection-id="${collection.id}"]`).click();
+      await uiExpect(heading).toHaveText(collection.name);
     };
+    const table = ui.getByTestId('knowledge-term-table');
+    const row = (entry: Entry) => table.locator(`[role="row"][data-entry-id="${entry.id}"]`);
+    const checkbox = (term: TermEntry) => table.getByRole('checkbox', { name: fill(zh.terms.select, { source: term.payload.source }), exact: true });
+    const toast = (text: string) => ui.locator('[data-sonner-toast]').filter({ hasText: text });
+    const selectionBar = ui.getByTestId('knowledge-selection-bar');
     const openActions = async () => {
       await ui.getByTestId('knowledge-collection-actions').click();
       await uiExpect(ui.getByRole('menu')).toBeVisible();
-    };
-    const openMaintenance = async (action: 'archive' | 'restore' | 'delete') => {
-      await openActions();
-      await ui.getByTestId(`knowledge-collection-${action}`).click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeVisible();
-    };
-    const cancel = async () => {
-      await ui.getByRole('dialog').getByRole('button', { name: /^(取消|Cancel)$/ }).click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-    };
-    const confirm = async () => {
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
-      await ui.getByTestId('knowledge-maintenance-confirm').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-    };
-    const expectDirectDeletion = async () => {
-      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
     };
 
     try {
@@ -110,294 +75,229 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('collection maintena
       });
       await ui.reload();
       await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await uiExpect(ui.getByTestId('knowledge-new-collection')).toBeEnabled();
+      await uiExpect(ui.getByTestId('knowledge-empty-library')).toBeVisible();
 
-      // Seed through the production preload boundary; no repository files,
-      // maintenance plans or state transitions are stubbed by this scenario.
+      // Seed through the production preload boundary in one transaction.
       const fixture = await ui.evaluate(async () => {
         const initial = await window.translationKnowledge.read();
         if (!initial.ok) throw new Error(initial.error);
-        let snapshot = initial.value;
-        const save = async (request: Omit<SaveRecordRequest, 'generation'>) => {
-          const result = await window.translationKnowledge.saveRecord({ ...request, generation: snapshot.generation });
-          if (!result.ok) throw new Error(`${result.error}: ${JSON.stringify(result.diagnostics)}`);
-          snapshot = result.value;
-        };
-        const collection = (name: string): Collection => ({
-          id: crypto.randomUUID(), revision: 1, archived: false, name, description: '', aboutSubjectIds: [],
-          defaultLanguagePair: { source: 'en', target: 'zh-Hans' },
+        const en = { source: 'en', target: 'zh-Hans' };
+        const collection = (name: string, languagePair = en, archived = false): Collection => ({ id: crypto.randomUUID(), revision: 1, name, description: '', languagePair, archived });
+        const main = collection('A · 游戏 X 术语');
+        const target = collection('B · 通用游戏用语');
+        const other = collection('C · 日语节目资料', { source: 'ja', target: 'zh-Hans' });
+        const archived = collection('D · 已归档的旧项目', en, true);
+        const term = (owner: Collection, source: string, target: string): TermEntry => ({
+          id: crypto.randomUUID(), revision: 1, kind: 'term', collectionId: owner.id, enabled: true, origin: { kind: 'manual' },
+          payload: { source, target, aliases: [], note: '', strength: 'preferred', match: { mode: 'literal_phrase', caseSensitive: false } },
         });
-        const empty = collection('可删除的空资料集');
-        const filled = collection('旅行视频术语 · 本次删除的资料集');
-        const other = collection('日常对话 · 保留的其他资料集');
-        const archival = collection('暂时停用 · 可恢复的节目资料集');
-        const referenced = collection('翻译方案正在使用的资料集');
-        for (const record of [empty, filled, other, archival, referenced]) await save({ group: 'collections', record });
-        const sharedSource: Source = {
-          id: crypto.randomUUID(), revision: 1, kind: 'user_note', title: '多个资料集共用的人工译名约定',
-          excerpt: '本地测试使用的译名约定；删除资料集不应连带删除来源依据。',
-        };
-        const archivalSource: Source = {
-          id: crypto.randomUUID(), revision: 1, kind: 'user_note', title: '节目资料的独立人工来源',
-          excerpt: '删除此资料集后，该来源仍可留待单独整理。',
-        };
-        for (const record of [sharedSource, archivalSource]) await save({ group: 'sources', record });
-        const term = (owner: Collection, source: string, target: string, evidenceSource = sharedSource): Entry => ({
-          id: crypto.randomUUID(), revision: 1, kind: 'term', title: `${source} → ${target}`, collectionId: owner.id,
-          aboutSubjectIds: [], scope: { languagePair: { source: 'en', target: 'zh-Hans' }, requiredSubjects: [], condition: { mode: 'none' } },
-          state: 'ready', evidence: [{ sourceId: evidenceSource.id, support: 'direct' }], derivedFrom: [],
-          payload: { source, target, aliases: [], sense: '', match: { mode: 'whole_term', caseSensitive: false }, strength: 'preferred' },
-        });
-        const filledTerms = [term(filled, 'checkpoint', '存档点'), term(filled, 'save slot', '存档槽')];
-        const otherTerm = term(other, 'good morning', '早安');
-        const archivalTerm = term(archival, 'opening scene', '开场', archivalSource);
-        const referencedTerm = term(referenced, 'closing scene', '尾声');
-        for (const record of [...filledTerms, otherTerm, archivalTerm, referencedTerm]) await save({ group: 'entries', record, adopt: true });
-        const recipe: Recipe = {
-          id: crypto.randomUUID(), revision: 1, archived: false, name: '节目字幕英中翻译方案', description: '',
-          languagePair: { source: 'en', target: 'zh-Hans' }, readCollectionIds: [referenced.id], subjectSuggestions: [],
-          modifierStyleIds: [], instructions: '', context: '', inheritGlobalPreferences: true, learningSuggestion: 'off',
-        };
-        await save({ group: 'recipes', record: recipe });
-        return { empty, filled, other, archival, referenced, filledTerms, otherTerm, archivalTerm, referencedTerm, recipe, sharedSource, archivalSource };
+        const terms = [term(main, 'checkpoint', '存档点'), term(main, 'save slot', '存档槽'), term(main, 'boss', '首领'),
+          term(main, 'quest', '任务'), term(main, 'loot', '战利品'), term(main, 'respawn', '重生')];
+        const rule: Entry = { id: crypto.randomUUID(), revision: 1, kind: 'rule', collectionId: main.id, enabled: true, payload: { text: '保留角色名的原文写法', required: true } };
+        const otherTerm = term(other, 'おはよう', '早上好');
+        const preset: Preset = { id: crypto.randomUUID(), revision: 1, name: '游戏实况预设', languagePair: en, collectionIds: [main.id, target.id], instructions: '', context: '' };
+        const saved = await window.translationKnowledge.saveRecords({ generation: initial.value.generation, items: [
+          ...[main, target, other, archived].map(record => ({ group: 'collections' as const, record })),
+          ...[...terms, rule, otherTerm].map(record => ({ group: 'entries' as const, record })),
+          { group: 'presets' as const, record: preset },
+        ] });
+        if (!saved.ok) throw new Error(`${saved.error}: ${JSON.stringify(saved.diagnostics)}`);
+        return { main, target, other, archived, terms, rule, otherTerm, preset };
       });
+      const [checkpoint, saveSlot, boss, quest, loot, respawn] = fixture.terms;
       await ui.reload();
-      await uiExpect(ui.getByTestId('knowledge-new-collection')).toBeEnabled();
-      const originalOther = (await read()).data.entries.find(entry => entry.id === fixture.otherTerm.id)!;
-      const originalOtherApproval = (await read()).approvals[fixture.otherTerm.id];
+      // The first live collection by name opens by default.
+      await uiExpect(heading).toHaveText(fixture.main.name);
+      await uiExpect(table.locator('[role="row"][data-entry-id]')).toHaveCount(6);
 
-      // An empty active collection can be deleted directly. Opening and
-      // cancelling the preview must not first archive or revise anything.
-      await selectCollection(fixture.empty.id, fixture.empty.name);
-      const beforeEmpty = await read();
-      await openMaintenance('archive');
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.empty.name);
-      await uiExpect(ui.getByTestId('knowledge-collection-archive-details').locator('[data-slot=accordion-trigger]').first()).toContainText('0 项');
-      await uiExpect(ui.getByRole('button', { name: '取消', exact: true })).toBeFocused();
-      await capture('collection-archive-empty-light-wide', ui.getByRole('dialog'));
-      await ui.keyboard.press('Escape');
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      expect(new URL(ui.url()).hash).toBe('#/tools/translation-knowledge');
-      expect(await read()).toEqual(beforeEmpty);
-      await openMaintenance('delete');
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.empty.name);
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('[data-slot=accordion-trigger]').first()).toContainText('0 项');
-      await uiExpect(ui.getByRole('button', { name: '取消', exact: true })).toBeFocused();
-      await expectDirectDeletion();
-      await cancel();
-      expect(await read()).toEqual(beforeEmpty);
-      await openMaintenance('delete');
-      await expectDirectDeletion();
-      await confirm();
-      expect((await read()).data.collections.some(item => item.id === fixture.empty.id)).toBe(false);
-      await uiExpect(ui.locator(`[data-collection-id="${fixture.empty.id}"]`)).toHaveCount(0);
-
-      // A populated collection previews its real member list before anything
-      // is changed, including the approvals of currently usable terms.
-      await selectCollection(fixture.filled.id, fixture.filled.name);
-      const beforeFilled = await read();
-      expect(fixture.filledTerms.every(term => beforeFilled.data.entries.find(entry => entry.id === term.id)?.state === 'ready')).toBe(true);
-      await openActions();
-      await uiExpect(ui.getByTestId('knowledge-collection-archive')).toBeVisible();
-      await uiExpect(ui.getByTestId('knowledge-collection-delete')).toBeVisible();
-      await capture('collection-menu-light-wide', ui.getByRole('menu'));
-      await ui.getByTestId('knowledge-collection-delete').click();
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.filled.name);
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('[data-slot=accordion-trigger]').first()).toContainText('2 项');
-      for (const term of fixture.filledTerms) await uiExpect(ui.getByRole('dialog')).toContainText(term.title);
-      await uiExpect(ui.getByRole('dialog')).toContainText(fixture.sharedSource.title);
-      await uiExpect(ui.getByRole('dialog')).toContainText('来源依据');
-      const details = ui.getByTestId('knowledge-collection-delete-details');
-      await uiExpect(details.locator('[data-slot=accordion-trigger]').first()).toHaveAttribute('aria-expanded', 'false');
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-history')).toContainText('清理全部资料集的本地历史');
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-tasks')).toContainText('不受影响');
-      await capture('collection-delete-light-wide', ui.getByRole('dialog'));
-      const history = ui.getByTestId('knowledge-collection-delete-history');
-      const separatorOpacity = () => history.evaluate(element => getComputedStyle(element, '::before').opacity);
-      await uiExpect.poll(separatorOpacity).toBe('1');
-      for (const [name, trigger] of [
-        ['entries', details.locator('[data-slot=accordion-trigger]').first()], ['history', history.locator('[data-slot=accordion-trigger]').first()],
-      ] as const) {
-        await trigger.hover();
-        await uiExpect.poll(separatorOpacity).toBe('0');
-        const inset = await trigger.evaluate(element => {
-          const row = element.getBoundingClientRect();
-          const icon = element.firstElementChild!.getBoundingClientRect();
-          const end = element.lastElementChild!.getBoundingClientRect();
-          return { left: icon.left - row.left, right: row.right - end.right };
-        });
-        expect(inset).toEqual({ left: 8, right: 8 });
-        await capture(`collection-delete-hover-${name}-light`, ui.getByRole('dialog'));
-        await ui.getByRole('button', { name: '取消', exact: true }).hover();
-        await uiExpect.poll(separatorOpacity).toBe('1');
+      // AC-PAGE-05-1: checkbox, then Shift range; disabling 3 clears the selection.
+      await checkbox(checkpoint).click();
+      await uiExpect(ui.getByTestId('knowledge-selection-count')).toHaveText(fill(zh.selection.count, { count: 1 }));
+      await checkbox(boss).click({ modifiers: ['Shift'] });
+      await uiExpect(ui.getByTestId('knowledge-selection-count')).toHaveText(fill(zh.selection.count, { count: 3 }));
+      for (const term of [checkpoint, saveSlot, boss]) await uiExpect(row(term)).toHaveAttribute('aria-selected', 'true');
+      for (const term of [quest, loot, respawn]) await uiExpect(row(term)).toHaveAttribute('aria-selected', 'false');
+      await uiExpect(ui.getByTestId('knowledge-select-page')).toHaveAttribute('data-state', 'indeterminate');
+      await capture('01-range-selected');
+      await ui.getByTestId('knowledge-selection-disable').click();
+      await uiExpect(toast(fill(zh.selection.disabled_done, { count: 3 }))).toBeVisible();
+      await uiExpect(selectionBar).toHaveCount(0);
+      for (const term of [checkpoint, saveSlot, boss]) {
+        await uiExpect(row(term)).toHaveAttribute('data-enabled', 'false');
+        await uiExpect(row(term)).toContainText(zh.terms.disabled);
+        await uiExpect(row(term)).toHaveAttribute('aria-selected', 'false');
       }
-      const detailsTrigger = details.locator('[data-slot=accordion-trigger]').first();
-      await detailsTrigger.focus();
-      // Programmatic focus after hover remains in pointer modality. Traverse
-      // the actual tab order so this checks the keyboard focus-visible state.
-      await ui.keyboard.press('Tab');
-      await ui.keyboard.press('Shift+Tab');
-      await uiExpect(detailsTrigger).toBeFocused();
-      await uiExpect.poll(separatorOpacity).toBe('0');
-      await ui.keyboard.press('Enter');
-      await uiExpect(detailsTrigger).toHaveAttribute('aria-expanded', 'true');
-      // The lower divider now borders expanded content, not the hovered heading.
-      await uiExpect.poll(separatorOpacity).toBe('1');
-      await capture('collection-delete-details-light-wide', ui.getByRole('dialog'));
-      await ui.keyboard.press('Space');
-      await uiExpect(detailsTrigger).toHaveAttribute('aria-expanded', 'false');
-      await uiExpect(details.locator('[data-slot=accordion-content]').first()).toHaveAttribute('inert', '');
-      await uiExpect(details.locator('li').first()).toBeHidden();
-      await uiExpect.poll(separatorOpacity).toBe('0');
-      await cancel();
-      expect(await read()).toEqual(beforeFilled);
-
-      await ui.evaluate(() => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })));
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
-      await selectCollection(fixture.filled.id, fixture.filled.name);
-      await openActions();
-      await capture('collection-menu-dark-narrow', ui.getByRole('menu'));
-      await ui.getByTestId('knowledge-collection-delete').click();
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('[data-slot=accordion-trigger]').first()).toContainText('2 项');
-      await ui.getByTestId('knowledge-collection-delete-history').locator('[data-slot=accordion-trigger]').first().hover();
-      await uiExpect.poll(separatorOpacity).toBe('0');
-      await capture('collection-delete-dark-narrow', ui.getByRole('dialog'));
-      await expectDirectDeletion();
-      await confirm();
       let stored = await read();
-      expect(stored.data.collections.some(item => item.id === fixture.filled.id)).toBe(false);
-      for (const term of fixture.filledTerms) {
-        expect(stored.data.entries.some(entry => entry.id === term.id)).toBe(false);
-        expect(stored.approvals[term.id]).toBeUndefined();
-      }
-      expect(stored.data.collections.find(item => item.id === fixture.other.id)).toEqual(fixture.other);
-      expect(stored.data.entries.find(entry => entry.id === fixture.otherTerm.id)).toEqual(originalOther);
-      expect(stored.approvals[fixture.otherTerm.id]).toEqual(originalOtherApproval);
-      expect(stored.data.sources.find(source => source.id === fixture.sharedSource.id)).toEqual(fixture.sharedSource);
-      expect(stored.maintenance?.cleanupPending).toBe(false);
+      const enabledOf = (snapshot: LibrarySnapshot) => Object.fromEntries(fixture.terms.map(term => [term.payload.source, snapshot.data.entries.find(entry => entry.id === term.id)!.enabled]));
+      expect(enabledOf(stored)).toEqual({ checkpoint: false, 'save slot': false, boss: false, quest: true, loot: true, respawn: true });
 
-      // Archive is reversible suspension: retain the collection and terms,
-      // invalidate applicability, and require a fresh confirmation on restore.
-      await ui.evaluate(() => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })));
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await selectCollection(fixture.archival.id, fixture.archival.name);
-      const beforeArchive = await read();
-      expect(beforeArchive.approvals[fixture.archivalTerm.id]).toBeDefined();
-      await openMaintenance('archive');
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.archival.name);
-      await uiExpect(ui.getByRole('dialog')).toContainText(/保留/);
-      await uiExpect(ui.getByRole('dialog')).toContainText(/待审核|重新确认|重新审核/);
-      await uiExpect(ui.getByRole('button', { name: '取消', exact: true })).toBeFocused();
-      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toHaveText('归档资料集');
-      const archiveDetails = ui.getByTestId('knowledge-collection-archive-details');
-      await uiExpect(archiveDetails.locator('[data-slot=accordion-trigger]').first()).toHaveAttribute('aria-expanded', 'false');
-      await uiExpect(archiveDetails.locator('[data-slot=accordion-trigger]').first()).toContainText('1 项');
-      await capture('collection-archive-light-wide', ui.getByRole('dialog'));
-      await archiveDetails.locator('[data-slot=accordion-trigger]').first().click();
-      await uiExpect(archiveDetails.locator('li').filter({ hasText: fixture.archivalTerm.title })).toBeVisible();
-      await capture('collection-archive-details-light-wide', ui.getByRole('dialog'));
-      await cancel();
-      expect(await read()).toEqual(beforeArchive);
+      // Select the whole page, then clear it again from the same header checkbox.
+      await ui.getByTestId('knowledge-select-page').click();
+      await uiExpect(ui.getByTestId('knowledge-selection-count')).toHaveText(fill(zh.selection.count, { count: 6 }));
+      await uiExpect(ui.getByTestId('knowledge-select-page')).toHaveAttribute('data-state', 'checked');
+      await ui.getByTestId('knowledge-select-page').click();
+      await uiExpect(selectionBar).toHaveCount(0);
 
-      await ui.evaluate(() => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })));
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
-      await selectCollection(fixture.archival.id, fixture.archival.name);
-      await openMaintenance('archive');
-      await archiveDetails.locator('[data-slot=accordion-trigger]').first().hover();
-      await capture('collection-archive-dark-narrow', ui.getByRole('dialog'));
-      await confirm();
+      // AC-PAGE-05-2: only live collections with the same direction are offered as targets.
+      await checkbox(quest).click();
+      await checkbox(loot).click();
+      await uiExpect(ui.getByTestId('knowledge-selection-count')).toHaveText(fill(zh.selection.count, { count: 2 }));
+      await ui.getByTestId('knowledge-selection-move').click();
+      const menu = ui.getByRole('menu');
+      await uiExpect(menu).toContainText(zh.selection.move_help);
+      await uiExpect(menu.locator('[data-move-target]')).toHaveCount(1);
+      expect(await menu.locator('[data-move-target]').evaluateAll(items => items.map(item => item.getAttribute('data-move-target')))).toEqual([fixture.target.id]);
+      await capture('02-move-targets');
+      await menu.getByRole('menuitem', { name: fixture.target.name, exact: true }).click();
+      await uiExpect(toast(fill(zh.selection.moved, { count: 2, name: fixture.target.name }))).toBeVisible();
+      await uiExpect(row(quest)).toHaveCount(0);
+      await uiExpect(row(loot)).toHaveCount(0);
+      await uiExpect(selectionBar).toHaveCount(0);
       stored = await read();
-      expect(stored.data.collections.find(item => item.id === fixture.archival.id)?.archived).toBe(true);
-      expect(stored.data.entries.find(entry => entry.id === fixture.archivalTerm.id)?.state).toBe('needs_review');
-      expect(stored.approvals[fixture.archivalTerm.id]).toBeUndefined();
-      expect(stored.data.sources.find(source => source.id === fixture.archivalSource.id)).toEqual(fixture.archivalSource);
-      const moreManagement = ui.locator('#knowledge-more-management [data-slot=accordion-trigger]').first();
-      if (await moreManagement.getAttribute('aria-expanded') === 'false') await moreManagement.click();
-      await ui.getByTestId('knowledge-archive').click();
-      await selectCollection(fixture.archival.id, fixture.archival.name);
-      await uiExpect(ui.locator(`[data-entry-id="${fixture.archivalTerm.id}"]`)).toBeVisible();
-      await capture('collection-archived-dark-narrow', ui.locator('#knowledge-content-heading'));
-      await openMaintenance('restore');
-      await uiExpect(ui.getByRole('dialog')).toContainText(/不会自动|重新确认|待审核/);
-      await confirm();
-      stored = await read();
-      expect(stored.data.collections.find(item => item.id === fixture.archival.id)?.archived).toBe(false);
-      expect(stored.data.entries.find(entry => entry.id === fixture.archivalTerm.id)?.state).toBe('needs_review');
-      expect(stored.approvals[fixture.archivalTerm.id]).toBeUndefined();
+      for (const term of [quest, loot]) expect(stored.data.entries.find(entry => entry.id === term.id)!.collectionId).toBe(fixture.target.id);
+      await selectCollection(fixture.target);
+      await uiExpect(row(quest)).toBeVisible();
+      await uiExpect(row(loot)).toBeVisible();
+      await selectCollection(fixture.main);
 
-      // Archived collections expose the same deletion action and retain their
-      // own title, rather than an ambiguous generic archive heading.
-      await selectCollection(fixture.archival.id, fixture.archival.name);
-      await openMaintenance('archive');
-      await confirm();
-      await ui.getByTestId('knowledge-archive').click();
-      await selectCollection(fixture.archival.id, fixture.archival.name);
-      await openMaintenance('delete');
-      await uiExpect(ui.getByTestId('collection-maintenance-summary')).toContainText(fixture.archival.name);
-      await uiExpect(ui.getByTestId('knowledge-collection-delete-details').locator('[data-slot=accordion-trigger]').first()).toContainText('1 项');
-      await expectDirectDeletion();
-      await confirm();
+      // AC-PAGE-05-3: delete 2, then Undo in the toast restores the same content.
+      const beforeDelete = await read();
+      const deletedTerms = [checkpoint, saveSlot].map(term => beforeDelete.data.entries.find(entry => entry.id === term.id)!);
+      await checkbox(checkpoint).click();
+      await checkbox(saveSlot).click();
+      await ui.getByTestId('knowledge-selection-delete').click();
+      const deletedToast = toast(fill(zh.undo.deleted, { count: 2 }));
+      await uiExpect(deletedToast).toBeVisible();
+      await uiExpect(row(checkpoint)).toHaveCount(0);
+      await uiExpect(row(saveSlot)).toHaveCount(0);
       stored = await read();
-      expect(stored.data.collections.some(item => item.id === fixture.archival.id)).toBe(false);
-      expect(stored.data.entries.some(entry => entry.id === fixture.archivalTerm.id)).toBe(false);
-      expect(stored.data.sources.find(source => source.id === fixture.archivalSource.id)).toEqual(fixture.archivalSource);
-      expect(stored.data.entries.find(entry => entry.id === fixture.otherTerm.id)).toEqual(originalOther);
-      expect(stored.approvals[fixture.otherTerm.id]).toEqual(originalOtherApproval);
+      expect(stored.data.entries.some(entry => deletedTerms.some(term => term.id === entry.id))).toBe(false);
+      await capture('03-delete-undo-toast');
+      await deletedToast.getByRole('button', { name: zh.undo.action, exact: true }).click();
+      await uiExpect(toast(zh.undo.done)).toBeVisible();
+      await uiExpect(row(checkpoint)).toBeVisible();
+      await uiExpect(row(saveSlot)).toBeVisible();
+      await uiExpect(row(checkpoint)).toHaveAttribute('data-enabled', 'false');
+      stored = await read();
+      for (const term of deletedTerms) expect(stored.data.entries.find(entry => entry.id === term.id)).toEqual(withoutRevision(term));
 
-      // An external recipe reference blocks the destructive action. The real
-      // dependency name must be visible and cancellation leaves all data intact.
-      await selectCollection(fixture.referenced.id, fixture.referenced.name);
-      const beforeBlocked = await read();
-      await openMaintenance('delete');
-      await uiExpect(ui.getByRole('dialog')).toContainText(fixture.recipe.name);
-      await uiExpect(ui.getByRole('dialog')).toContainText('仍被其他资料引用');
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
-      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
-      await capture('collection-delete-referenced-dark-narrow', ui.getByRole('dialog'));
-      await cancel();
-      expect(await read()).toEqual(beforeBlocked);
-      // Long names and translated text must fit a short native window, with
-      // deletion and cancellation still reachable while details scroll.
-      const longName = 'TravelTerminologyWithoutWordBreaks'.repeat(4);
-      await ui.evaluate(async ({ id, name }) => {
-        const result = await window.translationKnowledge.read();
-        if (!result.ok) throw new Error(result.error);
-        const collection = result.value.data.collections.find(item => item.id === id)!;
-        const saved = await window.translationKnowledge.saveRecord({ generation: result.value.generation, group: 'collections', record: { ...collection, name } });
+      // AC-PAGE-04-2: changing the direction of a collection with entries warns, then saves.
+      await selectCollection(fixture.other);
+      await ui.getByTestId('knowledge-edit-collection').click();
+      const dialog = ui.getByRole('dialog');
+      await uiExpect(dialog).toContainText(zh.collection.edit_title);
+      await uiExpect(ui.getByTestId('knowledge-direction-warning')).toHaveCount(0);
+      await dialog.getByRole('combobox', { name: zh.collection.target_language, exact: true }).click();
+      await ui.getByRole('option', { name: zh.languages['zh-Hant'], exact: true }).click();
+      await uiExpect(ui.getByTestId('knowledge-direction-warning')).toHaveText(fill(zh.collection.direction_changed, { count: 1 }));
+      await capture('04-direction-warning');
+      await dialog.getByRole('combobox', { name: zh.collection.target_language, exact: true }).click();
+      await ui.getByRole('option', { name: zh.languages['zh-Hans'], exact: true }).click();
+      await uiExpect(ui.getByTestId('knowledge-direction-warning')).toHaveCount(0);
+      await dialog.getByRole('combobox', { name: zh.collection.target_language, exact: true }).click();
+      await ui.getByRole('option', { name: zh.languages['zh-Hant'], exact: true }).click();
+      await uiExpect(ui.getByTestId('knowledge-direction-warning')).toBeVisible();
+      await ui.getByTestId('knowledge-collection-save').click();
+      await uiExpect(dialog).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-collection-direction')).toContainText(zh.languages['zh-Hant']);
+      stored = await read();
+      expect(stored.data.collections.find(item => item.id === fixture.other.id)!.languagePair).toEqual({ source: 'ja', target: 'zh-Hant' });
+      expect(stored.data.entries.find(entry => entry.id === fixture.otherTerm.id)!.collectionId).toBe(fixture.other.id);
+
+      // AC-PAGE-04-3: archiving moves it to the archived group; restoring puts it back.
+      const liveList = ui.getByTestId('knowledge-collections-scroll');
+      const liveOrder = () => liveList.locator('[data-collection-id]').evaluateAll(rows => rows.map(item => item.getAttribute('data-collection-id')));
+      const before = await liveOrder();
+      expect(before).toEqual([fixture.main.id, fixture.target.id, fixture.other.id]);
+      await openActions();
+      await ui.getByTestId('knowledge-collection-archive').click();
+      await uiExpect(toast(fill(zh.collection.archived_done, { name: fixture.other.name }))).toBeVisible();
+      await uiExpect(liveList.locator(`[data-collection-id="${fixture.other.id}"]`)).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-archived').locator(`[data-collection-id="${fixture.other.id}"]`)).toHaveCount(1);
+      await uiExpect(ui.getByTestId('knowledge-archived')).toContainText(fill(zh.sidebar.archived, { count: 2 }));
+      await uiExpect(ui.getByTestId('knowledge-archived-badge')).toBeVisible();
+      await uiExpect(ui.getByTestId('knowledge-archived-help')).toHaveText(zh.collection.archived_help);
+      await uiExpect(ui.getByTestId('knowledge-add-term')).toHaveCount(0);
+      expect((await read()).data.collections.find(item => item.id === fixture.other.id)!.archived).toBe(true);
+      await capture('05-archived');
+      await ui.getByTestId('knowledge-collection-restore').click();
+      await uiExpect(toast(fill(zh.collection.restored_done, { name: fixture.other.name }))).toBeVisible();
+      await uiExpect.poll(liveOrder).toEqual(before);
+      await uiExpect(ui.getByTestId('knowledge-archived').locator(`[data-collection-id="${fixture.other.id}"]`)).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-archived-badge')).toHaveCount(0);
+      expect((await read()).data.collections.find(item => item.id === fixture.other.id)!.archived).toBe(false);
+
+      // AC-PAGE-04-4 / AC-PAGE-05-4: the confirmation names what goes along; Undo restores all of it.
+      await selectCollection(fixture.main);
+      const beforeCollectionDelete = await read();
+      const mainEntries = beforeCollectionDelete.data.entries.filter(entry => entry.collectionId === fixture.main.id);
+      expect(mainEntries).toHaveLength(5);
+      await openActions();
+      await ui.getByTestId('knowledge-collection-delete').click();
+      const impact = ui.getByTestId('knowledge-collection-delete-impact');
+      await uiExpect(dialog).toContainText(fill(zh.collection.delete_title, { name: fixture.main.name }));
+      await uiExpect(impact).toContainText(fill(zh.collection.delete_entries, { count: 5 }));
+      await uiExpect(impact).toContainText(fill(zh.collection.delete_presets, { count: 1, names: fixture.preset.name }));
+      await uiExpect(impact).toContainText(zh.collection.delete_undo);
+      await capture('06-collection-delete-confirm');
+      // Closing the confirmation changes nothing.
+      await dialog.getByRole('button', { name: zh.actions.close, exact: true }).click();
+      await uiExpect(dialog).toHaveCount(0);
+      expect(await read()).toEqual(beforeCollectionDelete);
+      await openActions();
+      await ui.getByTestId('knowledge-collection-delete').click();
+      await ui.getByTestId('knowledge-collection-delete-confirm').click();
+      await uiExpect(dialog).toHaveCount(0);
+      const collectionToast = toast(fill(zh.undo.collection_deleted, { name: fixture.main.name }));
+      await uiExpect(collectionToast).toBeVisible();
+      await uiExpect(ui.locator(`[data-collection-id="${fixture.main.id}"]`)).toHaveCount(0);
+      await uiExpect(heading).not.toHaveText(fixture.main.name);
+      stored = await read();
+      expect(stored.data.collections.some(item => item.id === fixture.main.id)).toBe(false);
+      expect(stored.data.entries.some(entry => entry.collectionId === fixture.main.id)).toBe(false);
+      expect(stored.data.presets.find(item => item.id === fixture.preset.id)!.collectionIds).toEqual([fixture.target.id]);
+      await collectionToast.getByRole('button', { name: zh.undo.action, exact: true }).click();
+      await uiExpect(toast(zh.undo.done).last()).toBeVisible();
+      await uiExpect(ui.locator(`[data-collection-id="${fixture.main.id}"]`)).toBeVisible();
+      stored = await read();
+      expect(stored.data.collections.find(item => item.id === fixture.main.id)).toEqual(withoutRevision(fixture.main));
+      expect(stored.data.entries.filter(entry => entry.collectionId === fixture.main.id)).toEqual(expect.arrayContaining(mainEntries.map(withoutRevision)));
+      expect(stored.data.entries.filter(entry => entry.collectionId === fixture.main.id)).toHaveLength(5);
+      expect(stored.data.presets.find(item => item.id === fixture.preset.id)!.collectionIds).toEqual(fixture.preset.collectionIds);
+      await uiExpect(collectionToast).toHaveCount(0);
+
+      // AC-PAGE-05-5: when the same id was re-created meanwhile, Undo fails and restores nothing.
+      await selectCollection(fixture.main);
+      await uiExpect(table.locator('[role="row"][data-entry-id]')).toHaveCount(4);
+      await openActions();
+      await ui.getByTestId('knowledge-collection-delete').click();
+      await ui.getByTestId('knowledge-collection-delete-confirm').click();
+      await uiExpect(dialog).toHaveCount(0);
+      const conflictToast = toast(fill(zh.undo.collection_deleted, { name: fixture.main.name }));
+      await uiExpect(conflictToast).toBeVisible();
+      const recreatedName = 'A · 同编号的新资料集';
+      // Another in-app save (the assistant or a Studio dialog) announces its library like this.
+      await ui.evaluate(async ({ id, name, event }) => {
+        const current = await window.translationKnowledge.read();
+        if (!current.ok) throw new Error(current.error);
+        const saved = await window.translationKnowledge.saveRecords({ generation: current.value.generation, items: [
+          { group: 'collections', record: { id, revision: 1, name, description: '', languagePair: { source: 'en', target: 'zh-Hans' }, archived: false } },
+        ] });
         if (!saved.ok) throw new Error(saved.error);
-        localStorage.setItem('lang', 'en');
-      }, { id: fixture.other.id, name: longName });
-      await ui.reload();
-      await nativeWindow.evaluate(win => win.setSize(786, 660));
-      await selectCollection(fixture.other.id, longName);
-      await openMaintenance('archive');
-      await uiExpect(ui.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toHaveText('Archive collection');
-      await capture('collection-archive-english-long-name', ui.getByRole('dialog'));
-      await archiveDetails.locator('[data-slot=accordion-trigger]').first().click();
-      await capture('collection-archive-english-long-name-expanded', ui.getByRole('dialog'));
-      await ui.getByRole('dialog').locator('[data-slot=scroll-area-viewport]').first().evaluate(element => { element.scrollTop = element.scrollHeight; });
-      await uiExpect(ui.getByTestId('knowledge-collection-archive-restore-hint')).toBeVisible();
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeInViewport();
-      await capture('collection-archive-english-long-name-scrolled', ui.getByRole('dialog'));
-      await cancel();
-      expect((await read()).data.collections.find(item => item.id === fixture.other.id)?.archived).toBe(false);
-      await openMaintenance('delete');
-      await uiExpect(ui.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
-      await capture('collection-delete-english-long-name', ui.getByRole('dialog'));
-      await ui.getByTestId('knowledge-collection-delete-history').locator('[data-slot=accordion-trigger]').first().click();
-      await uiExpect(ui.getByRole('dialog').getByRole('checkbox')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
-      await capture('collection-delete-english-long-name-expanded', ui.getByRole('dialog'));
-      await ui.keyboard.press('Escape');
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      expect((await read()).data.collections.some(item => item.id === fixture.other.id)).toBe(true);
+        window.dispatchEvent(new CustomEvent(event, { detail: saved.value }));
+      }, { id: fixture.main.id, name: recreatedName, event: KNOWLEDGE_CHANGED_EVENT });
+      await uiExpect(ui.locator(`[data-collection-id="${fixture.main.id}"]`)).toContainText(recreatedName);
+      const beforeUndo = await read();
+      await conflictToast.getByRole('button', { name: zh.undo.action, exact: true }).click();
+      const failure = ui.locator('[data-sonner-toast][data-type="error"]').filter({ hasText: zh.undo.failed });
+      await uiExpect(failure).toBeVisible();
+      await uiExpect(failure).toContainText(zh.undo.reason_exists);
+      await capture('07-undo-conflict');
+      stored = await read();
+      expect(stored).toEqual(beforeUndo);
+      expect(stored.data.collections.find(item => item.id === fixture.main.id)!.name).toBe(recreatedName);
+      expect(stored.data.entries.some(entry => mainEntries.some(original => original.id === entry.id))).toBe(false);
+      expect(stored.data.presets.find(item => item.id === fixture.preset.id)!.collectionIds).toEqual([fixture.target.id]);
       expect(errors).toEqual([]);
     } catch (error) {
       await ui.screenshot({ path: path.join(screenshots, 'collection-maintenance-failure.png'), animations: 'disabled' }).catch(() => undefined);

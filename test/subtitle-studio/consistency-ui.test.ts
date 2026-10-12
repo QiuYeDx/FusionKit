@@ -1,17 +1,22 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import materials from '../../src/locales/zh/materials.json';
+import knowledge from '../../src/locales/zh/knowledge.json';
 
 const SOURCE = 'テイムフィールド家のお嬢様';
 const RIGHT = '泰姆菲尔德家的大小姐';
 const WRONG = '时间菲尔德家的大小姐';
+const KEPT_COLLECTION = '绝区零 · 人物与称谓';
+const format = (text: string, values: Record<string, string>) => text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => values[key]);
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('terminology consistency check', () => {
-  it('finds a name translated two ways across documents, unifies it, keeps it and undoes it', async () => {
+  it('finds a name translated two ways across documents, unifies it, keeps it enabled in a new collection that asks for its direction, and undoes it', async () => {
     const artifacts = path.resolve('test-results/studio-consistency'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await mkdtemp(path.join(os.tmpdir(), 'fusionkit-studio-consistency-'));
     const write = async (name: string, lines: string[]) => { const file = path.join(root, name); await writeFile(file, lines.map((line, index) => `${index + 1}\n00:00:0${index + 1},000 --> 00:00:0${index + 1},800\n${line}\n`).join('\n')); return file; };
     const files = [
       await write('第一集.srt', [`${SOURCE}がお見えです。`, `${SOURCE}！`, 'こんにちは。']),
@@ -34,7 +39,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('terminology consistenc
       const port = (server.address() as { port: number }).port;
       app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`, '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
       const page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
-      const win = await app.browserWindow(page); await win.evaluate(window => { window.setSize(1280, 860); window.webContents.setBackgroundThrottling(false); window.show(); window.focus(); });
+      const win = await app.browserWindow(page); await win.evaluate(window => { window.setSize(1280, 860); window.webContents.setBackgroundThrottling(false); window.show(); });
       await page.evaluate(port => {
         localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
         localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'consistency-model', name: 'Controlled model', provider: 'Other', apiKey: 'synthetic-test-key', baseUrl: `http://127.0.0.1:${port}/v1`, modelKey: 'controlled-model', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'consistency-model', agent: null }, audioProfiles: [], audioAssignment: {} } }));
@@ -53,6 +58,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('terminology consistenc
         }
         return result;
       });
+      const library = () => page.evaluate(async () => { const read = await window.translationKnowledge.read(); if (!read.ok) throw Error(read.error); return read.value; });
 
       await app.evaluate(({ dialog }, paths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: paths }); }, files);
       await page.getByRole('button', { name: '打开字幕文件', exact: true }).click();
@@ -102,18 +108,33 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('terminology consistenc
       await uiExpect(dialog.getByTestId('studio-consistency-receipt')).toContainText('统一后的 1 个写法可以记入翻译资料');
       await dialog.getByTestId('studio-consistency-keep-open').click();
       const capture = page.getByTestId('knowledge-capture-form');
+      const captureDialog = page.getByRole('dialog').filter({ has: capture });
       await uiExpect(capture).toBeVisible();
+      await uiExpect(captureDialog).toContainText(materials.capture.title);
       await uiExpect(capture.getByTestId('knowledge-capture-row').getByRole('textbox').nth(1)).toHaveValue(RIGHT);
-      await capture.getByRole('combobox').first().click();
-      await page.getByRole('option', { name: '新建资料集…' }).or(page.getByRole('option', { name: /新建资料集/ })).first().click();
-      await capture.getByRole('textbox', { name: '资料集名称' }).fill('绝区零 · 人物与称谓');
-      const sourceLanguage = capture.getByRole('combobox').nth(1);
-      if (!/日语/.test(await sourceLanguage.innerText())) { await sourceLanguage.click(); await page.getByRole('option', { name: '日语', exact: true }).click(); }
+      // Saving is the decision: there is nothing to adopt or enable separately.
+      await uiExpect(captureDialog.getByRole('switch')).toHaveCount(0);
+      // The library is empty: the wording goes to a new collection, which asks for its direction.
+      // Translated without materials, the documents only tell the translation language.
+      await uiExpect(capture.getByRole('combobox', { name: materials.collection, exact: true })).toHaveText(materials.new_collection);
+      await uiExpect(capture.getByRole('combobox', { name: materials.target_language, exact: true })).toHaveText(knowledge.languages['zh-Hans']);
+      const sourceLanguage = capture.getByRole('combobox', { name: materials.source_language, exact: true });
+      await uiExpect(sourceLanguage).toHaveText(knowledge.filters.select);
+      await capture.getByRole('textbox', { name: materials.collection_name, exact: true }).fill(KEPT_COLLECTION);
+      await uiExpect(page.getByTestId('knowledge-capture-save')).toBeDisabled();
+      await sourceLanguage.click();
+      await page.getByRole('option', { name: knowledge.languages.ja, exact: true }).click();
+      await uiExpect(capture).toContainText(materials.direction_hint);
+      await uiExpect(page.getByTestId('knowledge-capture-save')).toHaveText(format(materials.capture.save, { count: '1' }));
       await shot('02-keep-wording');
       await page.getByTestId('knowledge-capture-save').click();
       await uiExpect(capture).toBeHidden();
-      const kept = await page.evaluate(async () => { const read = await window.translationKnowledge.read(); if (!read.ok) throw Error(read.error); return read.value.data.entries.map(entry => entry.kind === 'term' ? `${entry.payload.source}→${entry.payload.target}` : ''); });
-      expect(kept).toEqual([`${SOURCE}→${RIGHT}`]);
+      const keptLibrary = await library();
+      const keptCollection = keptLibrary.data.collections.find(item => item.name === KEPT_COLLECTION)!;
+      expect(keptCollection).toMatchObject({ languagePair: { source: 'ja', target: 'zh-Hans' }, archived: false });
+      // Saved enabled at once, recorded as the user's own settled wording.
+      expect(keptLibrary.data.entries).toEqual([expect.objectContaining({ kind: 'term', collectionId: keptCollection.id, enabled: true,
+        origin: expect.objectContaining({ kind: 'revision' }), payload: expect.objectContaining({ source: SOURCE, target: RIGHT }) })]);
       // Kept: the receipt no longer offers it.
       await uiExpect(dialog.getByTestId('studio-consistency-keep-open')).toHaveCount(0);
       await shot('03-receipt');
@@ -151,12 +172,13 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('terminology consistenc
     } finally {
       await app?.close();
       await new Promise<void>(resolve => server ? server.close(() => resolve()) : resolve());
+      await rm(root, { recursive: true, force: true });
     }
   }, 180000);
 
   it('offers one direction per name when only the source spellings differ, and unifies the one chosen', async () => {
     const artifacts = path.resolve('test-results/studio-consistency'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await mkdtemp(path.join(os.tmpdir(), 'fusionkit-studio-consistency-'));
     const lines = ['先輩、おはよう。', '先輩！', 'せんぱい？', 'シロバトさん、こっち。', 'ハトさんだ。', 'シロバトさん！'];
     const file = path.join(root, '未翻译.srt');
     await writeFile(file, lines.map((line, index) => `${index + 1}\n00:00:0${index + 1},000 --> 00:00:0${index + 1},800\n${line}\n`).join('\n'));
@@ -175,7 +197,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('terminology consistenc
       const port = (server.address() as { port: number }).port;
       app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`, '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
       const page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
-      const win = await app.browserWindow(page); await win.evaluate(window => { window.setSize(1280, 860); window.webContents.setBackgroundThrottling(false); window.show(); window.focus(); });
+      const win = await app.browserWindow(page); await win.evaluate(window => { window.setSize(1280, 860); window.webContents.setBackgroundThrottling(false); window.show(); });
       await page.evaluate(port => {
         localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 }));
         localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'consistency-model', name: 'Controlled model', provider: 'Other', apiKey: 'synthetic-test-key', baseUrl: `http://127.0.0.1:${port}/v1`, modelKey: 'controlled-model', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'consistency-model', agent: null }, audioProfiles: [], audioAssignment: {} } }));
@@ -233,6 +255,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('terminology consistenc
     } finally {
       await app?.close();
       await new Promise<void>(resolve => server ? server.close(() => resolve()) : resolve());
+      await rm(root, { recursive: true, force: true });
     }
   }, 180000);
 });

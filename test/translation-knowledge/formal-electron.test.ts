@@ -1,69 +1,40 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
-import { createServer, type Server } from 'node:http';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { expect as uiExpect, type Locator } from '@playwright/test';
+import { mkdir, readFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { knowledgeFixture } from './fixtures';
+import { launchStudioApp, openSubtitles, preparePage, readDocuments, seedLibrary, settled, startProvider } from './studio-e2e';
 
-type ProviderBody = { messages: Array<{ content: string }> };
-type ProviderPayload = {
-  items: Array<{ id: string; text: string }>;
-  translationRequirements: string;
-  translationKnowledge: { items: Array<{ kind: string; applicableItemIds: string[] }> };
-};
+const json = async (file: string) => JSON.parse(await readFile(path.resolve(file), 'utf8'));
+const fill = (text: string, values: Record<string, string | number>) => text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(values[key]));
 
 describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge translation through native Electron', () => {
-  let app: ElectronApplication | undefined, server: Server | undefined, page: Page | undefined, root = '';
+  let launched: Awaited<ReturnType<typeof launchStudioApp>> | undefined, provider: Awaited<ReturnType<typeof startProvider>> | undefined;
   const artifacts = path.resolve('test-results/translation-knowledge-formal');
   afterAll(async () => {
-    try {
-      const child = app?.process();
-      await app?.close();
-      if (child) expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
-    } finally {
-      server?.closeAllConnections();
-      await new Promise<void>(resolve => server ? server.close(() => resolve()) : resolve());
-      if (root) await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-    }
+    try { if (launched) expect(await launched.close()).toBe(true); } finally { await provider?.close(); }
   });
 
-  it('translates beyond the trial window, retains exact knowledge after task cleanup, and protects referenced materials', async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'fusionkit-knowledge-formal-e2e-'));
+  it('translates with two collections and records them, with entry summaries, in a frozen execution record', async () => {
     await mkdir(artifacts, { recursive: true });
-    const zh = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
-    const requests: Array<{ body: ProviderBody; raw: string; payload: ProviderPayload }> = [], errors: string[] = [];
-    server = createServer(async (request, response) => {
-      let raw = ''; for await (const chunk of request) raw += chunk.toString();
-      const body = JSON.parse(raw) as ProviderBody;
-      const payload = JSON.parse(body.messages[1].content) as ProviderPayload;
-      requests.push({ body, raw, payload });
-      response.setHeader('Content-Type', 'application/json');
-      response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: {
-        content: JSON.stringify({ items: payload.items.map(item => ({ id: item.id, text: `正式译文：${item.text.replace(/checkpoint/gi, '存档点')}` })) }),
-      } }], usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 } }));
-    });
-    await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
-    const port = (server.address() as { port: number }).port;
+    const zh = { studio: await json('src/locales/zh/studio.json'), knowledge: await json('src/locales/zh/knowledge.json'), materials: await json('src/locales/zh/materials.json') };
+    const en = { studio: await json('src/locales/en/studio.json'), materials: await json('src/locales/en/materials.json') };
+    provider = await startProvider(item => `正式译文：${item.text.replace(/checkpoint/gi, '存档点').replace(/boss/gi, '首领')}`);
     const fixture = knowledgeFixture();
-    const term = fixture.entries.find(entry => entry.kind === 'term')!;
-    const context = fixture.entries.find(entry => entry.kind === 'context')!;
-    const rule = fixture.entries.find(entry => entry.kind === 'rule')!;
-    term.scope.condition = { mode: 'none' };
-    if (term.kind === 'term') term.payload.strength = 'required';
-    context.scope.condition = { mode: 'requires_confirmation', text: '该句确实讨论游戏中的保存进度。' };
-    rule.scope.requiredSubjects.push({ subjectId: fixture.subjects[1].id, role: 'speaker' });
-    const input = path.join(root, 'formal.fktk.json'), subtitle = path.join(root, 'Formal knowledge across twenty cues.lrc');
-    await writeFile(input, JSON.stringify(fixture));
+    const [game, common] = fixture.collections;
+    const checkpoint = fixture.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'checkpoint')!;
+    const boss = fixture.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'boss')!;
+    const disabledRule = fixture.entries.find(entry => !entry.enabled)!;
+
+    launched = await launchStudioApp('fusionkit-knowledge-formal-e2e-');
+    const { app, ui } = launched;
+    const subtitle = path.join(launched.root, 'Formal knowledge across twenty cues.lrc');
     await writeFile(subtitle, Array.from({ length: 24 }, (_, index) => {
       const number = index + 1;
-      const text = number === 1 || number === 21 ? `We reached checkpoint ${number}.` : `Dialogue line ${number}.`;
+      const text = number === 1 || number === 21 ? `We reached checkpoint ${number}.` : number === 2 ? 'The boss is waiting.' : `Dialogue line ${number}.`;
       return `[00:${String(number).padStart(2, '0')}]${text}`;
     }).join('\n'));
-    app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
-    page = await app.firstWindow();
-    const ui = page;
-    ui.on('pageerror', error => errors.push(error.message));
     const capture = (name: string) => ui.screenshot({ path: path.join(artifacts, `${name}.png`), animations: 'disabled' });
     const dialogFor = (testId: string) => ui.locator('[role="dialog"][data-state="open"]:not([data-dialog-exiting="true"])').filter({ has: ui.getByTestId(testId) });
     const geometry = async (dialog: Locator) => {
@@ -71,237 +42,137 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('formal knowledge tr
       expect(await dialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
       expect(await dialog.evaluate(element => element.getBoundingClientRect().bottom <= window.innerHeight)).toBe(true);
     };
-    const readDocument = () => ui.evaluate(async () => {
-      const list = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!list.ok) throw new Error(list.error);
-      const document = list.value.documents[0];
-      const result = await window.subtitleStudio.readDocumentPage({ documentId: document.id, revision: document.revision, offset: 0 });
-      if (!result.ok) throw new Error(result.error); return result.value;
-    });
     const readRecord = (batchOffset: number) => ui.evaluate(async offset => {
       const list = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!list.ok) throw new Error(list.error);
       const document = list.value.documents[0];
-      const result = await window.subtitleStudio.readDocumentPage({ documentId: document.id, revision: document.revision, offset: 0 });
-      if (!result.ok) throw new Error(result.error);
-      const record = await window.subtitleStudio.readExecutionRecord({ documentId: document.id, trackId: result.value.translationTracks[0].id, batchOffset: offset });
+      const page = await window.subtitleStudio.readDocumentPage({ documentId: document.id, revision: document.revision, offset: 0 });
+      if (!page.ok) throw new Error(page.error);
+      const record = await window.subtitleStudio.readExecutionRecord({ documentId: document.id, trackId: page.value.translationTracks[0].id, batchOffset: offset });
       if (!record.ok) throw new Error(record.error);
       if (record.value.state !== 'available') throw new Error(`Unexpected record state: ${record.value.state}`);
       return record.value;
     }, batchOffset);
+    // Shows collections and what was included; recipes, topics and conditions are gone.
+    const checkKnowledgeSection = async (knowledge: Locator, issues: Record<string, string>, collectionsLabel: string) => {
+      await uiExpect(knowledge.locator('.studio-execution-facts dt')).toHaveText([collectionsLabel]);
+      await uiExpect(knowledge.locator('.studio-execution-facts dd')).toHaveText(`${game.name} / ${common.name}`);
+      expect(await knowledge.innerText()).not.toMatch(/方案|主题|条件|recipe|topic|condition/i);
+      const issueLines = await knowledge.locator('.studio-execution-issues li > p:first-child').allInnerTexts();
+      for (const line of issueLines) { expect(Object.values(issues)).toContain(line); expect(line).not.toContain('trial.issue'); }
+      return issueLines;
+    };
 
     try {
-      await ui.evaluate(port => {
-        // First-use Tour is covered by consumer-ux; keep execution fixtures focused.
-        localStorage.setItem('translation-knowledge-tour-done', '1');
-        localStorage.setItem('lang', 'zh');
-        localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
-        localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'formal-fixture', name: 'Local formal translation fixture', provider: 'DeepSeek', apiKey: 'synthetic-formal-key', baseUrl: `http://127.0.0.1:${port}`, modelKey: 'deepseek-v4-flash', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'formal-fixture', agent: null }, audioProfiles: [], audioAssignment: {} } }));
-        location.hash = '/tools/translation-knowledge';
-      }, port);
-      await ui.reload();
-      const nativeWindow = await app.browserWindow(ui);
-      await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await ui.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
-      await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, input);
-      await ui.getByTestId('knowledge-import').click();
-      await ui.getByRole('button', { name: '确认导入', exact: true }).click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      // Fixture approval uses the real fixed bridge; the import itself grants no trust.
-      await ui.evaluate(async () => {
-        const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(JSON.stringify(read));
-        if (Object.keys(read.value.approvals).length) throw new Error('Import unexpectedly adopted entries');
-        let current = read.value;
-        for (const entry of read.value.data.entries) {
-          const reviewed = await window.translationKnowledge.reviewEntries({ generation: current.generation, ids: [entry.id], action: 'adopt' });
-          if (!reviewed.ok) throw new Error(JSON.stringify({ entryId: entry.id, ...reviewed }));
-          current = reviewed.value;
-        }
-      });
-      await ui.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
-      await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, subtitle);
-      await ui.getByRole('button', { name: '打开字幕文件', exact: true }).click();
+      await preparePage(ui, { lang: 'zh', port: provider.port });
+      await seedLibrary(ui, fixture);
+      await openSubtitles(app, ui, [subtitle], zh.studio.open_file);
       await uiExpect(ui.locator('.studio-cue-table tbody tr')).toHaveCount(24);
-      const original = await readDocument();
+      const [original] = await readDocuments(ui);
       expect(original.translationTracks).toHaveLength(0);
-      await ui.getByRole('button', { name: '翻译', exact: true }).click();
+      await ui.getByRole('button', { name: zh.studio.translation.action, exact: true }).click();
       const dialog = dialogFor('studio-translation-form');
       await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.materials.none);
+      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(zh.studio.materials.none);
       await ui.getByTestId('studio-materials-choose').click();
-      await ui.getByTestId('studio-materials-recipe').click();
-      await ui.getByRole('option', { name: fixture.recipes[0].name, exact: true }).click();
+      await ui.getByTestId(`studio-materials-collection-${game.id}`).check();
+      await ui.getByTestId(`studio-materials-collection-${common.id}`).check();
       await ui.getByTestId('studio-materials-done').click();
-      const explicitRequirements = 'Keep every line concise and preserve all information. Use natural dialogue.';
-      await ui.getByTestId('studio-translation-instructions').fill(explicitRequirements);
-      // An invalid budget draft keeps materials and authored requirements in this same panel.
+      await uiExpect(ui.getByTestId('studio-materials-summary').locator('.studio-materials-chip')).toHaveCount(2);
+      const requirements = 'Keep every line concise and preserve all information. Use natural dialogue.';
+      await ui.getByTestId('studio-translation-instructions').fill(requirements);
       await ui.getByTestId('studio-translation-advanced').click();
-      const budget = dialog.getByRole('spinbutton', { name: '上下文窗口（tokens）', exact: true });
-      const originalBudget = await budget.inputValue();
-      await budget.fill('');
-      await uiExpect(ui.getByTestId('studio-translation-start')).toBeDisabled();
-      await uiExpect(ui.getByTestId('studio-translation-trial')).toBeDisabled();
-      await uiExpect(ui.getByTestId('studio-translation-check')).toBeDisabled();
-      await uiExpect(ui.getByTestId('studio-materials-summary')).toContainText(fixture.recipes[0].name);
-      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(explicitRequirements);
-      await budget.fill(originalBudget);
+      await dialog.getByRole('spinbutton', { name: zh.studio.translation.batch_cues, exact: true }).fill('20');
       await ui.getByTestId('studio-translation-advanced').click();
-      await ui.getByTestId('studio-materials-choose').click();
-      await uiExpect(ui.getByTestId('studio-materials-recipe')).toContainText(fixture.recipes[0].name);
-      for (const collectionId of fixture.recipes[0].readCollectionIds) {
-        await uiExpect(ui.getByTestId(`studio-materials-collection-${collectionId}`)).toBeChecked();
-      }
-      await ui.getByTestId('studio-materials-done').click();
-      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(explicitRequirements);
-      expect(requests).toHaveLength(0);
-      const scopes = ui.getByTestId('knowledge-trial-scopes');
-      await scopes.locator('[data-slot=accordion-trigger]').first().click();
-      await ui.getByTestId(`studio-materials-role-${original.cues[0].id}-topic`).click();
-      await ui.getByRole('option', { name: fixture.subjects[0].name, exact: true }).click();
-      await ui.getByTestId(`studio-materials-role-${original.cues[0].id}-speaker`).click();
-      await ui.getByRole('option', { name: fixture.subjects[1].name, exact: true }).click();
-      await ui.getByTestId(`studio-materials-confirm-${original.cues[0].id}-${context.id}`).check();
-      await scopes.locator('[data-slot=accordion-trigger]').first().click();
-      const topics = ui.getByTestId('studio-materials-topics');
-      await topics.locator('[data-slot=accordion-trigger]').first().click();
-      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).check();
-      // A person selected as a document topic must not become everyone's speaker.
-      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[1].id}`).check();
-      await uiExpect(ui.getByTestId('knowledge-trial-result')).toHaveCount(0);
-      await topics.scrollIntoViewIfNeeded();
-      await capture('form-full-light');
+      await uiExpect(dialog.locator('[data-testid="studio-materials-topics"], [data-testid^="studio-materials-role-"], [data-testid^="studio-materials-confirm-"]')).toHaveCount(0);
+      await capture('form-light');
+
       await ui.getByTestId('studio-translation-check').click();
       await uiExpect(ui.getByTestId('knowledge-full-preview')).toContainText('24');
       await uiExpect(ui.getByTestId('studio-translation-review-start')).toBeEnabled();
-      expect(requests).toHaveLength(0);
-      // Changing scope invalidates the prior preview; starting will perform a fresh check.
-      await ui.getByTestId('studio-translation-review-close').click();
-      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).uncheck();
-      await uiExpect(ui.getByTestId('knowledge-full-preview')).toHaveCount(0);
-      expect(requests).toHaveLength(0);
-      await ui.getByTestId(`studio-materials-topic-${fixture.subjects[0].id}`).check();
-      await ui.getByTestId('studio-translation-check').click();
-      await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
+      expect(provider.requests).toHaveLength(0);
       await ui.getByTestId('knowledge-full-preview').scrollIntoViewIfNeeded();
-      await capture('preview-full-light');
-      await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await ui.evaluate(() => { document.documentElement.classList.add('dark'); });
-      await ui.getByTestId('knowledge-full-preview').scrollIntoViewIfNeeded();
-      await capture('preview-full-dark-narrow');
-      await geometry(dialogFor('studio-translation-review-dialog'));
+      await capture('preview-light');
       await ui.getByTestId('studio-translation-review-start').click();
       await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
       await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 20000 });
       await uiExpect(ui.locator('.studio-target-text').filter({ hasText: '正式译文：' })).toHaveCount(24);
-      const completed = await readDocument();
+      const [completed] = await readDocuments(ui);
       expect(completed.tasks).toHaveLength(1);
       expect(completed.translationTracks).toHaveLength(1);
-      expect(completed.translationTracks[0].origin).toBe('ai');
       expect(Object.keys(completed.translationTracks[0].entries)).toHaveLength(24);
-      expect(requests.length).toBeGreaterThanOrEqual(2);
-      expect(requests.flatMap(request => request.payload.items.map(item => item.id))).toEqual(Array.from({ length: 24 }, (_, index) => `u${index + 1}`));
-      const applicable = (kind: string) => requests.flatMap(request => request.payload.translationKnowledge.items.filter(item => item.kind === kind).flatMap(item => item.applicableItemIds));
-      expect(applicable('term')).toEqual(['u1', 'u21']);
-      expect(applicable('rule')).toEqual(['u1']);
-      expect(applicable('context')).toEqual(['u1']);
-      expect(requests.every(request => request.payload.translationRequirements === explicitRequirements)).toBe(true);
-      expect(requests.every(request => request.payload.translationKnowledge.items.every(item => !['memory', 'expression'].includes(item.kind)))).toBe(true);
-      for (const privateValue of [term.id, fixture.subjects[0].id, fixture.sources[0].excerpt, path.basename(subtitle)]) expect(requests.map(request => request.raw).join('\n')).not.toContain(privateValue);
+      expect(provider.requests).toHaveLength(2);
+      expect(provider.requests.flatMap(request => request.payload.items.map(item => item.id))).toEqual(Array.from({ length: 24 }, (_, index) => `u${index + 1}`));
+      expect(provider.requests.every(request => request.payload.translationRequirements === requirements)).toBe(true);
+      const sentTerms = provider.requests.flatMap(request => request.payload.translationKnowledge!.items.filter(item => item.kind === 'term').flatMap(item => item.applicableItemIds));
+      expect(sentTerms.sort()).toEqual(['u1', 'u2', 'u21'].sort());
+      expect(provider.requests.map(request => request.raw).join('\n')).toContain('首领');
+      if (disabledRule.kind === 'rule') expect(provider.requests.map(request => request.raw).join('\n')).not.toContain(disabledRule.payload.text);
+      for (const privateValue of [checkpoint.id, game.id, common.name, path.basename(subtitle)]) expect(provider.requests.map(request => request.raw).join('\n')).not.toContain(privateValue);
 
+      // The record keeps the collection names and the entries each batch included.
       const firstRecord = await readRecord(0);
-      expect(firstRecord.knowledge?.documentTopics).toEqual(expect.arrayContaining(fixture.subjects.map(subject => subject.name)));
-      expect(firstRecord.knowledge?.recipeName).toBe(fixture.recipes[0].name);
-      expect(firstRecord.batch.request?.httpBody).toBe(requests[0].raw);
-      await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await ui.evaluate(() => { document.documentElement.classList.remove('dark'); });
+      expect(firstRecord.totalBatches).toBe(2);
+      expect(firstRecord.knowledge?.collections).toEqual([game.name, common.name]);
+      expect(Object.keys(firstRecord.knowledge!).sort()).toEqual(['collections', 'compiled', 'cues', 'digest', 'entries', 'generation', 'resourceCount']);
+      expect(firstRecord.knowledge?.compiled.items.map(item => item.entryId)).toEqual(expect.arrayContaining([checkpoint.id, boss.id]));
+      expect(firstRecord.batch.request?.httpBody).toBe(provider.requests[0].raw);
       await ui.getByTestId('studio-execution-record').click();
       const execution = dialogFor('studio-execution-record-content');
-      // A paginated record retains the previous batch for its visual exit.
-      // Only the live stage may own the inspection controls.
+      // A paginated record keeps the previous batch for its exit; only the live stage counts.
       const knowledge = execution.locator('[data-testid="studio-execution-knowledge"]:not([data-dialog-exiting="true"] *)');
       await uiExpect(knowledge).toHaveCount(1);
       await uiExpect(execution.locator('[data-dialog-exiting="true"]')).toHaveCount(0);
-      await uiExpect(knowledge).toContainText(fixture.recipes[0].name);
-      await knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: term.title }).click();
-      await uiExpect(knowledge).toContainText(fixture.sources[0].excerpt);
+      const issueLines = await checkKnowledgeSection(knowledge, zh.knowledge.trial.issue, zh.materials.selection.collections);
+      expect(issueLines).toContain(zh.knowledge.trial.issue.no_match);
+      const entryTrigger = knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: 'checkpoint → 存档点' });
+      await uiExpect(entryTrigger).toContainText(zh.studio.execution.knowledge_required);
+      await uiExpect(knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: 'boss → 首领' })).toContainText(zh.studio.execution.knowledge_reference);
+      await entryTrigger.click();
+      if (checkpoint.kind === 'term') await uiExpect(knowledge).toContainText(checkpoint.payload.note);
+      await uiExpect(knowledge).toContainText(fill(zh.studio.execution.knowledge_scope, { count: 1, revision: 1 }));
+      await uiExpect(knowledge).toContainText('We reached checkpoint 1.');
       await knowledge.scrollIntoViewIfNeeded();
       await capture('execution-knowledge-light');
-      await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await ui.evaluate(() => { document.documentElement.classList.add('dark'); });
-      await knowledge.scrollIntoViewIfNeeded();
-      await capture('execution-knowledge-dark-narrow');
-      await geometry(execution);
-      const lastOffset = firstRecord.totalBatches - 1;
-      for (let offset = 0; offset < lastOffset; offset++) {
-        await execution.getByRole('button', { name: '下一页', exact: true }).click();
-        await uiExpect(execution.getByTestId('studio-execution-record-content')).toHaveAttribute('aria-busy', 'false');
-        const title = zh.execution.batch.replace('{{current}}', String(offset + 2)).replace('{{total}}', String(firstRecord.totalBatches));
-        await uiExpect(execution.getByRole('heading', { name: title, exact: true })).toBeVisible();
-        await uiExpect(execution.locator('[data-dialog-exiting="true"]')).toHaveCount(0);
-        await uiExpect(knowledge).toHaveCount(1);
-      }
-      const lastRecord = await readRecord(lastOffset);
-      expect(lastRecord.batch.items.some(item => item.id === 'u21')).toBe(true);
-      expect(lastRecord.batch.request?.httpBody).toBe(requests.at(-1)!.raw);
+      await execution.getByRole('button', { name: zh.studio.next, exact: true }).click();
+      await uiExpect(execution.getByTestId('studio-execution-record-content')).toHaveAttribute('aria-busy', 'false');
+      await uiExpect(execution.getByRole('heading', { name: fill(zh.studio.execution.batch, { current: 2, total: 2 }), exact: true })).toBeVisible();
+      await uiExpect(execution.locator('[data-dialog-exiting="true"]')).toHaveCount(0);
+      await uiExpect(knowledge).toHaveCount(1);
+      await uiExpect(knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: 'checkpoint → 存档点' })).toBeVisible();
+      await uiExpect(knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: 'boss → 首领' })).toHaveCount(0);
+      const lastRecord = await readRecord(1);
       expect(lastRecord.knowledge?.compiled.items.filter(item => item.kind === 'term').flatMap(item => item.applicableCueIds)).toEqual([completed.cues[20].id]);
-      expect(lastRecord.knowledge?.compiled.items.some(item => item.kind === 'context' || item.kind === 'rule')).toBe(false);
-      await uiExpect(knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: term.title })).toBeVisible();
-      const technical = execution.locator('[data-testid="studio-execution-technical"]:not([data-dialog-exiting="true"] *)');
-      await technical.locator('[data-slot="accordion-trigger"]').click();
-      await uiExpect(technical.locator('pre')).toHaveText(requests.at(-1)!.raw);
-      await technical.scrollIntoViewIfNeeded();
-      await capture('execution-http-body-dark-narrow');
-      await execution.getByRole('button', { name: '关闭', exact: true }).click();
+      expect(lastRecord.batch.request?.httpBody).toBe(provider.requests[1].raw);
+      await ui.keyboard.press('Escape');
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
 
-      // Clear only the completed task via the fixed API; the retained track owns its record.
+      // Cleaning up the task and deleting a used collection leave the frozen record as it was.
       await ui.evaluate(async ({ documentId, revision, taskId }) => {
         const result = await window.subtitleStudio.removeTask({ documentId, revision, taskId });
         if (!result.ok) throw new Error(result.error);
       }, { documentId: completed.summary.id, revision: completed.summary.revision, taskId: completed.tasks[0].id });
+      await ui.evaluate(async id => {
+        const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(read.error);
+        const result = await window.translationKnowledge.deleteRecords({ generation: read.value.generation, items: [{ group: 'collections', id }] });
+        if (!result.ok) throw new Error(result.error);
+      }, game.id);
       await uiExpect(ui.getByTestId('studio-execution-record')).toBeVisible();
-      expect((await readDocument()).tasks).toHaveLength(0);
-      expect(await readRecord(lastOffset)).toEqual(lastRecord);
-      await ui.getByTestId('studio-execution-record').click();
-      await uiExpect(knowledge).toContainText(fixture.recipes[0].name);
-      await knowledge.scrollIntoViewIfNeeded();
-      await capture('execution-after-task-cleanup');
-      await execution.getByRole('button', { name: '关闭', exact: true }).click();
+      expect((await readDocuments(ui))[0].tasks).toHaveLength(0);
+      expect(await readRecord(1)).toEqual(lastRecord);
+      expect(await readRecord(0)).toEqual(firstRecord);
 
-      await ui.evaluate(() => { location.hash = '/tools/translation-knowledge'; });
-      await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
-      await ui.getByTestId('knowledge-entry-actions').click();
-      await ui.getByTestId('knowledge-entry-maintenance').click();
-      const maintenance = dialogFor('knowledge-maintenance-tasks');
-      await maintenance.locator('[data-slot="knowledge-disclosure"]').filter({ has: ui.getByTestId('knowledge-maintenance-tasks') }).locator('[data-slot="accordion-trigger"]').first().click();
-      await uiExpect(maintenance).toContainText('历史保留引用');
-      await uiExpect(maintenance).toContainText(path.basename(subtitle));
-      await uiExpect(maintenance).toContainText('不表示所有内容都已发送给模型');
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeEnabled();
-      await ui.getByTestId('knowledge-maintenance-tasks').scrollIntoViewIfNeeded();
-      await capture('maintenance-archive-references');
-      await ui.getByTestId('knowledge-maintenance-confirm').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      const moreManagement = ui.locator('#knowledge-more-management [data-slot=accordion-trigger]').first();
-      if (await moreManagement.getAttribute('aria-expanded') === 'false') await moreManagement.click();
-      await ui.getByTestId('knowledge-archive').click();
-      await ui.getByTestId(`knowledge-entry-details-${term.id}`).click();
-      await ui.getByTestId('knowledge-entry-actions').click();
-      await ui.getByTestId('knowledge-entry-purge').click();
-      await uiExpect(ui.getByTestId('knowledge-maintenance-confirm')).toBeDisabled();
-      await uiExpect(maintenance.getByRole('checkbox')).toBeDisabled();
-      await uiExpect(ui.getByTestId('knowledge-maintenance-reference-blocker')).toContainText('仍有任务或历史记录保留这些资料');
-      await uiExpect(maintenance).toContainText('历史保留引用');
-      await ui.getByTestId('knowledge-maintenance-tasks').scrollIntoViewIfNeeded();
-      await capture('maintenance-purge-blocked');
-      await geometry(maintenance);
-      await maintenance.getByTestId('knowledge-record-close').click();
-      // Archiving the live entry must not rewrite or remove the frozen task evidence.
-      expect(await readRecord(lastOffset)).toEqual(lastRecord);
-      await ui.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
+      await preparePage(ui, { lang: 'en', theme: 'dark' });
+      await launched.resize(900, 700); await settled(ui);
       await ui.getByTestId('studio-execution-record').click();
-      await uiExpect(knowledge).toContainText(fixture.recipes[0].name);
-      await knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: term.title }).click();
-      await uiExpect(knowledge).toContainText(fixture.sources[0].excerpt);
-      await execution.getByRole('button', { name: '关闭', exact: true }).click();
-      expect(errors).toEqual([]);
+      await uiExpect(knowledge).toHaveCount(1);
+      await checkKnowledgeSection(knowledge, (await json('src/locales/en/knowledge.json')).trial.issue, en.materials.selection.collections);
+      await uiExpect(knowledge.locator('[data-slot="accordion-trigger"]').filter({ hasText: 'checkpoint → 存档点' })).toContainText(en.studio.execution.knowledge_required);
+      await knowledge.scrollIntoViewIfNeeded();
+      await capture('execution-knowledge-dark-english-900');
+      await geometry(execution);
+      await ui.keyboard.press('Escape');
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      expect([...launched.errors, ...provider.errors]).toEqual([]);
     } catch (error) { await capture('failure').catch(() => undefined); throw error; }
   }, 180000);
 });

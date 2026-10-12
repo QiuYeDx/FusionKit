@@ -10,7 +10,7 @@ import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, tran
 import { automaticTranslationRequestSchema, type AutomaticTranslationRequest } from '../../subtitle-studio/automatic-translation-contract';
 import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, DEFAULT_TRANSCRIPTION_PREFERENCES, automaticTranslationPreferencesSchema, readTranscriptionPreferences,
   automaticKnowledgePreferencesSchema, type AutomaticKnowledgePreferences, type AutomaticTranslationPreferences, type TranscriptionPreferences } from '../../subtitle-studio/transcription/preferences-contract';
-import { batchKnowledgeSelectionSchema, type BatchKnowledgeSelection } from '../../subtitle-studio/knowledge-batch-contract';
+import { knowledgeSelectionSchema, type KnowledgeSelection } from '../../translation-knowledge/execution-contract';
 import type { LibrarySnapshot } from '../../translation-knowledge/ipc-contract';
 import { automaticExportFromPreferences, automaticExportPreferencesSchema, DEFAULT_AUTOMATIC_EXPORT_PREFERENCES,
   type AutomaticExportPreferences, type AutomaticExportSpec } from '../../subtitle-studio/automatic-export-contract';
@@ -74,22 +74,18 @@ export function getAutomaticKnowledgeProblem(value: AutomaticKnowledgePreference
   if (!library) return 'library';
   const source = englishOutput ? 'en' : value.sourceLanguage;
   if (!source) return 'source';
-  const recipe = library.data.recipes.find(item => item.id === value.recipeId);
-  if (value.recipeId && (!recipe || recipe.archived)) return 'resources';
-  const collections = new Set([...value.collectionIds, ...recipe?.readCollectionIds ?? []]);
-  if ([...collections].some(id => !library.data.collections.some(item => item.id === id && !item.archived))
-    || value.documentTopicIds.some(id => !library.data.subjects.some(item => item.id === id && !item.archived))
-    || value.disabledEntryIds.some(id => !library.data.entries.some(item => item.id === id && collections.has(item.collectionId)))
-    || [recipe?.baseStyleId, ...recipe?.modifierStyleIds ?? []].some(id => id && !library.data.styles.some(item => item.id === id && !item.archived))) return 'resources';
+  const selected = value.collectionIds.map(id => library.data.collections.find(item => item.id === id));
+  if (selected.some(item => !item || item.archived)
+    || value.disabledEntryIds.some(id => !library.data.entries.some(item => item.id === id && value.collectionIds.includes(item.collectionId)))) return 'resources';
   const languagePair = { source, target: automaticKnowledgeTargetLanguage(target) };
-  if (!batchKnowledgeSelectionSchema.shape.languagePair.safeParse(languagePair).success
-    || recipe && (recipe.languagePair.source !== languagePair.source || recipe.languagePair.target !== languagePair.target)) return 'language';
+  if (!knowledgeSelectionSchema.shape.languagePair.safeParse(languagePair).success
+    || selected.some(item => item!.languagePair.source !== languagePair.source || item!.languagePair.target !== languagePair.target)) return 'language';
   return null;
 }
 function freezeAutomatic(value: AutomaticTranslationPreferences): AutomaticTranslationPreferences {
   const copy = structuredClone(value);
   if (copy.knowledge) {
-    Object.freeze(copy.knowledge.collectionIds); Object.freeze(copy.knowledge.disabledEntryIds); Object.freeze(copy.knowledge.documentTopicIds); Object.freeze(copy.knowledge);
+    Object.freeze(copy.knowledge.collectionIds); Object.freeze(copy.knowledge.disabledEntryIds); Object.freeze(copy.knowledge);
   }
   return Object.freeze(copy);
 }
@@ -385,14 +381,13 @@ export class StudioTranscriptionController {
       if (preferences?.enabled) {
         const library = this.state.autoKnowledgeLibrary;
         if (this.state.autoKnowledgeLoading || this.state.autoKnowledgeStale || getAutomaticKnowledgeProblem(preferences, resolved.config.language, this.state.config.taskMode === 'translate_to_english', library)) return;
-        const selection: BatchKnowledgeSelection = { version: 1,
+        const selection: KnowledgeSelection = { version: 2,
           languagePair: { source: this.state.config.taskMode === 'translate_to_english' ? 'en' : preferences.sourceLanguage, target: automaticKnowledgeTargetLanguage(resolved.config.language) },
           collectionIds: preferences.collectionIds, disabledEntryIds: preferences.disabledEntryIds,
-          ...(preferences.recipeId ? { recipeId: preferences.recipeId } : {}),
           ...(preferences.instructions !== undefined ? { instructions: preferences.instructions } : {}),
           ...(preferences.context !== undefined ? { context: preferences.context } : {}),
         };
-        knowledge = { knowledgeGeneration: library!.generation, selection, documentTopicIds: preferences.documentTopicIds };
+        knowledge = { knowledgeGeneration: library!.generation, selection };
       }
       const result = automaticTranslationRequestSchema.safeParse({ config: resolved.config, apiKey: resolved.apiKey, ...(knowledge ? { knowledge } : {}) });
       if (result.success) return result.data;

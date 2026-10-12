@@ -7,7 +7,6 @@ import path from 'node:path';
 import { skillArchiveBase64 } from '../../electron/main/translation-knowledge/skill-archive.generated';
 import { parseKnowledgePackage } from '../../src/translation-knowledge/validation';
 import { resolveEnvironment } from '../../src/translation-knowledge/execution';
-import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
 
 export function readSkillZip(bytes: Buffer): Promise<Map<string, Buffer>> {
@@ -78,19 +77,15 @@ describe('downloadable material-authoring skill', () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 
-  it('the starter becomes usable after adoption and matches Japanese without hidden object requirements', async () => {
+  it('the starter applies to Japanese subtitles as soon as its collection is selected', async () => {
     const bytes = await readFile('.agents/skills/fusionkit-translation-knowledge/examples/ja-starter.fktk.json', 'utf8');
     const data = parseKnowledgePackage(bytes).data!;
-    const library: LibrarySnapshot = { data, generation: 1, approvals: {}, imports: [] };
-    const selection = { version: 1 as const, languagePair: { source: 'ja', target: 'zh-Hans' }, recipeId: data.recipes[0].id, collectionIds: [], bindings: [], confirmations: [], disabledEntryIds: [] };
-    const cues = [{ id: 'test', text: '綿棒を使います。', sourceLanguage: 'ja' }];
-    expect(resolveEnvironment(library, selection, cues).items).toHaveLength(0);
-    for (const entry of data.entries) {
-      entry.state = 'ready'; library.approvals[entry.id] = { revision: entry.revision, digest: sha256Canonical(entry), method: 'human', approvedAt: '2026-09-25T00:00:00Z' };
-    }
+    const library: LibrarySnapshot = { data, generation: 1 };
+    const selection = { version: 2 as const, languagePair: { source: 'ja', target: 'zh-Hans' }, collectionIds: [data.collections[0].id], disabledEntryIds: [] };
+    const cues = [{ id: 'test', text: 'スパチャありがとう、Aちゃんです。', sourceLanguage: 'ja' }];
     const result = resolveEnvironment(library, selection, cues);
-    expect(result.items).toHaveLength(2);
     expect(result.issues).toEqual([]);
-    expect(result.items.find(e => e.kind === 'term')?.matches[0].target).toBe('棉签');
+    expect(result.items.map(item => item.kind).sort()).toEqual(['context', 'rule', 'term', 'term']);
+    expect(result.items.flatMap(item => item.matches.map(match => match.target)).sort()).toEqual(['Aちゃん', 'SC']);
   });
 });

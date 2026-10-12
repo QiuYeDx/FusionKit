@@ -1,30 +1,23 @@
 import { z } from 'zod';
 import path from 'node:path';
-import { KNOWLEDGE_CHANNELS } from '../../../src/translation-knowledge/ipc-contract';
+import { DELETE_BATCH_LIMIT, KNOWLEDGE_CHANNELS, SAVE_BATCH_LIMIT } from '../../../src/translation-knowledge/ipc-contract';
 
 const generation = z.number().int().nonnegative().safe();
 const id = z.string().uuid();
 const empty = z.object({}).strict();
 const ids = z.array(id).max(20000).refine(values => new Set(values).size === values.length);
-const group = z.enum(['subjects', 'collections', 'sources', 'entries', 'styles', 'recipes', 'preferenceTemplates']);
-const maintenanceTargets = z.array(z.object({ group, id }).strict()).min(1).max(20000).refine(values => new Set(values.map(value => value.id)).size === values.length);
+const group = z.enum(['collections', 'entries', 'presets']);
+const records = z.array(z.record(z.string(), z.unknown())).max(20000);
+/** Shape checks only; the service validates each record against the protocol. */
 export const knowledgeRequestSchemas = {
   read: empty,
+  saveRecords: z.object({ generation, items: z.array(z.object({ group, record: z.record(z.string(), z.unknown()) }).strict()).min(1).max(SAVE_BATCH_LIMIT) }).strict(),
+  deleteRecords: z.object({ generation, items: z.array(z.object({ group, id }).strict()).min(1).max(DELETE_BATCH_LIMIT) }).strict(),
+  restoreRecords: z.object({ generation, records: z.object({ collections: records, entries: records, presets: records }).strict() }).strict(),
   selectImport: empty,
   importDroppedFile: z.object({ path: z.string().min(1).max(32768).refine(value => path.isAbsolute(value)) }).strict(),
-  commitImport: z.object({ planId: id, decisions: z.array(z.object({ id, action: z.enum(['keep', 'replace', 'copy', 'skip']) }).strict()).max(20000), adoptReady: z.boolean() }).strict(),
-  saveRecord: z.object({ generation, group: z.enum(['subjects', 'collections', 'sources', 'entries', 'styles', 'recipes', 'preferenceTemplates']), record: z.record(z.string(), z.unknown()), source: z.record(z.string(), z.unknown()).optional(), adopt: z.boolean().optional() }).strict(),
-  saveRecords: z.object({ generation, items: z.array(z.object({ group, record: z.record(z.string(), z.unknown()), source: z.record(z.string(), z.unknown()).optional(), adopt: z.boolean().optional() }).strict()).min(1).max(200) }).strict(),
-  reviewEntries: z.object({ generation, ids: z.array(id).min(1).max(20000).refine(ids => new Set(ids).size === ids.length), action: z.enum(['adopt', 'reject', 'archive']) }).strict(),
-  planMaintenance: z.discriminatedUnion('action', [
-    z.object({ generation, action: z.literal('archive'), targets: maintenanceTargets }).strict(),
-    z.object({ generation, action: z.literal('restore'), targets: maintenanceTargets }).strict(),
-    z.object({ generation, action: z.literal('purge'), targets: maintenanceTargets, includeCollectionContents: z.literal(true).optional() }).strict()
-      .refine(request => !request.includeCollectionContents || request.targets.every(item => item.group === 'collections'), { message: 'Deleting collection contents requires collection targets only.', path: ['targets'] }),
-    z.object({ generation, action: z.literal('undo_import'), importId: id }).strict(),
-  ]),
-  commitMaintenance: z.object({ planId: id, confirmHistoryRemoval: z.boolean().optional() }).strict(),
-  planExport: z.object({ generation, purpose: z.enum(['backup', 'share']), collectionIds: ids, recipeIds: ids, includeMemories: z.boolean(), includeUnreviewed: z.boolean(), includeInactive: z.boolean(), excludedSourceIds: ids }).strict(),
+  commitImport: z.object({ planId: id, collections: z.array(z.object({ id, action: z.enum(['add', 'merge', 'copy', 'skip']) }).strict()).max(20000), conflict: z.enum(['keep_local', 'use_incoming']), presets: z.enum(['add', 'skip']) }).strict(),
+  planExport: z.object({ generation, collectionIds: ids, includeDisabled: z.boolean(), includePresets: z.boolean() }).strict(),
   exportFile: z.object({ planId: id }).strict(),
   exportSkill: empty,
 };

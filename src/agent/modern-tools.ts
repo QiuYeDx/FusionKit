@@ -123,8 +123,8 @@ export const prepareStudioTranscriptionSchema = z.object({ modelId: z.string().m
   offset: z.number().int().min(0).max(100000).optional(),
   // Each file is translated as soon as it is transcribed, then written next to its media, without the assistant.
   translation: z.object({ language: z.string().trim().min(2).max(32), instructions: z.string().max(4000).optional(),
-    knowledge: z.object({ collectionIds: z.array(z.string().min(1).max(200)).max(50), recipeId: z.string().min(1).max(200).optional(),
-      sourceLanguage: z.string().min(2).max(16).optional() }).strict().optional() }).strict().optional(),
+    knowledge: z.object({ collectionIds: z.array(z.string().min(1).max(200)).max(50).default([]), presetId: z.string().min(1).max(200).optional(),
+      sourceLanguage: z.string().min(2).max(16).optional() }).strict().refine(value => value.collectionIds.length > 0 || !!value.presetId).optional() }).strict().optional(),
   export: z.object({ format: z.enum(["auto", "srt", "lrc", "vtt", "ass", "ssa", "sbv"]).optional(), content: z.enum(["bilingual", "target", "source"]).optional(),
     order: z.enum(["source-first", "target-first"]).optional(), conflictPolicy: z.enum(["indexed", "overwrite"]).optional(),
     removeDocument: z.boolean().optional() }).strict().optional() }).strict();
@@ -230,7 +230,7 @@ export const modernAgentTools = {
       });
       return exposePrepared(action, ctx, { appliedSettings: settings.applied });
     }) }),
-  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 100 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. To finish the whole job without stopping, pass translation (target language such as 'zh', optional instructions and knowledge collection/recipe IDs from search_translation_knowledge) and export (format 'auto' = LRC for audio, SRT for video; content bilingual/target/source; order source-first/target-first; conflictPolicy indexed = add a number, overwrite = replace a same-name file; removeDocument = delete the Studio document after its file is written): each file is then translated as soon as it is transcribed and written next to its media, and you are told when the batch is done. Pass them only for what the user asked for, after asking what you need to know; without export, Studio's own auto-export setting applies, and export fields you leave out follow it too. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation.",
+  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 100 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. To finish the whole job without stopping, pass translation (target language such as 'zh', optional instructions and knowledge: collectionIds and/or a presetId from list_translation_knowledge_catalog) and export (format 'auto' = LRC for audio, SRT for video; content bilingual/target/source; order source-first/target-first; conflictPolicy indexed = add a number, overwrite = replace a same-name file; removeDocument = delete the Studio document after its file is written): each file is then translated as soon as it is transcribed and written next to its media, and you are told when the batch is done. Pass them only for what the user asked for, after asking what you need to know; without export, Studio's own auto-export setting applies, and export fields you leave out follow it too. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation.",
     inputSchema: prepareStudioTranscriptionSchema, execute: (args, options) => run(prepareStudioTranscriptionSchema, args, options, async (input, ctx) => {
       studio(); const controller = getStudioTranscriptionController();
       await controller.refresh(); ctx.check();
@@ -263,9 +263,13 @@ export const modernAgentTools = {
         : { ...before.autoTranslation, enabled: false });
       if (input.translation?.knowledge) {
         const library = await controller.refreshAutomaticKnowledge(); ctx.check();
-        const accepted = !!library && controller.setAutomaticKnowledge({ enabled: true, collectionIds: input.translation.knowledge.collectionIds,
-          disabledEntryIds: [], documentTopicIds: [], ...(input.translation.knowledge.recipeId ? { recipeId: input.translation.knowledge.recipeId } : {}),
-          sourceLanguage: (input.translation.knowledge.sourceLanguage ?? (parsedConfig.data.language === "auto" ? "" : parsedConfig.data.language)) as never }, library.generation);
+        const requested = input.translation.knowledge;
+        // A preset brings its collections, requirements and context; collections named beside it are added.
+        const preset = requested.presetId ? library?.data.presets.find(item => item.id === requested.presetId) : undefined;
+        const accepted = !!library && (!requested.presetId || !!preset) && controller.setAutomaticKnowledge({ enabled: true,
+          collectionIds: [...new Set([...(preset?.collectionIds ?? []), ...requested.collectionIds])], disabledEntryIds: [],
+          ...(preset?.instructions ? { instructions: preset.instructions } : {}), ...(preset?.context ? { context: preset.context } : {}),
+          sourceLanguage: (requested.sourceLanguage ?? preset?.languagePair.source ?? (parsedConfig.data.language === "auto" ? "" : parsedConfig.data.language)) as never }, library.generation);
         if (!accepted) { restoreAutomatic(); throw new ToolFailure("studio_translation_knowledge_invalid"); }
       }
       ctx.check();

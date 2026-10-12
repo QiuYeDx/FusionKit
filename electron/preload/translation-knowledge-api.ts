@@ -26,11 +26,9 @@ export function createTranslationKnowledgeApi(ipc: {
       } catch { return { ok: false, error: 'invalid_input' }; }
     },
     commitImport: request => invoke(KNOWLEDGE_CHANNELS.commitImport, request),
-    saveRecord: request => invoke(KNOWLEDGE_CHANNELS.saveRecord, request),
     saveRecords: request => invoke(KNOWLEDGE_CHANNELS.saveRecords, request),
-    reviewEntries: request => invoke(KNOWLEDGE_CHANNELS.reviewEntries, request),
-    planMaintenance: request => invoke(KNOWLEDGE_CHANNELS.planMaintenance, request),
-    commitMaintenance: request => invoke(KNOWLEDGE_CHANNELS.commitMaintenance, request),
+    deleteRecords: request => invoke(KNOWLEDGE_CHANNELS.deleteRecords, request),
+    restoreRecords: request => invoke(KNOWLEDGE_CHANNELS.restoreRecords, request),
     planExport: request => invoke(KNOWLEDGE_CHANNELS.planExport, request),
     exportFile: request => invoke(KNOWLEDGE_CHANNELS.exportFile, request),
     exportSkill: () => invoke(KNOWLEDGE_CHANNELS.exportSkill, {}),

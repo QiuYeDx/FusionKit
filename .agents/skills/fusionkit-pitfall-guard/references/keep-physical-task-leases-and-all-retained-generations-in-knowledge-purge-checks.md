@@ -1,5 +1,7 @@
 # FK-PIT-0157: Keep physical task leases and all retained generations in knowledge purge checks
 
+> 已失效（2026-10-12，knowledge-v2）：资料库不再有永久清理与任务引用扫描；任务使用文档内冻结的资料快照，删除资料不影响已提交任务。仅作历史参考。
+
 ## Area
 
 Subtitle knowledge / maintenance concurrency

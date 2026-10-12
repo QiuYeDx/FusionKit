@@ -117,31 +117,29 @@ describe("web-sourced translation materials", () => {
   const entry = { action: "create", collection: { ref: "names" }, kind: "term", source: "テイムフィールド家のお嬢様", target: "泰姆菲尔德家的大小姐",
     basis: "web", url: PAGE.url, evidence: "中文译名为泰姆菲尔德家的大小姐" };
   const proposal = (entries: unknown[]) => ({ languagePair: { source: "ja", target: "zh-Hans" },
-    subjects: [{ ref: "zzz", name: "绝区零", kind: "work" }], collections: [{ ref: "names", name: "绝区零 · 人物", subjects: [{ ref: "zzz" }] }], entries });
+    collections: [{ ref: "names", name: "绝区零" }], entries });
 
-  it("saves an entry read on a page with that page as its evidence, for review", async () => {
+  it("saves an entry read on a page, enabled, with that page as its origin", async () => {
     webLookup.read.mockResolvedValue({ ok: true, value: PAGE });
     await call("web_read", { url: PAGE.url });
     const prepared = await call("prepare_knowledge_changes", proposal([entry]));
-    expect(prepared).toMatchObject({ success: true, data: { executionStatus: "prepared", enabledByDefault: false,
-      items: [{}, {}, { status: "new", group: "entries", site: "wiki.biligame.com" }] } });
+    expect(prepared).toMatchObject({ success: true, data: { executionStatus: "prepared",
+      items: [{}, { status: "new", group: "entries", site: "wiki.biligame.com" }] } });
     const action = usePreparedActionsStore.getState().actions.find(item => item.id === prepared.data.actionId)!;
-    expect(action.knowledge!.items[2]).toMatchObject({ basis: "web", sourceSite: "wiki.biligame.com" });
+    expect(action.knowledge!.items[1]).toMatchObject({ basis: "web", aiSourced: true, sourceSite: "wiki.biligame.com" });
     await usePreparedActionsStore.getState().confirmAction(prepared.data.actionId);
     const library = await service.read();
     const saved = library.data.entries[0];
-    expect(saved.state).toBe("candidate");
-    expect(library.approvals[saved.id]).toBeUndefined();
-    expect(library.data.sources[0]).toMatchObject({ kind: "web", url: PAGE.url, title: "泰姆菲尔德", accessedAt: PAGE.accessedAt, excerpt: "中文译名为泰姆菲尔德家的大小姐" });
-    expect(saved.evidence).toEqual([{ sourceId: library.data.sources[0].id, support: "direct" }]);
+    expect(saved).toMatchObject({ enabled: true, origin: { kind: "web", url: PAGE.url, title: "泰姆菲尔德", at: PAGE.accessedAt, note: "中文译名为泰姆菲尔德家的大小姐" } });
+    expect(library.data.collections[0]).toMatchObject({ name: "绝区零", languagePair: { source: "ja", target: "zh-Hans" } });
   });
 
   it("needs the link of a page the assistant read", async () => {
     const missing = await call("prepare_knowledge_changes", proposal([{ ...entry, url: undefined }]));
-    expect(missing).toMatchObject({ success: false, error: "knowledge_proposal_invalid", data: { items: [{}, {}, { status: "invalid", reason: "missing_url" }] } });
+    expect(missing).toMatchObject({ success: false, error: "knowledge_proposal_invalid", data: { items: [{}, { status: "invalid", reason: "missing_url" }] } });
     // Seen only in search results: read it first.
     const unread = await call("prepare_knowledge_changes", proposal([{ ...entry, url: "https://zh.moegirl.org.cn/泰姆菲尔德", urlTitle: "泰姆菲尔德 - 萌娘百科" }]));
-    expect(unread).toMatchObject({ success: false, error: "knowledge_proposal_invalid", data: { items: [{}, {}, { status: "invalid", reason: "page_not_read", site: "zh.moegirl.org.cn" }] } });
+    expect(unread).toMatchObject({ success: false, error: "knowledge_proposal_invalid", data: { items: [{}, { status: "invalid", reason: "page_not_read", site: "zh.moegirl.org.cn" }] } });
     expect(usePreparedActionsStore.getState().actions).toEqual([]);
     expect(knowledge.saveRecords).not.toHaveBeenCalled();
   });

@@ -1,10 +1,9 @@
-import type { KnowledgeTaskTracking } from '../../../src/translation-knowledge/task-reference-contract';
 import { app, BrowserWindow, dialog, ipcMain, type WebContents, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { open, link, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { KNOWLEDGE_CHANNELS, type KnowledgeResult, type SaveRecordRequest, type SaveRecordsRequest } from '../../../src/translation-knowledge/ipc-contract';
+import { KNOWLEDGE_CHANNELS, type DeleteRecordsRequest, type KnowledgeResult, type RestoreRecordsRequest, type SaveRecordsRequest } from '../../../src/translation-knowledge/ipc-contract';
 import { KnowledgeService } from './service';
 import { KnowledgeServiceError } from './errors';
 import { KnowledgeExportPlans } from './export-plans';
@@ -64,8 +63,8 @@ export async function publishKnowledgeFile(filePath: string, contents: string | 
   }
 }
 
-export function registerTranslationKnowledge(taskTracking?: KnowledgeTaskTracking) {
-  const service = new KnowledgeService(path.join(app.getPath('userData'), 'translation-knowledge'), {}, taskTracking);
+export function registerTranslationKnowledge() {
+  const service = new KnowledgeService(path.join(app.getPath('userData'), 'translation-knowledge'));
   const exportPlans = new KnowledgeExportPlans(() => service.read());
   const rendererUrl = process.env.VITE_DEV_SERVER_URL || pathToFileURL(path.join(app.getAppPath(), 'dist', 'index.html')).href;
   const allowed = new Set<number>();
@@ -122,20 +121,15 @@ export function registerTranslationKnowledge(taskTracking?: KnowledgeTaskTrackin
           } else if (method === 'commitImport') {
             exportPlans.invalidate();
             value = await service.commitImport(owner.capability, knowledgeRequestSchemas.commitImport.parse(payload.data), alive);
-          } else if (method === 'saveRecord') {
-            exportPlans.invalidate();
-            value = await service.saveRecord(payload.data as SaveRecordRequest, alive);
           } else if (method === 'saveRecords') {
             exportPlans.invalidate();
             value = await service.saveRecords(payload.data as SaveRecordsRequest, alive);
-          } else if (method === 'reviewEntries') {
+          } else if (method === 'deleteRecords') {
             exportPlans.invalidate();
-            value = await service.reviewEntries(knowledgeRequestSchemas.reviewEntries.parse(payload.data), alive);
-          } else if (method === 'planMaintenance') {
-            value = await service.planMaintenance(owner.capability, knowledgeRequestSchemas.planMaintenance.parse(payload.data)); alive();
-          } else if (method === 'commitMaintenance') {
+            value = await service.deleteRecords(payload.data as DeleteRecordsRequest, alive);
+          } else if (method === 'restoreRecords') {
             exportPlans.invalidate();
-            value = await service.commitMaintenance(owner.capability, knowledgeRequestSchemas.commitMaintenance.parse(payload.data), alive);
+            value = await service.restoreRecords(payload.data as unknown as RestoreRecordsRequest, alive);
           } else if (method === 'planExport') {
             value = await exportPlans.plan(owner.capability, knowledgeRequestSchemas.planExport.parse(payload.data), alive);
           } else if (method === 'exportSkill') {
@@ -153,7 +147,7 @@ export function registerTranslationKnowledge(taskTracking?: KnowledgeTaskTrackin
             if (selected.canceled || !selected.filePath) return { ok: true, value: null };
             const exported = await exportPlans.prepare(owner.capability, request, alive);
             await publishKnowledgeFile(selected.filePath, exported.text, () => { alive(); exportPlans.guard(owner.capability, request.planId); });
-            value = { fileName: path.basename(selected.filePath), entries: exported.preview.counts.entries, purpose: exported.preview.purpose };
+            value = { fileName: path.basename(selected.filePath), entries: exported.preview.counts.entries };
           }
           return { ok: true, value };
         } catch (error) {

@@ -6,7 +6,7 @@ import { TranslationSession, partialCheck, readyCount, type TranslationSessionIn
 
 const documentId = '10000000-0000-4000-8000-000000000001';
 const selection = { ...emptySelection('zh'), languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: ['20000000-0000-4000-8000-000000000001'] };
-const input: TranslationSessionInput = { documents: [{ documentId, revision: 1 }], batch: false, documentTopicIds: [], cueIds: [], generation: 4, knowledge: selection,
+const input: TranslationSessionInput = { documents: [{ documentId, revision: 1 }], batch: false, cueIds: [], generation: 4, knowledge: selection,
   config: { language: 'zh', instructions: '', contextWindow: 32768, maxOutputTokens: 4096, maxBatchCues: 32, model: { profileId: 'test', modelKey: 'test', endpoint: 'https://example.test', apiFormat: 'chat_completions' } } };
 const library = () => Promise.resolve({ generation: 4 } as LibrarySnapshot);
 const preview = { planId: 'plan', documentId, revision: 1, expiresAt: Date.now() + 60000, canRun: true, cueCount: 2, batchCount: 1, estimatedInputTokens: 10, outputTokenReserve: 10, knowledgeDigest: '', resourceCount: 1, includedEntryCount: 1, issues: [] };
@@ -104,41 +104,37 @@ describe('one-panel translation session', () => {
   });
   it('exposes a partial batch so admission needs a separate explicit choice', async () => {
     const { api, session } = fixture();
-    const checked = await session.check({ ...input, batch: true, knowledge: { ...selection, bindings: [{ subjectId: 'person', role: 'speaker', cueIds: ['cue'] }], confirmations: [{ entryId: 'term', cueIds: ['cue'] }] } });
+    const checked = await session.check({ ...input, batch: true });
     expect(partialCheck(checked!)).toBe(true); expect(readyCount(checked!)).toBe(1);
     expect(api.createKnowledgeTranslation).not.toHaveBeenCalled();
     const sent = (api.planKnowledgeTranslationBatch.mock.calls as unknown[][])[0][0] as { knowledge: object };
-    expect(sent.knowledge).not.toHaveProperty('bindings'); expect(sent.knowledge).not.toHaveProperty('confirmations');
+    expect(sent.knowledge).toEqual(selection);
   });
-  it('projects document topics and explicit roles into the same trial sample without granting a speaker identity', async () => {
+  it('sends the same selection and the sampled cues to a trial', async () => {
     const { api, session } = fixture();
-    await session.check({ ...input, cueIds: ['one', 'two'], documentTopicIds: ['topic', 'topic'], knowledge: { ...selection,
-      bindings: [{ subjectId: 'topic', role: 'topic', cueIds: ['one'] }, { subjectId: 'person', role: 'speaker', cueIds: ['one', 'outside'] }],
-      confirmations: [{ entryId: 'term', cueIds: ['two', 'outside'] }] } }, true);
+    await session.check({ ...input, cueIds: ['one', 'two'] }, true);
     const sent = (api.planKnowledgeTrial.mock.calls as unknown[][])[0][0] as { cueIds: string[]; knowledge: typeof selection };
     expect(sent.cueIds).toEqual(['one', 'two']);
-    expect(sent.knowledge.bindings).toEqual([{ subjectId: 'person', role: 'speaker', cueIds: ['one'] }, { subjectId: 'topic', role: 'topic', cueIds: ['one', 'two'] }]);
-    expect(sent.knowledge.confirmations).toEqual([{ entryId: 'term', cueIds: ['two'] }]);
+    expect(sent.knowledge).toEqual(selection);
   });
 });
 
 describe('translation draft reuse', () => {
-  const draft: TranslationDraft = { profileId: 'profile', language: 'zh', instructions: '', contextWindow: '32768', maxOutputTokens: '4096', maxBatchCues: '32', documentTopicIds: ['topic'], cueIds: ['cue'],
-    selection: { ...selection, instructions: '', context: '', disabledEntryIds: ['term'], bindings: [{ subjectId: 'person', role: 'speaker', cueIds: ['cue'] }], confirmations: [{ entryId: 'term', cueIds: ['cue'] }] } };
+  const draft: TranslationDraft = { profileId: 'profile', language: 'zh', instructions: '', contextWindow: '32768', maxOutputTokens: '4096', maxBatchCues: '32', cueIds: ['cue'],
+    selection: { ...selection, instructions: '', context: '', disabledEntryIds: ['30000000-0000-4000-8000-000000000001'] } };
   it('retains a document draft but clears source-specific authority after a revision or explicit reuse', () => {
     const memory = new TranslationDraftMemory(); memory.remember(documentId, 1, draft);
     expect(memory.read(documentId, 1)).toEqual(draft);
     for (const copy of [memory.read(documentId, 2), memory.last(), reusableTranslationDraft(draft)]) {
       expect(copy?.selection.collectionIds).toEqual(selection.collectionIds);
       expect(copy?.selection.instructions).toBe(''); expect(copy?.selection.context).toBe('');
-      expect(copy?.selection.bindings).toEqual([]); expect(copy?.selection.confirmations).toEqual([]);
       expect(copy?.selection.disabledEntryIds).toEqual([]);
-      expect(copy?.documentTopicIds).toEqual([]); expect(copy?.cueIds).toEqual([]);
+      expect(copy?.cueIds).toEqual([]);
     }
     expect(memory.read('new-document', 1)).toBeUndefined();
   });
   it('does not activate old disabled automatic choices', () => {
-    const saved = { enabled: false, sourceLanguage: 'en', collectionIds: selection.collectionIds, documentTopicIds: ['topic'], disabledEntryIds: [], instructions: 'old' };
+    const saved = { enabled: false, sourceLanguage: 'en', collectionIds: selection.collectionIds, disabledEntryIds: [], instructions: 'old' };
     expect(activeAutomaticMaterials(saved, 'zh')).toEqual(emptySelection('zh'));
     expect(activeAutomaticMaterials({ ...saved, enabled: true }, 'zh').collectionIds).toEqual(selection.collectionIds);
   });

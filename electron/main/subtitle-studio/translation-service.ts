@@ -10,16 +10,14 @@ import { DocumentRepository } from './document-repository';
 import { buildTranslationRequest, planTranslation, requestTokenEstimate, type TranslationPlan } from './translation-planner';
 import { checkpointForPlan, documentSourceDigest, publishTransaction, restoreTranslationPlan, sameTranslationModel, translationScheduler, type TranslationScheduler } from './translation-recovery';
 import { assertKnowledgeExecutionCapacity, createExecutionRecord, requestForExecution, resolveExecutionRecord, runtimeExecutionRequest, type PreparedKnowledgeExecution } from './execution-records';
-import type { KnowledgeTaskGate, KnowledgeTaskReference } from '../../../src/translation-knowledge/task-reference-contract';
-import { knowledgeResourceReferences } from '../../../src/translation-knowledge/snapshot-contract';
-import { automaticKnowledgeExecutionPolicy, validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
+import { validateFrozenAutomaticKnowledge } from '../../../src/translation-knowledge/automatic-snapshot-contract';
 import { prepareKnowledgeTranslation } from './knowledge-translation';
 import type { KnowledgeIssue } from '../../../src/translation-knowledge/execution-contract';
 import { createAutomaticKnowledgeReport } from './automatic-knowledge-report';
 
 type Task = DocumentSnapshot['tasks'][number];
 type AttemptReceipt = { batchId: string; attempt: number; usage: TranslationUsage; uncertain: boolean };
-type Run = { taskId: string; documentId: string; generation: number; controller: AbortController; done: Promise<void>; receipt?: AttemptReceipt; knowledgeReference?: KnowledgeTaskReference };
+type Run = { taskId: string; documentId: string; generation: number; controller: AbortController; done: Promise<void>; receipt?: AttemptReceipt };
 const activeStatus = (task: Task) => ['queued', 'running'].includes(task.status);
 /** A selection translated into an existing track must keep that track's language. */
 function assertScopeTrack(document: DocumentSnapshot['document'], plan: TranslationPlan, scope?: TranslationScope) {
@@ -61,6 +59,8 @@ function interruptTask(task: Task, status: 'interrupted' | 'cancelled', receipt?
   task.status = status;
   task.generation++;
 }
+/** The target language of frozen materials this version can read, else undefined. */
+const knowledgeTarget = (knowledge: unknown) => { try { return validateFrozenAutomaticKnowledge(knowledge).selection.languagePair.target; } catch { return undefined; } };
 function failureCode(error: unknown): 'needs_configuration' | 'translation_protocol_invalid' | 'translation_output_limit' | 'translation_record_unavailable' | 'translation_failed' | 'knowledge_check_failed' | 'limit_exceeded' | 'revision_conflict' | 'interrupted' {
   if (error instanceof StudioError && ['needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_record_unavailable', 'knowledge_check_failed', 'limit_exceeded', 'revision_conflict', 'interrupted'].includes(error.code)) return error.code as ReturnType<typeof failureCode>;
   if (error instanceof ModelRuntimeClientError) {
@@ -121,7 +121,7 @@ export class TranslationService {
   private automaticAdmissions = new Map<string, Promise<{ taskId: string }>>();
   private automaticCompleted?: (documentId: string) => void;
   constructor(private repository: DocumentRepository, private send: (request: ModelRuntimeTextRequest) => Promise<ModelRuntimeTextResult> = sendModelRuntimeText,
-    private scheduler: TranslationScheduler = translationScheduler, private knowledgeGate?: KnowledgeTaskGate) {}
+    private scheduler: TranslationScheduler = translationScheduler) {}
 
   /** Called when the translation an automatic intent admitted completes, so its pipeline can go on. */
   onAutomaticCompleted(listener: (documentId: string) => void) { this.automaticCompleted = listener; }
@@ -131,11 +131,6 @@ export class TranslationService {
       const current = await this.repository.readSnapshot(documentId);
       if (current.automaticTranslation?.translationTaskId === taskId && current.tasks.find(task => task.id === taskId)?.status === 'completed') this.automaticCompleted(documentId);
     } catch { /* A deleted document has nothing left to continue. */ }
-  }
-
-  /** Physical provider ownership outlives cancellation and retained task deletion. */
-  activeKnowledgeReferences(): KnowledgeTaskReference[] {
-    return [...this.handles].flatMap(run => run.knowledgeReference ? [structuredClone(run.knowledgeReference)] : []);
   }
 
   initialize(): Promise<void> {
@@ -194,7 +189,7 @@ export class TranslationService {
     return this.admit(planTranslation(doc, config), apiKey, guard);
   }
 
-  /** Main-only prepared admission. Its coordinator owns the shared knowledge gate. */
+  /** Main-only prepared admission of a plan the knowledge services verified. */
   async startPreparedKnowledge(input: PreparedKnowledgeExecution, apiKey: string, guard: () => void = () => {}, scope?: TranslationScope) {
     const prepared = structuredClone(input);
     this.assertOpen(); await this.initialize(); this.assertOpen(); guard();
@@ -211,8 +206,8 @@ export class TranslationService {
       if (frozen.selection.languagePair.target !== (intent.config.language === 'zh' ? 'zh-Hans' : intent.config.language)) return { error: 'knowledge_check_failed' };
       const result = await prepareKnowledgeTranslation(this.repository, { documentId: snapshot.document.id, revision: snapshot.document.revision,
         config: intent.config, knowledgeGeneration: frozen.generation,
-        knowledge: { ...frozen.selection, bindings: [], confirmations: [] }, documentTopicIds: frozen.documentTopicIds },
-      { generation: frozen.generation, data: frozen.data, approvals: frozen.approvals, imports: [] }, () => this.assertOpen(), undefined, automaticKnowledgeExecutionPolicy(frozen.policyVersion));
+        knowledge: frozen.selection },
+      { generation: frozen.generation, data: frozen.data }, () => this.assertOpen());
       if (!result.prepared || !result.preview.canRun) return { error: 'knowledge_check_failed', issues: result.preview.issues };
       return { plan: result.prepared.plan, knowledge: result.prepared, issues: result.preview.issues };
     } catch (error) {
@@ -241,7 +236,7 @@ export class TranslationService {
     const error = preparationError ?? (conflict ? 'revision_conflict' : launch ? undefined : 'needs_configuration');
     const track: DocumentSnapshot['document']['translationTracks'][number] = { id: trackId, revision: 1,
       ...(intent.config.trackName?.trim() ? { name: intent.config.trackName.trim() } : {}),
-      language: plan?.config.language ?? intent.knowledge?.selection.languagePair.target ?? intent.config.language,
+      language: plan?.config.language ?? knowledgeTarget(intent.knowledge) ?? intent.config.language,
       origin: 'ai', entries: {}, ...(execution ? { executionRef: execution.ref } : {}) };
     const task: Task = { id: taskId, trackId, generation: 1, status, completedBatchIds: [], uncertainBatchIds: [], attempts: 0,
       translation: { config: plan?.config ?? intent.config, totalBatches: plan?.batches.length ?? 1,
@@ -305,7 +300,7 @@ export class TranslationService {
         if (prepared.plan && snapshot.tasks.find(task => task.id === taskId)?.status === 'queued') this.launch(prepared.plan, snapshot, taskId, apiKey);
         return { taskId };
       };
-      return intent.knowledge && this.knowledgeGate ? this.knowledgeGate.run(admit) : admit();
+      return admit();
     });
     this.automaticAdmissions.set(key, operation);
     const release = () => { if (this.automaticAdmissions.get(key) === operation) this.automaticAdmissions.delete(key); };
@@ -350,11 +345,10 @@ export class TranslationService {
   }
 
   resume(documentId: string, revision: number, taskId: string, model: TranslationModel | null, apiKey: string, guard: () => void = () => {}): Promise<{ taskId: string }> {
-    const resume = () => this.resumeWithinGate(documentId, revision, taskId, model, apiKey, guard);
-    return this.knowledgeGate ? this.knowledgeGate.run(resume) : resume();
+    return this.resumeExisting(documentId, revision, taskId, model, apiKey, guard);
   }
 
-  private async resumeWithinGate(documentId: string, revision: number, taskId: string, model: TranslationModel | null, apiKey: string, guard: () => void): Promise<{ taskId: string }> {
+  private async resumeExisting(documentId: string, revision: number, taskId: string, model: TranslationModel | null, apiKey: string, guard: () => void): Promise<{ taskId: string }> {
     this.assertOpen(); await this.initialize(); this.assertOpen();
     const current = await this.repository.readSnapshot(documentId);
     if (current.document.revision !== revision) throw new StudioError('revision_conflict');
@@ -382,11 +376,6 @@ export class TranslationService {
     const unregister = this.repository.registerActivity(plan.documentId, controller);
     const run: Run = { taskId, documentId: plan.documentId, generation, controller, done: Promise.resolve() };
     const task = snapshot.tasks.find(item => item.id === taskId)!;
-    if (task.translation?.checkpoint?.version === 2) {
-      const record = resolveExecutionRecord(snapshot, taskId);
-      if (record.knowledge) run.knowledgeReference = { documentId: plan.documentId, taskId, trackId: task.trackId, recordId: record.id,
-        displayName: snapshot.document.origin.displayName, status: 'active', resources: knowledgeResourceReferences(record.knowledge) };
-    }
     this.running.set(taskId, run); this.handles.add(run);
     if (this.closed) controller.abort();
     run.done = this.execute(plan, snapshot, run, apiKey).then(() => this.afterRun(plan.documentId, taskId)).finally(() => {

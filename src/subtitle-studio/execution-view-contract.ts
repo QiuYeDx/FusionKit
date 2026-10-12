@@ -14,8 +14,8 @@ export type ExecutionRecordPage = { state: 'legacy' | 'unavailable' } | {
   state: 'available'; recordId: string; createdAt: string; config: TranslationConfig;
   policyVersion: string; totalBatches: number; preparedBatches: number; batchOffset: number;
   knowledge?: {
-    digest: string; generation: number; resourceCount: number; recipeName?: string;
-    collections: string[]; documentTopics: string[]; compiled: CompiledKnowledge; entries: Entry[];
+    digest: string; generation: number; resourceCount: number;
+    collections: string[]; compiled: CompiledKnowledge; entries: Entry[];
     cues: { cueId: string; number: number; text: string }[];
   };
   batch: {

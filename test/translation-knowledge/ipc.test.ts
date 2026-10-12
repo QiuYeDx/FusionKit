@@ -7,16 +7,15 @@ import { pathToFileURL } from 'node:url';
 import { KNOWLEDGE_CHANNELS } from '../../src/translation-knowledge/ipc-contract';
 import { createTranslationKnowledgeApi, assertLegacyKnowledgeChannelAllowed, isPublicKnowledgeChannel } from '../../electron/preload/translation-knowledge-api';
 import { knowledgeRequestSchemas, trustedKnowledgeUrl } from '../../electron/main/translation-knowledge/ipc';
-import type { MaintenanceRequest } from '../../src/translation-knowledge/maintenance-contract';
 
 const state = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => any>(), listeners: new Map<string, (...args: any[]) => any>(),
   read: vi.fn(async () => ({ generation: 0 })), release: vi.fn(), dispose: vi.fn(async () => {}),
   select: vi.fn(async () => ({ canceled: true, filePaths: [] as string[] })),
   save: vi.fn(async () => ({ canceled: true, filePath: undefined as string | undefined })),
-  export: vi.fn(async () => ({ entries: [] })), plan: vi.fn(),
-  planMaintenance: vi.fn(), commitMaintenance: vi.fn(), saveRecords: vi.fn(),
-  prepareExport: vi.fn(async () => ({ text: '{}\n', preview: { counts: { entries: 0 }, purpose: 'backup' } })),
+  plan: vi.fn(),
+  deleteRecords: vi.fn(), restoreRecords: vi.fn(), saveRecords: vi.fn(),
+  prepareExport: vi.fn(async () => ({ text: '{}\n', preview: { counts: { entries: 0 } } })),
   planExport: vi.fn(), invalidateExports: vi.fn(), exportGuard: vi.fn(),
 }));
 vi.mock('electron', () => ({
@@ -35,7 +34,7 @@ vi.mock('node:fs/promises', async importOriginal => {
   return { ...actual, link: vi.fn(actual.link) };
 });
 vi.mock('../../electron/main/translation-knowledge/service', () => ({
-  KnowledgeService: class { read = state.read; releaseOwner = state.release; dispose = state.dispose; exportPackage = state.export; planImport = state.plan; planMaintenance = state.planMaintenance; commitMaintenance = state.commitMaintenance; saveRecords = state.saveRecords; },
+  KnowledgeService: class { read = state.read; releaseOwner = state.release; dispose = state.dispose; planImport = state.plan; deleteRecords = state.deleteRecords; restoreRecords = state.restoreRecords; saveRecords = state.saveRecords; },
   KnowledgeServiceError: class extends Error { constructor(public code: string, public diagnostics?: unknown[]) { super(code); } },
 }));
 vi.mock('../../electron/main/translation-knowledge/export-plans', () => ({
@@ -127,14 +126,14 @@ describe('knowledge IPC and native publication', () => {
     expect(trustedKnowledgeUrl('https://example.test/app#a', 'https://example.test/app#b')).toBe(true);
     expect(trustedKnowledgeUrl('https://example.test/app?extra=1', 'https://example.test/app')).toBe(false);
     const id = '10000000-0000-4000-8000-000000000001';
-    expect(knowledgeRequestSchemas.reviewEntries.safeParse({ generation: 0, ids: [id, id], action: 'adopt' }).success).toBe(false);
+    expect(knowledgeRequestSchemas.planExport.safeParse({ generation: 0, collectionIds: [id, id], includeDisabled: false, includePresets: false }).success).toBe(false);
     expect(knowledgeRequestSchemas.selectImport.safeParse({ filePath: '/etc/passwd' }).success).toBe(false);
-    expect(knowledgeRequestSchemas.exportFile.safeParse({ generation: 0, purpose: 'backup', collectionIds: [], includeMemories: false, path: '/etc/passwd' }).success).toBe(false);
+    expect(knowledgeRequestSchemas.exportFile.safeParse({ planId: id, path: '/etc/passwd' }).success).toBe(false);
     expect(knowledgeRequestSchemas.importDroppedFile.safeParse({ path: '../secret.json' }).success).toBe(false);
-    expect(knowledgeRequestSchemas.commitMaintenance.safeParse({ planId: id, action: 'purge', targets: [] }).success).toBe(false);
+    expect(knowledgeRequestSchemas.commitImport.safeParse({ planId: id, collections: [], conflict: 'keep_local', presets: 'add', adoptReady: true }).success).toBe(false);
   });
 
-  it('passes explicit collection deletion through preload and the registered handler while rejecting forged expansion requests', async () => {
+  it('passes bounded deletions and restorations through preload and rejects forged requests', async () => {
     const bridge = registerTranslationKnowledge();
     const contents = Object.assign(new EventEmitter(), { id: 73, mainFrame: { url: pathToFileURL(path.join(process.cwd(), 'dist/index.html')).href }, isDestroyed: () => false });
     bridge.attach(contents as any);
@@ -144,25 +143,24 @@ describe('knowledge IPC and native publication', () => {
       invoke: async (channel, envelope) => state.handlers.get(channel)!(event, envelope),
     });
     const collectionId = '10000000-0000-4000-8000-000000000001';
-    const entryId = '10000000-0000-4000-8000-000000000002';
-    const payload: MaintenanceRequest = { generation: 3, action: 'purge', targets: [{ group: 'collections', id: collectionId }], includeCollectionContents: true };
-    const preview = { planId: '10000000-0000-4000-8000-000000000003', action: 'purge', canCommit: true };
-    state.planMaintenance.mockResolvedValue(preview);
+    const request = { generation: 3, items: [{ group: 'collections' as const, id: collectionId }] };
+    const deleted = { snapshot: { generation: 4 }, deleted: { collections: [], entries: [], presets: [] } };
+    state.deleteRecords.mockResolvedValue(deleted);
+    state.restoreRecords.mockResolvedValue({ generation: 5 });
     try {
-      expect(await api.planMaintenance(payload)).toEqual({ ok: true, value: preview });
-      expect(state.planMaintenance).toHaveBeenCalledWith(event.returnValue, payload);
+      expect(await api.deleteRecords(request)).toEqual({ ok: true, value: deleted });
+      expect(state.deleteRecords).toHaveBeenCalledWith(request, expect.any(Function));
       for (const invalid of [
-        { ...payload, includeCollectionContents: false },
-        { ...payload, includeCollectionContents: 'true' },
-        { ...payload, targets: [{ group: 'entries', id: entryId }] },
-        { ...payload, targets: [...payload.targets, { group: 'entries', id: entryId }] },
-        { ...payload, action: 'archive' },
-        { ...payload, targets: [payload.targets[0], payload.targets[0]] },
-      ]) expect(await api.planMaintenance(invalid as MaintenanceRequest)).toEqual({ ok: false, error: 'invalid_input' });
-      expect(state.planMaintenance).toHaveBeenCalledTimes(1);
-      const ordinary: MaintenanceRequest = { generation: 3, action: 'purge', targets: [{ group: 'entries', id: entryId }] };
-      expect(await api.planMaintenance(ordinary)).toEqual({ ok: true, value: preview });
-      expect(state.planMaintenance).toHaveBeenLastCalledWith(event.returnValue, ordinary);
+        { ...request, items: [] },
+        { ...request, items: [{ group: 'subjects', id: collectionId }] },
+        { ...request, items: [{ group: 'collections', id: collectionId, includeContents: true }] },
+        { ...request, items: Array.from({ length: 501 }, () => request.items[0]) },
+      ]) expect(await api.deleteRecords(invalid as never)).toEqual({ ok: false, error: 'invalid_input' });
+      expect(state.deleteRecords).toHaveBeenCalledTimes(1);
+      const records = { collections: [], entries: [], presets: [] };
+      expect(await api.restoreRecords({ generation: 4, records })).toEqual({ ok: true, value: { generation: 5 } });
+      expect(await api.restoreRecords({ generation: 4, records: { ...records, subjects: [] } } as never)).toEqual({ ok: false, error: 'invalid_input' });
+      expect(state.restoreRecords).toHaveBeenCalledTimes(1);
     } finally { await bridge.dispose(); }
   });
 
@@ -215,7 +213,7 @@ describe('knowledge IPC and native publication', () => {
     state.listeners.get(KNOWLEDGE_CHANNELS.register)!(event, {});
     const planId = '10000000-0000-4000-8000-000000000001';
     const result = await state.handlers.get(KNOWLEDGE_CHANNELS.exportFile)!(event, { capability: event.returnValue, payload: { planId } });
-    expect(result).toMatchObject({ ok: true, value: { entries: 0, purpose: 'backup' } });
+    expect(result).toEqual({ ok: true, value: { fileName: 'previewed.fktk.json', entries: 0 } });
     expect(state.prepareExport).toHaveBeenCalledTimes(2);
     expect(state.exportGuard).toHaveBeenCalledWith(event.returnValue, planId);
     expect(await readFile(destination, 'utf8')).toBe('{}\n');

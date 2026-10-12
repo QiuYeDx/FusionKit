@@ -1,47 +1,37 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { ENTITY_ARRAYS, subjectSchema, collectionSchema, entrySchema, sourceSchema, styleSchema, recipeSchema, preferenceTemplateSchema, knowledgePackageSchema, type Entry, type KnowledgePackage } from '../../../src/translation-knowledge/schemas';
+import { collectionSchema, entrySchema, presetSchema, type KnowledgePackage, type Preset } from '../../../src/translation-knowledge/schemas';
 import { canonicalize, sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
-import { parseKnowledgePackage, validatePackage, type Diagnostic } from '../../../src/translation-knowledge/validation';
-import type { CommitImportRequest, EntityGroup, ExportRequest, ImportItem, ImportPreview, ImportReceipt, KnowledgeEntity, LibrarySnapshot, ReviewEntriesRequest, SaveRecordRequest, SaveRecordsRequest } from '../../../src/translation-knowledge/ipc-contract';
+import { parseKnowledgePackage, validatePackage } from '../../../src/translation-knowledge/validation';
+import {
+  DELETE_BATCH_LIMIT, SAVE_BATCH_LIMIT,
+  type CommitImportRequest, type DeletedRecords, type DeleteRecordsRequest, type DeleteRecordsResult, type EntityGroup, type ImportCollectionPreview,
+  type ImportPreview, type ImportReceipt, type KnowledgeEntity, type LibrarySnapshot, type RestoreRecordsRequest, type SaveRecordsRequest,
+} from '../../../src/translation-knowledge/ipc-contract';
 import { diagnostic, KnowledgeServiceError } from './errors';
-import { emptyPackage, KnowledgeRepository, type RepositoryOptions, type StoredLibrary } from './repository';
-import type { MaintenanceCommit, MaintenancePreview, MaintenanceReceipt, MaintenanceRequest } from '../../../src/translation-knowledge/maintenance-contract';
-import { buildMaintenance, captureImportChanges, maintenanceCommitRequestSchema, maintenanceRequestSchema } from './maintenance';
-import type { KnowledgeReferenceInventory, KnowledgeTaskTracking } from '../../../src/translation-knowledge/task-reference-contract';
-import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
-import { requiresIndividualReview as highRisk, hasArchivedReviewDependency as unavailable } from '../../../src/translation-knowledge/review-policy';
+import { KnowledgeRepository, type RepositoryOptions, type StoredLibrary } from './repository';
 export { KnowledgeServiceError } from './errors';
 
 const generation = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
-const commitSchema = z.strictObject({ planId: z.uuid(), decisions: z.array(z.strictObject({ id: z.uuid(), action: z.enum(['keep', 'replace', 'copy', 'skip']) })).max(20_000), adoptReady: z.boolean() });
-const saveSchema = z.strictObject({ generation, group: z.enum(ENTITY_ARRAYS), record: z.unknown(), source: sourceSchema.optional(), adopt: z.boolean().optional() });
-const saveManySchema = z.strictObject({ generation, items: z.array(z.unknown()).min(1).max(200) });
-const reviewSchema = z.strictObject({ generation, ids: z.array(z.uuid()).min(1).max(20_000), action: z.enum(['adopt', 'reject', 'archive']) });
-const exportSchema = z.strictObject({ generation, purpose: z.enum(['backup', 'share']), collectionIds: z.array(z.uuid()).max(20_000), includeMemories: z.boolean() });
-const entitySchemas = { subjects: subjectSchema, collections: collectionSchema, sources: sourceSchema, entries: entrySchema, styles: styleSchema, recipes: recipeSchema, preferenceTemplates: preferenceTemplateSchema };
+const groupSchema = z.enum(['collections', 'entries', 'presets']);
+const saveSchema = z.strictObject({ generation, items: z.array(z.strictObject({ group: groupSchema, record: z.unknown() })).min(1).max(SAVE_BATCH_LIMIT) });
+const deleteSchema = z.strictObject({ generation, items: z.array(z.strictObject({ group: groupSchema, id: z.uuid() })).min(1).max(DELETE_BATCH_LIMIT) });
+const restoreSchema = z.strictObject({ generation, records: z.strictObject({ collections: z.array(collectionSchema), entries: z.array(entrySchema), presets: z.array(presetSchema) }) });
+const commitSchema = z.strictObject({
+  planId: z.uuid(), collections: z.array(z.strictObject({ id: z.uuid(), action: z.enum(['add', 'merge', 'copy', 'skip']) })).max(20_000),
+  conflict: z.enum(['keep_local', 'use_incoming']), presets: z.enum(['add', 'skip']),
+});
+const entitySchemas = { collections: collectionSchema, entries: entrySchema, presets: presetSchema };
 const PLAN_TTL_MS = 15 * 60 * 1000;
-const referenceFields = { displayName: z.string().max(255), status: z.enum(['active', 'retained']),
-  resources: z.array(z.strictObject({ group: z.enum(ENTITY_ARRAYS), id: z.uuid(), revision: generation.positive(), digest: z.string().regex(/^[a-f0-9]{64}$/) })).max(100000) };
-const taskInventorySchema = z.strictObject({
-  references: z.array(z.union([
-    z.strictObject({ kind: z.literal('execution').optional(), documentId: z.uuid(), taskId: z.uuid(), trackId: z.uuid(), recordId: z.uuid(), ...referenceFields }),
-    z.strictObject({ kind: z.literal('automatic_preparation'), preparationId: z.uuid(), documentId: z.uuid().optional(), ...referenceFields }),
-  ])).max(10000), unknownDocuments: generation, digest: z.string().regex(/^[a-f0-9]{64}$/),
-}).refine(value => value.references.reduce((sum, ref) => sum + ref.resources.length, 0) <= 200000);
-interface Plan { owner: string; expiresAt: number; data: KnowledgePackage; preview: ImportPreview; requestDigest?: string }
-interface MaintenancePlan { owner: string; expiresAt: number; request: MaintenanceRequest; preview: MaintenancePreview; historyDigest?: string; taskDigest?: string; requestDigest?: string }
-const ownerDigest = (owner: string) => createHash('sha256').update(owner).digest('hex');
+interface Plan { owner: string; expiresAt: number; data: KnowledgePackage; preview: ImportPreview; committed?: { requestDigest: string; receipt: ImportReceipt } }
 const clone = <T>(value: T): T => structuredClone(value);
-const snapshot = (state: StoredLibrary): LibrarySnapshot => clone({ generation: state.generation, data: state.data, approvals: state.approvals, imports: state.imports, maintenance: { undoableImportIds: Object.keys(state.importChanges).filter(id => !state.undoneImportIds.includes(id)), undoneImportIds: state.undoneImportIds, cleanupPending: state.cleanupPending } });
+const snapshot = (state: StoredLibrary): LibrarySnapshot => clone({ generation: state.generation, data: state.data });
 const fail = (code: string, message: string, path?: string): never => { throw new KnowledgeServiceError('invalid_input', [diagnostic(code, message, path)]); };
-function parse<T>(schema: z.ZodType<T>, input: unknown): T {
+const sameContent = (a: KnowledgeEntity, b: KnowledgeEntity) => canonicalize({ ...a, revision: 0 }) === canonicalize({ ...b, revision: 0 });
+function parse<T>(schema: z.ZodType<T>, input: unknown, prefix = ''): T {
   const checked = schema.safeParse(input);
-  if (!checked.success) throw new KnowledgeServiceError('invalid_input', checked.error.issues.slice(0, 100).map(issue => diagnostic('REQUEST_FORMAT', issue.message, `/${issue.path.join('/')}`)));
+  if (!checked.success) throw new KnowledgeServiceError('invalid_input', checked.error.issues.slice(0, 100).map(issue => diagnostic('REQUEST_FORMAT', issue.message, `${prefix}/${issue.path.join('/')}`)));
   return checked.data;
-}
-function records(data: KnowledgePackage): Map<string, { group: EntityGroup; record: KnowledgeEntity }> {
-  return new Map(ENTITY_ARRAYS.flatMap(group => data[group].map(record => [record.id, { group, record }] as const)));
 }
 function checkPackage(data: KnowledgePackage): void {
   const checked = validatePackage(data);
@@ -54,136 +44,96 @@ function nextRevision(current: number): number {
 function requireGeneration(state: StoredLibrary, expected: number): void {
   if (state.generation !== expected) throw new KnowledgeServiceError('revision_conflict');
 }
-function entryDependencies(entry: Entry): string[] {
-  return [entry.collectionId, ...entry.scope.requiredSubjects.map(item => item.subjectId), ...entry.evidence.map(item => item.sourceId), ...entry.derivedFrom.flatMap(item => [item.entryId, item.evidenceSourceId])];
-}
-/** Collection labels/defaults do not alter any existing entry's explicit scope. */
-function affectsDependents(group: EntityGroup, before: KnowledgeEntity, after: KnowledgeEntity): boolean {
-  return group !== 'collections' || (before as KnowledgePackage['collections'][number]).archived !== (after as KnowledgePackage['collections'][number]).archived;
-}
-/** Preserve archived/rejected/candidate states; only formerly ready dependents need re-review. */
-function invalidate(state: StoredLibrary, changed: Set<string>, explicitlyReviewed = new Set<string>()): void {
-  const affected = new Set(changed);
-  let found = true;
-  while (found) {
-    found = false;
-    for (const entry of state.data.entries) {
-      if (explicitlyReviewed.has(entry.id)) continue;
-      if (!affected.has(entry.id) && entryDependencies(entry).some(id => affected.has(id))) { affected.add(entry.id); found = true; }
-    }
+function list(data: KnowledgePackage, group: EntityGroup): KnowledgeEntity[] { return data[group]; }
+function find(data: KnowledgePackage, id: string): { group: EntityGroup; record: KnowledgeEntity } | undefined {
+  for (const group of ['collections', 'entries', 'presets'] as const) {
+    const record = list(data, group).find(item => item.id === id);
+    if (record) return { group, record };
   }
-  for (const entry of state.data.entries) {
-    if (!affected.has(entry.id) || explicitlyReviewed.has(entry.id)) continue;
-    delete state.approvals[entry.id];
-    if (!changed.has(entry.id) && entry.state === 'ready') { entry.state = 'needs_review'; entry.revision = nextRevision(entry.revision); }
-  }
+  return undefined;
 }
-function approve(state: StoredLibrary, entry: Entry, method: 'human' | 'trusted_import'): void {
-  state.approvals[entry.id] = { revision: entry.revision, digest: sha256Canonical(entry), method, approvedAt: new Date().toISOString() };
-}
-function isTrusted(state: StoredLibrary, entry: Entry): boolean {
-  const approval = state.approvals[entry.id];
-  return entry.state === 'ready' && !!approval && approval.revision === entry.revision && approval.digest === sha256Canonical(entry) && !unavailable(entry, state.data);
-}
-function put(data: KnowledgePackage, group: EntityGroup, entity: KnowledgeEntity): void {
-  const list = data[group] as KnowledgeEntity[];
-  const index = list.findIndex(item => item.id === entity.id);
-  if (index < 0) list.push(entity); else list[index] = entity;
-}
-/** Only declared structural references are remapped; user text and unknown extensions are inert. */
-function remap(group: EntityGroup, incoming: KnowledgeEntity, ids: Map<string, string>): KnowledgeEntity {
-  const copy = clone(incoming);
-  const id = (value: string) => ids.get(value) ?? value;
-  copy.id = id(copy.id);
-  if (group === 'collections') { const item = copy as KnowledgePackage['collections'][number]; item.aboutSubjectIds = item.aboutSubjectIds.map(id); }
-  if (group === 'entries') {
-    const item = copy as Entry;
-    item.collectionId = id(item.collectionId); item.aboutSubjectIds = item.aboutSubjectIds.map(id);
-    item.scope.requiredSubjects.forEach(binding => { binding.subjectId = id(binding.subjectId); });
-    item.evidence.forEach(evidence => { evidence.sourceId = id(evidence.sourceId); });
-    item.derivedFrom.forEach(parent => { parent.entryId = id(parent.entryId); parent.evidenceSourceId = id(parent.evidenceSourceId); });
-  }
-  if (group === 'styles') { const item = copy as KnowledgePackage['styles'][number]; item.ruleEntryIds = item.ruleEntryIds.map(id); }
-  if (group === 'recipes') {
-    const item = copy as KnowledgePackage['recipes'][number];
-    item.readCollectionIds = item.readCollectionIds.map(id); item.subjectSuggestions.forEach(binding => { binding.subjectId = id(binding.subjectId); });
-    if (item.baseStyleId) item.baseStyleId = id(item.baseStyleId);
-    item.modifierStyleIds = item.modifierStyleIds.map(id);
-    if (item.suggestedDestinationCollectionId) item.suggestedDestinationCollectionId = id(item.suggestedDestinationCollectionId);
-  }
-  return copy;
-}
-
-interface SaveItem { generation: number; group: EntityGroup; record: KnowledgeEntity; source?: KnowledgePackage['sources'][number]; adopt?: boolean }
-function parseSaveItem(request: unknown): SaveItem {
-  const input = parse(saveSchema, request);
-  const record = parse(entitySchemas[input.group] as z.ZodType<KnowledgeEntity>, input.record);
-  if (input.group !== 'entries' && (input.source || input.adopt)) fail('ENTRY_ONLY_ACTION', 'Evidence creation and adoption apply to entries only.');
-  if (input.source && input.source.id === record.id) fail('SOURCE_ID_COLLISION', 'An entry and its evidence source must have different identities.');
-  return { generation: input.generation, group: input.group, record, ...(input.source ? { source: input.source } : {}), ...(input.adopt ? { adopt: true } : {}) };
-}
-function prefixDiagnostics(error: unknown, prefix: string): unknown {
-  if (!(error instanceof KnowledgeServiceError) || !error.diagnostics) return error;
-  return new KnowledgeServiceError(error.code, error.diagnostics.map(item => ({ ...item, path: `${prefix}${item.path && item.path !== '$' ? item.path : ''}` })));
-}
-/**
- * Apply saves in order inside one transaction. Later items may reference records created by
- * earlier ones. Returns whether anything changed; throws (and so publishes nothing) on any failure.
- */
-function commitSaves(state: StoredLibrary, items: SaveItem[]): boolean {
-  const changed = new Set<string>();
-  const adopted: Entry[] = [];
-  let hasChanges = false;
-  for (const item of items) {
-    const existing = records(state.data);
-    const save = (group: EntityGroup, record: KnowledgeEntity): KnowledgeEntity => {
-      const local = existing.get(record.id);
-      if (local && (local.group !== group || local.record.revision !== record.revision)) throw new KnowledgeServiceError('revision_conflict');
-      if (!local && record.revision !== 1) fail('NEW_RECORD_REVISION', 'A new record must start at revision 1.');
-      if (local && canonicalize(local.record) === canonicalize(record)) return local.record;
-      const next = clone(record);
-      if (local) {
-        next.revision = nextRevision(local.record.revision);
-        if (affectsDependents(group, local.record, next)) changed.add(next.id);
-      }
-      put(state.data, group, next);
-      delete state.approvals[next.id];
-      hasChanges = true;
-      return next;
-    };
-    if (item.source) {
-      const old = existing.get(item.source.id);
-      if (!old || old.group !== 'sources' || canonicalize(old.record) !== canonicalize(item.source)) save('sources', item.source);
-    }
-    const entity = save(item.group, item.record);
-    const target = item.group === 'entries' ? entity as Entry : undefined;
-    if (target && item.adopt) {
-      if (target.state !== 'ready') {
-        if (existing.has(target.id) && !changed.has(target.id)) target.revision = nextRevision(target.revision);
-        target.state = 'ready'; changed.add(target.id); hasChanges = true;
-      }
-      adopted.push(target);
-    }
-  }
-  invalidate(state, changed, new Set(adopted.map(entry => entry.id)));
-  checkPackage(state.data);
-  for (const target of adopted) {
-    if (unavailable(target, state.data)) throw new KnowledgeServiceError('import_conflict', [diagnostic('REVIEW_DEPENDENCY_ARCHIVED', 'Restore the required archived dependencies before accepting this entry.')]);
-    if (!isTrusted(state, target)) { approve(state, target, 'human'); hasChanges = true; }
-  }
-  if (hasChanges) delete state.importedOriginal;
-  return hasChanges;
+function put(data: KnowledgePackage, group: EntityGroup, record: KnowledgeEntity): void {
+  const items = list(data, group);
+  const index = items.findIndex(item => item.id === record.id);
+  if (index < 0) items.push(record); else items[index] = record;
 }
 
 export class KnowledgeService {
   private readonly repository: KnowledgeRepository;
   private readonly plans = new Map<string, Plan>();
-  private readonly maintenancePlans = new Map<string, MaintenancePlan>();
   private readonly released = new Set<string>();
   private disposed = false;
-  constructor(rootPath: string, options: RepositoryOptions = {}, private readonly taskTracking?: KnowledgeTaskTracking) { this.repository = new KnowledgeRepository(rootPath, options); }
+  constructor(rootPath: string, options: RepositoryOptions = {}) { this.repository = new KnowledgeRepository(rootPath, options); }
 
   async read(): Promise<LibrarySnapshot> { return snapshot(await this.repository.read()); }
+
+  /** Several records as one transaction: one generation check, one validation, all or nothing. */
+  async saveRecords(request: SaveRecordsRequest, guard?: () => void): Promise<LibrarySnapshot> {
+    const input = parse(saveSchema, request);
+    const items = input.items.map((item, index) => ({ group: item.group, record: parse(entitySchemas[item.group] as z.ZodType<KnowledgeEntity>, item.record, `/items/${index}/record`) }));
+    if (new Set(items.map(item => item.record.id)).size !== items.length) fail('DUPLICATE_BATCH_RECORD', 'Each record may appear once in a batch.', '/items');
+    return this.repository.transact(state => {
+      requireGeneration(state, input.generation);
+      let changed = false;
+      items.forEach(({ group, record }, index) => {
+        const local = find(state.data, record.id);
+        if (local && (local.group !== group || local.record.revision !== record.revision)) throw new KnowledgeServiceError('revision_conflict', [diagnostic('RECORD_REVISION', 'This record changed elsewhere. Reload and try again.', `/items/${index}`)]);
+        if (!local && record.revision !== 1) fail('NEW_RECORD_REVISION', 'A new record must start at revision 1.', `/items/${index}/record/revision`);
+        if (local && canonicalize(local.record) === canonicalize(record)) return;
+        put(state.data, group, { ...clone(record), revision: local ? nextRevision(local.record.revision) : 1 });
+        changed = true;
+      });
+      if (!changed) return { result: snapshot };
+      checkPackage(state.data);
+      return { state, result: snapshot };
+    }, guard);
+  }
+
+  /** Deleting a collection removes its entries and its place in every preset. */
+  async deleteRecords(request: DeleteRecordsRequest, guard?: () => void): Promise<DeleteRecordsResult> {
+    const input = parse(deleteSchema, request);
+    if (new Set(input.items.map(item => item.id)).size !== input.items.length) fail('DUPLICATE_BATCH_RECORD', 'Each record may appear once in a batch.', '/items');
+    return this.repository.transact(state => {
+      requireGeneration(state, input.generation);
+      for (const item of input.items) if (find(state.data, item.id)?.group !== item.group) throw new KnowledgeServiceError('not_found');
+      const ids = (group: EntityGroup) => new Set(input.items.filter(item => item.group === group).map(item => item.id));
+      const collections = ids('collections'), entries = ids('entries'), presets = ids('presets');
+      const deleted: DeletedRecords = {
+        collections: clone(state.data.collections.filter(item => collections.has(item.id))),
+        entries: clone(state.data.entries.filter(item => entries.has(item.id) || collections.has(item.collectionId))),
+        presets: clone(state.data.presets.filter(item => presets.has(item.id) || item.collectionIds.some(id => collections.has(id)))),
+      };
+      const removedEntries = new Set(deleted.entries.map(item => item.id));
+      state.data.collections = state.data.collections.filter(item => !collections.has(item.id));
+      state.data.entries = state.data.entries.filter(item => !removedEntries.has(item.id));
+      state.data.presets = state.data.presets.filter(item => !presets.has(item.id)).map(item => item.collectionIds.some(id => collections.has(id))
+        ? { ...item, collectionIds: item.collectionIds.filter(id => !collections.has(id)), revision: nextRevision(item.revision) } : item);
+      checkPackage(state.data);
+      return { state, result: published => ({ snapshot: snapshot(published), deleted }) };
+    }, guard);
+  }
+
+  /** Undo a deletion with the records it returned. Partial restoration is never published. */
+  async restoreRecords(request: RestoreRecordsRequest, guard?: () => void): Promise<LibrarySnapshot> {
+    const input = parse(restoreSchema, request);
+    const { collections, entries, presets } = input.records;
+    const all = [...collections, ...entries, ...presets];
+    if (!all.length) fail('RESTORE_EMPTY', 'There is nothing to restore.');
+    if (new Set(all.map(item => item.id)).size !== all.length) fail('DUPLICATE_BATCH_RECORD', 'Each record may appear once.', '/records');
+    return this.repository.transact(state => {
+      requireGeneration(state, input.generation);
+      for (const record of [...collections, ...entries]) if (find(state.data, record.id)) throw new KnowledgeServiceError('import_conflict', [diagnostic('RESTORE_ID_EXISTS', 'A record with this identity already exists; the deletion can no longer be undone.')]);
+      for (const preset of presets) { const local = find(state.data, preset.id); if (local && local.group !== 'presets') throw new KnowledgeServiceError('import_conflict', [diagnostic('RESTORE_ID_EXISTS', 'A record with this identity already exists; the deletion can no longer be undone.')]); }
+      for (const collection of collections) state.data.collections.push({ ...clone(collection), revision: 1 });
+      for (const entry of entries) state.data.entries.push({ ...clone(entry), revision: 1 });
+      for (const preset of presets) {
+        const local = state.data.presets.find(item => item.id === preset.id);
+        put(state.data, 'presets', { ...clone(preset), revision: local ? nextRevision(local.revision) : 1 });
+      }
+      checkPackage(state.data);
+      return { state, result: snapshot };
+    }, guard);
+  }
 
   async planImport(owner: string, text: string): Promise<ImportPreview> {
     this.checkOwner(owner);
@@ -194,354 +144,97 @@ export class KnowledgeService {
     this.checkOwner(owner);
     for (const [id, existing] of this.plans) if (existing.expiresAt <= Date.now() || existing.owner === owner) this.plans.delete(id);
     if (this.plans.size >= 64) throw new KnowledgeServiceError('limit_exceeded');
-    const local = records(state.data);
-    const items: ImportItem[] = ENTITY_ARRAYS.flatMap(group => checked.data![group].map(incoming => {
-      const found = local.get(incoming.id);
-      const status: ImportItem['status'] = !found ? 'new' : found.group === group && sha256Canonical(incoming) === sha256Canonical(found.record) ? 'unchanged' : 'conflict';
-      return { id: incoming.id, group, title: 'title' in incoming ? incoming.title : incoming.name, status, sameRevision: found?.record.revision === incoming.revision, incoming: clone(incoming), ...(found ? { local: clone(found.record) } : {}) };
-    }));
-    const warnings = [...checked.warnings];
-    try { mergePackageMetadata(clone(state.data), checked.data); }
-    catch (error) {
-      if (!(error instanceof KnowledgeServiceError)) throw error;
-      warnings.push(...error.diagnostics);
-    }
-    if (checked.data.entries.some(highRisk)) warnings.push(diagnostic('INDIVIDUAL_REVIEW_REQUIRED', 'Required rules and core facts are saved for individual review; bulk import acceptance does not approve them.'));
-    if (items.some(item => item.status === 'conflict')) warnings.push(diagnostic('CONFLICT_REVIEW_REQUIRED', 'Imports with identity conflicts are saved for review; review the resulting versions after resolving their dependencies.'));
-    if (checked.data.entries.length || checked.data.styles.length || checked.data.recipes.length || checked.data.preferenceTemplates.length) warnings.push(diagnostic('TRIAL_ONLY_EXECUTION', 'Approved background, terms and rules can be checked in Subtitle Studio independent trials. Formal translation and global preference inheritance are not enabled.'));
-    const preview: ImportPreview = { planId: randomUUID(), generation: state.generation, packageName: checked.data.package.name, items, warnings, counts: { added: items.filter(item => item.status === 'new').length, unchanged: items.filter(item => item.status === 'unchanged').length, conflicts: items.filter(item => item.status === 'conflict').length } };
-    this.plans.set(preview.planId, { owner, expiresAt: Date.now() + PLAN_TTL_MS, data: clone(checked.data), preview: clone(preview) });
+    const incoming = checked.data;
+    const localEntries = new Map(state.data.entries.map(entry => [entry.id, entry]));
+    const collections: ImportCollectionPreview[] = incoming.collections.map(collection => {
+      const entries = incoming.entries.filter(entry => entry.collectionId === collection.id);
+      const existing = state.data.collections.some(item => item.id === collection.id);
+      let added = 0, changed = 0, unchanged = 0;
+      for (const entry of entries) {
+        const local = localEntries.get(entry.id);
+        if (!existing || !local || local.collectionId !== collection.id) added++;
+        else if (sameContent(local, entry)) unchanged++;
+        else changed++;
+      }
+      return { id: collection.id, name: collection.name, languagePair: clone(collection.languagePair), status: existing ? 'existing' : 'new', entries: entries.length, added, changed, unchanged };
+    });
+    const presets = incoming.presets.map(preset => ({ id: preset.id, name: preset.name, status: state.data.presets.some(item => item.id === preset.id) ? 'existing' as const : 'new' as const }));
+    const preview: ImportPreview = { planId: randomUUID(), generation: state.generation, packageName: incoming.package.name, collections, presets, warnings: [...checked.warnings] };
+    this.plans.set(preview.planId, { owner, expiresAt: Date.now() + PLAN_TTL_MS, data: clone(incoming), preview: clone(preview) });
     return preview;
   }
 
   async commitImport(owner: string, request: CommitImportRequest, guard?: () => void): Promise<ImportReceipt> {
     this.checkOwner(owner);
     const input = parse(commitSchema, request);
-    if (new Set(input.decisions.map(item => item.id)).size !== input.decisions.length) fail('DUPLICATE_DECISION', 'Each import entity may have only one decision.');
-    const requestDigest = sha256Canonical({ ...input, decisions: [...input.decisions].sort((a, b) => a.id.localeCompare(b.id)) });
+    if (new Set(input.collections.map(item => item.id)).size !== input.collections.length) fail('DUPLICATE_DECISION', 'Each collection may have only one decision.');
+    const requestDigest = sha256Canonical({ ...input, collections: [...input.collections].sort((a, b) => a.id.localeCompare(b.id)) });
     const fence = () => { this.checkOwner(owner); guard?.(); };
     return this.repository.transact(state => {
-      const committed = state.commits[input.planId];
-      if (committed) {
-        if (committed.ownerDigest !== ownerDigest(owner)) throw new KnowledgeServiceError('access_denied');
-        if (committed.requestDigest !== requestDigest) throw new KnowledgeServiceError('import_conflict', [diagnostic('COMMITTED_DECISION_CHANGED', 'This import already committed with different decisions.')]);
-        return { result: () => clone(state.imports.find(item => item.id === committed.receiptId)!) };
-      }
       const plan = this.plans.get(input.planId);
       if (!plan) throw new KnowledgeServiceError('plan_expired');
       if (plan.owner !== owner) throw new KnowledgeServiceError('access_denied');
+      if (plan.committed) {
+        if (plan.committed.requestDigest !== requestDigest) throw new KnowledgeServiceError('import_conflict', [diagnostic('COMMITTED_DECISION_CHANGED', 'This import already committed with different decisions.')]);
+        return { result: () => clone(plan.committed!.receipt) };
+      }
       if (plan.expiresAt <= Date.now() || plan.preview.generation !== state.generation) throw new KnowledgeServiceError('plan_expired');
-      if (plan.requestDigest && plan.requestDigest !== requestDigest) throw new KnowledgeServiceError('import_conflict', [diagnostic('PLAN_DECISION_CHANGED', 'Create a new preview before changing a previously attempted import.')]);
-      const beforeImport = { data: clone(state.data), approvals: clone(state.approvals) };
-      const choices = new Map(input.decisions.map(item => [item.id, item.action]));
-      const incoming = records(plan.data);
-      for (const id of choices.keys()) if (!incoming.has(id)) fail('UNKNOWN_DECISION', 'An import decision refers to a record outside this preview.');
-      const local = records(state.data);
-      const mappings = new Map<string, string>();
-      const accepted: Array<{ group: EntityGroup; original: KnowledgeEntity; action: 'replace' | 'copy'; local?: KnowledgeEntity }> = [];
-      let skipped = 0;
-      for (const item of plan.preview.items) {
-        const action = choices.get(item.id) ?? (item.status === 'new' ? 'replace' : 'keep');
-        if (action === 'keep' || action === 'skip' || (item.status === 'unchanged' && action === 'replace')) { skipped++; continue; }
-        const found = local.get(item.id);
-        if (action === 'replace' && found && (found.group !== item.group || item.sameRevision)) throw new KnowledgeServiceError('import_conflict', [diagnostic('IDENTITY_CONFLICT', 'The same revision with different content, or an ID used by another entity type, must be kept or copied.')]);
-        if (action === 'copy') mappings.set(item.id, randomUUID());
-        accepted.push({ group: item.group, original: item.incoming, action, local: found?.record });
-      }
-      mergePackageMetadata(state.data, plan.data);
-      const changed = new Set<string>();
-      const inserted = new Set<string>();
-      let added = 0, updated = 0;
-      for (const item of accepted) {
-        const entity = remap(item.group, item.original, mappings);
-        if (item.action === 'copy') { entity.revision = 1; added++; }
-        else if (item.local) {
-          entity.revision = nextRevision(Math.max(item.local.revision, entity.revision)); updated++;
-          if (affectsDependents(item.group, item.local, entity)) changed.add(entity.id);
-        }
-        else { if (canonicalize(entity) !== canonicalize(item.original)) entity.revision = nextRevision(entity.revision); added++; }
-        put(state.data, item.group, entity);
-        inserted.add(entity.id);
-        delete state.approvals[entity.id];
-      }
-      // Recompute copied current-parent claims against the new IDs/revisions; old
-      // historical claims retain their evidence revision and are never approvals.
-      const resolving = new Set<string>();
-      const resolved = new Set<string>();
-      const acceptedEntries = new Map(accepted.filter(item => item.group === 'entries').map(item => [mappings.get(item.original.id) ?? item.original.id, item]));
-      const entryById = new Map(state.data.entries.map(entry => [entry.id, entry]));
-      for (const first of state.data.entries) {
-        if (resolved.has(first.id) || !inserted.has(first.id)) continue;
-        const stack = [{ entry: first, next: 0 }];
-        resolving.add(first.id);
-        while (stack.length) {
-          const frame = stack[stack.length - 1];
-          const entry = frame.entry;
-          const acceptedEntry = acceptedEntries.get(entry.id);
-          const original = acceptedEntry?.original as Entry | undefined;
-          if (frame.next >= entry.derivedFrom.length) {
-            if (original && acceptedEntry?.action !== 'copy' && entry.revision === original.revision && canonicalize(entry) !== canonicalize(original)) entry.revision = nextRevision(entry.revision);
-            resolving.delete(entry.id); resolved.add(entry.id); stack.pop(); continue;
+      const choices = new Map(input.collections.map(item => [item.id, item.action]));
+      for (const id of choices.keys()) if (!plan.preview.collections.some(item => item.id === id)) fail('UNKNOWN_DECISION', 'An import decision refers to a collection outside this preview.');
+      const ids = new Map<string, string>();
+      const mapped = (id: string) => ids.get(id) ?? id;
+      const importedCollections: string[] = [];
+      let added = 0, updated = 0, skipped = 0;
+      for (const item of plan.preview.collections) {
+        const action = choices.get(item.id) ?? (item.status === 'new' ? 'add' : 'merge');
+        if (item.status === 'new' && action === 'merge' || item.status === 'existing' && action === 'add') fail('IMPORT_ACTION', `Action ${action} does not apply to this collection.`, `/collections/${item.id}`);
+        const collection = plan.data.collections.find(value => value.id === item.id)!;
+        const entries = plan.data.entries.filter(entry => entry.collectionId === item.id);
+        if (action === 'skip') { skipped += entries.length; continue; }
+        if (action === 'copy' || find(state.data, collection.id) && action === 'add') ids.set(collection.id, randomUUID());
+        const collectionId = mapped(collection.id);
+        const local = state.data.collections.find(value => value.id === collectionId);
+        if (!local) state.data.collections.push({ ...clone(collection), id: collectionId, revision: 1 });
+        else if (input.conflict === 'use_incoming' && !sameContent(local, collection)) put(state.data, 'collections', { ...clone(collection), revision: nextRevision(local.revision) });
+        importedCollections.push(collectionId);
+        for (const entry of entries) {
+          const existing = action === 'merge' ? state.data.entries.find(value => value.id === entry.id) : undefined;
+          if (existing && existing.collectionId === collectionId) {
+            if (sameContent(existing, entry) || input.conflict === 'keep_local') { skipped++; continue; }
+            put(state.data, 'entries', { ...clone(entry), revision: nextRevision(existing.revision) });
+            updated++;
+            continue;
           }
-          const claim = entry.derivedFrom[frame.next];
-          const originalClaim = original?.derivedFrom[frame.next];
-          const incomingParent = originalClaim ? incoming.get(originalClaim.entryId)?.record : undefined;
-          const parent = entryById.get(claim.entryId);
-          if (parent && inserted.has(parent.id) && incomingParent && originalClaim?.revision === incomingParent.revision && originalClaim.digest === sha256Canonical(incomingParent)) {
-            if (resolving.has(parent.id)) fail('DERIVATION_CYCLE', 'An imported parent chain contains a cycle.');
-            if (!resolved.has(parent.id)) { resolving.add(parent.id); stack.push({ entry: parent, next: 0 }); continue; }
-            claim.revision = parent.revision; claim.digest = sha256Canonical(parent);
-          }
-          frame.next++;
+          // Keep the incoming identity unless it already names a different local record.
+          const id = action === 'copy' || find(state.data, entry.id) ? randomUUID() : entry.id;
+          state.data.entries.push({ ...clone(entry), id, collectionId, revision: 1 });
+          added++;
         }
       }
-      invalidate(state, changed);
-      checkPackage(state.data);
-      let adopted = 0;
-      if (input.adoptReady && plan.preview.counts.conflicts === 0) {
-        for (const entry of state.data.entries) {
-          if (inserted.has(entry.id) && entry.state === 'ready' && !highRisk(entry) && !unavailable(entry, state.data)) { approve(state, entry, 'trusted_import'); adopted++; }
+      if (input.presets === 'add') {
+        const available = new Set(state.data.collections.map(item => item.id));
+        for (const preset of plan.data.presets) {
+          const next: Preset = { ...clone(preset), collectionIds: preset.collectionIds.map(mapped).filter(id => available.has(id)) };
+          const local = find(state.data, preset.id);
+          if (!local) state.data.presets.push({ ...next, revision: 1 });
+          else if (local.group === 'presets' && input.conflict === 'use_incoming' && !sameContent(local.record, next)) put(state.data, 'presets', { ...next, revision: nextRevision(local.record.revision) });
+          else if (local.group !== 'presets') state.data.presets.push({ ...next, id: randomUUID(), revision: 1 });
         }
       }
-      const receipt: ImportReceipt = { id: input.planId, packageName: plan.data.package.name, createdAt: new Date().toISOString(), added, updated, skipped, adopted, generation: state.generation + 1 };
-      state.imports.push(receipt);
-      state.commits[input.planId] = { ownerDigest: ownerDigest(owner), requestDigest, packageDigest: sha256Canonical(plan.data), receiptId: receipt.id };
-      state.importedOriginal = clone(plan.data);
-      state.importChanges[input.planId] = captureImportChanges(beforeImport, state, input.planId);
-      plan.requestDigest = requestDigest;
-      return { state, result: () => clone(receipt) };
-    }, fence);
-  }
-
-  async saveRecord(request: SaveRecordRequest, guard?: () => void): Promise<LibrarySnapshot> {
-    const item = parseSaveItem(request);
-    return this.repository.transact(state => {
-      requireGeneration(state, item.generation);
-      return commitSaves(state, [item]) ? { state, result: snapshot } : { result: snapshot };
-    }, guard);
-  }
-
-  /** Several saves as one transaction: one generation check, one validation, all or nothing. */
-  async saveRecords(request: SaveRecordsRequest, guard?: () => void): Promise<LibrarySnapshot> {
-    const input = parse(saveManySchema, request);
-    const items = input.items.map((item, index) => {
-      try { return parseSaveItem({ generation: input.generation, ...item as object }); }
-      catch (error) { throw prefixDiagnostics(error, `/items/${index}`); }
-    });
-    const ids = items.flatMap(item => [item.record.id, ...(item.source ? [item.source.id] : [])]);
-    if (new Set(ids).size !== ids.length) fail('DUPLICATE_BATCH_RECORD', 'Each record and evidence source may appear once in a batch.', '/items');
-    return this.repository.transact(state => {
-      requireGeneration(state, input.generation);
-      return commitSaves(state, items) ? { state, result: snapshot } : { result: snapshot };
-    }, guard);
-  }
-
-  async reviewEntries(request: ReviewEntriesRequest, guard?: () => void): Promise<LibrarySnapshot> {
-    const input = parse(reviewSchema, request);
-    if (new Set(input.ids).size !== input.ids.length) fail('DUPLICATE_REVIEW', 'Select each review entry once.');
-    return this.repository.transact(state => {
-      requireGeneration(state, input.generation);
-      const entriesById = new Map(state.data.entries.map(entry => [entry.id, entry]));
-      const selected = input.ids.map(id => { const entry = entriesById.get(id); if (!entry) throw new KnowledgeServiceError('not_found'); return entry; });
-      if (input.action === 'adopt') {
-        if (selected.length > 1 && selected.some(highRisk)) throw new KnowledgeServiceError('import_conflict', [diagnostic('INDIVIDUAL_REVIEW_REQUIRED', 'Required rules and core facts need individual review.')]);
-        if (selected.some(entry => unavailable(entry, state.data))) throw new KnowledgeServiceError('import_conflict', [diagnostic('REVIEW_DEPENDENCY_ARCHIVED', 'Restore the required archived dependencies before accepting these entries.')]);
-      }
-      const targetState = input.action === 'adopt' ? 'ready' : input.action === 'archive' ? 'archived' : 'rejected';
-      const changedEntries = selected.filter(entry => entry.state !== targetState || input.action === 'adopt' && !isTrusted(state, entry));
-      if (!changedEntries.length) return { result: snapshot };
-      for (const entry of changedEntries) {
-        entry.state = input.action === 'adopt' ? 'ready' : input.action === 'archive' ? 'archived' : 'rejected';
-        entry.revision = nextRevision(entry.revision);
-        delete state.approvals[entry.id];
-      }
-      const changed = new Set(changedEntries.map(entry => entry.id));
-      invalidate(state, changed, input.action === 'adopt' ? changed : undefined);
       checkPackage(state.data);
-      if (input.action === 'adopt') for (const entry of changedEntries) approve(state, entry, 'human');
-      delete state.importedOriginal;
-      return { state, result: snapshot };
-    }, guard);
-  }
-
-  async planMaintenance(owner: string, request: MaintenanceRequest): Promise<MaintenancePreview> {
-    this.checkOwner(owner);
-    const input = parse(maintenanceRequestSchema, request);
-    const state = await this.repository.read();
-    const history = input.action === 'purge' && !state.cleanupPending ? await this.repository.historyInventory() : undefined;
-    this.checkOwner(owner);
-    const { preview } = buildMaintenance(state, input, randomUUID(), history?.length);
-    const tasks = await this.inspectTasks();
-    this.checkOwner(owner);
-    this.decorateTaskImpact(preview, input, tasks);
-    for (const [id, plan] of this.maintenancePlans) if (plan.owner === owner || plan.expiresAt <= Date.now()) this.maintenancePlans.delete(id);
-    if (this.maintenancePlans.size >= 64) throw new KnowledgeServiceError('limit_exceeded');
-    this.maintenancePlans.set(preview.planId, { owner, expiresAt: Date.now() + PLAN_TTL_MS, request: clone(input), preview: clone(preview), ...(history ? { historyDigest: sha256Canonical([...history].sort((a, b) => a.name.localeCompare(b.name))) } : {}), ...(tasks ? { taskDigest: tasks.digest } : {}) });
-    return preview;
-  }
-
-  async commitMaintenance(owner: string, request: MaintenanceCommit, guard?: () => void): Promise<MaintenanceReceipt> {
-    // Replays also enter the same gate, but resolve persisted receipts before inspecting tasks.
-    return this.taskTracking ? this.taskTracking.gate.run(() => this.commitMaintenanceWithGate(owner, request, guard)) : this.commitMaintenanceWithGate(owner, request, guard);
-  }
-
-  private async inspectTasks(): Promise<KnowledgeReferenceInventory | undefined> {
-    if (!this.taskTracking) return undefined;
-    try { return taskInventorySchema.parse(await this.taskTracking.inspect()); }
-    catch { return { references: [], unknownDocuments: 1, digest: sha256Canonical({ taskTracking: 'unavailable' }) }; }
-  }
-
-  private decorateTaskImpact(preview: MaintenancePreview, request: MaintenanceRequest, inventory?: KnowledgeReferenceInventory): void {
-    if (!inventory) return;
-    // Collection deletion expands its contents in the maintenance builder. Child
-    // entries can be the only resource retained by a task, so roots alone are
-    // insufficient. Keep explicit roots for already-blocked legacy previews.
-    const targets = request.action === 'purge' ? [...request.targets, ...preview.items.filter(item => item.effect === 'purge')] : preview.items;
-    const selected = new Set(targets.map(target => `${target.group}:${target.id}`));
-    const matching = new Map<string, KnowledgeReferenceInventory['references'][number]>();
-    for (const ref of inventory.references) if (ref.resources.some(resource => selected.has(`${resource.group}:${resource.id}`))) {
-      const key = knowledgeReferenceKey(ref);
-      const previous = matching.get(key);
-      if (!previous) matching.set(key, { ...clone(ref), resources: ref.resources.filter(resource => selected.has(`${resource.group}:${resource.id}`)) });
-      else {
-        if (ref.status === 'active') previous.status = 'active';
-        previous.resources = [...new Map([...previous.resources, ...ref.resources.filter(resource => selected.has(`${resource.group}:${resource.id}`))].map(resource => [`${resource.group}:${resource.id}:${resource.revision}:${resource.digest}`, resource])).values()];
-      }
-    }
-    const items = [...matching.values()].sort((a, b) => knowledgeReferenceKey(a) < knowledgeReferenceKey(b) ? -1 : knowledgeReferenceKey(a) > knowledgeReferenceKey(b) ? 1 : 0);
-    preview.taskTracking = 'connected';
-    preview.tasks = { items: items.slice(0, 50), total: items.length, unknownDocuments: inventory.unknownDocuments };
-    if (request.action !== 'purge') return;
-    if (items.length) preview.blockers.push(diagnostic('PURGE_TASK_REFERENCED', 'Retained translation execution records still contain selected knowledge. Remove the related translation history before permanently clearing it.'));
-    if (inventory.unknownDocuments > 0) preview.blockers.push(diagnostic('PURGE_TASK_SCAN_INCOMPLETE', 'Some translation records or deleted-document remnants could not be verified. Resolve them before permanently clearing knowledge.'));
-    preview.canCommit = preview.blockers.length === 0;
-  }
-
-  private async commitMaintenanceWithGate(owner: string, request: MaintenanceCommit, guard?: () => void): Promise<MaintenanceReceipt> {
-    this.checkOwner(owner);
-    const input = parse(maintenanceCommitRequestSchema, request);
-    const requestDigest = sha256Canonical(input);
-    const fence = () => { this.checkOwner(owner); guard?.(); };
-    const pendingPlan = this.maintenancePlans.get(input.planId);
-    const current = await this.repository.read();
-    // Task-store failure must not turn an already-published commit into a fresh operation.
-    const tasks = current.maintenanceCommits[input.planId] ? undefined : await this.inspectTasks();
-    let historyDigest: string | undefined;
-    if (pendingPlan?.request.action === 'purge') {
-      // Already-published retries must reach their receipt even while cleanup is
-      // pending; the repository performs recovery before this transaction.
-      if (!current.maintenanceCommits[input.planId]) {
-        const history = await this.repository.historyInventory();
-        historyDigest = sha256Canonical([...history].sort((a, b) => a.name.localeCompare(b.name)));
-      }
-    }
-    return this.repository.transact(state => {
-      const committed = state.maintenanceCommits[input.planId];
-      if (committed) {
-        if (committed.ownerDigest !== ownerDigest(owner)) throw new KnowledgeServiceError('access_denied');
-        if (committed.requestDigest !== requestDigest) throw new KnowledgeServiceError('import_conflict', [diagnostic('MAINTENANCE_DECISION_CHANGED', 'This maintenance operation already committed with different decisions.')]);
-        return { result: current => ({ ...clone(committed.receipt), cleanupPending: committed.receipt.action === 'purge' && current.purgeOperationId === input.planId && current.cleanupPending }) };
-      }
-      const plan = this.maintenancePlans.get(input.planId);
-      if (!plan || plan.expiresAt <= Date.now()) throw new KnowledgeServiceError('plan_expired');
-      if (plan.owner !== owner) throw new KnowledgeServiceError('access_denied');
-      if (plan.request.generation !== state.generation) throw new KnowledgeServiceError('plan_expired');
-      if (plan.requestDigest && plan.requestDigest !== requestDigest) throw new KnowledgeServiceError('import_conflict');
-      if (plan.request.action === 'purge' && input.confirmHistoryRemoval !== true) fail('HISTORY_REMOVAL_CONFIRMATION', 'Confirm that permanently clearing these records also removes all library history snapshots.');
-      if (plan.request.action !== 'purge' && input.confirmHistoryRemoval !== undefined) fail('UNEXPECTED_HISTORY_CONFIRMATION', 'History removal confirmation applies only to permanent clearing.');
-      if (plan.historyDigest !== historyDigest) throw new KnowledgeServiceError('plan_expired');
-      if (plan.taskDigest !== tasks?.digest) throw new KnowledgeServiceError('plan_expired');
-      const outcome = buildMaintenance(state, plan.request, input.planId, plan.preview.history.snapshots);
-      this.decorateTaskImpact(outcome.preview, plan.request, tasks);
-      if (!outcome.preview.canCommit) throw new KnowledgeServiceError('import_conflict', outcome.preview.blockers);
-      const receipt: MaintenanceReceipt = { id: input.planId, action: plan.request.action, generation: state.generation + 1, changed: outcome.changed, cleanupPending: plan.request.action === 'purge' };
-      outcome.state.maintenanceCommits[input.planId] = { ownerDigest: ownerDigest(owner), requestDigest, receipt };
-      if (plan.request.action === 'purge') outcome.state.purgeOperationId = input.planId;
-      delete outcome.state.importedOriginal;
-      plan.requestDigest = requestDigest;
-      return { state: outcome.state, ...(plan.request.action === 'purge' ? { purgeOperationId: input.planId } : {}), result: current => ({ ...clone(receipt), cleanupPending: receipt.action === 'purge' && current.cleanupPending }) };
+      const receipt: ImportReceipt = { planId: input.planId, packageName: plan.data.package.name, collectionIds: importedCollections, added, updated, skipped, generation: state.generation + 1 };
+      // Remembered only once published, so a failed attempt can be retried.
+      return { state, result: () => { plan.committed = { requestDigest, receipt }; return clone(receipt); } };
     }, fence);
-  }
-
-  async exportPackage(request: ExportRequest): Promise<KnowledgePackage> {
-    const input = parse(exportSchema, request);
-    if (new Set(input.collectionIds).size !== input.collectionIds.length) fail('DUPLICATE_COLLECTION', 'Select each collection once.');
-    const state = await this.repository.read();
-    requireGeneration(state, input.generation);
-    let data: KnowledgePackage;
-    if (input.purpose === 'backup') data = clone(state.data);
-    else {
-      if (input.collectionIds.length === 0) fail('SHARE_SELECTION_REQUIRED', 'Select at least one collection to share.');
-      if (input.collectionIds.some(id => !state.data.collections.some(item => item.id === id))) throw new KnowledgeServiceError('not_found');
-      data = emptyPackage();
-      data.collections = clone(state.data.collections.filter(item => input.collectionIds.includes(item.id) && !item.archived));
-      const collectionIds = new Set(data.collections.map(item => item.id));
-      data.entries = clone(state.data.entries.filter(entry => collectionIds.has(entry.collectionId) && isTrusted(state, entry) && (input.includeMemories || entry.kind !== 'memory')));
-      const subjectIds = new Set([...data.collections.flatMap(item => item.aboutSubjectIds), ...data.entries.flatMap(item => [...item.aboutSubjectIds, ...item.scope.requiredSubjects.map(binding => binding.subjectId)])]);
-      const sourceIds = new Set(data.entries.flatMap(item => [...item.evidence.map(evidence => evidence.sourceId), ...item.derivedFrom.map(parent => parent.evidenceSourceId)]));
-      data.subjects = clone(state.data.subjects.filter(item => subjectIds.has(item.id)));
-      data.sources = clone(state.data.sources.filter(item => sourceIds.has(item.id)));
-    }
-    data.package = { id: randomUUID(), revision: 1, name: input.purpose === 'backup' ? 'Translation knowledge backup' : data.collections.map(item => item.name).join(', ').slice(0, 300), description: '', purpose: input.purpose, createdAt: new Date().toISOString(), generator: { name: 'FusionKit', version: '0.4.0' } };
-    if (!data.package.name.trim()) data.package.name = 'Translation knowledge';
-    const privateContent = privacyDiagnostics(data);
-    if (privateContent.length) throw new KnowledgeServiceError('invalid_input', privateContent);
-    checkPackage(data);
-    return data;
   }
 
   releaseOwner(owner: string): void {
     this.released.add(owner);
     for (const [id, plan] of this.plans) if (plan.owner === owner) this.plans.delete(id);
-    for (const [id, plan] of this.maintenancePlans) if (plan.owner === owner) this.maintenancePlans.delete(id);
   }
-  async dispose(): Promise<void> { this.disposed = true; this.plans.clear(); this.maintenancePlans.clear(); await this.repository.dispose(); }
+  async dispose(): Promise<void> { this.disposed = true; this.plans.clear(); await this.repository.dispose(); }
   private checkOwner(owner: string): void {
     if (typeof owner !== 'string' || !owner.trim() || owner.length > 512 || this.disposed || this.released.has(owner)) throw new KnowledgeServiceError('access_denied');
   }
 }
 
-/** Never silently scrub a versioned entity: identified private values block export. */
-function privacyDiagnostics(data: KnowledgePackage): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  const visit = (value: unknown, location: string): void => {
-    if (diagnostics.length >= 100) return;
-    if (typeof value === 'string') {
-      const absolutePath = /(?:^|[\s"'(=])(?:[A-Za-z]:[\\/]|\\\\[^\\\s]+\\|\/(?:Users|home|private|tmp|var|etc|Volumes|mnt|opt|root|Applications)\/)/.test(value) || /file:\/\//i.test(value);
-      const credential = /\b(?:sk-[A-Za-z0-9_-]{16,}|Bearer\s+[A-Za-z0-9._~-]{12,})/i.test(value) || /[?&](?:api[_-]?key|access[_-]?token|token|secret|password)=\S+/i.test(value);
-      if (absolutePath || credential) diagnostics.push(diagnostic('EXPORT_PRIVATE_CONTENT', 'This field contains a local path or credential-like value. Create a portable version before exporting.', location));
-    } else if (Array.isArray(value)) value.forEach((item, index) => visit(item, `${location}/${index}`));
-    else if (value && typeof value === 'object') for (const [key, item] of Object.entries(value)) {
-      const itemPath = `${location}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`;
-      if (/^(?:api[_-]?key|access[_-]?token|password|secret|authorization)$/i.test(key) && item) diagnostics.push(diagnostic('EXPORT_PRIVATE_CONTENT', 'Credential fields cannot be exported.', itemPath));
-      else visit(item, itemPath);
-    }
-  };
-  visit(data, '');
-  return diagnostics.slice(0, 100);
-}
-
-const PROVENANCE_NAMESPACE = 'org.fusionkit.package-provenance';
-const provenanceSchema = z.strictObject({ version: z.literal(1), packages: z.array(knowledgePackageSchema.shape.package) });
-/** Package author/sharing declarations describe their source package, never the merged library. */
-function mergePackageMetadata(local: KnowledgePackage, incoming: KnowledgePackage): void {
-  const combined = clone(local.extensions ?? {});
-  const packageHeaders: KnowledgePackage['package'][] = [];
-  for (const data of [local, incoming]) {
-    const provenance = data.extensions?.[PROVENANCE_NAMESPACE];
-    if (provenance !== undefined) {
-      const checked = provenanceSchema.safeParse(provenance);
-      if (!checked.success) throw new KnowledgeServiceError('import_conflict', [diagnostic('PACKAGE_PROVENANCE_FORMAT', 'The FusionKit package-provenance extension has an incompatible shape; the library was not changed.')]);
-      packageHeaders.push(...checked.data.packages);
-    }
-  }
-  for (const [key, value] of Object.entries(incoming.extensions ?? {})) {
-    if (key === PROVENANCE_NAMESPACE) continue;
-    if (combined[key] !== undefined && canonicalize(combined[key]) !== canonicalize(value)) throw new KnowledgeServiceError('import_conflict', [diagnostic('IMPORT_METADATA_CONFLICT', `Package extension ${key} has a different local value. Export or revise the conflicting metadata before importing.`, `/extensions/${key}`)]);
-    combined[key] = clone(value);
-  }
-  packageHeaders.push(clone(incoming.package));
-  const uniqueHeaders = [...new Map(packageHeaders.map(header => [sha256Canonical(header), header])).values()];
-  combined[PROVENANCE_NAMESPACE] = { version: 1, packages: uniqueHeaders };
-  local.extensions = combined;
-}

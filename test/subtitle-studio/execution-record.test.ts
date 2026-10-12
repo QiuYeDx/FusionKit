@@ -5,7 +5,12 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
 import { validateSnapshot, type DocumentSnapshot } from '../../src/subtitle-studio/persistence-contract';
-import { executionRequestDigest, recordBaseDigest, validateExecutionRecord, type ExecutionRecord, type FrozenExecutionRequest } from '../../src/subtitle-studio/execution-record-contract';
+import { KNOWLEDGE_TRANSLATION_POLICY_VERSION, executionRequestDigest, recordBaseDigest, validateExecutionRecord, type ExecutionRecord, type FrozenExecutionRequest } from '../../src/subtitle-studio/execution-record-contract';
+import { compileKnowledge, resolveEnvironment, selectBatchKnowledge } from '../../src/translation-knowledge/execution';
+import type { KnowledgeSelection } from '../../src/translation-knowledge/execution-contract';
+import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
+import { buildFrozenKnowledgeSnapshot } from '../../src/translation-knowledge/snapshot-contract';
+import { knowledgeFixture } from '../translation-knowledge/fixtures';
 import { buildTranslationRequest, planTranslation, serializeTranslationRequest } from '../../electron/main/subtitle-studio/translation-planner';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { BilingualService } from '../../electron/main/subtitle-studio/bilingual-service';
@@ -39,6 +44,22 @@ function requestFor(record: ExecutionRecord, index = 0, previous: string[] = [])
   const request = JSON.parse(JSON.stringify({ ...settings, model }));
   const base = { version: 1 as const, batchId: batch.id, createdAt, request, httpBody: serializeTranslationRequest(runtime) };
   return { ...base, digest: executionRequestDigest(base) };
+}
+const knowledgeSelection = (collectionIds: string[]): KnowledgeSelection => ({ version: 2, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds, disabledEntryIds: [] });
+/** A knowledge translation record frozen against an FK-TK/2 library; `swap` files each batch's knowledge under the other batch. */
+async function knowledgeRecord(swap = false) {
+  const value = await prepared();
+  const data = knowledgeFixture(), collectionId = data.collections[0].id;
+  data.entries = [{ id: '50000000-0000-4000-8000-000000000301', revision: 1, collectionId, enabled: true, kind: 'term',
+    payload: { source: 'world', target: '世界', aliases: [], note: '', strength: 'required', match: { mode: 'whole_term', caseSensitive: false } } }];
+  const library: LibrarySnapshot = { generation: 4, data }, selection = knowledgeSelection([collectionId]);
+  const environment = resolveEnvironment(library, selection, value.doc.cues.map(cue => ({ id: cue.id, text: cue.source.plain, sourceLanguage: 'en' })));
+  const batches = value.record.plan.batches;
+  const compiled = batches.map(batch => compileKnowledge(selectBatchKnowledge(environment, batch.units.map(unit => unit.cueId))));
+  if (swap) compiled.reverse();
+  value.record.knowledge = buildFrozenKnowledgeSnapshot(library, selection, Object.fromEntries(batches.map((batch, index) => [batch.id, compiled[index]])));
+  value.record.policyVersion = KNOWLEDGE_TRANSLATION_POLICY_VERSION;
+  return value;
 }
 function snapshotFor(doc: ReturnType<typeof fixture>['doc'], record: ExecutionRecord): DocumentSnapshot {
   const document = structuredClone(doc);
@@ -133,6 +154,29 @@ describe('private translation execution records', () => {
     expect(() => validateExecutionRecord(snapshot.executionRecords![record.id])).toThrow('invalid_input');
     expect(() => validateExecutionRecord(record, { ref: { version: 1, id: record.id, digest: sha('wrong') } })).toThrow('invalid_input');
     expect(() => validateExecutionRecord(record, { taskId: randomUUID() })).toThrow('invalid_input');
+  });
+
+  it('accepts a knowledge record frozen with a version 2 selection under the single knowledge policy', async () => {
+    const { doc, record } = await knowledgeRecord();
+    expect(record.knowledge).toMatchObject({ version: 2, selection: { version: 2, disabledEntryIds: [] } });
+    expect(record.knowledge!.batches[record.plan.batches[0].id].items.map(item => item.payload)).toEqual([expect.objectContaining({ source: 'world', target: '世界' })]);
+    expect(record.knowledge!.batches[record.plan.batches[1].id].items).toEqual([]);
+    expect(validateExecutionRecord(JSON.parse(JSON.stringify(record)))).toEqual(record);
+    expect(validateSnapshot(snapshotFor(doc, record)).executionRecords?.[record.id]).toEqual(record);
+  });
+
+  it('rejects knowledge records with a mismatched policy, an older snapshot or selection shape, or knowledge outside its batch', async () => {
+    const { record } = await knowledgeRecord();
+    const check = (mutate: (copy: ExecutionRecord) => void) => { const copy = structuredClone(record); mutate(copy); expect(() => validateExecutionRecord(copy)).toThrow('invalid_input'); };
+    check(copy => { copy.policyVersion = 'studio-knowledge-translation/1;request-body/1'; });
+    check(copy => { copy.policyVersion = 'studio-translation/2;request-body/1'; });
+    check(copy => { delete copy.knowledge; });
+    check(copy => { (copy.knowledge as { version: number }).version = 1; });
+    check(copy => { Object.assign(copy.knowledge!.selection, { bindings: [], confirmations: [] }); });
+    check(copy => { Object.assign(copy.knowledge!.selection, { recipeId: randomUUID() }); });
+    check(copy => { delete copy.knowledge!.batches[copy.plan.batches[1].id]; });
+    const swapped = (await knowledgeRecord(true)).record;
+    expect(() => validateExecutionRecord(swapped)).toThrow('invalid_input');
   });
 
   it('enforces the 32 MiB aggregate as UTF-8 bytes before persisting or sending', async () => {

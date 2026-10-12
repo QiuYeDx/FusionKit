@@ -3,7 +3,7 @@ import { StudioError } from '../../../src/subtitle-studio/domain';
 import { validateExecutionRecord, type ExecutionRecord } from '../../../src/subtitle-studio/execution-record-contract';
 import type { ExecutionRecordPage } from '../../../src/subtitle-studio/execution-view-contract';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
-import { compiledKnowledgeSchema, knowledgeResourceReferences } from '../../../src/translation-knowledge/snapshot-contract';
+import { compiledKnowledgeSchema } from '../../../src/translation-knowledge/snapshot-contract';
 import { validateExecutionRecordBatch } from './execution-records';
 
 // This version describes the persisted request payload, not the current prompt builder.
@@ -12,9 +12,9 @@ const payloadSchema = z.object({
   context: z.object({ precedingSource: z.array(z.string()), followingSource: z.array(z.string()), priorModelTranslations: z.array(z.string()) }).strict(),
   items: z.array(z.object({ id: z.string(), text: z.string() }).strict()),
   translationKnowledge: z.object({ background: z.string(), items: z.array(z.object({
-    kind: z.enum(['context', 'term', 'expression', 'memory', 'rule']), required: z.boolean(),
+    kind: z.enum(['context', 'term', 'rule']), required: z.boolean(),
     payload: compiledKnowledgeSchema.shape.items.element.shape.payload,
-    applicableItemIds: z.array(z.string()), condition: z.string().optional(),
+    applicableItemIds: z.array(z.string()),
   }).strict()) }).strict().optional(),
 }).strict();
 
@@ -41,10 +41,8 @@ export function readExecutionRecordPage(snapshot: DocumentSnapshot, trackId: str
       preparedBatches: Object.keys(record.requests).length, batchOffset,
       ...(record.knowledge ? { knowledge: {
         digest: record.knowledge.digest, generation: record.knowledge.generation,
-        resourceCount: knowledgeResourceReferences(record.knowledge).length,
-        ...(record.knowledge.selection.recipeId ? { recipeName: record.knowledge.data.recipes.find(item => item.id === record.knowledge!.selection.recipeId)?.name } : {}),
+        resourceCount: record.knowledge.data.collections.length + record.knowledge.data.entries.length,
         collections: record.knowledge.data.collections.map(item => item.name),
-        documentTopics: record.knowledge.documentTopicIds.map(id => record.knowledge!.data.subjects.find(item => item.id === id)!.name),
         compiled: record.knowledge.batches[batch.id],
         cues: batch.units.map(unit => ({ cueId: unit.cueId, number: cueNumbers.get(unit.cueId)!, text: unit.text.replace(/<\/?m[1-9]\d{0,2}>/g, '') })),
         entries: record.knowledge.data.entries.filter(entry => record.knowledge!.batches[batch.id].items.some(item => item.entryId === entry.id)

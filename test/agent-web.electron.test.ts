@@ -1,8 +1,10 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
+import homeLabels from '../src/locales/zh/home.json';
 
 type ResponsesBody = { instructions: string; tools: { name: string }[]; input: { type?: string; role?: string; content?: unknown; output?: string }[] };
 
@@ -18,6 +20,7 @@ function call(name: string, args: unknown) {
   return [{ type: 'response.output_item.added', output_index: 0, item }, { type: 'response.output_item.done', output_index: 0, item }];
 }
 
+const format = (value: string, values: Record<string, string>) => value.replace(/\{\{(\w+)\}\}/g, (_, key: string) => values[key]);
 const SOURCE = 'テイムフィールド家のお嬢様';
 const TARGET = '泰姆菲尔德家的大小姐';
 const PAGE_URL = 'https://wiki.biligame.com/zzz/%E6%B3%B0%E5%A7%86%E8%8F%B2%E5%B0%94%E5%BE%B7';
@@ -31,9 +34,9 @@ const fixtures = {
 };
 
 describe.runIf(process.env.FUSIONKIT_AGENT_WEB_E2E === '1')('agent looks translations up online', () => {
-  it('stays offline until allowed, then saves a wording read on a page with that page as its source', async () => {
+  it('stays offline until allowed, then saves a wording read on a page enabled, with that page as its origin', async () => {
     const artifacts = path.resolve('test-results/agent-web'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await mkdtemp(path.join(os.tmpdir(), 'fusionkit-agent-web-'));
     let app: ElectronApplication | undefined; let server: Server | undefined;
     const requests: ResponsesBody[] = [];
     const queue: Record<string, unknown>[][] = [];
@@ -52,7 +55,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_WEB_E2E === '1')('agent looks transla
       app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`, '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
       const page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
       const win = await app.browserWindow(page);
-      await win.evaluate(window => { window.setSize(1280, 860); window.webContents.setBackgroundThrottling(false); window.show(); window.focus(); });
+      await win.evaluate(window => { window.setSize(1280, 860); window.webContents.setBackgroundThrottling(false); window.show(); });
       // Replace the real lookups with fixtures and count what reaches the main process.
       await app.evaluate(({ ipcMain }, fixtures) => {
         const seen: { channel: string; request: unknown }[] = [];
@@ -131,10 +134,10 @@ describe.runIf(process.env.FUSIONKIT_AGENT_WEB_E2E === '1')('agent looks transla
       queue.push(call('web_search', { query: '泰姆菲尔德', source: 'moegirl' }));
       queue.push(call('web_search', { query: '泰姆菲尔德', source: 'biligame' }));
       queue.push(call('web_read', { url: PAGE_URL }));
-      queue.push(call('prepare_knowledge_changes', { languagePair: { source: 'ja', target: 'zh-Hans' },
-        subjects: [{ ref: 'zzz', name: '绝区零', kind: 'work' }], collections: [{ ref: 'names', name: '绝区零 · 人物与称谓', subjects: [{ ref: 'zzz' }] }],
+      queue.push(call('prepare_knowledge_changes', {
+        collections: [{ ref: 'names', name: '绝区零', languagePair: { source: 'ja', target: 'zh-Hans' } }],
         entries: [{ action: 'create', collection: { ref: 'names' }, kind: 'term', source: SOURCE, target: TARGET, basis: 'web', url: PAGE_URL, evidence: `中文译名：${TARGET}` }] }));
-      queue.push(text('B 站绝区零 Wiki 的「泰姆菲尔德」页面写的是「泰姆菲尔德家的大小姐」。我准备把它记入资料，来自网页的条目默认待审核，请在卡片上确认。'));
+      queue.push(text('B 站绝区零 Wiki 的「泰姆菲尔德」页面写的是「泰姆菲尔德家的大小姐」。我准备把它记入资料，请核对后在卡片上确认。'));
       await ask('那现在帮我查一下，并记到绝区零的资料里');
       const card = home.getByTestId('agent-prepared-action').last();
       await uiExpect(card).toHaveAttribute('data-action-status', 'ready');
@@ -145,8 +148,11 @@ describe.runIf(process.env.FUSIONKIT_AGENT_WEB_E2E === '1')('agent looks transla
       await uiExpect(rows.nth(0)).toContainText('这个来源已在 设置 → Agent 中关闭。');
       await uiExpect(rows.nth(1)).toContainText('联网搜索B 站游戏 Wiki：找到 2 条结果');
       await uiExpect(rows.nth(2)).toContainText('读取网页泰姆菲尔德 · wiki.biligame.com/zzz');
-      await uiExpect(card.getByTestId('knowledge-change-row').last()).toContainText('来自 wiki.biligame.com');
-      await uiExpect(card.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+      // The web-read row says where it came from; there is no adopt switch, confirming is the review.
+      const webRow = card.getByTestId('knowledge-change-row').last();
+      await uiExpect(webRow).toContainText(SOURCE);
+      await uiExpect(webRow.getByTestId('knowledge-change-origin')).toHaveText(format(homeLabels.knowledge_from_site, { site: 'wiki.biligame.com' }));
+      await uiExpect(card.getByRole('switch')).toHaveCount(0);
       const enabled = requests.slice(before);
       expect(enabled[0].instructions).toContain('web_search then web_read');
       expect(enabled[0].instructions).not.toContain('Web lookups are off');
@@ -161,14 +167,15 @@ describe.runIf(process.env.FUSIONKIT_AGENT_WEB_E2E === '1')('agent looks transla
       await uiExpect(rows.nth(1)).toContainText('泰姆菲尔德家的大小姐 · wiki.biligame.com');
       await shot('06-search-row-expanded-1280-light', home.getByTestId('agent-tool-group').last());
 
-      queue.push(text('已保存，条目待你在翻译资料中审核后启用。'));
-      await card.getByRole('button', { name: '确认保存' }).click();
+      queue.push(text('已保存，翻译时选用「绝区零」即可生效。'));
+      await card.getByRole('button', { name: homeLabels.knowledge_confirm, exact: true }).click();
       await uiExpect(card).toHaveAttribute('data-action-status', 'completed');
       const saved = await library();
-      const entry = saved.data.entries[0];
-      expect(entry).toMatchObject({ kind: 'term', state: 'candidate', payload: { source: SOURCE, target: TARGET } });
-      expect(saved.approvals[entry.id]).toBeUndefined();
-      expect(saved.data.sources).toEqual([expect.objectContaining({ kind: 'web', url: PAGE_URL, title: '泰姆菲尔德', accessedAt: '2026-10-10T08:00:00.000Z', excerpt: `中文译名：${TARGET}` })]);
+      const collection = saved.data.collections.find(item => item.name === '绝区零')!;
+      expect(collection).toMatchObject({ languagePair: { source: 'ja', target: 'zh-Hans' } });
+      // Saved enabled, with the page it was read on, its title and when it was read as the origin.
+      expect(saved.data.entries).toEqual([expect.objectContaining({ kind: 'term', collectionId: collection.id, enabled: true, payload: expect.objectContaining({ source: SOURCE, target: TARGET }),
+        origin: { kind: 'web', url: PAGE_URL, title: '泰姆菲尔德', at: '2026-10-10T08:00:00.000Z', note: `中文译名：${TARGET}` } })]);
       await toBottom();
       await shot('07-web-card-saved-home-1280-light');
 
@@ -184,6 +191,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_WEB_E2E === '1')('agent looks transla
     } finally {
       await app?.close();
       await new Promise<void>(resolve => server ? server.close(() => resolve()) : resolve());
+      await rm(root, { recursive: true, force: true });
     }
   }, 240000);
 });

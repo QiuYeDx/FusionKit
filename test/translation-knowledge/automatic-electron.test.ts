@@ -1,369 +1,230 @@
-import { createServer, type Server } from 'node:http';
-import { createHash } from 'node:crypto';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
+import { expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
 import { buildTranscriptionUiApp } from '../subtitle-studio/helpers/transcription-ui-build';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { validateExecutionRecord } from '../../src/subtitle-studio/execution-record-contract';
 import { knowledgeFixture } from './fixtures';
+import { launchStudioApp, preparePage, readLibrary, seedLibrary, settled, startProvider } from './studio-e2e';
+import type { Entry } from '../../src/translation-knowledge/schemas';
 
 type RuntimeState = { tasks: Array<{ taskId: string; documentId?: string; status: string; automaticTranslation?: { status: string; taskId?: string } }> };
-type ProviderPayload = { items: Array<{ id: string; text: string }>; translationKnowledge?: { items: Array<{ kind: string; applicableItemIds: string[] }> } };
 const control = (app: ElectronApplication, command: Record<string, unknown>): Promise<RuntimeState> => app.evaluate(async (_, value) => (globalThis as any).__studioT06Control(value), command);
-async function persistedBytes(directory: string): Promise<Record<string, string>> {
-  const entries: Array<readonly [string, string]> = [];
-  const visit = async (current: string): Promise<void> => {
-    await Promise.all((await readdir(current, { withFileTypes: true })).map(async file => {
-      const absolute = path.join(current, file.name);
-      if (file.isDirectory()) await visit(absolute);
-      else if (file.isFile()) entries.push([path.relative(directory, absolute), createHash('sha256').update(await readFile(absolute)).digest('hex')]);
-    }));
-  };
-  await visit(directory);
-  return Object.fromEntries(entries.sort(([left], [right]) => left.localeCompare(right)));
-}
-async function drop(page: Page, file: string) {
-  // Native drops are rejected while a dialog/Popover is still exiting. Unlike
-  // a real drag gesture, these synthetic events arrive immediately after Done.
-  await uiExpect(page.getByTestId('studio-materials-picker')).toHaveCount(0);
-  await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByTestId('studio-transcription-picker').scrollIntoViewIfNeeded();
-  await page.evaluate(() => { const input = document.createElement('input'); input.type = 'file'; input.hidden = true; input.dataset.automaticMediaDrop = ''; document.body.append(input); });
-  await page.locator('[data-automatic-media-drop]').setInputFiles(file);
-  await page.evaluate(() => {
-    const input = document.querySelector('[data-automatic-media-drop]') as HTMLInputElement;
-    const transfer = new DataTransfer(); Array.from(input.files!).forEach(file => transfer.items.add(file));
-    const target = document.querySelector('[data-testid=studio-transcription-picker]')!;
-    for (const type of ['dragenter', 'dragover', 'drop']) target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }));
-    input.remove(); // Production preload captures OS-backed File paths synchronously.
-  });
-}
+const json = async (file: string) => JSON.parse(await readFile(path.resolve(file), 'utf8'));
 
 describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('automatic knowledge translation through native Electron', () => {
-  it('freezes materials before transcription and explains then repairs automatic conflicts with an explicit new translation', async () => {
+  it('freezes the chosen collections before transcription, then explains a failed check and re-checks it in the translation dialog', async () => {
+    // Controlled build: the native transcription runtime is replaced; main, preload, renderer and the HTTP executor stay real.
     const fixture = await buildTranscriptionUiApp('controlled');
-    const locale = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
-    const repository = new DocumentRepository(path.join(fixture.profile, 'subtitle-studio/documents'));
-    const requests: Array<{ raw: string; payload: ProviderPayload }> = [], errors: string[] = [], logs: string[] = [];
-    const evidence: Record<string, unknown> = {
-      boundary: 'Production main composition, owner/frame IPC checks, unchanged preload and native File capture, automatic knowledge capture, document sink/repository, automatic coordinator, TranslationService and HTTP executor remain real. The entire native transcription runtime/queue is replaced; production task-service capture/lease lifecycle is verified separately in transcription-task-service.test.ts. No actual ASR or paid model is used.',
-      reportReadBoundary: 'The report is read through the production preload and IPC. Identical persisted document bytes and unchanged HTTP request counts prove no write/provider side effect. The backend unit tests separately assert that report reads never call initialization; this native scenario has already initialized translation before the report exists.',
-    };
-    let app: ElectronApplication | undefined, page: Page | undefined, server: Server | undefined, passed = false;
+    const zh = { studio: await json('src/locales/zh/studio.json'), knowledge: await json('src/locales/zh/knowledge.json'), materials: await json('src/locales/zh/materials.json') };
+    const en = { studio: await json('src/locales/en/studio.json'), knowledge: await json('src/locales/en/knowledge.json') };
+    let launched: Awaited<ReturnType<typeof launchStudioApp>> | undefined, provider: Awaited<ReturnType<typeof startProvider>> | undefined, page: Page | undefined, passed = false;
+    const evidence: Record<string, unknown> = {};
     try {
-      const data = knowledgeFixture(), term = data.entries.find(entry => entry.kind === 'term')!;
-      term.scope.condition = { mode: 'none' }; if (term.kind === 'term') term.payload.strength = 'required';
-      for (const [index, target] of ['保存站', '存档柱'].entries()) data.entries.push({
-        ...structuredClone(term), id: `50000000-0000-4000-8000-00000000001${index + 1}`, title: `savepoint 冲突译名 ${index + 1}`,
-        derivedFrom: [], payload: { ...term.payload, source: 'savepoint', target, aliases: [] },
-      });
-      const input = path.join(fixture.artifacts, 'automatic.fktk.json');
-      const mediaFiles = ['01 frozen-checkpoint.wav', '02 conflicting-savepoint.wav'].map(name => path.join(fixture.artifacts, name));
-      await writeFile(input, JSON.stringify(data)); await Promise.all(mediaFiles.map(file => writeFile(file, Buffer.alloc(44))));
-      server = createServer(async (request, response) => {
-        try {
-          let raw = ''; for await (const chunk of request) raw += String(chunk);
-          const body = JSON.parse(raw), payload = JSON.parse(body.messages[1].content) as ProviderPayload;
-          requests.push({ raw, payload }); response.setHeader('Content-Type', 'application/json');
-          response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ items: payload.items.map(item => ({ id: item.id, text: `自动译文：${item.text.replace(/checkpoint/gi, '存档点').replace(/savepoint/gi, '保存站')}` })) }) } }], usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 } }));
-        } catch (error) { errors.push(`Provider fixture: ${String(error)}`); response.writeHead(500); response.end(); }
-      });
-      await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
-      const port = (server.address() as { port: number }).port;
-      const env = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
-      delete env.ELECTRON_RUN_AS_NODE; delete env.VITE_DEV_SERVER_URL; env.NODE_ENV = 'test';
-      app = await electron.launch({ args: [fixture.appRoot, `--user-data-dir=${fixture.profile}`], cwd: fixture.appRoot, env });
-      for (const stream of [app.process().stdout, app.process().stderr]) stream?.on('data', data => { logs.push(String(data)); if (logs.length > 200) logs.shift(); });
-      page = await app.firstWindow(); page.setDefaultTimeout(15000); page.on('pageerror', error => errors.push(error.message));
-      await page.evaluate(port => {
-        // First-use Tour is covered by consumer-ux; keep execution fixtures focused.
-        localStorage.setItem('translation-knowledge-tour-done', '1');
-        localStorage.setItem('lang', 'zh'); localStorage.setItem('subtitle-converter-tour-done', '1');
-        localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
-        localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'automatic-knowledge-fixture', name: 'Local automatic translation fixture', provider: 'DeepSeek', apiKey: 'synthetic-automatic-knowledge-key', baseUrl: `http://127.0.0.1:${port}`, modelKey: 'deepseek-v4-flash', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'automatic-knowledge-fixture', agent: null }, audioProfiles: [], audioAssignment: {} } }));
-        location.hash = '/tools/translation-knowledge';
-      }, port);
-      await page.reload();
-      const nativeWindow = await app.browserWindow(page); await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
-      await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, input);
-      await page.getByTestId('knowledge-import').click(); await page.getByRole('button', { name: '确认导入', exact: true }).click();
-      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-      const adopted = await page.evaluate(async () => {
-        const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(JSON.stringify(read));
-        // Required terminology follows the product's individual review boundary.
-        let current = read.value;
-        for (const entry of read.value.data.entries) {
-          const result = await window.translationKnowledge.reviewEntries({ generation: current.generation, ids: [entry.id], action: 'adopt' });
-          if (!result.ok) throw new Error(JSON.stringify(result)); current = result.value;
-        }
-        return current;
-      });
-      await page.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
-      await page.getByTestId('subtitle-studio').waitFor();
-      await page.getByRole('tab', { name: locale.workspace_transcription, exact: true }).click();
-      await control(app, { operation: 'resources-ready' }); await page.getByTestId('studio-transcription-runtime-row').getByRole('button').click();
-      await page.locator('#studio-transcription-auto-translation').click();
-      const materials = page.getByTestId('studio-automatic-materials');
+      provider = await startProvider(item => `自动译文：${item.text.replace(/checkpoint/gi, '存档点').replace(/savepoint/gi, '保存站')}`);
+      const data = knowledgeFixture();
+      const [game, common] = data.collections;
+      const preset = data.presets[0];
+      preset.context = '这些字幕讨论游戏 X 的存档位置。';
+      const checkpoint = data.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'checkpoint')!;
+      const savepoints: Entry[] = [[game.id, '存档柱'], [common.id, '保存站']].map(([collectionId, target], index) => ({ id: `50000000-0000-4000-8000-00000000033${index}`, revision: 1,
+        collectionId, enabled: true, kind: 'term', payload: { source: 'savepoint', target, aliases: [], note: '', strength: 'required', match: { mode: 'whole_term', caseSensitive: false } } }));
+      data.entries.push(...savepoints);
+      launched = await launchStudioApp('fusionkit-knowledge-automatic-e2e-', { appRoot: fixture.appRoot });
+      const { app, ui } = launched; page = ui; ui.setDefaultTimeout(15000);
+      const repository = new DocumentRepository(path.join(launched.profile, 'subtitle-studio/documents'));
+      const mediaFiles = ['01 frozen-checkpoint.wav', '02 conflicting-savepoint.wav'].map(name => path.join(launched!.root, name));
+      await Promise.all(mediaFiles.map(file => writeFile(file, Buffer.alloc(44))));
+      const capture = (name: string) => ui.screenshot({ path: path.join(fixture.artifacts, `${name}.png`), animations: 'disabled' });
+      const fits = async (target: Locator) => {
+        expect(await target.evaluate(element => element.scrollWidth <= element.clientWidth + 1 && element.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
+        expect(await target.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
+      };
+      const preferences = () => ui.evaluate(() => JSON.parse(localStorage.getItem('fusionkit.subtitle-studio.preferences.v1') ?? '{}').state.transcription.autoTranslation);
+      const chooseMedia = async (file: string) => {
+        await uiExpect(ui.getByTestId('studio-materials-picker')).toHaveCount(0);
+        await app.evaluate(({ dialog }, filePaths) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths }); }, [file]);
+        await ui.getByTestId('studio-transcription-picker').getByRole('button', { name: zh.studio.transcription.choose_media, exact: true }).click();
+        await uiExpect(ui.getByTestId('studio-transcription-media-row')).toHaveCount(1);
+      };
+
+      await preparePage(ui, { lang: 'zh', port: provider.port });
+      const seeded = await seedLibrary(ui, data);
+      await ui.getByTestId('subtitle-studio').waitFor();
+      await ui.getByRole('tab', { name: zh.studio.workspace_transcription, exact: true }).click();
+      await ui.getByTestId('studio-transcription').waitFor(); await control(app, { operation: 'resources-ready' });
+      await ui.getByTestId('studio-transcription-manage-resources').click();
+      await ui.getByRole('dialog').getByRole('button', { name: zh.studio.transcription.check_again, exact: true }).click();
+      await ui.keyboard.press('Escape');
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      await ui.locator('#studio-transcription-auto-translation').click();
+      const materials = ui.getByTestId('studio-automatic-materials');
       await materials.getByTestId('studio-materials-choose').click();
-      await page.getByTestId('studio-materials-recipe').click();
-      await page.getByRole('option', { name: data.recipes[0].name, exact: true }).click();
-      await page.getByTestId('studio-materials-done').click();
-      await uiExpect(materials.getByTestId('studio-materials-source')).toHaveText('英语');
-      await materials.getByTestId('studio-materials-topics').locator('[data-slot=accordion-trigger]').first().click();
-      await materials.getByTestId(`studio-materials-topic-${data.subjects[0].id}`).check();
-      const savedInstructions = 'Keep every subtitle concise and preserve all information.';
-      const savedContext = 'These subtitles discuss Game X save locations.';
-      await page.getByTestId('studio-automatic-instructions').fill(savedInstructions);
-      await materials.getByTestId('studio-materials-more').locator('[data-slot=accordion-trigger]').first().click();
-      await materials.getByTestId('studio-materials-context').fill(savedContext);
-      await uiExpect(materials.getByTestId('studio-materials-summary')).toContainText(data.recipes[0].name);
-      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-      expect(await materials.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      await materials.getByTestId('studio-materials-summary').scrollIntoViewIfNeeded();
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-selection-light.png'), animations: 'disabled' });
-      await drop(page, mediaFiles[0]); await uiExpect(page.getByTestId('studio-transcription-media-row')).toHaveCount(1);
-      await page.getByTestId('studio-transcription-start').click();
-      await uiExpect.poll(async () => (await control(app!, { operation: 'snapshot' })).tasks.length).toBe(1);
+      await ui.getByTestId('studio-materials-tabs').getByRole('tab').nth(1).click();
+      await ui.getByTestId(`studio-materials-preset-${preset.id}`).click();
+      await ui.getByTestId('studio-materials-done').click();
+      await uiExpect(materials.getByTestId('studio-materials-source')).toHaveText(zh.knowledge.languages.en);
+      await uiExpect(materials.locator('.studio-materials-chip')).toHaveCount(2);
+      await uiExpect(ui.getByTestId('studio-automatic-instructions')).toHaveValue(preset.instructions);
+      await uiExpect.poll(async () => (await preferences()).knowledge).toEqual({ enabled: true, sourceLanguage: 'en', collectionIds: preset.collectionIds, disabledEntryIds: [], instructions: preset.instructions, context: preset.context });
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      await materials.scrollIntoViewIfNeeded();
+      await capture('automatic-knowledge-selection-light');
+
+      await chooseMedia(mediaFiles[0]);
+      await ui.getByTestId('studio-transcription-start').click();
+      await uiExpect.poll(async () => (await control(app, { operation: 'snapshot' })).tasks.length).toBe(1);
       const firstNative = (await control(app, { operation: 'snapshot' })).tasks[0];
-      expect(requests).toHaveLength(0);
-
-      const beforeDocument = await page.evaluate(async collectionId => {
+      // The library changes after admission; the frozen copy taken before transcription is what translates.
+      const edited = await ui.evaluate(async id => {
         const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(JSON.stringify(read));
-        const plan = await window.translationKnowledge.planMaintenance({ generation: read.value.generation, action: 'archive', targets: [{ group: 'collections', id: collectionId }] });
-        if (!plan.ok) throw new Error(JSON.stringify(plan)); return plan.value;
-      }, data.collections[0].id);
-      expect(beforeDocument.tasks?.items).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'automatic_preparation', status: 'active' })]));
-      expect(beforeDocument.tasks?.items.find(item => item.kind === 'automatic_preparation')).not.toHaveProperty('documentId');
-      evidence.pendingReference = beforeDocument.tasks;
-      await page.evaluate(() => { location.hash = '/tools/translation-knowledge'; });
-      await page.getByTestId(`knowledge-entry-details-${term.id}`).click();
-      await page.getByTestId('knowledge-entry-actions').click();
-      await page.getByTestId('knowledge-entry-maintenance').click();
-      const preparationDialog = page.getByRole('dialog').filter({ has: page.getByTestId('knowledge-maintenance-tasks') });
-      await preparationDialog.locator('[data-slot="knowledge-disclosure"]').filter({ has: page.getByTestId('knowledge-maintenance-tasks') }).locator('[data-slot="accordion-trigger"]').first().click();
-      await uiExpect(preparationDialog).toContainText('自动翻译准备资料');
-      await uiExpect(preparationDialog).toContainText('转写队列');
-      await page.getByTestId('knowledge-maintenance-tasks').locator('[data-slot=accordion-trigger]').first().click();
-      await page.getByTestId('knowledge-maintenance-tasks').scrollIntoViewIfNeeded();
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-pending-maintenance.png'), animations: 'disabled' });
-      await preparationDialog.getByTestId('knowledge-record-close').click();
-      await page.evaluate(() => { location.hash = '/tools/subtitle/studio'; });
-      await page.getByRole('tab', { name: locale.workspace_transcription, exact: true }).click();
-      expect(requests).toHaveLength(0);
-
-      const edited = await page.evaluate(async termId => {
-        const read = await window.translationKnowledge.read(); if (!read.ok) throw new Error(JSON.stringify(read));
-        const term = read.value.data.entries.find(entry => entry.id === termId); if (term?.kind !== 'term') throw new Error('Missing term');
-        const result = await window.translationKnowledge.saveRecord({ generation: read.value.generation, group: 'entries', record: { ...term, payload: { ...term.payload, target: '后来修改的检查站' } }, adopt: true });
-        if (!result.ok) throw new Error(JSON.stringify(result)); return result.value;
-      }, term.id);
-      expect(edited.generation).toBeGreaterThan(adopted.generation);
-      const texts = ['We reached the checkpoint.', 'Wait here until the next scene.'];
-      await control(app, { operation: 'complete', taskId: firstNative.taskId, texts });
-      await uiExpect.poll(() => requests.length).toBe(1);
+        const term = read.value.data.entries.find(entry => entry.id === id)!;
+        if (term.kind !== 'term') throw new Error('Missing term');
+        const saved = await window.translationKnowledge.saveRecords({ generation: read.value.generation, items: [{ group: 'entries', record: { ...term, payload: { ...term.payload, target: '后来修改的检查站' } } }] });
+        if (!saved.ok) throw new Error(JSON.stringify(saved)); return saved.value;
+      }, checkpoint.id);
+      expect(edited.generation).toBeGreaterThan(seeded.generation);
+      expect(provider.requests).toHaveLength(0);
+      await control(app, { operation: 'complete', taskId: firstNative.taskId, texts: ['We reached the checkpoint.', 'Wait here until the next scene.'] });
+      await uiExpect.poll(() => provider!.requests.length).toBe(1);
       const firstDocumentId = (await control(app, { operation: 'snapshot' })).tasks[0].documentId!;
       await uiExpect.poll(async () => (await repository.readSnapshot(firstDocumentId)).tasks[0]?.status).toBe('completed');
       const first = await repository.readSnapshot(firstDocumentId), track = first.document.translationTracks[0];
       const execution = validateExecutionRecord(first.executionRecords![track.executionRef!.id]);
-      const frozenTerm = execution.knowledge!.data.entries.find(entry => entry.id === term.id)!;
+      expect(execution.knowledge!.generation).toBe(seeded.generation);
+      expect(execution.knowledge!.selection).toMatchObject({ version: 2, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: preset.collectionIds, disabledEntryIds: [] });
+      expect(execution.knowledge!.data.collections.map(item => item.id)).toEqual(preset.collectionIds);
+      const frozenTerm = execution.knowledge!.data.entries.find(entry => entry.id === checkpoint.id)!;
       expect(frozenTerm.kind === 'term' && frozenTerm.payload.target).toBe('存档点');
-      expect(first.automaticTranslation?.knowledge?.generation).toBe(adopted.generation);
-      expect(execution.knowledge!.generation).toBe(adopted.generation);
-      expect(requests[0].raw).toContain('存档点'); expect(requests[0].raw).not.toContain('后来修改的检查站');
-      expect(requests[0].payload.translationKnowledge?.items.some(item => item.kind === 'term' && item.applicableItemIds.includes('u1'))).toBe(true);
-      expect(Object.values(execution.requests).map(request => request.httpBody)).toContain(requests[0].raw);
-      expect(JSON.stringify(first)).not.toContain('synthetic-automatic-knowledge-key');
-      await control(app, { operation: 'complete', taskId: firstNative.taskId, texts }); expect(requests).toHaveLength(1);
-      evidence.frozen = { documentId: firstDocumentId, sourceTaskId: firstNative.taskId, executionId: execution.id, generation: execution.knowledge!.generation, liveGeneration: edited.generation, requestCount: requests.length };
+      expect(provider.requests[0].raw).toContain('存档点'); expect(provider.requests[0].raw).not.toContain('后来修改的检查站');
+      expect(provider.requests[0].payload.translationRequirements).toBe(preset.instructions);
+      expect(provider.requests[0].payload.translationKnowledge?.items.some(item => item.kind === 'term' && item.applicableItemIds.includes('u1'))).toBe(true);
+      expect(Object.values(execution.requests).map(request => request.httpBody)).toContain(provider.requests[0].raw);
+      expect(JSON.stringify(first)).not.toContain('synthetic-knowledge-key');
+      evidence.frozen = { documentId: firstDocumentId, generation: execution.knowledge!.generation, liveGeneration: edited.generation };
 
-      // Refresh the common selection explicitly for the next submission.
-      const chooseMaterials = materials.getByTestId('studio-materials-choose');
-      if (await chooseMaterials.getAttribute('aria-expanded') !== 'true') await chooseMaterials.click();
-      await page.getByTestId('studio-materials-picker').getByRole('button', { name: locale.refresh, exact: true }).click();
-      await uiExpect(page.getByTestId('studio-automatic-knowledge-notice')).toHaveCount(0);
-      await page.getByTestId('studio-materials-done').click();
-      await drop(page, mediaFiles[1]); await uiExpect(page.getByTestId('studio-transcription-media-row')).toHaveCount(1);
-      await page.getByTestId('studio-transcription-start').click();
-      await uiExpect.poll(async () => (await control(app!, { operation: 'snapshot' })).tasks.length).toBe(2);
+      // The next submission refreshes the common selection explicitly; its check then fails on a conflict.
+      await materials.getByTestId('studio-materials-choose').click();
+      await ui.getByTestId('studio-materials-picker').getByRole('button', { name: zh.studio.refresh, exact: true }).click();
+      await uiExpect(ui.getByTestId('studio-automatic-knowledge-notice')).toHaveCount(0);
+      await ui.getByTestId('studio-materials-done').click();
+      await chooseMedia(mediaFiles[1]);
+      await ui.getByTestId('studio-transcription-start').click();
+      await uiExpect.poll(async () => (await control(app, { operation: 'snapshot' })).tasks.length).toBe(2);
       const secondNative = (await control(app, { operation: 'snapshot' })).tasks[1];
       await control(app, { operation: 'complete', taskId: secondNative.taskId, texts: ['We reached the savepoint.'] });
+      await uiExpect.poll(async () => (await control(app, { operation: 'snapshot' })).tasks[1].automaticTranslation?.status).toBe('needs_configuration');
       const secondState = (await control(app, { operation: 'snapshot' })).tasks[1];
       const blocked = await repository.readSnapshot(secondState.documentId!);
-      expect(secondState.status).toBe('completed'); expect(blocked.document.cues[0].source.plain).toBe('We reached the savepoint.');
-      expect(blocked.tasks).toHaveLength(1); expect(blocked.tasks[0]).toMatchObject({ status: 'failed', attempts: 0, translation: { error: 'knowledge_check_failed' } });
-      expect(secondState.automaticTranslation).toEqual({ status: 'needs_configuration', taskId: blocked.tasks[0].id });
-      expect(requests).toHaveLength(1); expect(blocked.document.translationTracks[0].entries).toEqual({});
+      expect(blocked.tasks[0]).toMatchObject({ status: 'failed', attempts: 0, translation: { error: 'knowledge_check_failed' } });
+      expect(blocked.document.translationTracks[0].entries).toEqual({});
+      expect(provider.requests).toHaveLength(1);
       const failedTrackId = blocked.document.translationTracks[0].id;
-      const reportRequest = { documentId: secondState.documentId!, trackId: failedTrackId };
-      const documentsRoot = path.join(fixture.profile, 'subtitle-studio/documents');
-      const reportReadBefore = await persistedBytes(documentsRoot);
-      const historicalReport = await page.evaluate(async request => {
-        const report = await window.subtitleStudio.readAutomaticKnowledgeReport(request);
-        if (!report.ok) throw new Error(JSON.stringify(report)); return report.value;
-      }, reportRequest);
-      const repeatedReport = await page.evaluate(async request => {
-        const report = await window.subtitleStudio.readAutomaticKnowledgeReport(request);
-        if (!report.ok) throw new Error(JSON.stringify(report)); return report.value;
-      }, reportRequest);
-      expect(repeatedReport).toEqual(historicalReport);
-      expect(historicalReport.state).toBe('available');
-      if (historicalReport.state !== 'available') throw new Error('Expected an available automatic failure report');
-      const termConflict = historicalReport.issues.find(issue => issue.code === 'term_conflict');
-      expect(termConflict).toMatchObject({ severity: 'error', entryCount: 2, cueCount: 1 });
-      expect(termConflict?.entries.map(entry => entry.title)).toEqual(expect.arrayContaining(['savepoint 冲突译名 1', 'savepoint 冲突译名 2']));
-      expect(termConflict?.cues).toEqual([{ cueId: blocked.document.cues[0].id, number: 1, text: 'We reached the savepoint.' }]);
-      expect(historicalReport.seed).toMatchObject({
-        documentId: secondState.documentId, trackId: failedTrackId, config: blocked.automaticTranslation!.config,
-        selection: { ...blocked.automaticTranslation!.knowledge!.selection, bindings: [], confirmations: [] },
-        documentTopicIds: [data.subjects[0].id],
-      });
-      expect(await persistedBytes(documentsRoot)).toEqual(reportReadBefore);
-      expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
-      expect(requests).toHaveLength(1);
-      evidence.reportRead = { unchangedDocumentBytes: true, providerRequests: 0, historicalReport };
-      evidence.blocked = { documentId: secondState.documentId, error: blocked.tasks[0].translation?.error, providerRequests: 0, transcriptionStatus: secondState.status };
-      const blockedRow = page.getByTestId('studio-transcription-task-row').filter({ hasText: path.basename(mediaFiles[1]) });
+      const report = await ui.evaluate(async request => {
+        const result = await window.subtitleStudio.readAutomaticKnowledgeReport(request); if (!result.ok) throw new Error(JSON.stringify(result)); return result.value;
+      }, { documentId: secondState.documentId!, trackId: failedTrackId });
+      if (report.state !== 'available') throw new Error(`Expected an available automatic failure report, got ${report.state}`);
+      expect(report.material).toMatchObject({ collectionCount: 2, collections: [game.name, common.name] });
+      expect(report.issues.find(issue => issue.code === 'term_conflict')).toMatchObject({ severity: 'error', entryCount: 2, cueCount: 1, cues: [{ cueId: blocked.document.cues[0].id, number: 1, text: 'We reached the savepoint.' }] });
+      expect(report.seed).toMatchObject({ documentId: secondState.documentId, trackId: failedTrackId, selection: { version: 2, collectionIds: preset.collectionIds, disabledEntryIds: [] } });
+      expect(Object.keys(report.seed!.selection).sort()).toEqual(['collectionIds', 'context', 'disabledEntryIds', 'instructions', 'languagePair', 'version']);
+      evidence.report = report;
+
+      const blockedRow = ui.getByTestId('studio-transcription-task-row').filter({ hasText: path.basename(mediaFiles[1]) });
       await uiExpect(blockedRow.locator('.studio-transcription-auto-label')).toHaveAttribute('data-state', 'needs_configuration');
-      await uiExpect(blockedRow).toContainText(locale.transcription.auto_translation_recovery_short);
-      await blockedRow.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-conflict-queue.png'), animations: 'disabled' });
-      await blockedRow.getByRole('button', { name: locale.transcription.open_document, exact: true }).click();
-      await uiExpect(page.getByTestId('subtitle-studio')).toHaveAttribute('data-workspace-view', 'documents');
-      await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'failed');
-      await uiExpect(page.locator('.studio-cue-text')).toContainText('We reached the savepoint.');
-      await uiExpect(page.getByText(locale.translation.legacy_restart, { exact: true })).toHaveCount(0);
-      await uiExpect(page.locator('.studio-document-meta')).toContainText(locale.source_only);
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-conflict-document.png'), animations: 'disabled' });
+      await uiExpect(blockedRow).toContainText(zh.studio.transcription.auto_translation_recovery_short);
+      await blockedRow.getByRole('button', { name: zh.studio.transcription.open_document, exact: true }).click();
+      await uiExpect(ui.getByTestId('subtitle-studio')).toHaveAttribute('data-workspace-view', 'documents');
+      await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'failed');
 
-      await page.getByTestId('studio-automatic-knowledge-report').click();
-      const reportDialog = page.getByRole('dialog').filter({ has: page.getByTestId('automatic-knowledge-report-content') });
-      await uiExpect(reportDialog).toContainText('savepoint 冲突译名 1');
-      await uiExpect(reportDialog).toContainText('savepoint 冲突译名 2');
-      await uiExpect(reportDialog).toContainText('We reached the savepoint.');
-      await uiExpect(page.locator('[data-testid="automatic-knowledge-report-issue"][data-issue-code="term_conflict"] .border-l')).toContainText(/1.*We reached the savepoint\./);
-      expect(await reportDialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      await reportDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-report-light.png'), animations: 'disabled' });
-      expect(requests).toHaveLength(1);
+      // The report names the reason, the collections and each issue in the locale's words.
+      await ui.getByTestId('studio-automatic-knowledge-report').click();
+      const reportDialog = ui.getByRole('dialog').filter({ has: ui.getByTestId('automatic-knowledge-report-content') });
+      await uiExpect(ui.getByTestId('automatic-knowledge-report-content')).toHaveAttribute('data-state', 'available');
+      await uiExpect(ui.getByTestId('automatic-knowledge-report-reason')).toHaveText(zh.studio.errors.knowledge_check_failed);
+      await uiExpect(reportDialog).toContainText(zh.knowledge.recovery.materials.replace('{{collections}}', '2'));
+      await uiExpect(reportDialog).toContainText(`${game.name} / ${common.name}`);
+      const issue = ui.locator('[data-testid="automatic-knowledge-report-issue"][data-issue-code="term_conflict"]');
+      await uiExpect(issue).toContainText(zh.knowledge.trial.issue.term_conflict);
+      await uiExpect(issue).toContainText('We reached the savepoint.');
+      for (const row of await ui.getByTestId('automatic-knowledge-report-issue').all()) {
+        const code = (await row.getAttribute('data-issue-code'))!;
+        await uiExpect(row).toContainText(zh.knowledge.trial.issue[code]);
+      }
+      expect(await reportDialog.innerText()).not.toMatch(/方案|主题|条件/);
+      await fits(reportDialog);
+      await capture('automatic-knowledge-report-light');
 
-      await page.getByTestId('automatic-knowledge-report-recheck').click();
-      const repairDialog = page.getByRole('dialog').filter({ has: page.getByTestId('studio-translation-form') });
-      await uiExpect(repairDialog.getByRole('heading', { name: locale.translation.title, exact: true })).toBeVisible();
-      await uiExpect(page.getByRole('dialog')).toHaveCount(1);
-      await uiExpect(page.getByTestId('studio-translation-check')).toBeEnabled();
-      await uiExpect(repairDialog.getByTestId('studio-materials-source')).toHaveText('英语');
-      await uiExpect(repairDialog.getByTestId('studio-materials-summary')).toContainText(data.recipes[0].name);
-      await repairDialog.getByTestId('studio-materials-topics').locator('[data-slot=accordion-trigger]').first().click();
-      await uiExpect(repairDialog.getByTestId(`studio-materials-topic-${data.subjects[0].id}`)).toBeChecked();
-      await uiExpect(page.getByTestId('studio-translation-instructions')).toHaveValue(savedInstructions);
+      // Re-check carries the direction and collections into the translation dialog; nothing is sent until started.
+      await ui.getByTestId('automatic-knowledge-report-recheck').click();
+      const repairDialog = ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-form') });
+      await uiExpect(repairDialog.getByRole('heading', { name: zh.studio.translation.title, exact: true })).toBeVisible();
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
+      await uiExpect(repairDialog.getByTestId('studio-materials-source')).toHaveText(zh.knowledge.languages.en);
+      await uiExpect(repairDialog.getByTestId('studio-translation-language')).toHaveText(zh.studio.translation.languages.zh);
+      for (const collection of [game, common]) await uiExpect(repairDialog.locator('.studio-materials-chip').filter({ hasText: collection.name })).toHaveCount(1);
+      await uiExpect(ui.getByTestId('studio-translation-instructions')).toHaveValue(preset.instructions);
       await repairDialog.getByTestId('studio-materials-more').locator('[data-slot=accordion-trigger]').first().click();
-      await uiExpect(repairDialog.getByTestId('studio-materials-context')).toHaveValue(savedContext);
-      await repairDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-form-light.png'), animations: 'disabled' });
-      // Starting exposes a real conflict in the review dialog without issuing
-      // a model request or falling back to plain translation.
-      await page.getByTestId('studio-translation-start').click();
-      await uiExpect(page.getByTestId('knowledge-full-preview')).toBeVisible();
-      await uiExpect(page.getByTestId('knowledge-full-preview').locator('[data-issue-code="term_conflict"]')).toBeVisible();
-      expect(requests).toHaveLength(1); expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
-      await page.getByTestId('studio-translation-review-close').click();
-      const exclusions = repairDialog.getByTestId('studio-materials-exclusions');
-      await exclusions.locator('[data-slot=accordion-trigger]').first().click();
-      await repairDialog.getByTestId('studio-materials-exclude-50000000-0000-4000-8000-000000000012').check();
-      await uiExpect(page.getByTestId('knowledge-full-preview')).toHaveCount(0);
-      await page.getByTestId('studio-translation-check').click();
-      await uiExpect(page.getByTestId('knowledge-full-preview')).toBeVisible();
-      await uiExpect(page.getByTestId('knowledge-full-preview').locator('[data-issue-code="term_conflict"]')).toHaveCount(0);
-      expect(requests).toHaveLength(1); expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
-      await page.getByTestId('knowledge-full-preview').scrollIntoViewIfNeeded();
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-checked-light.png'), animations: 'disabled' });
-      await page.getByTestId('studio-translation-review-start').click();
-      await uiExpect(page.getByTestId('studio-translation-form')).toHaveCount(0);
+      await uiExpect(repairDialog.getByTestId('studio-materials-context')).toHaveValue(preset.context);
+      await ui.getByTestId('studio-translation-check').click();
+      const preview = ui.getByTestId('knowledge-full-preview');
+      await uiExpect(preview.locator('[data-issue-code="term_conflict"]')).toContainText(zh.knowledge.trial.issue.term_conflict);
+      await uiExpect(ui.getByTestId('studio-translation-review-start')).toBeDisabled();
+      expect(provider.requests).toHaveLength(1); expect(await repository.readSnapshot(secondState.documentId!)).toEqual(blocked);
+      await ui.getByTestId('studio-translation-review-close').click();
+      await repairDialog.getByTestId('studio-materials-exclusions').locator('[data-slot=accordion-trigger]').first().click();
+      await repairDialog.getByTestId(`studio-materials-exclude-${savepoints[0].id}`).check();
+      await ui.getByTestId('studio-translation-check').click();
+      await uiExpect(preview).toBeVisible();
+      await uiExpect(preview.locator('[data-issue-code="term_conflict"]')).toHaveCount(0);
+      await capture('automatic-knowledge-repair-checked-light');
+      await ui.getByTestId('studio-translation-review-start').click();
+      await uiExpect(ui.getByTestId('studio-translation-form')).toHaveCount(0);
       await uiExpect.poll(async () => (await repository.readSnapshot(secondState.documentId!)).tasks.at(-1)?.status).toBe('completed');
-      expect(requests).toHaveLength(2);
+      expect(provider.requests).toHaveLength(2);
       const repaired = await repository.readSnapshot(secondState.documentId!), repairedTrack = repaired.document.translationTracks.at(-1)!;
       expect(repaired.document.translationTracks).toHaveLength(2); expect(repaired.tasks[0]).toEqual(blocked.tasks[0]);
-      expect(repaired.automaticTranslation).toEqual(blocked.automaticTranslation);
-      expect(repairedTrack.id).not.toBe(failedTrackId);
       const repairedExecution = validateExecutionRecord(repaired.executionRecords![repairedTrack.executionRef!.id]);
-      expect(repairedExecution.plan.config).toMatchObject({
-        model: blocked.automaticTranslation!.config.model,
-        contextWindow: blocked.automaticTranslation!.config.contextWindow,
-        maxOutputTokens: blocked.automaticTranslation!.config.maxOutputTokens,
-        maxBatchCues: blocked.automaticTranslation!.config.maxBatchCues,
-      });
-      expect(repairedExecution.knowledge?.selection).toMatchObject({ ...historicalReport.seed!.selection, disabledEntryIds: ['50000000-0000-4000-8000-000000000012'] });
-      expect(repairedExecution.knowledge?.documentTopicIds).toEqual([data.subjects[0].id]);
+      expect(repairedExecution.knowledge?.selection).toMatchObject({ ...report.seed!.selection, disabledEntryIds: [savepoints[0].id] });
       expect(Object.values(repairedTrack.entries)[0].text.plain).toContain('保存站');
-      const reportAfterRepair = await page.evaluate(async request => {
-        const report = await window.subtitleStudio.readAutomaticKnowledgeReport(request);
-        if (!report.ok) throw new Error(JSON.stringify(report)); return report.value;
-      }, reportRequest);
-      expect(reportAfterRepair.state).toBe('available');
-      if (reportAfterRepair.state !== 'available') throw new Error('Historical report disappeared after repair');
-      expect(reportAfterRepair.issues).toEqual(historicalReport.issues);
-      expect(reportAfterRepair.material).toEqual(historicalReport.material);
-      expect(reportAfterRepair.createdAt).toBe(historicalReport.createdAt);
-      expect(reportAfterRepair.documentRevision).toBe(historicalReport.documentRevision);
-      expect(requests).toHaveLength(2);
-      evidence.repair = { newTrackId: repairedTrack.id, oldTrackId: failedTrackId, oldReportPreserved: true, providerRequests: 1, selectedGeneration: repairedExecution.knowledge!.generation };
+      const after = await ui.evaluate(async request => {
+        const result = await window.subtitleStudio.readAutomaticKnowledgeReport(request); if (!result.ok) throw new Error(JSON.stringify(result)); return result.value;
+      }, { documentId: secondState.documentId!, trackId: failedTrackId });
+      expect(after).toEqual(report);
 
-      // The saved picker remains usable in English and a compact dark window.
-      await page.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
-      await page.reload(); await page.getByTestId('subtitle-studio').waitFor();
-      await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
-      const english = JSON.parse(await readFile(path.resolve('src/locales/en/studio.json'), 'utf8'));
-      await uiExpect(page.locator('html')).toHaveClass(/dark/);
-      await page.getByRole('tab', { name: english.workspace_documents, exact: true }).click();
-      await page.locator(`[data-testid="studio-library-row"][data-document-id="${secondState.documentId}"] .studio-document`).click();
-      await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed');
-      await page.getByRole('combobox', { name: english.translation_track, exact: true }).click();
-      await page.getByRole('option', { name: `${blocked.document.translationTracks[0].language} · 1`, exact: true }).click();
-      await uiExpect(page.locator('.studio-translation-status')).toHaveAttribute('data-state', 'failed');
-      await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await page.getByTestId('studio-automatic-knowledge-report').click();
-      const retainedDialog = page.getByRole('dialog').filter({ has: page.getByTestId('automatic-knowledge-report-content') });
-      await uiExpect(page.getByTestId('automatic-knowledge-report-content')).toHaveAttribute('data-state', 'available');
-      await uiExpect(retainedDialog).toContainText('savepoint 冲突译名 1');
-      await uiExpect(retainedDialog).toContainText('savepoint 冲突译名 2');
-      await uiExpect(retainedDialog).toContainText('We reached the savepoint.');
-      expect(await retainedDialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1 && element.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
-      expect(await retainedDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
-      await retainedDialog.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-report-dark-english-narrow.png'), animations: 'disabled' });
-      await page.getByTestId('automatic-knowledge-report-recheck').click();
-      const retainedRepair = page.getByRole('dialog').filter({ has: page.getByTestId('studio-translation-form') });
-      await uiExpect(retainedRepair.getByRole('heading', { name: english.translation.title, exact: true })).toBeVisible();
-      await uiExpect(page.getByTestId('studio-translation-check')).toBeEnabled();
-      await uiExpect(retainedRepair.getByTestId('studio-materials-summary')).toContainText(data.recipes[0].name);
-      await uiExpect(page.getByTestId('studio-translation-instructions')).toHaveValue(savedInstructions);
-      await uiExpect(page.getByTestId('knowledge-full-preview')).toHaveCount(0);
-      expect(await retainedRepair.evaluate(element => element.scrollWidth <= element.clientWidth + 1 && element.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
-      await retainedRepair.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.forEach(element => { element.scrollTop = 0; }));
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-repair-form-dark-english-narrow.png'), animations: 'disabled' });
-      await page.getByTestId('studio-translation-close').click();
-      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-      expect(requests).toHaveLength(2);
-      await page.getByRole('tab', { name: english.workspace_transcription, exact: true }).click();
-      const compactMaterials = page.getByTestId('studio-automatic-materials');
-      await compactMaterials.getByTestId('studio-materials-choose').click();
-      await uiExpect(page.getByTestId('studio-materials-recipe')).toHaveText(data.recipes[0].name);
-      await uiExpect(page.getByTestId('studio-automatic-instructions')).toHaveValue(savedInstructions);
-      await uiExpect(page.getByRole('dialog')).toHaveCount(1);
-      expect(await compactMaterials.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      await page.getByTestId('studio-materials-picker').scrollIntoViewIfNeeded();
-      await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-selection-dark-english-narrow.png'), animations: 'disabled' });
-      await page.getByTestId('studio-materials-done').click();
-      await uiExpect(page.getByRole('dialog')).toHaveCount(0);
-      expect(requests).toHaveLength(2); expect(errors).toEqual([]); passed = true;
+      // English, dark and 900 × 700: the kept report can still be re-checked.
+      await preparePage(ui, { lang: 'en', theme: 'dark', hash: '/tools/subtitle/studio' });
+      await ui.getByTestId('subtitle-studio').waitFor();
+      await ui.locator(`[data-testid="studio-library-row"][data-document-id="${secondState.documentId}"] .studio-document`).click();
+      await ui.getByRole('combobox', { name: en.studio.translation_track, exact: true }).click();
+      await ui.getByRole('option', { name: `${blocked.document.translationTracks[0].language} · 1`, exact: true }).click();
+      await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'failed');
+      await launched.resize(900, 700); await settled(ui);
+      await ui.getByTestId('studio-automatic-knowledge-report').click();
+      const retained = ui.getByRole('dialog').filter({ has: ui.getByTestId('automatic-knowledge-report-content') });
+      await uiExpect(ui.getByTestId('automatic-knowledge-report-content')).toHaveAttribute('data-state', 'available');
+      await uiExpect(ui.locator('[data-testid="automatic-knowledge-report-issue"][data-issue-code="term_conflict"]')).toContainText(en.knowledge.trial.issue.term_conflict);
+      await fits(retained);
+      await capture('automatic-knowledge-report-dark-english-900');
+      await ui.getByTestId('automatic-knowledge-report-recheck').click();
+      const retainedRepair = ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-form') });
+      await uiExpect(retainedRepair.getByRole('heading', { name: en.studio.translation.title, exact: true })).toBeVisible();
+      await uiExpect(retainedRepair.locator('.studio-materials-chip')).toHaveCount(2);
+      await uiExpect(ui.getByTestId('studio-translation-check')).toBeEnabled();
+      await uiExpect(ui.getByTestId('knowledge-full-preview')).toHaveCount(0);
+      await fits(retainedRepair);
+      await capture('automatic-knowledge-repair-form-dark-english-900');
+      await ui.getByTestId('studio-translation-close').click();
+      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
+      expect(provider.requests).toHaveLength(2);
+      expect((await readLibrary(ui)).generation).toBe(edited.generation);
+      expect([...launched.errors, ...provider.errors]).toEqual([]); passed = true;
     } finally {
       if (!passed && page) await page.screenshot({ path: path.join(fixture.artifacts, 'automatic-knowledge-failure.png'), animations: 'disabled' }).catch(() => undefined);
-      await writeFile(path.join(fixture.artifacts, 'automatic-knowledge-evidence.json'), JSON.stringify({ passed, ...evidence, requests, errors, logs }, null, 2));
-      try { const child = app?.process(); await app?.close(); if (child) expect(child.exitCode !== null || child.signalCode !== null).toBe(true); }
-      finally { server?.closeAllConnections(); await new Promise<void>(resolve => server ? server.close(() => resolve()) : resolve()); await fixture.cleanup(); }
+      await writeFile(path.join(fixture.artifacts, 'automatic-knowledge-evidence.json'), JSON.stringify({ passed, ...evidence, requests: provider?.requests ?? [], errors: launched?.errors ?? [] }, null, 2));
+      try { if (launched) expect(await launched.close()).toBe(true); }
+      finally { await provider?.close(); await fixture.cleanup(); }
     }
   }, 180000);
 });

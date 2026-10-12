@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator } from '@playwright/test';
-import { knowledgeFixture } from './translation-knowledge/fixtures';
 import labels from '../src/locales/zh/knowledge.json';
 
 const artifacts = path.resolve('test-results/dialog-content-motion');
@@ -134,12 +133,7 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_CONTENT_MOTION_E2E === '1')('dialog 
     const names = ['01-内容与文档流过渡.srt', '02-用于观察被动位移.srt'];
     const source = '1\n00:00:01,000 --> 00:00:02,000\nA real source subtitle.\n\n2\n00:00:03,000 --> 00:00:04,000\nA second line for the nested preview.\n';
     const files = names.map(name => path.join(root, name));
-    const fixture = knowledgeFixture(), term = fixture.entries.find(entry => entry.kind === 'term' && entry.evidence.length > 0)!;
-    // The protocol fixture includes a confirmation condition already. This
-    // regression needs a genuine absent -> present -> absent field lifecycle.
-    term.scope.condition = { mode: 'none' };
-    const materials = path.join(root, 'content-motion.fktk.json');
-    await Promise.all([...files.map(file => writeFile(file, source)), writeFile(materials, JSON.stringify(fixture))]);
+    await Promise.all(files.map(file => writeFile(file, source)));
     let app: ElectronApplication | undefined;
     const errors: string[] = [], evidence: { name: string; frames: Frame[] }[] = [];
     try {
@@ -288,80 +282,40 @@ describe.runIf(process.env.FUSIONKIT_DIALOG_CONTENT_MOTION_E2E === '1')('dialog 
       await uiExpect(page.locator('[role="dialog"]')).toHaveCount(0);
 
       await page.evaluate(() => { location.hash = '/tools/translation-knowledge'; }); await page.reload();
-      await page.getByTestId('knowledge-import').waitFor(); await ready();
-      await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, materials);
-      await page.getByTestId('knowledge-import').click();
-      await page.getByRole('button', { name: labels.actions.confirm_import, exact: true }).click();
-      await uiExpect(page.locator('[role="dialog"]')).toHaveCount(0);
-      await page.getByTestId('knowledge-all').click();
-      await page.getByTestId('knowledge-views').getByRole('tab', { name: labels.workspace.terms, exact: true }).click();
-      await page.getByTestId(`knowledge-entry-details-${term.id}`).click(); await settled(dialog());
-      const sources = dialog().getByTestId('knowledge-entry-sources');
-      const allFields = dialog().getByTestId('knowledge-entry-all-fields');
-      await fullTransition('knowledge-sources-grow-pushes-all-fields', sources, allFields);
-      await fullTransition('knowledge-sources-shrink-pulls-all-fields', sources, allFields);
-      // Open the second disclosure too: changing the first must preserve the
-      // lower live content, not remount it or conceal its jump with an exit fade.
-      await allFields.locator('[data-slot="accordion-trigger"]').first().click(); await settled(dialog());
-      await fullTransition('knowledge-sources-grow-above-open-fields', sources, allFields);
-      await page.screenshot({ path: path.join(artifacts, '02-knowledge-both-open.png') });
-      await fullTransition('knowledge-sources-shrink-above-open-fields', sources, allFields);
-
-      await dialog().getByTestId('knowledge-entry-edit').click();
-      await uiExpect(page.getByTestId('knowledge-entry-editor')).toBeVisible();
-      await dialog().getByRole('tab', { name: labels.record.tab_scope, exact: true }).click(); await settled(dialog());
-      const condition = dialog().locator('.knowledge-scope-condition');
-      const changeCondition = async (name: string) => {
-        await condition.getByRole('combobox', { name: labels.fields.condition, exact: true }).click();
+      await page.getByTestId('knowledge-new-collection').waitFor(); await ready();
+      // Choosing a custom language reveals its tag field: a genuine absent -> present -> absent lifecycle.
+      await page.getByTestId('knowledge-new-collection').click(); await settled(dialog());
+      const language = dialog().getByTestId('knowledge-collection-form').locator('.grid > div').first();
+      const chooseSource = async (name: string) => {
+        await language.getByRole('combobox', { name: labels.collection.source_language, exact: true }).click();
         await page.getByRole('option', { name, exact: true }).click();
       };
-      const conditionGrow = await trace('knowledge-condition-field-grow-including-trailing-gap', condition, condition,
-        () => changeCondition(labels.condition.requires_confirmation), 'bottom', true);
-      interpolates(conditionGrow, 'height', 20); interpolates(conditionGrow, 'opacity', 0.8); interpolates(conditionGrow, 'siblingY', 20);
-      await uiExpect(condition.getByRole('textbox', { name: labels.fields.condition_text })).toBeVisible();
-      const conditionShrink = await trace('knowledge-condition-field-shrink-including-trailing-gap', condition, condition,
-        () => changeCondition(labels.condition.none), 'bottom', true);
-      interpolates(conditionShrink, 'height', 20); interpolates(conditionShrink, 'opacity', 0.8); interpolates(conditionShrink, 'siblingY', 20);
+      const languageGrow = await trace('knowledge-custom-language-field-grow-including-trailing-gap', language, language,
+        () => chooseSource(labels.languages.custom), 'bottom', true);
+      interpolates(languageGrow, 'height', 20); interpolates(languageGrow, 'opacity', 0.8); interpolates(languageGrow, 'siblingY', 20);
+      await uiExpect(language.getByRole('textbox', { name: labels.languages.custom_tag })).toBeVisible();
+      await page.screenshot({ path: path.join(artifacts, '02-knowledge-custom-language.png') });
+      const languageShrink = await trace('knowledge-custom-language-field-shrink-including-trailing-gap', language, language,
+        () => chooseSource(labels.languages.en), 'bottom', true);
+      interpolates(languageShrink, 'height', 20); interpolates(languageShrink, 'opacity', 0.8); interpolates(languageShrink, 'siblingY', 20);
+      await uiExpect(language.getByRole('textbox', { name: labels.languages.custom_tag })).toHaveCount(0);
       // Parent grid gaps/padding must disappear as part of the same flow. A gap
       // removed only when an exit unmounts produces a visible last-frame jump.
-      for (const frames of [conditionGrow, conditionShrink]) {
+      for (const frames of [languageGrow, languageShrink]) {
         const offsets = frames.map(frame => frame.siblingY - frame.height);
-        expect(Math.max(...offsets) - Math.min(...offsets), 'The condition card must not add/remove an external gap at animation boundaries').toBeLessThanOrEqual(1.5);
+        expect(Math.max(...offsets) - Math.min(...offsets), 'The language field must not add/remove an external gap at animation boundaries').toBeLessThanOrEqual(1.5);
       }
-      await dialog().getByTestId('knowledge-record-close').click();
-      await uiExpect(page.getByTestId('knowledge-entry-detail')).toBeVisible(); await settled(dialog());
 
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      const reduced = await trace('knowledge-sources-reduced-motion', sources, allFields);
+      const reduced = await trace('knowledge-custom-language-reduced-motion', language, language, () => chooseSource(labels.languages.custom), 'bottom', true);
       const low = Math.min(reduced[0].height, reduced.at(-1)!.height), high = Math.max(reduced[0].height, reduced.at(-1)!.height);
       expect(high - low).toBeGreaterThan(20);
       expect(reduced.filter(frame => frame.height > low + 0.6 && frame.height < high - 0.6)).toHaveLength(0);
       expect(reduced.filter(frame => frame.opacity > 0.02 && frame.opacity < 0.98)).toHaveLength(0);
-      await dialog().getByTestId('knowledge-record-close').click();
-      await uiExpect(page.locator('[role="dialog"]')).toHaveCount(0);
-      await page.emulateMedia({ reducedMotion: 'no-preference' });
-      await page.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
-      await page.getByTestId('knowledge-paste-open').click();
-      await page.getByTestId('knowledge-paste-input').fill('motion alpha\t动画甲\nmotion beta\t动画乙\nmotion gamma\t动画丙');
-      await page.getByTestId('knowledge-paste-preview').click();
-      const pasteRows = dialog().getByTestId('knowledge-paste-rows');
-      await uiExpect(pasteRows.locator('[data-paste-row]')).toHaveCount(3); await settled(dialog());
-      const lastRowId = await pasteRows.locator('[data-paste-row]').nth(2).getAttribute('data-paste-row');
-      const rowsRegion = pasteRows.locator('xpath=ancestor::*[@data-flow-motion][1]');
-      const backToPaste = dialog().getByRole('button', { name: labels.paste.back, exact: true });
-      const removedRow = await trace('knowledge-paste-remove-middle-row-moves-following-action', rowsRegion, backToPaste,
-        () => pasteRows.locator('[data-paste-row]').nth(1).getByRole('button').evaluate(button => (button as HTMLButtonElement).click()));
-      interpolates(removedRow, 'height', 20); interpolates(removedRow, 'siblingY', 20);
-      // The list's following action follows real height; the surviving last row
-      // also traverses intermediate layout positions without stretching text.
-      const lastRowFrames = removedRow.map(frame => ({ ...frame, siblingY: frame.rows.find(row => row.id === lastRowId)!.y }));
-      interpolates(lastRowFrames, 'siblingY', 20);
-      expect(removedRow.some(frame => frame.rows.some(row => row.inert && row.opacity > 0.02 && row.opacity < 0.98))).toBe(true);
-      await uiExpect(pasteRows.locator('[data-paste-row]')).toHaveCount(2);
-      await uiExpect(pasteRows.getByRole('textbox', { name: `${labels.fields.source_text} 2`, exact: true })).toHaveValue('motion gamma');
-      await page.screenshot({ path: path.join(artifacts, '03-paste-after-middle-row-removal.png') });
       await dialog().getByRole('button', { name: labels.actions.close, exact: true }).click();
       await uiExpect(page.locator('[role="dialog"]')).toHaveCount(0);
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      expect(await page.evaluate(async () => { const result = await window.translationKnowledge.read(); if (!result.ok) throw new Error(result.error); return result.value.data.collections.length; })).toBe(0);
       await uiExpect(page.locator('body')).not.toHaveCSS('pointer-events', 'none');
       expect(errors).toEqual([]);
     } catch (error) {

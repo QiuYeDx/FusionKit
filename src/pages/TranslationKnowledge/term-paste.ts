@@ -1,3 +1,4 @@
+import type { Entry, TermEntry } from "@/translation-knowledge/schemas";
 export type PastedTerm = { source: string; target: string; note: string };
 export type PasteProblem = "empty" | "limit" | "format" | "columns";
 export const MAX_PASTED_TERMS = 500;
@@ -39,4 +40,23 @@ export function parseTermPaste(text: string, delimiter: "auto" | "tab" | "comma"
 export function pastedTermProblem(row: PastedTerm): "required" | "limit" | null {
   if (!row.source.trim() || !row.target.trim()) return "required";
   return [row.source, row.target, row.note].some(value => new TextEncoder().encode(value).length > 32 * 1024) ? "limit" : null;
+}
+
+export type PasteStatus = "new" | "same" | "conflict" | "invalid" | "repeated";
+export interface ClassifiedPaste { row: PastedTerm; status: PasteStatus; existing?: TermEntry }
+const pasteKey = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
+
+/** Each pasted row against the collection: new, already saved as is, or a different translation of a saved source. */
+export function classifyPaste(entries: readonly Entry[], collectionId: string, rows: readonly PastedTerm[]): ClassifiedPaste[] {
+  const terms = entries.filter((entry): entry is TermEntry => entry.kind === "term" && entry.collectionId === collectionId);
+  const seen = new Set<string>();
+  return rows.map(row => {
+    if (pastedTermProblem(row)) return { row, status: "invalid" };
+    const key = pasteKey(row.source);
+    if (seen.has(key)) return { row, status: "repeated" };
+    seen.add(key);
+    const existing = terms.find(entry => [entry.payload.source, ...entry.payload.aliases].some(value => pasteKey(value) === key));
+    if (!existing) return { row, status: "new" };
+    return { row, status: pasteKey(existing.payload.target) === pasteKey(row.target) ? "same" : "conflict", existing };
+  });
 }

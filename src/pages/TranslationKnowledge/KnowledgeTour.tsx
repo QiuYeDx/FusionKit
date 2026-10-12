@@ -39,47 +39,27 @@ export function KnowledgeTour({ open, onOpenChange }: {
   const { t } = useTranslation("knowledge");
   const steps = useMemo<TourStep[]>(() => [
     {
-      id: "collection",
-      target: "#knowledge-tour-collection",
-      title: t("tour.collection_title"),
+      id: "collections",
+      target: "#knowledge-tour-collections",
+      title: t("tour.collections_title"),
       content: <div className="space-y-3">
-        <p>{t("tour.collection_content")}</p>
-        <p className="text-xs leading-5">{t("tour.collection_hint")}</p>
+        <p>{t("tour.collections_content")}</p>
+        <p className="text-xs leading-5">{t("tour.collections_hint")}</p>
       </div>,
       placement: "right",
     },
     {
-      id: "materials",
-      target: '#knowledge-collection-list [data-slot="tool-panel-header"]',
-      title: t("tour.materials_title"),
+      id: "entries",
+      target: "#knowledge-tour-add-term",
+      title: t("tour.entries_title"),
       content: <div className="space-y-3">
-        <p>{t("tour.materials_content")}</p>
+        <p>{t("tour.entries_content")}</p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-muted px-3 py-2 text-sm text-foreground">
           <span>checkpoint</span><ArrowRight aria-hidden className="size-3.5 text-muted-foreground" /><span>{t("tour.term_example")}</span>
         </div>
-        <p className="text-xs leading-5">{t("tour.materials_hint")}</p>
+        <p className="text-xs leading-5">{t("tour.entries_hint")}</p>
       </div>,
-      placement: "right",
-    },
-    {
-      id: "review",
-      target: "#knowledge-content [data-slot=tool-panel-header]",
-      title: t("tour.review_title"),
-      content: <div className="space-y-3">
-        <p>{t("tour.review_content")}</p>
-        <p className="text-xs leading-5">{t("tour.review_hint")}</p>
-      </div>,
-      placement: "bottom",
-    },
-    {
-      id: "plans",
-      target: '#knowledge-plans',
-      title: t("tour.plans_title"),
-      content: <div className="space-y-3">
-        <p>{t("tour.plans_content")}</p>
-        <p className="text-xs leading-5">{t("tour.plans_hint")}</p>
-      </div>,
-      placement: "bottom",
+      placement: "top",
     },
     {
       id: "studio",

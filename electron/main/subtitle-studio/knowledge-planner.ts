@@ -27,8 +27,8 @@ function adjacentSource(document: SubtitleDocument, units: TranslationUnit[], in
   };
 }
 
-/** Policy 1 projection is also used to validate frozen records. Keep this exact mapping
- * when adding a future provider policy; evidence/local identities never enter the body. */
+/** This projection is also used to validate frozen records. Keep this exact mapping
+ * when adding a future provider policy; origins and local identities never enter the body. */
 export function compiledKnowledgePayload(batch: TranslationBatch, knowledge: CompiledKnowledge) {
   const ids = new Map(batch.units.map(unit => [unit.cueId, unit.id]));
   return {
@@ -36,7 +36,6 @@ export function compiledKnowledgePayload(batch: TranslationBatch, knowledge: Com
     items: knowledge.items.map(item => ({
       kind: item.kind, required: item.required, payload: item.payload,
       applicableItemIds: item.applicableCueIds.map(id => ids.get(id)).filter((id): id is string => id !== undefined),
-      ...(item.condition ? { condition: item.condition } : {}),
     })),
   };
 }

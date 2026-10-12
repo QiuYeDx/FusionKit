@@ -187,7 +187,7 @@ export default function SubtitleStudio() {
   const [deleting, setDeleting] = useState<DocumentSummary | null>(null);
   const [cleanupPending, setCleanupPending] = useState(false);
   const [trackId, setTrackId] = useState('');
-  const [rememberTerm, setRememberTerm] = useState<{ source: string; target: string; targetLanguage: string } | null>(null);
+  const [rememberTerm, setRememberTerm] = useState<{ source: string; target: string; pair: { source?: string; target?: string } } | null>(null);
   const [knowledgeRecheck, setKnowledgeRecheck] = useState<AutomaticKnowledgeRecheckRequest | undefined>();
   /** The document just imported and separated as bilingual, until the notice is dismissed. */
   const [bilingualNotice, setBilingualNotice] = useState('');
@@ -810,7 +810,9 @@ export default function SubtitleStudio() {
                 onCopy={copyCue}
                 onRecognize={cueIds => setCueRecognize({ cueIds, serial: ++cueRecognizeSerial.current })}
                 onFollowPage={offset => void run('select', () => select(page.summary, offset, { silent: true }))}
-                onRemember={cue => setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '', targetLanguage: track?.language === 'zh' ? 'zh-Hans' : track?.language ?? '' })} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
+                onRemember={cue => { const current = currentPage.current; setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '',
+                  // The document's direction, as the other capture dialogs use it.
+                  pair: captureLanguagePair(current ? translationDraftMemory.read(current.summary.id, current.summary.revision) : undefined, translationDraftMemory.last(), track?.language) }); }} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
             </ScrollArea>
           </div> : busy ? <div className="studio-content-empty py-14"><LoaderCircle className="studio-spin" /><p>{t('studio:loading')}</p></div>
             : <div className="studio-content-empty studio-import-empty py-14" data-testid="studio-import-empty"><FilePlus2 /><div><p className="studio-import-empty-title">{t('studio:import')}</p><p>{t('studio:library.import_hint')}</p></div><Button size="sm" variant="outline" onClick={importDocument}>{t('studio:choose_file')}</Button></div>}
@@ -848,7 +850,7 @@ export default function SubtitleStudio() {
       languagePair={checkCapture?.pair} preferredCollectionId={checkCapture?.preferredCollectionId} onSaved={() => checkCapture?.saved()} />
     <KnowledgeCaptureDialog open={captureOpen && !!knowledgeOffer} onOpenChange={open => { if (!open) setCaptureOpen(false); }} wordings={knowledgeOffer?.hints ?? []}
       languagePair={knowledgeOffer?.pair} preferredCollectionId={knowledgeOffer?.preferredCollectionId} evidence={knowledgeOffer?.instructions} onSaved={() => setKnowledgeOffer(null)} />
-    <QuickTermDialog open={!!rememberTerm} onOpenChange={open => { if (!open) setRememberTerm(null); }} initialSource={rememberTerm?.source} initialTarget={rememberTerm?.target} initialLanguagePair={rememberTerm?.targetLanguage ? { source: '', target: rememberTerm.targetLanguage } : undefined} />
+    <QuickTermDialog open={!!rememberTerm} onOpenChange={open => { if (!open) setRememberTerm(null); }} initialSource={rememberTerm?.source} initialTarget={rememberTerm?.target} initialLanguagePair={rememberTerm?.pair.target ? { source: rememberTerm.pair.source ?? '', target: rememberTerm.pair.target } : undefined} />
     <StudioBatchTranslation triggerContainer={translationSlot} documents={contextDialog?.kind === 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog?.kind === 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind === 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />
     <StudioBatchExport triggerContainer={exportSlot} documents={contextDialog && contextDialog.kind !== 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog && contextDialog.kind !== 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind !== 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} />
     <AnimatePresence>{!wide && <ScrollableDialog key="library" animateSize open={libraryOpen} onOpenChange={setLibraryOpen} maxWidth="sm:max-w-[540px]" contentClassName="studio-library-dialog" onOpenAutoFocus={event => { event.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid=studio-library-search]')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('studio-library-trigger')?.focus(); }}><ScrollableDialogHeader><DialogTitle>{t('studio:documents')} · {allTotal}</DialogTitle><DialogDescription className="sr-only">{t('studio:library.selection_rule')}</DialogDescription></ScrollableDialogHeader><ScrollableDialogContent>{library}</ScrollableDialogContent></ScrollableDialog>}</AnimatePresence>

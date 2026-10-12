@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { encode } from 'gpt-tokenizer';
 import { LIMITS, StudioError, type ExecutionRef } from '../../../src/subtitle-studio/domain';
 import {
-  EXECUTION_RECORD_LIMITS, executionRequestDigest, frozenModelRuntimeRequestSchema, recordBaseDigest, validateExecutionRecord,
+  EXECUTION_RECORD_LIMITS, KNOWLEDGE_TRANSLATION_POLICY_VERSION, executionRequestDigest, frozenModelRuntimeRequestSchema, recordBaseDigest, validateExecutionRecord,
   type ExecutionRecord, type FrozenExecutionRequest, type FrozenModelRuntimeRequest,
 } from '../../../src/subtitle-studio/execution-record-contract';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
@@ -11,17 +11,16 @@ import type { ModelRuntimeTextRequest } from '../ai/model-runtime-client';
 import { buildTranslationRequest, requestTokenEstimate, serializeTranslationRequest, type TranslationPlan } from './translation-planner';
 import { validateFrozenKnowledgeSnapshot, type FrozenKnowledgeSnapshot } from '../../../src/translation-knowledge/snapshot-contract';
 import { compiledKnowledgePayload } from './knowledge-planner';
-import { supportedKnowledgeExecutionPolicy } from '../../../src/translation-knowledge/execution';
 
 /** Keep this implementation for old records when introducing a new prompt/context policy. */
 export const EXECUTION_POLICY_VERSION = 'studio-translation/2;request-body/1';
-export const KNOWLEDGE_TRANSLATION_POLICY_VERSION = 'studio-knowledge-translation/1;request-body/1';
+export { KNOWLEDGE_TRANSLATION_POLICY_VERSION };
 export const KNOWLEDGE_PRIOR_REQUEST_BYTES = 4096;
 export type PreparedKnowledgeExecution = { plan: TranslationPlan; sourceDigest: string; baseRequests: Record<string, FrozenExecutionRequest>; knowledge: FrozenKnowledgeSnapshot };
 const canonical = (value: unknown) => sha256Canonical(JSON.parse(JSON.stringify(value)));
 const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 const supportedPolicy = (record: ExecutionRecord) => (record.policyVersion === EXECUTION_POLICY_VERSION && !record.knowledge)
-  || (record.policyVersion === KNOWLEDGE_TRANSLATION_POLICY_VERSION && supportedKnowledgeExecutionPolicy(record.knowledge?.policyVersion));
+  || (record.policyVersion === KNOWLEDGE_TRANSLATION_POLICY_VERSION && !!record.knowledge);
 
 function recordOperation<T>(action: () => T): T {
   try { return action(); }

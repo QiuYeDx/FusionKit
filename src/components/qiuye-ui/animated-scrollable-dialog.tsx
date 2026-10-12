@@ -23,7 +23,8 @@ function MeasuredSurface({ children, className, contentClassName, maxWidth = 'sm
     if (!surface || !widthProbe || !present) return;
     const style = getComputedStyle(surface);
     const borderWidth = number(style.borderLeftWidth) + number(style.borderRightWidth);
-    const width = widthProbe.offsetWidth;
+    // The frame is capped at calc(100vw - 2rem), which a breakpoint max-width on the probe can override; match it.
+    const width = Math.min(widthProbe.offsetWidth, innerWidth - 32);
     const sections = Array.from(surface.querySelectorAll<HTMLElement>('[data-dialog-section]'))
       .filter(section => !section.closest('[data-dialog-exiting="true"]'));
     let height = number(style.borderTopWidth) + number(style.borderBottomWidth);

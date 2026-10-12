@@ -1,17 +1,16 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from '@playwright/test';
-import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { KnowledgePackage, TermEntry } from '../../src/translation-knowledge/schemas';
+import { knowledgeFixture } from './fixtures';
+import zh from '../../src/locales/zh/knowledge.json';
 
-type TranslationPayload = {
-  items: Array<{ id: string; text: string }>;
-  translationKnowledge?: { items: Array<{ kind: string; applicableItemIds: string[] }> };
-};
+const fill = (template: string, values: Record<string, string | number>) => template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => String(values[key]));
 
-describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materials first-use journey in native Electron', () => {
-  let app: ElectronApplication | undefined, server: Server | undefined, page: Page | undefined;
+describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materials import and export in native Electron', () => {
+  let app: ElectronApplication | undefined, page: Page | undefined;
   let root = '';
   const artifacts = path.resolve('test-results/translation-knowledge-consumer-ux');
 
@@ -21,264 +20,213 @@ describe.runIf(process.env.FUSIONKIT_KNOWLEDGE_E2E === '1')('translation materia
       await app?.close();
       if (child) expect(child.exitCode !== null || child.signalCode !== null).toBe(true);
     } finally {
-      server?.closeAllConnections();
-      await new Promise<void>(resolve => server ? server.close(() => resolve()) : resolve());
       if (root) await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     }
   });
 
-  it('uses explicitly selected materials in Studio and keeps classic subtitle imports in the classic queue', async () => {
+  it('previews dropped packages, rejects other versions, merges same ids keeping local edits, and exports with warnings or cancels', async () => {
     root = await mkdtemp(path.join(tmpdir(), 'fusionkit-knowledge-consumer-ux-'));
     await mkdir(artifacts, { recursive: true });
-    const zh = JSON.parse(await readFile(path.resolve('src/locales/zh/studio.json'), 'utf8'));
-    const requests: Array<{ raw: string; payload: TranslationPayload }> = [], errors: string[] = [];
-    server = createServer(async (request, response) => {
-      try {
-        let raw = ''; for await (const chunk of request) raw += chunk.toString();
-        const body = JSON.parse(raw) as { messages: Array<{ content: string }> };
-        const payload = JSON.parse(body.messages[1].content) as TranslationPayload;
-        requests.push({ raw, payload });
-        response.setHeader('Content-Type', 'application/json');
-        response.end(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({
-          items: payload.items.map(item => ({ id: item.id, text: `译文：${payload.translationKnowledge ? item.text.replace(/checkpoint/g, '存档点') : item.text}` })),
-        }) } }], usage: { prompt_tokens: 40, completion_tokens: 20, total_tokens: 60 } }));
-      } catch (error) {
-        errors.push(`Fixture request: ${String(error)}`);
-        response.writeHead(500).end();
-      }
-    });
-    await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
-    const port = (server.address() as { port: number }).port;
-    const subtitle = path.join(root, 'A first translation with selected travel terminology.srt');
-    await writeFile(subtitle, '1\n00:00:01,000 --> 00:00:02,000\nWe reached checkpoint.\n\n2\n00:00:03,000 --> 00:00:04,000\nGood morning.\n');
-    const classicSubtitle = path.join(root, 'Classic subtitle stays in its own queue.lrc');
-    await writeFile(classicSubtitle, '[00:01.00]A subtitle for the classic translator.\n');
+    const fixture = knowledgeFixture();
+    const packageFile = path.join(root, 'multi-collection.fktk.json');
+    const legacyFile = path.join(root, 'legacy-v1.fktk.json');
+    const textFile = path.join(root, 'not-a-package.txt');
+    const exportDirectory = path.join(root, 'exports');
+    await mkdir(exportDirectory);
+    await Promise.all([
+      writeFile(packageFile, JSON.stringify(fixture)),
+      writeFile(legacyFile, JSON.stringify({ ...fixture, schemaVersion: 1 })),
+      writeFile(textFile, 'checkpoint\t存档点\n'),
+    ]);
+    const errors: string[] = [];
     app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(root, 'profile')}`], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
     page = await app.firstWindow();
     const ui = page;
     ui.on('pageerror', error => errors.push(error.message));
     const nativeWindow = await app.browserWindow(ui);
-    const capture = async (name: string, target?: Locator) => {
+    const capture = async (name: string) => {
       await ui.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
-      if (target) await target.scrollIntoViewIfNeeded();
-      await ui.waitForTimeout(150);
+      await ui.waitForTimeout(250);
+      expect(await ui.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       await ui.screenshot({ path: path.join(artifacts, `${name}.png`), animations: 'disabled' });
-    };
-    const geometry = async (target: Locator) => {
-      expect(await target.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      expect(await target.locator('[data-slot="scroll-area-viewport"]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
-      expect(await target.evaluate(element => element.getBoundingClientRect().bottom <= window.innerHeight + 1)).toBe(true);
     };
     const readLibrary = () => ui.evaluate(async () => {
       const result = await window.translationKnowledge.read(); if (!result.ok) throw new Error(result.error); return result.value;
     });
-    const readDocument = () => ui.evaluate(async () => {
-      const list = await window.subtitleStudio.listDocuments({ offset: 0 }); if (!list.ok) throw new Error(list.error);
-      const document = list.value.documents[0];
-      const result = await window.subtitleStudio.readDocumentPage({ documentId: document.id, revision: document.revision, offset: 0 });
-      if (!result.ok) throw new Error(result.error); return result.value;
-    });
-    const translate = () => ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-model') });
-    const openTranslation = async () => {
-      await ui.getByRole('button', { name: '翻译', exact: true }).click();
-      await uiExpect(translate()).toBeVisible();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
-    };
-    const tour = async (name: string) => {
-      await ui.getByTestId('knowledge-tour-trigger').click();
-      for (let i = 0; i < 5; i++) {
-        const dialog = ui.locator('.knowledge-tour-popover');
-        await uiExpect(dialog).toBeVisible();
-        await uiExpect(dialog).toContainText(`${i + 1} / 5`);
-        await uiExpect(dialog).not.toContainText('当前目标暂不可见');
-        // Motion's spring/layout transitions are not CSS animations, so the
-        // screenshot option alone cannot settle a newly selected Tour step.
-        await dialog.evaluate(element => new Promise<void>((resolve, reject) => {
-          const started = performance.now(); let previous: number[] = [], stable = 0;
-          const sample = () => {
-            const nodes = [element, ...element.querySelectorAll('div'), ...document.querySelectorAll('.knowledge-tour-spotlight')];
-            const values = nodes.flatMap(node => { const r = node.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; });
-            stable = values.length === previous.length && values.every((value, i) => Math.abs(value - previous[i]) < 0.1) ? stable + 1 : 0;
-            previous = values;
-            if (stable >= 10 && performance.now() - started > 500) { resolve(); return; }
-            if (performance.now() - started > 5000) { reject(new Error('Tour layout did not settle')); return; }
-            requestAnimationFrame(sample);
-          };
-          requestAnimationFrame(sample);
-        }));
-        // The decorative arrow intentionally extends beyond the panel. Check
-        // its content box for overflow and the panel itself against the viewport.
-        await geometry(dialog.locator(':scope > div'));
-        expect(await dialog.evaluate(element => { const r = element.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; })).toBe(true);
-        await capture(`${name}-step-${i + 1}`);
-        await ui.getByTestId('knowledge-tour-next').click();
-      }
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-    };
-    const catalogSpacing = async () => {
-      await ui.evaluate(() => { location.hash = '/tools'; });
-      await uiExpect(ui.getByTestId('tools-catalog')).toBeVisible();
-      const gaps = await ui.evaluate(() => {
-        const rect = (id: string) => document.querySelector(`[data-testid="${id}"]`)!.getBoundingClientRect();
-        return [rect('tools-classic-heading').top - rect('tools-featured-grid').bottom, rect('tools-experimental-heading').top - rect('tools-classic-grid').bottom];
+    // A real file chosen through an input carries native file authority into the drop event.
+    const drop = async (file: string) => {
+      await ui.evaluate(() => { const input = document.createElement('input'); input.type = 'file'; input.hidden = true; input.dataset.knowledgeDropFixture = ''; document.body.append(input); });
+      await ui.locator('[data-knowledge-drop-fixture]').setInputFiles(file);
+      await ui.evaluate(() => {
+        const input = document.querySelector<HTMLInputElement>('[data-knowledge-drop-fixture]')!;
+        const target = document.querySelector('[data-testid=translation-knowledge]')!;
+        for (const type of ['dragenter', 'drop']) {
+          const transfer = new DataTransfer(); Array.from(input.files!).forEach(item => transfer.items.add(item));
+          target.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: transfer }));
+        }
+        input.remove();
       });
-      expect(gaps[0]).toBe(32); expect(gaps[1]).toBe(32);
     };
+    const dialog = ui.getByRole('dialog');
+    const heading = ui.getByTestId('knowledge-collection-header').locator('h2');
+    const toast = (text: string) => ui.locator('[data-sonner-toast]').filter({ hasText: text });
+    const openFirst = async () => {
+      await ui.locator(`[data-collection-id="${fixture.collections[0].id}"]`).click();
+      await uiExpect(heading).toHaveText(fixture.collections[0].name);
+    };
+    const importRow = (id: string) => ui.getByTestId('knowledge-import-collections').locator(`[data-import-collection="${id}"]`);
     try {
-      await ui.evaluate(port => {
+      await ui.evaluate(() => {
         localStorage.setItem('lang', 'zh');
-        localStorage.setItem('subtitle-converter-tour-done', '1');
-        localStorage.setItem('subtitle-translator-tour-done', '1');
+        localStorage.setItem('translation-knowledge-tour-done', '1');
         localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
-        localStorage.setItem('fusionkit-model', JSON.stringify({ version: 5, state: { profiles: [{ id: 'consumer-fixture', name: 'Local consumer UX fixture', provider: 'DeepSeek', apiKey: 'synthetic-consumer-key', baseUrl: `http://127.0.0.1:${port}`, modelKey: 'deepseek-v4-flash', apiFormat: 'chat_completions', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } }], assignment: { taskExecution: 'consumer-fixture', agent: null }, audioProfiles: [], audioAssignment: {} } }));
         location.hash = '/tools/translation-knowledge';
-      }, port);
+      });
       await ui.reload(); await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await uiExpect(ui.locator('.knowledge-tour-popover')).toBeVisible();
-      await ui.getByTestId('knowledge-tour-skip').click();
-      expect(await ui.evaluate(() => localStorage.getItem('translation-knowledge-tour-done'))).toBe('1');
-      await ui.reload();
-      await capture('redesign-empty-zh-light', ui.getByTestId('knowledge-new-collection'));
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await tour('redesign-tour-zh-light');
-      await ui.getByTestId('knowledge-new-collection').click();
-      const collectionName = '旅行视频术语 · 日常维护与明确选用的资料集';
-      await ui.getByRole('dialog').getByRole('textbox', { name: '名称', exact: true }).fill(collectionName);
-      await ui.getByRole('dialog').getByRole('combobox', { name: '原文语言', exact: true }).click();
-      await ui.getByRole('option', { name: '英语', exact: true }).click();
-      await ui.getByRole('dialog').getByRole('button', { name: '保存', exact: true }).click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      const collection = (await readLibrary()).data.collections[0];
-      expect(collection.name).toBe(collectionName);
-      expect((await readLibrary()).data.subjects).toHaveLength(0);
-      const inline = ui.getByTestId('knowledge-inline-term');
-      await inline.getByRole('textbox', { name: '原文', exact: true }).fill('checkpiont');
-      await inline.getByRole('textbox', { name: '译文', exact: true }).fill('存档点');
-      await inline.getByRole('textbox', { name: '译文', exact: true }).press('Enter');
-      await uiExpect.poll(async () => (await readLibrary()).data.entries.length).toBe(1);
-      let term = (await readLibrary()).data.entries[0];
-      expect(term.state).toBe('ready'); expect(term.scope.requiredSubjects).toEqual([]);
-      expect((await readLibrary()).approvals[term.id].revision).toBe(term.revision);
-      await ui.locator(`[data-entry-id="${term.id}"]`).click();
-      await ui.getByRole('dialog').getByRole('textbox', { name: '原文', exact: true }).fill('checkpoint');
-      await ui.getByTestId('knowledge-save-apply').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      term = (await readLibrary()).data.entries[0];
-      expect(term.revision).toBeGreaterThan(1); expect(term.state).toBe('ready');
-      expect((await readLibrary()).approvals[term.id].revision).toBe(term.revision);
-      await ui.getByTestId('knowledge-paste-open').click();
-      await ui.getByTestId('knowledge-paste-input').fill('save slot\t存档槽\ncheckpoint\t载入游系');
-      await ui.getByTestId('knowledge-paste-preview').click();
-      await ui.getByTestId('knowledge-paste-rows').getByRole('textbox', { name: '译文 2', exact: true }).fill('载入游戏');
-      await capture('redesign-paste-zh-light');
-      await ui.getByTestId('knowledge-paste-save').click();
-      await uiExpect(ui.locator('[data-paste-row][data-saved="true"]')).toHaveCount(1);
-      await uiExpect(ui.getByRole('dialog').getByRole('alert')).toBeVisible();
-      await capture('redesign-paste-partial-recovery');
-      await ui.getByTestId('knowledge-paste-rows').getByRole('textbox', { name: '原文 2', exact: true }).fill('load game');
-      await ui.getByTestId('knowledge-paste-save').click();
-      await uiExpect(ui.locator('[data-paste-row][data-saved="true"]')).toHaveCount(2);
-      await ui.getByRole('dialog').getByRole('button', { name: '完成', exact: true }).click();
-      expect((await readLibrary()).data.entries).toHaveLength(3);
-      expect(Object.keys((await readLibrary()).approvals)).toHaveLength(3);
-      await capture('redesign-collection-zh-light', ui.getByTestId('knowledge-inline-term'));
+      await uiExpect(ui.getByTestId('knowledge-empty-library')).toBeVisible();
+      const empty = await readLibrary();
 
-      // A different matching collection must never be implicitly selected.
-      const excludedCollection = await ui.evaluate(async selectedId => {
-        let result = await window.translationKnowledge.read(); if (!result.ok) throw new Error(result.error);
-        const original = result.value.data.collections.find(item => item.id === selectedId)!;
-        const other = { ...original, id: crypto.randomUUID(), revision: 1, name: '不选用的其他资料集' };
-        let saved = await window.translationKnowledge.saveRecord({ generation: result.value.generation, group: 'collections', record: other });
+      // Only a single .fktk.json file is accepted as a drop.
+      await drop(textFile);
+      await uiExpect(ui.getByText(zh.import.drop_invalid, { exact: true })).toBeVisible();
+      await uiExpect(dialog).toHaveCount(0);
+
+      // AC-PAGE-06-1: a non-v2 package is refused with the version message and no preview.
+      await drop(legacyFile);
+      await uiExpect(ui.getByTestId('knowledge-import-error')).toHaveText(zh.import.unsupported_version);
+      await uiExpect(ui.getByText(zh.import.drop_invalid, { exact: true })).toHaveCount(0);
+      await uiExpect(dialog).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-import-collections')).toHaveCount(0);
+      expect(await readLibrary()).toEqual(empty);
+      await capture('01-unsupported-version');
+
+      // AC-PAGE-06-1: a v2 package previews each collection with its status and count, then opens the first one.
+      await drop(packageFile);
+      await uiExpect(dialog).toContainText(zh.import.title);
+      await uiExpect(dialog).toContainText(fill(zh.import.description, { name: fixture.package.name }));
+      await uiExpect(ui.getByTestId('knowledge-import-error')).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-import-collections').locator('[data-import-collection]')).toHaveCount(fixture.collections.length);
+      for (const collection of fixture.collections) {
+        const row = importRow(collection.id);
+        await uiExpect(row).toHaveAttribute('data-status', 'new');
+        await uiExpect(row).toContainText(collection.name);
+        await uiExpect(row).toContainText(zh.import.status_new);
+        await uiExpect(row).toContainText(fill(zh.import.entries, { count: fixture.entries.filter(entry => entry.collectionId === collection.id).length }));
+        await uiExpect(row.getByRole('combobox', { name: fill(zh.import.action_for, { name: collection.name }), exact: true })).toHaveText(zh.import.action_add);
+      }
+      await uiExpect(dialog).toContainText(fill(zh.import.presets, { count: fixture.presets.length }));
+      await uiExpect(dialog.getByText(zh.import.conflict, { exact: true })).toHaveCount(0);
+      await uiExpect(ui.getByTestId('knowledge-import-commit')).toHaveText(fill(zh.import.commit, { count: fixture.collections.length }));
+      await capture('02-import-preview-new');
+      await ui.getByTestId('knowledge-import-commit').click();
+      await uiExpect(dialog).toHaveCount(0);
+      await uiExpect(toast(fill(zh.import.done, { added: fixture.entries.length, updated: 0, skipped: 0 }))).toBeVisible();
+      // The first imported collection, not the first by name (which would be shown by default).
+      await uiExpect(heading).toHaveText(fixture.collections[0].name);
+      let stored = await readLibrary();
+      expect(stored.data.collections.map(item => item.id).sort()).toEqual(fixture.collections.map(item => item.id).sort());
+      expect(stored.data.entries.map(item => item.id).sort()).toEqual(fixture.entries.map(item => item.id).sort());
+      expect(stored.data.presets.map(item => item.id)).toEqual(fixture.presets.map(item => item.id));
+
+      // AC-PAGE-06-2: change one entry and delete another locally, then import the same package again.
+      const first = fixture.collections[0];
+      const firstTerms = fixture.entries.filter((entry): entry is TermEntry => entry.collectionId === first.id && entry.kind === 'term');
+      const firstEntries = fixture.entries.filter(entry => entry.collectionId === first.id);
+      expect(firstTerms.length).toBeGreaterThanOrEqual(2);
+      const [edited, removed] = firstTerms;
+      const localTarget = '本地改过的译法';
+      await ui.evaluate(async ({ editedId, removedId, target }) => {
+        const current = await window.translationKnowledge.read(); if (!current.ok) throw new Error(current.error);
+        const entry = current.value.data.entries.find(item => item.id === editedId);
+        if (entry?.kind !== 'term') throw new Error('Fixture term missing');
+        const saved = await window.translationKnowledge.saveRecords({ generation: current.value.generation, items: [{ group: 'entries', record: { ...entry, payload: { ...entry.payload, target } } }] });
         if (!saved.ok) throw new Error(saved.error);
-        const entry = structuredClone(saved.value.data.entries[0]);
-        if (entry.kind !== 'term') throw new Error('Fixture term missing');
-        entry.id = crypto.randomUUID(); entry.revision = 1; entry.collectionId = other.id; entry.payload.target = '未选资料的专用译法';
-        saved = await window.translationKnowledge.saveRecord({ generation: saved.value.generation, group: 'entries', record: entry, adopt: true });
-        if (!saved.ok) throw new Error(saved.error); return other;
-      }, collection.id);
-      await ui.evaluate(() => { localStorage.setItem('lang', 'en'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
-      await ui.reload(); await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await uiExpect(ui.locator('html')).toHaveClass(/dark/);
-      await capture('redesign-collection-en-dark', ui.getByTestId('knowledge-new-entry'));
-      await tour('redesign-tour-en-dark');
-      await ui.evaluate(() => { localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 })); });
-      await ui.reload(); await nativeWindow.evaluate(win => win.setSize(1280, 860));
-      await ui.getByTestId('knowledge-open-studio').click();
-      await app.evaluate(({ dialog }, file) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] }); }, subtitle);
-      await ui.getByRole('button', { name: '打开字幕文件', exact: true }).click();
-      await uiExpect(ui.locator('.studio-cue-table tbody tr')).toHaveCount(2);
-      await openTranslation();
-      await uiExpect(ui.getByTestId('studio-translation-knowledge-enabled')).toHaveCount(0);
-      await uiExpect(ui.getByTestId('studio-materials')).toContainText(zh.materials.none);
-      await capture('redesign-translation-no-materials');
-      // Direct Start includes local preparation and never adds saved materials.
-      await ui.getByTestId('studio-translation-start').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 20000 });
-      expect(requests).toHaveLength(1); expect(requests[0].payload.translationKnowledge).toBeUndefined();
-      expect((await readDocument()).translationTracks).toHaveLength(1);
-      await openTranslation();
-      await ui.getByTestId('studio-materials-choose').click();
-      const selectedCollection = ui.getByTestId(`studio-materials-collection-${collection.id}`);
-      await uiExpect(selectedCollection).not.toBeChecked();
-      await uiExpect(ui.getByTestId(`studio-materials-collection-${excludedCollection.id}`)).not.toBeChecked();
-      await selectedCollection.check();
-      await ui.getByTestId('studio-materials-done').click();
-      await ui.getByTestId('studio-materials-source').click();
-      await ui.getByRole('option', { name: '英语', exact: true }).click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(1);
-      await capture('redesign-materials-selection', ui.getByTestId('studio-materials'));
-      await ui.getByTestId('studio-translation-check').click();
-      await uiExpect(ui.getByTestId('knowledge-full-preview')).toBeVisible();
-      expect(requests).toHaveLength(1);
-      await nativeWindow.evaluate(win => win.setSize(820, 700));
-      await capture('redesign-translation-selected-narrow', ui.getByTestId('knowledge-full-preview'));
-      await geometry(ui.getByRole('dialog').filter({ has: ui.getByTestId('studio-translation-review-dialog') }));
-      await ui.getByTestId('studio-translation-review-start').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      await uiExpect(ui.locator('.studio-translation-status')).toHaveAttribute('data-state', 'completed', { timeout: 20000 });
-      expect(requests).toHaveLength(2);
-      expect(requests[1].payload.translationKnowledge?.items).toEqual([expect.objectContaining({ kind: 'term', applicableItemIds: ['u1'] })]);
-      expect(requests[1].raw).toContain('存档点'); expect(requests[1].raw).not.toContain('未选资料的专用译法');
-      expect((await readDocument()).translationTracks).toHaveLength(2);
-      await openTranslation();
-      await uiExpect(ui.getByTestId('studio-materials')).toContainText(collectionName);
-      await ui.getByTestId('studio-translation-close').click();
+        const deleted = await window.translationKnowledge.deleteRecords({ generation: saved.value.generation, items: [{ group: 'entries', id: removedId }] });
+        if (!deleted.ok) throw new Error(deleted.error);
+      }, { editedId: edited.id, removedId: removed.id, target: localTarget });
+      await ui.reload();
+      await openFirst();
+      await drop(packageFile);
+      await uiExpect(dialog).toContainText(zh.import.title);
+      for (const collection of fixture.collections) {
+        const row = importRow(collection.id);
+        const count = fixture.entries.filter(entry => entry.collectionId === collection.id).length;
+        const compare = collection.id === first.id ? { added: 1, changed: 1, unchanged: count - 2 } : { added: 0, changed: 0, unchanged: count };
+        await uiExpect(row).toHaveAttribute('data-status', 'existing');
+        await uiExpect(row).toContainText(zh.import.status_existing);
+        await uiExpect(row).toContainText(fill(zh.import.compare, compare));
+        await uiExpect(row.getByRole('combobox', { name: fill(zh.import.action_for, { name: collection.name }), exact: true })).toHaveText(zh.import.action_merge);
+      }
+      await uiExpect(dialog.getByRole('combobox', { name: zh.import.conflict, exact: true })).toHaveText(zh.import.keep_local);
+      await capture('03-import-preview-existing');
+      await ui.getByTestId('knowledge-import-commit').click();
+      await uiExpect(dialog).toHaveCount(0);
+      await uiExpect(toast(fill(zh.import.done, { added: 1, updated: 0, skipped: fixture.entries.length - 1 }))).toBeVisible();
+      await uiExpect(heading).toHaveText(first.name);
+      stored = await readLibrary();
+      const keptLocal = stored.data.entries.find(entry => entry.id === edited.id);
+      expect(keptLocal?.kind === 'term' && keptLocal.payload.target).toBe(localTarget);
+      expect(stored.data.entries.find(entry => entry.id === removed.id)).toEqual({ ...removed, revision: 1 });
+      expect(stored.data.entries.filter(entry => entry.collectionId === first.id)).toHaveLength(firstEntries.length);
 
-      // Save from a subtitle row without leaving the active document. The user
-      // explicitly narrows the prefilled sentence instead of auto-learning it.
-      await ui.locator('.studio-cue-table tbody tr').first().getByRole('button', { name: '字幕操作', exact: true }).click();
-      await ui.getByTestId('studio-remember-term').click();
-      const quick = ui.getByRole('dialog').filter({ has: ui.getByTestId('quick-term-form') });
-      await uiExpect(quick.getByRole('textbox', { name: '原词', exact: true })).toHaveValue('We reached checkpoint.');
-      await quick.getByRole('textbox', { name: '原词', exact: true }).fill('Good morning');
-      await quick.getByRole('textbox', { name: '固定译法', exact: true }).fill('早安');
-      await quick.getByRole('combobox', { name: '保存到资料集', exact: true }).click();
-      await ui.getByRole('option', { name: collectionName, exact: true }).click();
-      await capture('redesign-remember-term-narrow');
-      await ui.getByTestId('quick-term-save').click();
-      await uiExpect(ui.getByRole('dialog')).toHaveCount(0);
-      const remembered = (await readLibrary()).data.entries.find(entry => entry.kind === 'term' && entry.payload.source === 'Good morning')!;
-      expect(remembered.state).toBe('ready'); expect(remembered.scope.requiredSubjects).toEqual([]);
-      expect((await readLibrary()).approvals[remembered.id].method).toBe('human');
-      expect((await readDocument()).translationTracks).toHaveLength(2);
-      await uiExpect(ui).toHaveURL(/#\/tools\/subtitle\/studio$/);
+      // AC-PAGE-06-3: content that looks like a local path is listed as a warning before saving.
+      const privatePath = 'C:\\Users\\translator\\Documents\\private-glossary.txt';
+      await ui.evaluate(async ({ collectionId, note }) => {
+        const current = await window.translationKnowledge.read(); if (!current.ok) throw new Error(current.error);
+        const saved = await window.translationKnowledge.saveRecords({ generation: current.value.generation, items: [{ group: 'entries', record: {
+          id: crypto.randomUUID(), revision: 1, kind: 'term', collectionId, enabled: true, origin: { kind: 'manual' },
+          payload: { source: 'inventory', target: '背包', aliases: [], note, strength: 'preferred', match: { mode: 'literal_phrase', caseSensitive: false } },
+        } }] });
+        if (!saved.ok) throw new Error(saved.error);
+      }, { collectionId: first.id, note: `整理自 ${privatePath}` });
+      await ui.reload();
+      await openFirst();
+      const exportFiles = async () => readdir(exportDirectory);
 
-      await ui.evaluate(() => { location.hash = '/tools/subtitle/translator'; });
-      await uiExpect(ui.locator('[data-testid^="subtitle-knowledge-"]')).toHaveCount(0);
-      await uiExpect(ui.getByRole('link', { name: '翻译资料', exact: true })).toHaveCount(0);
-      await ui.locator('#tour-output-path').getByRole('radio', { name: '与源文件同目录', exact: true }).check();
-      const chooser = ui.waitForEvent('filechooser');
-      await ui.getByRole('button', { name: '选择文件', exact: true }).click();
-      await (await chooser).setFiles(classicSubtitle);
-      await uiExpect(ui.locator('#tour-task-queue').getByText(path.basename(classicSubtitle), { exact: true })).toBeVisible();
-      expect((await readDocument()).summary.origin.displayName).toBe(path.basename(subtitle));
-      expect(requests).toHaveLength(2);
-      await catalogSpacing();
+      // Cancelling the native save dialog writes nothing and leaves the dialog open.
+      await app.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: undefined }); });
+      await ui.getByTestId('knowledge-export').click();
+      await uiExpect(dialog).toContainText(zh.export.title);
+      await uiExpect(dialog.getByRole('checkbox', { name: new RegExp(`^${first.name} · `) })).toBeChecked();
+      await uiExpect(ui.getByTestId('knowledge-export-save')).toHaveText(zh.export.save);
+      await ui.getByTestId('knowledge-export-save').click();
+      const warnings = ui.getByTestId('knowledge-export-warnings');
+      await uiExpect(warnings).toBeVisible();
+      await uiExpect(warnings).toContainText(zh.diagnostic.EXPORT_PRIVATE_CONTENT);
+      await uiExpect(dialog).toContainText(zh.export.warnings_help);
+      await uiExpect(ui.getByTestId('knowledge-export-save')).toHaveText(zh.export.save_anyway);
+      expect(await exportFiles()).toEqual([]);
+      await capture('04-export-warnings');
+      await ui.getByTestId('knowledge-export-save').click();
+      await uiExpect(ui.getByTestId('knowledge-export-save')).toBeEnabled();
+      await uiExpect(dialog).toContainText(zh.export.title);
+      expect(await exportFiles()).toEqual([]);
+      expect(await readdir(root)).toEqual(expect.not.arrayContaining([expect.stringMatching(/^translation-knowledge-.*\.fktk\.json$/)]));
+      await dialog.getByRole('button', { name: zh.actions.close, exact: true }).click();
+      await uiExpect(dialog).toHaveCount(0);
+
+      // The same warnings from the collection menu, then save anyway.
+      const destination = path.join(exportDirectory, 'shared-collection.fktk.json');
+      await app.evaluate(({ dialog }, file) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: file }); }, destination);
+      await ui.getByTestId('knowledge-collection-actions').click();
+      await ui.getByTestId('knowledge-collection-export').click();
+      await uiExpect(dialog).toContainText(zh.export.title);
+      await ui.getByTestId('knowledge-export-save').click();
+      await uiExpect(warnings).toContainText(zh.diagnostic.EXPORT_PRIVATE_CONTENT);
+      await ui.getByTestId('knowledge-export-save').click();
+      await uiExpect(dialog).toHaveCount(0);
+      const exportedCount = firstEntries.length + 1;
+      await uiExpect(toast(fill(zh.export.done, { fileName: path.basename(destination), count: exportedCount }))).toBeVisible();
+      expect(await exportFiles()).toEqual([path.basename(destination)]);
+      const exported = JSON.parse(await readFile(destination, 'utf8')) as KnowledgePackage;
+      expect(exported.schemaVersion).toBe(2);
+      expect(exported.collections.map(item => item.id)).toEqual([first.id]);
+      expect(exported.entries).toHaveLength(exportedCount);
+      expect(JSON.stringify(exported)).toContain('private-glossary.txt');
       expect(errors).toEqual([]);
     } catch (error) {
-      await ui.screenshot({ path: path.join(artifacts, 'redesign-failure.png'), animations: 'disabled' }).catch(() => undefined);
+      await ui.screenshot({ path: path.join(artifacts, 'consumer-ux-failure.png'), animations: 'disabled' }).catch(() => undefined);
       throw error;
     }
-  }, 180000);
+  }, 120000);
 });

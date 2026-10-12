@@ -121,8 +121,8 @@ it('blocks missing automatic configuration before enqueue and allows disabling i
 });
 
 function automaticKnowledgeFixture() {
-  const library: LibrarySnapshot = { generation: 12, data: knowledgeFixture(), approvals: {}, imports: [] };
-  const knowledge = { ...structuredClone(DEFAULT_AUTOMATIC_KNOWLEDGE), enabled: true, sourceLanguage: 'ja', collectionIds: [library.data.collections[0].id], documentTopicIds: [library.data.subjects[0].id] };
+  const library: LibrarySnapshot = { generation: 12, data: knowledgeFixture() };
+  const knowledge = { ...structuredClone(DEFAULT_AUTOMATIC_KNOWLEDGE), enabled: true, sourceLanguage: 'en', collectionIds: [library.data.collections[0].id] };
   const automatic = { config: { model: { profileId: 'p', modelKey: 'controlled-model', endpoint: 'https://example.invalid/v1', apiFormat: 'chat_completions' as const }, language: 'zh', instructions: '', contextWindow: 8192, maxOutputTokens: 1024, maxBatchCues: 32 }, apiKey: 'ephemeral-key' };
   const preferences = { ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), autoTranslation: { ...DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, enabled: true, knowledge } };
   return { library, knowledge, automatic, preferences };
@@ -141,11 +141,9 @@ it('requires a library and captures shared choices, language and generation with
   f.controller.setAutoTranslation({ ...source.preferences.autoTranslation, enabled: false });
   await pending;
   const sent = f.api.enqueueTranscription.mock.calls[0][0].autoTranslation!;
-  expect(sent).toMatchObject({ apiKey: 'ephemeral-key', knowledge: { knowledgeGeneration: 12, documentTopicIds: source.knowledge.documentTopicIds,
-    selection: { version: 1, languagePair: { source: 'ja', target: 'zh-Hans' }, collectionIds: [source.library.data.collections[0].id], instructions: '' } } });
-  expect(sent.knowledge!.selection).not.toHaveProperty('bindings'); expect(sent.knowledge!.selection).not.toHaveProperty('confirmations');
-  expect(sent.knowledge!.selection).not.toHaveProperty('recipeId');
-  expect(JSON.stringify(write.mock.calls)).not.toMatch(/ephemeral-key|knowledgeGeneration|approvals|fileToken/);
+  expect(sent.knowledge).toEqual({ knowledgeGeneration: 12,
+    selection: { version: 2, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds: [source.library.data.collections[0].id], disabledEntryIds: [], instructions: '' } });
+  expect(JSON.stringify(write.mock.calls)).not.toMatch(/ephemeral-key|knowledgeGeneration|fileToken/);
   expect(f.controller.getState().autoTranslation.enabled).toBe(true);
 });
 it('requires review after a stale generation rejection and retains the selected media', async () => {
@@ -178,25 +176,24 @@ it('deduplicates library reads, blocks unavailable knowledge, and only omits it 
   await f.controller.enqueue();
   expect(f.api.enqueueTranscription.mock.calls[0][0].autoTranslation).not.toHaveProperty('knowledge');
 });
-it('uses generated English subtitles as the knowledge source and rejects a recipe for a different pair', async () => {
+it('uses generated English subtitles as the knowledge source and rejects collections of a different pair', async () => {
   const source = automaticKnowledgeFixture();
+  source.knowledge.sourceLanguage = 'ja';
   const f = fixture(undefined, { preferences: { read: () => source.preferences, write: vi.fn() }, resolveAutomaticTranslation: () => source.automatic, readAutomaticKnowledge: async () => source.library });
   await f.choose(media()); await f.controller.refreshAutomaticKnowledge();
   f.controller.setConfig({ ...f.controller.getState().config, language: 'ja', taskMode: 'translate_to_english' });
   await f.controller.enqueue();
   expect(f.api.enqueueTranscription.mock.calls[0][0].autoTranslation?.knowledge?.selection.languagePair).toEqual({ source: 'en', target: 'zh-Hans' });
   expect(f.controller.getState().autoTranslation.knowledge?.sourceLanguage).toBe('ja');
-  source.library.data.recipes[0].languagePair.source = 'ja';
-  expect(getAutomaticKnowledgeProblem({ ...source.knowledge, recipeId: source.library.data.recipes[0].id }, 'zh', true, source.library)).toBe('language');
+  expect(getAutomaticKnowledgeProblem(source.knowledge, 'zh', false, source.library)).toBe('language');
+  expect(getAutomaticKnowledgeProblem({ ...source.knowledge, sourceLanguage: 'en' }, 'ja', false, source.library)).toBe('language');
 });
 it('makes missing or archived resources repairable while refusing unspecified source languages', () => {
   const source = automaticKnowledgeFixture();
   expect(getAutomaticKnowledgeProblem({ ...source.knowledge, sourceLanguage: '' }, 'zh', false, source.library)).toBe('source');
   expect(getAutomaticKnowledgeProblem({ ...source.knowledge, collectionIds: ['11111111-1111-4111-8111-111111111111'] }, 'zh', false, source.library)).toBe('resources');
   expect(getAutomaticKnowledgeProblem({ ...source.knowledge, disabledEntryIds: ['11111111-1111-4111-8111-111111111111'] }, 'zh', false, source.library)).toBe('resources');
-  source.library.data.subjects[0].archived = true;
-  expect(getAutomaticKnowledgeProblem(source.knowledge, 'zh', false, source.library)).toBe('resources');
-  source.library.data.subjects[0].archived = false; source.library.data.collections[0].archived = true;
+  source.library.data.collections[0].archived = true;
   expect(getAutomaticKnowledgeProblem(source.knowledge, 'zh', false, source.library)).toBe('resources');
 });
 

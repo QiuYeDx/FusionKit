@@ -75,7 +75,7 @@ On every other page, the Agent button in the bottom-left corner opens a floating
 
 ### Translation materials
 
-Keep terms, background, translation requirements and reference translations per title, and choose them explicitly when translating or revising so names, forms of address and terms stay consistent. Materials are stored locally and can be shared as `.fktk.json` files with diff previews and conflict handling. Each task pins the version of the materials it used, so later edits never rewrite past tasks.
+Group terms, translation requirements and background into a collection per title or streamer, and tick collections (or pick a preset) when translating or revising so names, forms of address and terms stay consistent. Type terms straight into the table; they apply as soon as they are saved and can be disabled one by one. Materials are stored locally and can be shared as `.fktk.json` files with diff previews. Each task pins the version of the materials it used, so later edits never rewrite past tasks.
 
 ### More tools
 

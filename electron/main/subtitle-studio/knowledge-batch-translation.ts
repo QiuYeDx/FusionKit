@@ -3,7 +3,6 @@ import { documentSchema, errorCodeSchema, StudioError, type ErrorCode } from '..
 import type { BatchFailure } from '../../../src/subtitle-studio/batch-contract';
 import { knowledgeBatchRequestSchemas, type KnowledgeBatchTranslationRequest, type KnowledgeBatchTranslationPreview, type KnowledgeBatchTranslationResult } from '../../../src/subtitle-studio/knowledge-batch-contract';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
-import type { KnowledgeTaskGate } from '../../../src/translation-knowledge/task-reference-contract';
 import type { DocumentRepository } from './document-repository';
 import type { TranslationService } from './translation-service';
 import type { PreparedKnowledgeExecution } from './execution-records';
@@ -32,7 +31,7 @@ export class KnowledgeBatchTranslationService {
   private closed = false;
   private shutdown?: Promise<void>;
   constructor(private readonly repository: DocumentRepository, private readonly translation: TranslationService,
-    private readonly readKnowledge: () => Promise<LibrarySnapshot>, private readonly gate: KnowledgeTaskGate) {}
+    private readonly readKnowledge: () => Promise<LibrarySnapshot>) {}
 
   private track<T>(owner: number, operation: Promise<T>): Promise<T> {
     const pending = this.pending.get(owner) ?? new Set<Promise<unknown>>();
@@ -64,7 +63,7 @@ export class KnowledgeBatchTranslationService {
     return this.track(owner, (async () => {
       alive();
       const library = structuredClone(await this.readKnowledge()); alive();
-      if (library.generation !== request.knowledgeGeneration || library.maintenance?.cleanupPending) throw new StudioError('revision_conflict');
+      if (library.generation !== request.knowledgeGeneration) throw new StudioError('revision_conflict');
       const preview: KnowledgeBatchTranslationPreview = { planId: randomUUID(), expiresAt: 0, knowledgeGeneration: library.generation,
         items: [], readyCount: 0, totalEstimatedInputTokens: 0, totalOutputTokenReserve: 0 };
       const prepared = new Map<string, PreparedKnowledgeExecution>();
@@ -97,7 +96,7 @@ export class KnowledgeBatchTranslationService {
           displayName = snapshot.document.origin.displayName;
           if (snapshot.document.revision !== reference.revision || snapshot.tasks.some(task => ['queued', 'running'].includes(task.status))) throw new StudioError('revision_conflict');
           const result = await prepareKnowledgeTranslation(this.repository, { ...reference, knowledgeGeneration: request.knowledgeGeneration,
-            config: request.config, knowledge: { ...request.knowledge, bindings: [], confirmations: [] }, documentTopicIds: request.documentTopicIds }, library, alive, budget);
+            config: request.config, knowledge: request.knowledge }, library, alive, budget);
           alive();
           const cueNumbers = new Map(snapshot.document.cues.map((cue, index) => [cue.id, index + 1]));
           const summary = { ...result.preview, issues: result.preview.issues.slice(0, 100).map(issue => {
@@ -143,12 +142,12 @@ export class KnowledgeBatchTranslationService {
     const alive = () => { this.alive(owner, entry.epoch, guard); if (entry.preview.expiresAt <= Date.now()) throw new StudioError('revision_conflict'); };
     const verifyGeneration = async () => {
       alive(); const library = await this.readKnowledge(); alive();
-      if (library.generation !== entry.preview.knowledgeGeneration || library.maintenance?.cleanupPending) throw new StudioError('revision_conflict');
+      if (library.generation !== entry.preview.knowledgeGeneration) throw new StudioError('revision_conflict');
     };
     return this.track(owner, (async () => {
       // A whole-batch generation failure has no admission effects. Once checked,
       // this handle is single-use and every subsequent outcome is returned by file.
-      try { await this.gate.run(verifyGeneration); }
+      try { await verifyGeneration(); }
       catch (error) {
         // Starting consumes the batch plan even when the shared generation gate
         // rejects it; callers must create a fresh plan instead of replaying a
@@ -169,10 +168,8 @@ export class KnowledgeBatchTranslationService {
             result.items.push({ ...failure(item.documentId, item.displayName, new StudioError('invalid_input')), reason: 'knowledge_check_failed' }); continue;
           }
           try {
-            const admitted = await this.gate.run(async () => {
-              try { await verifyGeneration(); } catch (error) { stopped = error; throw error; }
-              return this.translation.startPreparedKnowledge(prepared, parsed.data.apiKey, alive);
-            });
+            try { await verifyGeneration(); } catch (error) { stopped = error; throw error; }
+            const admitted = await this.translation.startPreparedKnowledge(prepared, parsed.data.apiKey, alive);
             // Never recheck the owner here: a committed task ID must survive a
             // cancellation/replacement racing with the admission acknowledgement.
             result.items.push({ documentId: item.documentId, displayName: item.displayName, ok: true, taskId: admitted.taskId });

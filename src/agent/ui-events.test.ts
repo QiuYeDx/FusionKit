@@ -18,3 +18,10 @@ describe("applied revision events", () => {
     expect(shouldFollowUpUiEvent(without, { id: "p", goal: "g", updatedAt: 1, steps: [{ id: "s", title: "t", status: "in_progress" }] } as never)).toBe(true);
   });
 });
+
+describe("confirmed prepared actions", () => {
+  it("says a confirmed materials change is saved and queued work only submitted", () => {
+    expect(uiEventModelText({ kind: "action_completed", values: { title: "保存到翻译资料", actionId: "a1", saved: true } })).toContain("it was saved; the entries are in use now");
+    expect(uiEventModelText({ kind: "action_completed", values: { title: "Translation", actionId: "a2" } })).toContain("Submission is not completion");
+  });
+});

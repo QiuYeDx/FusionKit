@@ -1,0 +1,4 @@
+/* A partly selected page reads as a dash, like the Studio library. */
+.translation-knowledge [data-slot=checkbox][data-state=indeterminate] { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.translation-knowledge [data-state=indeterminate] [data-slot=checkbox-indicator] > svg { display: none; }
+.translation-knowledge [data-state=indeterminate] [data-slot=checkbox-indicator]::after { content: ''; width: 8px; height: 2px; border-radius: 1px; background: currentColor; }

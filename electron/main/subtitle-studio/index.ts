@@ -35,29 +35,26 @@ import type { SpeechResourceService } from '../speech-resources/service';
 import type { LibrarySnapshot } from '../../../src/translation-knowledge/ipc-contract';
 import { interpretBilingualImport } from '../../../src/subtitle-studio/bilingual';
 import { sourceDigest } from './translation-planner';
-import type { KnowledgeTaskGate, KnowledgeReferenceInventory } from '../../../src/translation-knowledge/task-reference-contract';
-import { knowledgeReferenceKey } from '../../../src/translation-knowledge/task-reference-contract';
 import { sha256Canonical } from '../../../src/translation-knowledge/canonicalize';
 import { KnowledgeBatchTranslationService } from './knowledge-batch-translation';
 import { KnowledgeTranslationService } from './knowledge-translation';
-import { KnowledgeTaskSerialGate } from '../translation-knowledge/task-gate';
 import { KnowledgeTrialService } from './knowledge-trial';
 import { readExecutionRecordPage } from './execution-view';
 import { automaticKnowledgeReportTrackIds, readAutomaticKnowledgeReportPage } from './automatic-knowledge-report';
 import { createAutomaticExporter } from './automatic-export';
 import { collectTypedPaths } from '../fs/typed-paths';
 
-export function registerSubtitleStudio(sharedResources?: SpeechResourceService, readKnowledge?: () => Promise<LibrarySnapshot>, knowledgeGate: KnowledgeTaskGate = new KnowledgeTaskSerialGate()) {
+export function registerSubtitleStudio(sharedResources?: SpeechResourceService, readKnowledge?: () => Promise<LibrarySnapshot>) {
   const repository = new DocumentRepository(path.join(app.getPath('userData'), 'subtitle-studio', 'documents'));
-  const translation = new TranslationService(repository, undefined, undefined, knowledgeGate);
-  const knowledgeTranslation = new KnowledgeTranslationService(repository, translation, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
-  const knowledgeBatchTranslation = new KnowledgeBatchTranslationService(repository, translation, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
+  const translation = new TranslationService(repository);
+  const knowledgeTranslation = new KnowledgeTranslationService(repository, translation, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))));
+  const knowledgeBatchTranslation = new KnowledgeBatchTranslationService(repository, translation, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))));
   const knowledgeTrial = new KnowledgeTrialService(repository, readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))));
   const automaticTranslation = createAutomaticTranslationCoordinator({ repository, translation });
   // Transcribe → translate → export runs here without the renderer: each document exports when its last stage is done.
   const automaticExport = createAutomaticExporter(repository);
   translation.onAutomaticCompleted(documentId => { void automaticExport.exportDocument(documentId); });
-  const automaticKnowledge = new AutomaticKnowledgeService(readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))), knowledgeGate);
+  const automaticKnowledge = new AutomaticKnowledgeService(readKnowledge ?? (() => Promise.reject(new StudioError('unsupported_feature'))));
   const bilingual = new BilingualService(repository);
   const tracks = new TranslationTrackService(repository);
   const cueEdits = new CueEditService(repository);
@@ -524,17 +521,6 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
     });
   }
   return {
-    async inspectKnowledgeReferences(): Promise<KnowledgeReferenceInventory> {
-      const retained = await repository.inspectKnowledgeReferences();
-      const merged = new Map(retained.references.map(ref => [knowledgeReferenceKey(ref), ref]));
-      for (const ref of [...translation.activeKnowledgeReferences(), ...automaticKnowledge.activeKnowledgeReferences()]) {
-        const key = knowledgeReferenceKey(ref), prior = merged.get(key);
-        const resources = new Map([...(prior?.resources ?? []), ...ref.resources].map(item => [`${item.group}:${item.id}:${item.revision}:${item.digest}`, item]));
-        merged.set(key, { ...ref, resources: [...resources.values()] });
-      }
-      const references = [...merged.values()].sort((a, b) => knowledgeReferenceKey(a).localeCompare(knowledgeReferenceKey(b)));
-      return { references, unknownDocuments: retained.unknownDocuments, digest: sha256Canonical({ references, unknownDocuments: retained.unknownDocuments }) };
-    },
     attach(sender: WebContents) {
       if (closed || allowed.has(sender.id)) return;
       allowed.add(sender.id);

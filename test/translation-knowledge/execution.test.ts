@@ -1,263 +1,98 @@
 import { describe, expect, it, vi } from 'vitest';
 import { knowledgeFixture } from './fixtures';
-import type { Entry } from '../../src/translation-knowledge/schemas';
+import type { Entry, TermEntry } from '../../src/translation-knowledge/schemas';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
-import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
 import { knowledgeSelectionSchema, type KnowledgeCue, type KnowledgeSelection } from '../../src/translation-knowledge/execution-contract';
-import { KNOWLEDGE_EXECUTION_LIMITS, KNOWLEDGE_EXECUTION_POLICY, LEGACY_KNOWLEDGE_EXECUTION_POLICY, checkRequiredTerms, compileKnowledge, resolveEnvironment, selectBatchKnowledge } from '../../src/translation-knowledge/execution';
+import { KNOWLEDGE_EXECUTION_LIMITS, KNOWLEDGE_EXECUTION_POLICY, checkRequiredTerms, compileKnowledge, resolveEnvironment, selectBatchKnowledge } from '../../src/translation-knowledge/execution';
 
-type Term = Extract<Entry, { kind: 'term' }>;
-type Rule = Extract<Entry, { kind: 'rule' }>;
-type Context = Extract<Entry, { kind: 'context' }>;
+type Term = TermEntry;
 const id = (number: number) => `90000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
 const example = knowledgeFixture();
-const collectionId = example.collections[0].id;
-const topicId = example.subjects[0].id;
-const personId = example.subjects[1].id;
-const secondPersonId = id(1000);
+const [game, common, archived] = example.collections;
+const collectionId = game.id;
 const pair = { source: 'en', target: 'zh-Hans' };
 const cues: KnowledgeCue[] = [
   { id: 'cue-a', text: 'The checkpoint is here.', sourceLanguage: 'en' },
   { id: 'cue-b', text: 'Find the checkpoint.', sourceLanguage: 'en' },
 ];
 const selection = (patch: Partial<KnowledgeSelection> = {}): KnowledgeSelection => ({
-  version: 1, languagePair: { ...pair }, collectionIds: [collectionId],
-  bindings: [], confirmations: [], disabledEntryIds: [], ...patch,
+  version: 2, languagePair: { ...pair }, collectionIds: [collectionId], disabledEntryIds: [], ...patch,
 });
 function term(number = 1, target = '存档点', strength: Term['payload']['strength'] = 'required'): Term {
-  const template = structuredClone(example.entries.find(entry => entry.kind === 'term')!) as Term;
-  return {
-    ...template, id: id(number), state: 'ready', aboutSubjectIds: [],
-    scope: { languagePair: { ...pair }, requiredSubjects: [], condition: { mode: 'none' } },
-    payload: { ...template.payload, target, strength },
-  };
+  return { id: id(number), revision: 1, collectionId, enabled: true, kind: 'term',
+    payload: { source: 'checkpoint', target, aliases: [], note: '', strength, match: { mode: 'whole_term', caseSensitive: false } } };
 }
-function rule(number = 2, text = 'Use natural speech.', strength: Rule['payload']['strength'] = 'required'): Rule {
-  return { ...term(number), kind: 'rule', payload: { dimension: 'register', text, strength } };
+function rule(number = 2, text = 'Use natural speech.', required = true): Entry {
+  return { id: id(number), revision: 1, collectionId, enabled: true, kind: 'rule', payload: { text, required } };
 }
-function context(number = 3, core = true): Context {
-  return { ...term(number), kind: 'context', payload: { text: 'This game uses save points.', assertion: 'fact', core } };
+function context(number = 3, required = true): Entry {
+  return { id: id(number), revision: 1, collectionId, enabled: true, kind: 'context', payload: { text: 'This game uses save points.', required } };
 }
 function library(entries: Entry[] = [term()]): LibrarySnapshot {
   const data = knowledgeFixture();
   data.entries = entries;
-  data.styles = [];
-  data.recipes = [];
-  data.subjects.push({ ...structuredClone(data.subjects[1]), id: secondPersonId, name: 'Another person' });
-  const result = { generation: 7, data, approvals: {}, imports: [] } satisfies LibrarySnapshot;
-  approve(result);
-  return result;
+  return { generation: 7, data };
 }
-function approve(snapshot: LibrarySnapshot): void {
-  snapshot.approvals = Object.fromEntries(snapshot.data.entries.map(entry => [entry.id, {
-    revision: entry.revision, digest: sha256Canonical(entry), method: 'human', approvedAt: '2026-09-14T00:00:00Z',
-  }]));
-}
-const binding = (subjectId: string, role: KnowledgeSelection['bindings'][number]['role'], cueIds = cues.map(cue => cue.id)) => ({ subjectId, role, cueIds });
 
 describe('knowledge environment resolution', () => {
   it('supports an empty selection and uses no saved knowledge implicitly', () => {
-    const environment = resolveEnvironment(library(), selection({ collectionIds: [] }), cues);
-    expect(environment.items).toEqual([]);
+    const environment = resolveEnvironment(library([term(), rule(), context()]), selection({ collectionIds: [] }), cues);
+    expect(environment).toMatchObject({ policyVersion: KNOWLEDGE_EXECUTION_POLICY, generation: 7, items: [], issues: [], collections: [], instructions: '', context: '' });
+    expect(knowledgeSelectionSchema.safeParse({ ...selection(), bindings: [] }).success).toBe(false);
+    expect(knowledgeSelectionSchema.safeParse({ ...selection(), recipeId: id(9) }).success).toBe(false);
+    expect(knowledgeSelectionSchema.safeParse({ ...selection(), version: 1 }).success).toBe(false);
+  });
+
+  it('includes enabled, matching entries of the selected collections and skips disabled ones silently', () => {
+    const disabled = { ...rule(4, 'Hidden rule.'), enabled: false };
+    const other: Entry = { ...term(5, '首领'), collectionId: common.id, payload: { ...term().payload, source: 'boss', target: '首领' } };
+    const environment = resolveEnvironment(library([term(1), rule(2), context(3, false), disabled, other]), selection({ instructions: 'Be brief.', context: 'A game.' }), cues);
+    expect(environment.items.map(item => item.entryId)).toEqual([id(1), id(2), id(3)]);
+    expect(environment.items.find(item => item.entryId === id(3))!.required).toBe(false);
     expect(environment.issues).toEqual([]);
-    expect(environment.instructions).toBe('');
-    expect(environment.context).toBe('');
+    expect(environment.collections).toEqual([{ id: game.id, name: game.name }]);
+    expect(environment).toMatchObject({ instructions: 'Be brief.', context: 'A game.' });
   });
 
-  it.each(['instructions', 'context', 'recipeId'] as const)('normalizes explicit undefined %s before computing selection and environment digests', field => {
-    const snapshot = library(), absent = selection(), explicit = { ...absent, [field]: undefined };
-    const expected = resolveEnvironment(snapshot, absent, cues);
-    const actual = resolveEnvironment(snapshot, explicit, cues);
-    expect(actual).toEqual(expected);
-    expect(Object.hasOwn(actual.selection, field)).toBe(false);
-    expect(Object.hasOwn(explicit, field)).toBe(true);
-    // This applies only to private selection inputs, never arbitrary JSON data.
-    expect(() => sha256Canonical(explicit)).toThrow('JCS accepts only JSON values');
-  });
-
-  it('keeps explicit empty instructions and context while absent choices inherit recipe defaults', () => {
-    const snapshot = library();
-    const recipe = { ...structuredClone(example.recipes[0]), baseStyleId: undefined, modifierStyleIds: [], instructions: 'Recipe instructions', context: 'Recipe context' };
-    delete recipe.baseStyleId;
-    snapshot.data.recipes.push(recipe);
-    const inherited = resolveEnvironment(snapshot, selection({ recipeId: recipe.id, instructions: undefined, context: undefined }), cues);
-    expect(inherited.instructions).toBe('Recipe instructions'); expect(inherited.context).toBe('Recipe context');
-    const cleared = resolveEnvironment(snapshot, selection({ recipeId: recipe.id, instructions: '', context: '' }), cues);
-    expect(cleared.instructions).toBe(''); expect(cleared.context).toBe('');
-    expect(cleared.selection).toMatchObject({ instructions: '', context: '' });
-    expect(cleared.configDigest).not.toBe(inherited.configDigest);
-  });
-
-  it.each(['absent', 'stale_revision', 'stale_digest', 'candidate', 'needs_review', 'rejected', 'archived'] as const)(
-    'excludes %s local approval/state from trusted execution', mode => {
-      const snapshot = library();
-      const entry = snapshot.data.entries[0];
-      if (mode === 'absent') delete snapshot.approvals[entry.id];
-      else if (mode === 'stale_revision') snapshot.approvals[entry.id].revision++;
-      else if (mode === 'stale_digest') snapshot.approvals[entry.id].digest = '0'.repeat(64);
-      else { entry.state = mode; approve(snapshot); }
-      const environment = resolveEnvironment(snapshot, selection(), cues);
-      expect(environment.items).toEqual([]);
-      expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'untrusted', entryIds: [entry.id] }));
-    },
-  );
-
-  it('uses only explicitly selected collections and permits local approved content', () => {
-    const other = term(2, '检查站');
-    other.collectionId = id(2000);
-    const snapshot = library([term(), other]);
-    snapshot.data.collections.push({ ...structuredClone(snapshot.data.collections[0]), id: other.collectionId });
-    const environment = resolveEnvironment(snapshot, selection(), cues);
+  it('reports entries excluded for this run and unknown exclusions', () => {
+    const environment = resolveEnvironment(library([term(1), rule(2)]), selection({ disabledEntryIds: [id(2)] }), cues);
     expect(environment.items.map(item => item.entryId)).toEqual([id(1)]);
-    expect(environment.items[0].digest).toBe(sha256Canonical(snapshot.data.entries[0]));
+    expect(environment.issues).toEqual([{ code: 'disabled', severity: 'warning', entryIds: [id(2)], cueIds: [] }]);
+    expect(resolveEnvironment(library(), selection({ disabledEntryIds: [id(99)] }), cues).issues)
+      .toContainEqual({ code: 'selection_invalid', severity: 'error', entryIds: [id(99)], cueIds: [] });
   });
 
-  it('treats display-only subject associations as metadata rather than scope', () => {
-    const entry = term();
-    entry.aboutSubjectIds = [personId];
-    const snapshot = library([entry]);
-    snapshot.data.subjects.find(subject => subject.id === personId)!.archived = true;
-    expect(resolveEnvironment(snapshot, selection(), cues).items).toHaveLength(1);
+  it('applies terms only where they match the cue text', () => {
+    const absent: Entry = { ...term(2), payload: { ...term().payload, source: 'absent' } };
+    const environment = resolveEnvironment(library([term(1), absent]), selection(), cues);
+    expect(environment.items.map(item => item.entryId)).toEqual([id(1)]);
+    expect(environment.items[0].applicableCueIds).toEqual(['cue-a', 'cue-b']);
+    expect(environment.issues).toContainEqual({ code: 'no_match', severity: 'warning', entryIds: [id(2)], cueIds: ['cue-a', 'cue-b'] });
   });
 
-  it('requires every subject role in the same cue and never widens a speaker scope', () => {
-    const entry = term();
-    entry.scope.requiredSubjects = [
-      { subjectId: topicId, role: 'topic' }, { subjectId: personId, role: 'speaker' },
-    ];
-    const environment = resolveEnvironment(library([entry]), selection({ bindings: [
-      binding(topicId, 'topic'), binding(personId, 'speaker', ['cue-a']), binding(personId, 'mentioned', ['cue-b']),
-    ] }), cues);
-    expect(environment.items[0].applicableCueIds).toEqual(['cue-a']);
-    expect(environment.items[0].matches.map(match => match.cueId)).toEqual(['cue-a']);
-    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'subject_unbound', cueIds: ['cue-b'] }));
-  });
-
-  it('allows present for a mentioned person without activating that person’s speaker rule', () => {
-    const name = term();
-    name.scope.requiredSubjects = [{ subjectId: personId, role: 'present' }];
-    const voice = rule();
-    voice.scope.requiredSubjects = [{ subjectId: personId, role: 'speaker' }];
-    const environment = resolveEnvironment(library([name, voice]), selection({ bindings: [binding(personId, 'mentioned')] }), cues);
-    expect(environment.items.map(item => item.entryId)).toEqual([name.id]);
-  });
-
-  it('blocks overlapping confirmed speakers instead of choosing the last binding', () => {
-    const voice = rule();
-    voice.scope.requiredSubjects = [{ subjectId: personId, role: 'speaker' }];
-    const environment = resolveEnvironment(library([voice]), selection({ bindings: [
-      binding(personId, 'speaker'), binding(secondPersonId, 'speaker', ['cue-a']),
-    ] }), cues);
-    expect(environment.items[0].applicableCueIds).toEqual(['cue-b']);
-    expect(environment.issues).toContainEqual({ code: 'speaker_conflict', severity: 'error', entryIds: [voice.id], cueIds: ['cue-a'] });
-  });
-
-  it('requires explicit cue-scoped confirmation and preserves advisory text as a reminder', () => {
-    const required = term();
-    required.scope.condition = { mode: 'requires_confirmation', text: 'The game is version 2.' };
-    const advisory = context(2, false);
-    advisory.scope.condition = { mode: 'advisory', text: 'The mode may matter.' };
-    const environment = resolveEnvironment(library([required, advisory]), selection({
-      confirmations: [{ entryId: required.id, cueIds: ['cue-a'] }],
-    }), cues);
-    expect(environment.items.find(item => item.entryId === required.id)?.applicableCueIds).toEqual(['cue-a']);
-    expect(environment.items.find(item => item.entryId === advisory.id)?.condition).toBe('The mode may matter.');
-    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'condition_unconfirmed', entryIds: [required.id], cueIds: ['cue-b'] }));
-  });
-
-  it('rejects unknown cue confirmations and invalid speaker subject kinds', () => {
-    const entry = term();
-    entry.scope.condition = { mode: 'requires_confirmation', text: 'Confirm this mode.' };
-    const environment = resolveEnvironment(library([entry]), selection({
-      confirmations: [{ entryId: entry.id, cueIds: ['unknown-cue'] }],
-      bindings: [binding(topicId, 'speaker')],
-    }), cues);
-    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'selection_invalid', severity: 'error' }));
-    const invalidConfirmation = resolveEnvironment(library([entry]), selection({
-      confirmations: [{ entryId: entry.id, cueIds: ['unknown-cue'] }],
-    }), cues);
-    const invalidSpeaker = resolveEnvironment(library([entry]), selection({ bindings: [binding(topicId, 'speaker')] }), cues);
-    for (const result of [invalidConfirmation, invalidSpeaker]) {
-      expect(result.issues).toContainEqual(expect.objectContaining({ code: 'selection_invalid', severity: 'error' }));
-    }
+  it('blocks missing, archived and wrong-direction collections and other-language cues', () => {
+    const missing = resolveEnvironment(library(), selection({ collectionIds: [id(50)] }), cues);
+    expect(missing.issues).toContainEqual(expect.objectContaining({ code: 'resource_missing', severity: 'error' }));
+    const archivedResult = resolveEnvironment(library([{ ...term(), collectionId: archived.id }]), selection({ collectionIds: [archived.id] }), cues);
+    expect(archivedResult.items).toEqual([]);
+    expect(archivedResult.issues).toContainEqual(expect.objectContaining({ code: 'resource_archived', severity: 'error' }));
+    const reversed = resolveEnvironment(library(), selection({ languagePair: { source: 'zh-Hans', target: 'en' } }), cues.map(cue => ({ ...cue, sourceLanguage: 'zh-Hans' })));
+    expect(reversed.items).toEqual([]);
+    expect(reversed.issues).toContainEqual(expect.objectContaining({ code: 'language_mismatch', severity: 'error' }));
+    const otherCue = resolveEnvironment(library(), selection(), [cues[0], { ...cues[1], sourceLanguage: 'ja' }]);
+    expect(otherCue.items[0].applicableCueIds).toEqual(['cue-a']);
+    expect(otherCue.issues).toContainEqual({ code: 'language_mismatch', severity: 'error', entryIds: [], cueIds: ['cue-b'] });
   });
 
   it('keeps global configuration errors visible when batching another cue', () => {
-    const entry = term();
-    entry.scope.condition = { mode: 'requires_confirmation', text: 'Confirm this mode.' };
-    const environment = resolveEnvironment(library([entry]), selection({
-      confirmations: [{ entryId: entry.id, cueIds: ['unknown-cue'] }],
-      bindings: [binding(topicId, 'speaker', ['cue-a'])],
-    }), cues);
-    expect(selectBatchKnowledge(environment, ['cue-b']).issues)
-      .toContainEqual(expect.objectContaining({ code: 'selection_invalid', severity: 'error' }));
+    const environment = resolveEnvironment(library(), selection({ collectionIds: [collectionId, id(50)] }), cues);
+    const batch = selectBatchKnowledge(environment, ['cue-b']);
+    expect(batch.issues).toContainEqual(expect.objectContaining({ code: 'resource_missing', severity: 'error', cueIds: [] }));
   });
 
-  it.each(['zh', 'ZH', 'auto', 'und', 'mul', 'zh-hans', 'zh-CN', 'zh-TW', 'zh-SG', 'zh-Latn', 'zh-u-ca-chinese', 'und-Latn', 'mul-Latn', 'auto-US'])('requires explicit canonical language labels instead of %s', language => {
-    expect(knowledgeSelectionSchema.safeParse(selection({ languagePair: { source: 'en', target: language } })).success).toBe(false);
-    expect(knowledgeSelectionSchema.safeParse(selection({ languagePair: { source: language, target: 'en' } })).success).toBe(false);
-  });
-
-  it.each(['zh-Hans', 'zh-Hant', 'zh-Hans-CN', 'zh-Hant-TW', 'en-US', 'ja'])('accepts the explicit canonical language label %s', language => {
-    expect(knowledgeSelectionSchema.safeParse(selection({ languagePair: { source: 'en', target: language } })).success).toBe(true);
-    expect(knowledgeSelectionSchema.safeParse(selection({ languagePair: { source: language, target: 'en' } })).success).toBe(true);
-  });
-
-  it('does not reverse language pairs, cross Chinese variants or apply English knowledge to another cue language', () => {
-    const right = term();
-    const traditional = term(2);
-    traditional.scope.languagePair.target = 'zh-Hant';
-    const reverse = term(3);
-    reverse.scope.languagePair = { source: 'zh-Hans', target: 'en' };
-    const multilingual = [cues[0], { ...cues[1], sourceLanguage: 'ja' }];
-    const environment = resolveEnvironment(library([right, traditional, reverse]), selection(), multilingual);
-    expect(environment.items.map(item => item.entryId)).toEqual([right.id]);
-    expect(environment.items[0].applicableCueIds).toEqual(['cue-a']);
-    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'language_mismatch', entryIds: [right.id], cueIds: ['cue-b'] }));
-  });
-
-  it('does not materialize recipe subject suggestions as facts or silently apply global preferences', () => {
-    const entry = term();
-    entry.scope.requiredSubjects = [{ subjectId: topicId, role: 'topic' }];
-    const snapshot = library([entry]);
-    const recipe = structuredClone(example.recipes[0]);
-    delete recipe.baseStyleId;
-    recipe.instructions = 'Recipe instructions.';
-    recipe.context = 'Recipe context.';
-    snapshot.data.recipes.push(recipe);
-    const environment = resolveEnvironment(snapshot, selection({ collectionIds: [], recipeId: recipe.id }), cues);
-    expect(environment.items).toEqual([]);
-    expect(environment.instructions).toBe(recipe.instructions);
-    expect(environment.context).toBe(recipe.context);
-    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'preferences_not_applied' }));
-    const overridden = resolveEnvironment(snapshot, selection({ recipeId: recipe.id, instructions: '', context: 'Current context.' }), cues);
-    expect(overridden.instructions).toBe('');
-    expect(overridden.context).toBe('Current context.');
-  });
-
-  it('reports unsupported expression and memory records without dropping them from the library', () => {
-    const entries = structuredClone(example.entries.filter(entry => entry.kind === 'expression' || entry.kind === 'memory'));
-    for (const entry of entries) entry.state = 'ready';
-    const snapshot = library(entries);
-    const before = structuredClone(snapshot);
-    const environment = resolveEnvironment(snapshot, selection(), cues);
-    expect(environment.items).toEqual([]);
-    expect(environment.issues.filter(issue => issue.code === 'unsupported_kind').map(issue => issue.entryIds[0]).sort())
-      .toEqual(entries.map(entry => entry.id).sort());
-    expect(snapshot).toEqual(before);
-  });
-
-  it('blocks archived or missing selected resources and incomplete evidence', () => {
-    const snapshot = library();
-    snapshot.data.collections[0].archived = true;
-    expect(resolveEnvironment(snapshot, selection(), cues).issues).toContainEqual(expect.objectContaining({ code: 'resource_archived', severity: 'error' }));
-    snapshot.data.collections[0].archived = false;
-    snapshot.data.sources = [];
-    const environment = resolveEnvironment(snapshot, selection(), cues);
-    expect(environment.items).toEqual([]);
-    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'resource_missing', severity: 'error' }));
-    expect(resolveEnvironment(library(), selection({ collectionIds: [id(2222)] }), cues).issues)
-      .toContainEqual(expect.objectContaining({ code: 'resource_missing', severity: 'error' }));
+  it('carries entry origins to the model input', () => {
+    const sourced: Entry = { ...term(), origin: { kind: 'web', url: 'https://example.com/a', title: 'Example' } };
+    expect(resolveEnvironment(library([sourced]), selection(), cues).items[0].origin).toEqual(sourced.origin);
   });
 });
 
@@ -317,24 +152,43 @@ describe('knowledge conflict and compilation semantics', () => {
     expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'resource_limit', severity: 'error' }));
   });
 
-  it('blocks competing required translations only where their source matches and scopes overlap', () => {
+  it('blocks competing required translations only where their matches overlap', () => {
     const first = term(1, '存档点');
     const second = term(2, '检查站');
-    second.scope.requiredSubjects = [{ subjectId: personId, role: 'speaker' }];
-    const environment = resolveEnvironment(library([second, first]), selection({ bindings: [binding(personId, 'speaker', ['cue-a'])] }), cues);
+    // Partly overlapping ("point is" crosses the end of "checkpoint"); a match nested inside a longer one is not a conflict.
+    second.payload.source = 'point is'; second.payload.match.mode = 'literal_phrase';
+    const environment = resolveEnvironment(library([second, first]), selection(), cues);
     expect(environment.issues).toContainEqual({ code: 'term_conflict', severity: 'error', entryIds: [first.id, second.id], cueIds: ['cue-a'] });
     expect(selectBatchKnowledge(environment, ['cue-b']).issues.some(issue => issue.code === 'term_conflict')).toBe(false);
   });
 
-  it('keeps long and short overlapping required matches for conflict detection', () => {
+  it('gives a match inside a longer term to the longer term, without a conflict', () => {
     const first = term(1, '月亮');
     first.payload.source = 'moon';
     first.payload.match.mode = 'literal_phrase';
     const second = term(2, '太空基地');
     second.payload.source = 'moonbase';
     const environment = resolveEnvironment(library([first, second]), selection(), [{ id: 'cue-a', text: 'moonbase', sourceLanguage: 'en' }]);
-    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'term_conflict', severity: 'error' }));
-    expect(environment.items.map(item => item.matches[0].text)).toEqual(['moon', 'moonbase']);
+    expect(environment.issues.some(issue => issue.code === 'term_conflict')).toBe(false);
+    expect(environment.items.map(item => [item.entryId, item.matches.map(match => match.text)])).toEqual([[second.id, ['moonbase']]]);
+    // The shorter term still applies where it also stands on its own, and only there.
+    const both = resolveEnvironment(library([first, second]), selection(), [
+      { id: 'cue-a', text: 'moonbase under the moon', sourceLanguage: 'en' }, { id: 'cue-b', text: 'moonbase', sourceLanguage: 'en' }]);
+    const short = both.items.find(item => item.entryId === first.id)!;
+    expect(short.applicableCueIds).toEqual(['cue-a']);
+    expect(short.matches.map(match => [match.start, match.text])).toEqual([[19, 'moon']]);
+    expect(both.items.find(item => item.entryId === second.id)!.applicableCueIds).toEqual(['cue-a', 'cue-b']);
+  });
+
+  it('still treats partly overlapping terms with different translations as a conflict', () => {
+    const first = term(1, '月亮基地');
+    first.payload.source = 'moonbase';
+    first.payload.match.mode = 'literal_phrase';
+    const second = term(2, '基地营');
+    second.payload.source = 'basecamp';
+    second.payload.match.mode = 'literal_phrase';
+    const environment = resolveEnvironment(library([first, second]), selection(), [{ id: 'cue-a', text: 'moonbasecamp', sourceLanguage: 'en' }]);
+    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'term_conflict', severity: 'error', cueIds: ['cue-a'] }));
   });
 
   it('removes both incompatible optional mappings from the overlapping scope', () => {
@@ -358,7 +212,6 @@ describe('knowledge conflict and compilation semantics', () => {
     expect(resolveEnvironment(snapshot, selection(), cues).issues.some(issue => issue.code === 'term_conflict')).toBe(false);
     const second = snapshot.data.entries[1] as Term;
     second.payload.target = '检查站';
-    approve(snapshot);
     const environment = resolveEnvironment(snapshot, selection({ disabledEntryIds: [second.id] }), cues);
     expect(environment.items.map(item => item.entryId)).toEqual([id(1)]);
     expect(environment.issues.some(issue => issue.code === 'term_conflict')).toBe(false);
@@ -366,31 +219,14 @@ describe('knowledge conflict and compilation semantics', () => {
 
   it.each([
     ['required', 'required'], ['preferred', 'preferred'], ['required', 'preferred'],
-  ] as const)('includes complementary %s/%s rules in the same dimension without false conflict diagnostics', (left, right) => {
-    const entries = [rule(1, 'Use natural spoken language.', left), rule(2, 'Keep subtitles concise.', right)];
+  ] as const)('includes %s/%s requirements together without inferring conflicts from free text', (left, right) => {
+    const entries = [rule(1, 'Speak formally.', left === 'required'), rule(2, 'Use slang.', right === 'required')];
     const environment = resolveEnvironment(library(entries), selection(), cues);
     expect(environment.policyVersion).toBe(KNOWLEDGE_EXECUTION_POLICY);
     expect(environment.issues).toEqual([]);
     const compiled = compileKnowledge(selectBatchKnowledge(environment, ['cue-a']));
     expect(compiled.items.map(item => item.entryId).sort()).toEqual(entries.map(entry => entry.id));
     expect(compiled.items.every(item => item.applicableCueIds.length === 1 && item.applicableCueIds[0] === 'cue-a')).toBe(true);
-  });
-
-  it('does not infer contradictions from free text, while retaining explicit scope and disabled choices', () => {
-    const entries = [rule(1, 'Speak formally.'), rule(2, 'Use slang.'), rule(3, 'Keep the character voice.')];
-    entries[2].scope.requiredSubjects = [{ subjectId: personId, role: 'speaker' }];
-    const environment = resolveEnvironment(library(entries), selection({ disabledEntryIds: [entries[1].id] }), cues);
-    expect(environment.items.map(item => item.entryId)).toEqual([entries[0].id]);
-    expect(environment.issues.map(issue => issue.code)).toEqual(['disabled', 'subject_unbound']);
-  });
-
-  it('retains original same-dimension rule conflicts only for frozen v1 preparations', () => {
-    const environment = resolveEnvironment(library([rule(1, 'Speak formally.'), rule(2, 'Use slang.')]), selection(), cues, LEGACY_KNOWLEDGE_EXECUTION_POLICY);
-    expect(environment.policyVersion).toBe(LEGACY_KNOWLEDGE_EXECUTION_POLICY);
-    expect(environment.issues).toContainEqual(expect.objectContaining({ code: 'rule_conflict', severity: 'error' }));
-    const optional = resolveEnvironment(library([rule(1, 'Speak formally.', 'preferred'), rule(2, 'Use slang.', 'preferred')]), selection(), cues, LEGACY_KNOWLEDGE_EXECUTION_POLICY);
-    expect(optional.items).toEqual([]);
-    expect(optional.issues).toContainEqual(expect.objectContaining({ code: 'rule_conflict', severity: 'warning' }));
   });
 
   it('preserves the actual original spelling for keep-source hits and reports only applicable output doubts', () => {
@@ -430,7 +266,7 @@ describe('knowledge conflict and compilation semantics', () => {
     }
   });
 
-  it('keeps required terms, required rules and core context when optional budget is zero', () => {
+  it('keeps required terms and required notes when optional budget is zero', () => {
     const entries = [term(1), rule(2), context(3), term(4, '存档点', 'preferred'), context(5, false)];
     const environment = resolveEnvironment(library(entries), selection(), cues);
     const batch = selectBatchKnowledge(environment, ['cue-a']);
@@ -451,7 +287,6 @@ describe('knowledge conflict and compilation semantics', () => {
     const environment = resolveEnvironment(snapshot, input, inputCues);
     const before = structuredClone(environment);
     (snapshot.data.entries[0] as Term).payload.target = 'New target';
-    snapshot.data.sources[0].excerpt = 'Changed evidence';
     snapshot.generation++;
     input.context = 'Changed context';
     inputCues[0].text = 'Changed source';
@@ -464,7 +299,6 @@ describe('knowledge conflict and compilation semantics', () => {
     const before = structuredClone(environment);
     const batch = selectBatchKnowledge(environment, ['cue-a']);
     batch.required[0].matches[0].target = 'Edited batch';
-    batch.required[0].evidence[0].excerpt = 'Edited evidence';
     expect(environment).toEqual(before);
   });
 

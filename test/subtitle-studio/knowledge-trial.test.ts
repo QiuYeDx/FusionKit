@@ -8,7 +8,7 @@ import type { TranslationConfig } from '../../src/subtitle-studio/translation-co
 import type { ModelRuntimeTextRequest, ModelRuntimeTextResult } from '../../electron/main/ai/model-runtime-client';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import type { LibrarySnapshot } from '../../src/translation-knowledge/ipc-contract';
-import { sha256Canonical } from '../../src/translation-knowledge/canonicalize';
+import type { Entry, TermEntry } from '../../src/translation-knowledge/schemas';
 import type { KnowledgeSelection } from '../../src/translation-knowledge/execution-contract';
 import type { KnowledgeTrialRequest } from '../../src/subtitle-studio/knowledge-trial-contract';
 import { KnowledgeTrialService } from '../../electron/main/subtitle-studio/knowledge-trial';
@@ -25,22 +25,21 @@ const parse = (text = '[00:01]starport\n[00:02]Next line\n[00:03]Return to starp
 }, randomUUID);
 // Pure local fixture: trial tests do not depend on knowledge storage internals.
 const library = (): LibrarySnapshot => ({ generation: 1, data: {
-  format: 'fusionkit.translation-knowledge', schemaVersion: 1,
-  package: { id: randomUUID(), revision: 1, name: 'Trial knowledge fixture', description: '', purpose: 'backup', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'Knowledge trial test' } },
-  subjects: [], collections: [], sources: [], entries: [], styles: [], recipes: [], preferenceTemplates: [],
-}, approvals: {}, imports: [] });
-const selection = (collectionIds: string[] = []): KnowledgeSelection => ({ version: 1, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds, bindings: [], confirmations: [], disabledEntryIds: [] });
-function trustedTerm() {
+  format: 'fusionkit.translation-knowledge', schemaVersion: 2,
+  package: { id: randomUUID(), revision: 1, name: 'Trial knowledge fixture', description: '', createdAt: '2026-09-14T00:00:00Z', generator: { name: 'Knowledge trial test' } },
+  collections: [], entries: [], presets: [],
+} });
+const selection = (collectionIds: string[] = []): KnowledgeSelection => ({ version: 2, languagePair: { source: 'en', target: 'zh-Hans' }, collectionIds, disabledEntryIds: [] });
+/** One enabled required term in a selected collection; enabled entries apply without any approval. */
+function glossaryTerm() {
   const snapshot = library();
-  const collectionId = randomUUID(), sourceId = randomUUID(), entryId = randomUUID();
-  snapshot.data.collections.push({ id: collectionId, revision: 1, archived: false, name: 'Trial glossary', description: '', aboutSubjectIds: [] });
-  snapshot.data.sources.push({ id: sourceId, revision: 1, kind: 'user_note', title: 'Private evidence', excerpt: 'PRIVATE_EVIDENCE_NOT_SENT' });
-  const term = { id: entryId, revision: 1, title: 'Starport', kind: 'term' as const, collectionId, aboutSubjectIds: [], state: 'ready' as const,
-    scope: { languagePair: { source: 'en', target: 'zh-Hans' }, requiredSubjects: [], condition: { mode: 'none' as const } }, evidence: [{ sourceId, support: 'direct' as const }], derivedFrom: [],
-    payload: { source: 'starport', target: '星际港口', aliases: [], sense: '', match: { mode: 'whole_term' as const, caseSensitive: false }, strength: 'required' as const } };
+  const collectionId = randomUUID(), entryId = randomUUID();
+  snapshot.data.collections.push({ id: collectionId, revision: 1, name: 'Trial glossary', description: '', languagePair: { source: 'en', target: 'zh-Hans' }, archived: false });
+  const term: TermEntry = { id: entryId, revision: 1, collectionId, enabled: true, kind: 'term',
+    origin: { kind: 'web', note: 'PRIVATE_ORIGIN_NOT_SENT', url: 'https://private.example/PRIVATE_ORIGIN_URL', title: 'PRIVATE_ORIGIN_TITLE' },
+    payload: { source: 'starport', target: '星际港口', aliases: [], note: '', match: { mode: 'whole_term', caseSensitive: false }, strength: 'required' } };
   snapshot.data.entries.push(term);
-  snapshot.approvals[entryId] = { revision: 1, digest: sha256Canonical(term), method: 'human', approvedAt: new Date().toISOString() };
-  return { snapshot, selection: selection([collectionId]), term, sourceId };
+  return { snapshot, selection: selection([collectionId]), term, collectionId };
 }
 const success = (request: ModelRuntimeTextRequest): ModelRuntimeTextResult => ({
   apiFormat: request.model.apiFormat, finishReason: 'stop', rawStatus: 'completed', usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
@@ -74,16 +73,19 @@ afterEach(async () => {
 });
 
 describe('isolated subtitle knowledge trials', () => {
-  it.each(['chat_completions', 'responses'] as const)('sends frozen applicable knowledge through the actual %s protocol without writing tracks or evidence', async apiFormat => {
+  it.each(['chat_completions', 'responses'] as const)('sends frozen applicable knowledge through the actual %s protocol without writing tracks or origins', async apiFormat => {
     const current = await fixture();
     const initial = await current.repository.readSnapshot(current.document.id);
-    const term = trustedTerm();
+    const term = glossaryTerm();
     const sent: ModelRuntimeTextRequest[] = [];
     const service = serviceFor(current, async () => term.snapshot, async input => { sent.push(input); return success(input); });
     const input = request(current, { ...term.selection, instructions: 'Use concise dialogue.' }, { config: config({ language: 'Japanese', instructions: 'OLD_INSTRUCTION_IGNORED', model: { ...config().model, apiFormat } }) });
     const plan = await service.plan(1, input);
     expect(plan.canRun).toBe(true);
-    expect(plan.batches.flatMap(batch => batch.knowledge.items).some(item => item.entryId === term.term.id)).toBe(true);
+    const previewItem = plan.batches.flatMap(batch => batch.knowledge.items).find(item => item.entryId === term.term.id);
+    // The preview explains where an entry came from; the provider never sees it.
+    expect(previewItem).toMatchObject({ kind: 'term', required: true, origin: term.term.origin });
+    const sentPayload = structuredClone(term.term.payload);
     const previewPayload = plan.batches[0].knowledge.items[0].payload;
     if ('target' in previewPayload) previewPayload.target = 'UI_PREVIEW_MUTATION';
     term.term.payload.target = 'MUTATED_AFTER_PREVIEW';
@@ -98,10 +100,10 @@ describe('isolated subtitle knowledge trials', () => {
       expect(payload.targetLanguage).toBe('zh-Hans');
       expect(payload.translationRequirements).toBe('Use concise dialogue.');
       expect(payload.context.priorModelTranslations).toEqual([]);
-      expect(payload.translationKnowledge.items[0].applicableItemIds).toEqual(['u1', 'u3']);
+      expect(payload.translationKnowledge.items).toEqual([{ kind: 'term', required: true, payload: sentPayload, applicableItemIds: ['u1', 'u3'] }]);
       const body = JSON.stringify(input.messages);
       expect(body).toContain('星际港口');
-      for (const privateValue of [term.term.id, term.sourceId, current.document.id, 'PRIVATE_EVIDENCE_NOT_SENT', 'MUTATED_AFTER_PREVIEW', 'UI_PREVIEW_MUTATION', 'OLD_INSTRUCTION_IGNORED']) expect(body).not.toContain(privateValue);
+      for (const privateValue of [term.term.id, term.collectionId, current.document.id, 'PRIVATE_ORIGIN_NOT_SENT', 'PRIVATE_ORIGIN_URL', 'PRIVATE_ORIGIN_TITLE', 'MUTATED_AFTER_PREVIEW', 'UI_PREVIEW_MUTATION', 'OLD_INSTRUCTION_IGNORED']) expect(body).not.toContain(privateValue);
       expect(requestTokenEstimate(input)).toBe(plan.batches[index].estimatedInputTokens);
       expect(input.retry).toEqual({ maxRetries: 0 });
     }
@@ -112,30 +114,38 @@ describe('isolated subtitle knowledge trials', () => {
 
   it('treats explicit undefined selection options as absent in the preview and frozen request', async () => {
     const current = await fixture();
-    const term = trustedTerm();
+    const term = glossaryTerm();
     const sent: ModelRuntimeTextRequest[] = [];
     const service = serviceFor(current, async () => term.snapshot, async input => { sent.push(input); return success(input); });
     const absent = await service.plan(1, request(current, term.selection));
     expect(await service.run(1, { planId: absent.planId, apiKey: 'key' })).toMatchObject({ status: 'completed' });
-    const explicit = await service.plan(1, request(current, { ...term.selection, recipeId: undefined, instructions: undefined, context: undefined }));
+    const explicit = await service.plan(1, request(current, { ...term.selection, instructions: undefined, context: undefined }));
     expect(explicit).toEqual({ ...absent, planId: explicit.planId, expiresAt: explicit.expiresAt });
     expect(await service.run(1, { planId: explicit.planId, apiKey: 'key' })).toMatchObject({ status: 'completed' });
     expect(sent).toHaveLength(2);
     expect(sent[1].messages).toEqual(sent[0].messages);
   });
 
-  it('inherits current form and recipe guidance unless the trial explicitly clears it', async () => {
+  it('rejects selections carrying removed or older fields as invalid input', async () => {
     const current = await fixture();
-    const snapshot = library(), recipeId = randomUUID();
-    snapshot.data.recipes.push({ id: recipeId, revision: 1, archived: false, name: 'Trial recipe', description: '',
-      languagePair: selection().languagePair, readCollectionIds: [], subjectSuggestions: [], modifierStyleIds: [],
-      instructions: 'Recipe instructions.', context: 'Recipe context.', inheritGlobalPreferences: false, learningSuggestion: 'off' });
+    const term = glossaryTerm();
+    const send = vi.fn(async (input: ModelRuntimeTextRequest) => success(input));
+    const service = serviceFor(current, async () => term.snapshot, send);
+    const invalid = [{ ...term.selection, version: 1 }, { ...term.selection, recipeId: randomUUID() }, { ...term.selection, bindings: [] }, { ...term.selection, confirmations: [] }];
+    for (const knowledge of invalid) await expect(service.plan(1, request(current, knowledge as unknown as KnowledgeSelection))).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('inherits the current form instructions unless the trial explicitly clears them and sends only the chosen context', async () => {
+    const current = await fixture();
     const sent = vi.fn(async (input: ModelRuntimeTextRequest) => success(input));
-    const service = serviceFor(current, async () => snapshot, sent);
-    const inherited = await service.plan(1, request(current, { ...selection(), recipeId, instructions: undefined, context: undefined }, { config: config({ instructions: 'Keep the dialogue concise.' }) }));
+    const service = serviceFor(current, async () => library(), sent);
+    const inherited = await service.plan(1, request(current, { ...selection(), instructions: undefined, context: 'Selection context.' }, { config: config({ instructions: 'Keep the dialogue concise.' }) }));
     expect(inherited.batches[0].knowledge.instructions).toBe('Keep the dialogue concise.');
-    expect(inherited.batches[0].knowledge.context).toBe('Recipe context.');
-    const cleared = await service.plan(1, request(current, { ...selection(), recipeId, instructions: '', context: '' }, { config: config({ instructions: 'Keep the dialogue concise.' }) }));
+    expect(inherited.batches[0].knowledge.context).toBe('Selection context.');
+    const unset = await service.plan(1, request(current, selection(), { config: config({ instructions: 'Keep the dialogue concise.' }) }));
+    expect(unset.batches[0].knowledge.context).toBe('');
+    const cleared = await service.plan(1, request(current, { ...selection(), instructions: '', context: '' }, { config: config({ instructions: 'Keep the dialogue concise.' }) }));
     expect(cleared.batches[0].knowledge.instructions).toBe('');
     expect(cleared.batches[0].knowledge.context).toBe('');
     expect(await service.run(1, { planId: cleared.planId, apiKey: 'key' })).toMatchObject({ status: 'completed' });
@@ -154,24 +164,41 @@ describe('isolated subtitle knowledge trials', () => {
     await expect(service.plan(1, request(current, selection(), { cueIds: [randomUUID()] }))).rejects.toMatchObject({ code: 'invalid_input' });
   });
 
-  it('keeps unmatched and untrusted knowledge out of requests and represents missing usage as unknown', async () => {
+  it('keeps unmatched and disabled knowledge out of requests and represents missing usage as unknown', async () => {
     const current = await fixture();
-    const term = trustedTerm(); delete term.snapshot.approvals[term.term.id];
+    const term = glossaryTerm(); term.term.enabled = false;
+    const unmatched: TermEntry = { ...structuredClone(term.term), id: randomUUID(), enabled: true, payload: { ...term.term.payload, source: 'absent phrase', target: '不存在' } };
+    term.snapshot.data.entries.push(unmatched);
     const send = vi.fn(async (input: ModelRuntimeTextRequest) => ({ ...success(input), usage: undefined }));
     const service = serviceFor(current, async () => term.snapshot, send);
     const plan = await service.plan(1, request(current, term.selection));
-    expect(plan.issues.some(issue => issue.code === 'untrusted')).toBe(true);
+    // A disabled entry is skipped silently; an enabled one that matches no cue is reported.
+    expect(plan.issues.some(issue => issue.entryIds.includes(term.term.id))).toBe(false);
+    expect(plan.issues.some(issue => issue.code === 'no_match' && issue.severity === 'warning' && issue.entryIds.includes(unmatched.id))).toBe(true);
+    expect(plan.batches.flatMap(batch => batch.knowledge.items)).toEqual([]);
     expect(plan.canRun).toBe(true);
     const result = await service.run(1, { planId: plan.planId, apiKey: 'key' });
     expect(result.usage).toEqual({ inputTokens: null, outputTokens: null, totalTokens: null });
     expect(JSON.parse(send.mock.calls[0][0].messages[1].content).translationKnowledge.items).toEqual([]);
   });
 
+  it('excludes an entry disabled for this run only and reports the exclusion', async () => {
+    const current = await fixture();
+    const term = glossaryTerm();
+    const service = serviceFor(current, async () => term.snapshot);
+    const plan = await service.plan(1, request(current, { ...term.selection, disabledEntryIds: [term.term.id] }));
+    expect(plan.canRun).toBe(true);
+    expect(plan.batches.flatMap(batch => batch.knowledge.items)).toEqual([]);
+    expect(plan.issues).toContainEqual({ code: 'disabled', severity: 'warning', entryIds: [term.term.id], cueIds: [] });
+    const unknown = await service.plan(1, request(current, { ...term.selection, disabledEntryIds: [randomUUID()] }));
+    expect(unknown.canRun).toBe(false);
+    expect(unknown.issues.some(issue => issue.code === 'selection_invalid' && issue.severity === 'error')).toBe(true);
+  });
+
   it('blocks a minimum cue whose mandatory knowledge cannot fit and never calls the provider', async () => {
     const current = await fixture();
-    const term = trustedTerm();
+    const term = glossaryTerm();
     term.term.payload.target = 'required terminology '.repeat(1200);
-    term.snapshot.approvals[term.term.id].digest = sha256Canonical(term.term);
     const send = vi.fn(async (input: ModelRuntimeTextRequest) => success(input));
     const service = serviceFor(current, async () => term.snapshot, send);
     const plan = await service.plan(1, request(current, term.selection, { config: config({ contextWindow: 2048, maxOutputTokens: 256 }) }));
@@ -183,11 +210,9 @@ describe('isolated subtitle knowledge trials', () => {
 
   it('drops optional references as whole entries before splitting a fitting source sample', async () => {
     const current = await fixture();
-    const term = trustedTerm();
-    const contextId = randomUUID();
-    const context = { ...structuredClone(term.term), id: contextId, title: 'Optional background', kind: 'context' as const, payload: { text: 'optional reference detail '.repeat(1000), assertion: 'fact' as const, core: false } };
+    const term = glossaryTerm();
+    const context: Entry = { id: randomUUID(), revision: 1, collectionId: term.collectionId, enabled: true, kind: 'context', payload: { text: 'optional reference detail '.repeat(1000), required: false } };
     term.snapshot.data.entries.push(context);
-    term.snapshot.approvals[context.id] = { ...term.snapshot.approvals[term.term.id], digest: sha256Canonical(context) };
     const service = serviceFor(current, async () => term.snapshot);
     const plan = await service.plan(1, request(current, term.selection, { config: config({ contextWindow: 2048, maxOutputTokens: 256 }) }));
     expect(plan.canRun).toBe(true);
@@ -289,21 +314,18 @@ describe('isolated subtitle knowledge trials', () => {
     expect((await current.repository.readSnapshot(current.document.id)).document.translationTracks).toEqual([]);
   });
 
-  it('keeps a large selected library blocked and rejects an oversized evidence preview rather than truncating it', async () => {
+  it('keeps a large selected library blocked and rejects an oversized origin preview rather than truncating it', async () => {
     const current = await fixture();
-    const term = trustedTerm();
-    for (let index = 0; index < 500; index++) term.snapshot.data.entries.push({ ...structuredClone(term.term), id: randomUUID(), title: `Term ${index}` });
+    const term = glossaryTerm();
+    for (let index = 0; index < 500; index++) term.snapshot.data.entries.push({ ...structuredClone(term.term), id: randomUUID() });
     const service = serviceFor(current, async () => term.snapshot);
     const plan = await service.plan(1, request(current, term.selection));
     expect(plan.canRun).toBe(false);
     expect(plan.issues.some(issue => issue.code === 'resource_limit' && issue.severity === 'error')).toBe(true);
-    const large = trustedTerm();
-    large.snapshot.data.sources[0].excerpt = 'e'.repeat(32000);
-    for (let index = 0; index < 299; index++) {
-      const entry = { ...structuredClone(large.term), id: randomUUID(), title: `Evidence ${index}` };
-      large.snapshot.data.entries.push(entry);
-      large.snapshot.approvals[entry.id] = { ...large.snapshot.approvals[large.term.id], digest: sha256Canonical(entry) };
-    }
+    // Origins stay out of the request but are part of the preview, which is bounded as a whole.
+    const large = glossaryTerm();
+    large.term.origin = { kind: 'manual', note: 'e'.repeat(32000) };
+    for (let index = 0; index < 299; index++) large.snapshot.data.entries.push({ ...structuredClone(large.term), id: randomUUID() });
     const largeService = serviceFor(current, async () => large.snapshot);
     await expect(largeService.plan(2, request(current, large.selection, { config: config({ contextWindow: 1000000 }) }))).rejects.toMatchObject({ code: 'limit_exceeded' });
   });
