@@ -1,6 +1,7 @@
 import {
   AudioLines,
   BookOpen,
+  Check,
   Clapperboard,
   FileInput,
   FilePenLine,
@@ -13,10 +14,12 @@ import {
   ListChecks,
   ListTodo,
   Plus,
+  Plug,
   Mic,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  SquareTerminal,
   Undo2,
   Wrench,
   type LucideIcon,
@@ -166,8 +169,92 @@ export function Agent() {
             <Shot name="dock" alt={agent.dockAlt} crop={[0, 0.62]} sizes="(min-width: 1024px) 1100px, 160vw" />
           </Reveal>
         </div>
+
+        <ExternalAgents />
       </Container>
     </section>
+  )
+}
+
+function ExternalAgents() {
+  const { t } = useSite()
+  const { external } = t.agent
+  const { demo } = external
+  return (
+    <div id="external-agents" className="mt-24 grid scroll-mt-24 items-center gap-12 lg:grid-cols-12 lg:gap-16">
+      <Reveal className="lg:col-span-5">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <Plug className="size-4" strokeWidth={1.75} aria-hidden="true" />
+          {external.label}
+        </p>
+        <h3 className="mt-3 text-2xl font-semibold tracking-tight text-balance sm:text-3xl">{external.title}</h3>
+        <p className="mt-4 leading-7 text-pretty text-muted-foreground">{external.body}</p>
+        <ol className="mt-8 space-y-5">
+          {external.steps.map((step, index) => (
+            <li key={step.title} className="flex gap-4">
+              <span className="font-mono text-xs leading-6 text-muted-foreground tabular-nums">0{index + 1}</span>
+              <div className="min-w-0">
+                <h4 className="font-semibold">{step.title}</h4>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-8 text-sm font-medium">{external.clientsLabel}</p>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {external.clients.map((client) => (
+            <li key={client} className="rounded-full border bg-card px-3 py-1 text-sm">
+              {client}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-6 flex gap-2 text-sm leading-6 text-muted-foreground">
+          <ShieldCheck className="mt-1 size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+          <span>{external.note}</span>
+        </p>
+      </Reveal>
+
+      <Reveal className="lg:col-span-7" delay={0.08}>
+        <figure className="shot overflow-hidden rounded-2xl border bg-card" aria-label={demo.label}>
+          <div className="flex items-center gap-3 border-b px-5 py-3.5">
+            <SquareTerminal className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+            <p className="text-sm font-medium">{demo.client}</p>
+            <span className="ml-auto inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+              <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              fusionkit
+            </span>
+          </div>
+          <div className="space-y-5 p-5 sm:p-6">
+            <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-muted px-4 py-2.5 text-sm leading-6">
+              {demo.prompt}
+            </p>
+            <ol className="overflow-hidden rounded-xl border">
+              {demo.calls.map((call) => (
+                <li
+                  key={call.tool}
+                  className="flex flex-col gap-1 border-b px-4 py-2.5 last:border-b-0 sm:flex-row sm:items-center sm:gap-3"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Check className="size-3.5 shrink-0 text-studio" strokeWidth={2.25} aria-hidden="true" />
+                    <code className="font-mono text-xs break-all">{call.tool}</code>
+                  </span>
+                  <span className="flex min-w-0 flex-wrap items-center gap-2 pl-5.5 text-xs text-muted-foreground sm:ml-auto sm:justify-end sm:pl-0">
+                    {call.confirmed && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-studio-soft px-2 py-0.5 font-medium text-studio">
+                        <ShieldCheck className="size-3" strokeWidth={2} aria-hidden="true" />
+                        {demo.confirmed}
+                      </span>
+                    )}
+                    <span>{call.result}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <p className="text-sm leading-6">{demo.reply}</p>
+          </div>
+        </figure>
+      </Reveal>
+    </div>
   )
 }
 
@@ -182,7 +269,7 @@ export function Knowledge() {
   } as const
 
   return (
-    <section className="border-t py-24 sm:py-32" aria-labelledby="knowledge-title">
+    <section className="overflow-x-clip border-t py-24 sm:py-32" aria-labelledby="knowledge-title">
       <Container>
         <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-16">
           <Reveal className="lg:col-span-6">

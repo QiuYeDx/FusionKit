@@ -43,6 +43,23 @@ export type Content = {
     dockTitle: string
     dockBody: string
     dockAlt: string
+    external: {
+      label: string
+      title: string
+      body: string
+      clientsLabel: string
+      clients: string[]
+      steps: Item[]
+      note: string
+      demo: {
+        label: string
+        client: string
+        prompt: string
+        calls: { tool: string; result: string; confirmed?: boolean }[]
+        confirmed: string
+        reply: string
+      }
+    }
   }
   knowledge: {
     kicker: string
@@ -101,7 +118,7 @@ export const content: Record<Lang, Content> = {
     meta: {
       title: 'FusionKit · AI 驱动的字幕与翻译桌面工具集',
       description:
-        '本地转写音视频，AI 翻译与修订字幕，用对话完成整套流程。支持 macOS 与 Windows，接入你自己的模型服务。',
+        '本地转写音视频，AI 翻译与修订字幕，用对话完成整套流程。支持 macOS 与 Windows，接入你自己的模型服务，或让 Claude Code、Codex、Cursor 直接操作。',
     },
     nav: { features: '功能', agent: 'Agent', privacy: '隐私', download: '下载' },
     ui: {
@@ -111,7 +128,7 @@ export const content: Record<Lang, Content> = {
       skip: '跳到正文',
     },
     hero: {
-      notice: '新版发布：字幕工作台、翻译资料与多会话 Agent',
+      notice: '新功能：让 Claude Code、Codex、Cursor 直接操作 FusionKit',
       noticeLink: '查看更新日志',
       title: 'AI 驱动的\u200b字幕与翻译\u200b桌面工具集',
       subtitle:
@@ -125,7 +142,7 @@ export const content: Record<Lang, Content> = {
       { title: '一站式工作台', body: '转写、翻译、校对、试听原声、导出，全部在一个地方完成。' },
       { title: '本地优先', body: '音视频用设备上的 Whisper 模型转写，媒体文件不会上传，字幕文档保存在本机。' },
       { title: '可审可撤', body: 'AI 的每一次修改都先预览差异，由你确认后才写入，并且可以撤销。' },
-      { title: '接入你自己的模型', body: '支持 DeepSeek、OpenAI 及任意 OpenAI 兼容接口，Token 用量与费用实时可见。' },
+      { title: '接入你自己的模型', body: '支持 DeepSeek、OpenAI 及任意 OpenAI 兼容接口，也可以直接交给 Claude Code、Codex 等外部 Agent。' },
     ],
     studio: {
       kicker: '字幕工作台',
@@ -160,6 +177,33 @@ export const content: Record<Lang, Content> = {
       dockBody:
         '左下角的 Agent 入口会展开悬浮面板，与首页共享同一个会话。Agent 了解你所在的页面：在工作台里可以直接说“这个词都应该是另一种写法”，在工具页可以说“把目标语言改成英文”。',
       dockAlt: '在字幕工作台中展开的 Agent 悬浮面板',
+      external: {
+        label: '外部 Agent · MCP',
+        title: '也可以交给\u200b你正在用的 Agent',
+        body: '已经在用 Claude Code、Codex 或 Cursor？打开外部 Agent 接入后，它们可以读取字幕工作台、导入与转写、亲自撰写译文写回工作台并导出字幕，无需在 FusionKit 中配置任何 API Key。',
+        clientsLabel: '支持的客户端',
+        clients: ['Claude Code', 'Claude 应用', 'Codex', 'Cursor', '其他 MCP 客户端'],
+        steps: [
+          { title: '开启连接', body: '在“设置 → 外部 Agent”打开“允许外部 Agent 连接”，默认关闭。' },
+          { title: '接入客户端', body: '按页面指引复制命令、一键写入配置文件或“添加到 Cursor”，终端版与桌面版都支持。' },
+          { title: '直接提需求', body: '在你的 Agent 里说要做什么；导入、写入译文、导出前会在 FusionKit 中弹出确认。' },
+        ],
+        note: '服务只监听本机并需要令牌。权限分为只读、修改前询问和自动执行；外部 Agent 写入的译文标为未复核，可以撤销。',
+        demo: {
+          label: '外部 Agent 通过 MCP 操作 FusionKit 的示例过程',
+          client: 'Claude Code',
+          prompt: '把「灯台守の夜」翻译成中文，导出 SRT 到原文件旁边',
+          calls: [
+            { tool: 'list_studio_documents', result: '找到 1 份文档' },
+            { tool: 'read_studio_document', result: '248 条字幕 · 日语' },
+            { tool: 'create_studio_translation_track', result: '新建译文轨“Claude Code”', confirmed: true },
+            { tool: 'write_studio_translations', result: '写入 248 条译文 · 未复核' },
+            { tool: 'export_studio_document', result: '灯台守の夜.zh.srt', confirmed: true },
+          ],
+          confirmed: '已确认',
+          reply: '已写入 248 条中文译文并导出 SRT，译文在工作台中标为待复核。',
+        },
+      },
     },
     knowledge: {
       kicker: '翻译资料',
@@ -210,6 +254,7 @@ export const content: Record<Lang, Content> = {
         ['AI 翻译、修订与 Agent', '字幕或文本内容发送到你在设置中配置的模型服务'],
         ['音频工具箱', '音频文件、录音或麦克风内容发送到你选择的音频服务'],
         ['联网查证（默认关闭）', '只发送检索词与网页链接，不发送字幕或翻译资料'],
+        ['外部 Agent 接入（默认关闭）', '只监听本机 127.0.0.1 且需要令牌；外部 Agent 读取的字幕由它按自身的模型服务处理'],
         ['检查更新', '访问 GitHub Releases 获取新版本信息'],
       ],
       keys: 'API Key 保存在本机的应用设置中，只用于请求你配置的服务，不会写入恢复清单、任务数据或错误详情。',
@@ -229,7 +274,7 @@ export const content: Record<Lang, Content> = {
       button: '下载',
       stepsTitle: '首次使用',
       steps: [
-        { title: '添加模型配置', body: '在“设置 → AI 模型”填写 API 地址、Key 和模型名，内置 DeepSeek 与 OpenAI 预设。' },
+        { title: '添加模型配置', body: '在“设置 → AI 模型”填写 API 地址、Key 和模型名，内置 DeepSeek 与 OpenAI 预设；只用外部 Agent 时可以跳过。' },
         { title: '下载转写模型', body: '使用本地转写前，在转写页下载推荐的 Whisper 模型；模型按需下载，不包含在安装包中。' },
         { title: '告诉 Agent 要做什么', body: '回到首页直接对话，或从“工具”页打开具体工具手动操作。' },
       ],
@@ -246,7 +291,7 @@ export const content: Record<Lang, Content> = {
     meta: {
       title: 'FusionKit · AI-powered subtitle and translation toolkit',
       description:
-        'Transcribe on your device, translate and revise subtitles with AI, and hand the whole workflow to an agent. For macOS and Windows, with your own model API key.',
+        'Transcribe on your device, translate and revise subtitles with AI, and hand the whole workflow to an agent. For macOS and Windows, with your own model API key or driven by Claude Code, Codex and Cursor.',
     },
     nav: { features: 'Features', agent: 'Agent', privacy: 'Privacy', download: 'Download' },
     ui: {
@@ -256,7 +301,7 @@ export const content: Record<Lang, Content> = {
       skip: 'Skip to content',
     },
     hero: {
-      notice: 'Now available: Subtitle Studio, translation materials and multi-session Agent',
+      notice: 'New: let Claude Code, Codex and Cursor drive FusionKit',
       noticeLink: 'Read the changelog',
       title: 'The AI-powered desktop toolkit for subtitles and translation',
       subtitle:
@@ -270,7 +315,7 @@ export const content: Record<Lang, Content> = {
       { title: 'One workspace', body: 'Transcribe, translate, proofread, listen to the original audio and export, all in one place.' },
       { title: 'Local first', body: 'Media is transcribed with Whisper on your own device and never uploaded; documents stay on your computer.' },
       { title: 'Reviewable, reversible', body: 'Every AI change is shown as a diff first, written only after you confirm, and can be undone.' },
-      { title: 'Bring your own model', body: 'DeepSeek, OpenAI or any OpenAI-compatible service, with live token usage and cost.' },
+      { title: 'Bring your own model', body: 'DeepSeek, OpenAI or any OpenAI-compatible service, or let Claude Code, Codex and other agents drive it.' },
     ],
     studio: {
       kicker: 'Subtitle Studio',
@@ -305,6 +350,33 @@ export const content: Record<Lang, Content> = {
       dockBody:
         'The Agent button in the bottom-left corner opens a floating panel that shares the home page conversation. It knows which page you are on: in the Studio say "this word should always be spelled like that", on a tool page "switch the target language to English".',
       dockAlt: 'The floating Agent panel open in Subtitle Studio',
+      external: {
+        label: 'External agents · MCP',
+        title: 'Or hand it to the agent you already use',
+        body: 'Already on Claude Code, Codex or Cursor? Turn on external agents and they can read Subtitle Studio, import and transcribe, write their own translations back into Studio and export subtitle files, with no API key configured in FusionKit.',
+        clientsLabel: 'Works with',
+        clients: ['Claude Code', 'Claude app', 'Codex', 'Cursor', 'Other MCP clients'],
+        steps: [
+          { title: 'Turn it on', body: 'In Settings → External agents, allow external agents to connect. It is off by default.' },
+          { title: 'Connect your client', body: 'Copy a command, write the config file in one click or use “Add to Cursor”. Terminal and desktop apps both work.' },
+          { title: 'Just ask', body: 'Tell your agent what you need. Imports, translations and exports ask for your OK in FusionKit first.' },
+        ],
+        note: 'Listens on your computer only and requires a token. Choose read only, ask before changes or auto; translations from an external agent are marked unreviewed and can be undone.',
+        demo: {
+          label: 'An external agent working in FusionKit over MCP',
+          client: 'Claude Code',
+          prompt: 'Translate 灯台守の夜 into English and export an SRT next to the source file',
+          calls: [
+            { tool: 'list_studio_documents', result: '1 document found' },
+            { tool: 'read_studio_document', result: '248 cues · Japanese' },
+            { tool: 'create_studio_translation_track', result: 'Created track “Claude Code”', confirmed: true },
+            { tool: 'write_studio_translations', result: '248 translations · unreviewed' },
+            { tool: 'export_studio_document', result: '灯台守の夜.en.srt', confirmed: true },
+          ],
+          confirmed: 'Approved',
+          reply: 'Wrote 248 English translations and exported the SRT. They are marked for review in Studio.',
+        },
+      },
     },
     knowledge: {
       kicker: 'Translation materials',
@@ -355,6 +427,7 @@ export const content: Record<Lang, Content> = {
         ['AI translation, revision and the Agent', 'Subtitle or text content goes to the model service in your settings'],
         ['Audio toolbox', 'Audio files, recordings or microphone input go to the audio service you choose'],
         ['Web lookup (off by default)', 'Only search terms and page links; never subtitles or translation materials'],
+        ['External agents (off by default)', 'Listens on 127.0.0.1 only and requires a token; subtitles an external agent reads are handled by that agent’s own model service'],
         ['Update checks', 'GitHub Releases, for new version information'],
       ],
       keys: 'API keys stay in the app’s local settings and are used only for the services you configured. They are never written to recovery files, task data or error details.',
@@ -374,7 +447,7 @@ export const content: Record<Lang, Content> = {
       button: 'Download',
       stepsTitle: 'Getting started',
       steps: [
-        { title: 'Add a model profile', body: 'Open Setting → AI Model and enter the API endpoint, key and model name. DeepSeek and OpenAI presets are built in.' },
+        { title: 'Add a model profile', body: 'Open Setting → AI Model and enter the API endpoint, key and model name. DeepSeek and OpenAI presets are built in. Skip this if you only use an external agent.' },
         { title: 'Download a transcription model', body: 'Before transcribing locally, download the recommended Whisper model on the transcription page. Models are not in the installer.' },
         { title: 'Tell the Agent what you need', body: 'Go back to the home page and just ask, or open a tool from the Tools page.' },
       ],
