@@ -422,7 +422,7 @@ export default function TaskPanel({
         </p>
 
         {visibleLastError ? (
-          <Alert variant="destructive" className="rounded-lg">
+          <Alert variant="destructive" className="rounded-smooth-lg">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>{t("translator.errors.title")}</AlertTitle>
             <AlertDescription>
@@ -451,7 +451,7 @@ export default function TaskPanel({
         ) : null}
 
         {!hasUsableTaskModel ? (
-          <Alert className="rounded-lg">
+          <Alert className="rounded-smooth-lg">
             <Settings className="h-4 w-4" />
             <AlertTitle>{t("translator.model.missing_title")}</AlertTitle>
             <AlertDescription>
@@ -471,7 +471,7 @@ export default function TaskPanel({
         ) : null}
 
         {hasMarkdownFiles ? (
-          <Alert className="rounded-lg">
+          <Alert className="rounded-smooth-lg">
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>{t("translator.scope.markdown_title")}</AlertTitle>
             <AlertDescription>
@@ -490,7 +490,7 @@ export default function TaskPanel({
         ) : null}
 
         {!isPrepared && sourceFile ? (
-          <div className="rounded-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+          <div className="rounded-smooth-lg bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
             {t("translator.queue.prepare_hint")}
           </div>
         ) : null}
@@ -510,7 +510,7 @@ export default function TaskPanel({
                   : t("translator.project.independent")}
               </Badge>
             </div>
-            <div className="max-h-48 overflow-y-auto rounded-lg border">
+            <div className="max-h-48 overflow-y-auto rounded-smooth-lg border">
               {sourceFiles.map((file, index) => (
                 <div
                   key={`${file.sourcePath}-${index}`}
@@ -585,7 +585,7 @@ export default function TaskPanel({
                 })}
               </Badge>
             </div>
-            <div className="max-h-56 overflow-y-auto rounded-lg border">
+            <div className="max-h-56 overflow-y-auto rounded-smooth-lg border">
               {queuedTasks.map((qt) => {
                 const taskProgressText = `${t("translator.progress.segments", {
                   completed: qt.progress.completedSegments,
@@ -712,7 +712,7 @@ export default function TaskPanel({
             }
           />
         ) : (
-          <div className="rounded-lg border border-dashed px-4 py-10 text-center">
+          <div className="rounded-smooth-lg border border-dashed px-4 py-10 text-center">
             <CircleDashed className="mx-auto h-5 w-5 text-muted-foreground/70" />
             <div className="mt-2 text-[13px] font-medium">
               {t("translator.queue.empty_title")}
@@ -812,7 +812,7 @@ function CompactTaskRow({
   );
   const rowClassName = cn(
     "w-full p-3 text-left transition-colors",
-    embedded ? "border-b last:border-b-0" : "rounded-lg border",
+    embedded ? "border-b last:border-b-0" : "rounded-smooth-lg border",
     active ? "bg-primary/5" : "bg-background",
     onClick ? "hover:bg-muted/40" : null,
   );

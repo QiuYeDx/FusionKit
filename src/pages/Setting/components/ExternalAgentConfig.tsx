@@ -161,7 +161,7 @@ export default function ExternalAgentConfig() {
         {/* Permissions */}
         <div className="space-y-2">
           <div className="text-sm font-medium">{t("setting:external_agent.trust.title")}</div>
-          <RadioGroup value={settings?.trust ?? "confirm_writes"} disabled={!settings || saving} className="gap-0 divide-y rounded-lg border"
+          <RadioGroup value={settings?.trust ?? "confirm_writes"} disabled={!settings || saving} className="gap-0 divide-y rounded-smooth-lg border"
             onValueChange={(value) => void save(() => api.updateSettings({ trust: value as ExternalTrust }))}>
             {TRUST_LEVELS.map((level) => (
               <label key={level} htmlFor={`setting-external-trust-${level}`} className="flex cursor-pointer items-start justify-between gap-6 px-3.5 py-3">
@@ -194,7 +194,7 @@ export default function ExternalAgentConfig() {
           <div className="flex items-center gap-3">
             <span className="w-12 shrink-0 text-[13px] text-muted-foreground">{t("setting:external_agent.connection.token")}</span>
             {token ? <div className="flex min-w-0 flex-1 items-center gap-1">
-              <code className="min-w-0 truncate rounded-md border bg-muted/40 px-2 py-1 font-mono text-[12px]" data-testid="setting-external-token">
+              <code className="min-w-0 truncate rounded-smooth-md border bg-muted/40 px-2 py-1 font-mono text-[12px]" data-testid="setting-external-token">
                 {showToken ? token : "•".repeat(24)}
               </code>
               <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" data-testid="setting-external-token-toggle"
@@ -236,8 +236,8 @@ export default function ExternalAgentConfig() {
             </ol>
             {/* w-0 min-w-full: the settings scroll area sizes like a table, so a long line must not widen the page; it scrolls in the block. */}
             <div className="relative w-0 min-w-full">
-              <pre className="overflow-x-auto whitespace-pre rounded-md border bg-muted/50 p-3 pr-11 font-mono text-[12px] leading-relaxed" data-testid="setting-external-config">{config.text}</pre>
-              <div className="absolute right-1.5 top-1.5 rounded-md border bg-background/90 shadow-xs backdrop-blur-sm">
+              <pre className="overflow-x-auto whitespace-pre rounded-smooth-md border bg-muted/50 p-3 pr-11 font-mono text-[12px] leading-relaxed" data-testid="setting-external-config">{config.text}</pre>
+              <div className="absolute right-1.5 top-1.5 rounded-smooth-md border bg-background/90 shadow-xs backdrop-blur-sm">
                 <CopyButton text={config.text} label={t("setting:external_agent.clients.copy")} testId="setting-external-config-copy" />
               </div>
             </div>
@@ -267,7 +267,7 @@ export default function ExternalAgentConfig() {
               </div>
             </div>}
             {client === "json" && input && (
-              <div className="w-0 min-w-full divide-y rounded-lg border" data-testid="setting-external-fields">
+              <div className="w-0 min-w-full divide-y rounded-smooth-lg border" data-testid="setting-external-fields">
                 {connectionFields(transport, input).map((field) => (
                   <div key={field.key} className="flex items-center gap-3 px-3 py-1.5">
                     <span className="w-16 shrink-0 text-[12px] text-muted-foreground">{t(`setting:external_agent.clients.field.${field.key as "url" | "header" | "command" | "args" | "env"}`)}</span>
@@ -284,7 +284,7 @@ export default function ExternalAgentConfig() {
         <div className="space-y-2">
           <div className="text-sm font-medium">{t("setting:external_agent.sessions.title")}</div>
           {sessions.length ? (
-            <div className="divide-y rounded-lg border" data-testid="setting-external-sessions">
+            <div className="divide-y rounded-smooth-lg border" data-testid="setting-external-sessions">
               {sessions.map((session) => {
                 const last = activity[session.id]?.at(-1);
                 const minutes = minutesSince(session.connectedAt, now);

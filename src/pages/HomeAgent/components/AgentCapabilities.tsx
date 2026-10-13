@@ -36,7 +36,7 @@ export default function AgentCapabilities() {
           {AGENT_CAPABILITIES.map(capability => {
             const labels = capabilityLabels[capability.toolKey as keyof typeof capabilityLabels];
             if (!labels) return null;
-            return <div key={capability.toolKey} className="flex items-start gap-3 rounded-lg p-2 hover:bg-muted/40">
+            return <div key={capability.toolKey} className="flex items-start gap-3 rounded-smooth-lg p-2 hover:bg-muted/40">
               <div className="min-w-0 flex-1">
                 <h3 className="text-sm font-medium">{t(labels.title)}</h3>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{t(labels.description)}</p>

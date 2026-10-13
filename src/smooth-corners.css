@@ -1,0 +1,22 @@
+/*
+ * Smooth (continuous, iOS/Figma-like) corners for any radius token:
+ * `rounded-smooth-xl`, `rounded-smooth-[22px]`, `rounded-smooth-[var(--r)]`.
+ *
+ * Same output as `smoothCorners(r, 0.6)` from @qiuyedx/smooth-corners, whose
+ * curve does not depend on the radius: the radius is enlarged ×1.6 and drawn
+ * as superellipse(1.7775), so the corner keeps the same visual size as a plain
+ * `rounded-*` but blends into the edges. Without `corner-shape` support the
+ * plain radius stays.
+ *
+ * Use it on surfaces (stages, cards, panels, menus, popovers). Pills and
+ * circles (`rounded-full`) stay as they are.
+ */
+@utility rounded-smooth-* {
+  --smooth-r: --value(--radius-*, [*]);
+  border-radius: var(--smooth-r);
+
+  @supports (corner-shape: superellipse(2)) {
+    border-radius: calc(var(--smooth-r) * 1.6);
+    corner-shape: superellipse(1.7775);
+  }
+}

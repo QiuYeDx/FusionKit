@@ -23,7 +23,7 @@ function NavigationRow({ active = false, children, count, className, icon: Icon 
     type="button"
     aria-current={active ? "true" : undefined}
     className={cn(
-      "flex min-h-9 w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] leading-5 outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none",
+      "flex min-h-9 w-full min-w-0 items-center gap-2.5 rounded-smooth-lg px-2.5 py-2 text-left text-[13px] leading-5 outline-none transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none",
       active && "bg-muted font-medium text-foreground hover:bg-muted",
       className,
     )}

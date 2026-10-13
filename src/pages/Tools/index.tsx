@@ -154,7 +154,7 @@ const Tools: React.FC = () => {
         <div className="mb-4 space-y-2">
           <div className="flex items-center gap-2.5">
             <h2 id="experimental-tools-title" data-testid="tools-experimental-heading" className="text-lg font-semibold">{t("tools:catalog.experimental")}</h2>
-            <span className="rounded-md border bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Beta</span>
+            <span className="rounded-smooth-sm border bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">Beta</span>
           </div>
           <p id="experimental-tools-description" className="max-w-3xl text-xs leading-5 text-muted-foreground">{t("tools:catalog.experimental_description")}</p>
         </div>

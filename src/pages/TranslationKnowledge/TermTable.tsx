@@ -73,7 +73,7 @@ function EditableCell({ value, label, disabled, muted, onSave, column, children 
     {editing ? <Input autoFocus aria-label={label} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={keyDown} onBlur={() => void finish(true)}
       className="-my-0.5 h-7 px-2 text-[13px]" />
       : <button ref={button} type="button" data-term-cell={column} aria-label={`${label}: ${shown ?? value}`} disabled={disabled} onClick={begin} onKeyDown={moveFocus}
-        className={cn("-mx-1.5 flex min-h-7 w-[calc(100%+0.75rem)] items-start gap-1.5 rounded-md px-1.5 py-1 text-left text-[13px] leading-5 outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent",
+        className={cn("-mx-1.5 flex min-h-7 w-[calc(100%+0.75rem)] items-start gap-1.5 rounded-smooth-md px-1.5 py-1 text-left text-[13px] leading-5 outline-none transition-colors hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default disabled:hover:bg-transparent",
           muted && "text-muted-foreground", error && error !== "required" && "ring-1 ring-destructive/60")}>
         <span className="min-w-0 [overflow-wrap:anywhere]">{shown ?? value}</span>
         {shown !== null && <LoaderCircle aria-hidden className="mt-0.5 size-3.5 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" />}
@@ -96,7 +96,7 @@ export function TermRow({ entry, selected, highlighted, disabled, onSelect, onSa
   const keep = entry.payload.strength === "keep_source";
   const immediate = async (record: TermEntry) => setToggleError(await onSave(record));
   return <div ref={row} role="row" data-entry-id={entry.id} data-enabled={entry.enabled} data-highlighted={highlighted || undefined} aria-selected={selected}
-    className={cn(TERM_GRID, "items-start gap-y-1.5 rounded-lg px-2 py-1.5 transition-colors duration-150 motion-reduce:transition-none",
+    className={cn(TERM_GRID, "items-start gap-y-1.5 rounded-smooth-lg px-2 py-1.5 transition-colors duration-150 motion-reduce:transition-none",
       selected ? "bg-muted/70" : "hover:bg-muted/40", highlighted && "bg-amber-500/10 ring-1 ring-amber-500/40")}>
     <div role="cell" className="flex h-7 items-center">
       <Checkbox aria-label={t("terms.select", { source: entry.payload.source })} checked={selected} disabled={disabled}

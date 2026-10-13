@@ -99,7 +99,7 @@ export function ToolResultAttention({ result }: { result: ToolResult }) {
   if (!failing.length && !orphaned) return null;
   return <div className="space-y-2">
     {failing.map((item, index) => <AgentActionReceipt key={index} receipt={item!} />)}
-    {orphaned && <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-1.5 text-xs leading-5 text-amber-700 dark:text-amber-300" data-testid="agent-prepared-missing">
+    {orphaned && <div className="flex flex-wrap items-center gap-2 rounded-smooth-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-1.5 text-xs leading-5 text-amber-700 dark:text-amber-300" data-testid="agent-prepared-missing">
       <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{t("home:action_prepared_missing")}</span>
       {capability && <Button variant="outline" size="sm" className="h-6 rounded-full px-2.5 text-[11px]"
         onClick={() => navigate(agentToolPath(capability.toolKey, capability.route, result.toolName, data.kind))}>{t("home:open_tool")}</Button>}
@@ -122,7 +122,7 @@ export default function ToolResultDetails({ result }: { result: ToolResult }) {
   const classicStores = result.toolName === "get_classic_subtitle_tasks" ? [...new Set(items.flatMap((item: any) => item && typeof item === "object" && Object.prototype.hasOwnProperty.call(classicPaths, item.store) ? [item.store as keyof typeof classicPaths] : []))] : [];
   const visibleRows = rows.slice(0, 5);
   const content = [
-    visibleRows.length > 0 && <ul key="rows" className="divide-y divide-border/60 rounded-lg bg-muted/40 px-2.5">{visibleRows.map(row => <li key={row.id} className="min-w-0 py-1.5" data-task-status={row.status}>
+    visibleRows.length > 0 && <ul key="rows" className="divide-y divide-border/60 rounded-smooth-lg bg-muted/40 px-2.5">{visibleRows.map(row => <li key={row.id} className="min-w-0 py-1.5" data-task-status={row.status}>
       <div className="flex items-start gap-3"><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{row.name}</span>{row.status && <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">{t(taskStatusKeys[row.status])}{row.progress !== undefined ? ` · ${row.progress}%` : ""}</span>}</div>
       {row.error && <p className="mt-0.5 text-destructive [overflow-wrap:anywhere]">{actionErrorMessage(row.error, t)}</p>}
     </li>)}</ul>,
@@ -153,14 +153,14 @@ function ClassicDetails({ result }: { result: ToolResult }) {
   const data = dataOf(result);
   if (!result.success) {
     const details = Array.isArray(data.errors) ? (data.errors as unknown[]).filter((item): item is string => typeof item === "string").slice(0, 5) : [];
-    return details.length ? <ul className="space-y-0.5 rounded-lg bg-destructive/5 px-2.5 py-1.5 font-mono text-[11px] text-destructive">{details.map((item, index) => <li key={index} className="[overflow-wrap:anywhere]">{item}</li>)}</ul> : null;
+    return details.length ? <ul className="space-y-0.5 rounded-smooth-lg bg-destructive/5 px-2.5 py-1.5 font-mono text-[11px] text-destructive">{details.map((item, index) => <li key={index} className="[overflow-wrap:anywhere]">{item}</li>)}</ul> : null;
   }
   if (Array.isArray(data.files)) {
     const count = Number(data.totalCount ?? data.files.length);
     const names = (data.files as unknown[]).slice(0, 10).map(file => typeof file === "string" ? file : String((file as Record<string, unknown>)?.fileName ?? ""));
     if (!names.length) return null;
     return <div className="space-y-2 text-xs leading-5">
-      <ul className="divide-y divide-border/60 rounded-lg bg-muted/40 px-2.5">{names.map((name, index) => <li key={index} className="py-1 [overflow-wrap:anywhere]">{name}</li>)}</ul>
+      <ul className="divide-y divide-border/60 rounded-smooth-lg bg-muted/40 px-2.5">{names.map((name, index) => <li key={index} className="py-1 [overflow-wrap:anywhere]">{name}</li>)}</ul>
       {count > 10 && <p className="text-[11px] text-muted-foreground">{t("home:tool_result_more_files", { count })}</p>}
     </div>;
   }

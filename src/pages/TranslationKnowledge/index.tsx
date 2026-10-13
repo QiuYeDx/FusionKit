@@ -201,8 +201,8 @@ export default function TranslationKnowledge() {
 
   return <div {...dropProps} data-testid="translation-knowledge">
     <ToolDetailLayout header={header} aside={aside} className="translation-knowledge md:[&>div.grid]:grid-cols-[240px_minmax(0,1fr)] lg:[&>div.grid]:grid-cols-[280px_minmax(0,1fr)]" asideClassName="hidden md:block md:sticky md:top-10 lg:w-full">
-      <DialogTransition transitionKey={dropRejected ? "drop" : "none"} stageClassName="pb-0">{dropRejected && <p role="alert" className="rounded-md border border-destructive/25 p-3 text-sm text-destructive">{t("import.drop_invalid")}</p>}</DialogTransition>
-      <DialogTransition transitionKey={importFailure ? `import-${importFailure.error}` : "none"}>{importFailure && <div role="alert" data-testid="knowledge-import-error" className="flex items-start justify-between gap-3 rounded-md border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive">
+      <DialogTransition transitionKey={dropRejected ? "drop" : "none"} stageClassName="pb-0">{dropRejected && <p role="alert" className="rounded-smooth-md border border-destructive/25 p-3 text-sm text-destructive">{t("import.drop_invalid")}</p>}</DialogTransition>
+      <DialogTransition transitionKey={importFailure ? `import-${importFailure.error}` : "none"}>{importFailure && <div role="alert" data-testid="knowledge-import-error" className="flex items-start justify-between gap-3 rounded-smooth-md border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive">
         <p className="min-w-0 [overflow-wrap:anywhere]">{unsupported ? t("import.unsupported_version") : t("import.failed")}</p>
         <Button variant="ghost" size="icon-xs" aria-label={t("actions.dismiss")} onClick={() => setImportFailure(null)}><X /></Button>
       </div>}</DialogTransition>
@@ -270,7 +270,7 @@ export default function TranslationKnowledge() {
 
 function EmptyLibrary({ onCreate, onImport, busy }: { onCreate: () => void; onImport: () => void; busy: boolean }) {
   const { t } = useTranslation("knowledge");
-  return <div data-testid="knowledge-empty-library" className="space-y-4 rounded-[16px] border border-dashed px-6 py-12 text-center">
+  return <div data-testid="knowledge-empty-library" className="space-y-4 rounded-smooth-[16px] border border-dashed px-6 py-12 text-center">
     <BookOpen aria-hidden className="mx-auto size-7 text-muted-foreground/70" />
     <div className="space-y-1.5">
       <p className="text-base font-medium">{t("empty.title")}</p>

@@ -51,7 +51,7 @@ export function SessionSearch({ value, onChange, inputRef, testId, onEscapeEmpty
         if (value) { event.preventDefault(); event.stopPropagation(); onChange(""); }
         else onEscapeEmpty?.();
       }}
-      className="h-8 rounded-lg pl-7 text-[13px] md:text-[13px] shadow-none [&::-webkit-search-cancel-button]:hidden" />
+      className="h-8 rounded-smooth-lg pl-7 text-[13px] md:text-[13px] shadow-none [&::-webkit-search-cancel-button]:hidden" />
   </div>;
 }
 
@@ -104,7 +104,7 @@ function ShellButton({ label, onClick, children, testId, dot, quiet }: {
       <Button type="button" variant="ghost" size="icon-sm" aria-label={label} data-testid={testId}
         onClick={() => { quiet.current = true; setOpen(false); onClick(); }}
         onPointerLeave={() => { quiet.current = false; }}
-        className="relative size-7 rounded-md text-muted-foreground hover:text-foreground">
+        className="relative size-7 rounded-smooth-md text-muted-foreground hover:text-foreground">
         {children}
         {dot && <span aria-hidden className={cn("absolute top-1 right-1 size-1.5 rounded-full", dot === "running" ? "bg-muted-foreground animate-pulse motion-reduce:animate-none" : "bg-primary")} />}
       </Button>

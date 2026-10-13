@@ -239,7 +239,7 @@ export default function ConfigPanel({
 
         <div
           className={cn(
-            "space-y-1.5 rounded-lg border px-3 py-2.5",
+            "space-y-1.5 rounded-smooth-lg border px-3 py-2.5",
             isBudgetExceeded
               ? "border-destructive/50 bg-destructive/5"
               : "bg-muted/20",

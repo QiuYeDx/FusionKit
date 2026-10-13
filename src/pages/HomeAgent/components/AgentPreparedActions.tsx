@@ -90,7 +90,7 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
         : action.status === "failed" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{status}</span>
       {capability && <Tooltip delayDuration={350}>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label={t("home:open_tool")} className="-mr-1.5 size-7 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+          <Button variant="ghost" size="icon" aria-label={t("home:open_tool")} className="-mr-1.5 size-7 shrink-0 rounded-smooth-lg text-muted-foreground hover:text-foreground"
             onClick={() => navigate(agentToolPath(action.toolKey, capability.route, action.summaryKey))}><ArrowUpRight className="size-3.5" /></Button>
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={6}>{t("home:open_tool")}</TooltipContent>

@@ -71,7 +71,7 @@ function PasteForm({ collection, snapshot, onSave, onClose }: Parameters<typeof 
       {problem && <p role="alert" className="text-sm text-destructive">{t(`paste.error_${problem}`)}</p>}
     </div> : <div className="space-y-3">
       <p data-testid="knowledge-paste-summary" className="text-xs leading-5 text-muted-foreground">{t("paste.summary", { added: count("new"), same: count("same"), conflict: count("conflict"), invalid: count("invalid") + count("repeated") })}</p>
-      <div className="rounded-md border"><KnowledgeScrollList testId="knowledge-paste-rows" maxHeight="min(22rem, 46vh)" contentClassName="divide-y">
+      <div className="rounded-smooth-md border"><KnowledgeScrollList testId="knowledge-paste-rows" maxHeight="min(22rem, 46vh)" contentClassName="divide-y">
         {rows.map((item, index) => <div key={index} data-paste-status={item.status} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-3 px-3 py-2 text-[13px] leading-5">
           <span className="[overflow-wrap:anywhere]">{item.row.source || "—"}</span>
           <span className="min-w-0 [overflow-wrap:anywhere]">{item.row.target || "—"}

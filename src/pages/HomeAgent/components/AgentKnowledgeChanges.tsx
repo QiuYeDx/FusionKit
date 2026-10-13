@@ -93,14 +93,14 @@ export default function AgentKnowledgeChanges({ action }: { action: PreparedActi
   return <div className="min-w-0 space-y-2" data-testid="knowledge-changes">
     {rows.length > VISIBLE_ROWS ? <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded}>
       <AccordionItem value="more" className="border-0">
-        <div className="rounded-lg bg-muted/40 px-2.5">
+        <div className="rounded-smooth-lg bg-muted/40 px-2.5">
           {list(rows.slice(0, VISIBLE_ROWS))}
           <AccordionContent className="pb-0">{list(rows.slice(VISIBLE_ROWS), "border-t border-border/60")}</AccordionContent>
         </div>
-        <AccordionTrigger data-testid="knowledge-changes-more" className="-ml-2 -mr-1 mt-1 gap-2 rounded-md py-1 pr-1 pl-2 text-xs font-normal text-muted-foreground [&>svg]:size-3.5">
+        <AccordionTrigger data-testid="knowledge-changes-more" className="-ml-2 -mr-1 mt-1 gap-2 rounded-smooth-md py-1 pr-1 pl-2 text-xs font-normal text-muted-foreground [&>svg]:size-3.5">
           {expanded ? t("home:knowledge_show_less") : t("home:knowledge_show_more", { count: rows.length - VISIBLE_ROWS })}
         </AccordionTrigger>
       </AccordionItem>
-    </Accordion> : list(rows, "rounded-lg bg-muted/40 px-2.5")}
+    </Accordion> : list(rows, "rounded-smooth-lg bg-muted/40 px-2.5")}
   </div>;
 }

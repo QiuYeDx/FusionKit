@@ -369,7 +369,7 @@ function CopyMessageButton({ text }: { text: string }) {
   return <Tooltip delayDuration={350}>
     <TooltipTrigger asChild>
       <Button type="button" variant="ghost" size="icon" aria-label={label} data-testid="agent-copy-message" onClick={() => void copy()}
-        className={cn("mt-1 size-7 shrink-0 rounded-lg text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100",
+        className={cn("mt-1 size-7 shrink-0 rounded-smooth-lg text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100",
           "group-hover/message:opacity-100 group-focus-within/message:opacity-100", copied && "opacity-100")}>
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </Button>

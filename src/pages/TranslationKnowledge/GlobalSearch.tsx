@@ -61,7 +61,7 @@ export function GlobalSearch({ snapshot, onSelect, testId = "knowledge-global-se
           <p className="truncate px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-muted-foreground">{group.collection.name}</p>
           {group.entries.map(entry => { index++; const current = index; return <div key={entry.id} id={`${listId}-${entry.id}`} role="option" aria-selected={current === active}
             data-entry-id={entry.id} onMouseDown={event => event.preventDefault()} onMouseEnter={() => setActive(current)} onClick={() => choose(entry)}
-            className={cn("cursor-pointer rounded-md px-2.5 py-1.5 text-[13px] leading-5", current === active && "bg-muted")}><ResultText entry={entry} /></div>; })}
+            className={cn("cursor-pointer rounded-smooth-md px-2.5 py-1.5 text-[13px] leading-5", current === active && "bg-muted")}><ResultText entry={entry} /></div>; })}
         </div>)}
         {result.total > flat.length && <p className="px-2.5 pb-1.5 pt-1 text-[11px] text-muted-foreground">{t("search.more", { count: result.total - flat.length })}</p>}
       </div>

@@ -344,7 +344,7 @@ export default function RecoveryDialog({ open, onOpenChange }: RecoveryDialogPro
               </div>
             </div>
 
-            <div className="min-w-0 divide-y rounded-md border">
+            <div className="min-w-0 divide-y rounded-smooth-md border">
               {candidates.map((candidate) => (
                 <CandidateRow
                   key={candidate.candidateId}

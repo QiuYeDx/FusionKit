@@ -73,10 +73,10 @@ export function StudioAutomaticKnowledgeFailure({ page, taskId, trackId, disable
               {available.material.collections.length > 0 && <p>{available.material.collections.join(' / ')}</p>}
               <p>{t('knowledge:recovery.issues', { count: available.issueCount })}</p>
             </div>
-            {(available.stale || available.sourceChanged) && <p data-testid="automatic-knowledge-report-stale" role="status" className="rounded-md border p-3 text-muted-foreground">{t(available.sourceChanged ? 'knowledge:recovery.source_changed' : 'knowledge:recovery.stale')}</p>}
+            {(available.stale || available.sourceChanged) && <p data-testid="automatic-knowledge-report-stale" role="status" className="rounded-smooth-md border p-3 text-muted-foreground">{t(available.sourceChanged ? 'knowledge:recovery.source_changed' : 'knowledge:recovery.stale')}</p>}
             {available.issuesTruncated && <p className="text-muted-foreground">{t('knowledge:recovery.limited', { shown: issues.length, count: available.issueCount })}</p>}
             {!issues.length && <p className="text-muted-foreground">{t('knowledge:recovery.no_details')}</p>}
-            <div className="min-w-0 space-y-3">{issues.slice(currentPage * 10, (currentPage + 1) * 10).map((issue, index) => <article key={`${currentPage}:${index}`} data-testid="automatic-knowledge-report-issue" data-issue-code={issue.code} className="min-w-0 space-y-2 rounded-md border p-3">
+            <div className="min-w-0 space-y-3">{issues.slice(currentPage * 10, (currentPage + 1) * 10).map((issue, index) => <article key={`${currentPage}:${index}`} data-testid="automatic-knowledge-report-issue" data-issue-code={issue.code} className="min-w-0 space-y-2 rounded-smooth-md border p-3">
               <p className={issue.severity === 'error' ? 'font-medium text-destructive' : 'font-medium'}>{t(issue.severity === 'error' ? 'knowledge:batch.issue_error' : 'knowledge:batch.issue_warning')} · {t(`knowledge:trial.issue.${issue.code}`, { defaultValue: t('knowledge:trial.issue_unknown', { code: issue.code }) })}</p>
               {issue.entries.length > 0 && <ul className="space-y-1">{issue.entries.map(entry => <li key={entry.entryId}>{entry.title}</li>)}</ul>}
               {issue.cues.length > 0 && <div className="space-y-2 border-l pl-3 text-muted-foreground">{issue.cues.map(cue => <p key={cue.cueId} className="whitespace-pre-wrap">{t('knowledge:recovery.cue', { number: cue.number })} · {cue.text}</p>)}</div>}

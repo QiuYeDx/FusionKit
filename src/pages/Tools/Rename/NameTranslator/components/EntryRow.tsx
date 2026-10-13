@@ -103,7 +103,7 @@ function StatusIcon({ state, checked }: { state: RowState | undefined; checked: 
           role="img"
           aria-label={config.label}
           tabIndex={status === "issue" || status === "failed" ? 0 : -1}
-          className="inline-flex size-6 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="inline-flex size-6 items-center justify-center rounded-smooth-md outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           data-status={status}
         >
           <Icon className={cn("size-3.5", config.className)} />
@@ -169,7 +169,7 @@ function NameEditor({
       onChange={(event) => setValue(event.target.value)}
       onKeyDown={onKeyDown}
       onBlur={() => finish(true)}
-      className="h-7 w-full min-w-0 rounded-md border border-ring/60 bg-background px-2 text-[13px] outline-none ring-2 ring-ring/20"
+      className="h-7 w-full min-w-0 rounded-smooth-md border border-ring/60 bg-background px-2 text-[13px] outline-none ring-2 ring-ring/20"
     />
   );
 }
@@ -236,7 +236,7 @@ function EntryRowComponent({
           if (!hasModifier(event)) actions.startEdit(entry.path);
         }}
         className={cn(
-          "group/name flex h-7 w-full min-w-0 items-center gap-1.5 rounded-md px-2 text-left text-[13px] outline-none transition-shadow hover:shadow-[inset_0_0_0_1px_var(--border)] focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none",
+          "group/name flex h-7 w-full min-w-0 items-center gap-1.5 rounded-smooth-md px-2 text-left text-[13px] outline-none transition-shadow hover:shadow-[inset_0_0_0_1px_var(--border)] focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none",
           dimmed && "opacity-55",
         )}
         aria-label={t("list.edit_name_for", { name: entry.name })}
@@ -259,7 +259,7 @@ function EntryRowComponent({
       className={cn(
         // One surface owns hover and selection (FK-PIT-0129); the select-inside
         // overlay reuses --nt-row-hover so it always matches the row behind it.
-        "group/row grid h-[34px] grid-cols-[var(--nt-cols)] items-center gap-2 rounded-md px-2 transition-[background-color,grid-template-columns] duration-200 ease-out",
+        "group/row grid h-[34px] grid-cols-[var(--nt-cols)] items-center gap-2 rounded-smooth-md px-2 transition-[background-color,grid-template-columns] duration-200 ease-out",
         "bg-[var(--nt-row-bg)] [--nt-row-bg:transparent] [--nt-row-hover:color-mix(in_oklch,var(--muted)_60%,var(--card))] hover:bg-[var(--nt-row-hover)] focus-within:bg-[var(--nt-row-hover)]",
         "data-[selected=true]:[--nt-row-bg:color-mix(in_oklab,oklch(68.5%_0.169_237.3)_13%,var(--card))] data-[selected=true]:[--nt-row-hover:color-mix(in_oklab,oklch(68.5%_0.169_237.3)_19%,var(--card))]",
         "dark:data-[selected=true]:[--nt-row-bg:color-mix(in_oklab,oklch(74.6%_0.16_232.7)_17%,var(--card))] dark:data-[selected=true]:[--nt-row-hover:color-mix(in_oklab,oklch(74.6%_0.16_232.7)_24%,var(--card))]",
@@ -330,7 +330,7 @@ function EntryRowComponent({
               disabled={busy || collecting}
               onClick={() => actions.selectInside(entry.path, "all")}
               className={cn(
-                "pointer-events-none inline-flex h-6 items-center gap-1 rounded-md border border-transparent px-2 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:border-border hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto",
+                "pointer-events-none inline-flex h-6 items-center gap-1 rounded-smooth-md border border-transparent px-2 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:border-border hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-60 group-hover/row:pointer-events-auto group-focus-within/row:pointer-events-auto",
               )}
             >
               {collecting ? <Loader2 className="size-3 animate-spin" /> : null}

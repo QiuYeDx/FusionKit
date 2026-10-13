@@ -69,7 +69,7 @@ function DockIconButton({ label, onClick, disabled, children, testId, className,
   return <Tooltip delayDuration={350}>
     <TooltipTrigger asChild>
       <Button type="button" variant="ghost" size="icon-sm" aria-label={label} aria-pressed={pressed} data-testid={testId} disabled={disabled} onClick={onClick}
-        className={cn("size-7 rounded-md text-muted-foreground hover:text-foreground", className)}>{children}</Button>
+        className={cn("size-7 rounded-smooth-md text-muted-foreground hover:text-foreground", className)}>{children}</Button>
     </TooltipTrigger>
     <TooltipContent side="top" sideOffset={6}>{label}</TooltipContent>
   </Tooltip>;
@@ -400,7 +400,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
               <Popover open={switcherOpen} onOpenChange={(next) => { setSwitcherOpen(next); if (!next) setSwitcherQuery(""); }}>
                 <PopoverTrigger asChild>
                   <button type="button" data-testid="agent-dock-switcher" aria-label={t("home:sessions_switcher")}
-                    className="-mx-1 flex max-w-full min-w-0 items-center gap-1 rounded-md px-1 text-left text-[13px] font-medium leading-5 outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:bg-accent/60">
+                    className="-mx-1 flex max-w-full min-w-0 items-center gap-1 rounded-smooth-sm px-1 text-left text-[13px] font-medium leading-5 outline-none hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=open]:bg-accent/60">
                     <span className="min-w-0 truncate" data-testid="agent-dock-session-title">
                       {sessionTitle ? sessionDisplayTitle(sessionTitle, t("home:sessions_untitled")) : t("home:sessions_new")}
                     </span>
@@ -414,7 +414,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
                   <div className="flex flex-col gap-1 p-2">
                     <SessionSearch value={switcherQuery} onChange={setSwitcherQuery} testId="agent-dock-switcher-search" />
                     <button type="button" onClick={onNewSession} data-testid="agent-dock-switcher-new"
-                      className="flex h-[30px] items-center gap-2 rounded-[10px] px-2.5 text-left text-[13px] text-foreground/80 outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
+                      className="flex h-[30px] items-center gap-2 rounded-smooth-[10px] px-2.5 text-left text-[13px] text-foreground/80 outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50">
                       <SquarePen className="size-3.5 text-muted-foreground" aria-hidden="true" />{t("home:sessions_new")}
                     </button>
                   </div>
@@ -462,7 +462,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
           </div>
 
           <div className="relative z-10 shrink-0 border-t bg-background p-3">
-            {!configured && <div className="mb-2 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2" data-testid="agent-dock-not-configured">
+            {!configured && <div className="mb-2 flex items-center gap-2 rounded-smooth-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2" data-testid="agent-dock-not-configured">
               <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
               <span className="min-w-0 flex-1 text-xs leading-5 text-amber-700 dark:text-amber-400">{t("home:agent_not_configured")}</span>
               <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 rounded-full px-2 text-xs" onClick={() => navigate("/setting")}><Settings className="size-3" />{t("home:go_settings")}</Button>

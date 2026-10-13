@@ -1031,7 +1031,7 @@ function RecoveryDialog({
               return (
                 <div
                   key={summary.taskId}
-                  className="rounded-lg border p-3"
+                  className="rounded-smooth-lg border p-3"
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="min-w-0">
@@ -1174,7 +1174,7 @@ function FailureDetailsDialog({
       <ScrollableDialogContent fadeMasks>
         {task && summary ? (
           <div className="space-y-4">
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+            <div className="rounded-smooth-lg border border-destructive/30 bg-destructive/5 p-3">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                 <div className="min-w-0">
@@ -1207,7 +1207,7 @@ function FailureDetailsDialog({
               <div className="text-[13px] font-medium">
                 {t("translator.errors.failure_list")}
               </div>
-              <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border bg-muted/20 p-2">
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded-smooth-lg border bg-muted/20 p-2">
                 {summary.failures.map((failure) => (
                   <FailureDetailBlock
                     key={`${failure.segmentId}-${failure.errorCode}`}
@@ -1252,7 +1252,7 @@ function FailureDetailBlock({
   compact?: boolean;
 }) {
   return (
-    <div className={cn("rounded-lg border bg-background p-3", compact && "p-2")}>
+    <div className={cn("rounded-smooth-lg border bg-background p-3", compact && "p-2")}>
       {title ? <div className="mb-2 text-[13px] font-medium">{title}</div> : null}
       <div className="grid gap-1 text-xs">
         <div className="font-mono text-muted-foreground">

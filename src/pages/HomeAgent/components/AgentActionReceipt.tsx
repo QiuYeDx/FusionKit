@@ -28,14 +28,14 @@ export default function AgentActionReceipt({ receipt }: { receipt: PreparedActio
     {receipt.items.length > 0 ? <Accordion type="single" collapsible value={expanded} onValueChange={setExpanded}>
       <AccordionItem value="items" className="border-0">
         {/* The hover surface reaches past the text, so the label never touches its edge. */}
-        <AccordionTrigger data-testid="receipt-toggle" className="-ml-2 -mr-1 gap-2 rounded-md py-1 pr-1 pl-2 font-normal [&>svg]:size-3.5">
+        <AccordionTrigger data-testid="receipt-toggle" className="-ml-2 -mr-1 gap-2 rounded-smooth-md py-1 pr-1 pl-2 font-normal [&>svg]:size-3.5">
           <span className={cn("min-w-0 flex-1", summaryClass)} data-testid="receipt-summary">{summary}</span>
         </AccordionTrigger>
         <AccordionContent className="pb-0">
-          <ul className="max-h-64 divide-y divide-border/60 overflow-y-auto rounded-lg bg-muted/40 px-2.5">{receipt.items.map(row)}</ul>
+          <ul className="max-h-64 divide-y divide-border/60 overflow-y-auto rounded-smooth-lg bg-muted/40 px-2.5">{receipt.items.map(row)}</ul>
         </AccordionContent>
       </AccordionItem>
     </Accordion> : <p className={summaryClass} data-testid="receipt-summary">{summary}</p>}
-    {!expanded && failed.length > 0 && <ul className="mt-1 divide-y divide-border/60 rounded-lg bg-destructive/5 px-2.5">{failed.slice(0, 3).map(row)}</ul>}
+    {!expanded && failed.length > 0 && <ul className="mt-1 divide-y divide-border/60 rounded-smooth-lg bg-destructive/5 px-2.5">{failed.slice(0, 3).map(row)}</ul>}
   </div>;
 }

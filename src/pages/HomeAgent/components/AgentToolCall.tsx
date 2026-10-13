@@ -87,7 +87,7 @@ function AgentToolRow({ call, result, running }: { call: ToolCall; result?: Agen
           </AccordionTrigger>
           {path && <Tooltip delayDuration={350}>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label={t("home:open_tool")} className="mr-1.5 size-7 shrink-0 rounded-lg text-muted-foreground hover:text-foreground" onClick={() => navigate(path)}>
+              <Button variant="ghost" size="icon" aria-label={t("home:open_tool")} className="mr-1.5 size-7 shrink-0 rounded-smooth-lg text-muted-foreground hover:text-foreground" onClick={() => navigate(path)}>
                 <ArrowUpRight className="size-3.5" />
               </Button>
             </TooltipTrigger>

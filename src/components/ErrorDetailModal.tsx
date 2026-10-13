@@ -81,7 +81,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
             <label className="block text-sm font-medium text-foreground mb-1">
               {t("common:error.message")}
             </label>
-            <div className="bg-destructive/10 text-destructive border border-destructive/20 rounded-lg p-3 text-sm">
+            <div className="bg-destructive/10 text-destructive border border-destructive/20 rounded-smooth-lg p-3 text-sm">
               {errorMessage}
             </div>
           </div>
@@ -90,7 +90,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
             <label className="block text-sm font-medium text-foreground mb-1">
               {t("common:error.detail")}
             </label>
-            <div className="bg-muted rounded-lg p-3 text-sm text-muted-foreground font-mono break-all">
+            <div className="bg-muted rounded-smooth-lg p-3 text-sm text-muted-foreground font-mono break-all">
               {errorDetails}
             </div>
           </div>
@@ -103,7 +103,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
                   String(errorLogs.length)
                 )}
               </label>
-              <div className="bg-muted rounded-lg p-4 space-y-2">
+              <div className="bg-muted rounded-smooth-lg p-4 space-y-2">
                 {errorLogs.map((log, index) => (
                   <div
                     key={index}

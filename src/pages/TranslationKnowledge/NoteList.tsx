@@ -63,7 +63,7 @@ function NoteRow({ entry, selected, highlighted, disabled, onSelect, onSave, onD
   const row = useRef<HTMLLIElement>(null);
   useEffect(() => { if (highlighted) row.current?.scrollIntoView({ block: "center", behavior: "smooth" }); }, [highlighted]);
   return <li ref={row} data-entry-id={entry.id} data-enabled={entry.enabled} data-highlighted={highlighted || undefined} aria-selected={selected}
-    className={cn("grid grid-cols-[20px_minmax(0,1fr)_auto] items-start gap-x-3 rounded-lg px-2 py-2 transition-colors duration-150 motion-reduce:transition-none",
+    className={cn("grid grid-cols-[20px_minmax(0,1fr)_auto] items-start gap-x-3 rounded-smooth-lg px-2 py-2 transition-colors duration-150 motion-reduce:transition-none",
       selected ? "bg-muted/70" : "hover:bg-muted/40", highlighted && "bg-amber-500/10 ring-1 ring-amber-500/40")}>
     <div className="flex h-5 items-center"><Checkbox aria-label={t("notes.select")} checked={selected} disabled={disabled} onClick={event => { event.preventDefault(); onSelect(event, !selected); }} /></div>
     {editing ? <NoteEditor testId="knowledge-note-edit" kind={entry.kind} initialText={entry.payload.text} initialRequired={entry.payload.required} submitLabel={t("actions.save")}

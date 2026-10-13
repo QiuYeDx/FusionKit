@@ -50,7 +50,7 @@ export default function AgentPlanPanel({ plan, onCheckProgress, busy, canCheck =
           <Tooltip delayDuration={350}>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" aria-label={t("home:plan_check_progress")} data-testid="plan-check-progress"
-                className="mr-1.5 size-7 shrink-0 rounded-lg text-muted-foreground hover:text-foreground" disabled={busy || !canCheck} onClick={onCheckProgress}>
+                className="mr-1.5 size-7 shrink-0 rounded-smooth-lg text-muted-foreground hover:text-foreground" disabled={busy || !canCheck} onClick={onCheckProgress}>
                 <RefreshCw className="size-3.5" />
               </Button>
             </TooltipTrigger>
@@ -63,7 +63,7 @@ export default function AgentPlanPanel({ plan, onCheckProgress, busy, canCheck =
             {plan.steps.map((step, index) => {
               const waiting = step.status === "in_progress" && !busy;
               const Icon = waiting ? CircleDot : { pending: Circle, in_progress: Loader2, completed: CheckCircle2, blocked: PauseCircle }[step.status];
-              return <li key={step.id} data-plan-status={step.status} className={cn("flex items-start gap-2 rounded-lg p-2", step.status === "in_progress" && "bg-muted/60")}>
+              return <li key={step.id} data-plan-status={step.status} className={cn("flex items-start gap-2 rounded-smooth-lg p-2", step.status === "in_progress" && "bg-muted/60")}>
                 <Icon aria-hidden className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground", step.status === "in_progress" && !waiting && "animate-spin motion-reduce:animate-none", step.status === "completed" && "text-emerald-600 dark:text-emerald-400", step.status === "blocked" && "text-amber-600 dark:text-amber-400")} />
                 <div className="min-w-0 flex-1">
                   <div className="text-xs leading-5 [overflow-wrap:anywhere]"><span className="mr-1.5 text-muted-foreground tabular-nums">{index + 1}.</span>{step.title}</div>

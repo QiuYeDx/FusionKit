@@ -152,7 +152,7 @@ export default function LocalSubtitleOverwriteRecoveryPrompt() {
                 type="button"
                 size="icon-sm"
                 variant="outline"
-                className="relative rounded-md bg-background/80 backdrop-blur-md"
+                className="relative rounded-smooth-md bg-background/80 backdrop-blur-md"
                 aria-label={triggerLabel}
                 onClick={() => handleOpenChange(true)}
               >
@@ -362,7 +362,7 @@ export function LocalSubtitleOverwriteRecoveryList({
   );
 
   return (
-    <ul className="min-w-0 max-w-full divide-y overflow-hidden rounded-md border">
+    <ul className="min-w-0 max-w-full divide-y overflow-hidden rounded-smooth-md border">
       {items.map((item) => {
         const working = actionRecoveryId === item.recoveryId;
         const actionLabel = working

@@ -387,7 +387,7 @@ function HomeAgent() {
       <motion.div
         layout="position"
         transition={EMPTY_STATE_LAYOUT_TRANSITION}
-        className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 max-w-md mx-auto mb-4 z-10"
+        className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-smooth-xl border border-amber-500/30 bg-amber-500/5 max-w-md mx-auto mb-4 z-10"
       >
         <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
         <span className="text-sm text-amber-700 dark:text-amber-400 flex-1">
@@ -476,7 +476,7 @@ function HomeAgent() {
             exit={{ opacity: 0, y: -10 }}
             className="max-w-2xl mx-auto mb-2 pointer-events-auto"
           >
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-smooth-lg border border-destructive/30 bg-destructive/5 text-xs text-destructive">
               <AlertTriangle className="h-3 w-3 shrink-0" />
               <span role="alert" className="min-w-0 flex-1 [overflow-wrap:anywhere]" data-testid="agent-session-error">{importError}</span>
               <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setImportError(null)}>{t("home:feedback_dismiss")}</Button>
@@ -506,7 +506,7 @@ function HomeAgent() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="absolute inset-0 z-60 flex items-center justify-center rounded-3xl pointer-events-none"
+              className="absolute inset-0 z-60 flex items-center justify-center rounded-smooth-3xl pointer-events-none"
             >
               <span className="text-xs text-primary font-medium">
                 {t("home:drop_files_hint")}
@@ -702,7 +702,7 @@ function HomeAgent() {
             <img
               src={FusionKitLogo}
               alt="FusionKit"
-              className="w-12 h-12 rounded-xl relative z-10"
+              className="w-12 h-12 rounded-smooth-xl relative z-10"
             />
           </motion.div>
 
@@ -802,7 +802,7 @@ function HomeAgent() {
                     "shadow-[0_3px_10px_rgba(0,0,0,0.08)] ring-1 ring-background/35 hover:bg-background/84 hover:text-foreground",
                     "dark:bg-background/58 dark:ring-foreground/5 dark:hover:bg-background/72",
                     hasActiveResponse
-                      ? "h-8 w-[52px] gap-0 rounded-[18px] px-0"
+                      ? "h-8 w-[52px] gap-0 rounded-smooth-[18px] px-0"
                       : "h-9 w-9 rounded-full",
                   )}
                 >
@@ -995,7 +995,7 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
           align="center"
           side="top"
           sideOffset={8}
-          className="w-80 p-0 rounded-xl"
+          className="w-80 p-0 rounded-smooth-xl"
         >
           <div className="p-4 space-y-3.5">
             {/* --- Context usage --- */}

@@ -54,7 +54,7 @@ export function KnowledgeTour({ open, onOpenChange }: {
       title: t("tour.entries_title"),
       content: <div className="space-y-3">
         <p>{t("tour.entries_content")}</p>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-muted px-3 py-2 text-sm text-foreground">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-smooth-md bg-muted px-3 py-2 text-sm text-foreground">
           <span>checkpoint</span><ArrowRight aria-hidden className="size-3.5 text-muted-foreground" /><span>{t("tour.term_example")}</span>
         </div>
         <p className="text-xs leading-5">{t("tour.entries_hint")}</p>

@@ -68,7 +68,7 @@ export function LocalSubtitleDraftMediaList({
             <div
               key={file.fileToken}
               data-testid="local-subtitle-draft-file"
-              className="min-w-0 rounded-lg px-2 py-2.5"
+              className="min-w-0 rounded-smooth-lg px-2 py-2.5"
             >
               <div className="flex min-w-0 items-start gap-3">
                 <FileVideo2 className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

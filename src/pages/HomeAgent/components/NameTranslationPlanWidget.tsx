@@ -188,7 +188,7 @@ function NameTranslationPlanWidgetComponent({
               </Button>}
             </div>
             {showItems && (
-              <div className="mt-1.5 max-h-52 divide-y divide-border/50 overflow-y-auto rounded-lg bg-muted/30 px-2.5">
+              <div className="mt-1.5 max-h-52 divide-y divide-border/50 overflow-y-auto rounded-smooth-lg bg-muted/30 px-2.5">
                 {props.itemsPreview.map((item) => (
                   <PreviewRow key={item.id} item={item} />
                 ))}
@@ -203,7 +203,7 @@ function NameTranslationPlanWidgetComponent({
         )}
 
         {props.warnings.length > 0 && !historical && (
-          <div className="flex gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <div className="flex gap-2 rounded-smooth-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div className="min-w-0 space-y-1">
               {props.warnings.slice(0, 3).map((warning) => (
@@ -216,7 +216,7 @@ function NameTranslationPlanWidgetComponent({
         )}
 
         {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          <div className="flex items-center gap-2 rounded-smooth-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             <XCircle className="h-3.5 w-3.5 shrink-0" />
             <span className="min-w-0 [overflow-wrap:anywhere]">{actionErrorMessage(error, t)}</span>
           </div>

@@ -18,7 +18,7 @@ type Failure = KnowledgeErrorCode | "unexpected";
 function Warnings({ warnings, testId }: { warnings: Diagnostic[]; testId: string }) {
   const { t } = useTranslation("knowledge");
   if (!warnings.length) return null;
-  return <div data-testid={testId} role="status" className="space-y-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5">
+  return <div data-testid={testId} role="status" className="space-y-1.5 rounded-smooth-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5">
     <p className="flex items-center gap-1.5 font-medium text-amber-800 dark:text-amber-300"><AlertTriangle className="size-3.5" />{t("exchange.warnings", { count: warnings.length })}</p>
     <ul className="space-y-1">{warnings.slice(0, 20).map((warning, index) => <li key={index} className="[overflow-wrap:anywhere]">
       {diagnosticText(t, warning)}{warning.path && <span className="ml-1.5 font-mono text-[11px] text-muted-foreground">{warning.path}</span>}
@@ -54,7 +54,7 @@ export function ImportDialog({ preview, api, onClose, onImported }: {
     <Button data-testid="knowledge-import-commit" size="sm" disabled={pending || !chosen.length} onClick={() => void commit()}>{pending && <LoaderCircle className="animate-spin" />}{t("import.commit", { count: chosen.length })}</Button>
   }>
     <Warnings warnings={preview.warnings} testId="knowledge-import-warnings" />
-    <ul data-testid="knowledge-import-collections" className="divide-y rounded-md border">
+    <ul data-testid="knowledge-import-collections" className="divide-y rounded-smooth-md border">
       {preview.collections.map(item => <li key={item.id} data-import-collection={item.id} data-status={item.status} className="grid gap-x-3 gap-y-1.5 p-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center">
         <div className="min-w-0 space-y-0.5">
           <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm font-medium">
@@ -123,7 +123,7 @@ export function ExportDialog({ snapshot, api, initialCollectionIds, onClose, onE
         <button type="button" className="rounded text-[11px] text-foreground underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => { setSelected(selected.length === collections.length ? [] : collections.map(item => item.id)); changed(); }}>{t(selected.length === collections.length ? "export.select_none" : "export.select_all")}</button>
       </legend>
-      <div className="rounded-md border"><KnowledgeScrollList testId="knowledge-export-collections" maxHeight="min(16rem, 40vh)" contentClassName="space-y-2 p-3">
+      <div className="rounded-smooth-md border"><KnowledgeScrollList testId="knowledge-export-collections" maxHeight="min(16rem, 40vh)" contentClassName="space-y-2 p-3">
         {collections.map(item => <Check key={item.id} label={`${item.name} · ${languagePairLabel(t, item.languagePair)}${item.archived ? ` · ${t("collection.archived")}` : ""}`}
           checked={selected.includes(item.id)} onChange={checked => toggle(item.id, checked)} />)}
       </KnowledgeScrollList></div>

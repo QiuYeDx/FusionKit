@@ -33,7 +33,7 @@ export function ToolFilePickerSurface({ title, description, actionLabel, icon, s
     {...props}
   >
     {children}
-    <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70', layout === 'stacked' && 'self-center')}>
+    <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-smooth-lg border bg-muted/40 text-foreground/70', layout === 'stacked' && 'self-center')}>
       {icon ?? (dragging ? <FolderOpen className="h-5 w-5" /> : <Upload className="h-5 w-5" />)}
     </div>
     <div className={cn('min-w-0 flex-1', layout === 'horizontal' && 'basis-32')}>

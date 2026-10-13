@@ -426,7 +426,7 @@ export function EntryList({ rows, states, summary, modelReady, formatInvalid, on
     >
       {totalEntries === 0 ? (
         <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-          <div className="flex size-11 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70">
+          <div className="flex size-11 items-center justify-center rounded-smooth-xl border bg-muted/40 text-foreground/70">
             <Languages className="size-5" />
           </div>
           <div>

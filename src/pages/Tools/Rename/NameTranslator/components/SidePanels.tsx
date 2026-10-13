@@ -53,7 +53,7 @@ export function AddEntriesPanel({
         )}
       >
         <div className="flex items-center gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border bg-muted/40 text-foreground/70">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-smooth-lg border bg-muted/40 text-foreground/70">
             {adding ? <Loader2 className="size-5 animate-spin" /> : <Upload className="size-5" />}
           </div>
           <div className="min-w-0">

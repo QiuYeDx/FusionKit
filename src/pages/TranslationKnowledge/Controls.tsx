@@ -143,7 +143,7 @@ export function ErrorNotice({
   return <DialogTransition transitionKey={error ?? "clear"} stageClassName={stageClassName}>{error ? (
     <div
       role="alert"
-      className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive"
+      className="flex items-start gap-2 rounded-smooth-md border border-destructive/25 bg-destructive/5 p-3 text-sm text-destructive"
     >
       <AlertCircle className="mt-0.5 size-4 shrink-0" />
       <div className="min-w-0 space-y-2 break-words">

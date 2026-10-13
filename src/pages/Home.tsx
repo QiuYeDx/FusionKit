@@ -25,7 +25,7 @@ const Home: React.FC = () => {
         <img
           src={FusionKitLogo}
           alt="FusionKit Logo"
-          className="w-24 h-24 mb-6 rounded-2xl"
+          className="w-24 h-24 mb-6 rounded-smooth-2xl"
         />
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
           {t("home:welcome")}
@@ -60,12 +60,12 @@ const Home: React.FC = () => {
             <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {/* 字幕处理 */}
               <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200"
+                className="group relative overflow-hidden rounded-smooth-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200"
                 onClick={() => navigate("/tools")}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col gap-2">
-                    <div className="rounded-md bg-primary/10 w-10 h-10 flex items-center justify-center text-primary">
+                    <div className="rounded-smooth-md bg-primary/10 w-10 h-10 flex items-center justify-center text-primary">
                       <Subtitles className="h-5 w-5" />
                     </div>
                     <div>
@@ -83,12 +83,12 @@ const Home: React.FC = () => {
 
               {/* 文件重命名 */}
               <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200"
+                className="group relative overflow-hidden rounded-smooth-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200"
                 onClick={() => navigate("/tools")}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex flex-col gap-2">
-                    <div className="rounded-md bg-primary/10 w-10 h-10 flex items-center justify-center text-primary">
+                    <div className="rounded-smooth-md bg-primary/10 w-10 h-10 flex items-center justify-center text-primary">
                       <FileText className="h-5 w-5" />
                     </div>
                     <div>
@@ -119,15 +119,15 @@ const Home: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="grid gap-3 grid-cols-3">
-                <div className="flex flex-col items-center justify-center p-4 rounded-lg border bg-muted/50">
+                <div className="flex flex-col items-center justify-center p-4 rounded-smooth-lg border bg-muted/50">
                   <Monitor className="h-6 w-6 mb-2 text-muted-foreground" />
                   <span className="text-sm font-medium">Windows</span>
                 </div>
-                <div className="flex flex-col items-center justify-center p-4 rounded-lg border bg-muted/50">
+                <div className="flex flex-col items-center justify-center p-4 rounded-smooth-lg border bg-muted/50">
                   <Monitor className="h-6 w-6 mb-2 text-muted-foreground" />
                   <span className="text-sm font-medium">macOS</span>
                 </div>
-                <div className="flex flex-col items-center justify-center p-4 rounded-lg border bg-muted/50">
+                <div className="flex flex-col items-center justify-center p-4 rounded-smooth-lg border bg-muted/50">
                   <Monitor className="h-6 w-6 mb-2 text-muted-foreground" />
                   <span className="text-sm font-medium">Linux</span>
                 </div>

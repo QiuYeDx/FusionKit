@@ -1765,7 +1765,7 @@ export default function LocalSubtitleTranscriber() {
                 {(["SRT", "LRC"] as const).map((format) => (
                   <label
                     key={format}
-                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded-md border bg-background px-2.5 py-2 text-xs transition-[background-color,border-color,transform] duration-150 hover:bg-muted/50 active:scale-[0.98] has-[[data-state=checked]]:border-foreground/25 has-[[data-state=checked]]:bg-muted/50 motion-reduce:transform-none"
+                    className="flex min-w-0 cursor-pointer items-center gap-2 rounded-smooth-md border bg-background px-2.5 py-2 text-xs transition-[background-color,border-color,transform] duration-150 hover:bg-muted/50 active:scale-[0.98] has-[[data-state=checked]]:border-foreground/25 has-[[data-state=checked]]:bg-muted/50 motion-reduce:transform-none"
                   >
                     <Checkbox
                       checked={preferences.outputFormats.includes(format)}

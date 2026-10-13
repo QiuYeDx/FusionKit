@@ -14,7 +14,7 @@ export default function ToolBadge({ icon: Icon, tone, size = 36, className }: Pr
   return (
     <div
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-[10px] border",
+        "inline-flex shrink-0 items-center justify-center rounded-smooth-[10px] border",
         className
       )}
       style={{

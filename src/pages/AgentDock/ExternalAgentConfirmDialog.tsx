@@ -62,7 +62,7 @@ export default function ExternalAgentConfirmDialog() {
               </Alert>
             )}
             {shown.length > 0 && (
-              <ul className="divide-y rounded-md border bg-muted/30 text-sm" data-testid="external-agent-confirm-items">
+              <ul className="divide-y rounded-smooth-md border bg-muted/30 text-sm" data-testid="external-agent-confirm-items">
                 {shown.map((item, index) => (
                   <li key={index} className="flex items-start gap-2 px-3 py-2">
                     {item.tag && <span className="mt-0.5 shrink-0 rounded border px-1.5 py-px text-[11px] leading-4 text-muted-foreground">{t(`external_agent.confirm.tag.${item.tag}`)}</span>}

@@ -133,7 +133,7 @@ function ProxyTestButton() {
           onClick={runTest}
           disabled={status === "loading"}
           className={cn(
-            "inline-flex items-center justify-center rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+            "inline-flex items-center justify-center rounded-smooth-md border px-2 py-1.5 text-xs font-medium transition-colors",
             "hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             "disabled:pointer-events-none disabled:opacity-50",
             status === "success" &&

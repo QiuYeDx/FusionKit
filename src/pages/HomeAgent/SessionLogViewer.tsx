@@ -186,14 +186,14 @@ function LogEntryRow({
   const typeLabel = t(`home:log_type_${entry.type}`);
 
   return (
-    <div className={cn("rounded-lg border px-3 py-2", BG_MAP[entry.type])} data-testid={`agent-log-entry-${entry.id}`}>
+    <div className={cn("rounded-smooth-lg border px-3 py-2", BG_MAP[entry.type])} data-testid={`agent-log-entry-${entry.id}`}>
       <button
         type="button"
         disabled={!hasData}
         aria-expanded={hasData ? expanded : undefined}
         data-testid={`agent-log-toggle-${entry.id}`}
         className={cn(
-          "flex w-full items-start gap-2 text-left text-xs rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex w-full items-start gap-2 text-left text-xs rounded-smooth-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           hasData && "cursor-pointer select-none",
         )}
         onClick={() => hasData && setExpanded(!expanded)}
@@ -262,7 +262,7 @@ function LogDataBlock({ data }: { data: Record<string, unknown> }) {
 
   return (
     <div className="mt-2 relative group">
-      <pre className="text-[11px] font-mono text-foreground/60 bg-background/60 rounded-md border border-border/30 px-3 py-2 max-h-60 overflow-auto whitespace-pre-wrap break-all">
+      <pre className="text-[11px] font-mono text-foreground/60 bg-background/60 rounded-smooth-md border border-border/30 px-3 py-2 max-h-60 overflow-auto whitespace-pre-wrap break-all">
         {json}
       </pre>
       <Button

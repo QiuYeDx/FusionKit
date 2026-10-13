@@ -84,7 +84,7 @@ export function ConfirmRenameDialog() {
                 {items.map((item) => (
                   <li
                     key={item.path}
-                    className="grid min-w-0 grid-cols-[14px_minmax(0,1fr)] gap-x-2 rounded-md px-2 py-1.5 text-[13px] leading-5 hover:bg-muted/50"
+                    className="grid min-w-0 grid-cols-[14px_minmax(0,1fr)] gap-x-2 rounded-smooth-md px-2 py-1.5 text-[13px] leading-5 hover:bg-muted/50"
                   >
                     {item.kind === "directory" ? (
                       <Folder className="mt-[3px] size-3.5 text-sky-600 dark:text-sky-400" />

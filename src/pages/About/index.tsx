@@ -70,7 +70,7 @@ const About: React.FC = () => {
       </div>
 
       {/* Hero card */}
-      <div className="relative overflow-hidden rounded-xl border bg-card mb-3">
+      <div className="relative overflow-hidden rounded-smooth-xl border bg-card mb-3">
         {/* radial accent */}
         <div
           aria-hidden
@@ -86,7 +86,7 @@ const About: React.FC = () => {
             <img
               src={FusionKitLogo}
               alt="FusionKit Logo"
-              className="h-16 w-16 rounded-2xl shrink-0"
+              className="h-16 w-16 rounded-smooth-2xl shrink-0"
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -235,7 +235,7 @@ const About: React.FC = () => {
             ))}
           </div>
 
-          <div className="rounded-lg border border-dashed bg-muted/40 px-3 py-2.5 flex items-start gap-2 text-xs text-muted-foreground">
+          <div className="rounded-smooth-lg border border-dashed bg-muted/40 px-3 py-2.5 flex items-start gap-2 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span className="leading-relaxed">
               {t("about:license_note")}
@@ -289,11 +289,11 @@ function LinkCard({ icon, title, url, desc, href, tone, accentRgb }: LinkCardPro
     <a
       href={href}
       onClick={handleClick}
-      className="group flex items-center gap-3.5 rounded-xl border bg-card px-4 py-3.5 transition-all hover:bg-accent/40 hover:border-foreground/20 no-underline"
+      className="group flex items-center gap-3.5 rounded-smooth-xl border bg-card px-4 py-3.5 transition-all hover:bg-accent/40 hover:border-foreground/20 no-underline"
       title={desc}
     >
       <div
-        className={`h-9 w-9 rounded-lg inline-flex items-center justify-center shrink-0 ${tone}`}
+        className={`h-9 w-9 rounded-smooth-lg inline-flex items-center justify-center shrink-0 ${tone}`}
         style={{
           background: accentRgb
             ? `rgb(${accentRgb} / 0.12)`

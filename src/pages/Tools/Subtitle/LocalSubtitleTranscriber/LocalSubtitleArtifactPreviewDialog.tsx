@@ -27,7 +27,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   const lower = text.toLowerCase(), parts = [];
   let cursor = 0, at = lower.indexOf(needle);
   while (at !== -1) {
-    parts.push(text.slice(cursor, at), <mark key={at} className="rounded-sm bg-primary/15 text-foreground">{text.slice(at, at + needle.length)}</mark>);
+    parts.push(text.slice(cursor, at), <mark key={at} className="rounded-smooth-sm bg-primary/15 text-foreground">{text.slice(at, at + needle.length)}</mark>);
     cursor = at + needle.length; at = lower.indexOf(needle, cursor);
   }
   parts.push(text.slice(cursor));
@@ -88,7 +88,7 @@ export function LocalSubtitleArtifactPreviewDialog({ selection, onOpenChange }: 
   };
 
   return <ScrollableDialog open={selection !== null} onOpenChange={onOpenChange} maxWidth="sm:max-w-[920px]"
-    contentClassName="h-[min(780px,85dvh)] grid-rows-[auto_minmax(0,1fr)_auto] rounded-[20px] shadow-2xl"
+    contentClassName="h-[min(780px,85dvh)] grid-rows-[auto_minmax(0,1fr)_auto] rounded-smooth-[20px] shadow-2xl"
     onOpenAutoFocus={event => {
       opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       event.preventDefault(); readingTab.current?.focus();
@@ -99,7 +99,7 @@ export function LocalSubtitleArtifactPreviewDialog({ selection, onOpenChange }: 
     <Tabs value={effectiveMode} onValueChange={changeMode} className="contents">
       <ScrollableDialogHeader className="min-w-0 px-5 pb-4 pt-5 sm:px-7 sm:pt-6 [&_[data-slot=dialog-header]]:gap-0 [&_[data-slot=dialog-header]]:text-left">
         <div className="flex min-w-0 items-start gap-3 pr-6">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/5 text-primary"><FileText className="size-5" /></div>
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-smooth-xl border border-primary/15 bg-primary/5 text-primary"><FileText className="size-5" /></div>
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span>{t("subtitle:local_transcriber.preview.title")}</span>
@@ -117,7 +117,7 @@ export function LocalSubtitleArtifactPreviewDialog({ selection, onOpenChange }: 
           {effectiveMode === "reading" ? <div className="relative min-w-0 flex-1 basis-48 sm:max-w-72">
             <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-muted-foreground" />
             <Input ref={searchInput} aria-label={t("subtitle:local_transcriber.preview.search")} placeholder={t("subtitle:local_transcriber.preview.search")}
-              value={query} maxLength={120} disabled={!data} onChange={e => { setQuery(e.target.value); setPageIndex(0); }} className="h-9 rounded-lg pr-9 pl-9 text-sm shadow-none" />
+              value={query} maxLength={120} disabled={!data} onChange={e => { setQuery(e.target.value); setPageIndex(0); }} className="h-9 rounded-smooth-lg pr-9 pl-9 text-sm shadow-none" />
             {query && <Button variant="ghost" size="icon-sm" className="absolute top-0.5 right-0.5 size-8" aria-label={t("subtitle:local_transcriber.preview.clear_search")} onClick={() => { setQuery(""); setPageIndex(0); searchInput.current?.focus(); }}><X className="size-3.5" /></Button>}
           </div> : <span className="text-xs text-muted-foreground">{t("subtitle:local_transcriber.preview.raw_hint")}</span>}
         </div>
@@ -159,7 +159,7 @@ export function LocalSubtitleArtifactPreviewDialog({ selection, onOpenChange }: 
             <Button variant="ghost" size="icon-sm" aria-label={t("subtitle:local_transcriber.preview.next_page")} disabled={currentPage === pageCount - 1} onClick={() => setPageIndex(currentPage + 1)}><ChevronRight className="size-4" /></Button>
           </div>}
         </div>
-        <Button variant="outline" size="sm" disabled={!data || copying} className="ml-auto h-9 rounded-lg" onClick={() => void copy()}>
+        <Button variant="outline" size="sm" disabled={!data || copying} className="ml-auto h-9 rounded-smooth-lg" onClick={() => void copy()}>
           {copied ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
           <span aria-live="polite">{copied ? t("subtitle:local_transcriber.preview.copy_done") : effectiveMode === "raw" ? t("subtitle:local_transcriber.preview.copy_raw") : t("subtitle:local_transcriber.preview.copy_all")}</span>
         </Button>

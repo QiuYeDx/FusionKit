@@ -107,7 +107,7 @@ function AgentConfig() {
 
         <div className="space-y-2">
           <div className="text-sm font-medium">{t("setting:agent.sources.title")}</div>
-          <div className={cn("divide-y rounded-lg border", !enabled && "opacity-60")}>
+          <div className={cn("divide-y rounded-smooth-lg border", !enabled && "opacity-60")}>
             {WEB_SOURCES.map((source) => (
               <div key={source} className="flex items-start justify-between gap-6 px-3.5 py-3">
                 <div className="min-w-0 flex-1">

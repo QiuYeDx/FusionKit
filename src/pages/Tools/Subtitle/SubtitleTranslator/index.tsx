@@ -117,7 +117,7 @@ function CostEstimateHelp({ content }: { content: string }) {
       <TooltipTrigger asChild>
         <button
           aria-label={content}
-          className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-sm border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-smooth-sm border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           type="button"
         >
           <CircleHelp className="h-3.5 w-3.5" />
@@ -1300,7 +1300,7 @@ function SubtitleTranslator() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/40 text-[11px]">
+                  <div className="flex items-center gap-2 px-2 py-1.5 rounded-smooth-md bg-muted/40 text-[11px]">
                     <span className="font-medium text-muted-foreground">
                       {t("subtitle:translator.schedule.status")}
                     </span>
@@ -1456,7 +1456,7 @@ function SubtitleTranslator() {
                         <div className="flex items-center gap-2">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span tabIndex={0} className="min-w-0 truncate rounded-sm font-mono text-[13px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                              <span tabIndex={0} className="min-w-0 truncate rounded-smooth-sm font-mono text-[13px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
                                 {task.fileName}
                               </span>
                             </TooltipTrigger>
@@ -1565,7 +1565,7 @@ function SubtitleTranslator() {
                                 <span className="h-0.5 w-0.5 rounded-full bg-muted-foreground/40" />
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span tabIndex={0} className="min-w-0 max-w-[min(220px,100%)] truncate rounded-sm font-mono text-emerald-600 outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-emerald-400">
+                                    <span tabIndex={0} className="min-w-0 max-w-[min(220px,100%)] truncate rounded-smooth-sm font-mono text-emerald-600 outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-emerald-400">
                                       → {task.extraInfo.outputFileName}
                                     </span>
                                   </TooltipTrigger>

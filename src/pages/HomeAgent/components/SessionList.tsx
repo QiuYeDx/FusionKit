@@ -94,7 +94,7 @@ function RenameField({ initial, label, onDone }: { initial: string; label: strin
     }}
     onBlur={() => finish(value)}
     style={ROW_CORNERS}
-    className="smooth-corners h-8 rounded-[10px] px-2.5 text-[13px] md:text-[13px] shadow-none" />;
+    className="smooth-corners h-8 rounded-smooth-[10px] px-2.5 text-[13px] md:text-[13px] shadow-none" />;
 }
 
 function SessionRow({ meta, variant, active, state, loading, onPick, onRename, onDelete, editing, onEditDone }: {
@@ -126,7 +126,7 @@ function SessionRow({ meta, variant, active, state, loading, onPick, onRename, o
           onClick={() => onPick(meta.id)}
           style={ROW_CORNERS}
           className={cn(
-            "smooth-corners flex w-full min-w-0 items-center rounded-[10px] text-left outline-none transition-colors duration-150",
+            "smooth-corners flex w-full min-w-0 items-center rounded-smooth-[10px] text-left outline-none transition-colors duration-150",
             "focus-visible:ring-2 focus-visible:ring-ring/50",
             compact ? "h-[30px] pl-2.5 pr-7 text-[13px]" : "h-8 pl-2.5 pr-8 text-[13px]",
             active ? "bg-accent font-medium text-foreground" : "text-foreground/80 hover:bg-accent/60 hover:text-foreground",
@@ -145,7 +145,7 @@ function SessionRow({ meta, variant, active, state, loading, onPick, onRename, o
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="ghost" size="icon-sm" aria-label={t("home:sessions_more")} data-testid="agent-session-menu"
-              className={cn("absolute top-1/2 right-1 size-6 -translate-y-1/2 rounded-md text-muted-foreground hover:bg-background/70 hover:text-foreground",
+              className={cn("absolute top-1/2 right-1 size-6 -translate-y-1/2 rounded-smooth-md text-muted-foreground hover:bg-background/70 hover:text-foreground",
                 "opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[state=open]:opacity-100")}>
               <MoreHorizontal className="size-3.5" />
             </Button>

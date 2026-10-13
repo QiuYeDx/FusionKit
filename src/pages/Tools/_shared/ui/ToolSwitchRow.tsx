@@ -41,7 +41,7 @@ export function ToolToggleRow({
     <div
       data-testid={testId}
       className={cn(
-        "min-w-0 rounded-lg border transition-colors hover:bg-accent/40",
+        "min-w-0 rounded-smooth-lg border transition-colors hover:bg-accent/40",
         disabled && "cursor-not-allowed opacity-60",
         className,
       )}

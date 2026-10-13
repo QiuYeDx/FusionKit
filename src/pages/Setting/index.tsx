@@ -146,7 +146,7 @@ const Setting: React.FC = () => {
                 aria-current={active ? "page" : undefined}
                 data-testid={`setting-tab-${item.key}`}
                 className={cn(
-                  "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-colors cursor-pointer",
+                  "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-smooth-lg text-left transition-colors cursor-pointer",
                   "max-md:shrink-0 max-md:min-w-[160px]",
                   active
                     ? "z-0 text-foreground"
@@ -156,7 +156,7 @@ const Setting: React.FC = () => {
                 {active && (
                   <motion.div
                     layoutId="setting-nav-indicator"
-                    className="absolute inset-0 rounded-lg bg-accent border border-foreground/15"
+                    className="absolute inset-0 rounded-smooth-lg bg-accent border border-foreground/15"
                     transition={{ type: "spring", duration: 0.35, bounce: 0.15 }}
                   />
                 )}
