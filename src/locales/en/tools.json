@@ -3,20 +3,16 @@
   "file_drop": {
     "release": "Drop files to import"
   },
-  "description": "Explore a variety of practical tools we offer, including subtitle processing, music editing, and file renaming, to help you complete tasks efficiently.",
+  "description": "Explore a variety of practical tools we offer, including subtitle processing, text translation, and file renaming, to help you complete tasks efficiently.",
   "subtitle": {
     "subtitle_tools": "Subtitle Tools",
-    "music_tools": "Music Tools",
     "rename_tools": "Rename Tools",
-    "text_tools": "Text Tools",
-    "audio_tools": "Audio Tools"
+    "text_tools": "Text Tools"
   },
   "sub_desc": {
     "subtitle_tools": "AI translation, format conversion, and other subtitle processing features.",
-    "music_tools": "Convert paid music to FLAC/MP3 format.",
     "rename_tools": "Easily batch rename multiple files.",
-    "text_tools": "Long-form TXT / Markdown translation workspace.",
-    "audio_tools": "ASR, TTS, realtime captions, and duplex voice workspace."
+    "text_tools": "Long-form TXT / Markdown translation workspace."
   },
   "fields": {
     "subtitle_translator": "AI Translation",
@@ -24,11 +20,7 @@
     "subtitle_language_extractor": "Language Extraction",
     "local_subtitle_transcriber": "Local Subtitle Transcriber",
     "name_translator": "Name Translator",
-    "text_translator": "Long Text Translator",
-    "audio_transcriber": "Audio to Text",
-    "speech_synthesizer": "Text to Audio",
-    "realtime_captions": "Realtime Captions",
-    "realtime_voice": "Duplex Voice"
+    "text_translator": "Long Text Translator"
   },
   "field_desc": {
     "subtitle_translator": "Translate subtitle files with AI models",
@@ -37,10 +29,6 @@
     "local_subtitle_transcriber": "Batch transcribe audio or video into SRT / LRC subtitles with an on-device model",
     "name_translator": "Tick files and folders (including nested items), translate their names with AI, review and edit, then rename in one go with undo",
     "text_translator": "Translate long TXT / Markdown files in a resumable workspace with model execution",
-    "audio_transcriber": "Transcribe local audio files with the global ASR configuration",
-    "speech_synthesizer": "Generate and play speech audio with the global TTS configuration",
-    "realtime_captions": "Create realtime or near-realtime captions from microphone input",
-    "realtime_voice": "Start a duplex voice session through Realtime/WebRTC",
     "subtitle_studio": "Transcribe, translate and batch export bilingual subtitles"
   },
   "chips": {
@@ -48,24 +36,11 @@
     "name_translator_safe": "Review · Undo",
     "text_translator_txt": "TXT",
     "text_translator_markdown": "Markdown",
-    "audio_file": "Audio file",
-    "openai_mimo": "OpenAI · MiMo",
-    "tts_stream": "Streaming TTS",
-    "mimo_voice": "MiMo voice",
-    "microphone": "Microphone",
-    "realtime": "Realtime",
-    "webrtc": "WebRTC",
-    "duplex": "Duplex",
     "local_offline": "Offline transcription",
     "local_batch_formats": "Batch · SRT/LRC",
     "studio_transcription": "Local transcription",
     "studio_translation": "AI translation",
     "studio_formats": "SRT · VTT · ASS · SSA · SBV · LRC"
-  },
-  "coming_soon": {
-    "title": "Coming Soon",
-    "music_desc": "More music tools are on the way",
-    "rename_desc": "Batch rename tools are coming soon"
   },
   "catalog": {
     "intro": "Good tools. More freedom to create.",
@@ -90,6 +65,6 @@
     "classic": "Classic tools",
     "classic_description": "Established standalone tools for everyday subtitle tasks.",
     "experimental": "Experimental tools",
-    "experimental_description": "These tools are in beta, with features and usability still being refined. They are not yet recommended for production work. Prefer the tools above."
+    "experimental_description": "This tool is in beta, with features and usability still being refined. It is not yet recommended for production work. Prefer the tools above."
   }
 }

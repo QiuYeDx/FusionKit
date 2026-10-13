@@ -1,18 +1,5 @@
 import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import { animate, motionValue } from 'motion'
-import type {
-  AudioEventChannel,
-  AudioIpcChannel,
-  AudioIpcResult,
-  AudioRendererApi,
-  AudioOutputDirectorySelection,
-  AudioInputSelectionSource,
-  AuthorizedAudioInputFile,
-  RevokeAudioInputFileResult,
-  RevokeAudioOutputDirectoryResult,
-  SelectAudioOutputDirectoryRequest,
-} from '@/type/audioIpc'
-import { isPublicAudioIpcChannel } from './audio-channel-policy'
 import { assertLegacyLocalSubtitleChannelAllowed } from './local-subtitle-channel-policy'
 import { createLocalSubtitleRendererApi } from './local-subtitle-api'
 import { LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS } from '@/type/localSubtitleIpc'
@@ -31,24 +18,6 @@ import { assertLegacyWebLookupChannelAllowed, createWebLookupApi } from './web-l
 import { assertLegacyAgentSessionsChannelAllowed, createAgentSessionsApi } from './agent-sessions-api'
 import { assertLegacyExternalAgentChannelAllowed, createExternalAgentApi } from './external-agent-api'
 
-const AUDIO_CHANNEL_PREFIX = 'audio:'
-const AUDIO_REGISTER_CAPABILITY_CHANNEL =
-  'audio:internal:register-preload-capability'
-const AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL = 'audio:internal:authorize-input-file'
-const AUDIO_REVOKE_INPUT_FILE_CHANNEL = 'audio:internal:revoke-input-file'
-const AUDIO_SELECT_OUTPUT_DIRECTORY_CHANNEL =
-  'audio:internal:select-output-directory'
-const AUDIO_REVOKE_OUTPUT_DIRECTORY_CHANNEL =
-  'audio:internal:revoke-output-directory'
-const AUDIO_EVENT_CHANNELS = new Set<AudioEventChannel>([
-  'audio:speech-synthesis-stream',
-  'audio:realtime:session-event',
-])
-const audioPreloadCapability = globalThis.crypto.randomUUID()
-const audioCapabilityRegistered = ipcRenderer.sendSync(
-  AUDIO_REGISTER_CAPABILITY_CHANNEL,
-  audioPreloadCapability,
-) === true
 const localSubtitleOwnerSessionRegistration = ipcRenderer.sendSync(
   LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession,
   {},
@@ -69,11 +38,6 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
   assertLegacyLocalSubtitleChannelAllowed(channel)
   assertLegacySubtitleTranslationChannelAllowed(channel)
   assertLegacyNativeFileSelectionChannelAllowed(channel)
-  if (channel.startsWith(AUDIO_CHANNEL_PREFIX)) {
-    throw new Error(
-      'Audio IPC is restricted. Use the preload audioApi capability instead.',
-    )
-  }
 }
 
 const assertLegacyListenChannelAllowed = (channel: string) => {
@@ -86,12 +50,6 @@ const assertLegacyListenChannelAllowed = (channel: string) => {
   assertLegacyStudioChannelAllowed(channel)
   assertLegacyLocalSubtitleChannelAllowed(channel)
   assertLegacySubtitleTranslationChannelAllowed(channel)
-  if (
-    channel.startsWith(AUDIO_CHANNEL_PREFIX) &&
-    !AUDIO_EVENT_CHANNELS.has(channel as AudioEventChannel)
-  ) {
-    assertLegacyIpcChannelAllowed(channel)
-  }
 }
 
 // --------- Expose some API to the Renderer process ---------
@@ -110,129 +68,6 @@ contextBridge.exposeInMainWorld(
     assertCommandChannelAllowed: assertLegacyIpcChannelAllowed,
   }),
 )
-
-const audioEventListeners = new Map<
-  AudioEventChannel,
-  Map<(...args: unknown[]) => void, (...args: unknown[]) => void>
->()
-
-const invokeAuthorizedAudioChannel = <TResponse>(
-  channel: string,
-  payload: unknown,
-  options?: { configRevision?: string },
-): Promise<AudioIpcResult<TResponse>> => {
-  if (!audioCapabilityRegistered) {
-    return Promise.resolve({
-      ok: false,
-      error: {
-        code: 'invalid_ipc_request',
-        message: 'Audio preload authorization is unavailable.',
-      },
-    })
-  }
-  return ipcRenderer.invoke(channel, {
-    capability: audioPreloadCapability,
-    payload,
-    ...(options?.configRevision
-      ? { configRevision: options.configRevision }
-      : {}),
-  }) as Promise<AudioIpcResult<TResponse>>
-}
-
-const secureAudioInvoke = <TResponse>(
-  channel: string,
-  payload: unknown,
-  options?: { configRevision?: string },
-): Promise<AudioIpcResult<TResponse>> => {
-  if (!isPublicAudioIpcChannel(channel)) {
-    return Promise.resolve({
-      ok: false,
-      error: {
-        code: 'invalid_ipc_request',
-        message: 'Audio IPC channel is not allowed by the preload bridge.',
-      },
-    })
-  }
-  return invokeAuthorizedAudioChannel<TResponse>(channel, payload, options)
-}
-
-const audioApi: AudioRendererApi = {
-  invoke<TResponse>(
-    channel: AudioIpcChannel,
-    payload: unknown,
-    options?: { configRevision?: string },
-  ) {
-    return secureAudioInvoke<TResponse>(channel, payload, options)
-  },
-  authorizeInputFile(file: File, source: AudioInputSelectionSource = 'picker') {
-    let filePath = ''
-    try {
-      filePath = webUtils.getPathForFile(file)
-    } catch {
-      // Invalid or synthetic File objects do not receive filesystem authority.
-    }
-    if (!filePath) {
-      return Promise.resolve({
-        ok: false,
-        error: {
-          code: 'file_read_failed',
-          message: 'Selected audio file path is unavailable.',
-          field: 'file',
-        },
-      })
-    }
-    return invokeAuthorizedAudioChannel<AuthorizedAudioInputFile>(
-      AUDIO_AUTHORIZE_INPUT_FILE_CHANNEL,
-      {
-        filePath,
-        mimeType: file.type,
-        source,
-      },
-    )
-  },
-  revokeInputFile(fileToken: string) {
-    return invokeAuthorizedAudioChannel<RevokeAudioInputFileResult>(
-      AUDIO_REVOKE_INPUT_FILE_CHANNEL,
-      { fileToken },
-    )
-  },
-  selectOutputDirectory(request: SelectAudioOutputDirectoryRequest = {}) {
-    return invokeAuthorizedAudioChannel<AudioOutputDirectorySelection>(
-      AUDIO_SELECT_OUTPUT_DIRECTORY_CHANNEL,
-      request,
-    )
-  },
-  revokeOutputDirectory(outputDirToken: string) {
-    return invokeAuthorizedAudioChannel<RevokeAudioOutputDirectoryResult>(
-      AUDIO_REVOKE_OUTPUT_DIRECTORY_CHANNEL,
-      { outputDirToken },
-    )
-  },
-  on(channel, listener) {
-    if (!AUDIO_EVENT_CHANNELS.has(channel)) return
-    const listenersForChannel =
-      audioEventListeners.get(channel) ??
-      new Map<(...args: unknown[]) => void, (...args: unknown[]) => void>()
-    if (listenersForChannel.has(listener)) return
-    const wrapped = (_event: unknown, payload: unknown) =>
-      listener(undefined, payload)
-    listenersForChannel.set(listener, wrapped)
-    audioEventListeners.set(channel, listenersForChannel)
-    ipcRenderer.on(channel, wrapped)
-  },
-  off(channel, listener) {
-    const listenersForChannel = audioEventListeners.get(channel)
-    const wrapped = listenersForChannel?.get(listener)
-    if (!wrapped) return
-    ipcRenderer.off(channel, wrapped)
-    listenersForChannel?.delete(listener)
-    if (listenersForChannel?.size === 0) {
-      audioEventListeners.delete(channel)
-    }
-  },
-}
-
-contextBridge.exposeInMainWorld('audioApi', audioApi)
 
 contextBridge.exposeInMainWorld(
   'localSubtitleApi',

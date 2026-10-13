@@ -20,18 +20,6 @@ const SUBTITLE_LANGUAGE_KEYS = [
   "subtitle:translator.languages.PT",
 ];
 
-const AUDIO_TRANSCRIBER_SUBMIT_KEYS = [
-  "audio:workspace.audio_api_not_configured.title",
-  "audio:workspace.audio_route_not_configured.title",
-  "audio:transcriber.errors.file_authorizing",
-  "audio:transcriber.errors.no_file",
-  "audio:transcriber.errors.file_path_unavailable",
-  "audio:transcriber.errors.unsupported_file",
-  "audio:transcriber.errors.unsupported_file_for_mimo",
-  "audio:transcriber.errors.file_too_large",
-  "audio:transcriber.errors.output_dir_required",
-];
-
 /** Page names the assistant may show or send: the home page, registered pages and catalog routes. */
 const AGENT_PAGE_TITLE_KEYS = [
   "home:agent_title",
@@ -77,22 +65,11 @@ export const I18N_USAGE_MANIFEST = [
     keys: ["studio:agent.suggest_fix_prompt", "studio:agent.suggest_terms_prompt", "studio:agent.suggest_summary_prompt", "home:dock.suggest.translator.first_prompt", "home:dock.suggest.translator.second_prompt", "home:dock.suggest.converter.first_prompt", "home:dock.suggest.converter.second_prompt", "home:dock.suggest.extractor.first_prompt", "home:dock.suggest.extractor.second_prompt", "home:dock.suggest.transcriber.first_prompt", "home:dock.suggest.transcriber.second_prompt", "home:dock.suggest.names.first_prompt", "home:dock.suggest.names.second_prompt"],
   },
   {
-    selector:
-      "src/pages/Setting/components/AudioApiConfig.tsx#`setting:fields.audio.route.${routeTranslationKey(definition.key)}`",
-    keys: [
-      "setting:fields.audio.route.transcription",
-      "setting:fields.audio.route.preset_voice",
-      "setting:fields.audio.route.realtimeCaptions",
-      "setting:fields.audio.route.realtimeVoice",
-    ],
-  },
-  {
     selector: "src/pages/Setting/index.tsx#item.labelKey",
     keys: [
       "setting:nav.general.label",
       "setting:nav.proxy.label",
       "setting:nav.model.label",
-      "setting:nav.audio.label",
     ],
   },
   {
@@ -101,7 +78,6 @@ export const I18N_USAGE_MANIFEST = [
       "setting:nav.general.hint",
       "setting:nav.proxy.hint",
       "setting:nav.model.hint",
-      "setting:nav.audio.hint",
     ],
   },
   {
@@ -119,13 +95,8 @@ export const I18N_USAGE_MANIFEST = [
       "tools:fields.subtitle_formatter",
       "tools:fields.subtitle_language_extractor",
       "tools:fields.local_subtitle_transcriber",
-      "tools:coming_soon.title",
       "tools:fields.name_translator",
       "tools:fields.text_translator",
-      "tools:fields.audio_transcriber",
-      "tools:fields.speech_synthesizer",
-      "tools:fields.realtime_captions",
-      "tools:fields.realtime_voice",
     ],
   },
   {
@@ -135,13 +106,8 @@ export const I18N_USAGE_MANIFEST = [
       "tools:field_desc.subtitle_formatter",
       "tools:field_desc.subtitle_language_extractor",
       "tools:field_desc.local_subtitle_transcriber",
-      "tools:coming_soon.music_desc",
       "tools:field_desc.name_translator",
       "tools:field_desc.text_translator",
-      "tools:field_desc.audio_transcriber",
-      "tools:field_desc.speech_synthesizer",
-      "tools:field_desc.realtime_captions",
-      "tools:field_desc.realtime_voice",
     ],
   },
   {
@@ -153,14 +119,6 @@ export const I18N_USAGE_MANIFEST = [
       "tools:chips.name_translator_safe",
       "tools:chips.text_translator_txt",
       "tools:chips.text_translator_markdown",
-      "tools:chips.audio_file",
-      "tools:chips.openai_mimo",
-      "tools:chips.tts_stream",
-      "tools:chips.mimo_voice",
-      "tools:chips.microphone",
-      "tools:chips.realtime",
-      "tools:chips.webrtc",
-      "tools:chips.duplex",
     ],
   },
   {
@@ -176,10 +134,6 @@ export const I18N_USAGE_MANIFEST = [
       "common:menu.subtitle.extractor",
       "common:menu.rename.name_translator",
       "common:menu.text.translator",
-      "common:menu.audio.transcriber",
-      "common:menu.audio.speech_synthesis",
-      "common:menu.audio.realtime_captions",
-      "common:menu.audio.realtime_voice",
     ],
   },
   {
@@ -193,81 +147,5 @@ export const I18N_USAGE_MANIFEST = [
   {
     selector: "src/pages/Tools/Text/TextTranslator/index.tsx#language.labelKey",
     keys: SUBTITLE_LANGUAGE_KEYS,
-  },
-  {
-    selector: "src/pages/Tools/Audio/shared/AudioToolShell.tsx#titleKey",
-    keys: [
-      "audio:pages.transcriber.title",
-      "audio:pages.speech.title",
-      "audio:pages.captions.title",
-      "audio:pages.voice.title",
-    ],
-  },
-  {
-    selector: "src/pages/Tools/Audio/shared/AudioToolShell.tsx#descriptionKey",
-    keys: [
-      "audio:pages.transcriber.description",
-      "audio:pages.speech.description",
-      "audio:pages.captions.description",
-      "audio:pages.voice.description",
-    ],
-  },
-  {
-    selector: "src/pages/Tools/Audio/shared/AudioToolShell.tsx#workspaceTitleKey",
-    keys: [
-      "audio:pages.transcriber.workspace",
-      "audio:pages.speech.workspace",
-      "audio:pages.captions.workspace",
-      "audio:pages.voice.workspace",
-    ],
-  },
-  {
-    selector:
-      "src/pages/Tools/Audio/AudioTranscriber/index.tsx#`audio:transcriber.languages.${language}`",
-    keys: [
-      "audio:transcriber.languages.auto",
-      "audio:transcriber.languages.zh",
-      "audio:transcriber.languages.en",
-      "audio:transcriber.languages.ja",
-      "audio:transcriber.languages.ko",
-      "audio:transcriber.languages.fr",
-      "audio:transcriber.languages.de",
-      "audio:transcriber.languages.es",
-    ],
-  },
-  {
-    selector: "src/pages/Tools/Audio/AudioTranscriber/index.tsx#submitIssueKey",
-    keys: AUDIO_TRANSCRIBER_SUBMIT_KEYS,
-  },
-  {
-    selector: "src/pages/Tools/Audio/AudioTranscriber/index.tsx#issueKey",
-    keys: AUDIO_TRANSCRIBER_SUBMIT_KEYS,
-  },
-  {
-    selector: "src/pages/Tools/Audio/AudioTranscriber/index.tsx#finalIssueKey",
-    keys: AUDIO_TRANSCRIBER_SUBMIT_KEYS,
-  },
-  {
-    selector:
-      "src/pages/Tools/Audio/AudioTranscriber/index.tsx#`audio:transcriber.status.${status}`",
-    keys: [
-      "audio:transcriber.status.idle",
-      "audio:transcriber.status.running",
-      "audio:transcriber.status.completed",
-      "audio:transcriber.status.failed",
-      "audio:transcriber.status.cancelled",
-    ],
-  },
-  {
-    selector:
-      "src/pages/Tools/Audio/SpeechSynthesizer/index.tsx#`audio:speech.status.${status}`",
-    keys: [
-      "audio:speech.status.idle",
-      "audio:speech.status.running",
-      "audio:speech.status.streaming",
-      "audio:speech.status.completed",
-      "audio:speech.status.failed",
-      "audio:speech.status.cancelled",
-    ],
   },
 ];

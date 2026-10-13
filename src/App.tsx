@@ -21,10 +21,6 @@ import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageEx
 import LocalSubtitleTranscriber from "./pages/Tools/Subtitle/LocalSubtitleTranscriber";
 import NameTranslator from "./pages/Tools/Rename/NameTranslator";
 import TextTranslator from "./pages/Tools/Text/TextTranslator";
-import AudioTranscriber from "./pages/Tools/Audio/AudioTranscriber";
-import SpeechSynthesizer from "./pages/Tools/Audio/SpeechSynthesizer";
-import RealtimeCaptions from "./pages/Tools/Audio/RealtimeCaptions";
-import RealtimeVoice from "./pages/Tools/Audio/RealtimeVoice";
 import { Toaster } from "@/components/ui/sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Update from "@/components/update";
@@ -150,22 +146,6 @@ function App() {
                 <Route
                   path="/tools/text/translator"
                   element={<TextTranslator />}
-                />
-                <Route
-                  path="/tools/audio/transcriber"
-                  element={<AudioTranscriber />}
-                />
-                <Route
-                  path="/tools/audio/speech-synthesis"
-                  element={<SpeechSynthesizer />}
-                />
-                <Route
-                  path="/tools/audio/realtime-captions"
-                  element={<RealtimeCaptions />}
-                />
-                <Route
-                  path="/tools/audio/realtime-voice"
-                  element={<RealtimeVoice />}
                 />
               </Routes>
               </ToolFileDropScope>

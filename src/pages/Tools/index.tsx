@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ArrowRight, BookOpenText, Sparkles } from "lucide-react";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
-import { cn } from "@/lib/utils";
 import ToolBadge from "./_shared/ToolBadge";
 import { TOOL_META, type ToolKey, toneCss } from "./_shared/toolMeta";
 import { FeaturedToolArtwork } from "./FeaturedToolArtwork";
@@ -59,53 +58,12 @@ const CLASSIC_TOOLS: CardItem[] = [
 
 const EXPERIMENTAL_TOOLS: CardItem[] = [
   {
-    id: "music",
-    titleKey: "tools:coming_soon.title",
-    descKey: "tools:coming_soon.music_desc",
-  },
-  {
     id: "textTranslator",
     titleKey: "tools:fields.text_translator",
     descKey: "tools:field_desc.text_translator",
     chipKeys: [
       "tools:chips.text_translator_txt",
       "tools:chips.text_translator_markdown",
-    ],
-  },
-  {
-    id: "audioTranscriber",
-    titleKey: "tools:fields.audio_transcriber",
-    descKey: "tools:field_desc.audio_transcriber",
-    chipKeys: [
-      "tools:chips.audio_file",
-      "tools:chips.openai_mimo",
-    ],
-  },
-  {
-    id: "speechSynthesizer",
-    titleKey: "tools:fields.speech_synthesizer",
-    descKey: "tools:field_desc.speech_synthesizer",
-    chipKeys: [
-      "tools:chips.tts_stream",
-      "tools:chips.mimo_voice",
-    ],
-  },
-  {
-    id: "realtimeCaptions",
-    titleKey: "tools:fields.realtime_captions",
-    descKey: "tools:field_desc.realtime_captions",
-    chipKeys: [
-      "tools:chips.microphone",
-      "tools:chips.realtime",
-    ],
-  },
-  {
-    id: "realtimeVoice",
-    titleKey: "tools:fields.realtime_voice",
-    descKey: "tools:field_desc.realtime_voice",
-    chipKeys: [
-      "tools:chips.webrtc",
-      "tools:chips.duplex",
     ],
   },
 ];
@@ -212,33 +170,25 @@ const Tools: React.FC = () => {
 function ToolCard({ item }: { item: CardItem }) {
   const { t } = useTranslation();
   const meta = TOOL_META[item.id];
-  const isSoon = meta.status === "soon";
   const tone = toneCss(meta);
-  const title = item.id === "music" ? t("tools:subtitle.music_tools") : t(item.titleKey);
-  const content = <>
-    <ToolBadge icon={meta.icon} tone={tone} size={44} />
-    <div className="min-w-0 flex-1">
-      <div className="flex items-start justify-between gap-2">
-        <h3 id={`tool-title-${item.id}`} className="text-sm font-semibold leading-6">{title}</h3>
-        {!isSoon && <ArrowRight aria-hidden="true" className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" />}
-      </div>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">{t(item.descKey)}</p>
-      {isSoon ? <span className="tool-coming-soon mt-3 inline-flex rounded-md border px-2 py-1 text-[11px] text-muted-foreground">{t("tools:coming_soon.title")}</span> :
+  return <SmoothCorners asChild radius={16} smoothing={0.72}>
+    <Link data-tool-card={item.id} className="catalog-tool-card group flex items-start gap-4 border bg-card p-4" style={{ "--tool-tone": tone } as React.CSSProperties}
+      to={meta.route!} aria-labelledby={`tool-title-${item.id}`}>
+      <ToolBadge icon={meta.icon} tone={tone} size={44} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <h3 id={`tool-title-${item.id}`} className="text-sm font-semibold leading-6">{t(item.titleKey)}</h3>
+          <ArrowRight aria-hidden="true" className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" />
+        </div>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{t(item.descKey)}</p>
         <div data-slot="tool-card-chips" className="mt-3 flex flex-wrap gap-1.5">
           {(item.chipKeys ?? item.chips ?? []).map(chip => <span key={chip} className="tool-chip">
             <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full" style={{ background: tone }} />
             {item.chipKeys ? t(chip) : chip}
           </span>)}
-        </div>}
-    </div>
-  </>;
-  const props = {
-    "data-tool-card": item.id,
-    className: cn("catalog-tool-card group flex items-start gap-4 border bg-card p-4", isSoon && "catalog-tool-card--soon"),
-    style: { "--tool-tone": tone } as React.CSSProperties,
-  };
-  return <SmoothCorners asChild radius={16} smoothing={0.72}>
-    {isSoon ? <div {...props}>{content}</div> : <Link {...props} to={meta.route!} aria-labelledby={`tool-title-${item.id}`}>{content}</Link>}
+        </div>
+      </div>
+    </Link>
   </SmoothCorners>;
 }
 

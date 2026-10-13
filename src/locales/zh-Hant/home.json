@@ -5,8 +5,6 @@
   "subtitle_tool_description": "AI 翻譯、格式轉換等字幕處理功能。",
   "rename_tool_title": "檔案批次重新命名",
   "rename_tool_description": "輕鬆批次重新命名多個檔案。",
-  "music_tool_title": "付費音樂解密",
-  "music_tool_description": "將付費音樂轉換為 FLAC/MP3 格式。",
   "cross_platform_title": "跨平台支援",
   "cross_platform_description": "基於 Electron 建構，支援 Windows、macOS 和 Linux，提供一致的原生體驗。",
   "get_started": "開始使用",

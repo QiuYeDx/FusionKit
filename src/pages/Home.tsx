@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Subtitles,
   FileText,
-  Music,
   Monitor,
   Rocket,
   ChevronRight,
@@ -105,28 +104,6 @@ const Home: React.FC = () => {
                 </div>
               </div>
 
-              {/* 音乐解密 */}
-              <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200"
-                onClick={() => navigate("/tools")}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex flex-col gap-2">
-                    <div className="rounded-md bg-primary/10 w-10 h-10 flex items-center justify-center text-primary">
-                      <Music className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-base mb-1">
-                        {t("home:music_tool_title")}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {t("home:music_tool_description")}
-                      </p>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:translate-x-1 transition-transform mt-2" />
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>

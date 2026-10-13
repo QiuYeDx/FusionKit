@@ -26,13 +26,11 @@ const localStorageItems = vi.hoisted(() => {
 
 import {
   migrateLegacyModelStorage,
-  migrateModelConfigToV4,
   migrateModelProfilesToV3,
   normalizeModelProfileForRuntime,
   type LegacyModelStorage,
 } from "./useModelStore";
 import useModelStore from "./useModelStore";
-import { DEFAULT_AUDIO_MODEL_ASSIGNMENT } from "@/type/audio";
 import { Model, type ModelProfile } from "@/type/model";
 
 describe("model store profile migration", () => {
@@ -100,8 +98,8 @@ describe("model store profile migration", () => {
     });
   });
 
-  it("adds empty audio config when migrating text-only v3 state to v4", () => {
-    const migrated = migrateModelConfigToV4({
+  it("drops the old audio settings backup when migrating v5 state", () => {
+    const migrated = useModelStore.persist.getOptions().migrate!({
       profiles: [
         {
           id: "profile_openai",
@@ -110,213 +108,33 @@ describe("model store profile migration", () => {
           apiKey: "sk-old",
           baseUrl: "https://api.openai.com/v1",
           modelKey: "gpt-5",
-          tokenPricing: {
-            inputTokensPerMillion: 1,
-            outputTokensPerMillion: 2,
-          },
+          tokenPricing: { inputTokensPerMillion: 1, outputTokensPerMillion: 2 },
           apiFormat: "responses",
         },
       ],
-      assignment: {
-        agent: "profile_openai",
-        taskExecution: "profile_openai",
-      },
-    });
+      assignment: { agent: "profile_openai", taskExecution: null },
+      audioProfiles: [{ id: "audio_openai", connectionProfileId: "profile_openai" }],
+      audioAssignment: { transcription: "audio_openai" },
+    }, 5) as Record<string, unknown>;
 
-    expect(migrated.profiles).toHaveLength(1);
-    expect(migrated.audioProfiles).toEqual([]);
-    expect(migrated.audioAssignment).toEqual(DEFAULT_AUDIO_MODEL_ASSIGNMENT);
+    expect(Object.keys(migrated).sort()).toEqual(["assignment", "profiles"]);
+    expect(migrated.assignment).toEqual({ agent: "profile_openai", taskExecution: null });
   });
 
-  it("keeps legacy audio backups when their text connection is missing", () => {
-    const migrated = migrateModelConfigToV4({
-      profiles: [
-        {
-          id: "profile_openai",
-          name: "OpenAI",
-          provider: Model.OpenAI,
-          apiKey: "sk-old",
-          baseUrl: "https://api.openai.com/v1",
-          modelKey: "gpt-5",
-          tokenPricing: {
-            inputTokensPerMillion: 1,
-            outputTokensPerMillion: 2,
-          },
-          apiFormat: "responses",
-        },
-      ],
-      audioProfiles: [
-        {
-          id: "audio_openai",
-          name: "OpenAI Audio",
-          connectionProfileId: "profile_openai",
-          audioDialect: "openai_audio",
-          capabilities: [],
-          models: {
-            transcription: "gpt-4o-transcribe",
-            speechSynthesis: "gpt-4o-mini-tts",
-          },
-          defaults: {},
-        },
-        {
-          id: "audio_stale",
-          name: "Stale Audio",
-          connectionProfileId: "profile_deleted",
-          audioDialect: "openai_audio",
-          capabilities: [],
-          models: {
-            speechSynthesis: "gpt-4o-mini-tts",
-          },
-          defaults: {},
-        },
-      ],
-      audioAssignment: {
-        transcription: "audio_openai",
-        speechSynthesis: "audio_stale",
-        realtimeCaptions: "audio_missing",
-        realtimeVoice: null,
-      },
-    });
-
-    expect(migrated.audioProfiles.map((profile) => profile.id)).toEqual([
-      "audio_openai",
-      "audio_stale",
-    ]);
-    expect(migrated.audioAssignment).toEqual({
-      transcription: "audio_openai",
-      speechSynthesis: "audio_stale",
-      realtimeCaptions: null,
-      realtimeVoice: null,
-    });
-  });
-
-  it("does not expose the legacy audio facade through the model store", () => {
-    useModelStore.setState({
-      audioProfiles: [
-        {
-          id: "audio_speech",
-          name: "Speech",
-          connectionProfileId: "profile_missing",
-          audioDialect: "openai_audio",
-          capabilities: ["speech_synthesis"],
-          models: {
-            speechSynthesis: "gpt-4o-mini-tts",
-          },
-          defaults: {},
-        },
-      ],
-      audioAssignment: {
-        ...DEFAULT_AUDIO_MODEL_ASSIGNMENT,
-        speechSynthesis: "audio_speech",
-      },
-    });
-
-    const state = useModelStore.getState() as unknown as Record<string, unknown>;
-    for (const key of [
-      "addAudioProfile",
-      "updateAudioProfile",
-      "removeAudioProfile",
-      "getAudioProfileById",
-      "setAudioAssignment",
-      "getAudioProfileForAssignment",
-      "getAudioRuntimeConfigForAssignment",
-      "isConnectionProfileReferencedByAudioProfile",
-    ]) {
-      expect(state).not.toHaveProperty(key);
-    }
-  });
-
-  it("keeps text CRUD isolated from standalone audio settings", () => {
-    const legacyAudioProfile = {
-      id: "audio_backup",
-      name: "Legacy audio backup",
-      connectionProfileId: "profile_connection",
-      audioDialect: "openai_audio" as const,
-      capabilities: ["speech_synthesis" as const],
-      models: { speechSynthesis: "gpt-4o-mini-tts" },
-      defaults: {},
-    };
-    useModelStore.setState({
-      profiles: [
-        {
-          id: "profile_connection",
-          name: "Connection",
-          provider: Model.OpenAI,
-          apiKey: "connection-key",
-          baseUrl: "https://api.openai.com/v1",
-          modelKey: "gpt-5",
-          tokenPricing: {
-            inputTokensPerMillion: 1,
-            outputTokensPerMillion: 2,
-          },
-          apiFormat: "responses",
-        },
-      ],
-      assignment: { agent: null, taskExecution: null },
-      audioProfiles: [legacyAudioProfile],
-      audioAssignment: {
-        ...DEFAULT_AUDIO_MODEL_ASSIGNMENT,
-        speechSynthesis: legacyAudioProfile.id,
-      },
-    });
-    const standaloneAudioRaw = JSON.stringify({
-      version: 1,
-      state: {
-        profiles: [],
-        assignment: {
-          transcription: null,
-          speechSynthesis: null,
-          realtimeCaptions: null,
-          realtimeVoice: null,
-        },
-        migration: {
-          legacyModelStore: { status: "completed", sourceVersion: 5 },
-        },
-      },
-    });
-    localStorage.setItem("fusionkit-audio-settings", standaloneAudioRaw);
-
+  it("removes a text model connection and clears its assignments", () => {
     const profileId = useModelStore.getState().addProfile({
       name: "Temporary text model",
       provider: Model.OpenAI,
       apiKey: "text-key",
       baseUrl: "https://api.openai.com/v1",
       modelKey: "gpt-5-mini",
-      tokenPricing: {
-        inputTokensPerMillion: 1,
-        outputTokensPerMillion: 2,
-      },
+      tokenPricing: { inputTokensPerMillion: 1, outputTokensPerMillion: 2 },
     });
-    useModelStore.getState().updateProfile(profileId, { name: "Updated" });
     useModelStore.getState().setAssignment("agent", profileId);
     expect(useModelStore.getState().removeProfile(profileId)).toBe(true);
-
-    expect(useModelStore.getState().profiles).toHaveLength(1);
-    expect(useModelStore.getState().profiles[0].id).toBe("profile_connection");
-    expect(useModelStore.getState().assignment).toEqual({
-      agent: null,
-      taskExecution: null,
-    });
-    expect(useModelStore.getState().audioProfiles).toEqual([legacyAudioProfile]);
-    expect(useModelStore.getState().audioAssignment.speechSynthesis).toBe(
-      legacyAudioProfile.id,
-    );
-
-    expect(localStorage.getItem("fusionkit-audio-settings")).toBe(
-      standaloneAudioRaw,
-    );
-    const modelEnvelope = JSON.parse(
-      localStorage.getItem("fusionkit-model")!,
-    ) as {
-      state: {
-        audioProfiles: unknown[];
-        audioAssignment: Record<string, string | null>;
-      };
-    };
-    expect(modelEnvelope.state.audioProfiles).toEqual([legacyAudioProfile]);
-    expect(modelEnvelope.state.audioAssignment.speechSynthesis).toBe(
-      legacyAudioProfile.id,
-    );
+    expect(useModelStore.getState().profiles.some((profile) => profile.id === profileId)).toBe(false);
+    expect(useModelStore.getState().assignment.agent).toBeNull();
+    expect(useModelStore.getState().removeProfile(profileId)).toBe(false);
   });
 
   it("removes legacy model storage only after an exact verified write", () => {
@@ -329,7 +147,7 @@ describe("model store profile migration", () => {
     const target = storage.getItem("fusionkit-model");
     expect(target).not.toBeNull();
     expect(JSON.parse(target!)).toMatchObject({
-      version: 5,
+      version: 6,
       state: { profiles: [{ id: "profile_legacy" }] },
     });
   });

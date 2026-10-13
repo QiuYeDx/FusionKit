@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  AudioLines,
   Bot,
   Settings as SettingsIcon,
   Globe,
@@ -10,18 +9,16 @@ import {
   LucideIcon,
   Plug,
 } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import GeneralConfig from "./components/GeneralConfig";
 import ModelConfig from "./components/ModelConfig";
 import ProxyConfig from "./components/ProxyConfig";
-import AudioApiConfig from "./components/AudioApiConfig";
 import AgentConfig from "./components/AgentConfig";
 import ExternalAgentConfig from "./components/ExternalAgentConfig";
 import {
   createSettingSearchParams,
-  resolveAudioSettingsReturnTo,
   resolveSettingTab,
   type SettingTabKey,
 } from "./settingNavigation";
@@ -37,7 +34,6 @@ const NAV: NavItem[] = [
   { key: "general", labelKey: "setting:nav.general.label", hintKey: "setting:nav.general.hint", icon: SettingsIcon },
   { key: "proxy",   labelKey: "setting:nav.proxy.label",   hintKey: "setting:nav.proxy.hint",   icon: Globe },
   { key: "model",   labelKey: "setting:nav.model.label",   hintKey: "setting:nav.model.hint",   icon: Cpu },
-  { key: "audio",   labelKey: "setting:nav.audio.label",   hintKey: "setting:nav.audio.hint",   icon: AudioLines },
   { key: "agent",   labelKey: "setting:nav.agent.label",   hintKey: "setting:nav.agent.hint",   icon: Bot },
   { key: "external", labelKey: "setting:nav.external.label", hintKey: "setting:nav.external.hint", icon: Plug },
 ];
@@ -60,10 +56,8 @@ const contentVariants = {
 
 const Setting: React.FC = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = resolveSettingTab(searchParams.get("tab"));
-  const returnTo = resolveAudioSettingsReturnTo(searchParams.get("returnTo"));
   const previousTabRef = useRef<SettingTabKey>(tab);
   const directionRef = useRef(0);
 
@@ -213,15 +207,6 @@ const Setting: React.FC = () => {
                 {tab === "model" && <ModelConfig />}
                 {tab === "agent" && <AgentConfig />}
                 {tab === "external" && <ExternalAgentConfig />}
-                {tab === "audio" && (
-                  <AudioApiConfig
-                    returnTo={returnTo}
-                    onReturn={returnTo
-                      ? () => navigate(returnTo, { replace: true })
-                      : undefined}
-                    onNavigateProxy={() => handleTabChange("proxy")}
-                  />
-                )}
               </motion.div>
             </AnimatePresence>
           </ScrollArea>

@@ -7,7 +7,6 @@ import path from 'node:path';
 const routes = [
   'subtitle/studio', 'subtitle/translator', 'subtitle/converter', 'subtitle/extractor',
   'subtitle/local-transcriber', 'text/translator', 'rename/name-translator',
-  'audio/transcriber', 'audio/speech-synthesis', 'audio/realtime-captions', 'audio/realtime-voice',
 ];
 
 describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool page spacing in Electron', () => {
@@ -30,16 +29,6 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool page spacing in 
       for (const tool of ['subtitle-translator', 'subtitle-converter', 'subtitle-extractor', 'local-subtitle-transcriber', 'name-translator']) {
         localStorage.setItem(`${tool}-tour-done`, '1');
       }
-      localStorage.setItem('fusionkit-audio-settings', JSON.stringify({ version: 1, state: {
-        profiles: [{ id: 'spacing-qa', name: 'Audio workspace', providerPreset: 'openai', baseUrl: 'http://127.0.0.1:9', apiKey: 'spacing-qa', routes: {
-          transcription: { transport: 'openai_audio', model: 'gpt-4o-transcribe', enabled: true },
-          speechSynthesis: { preset_voice: { transport: 'openai_audio', model: 'gpt-4o-mini-tts', enabled: true } },
-          realtimeCaptions: { transport: 'openai_realtime', model: 'gpt-realtime-whisper', enabled: true },
-          realtimeVoice: { transport: 'openai_realtime', model: 'gpt-realtime', enabled: true },
-        } }],
-        assignment: { transcription: 'spacing-qa', speechSynthesis: 'spacing-qa', realtimeCaptions: 'spacing-qa', realtimeVoice: 'spacing-qa' },
-        migration: { legacyModelStore: { status: 'not_needed' } },
-      } }));
     });
     const window = await app.browserWindow(page);
     for (const [theme, language] of [['light', 'zh'], ['dark', 'en']]) {
@@ -70,10 +59,6 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool page spacing in 
             expect(inset.padding, `${label} ${inset.slot}`).toEqual(compact ? ['8px', '12px', '8px', '12px'] : ['12px', '12px', '12px', '12px']);
           }
           expect(await page.locator('[data-slot=tool-detail-layout], [data-slot=tool-detail-layout] main, [data-slot=tool-file-picker], [data-slot=tool-panel-header]').evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1)), label).toBe(true);
-          if (route.startsWith('audio/')) {
-            const workspace = { 'audio/transcriber': 'transcriber-workspace', 'audio/speech-synthesis': 'speech-generate', 'audio/realtime-captions': 'captions-workspace', 'audio/realtime-voice': 'voice-workspace' }[route]!;
-            await uiExpect(page.getByTestId(workspace)).toBeVisible();
-          }
           if (width < 1024) {
             await page.locator('[data-slot=tool-detail-layout] main').evaluate(element => {
               const workspace = element.querySelector('[data-slot=tool-panel]') ?? element;

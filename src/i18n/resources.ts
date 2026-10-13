@@ -21,7 +21,6 @@ import enSubtitle from "@/locales/en/subtitle.json";
 import enTools from "@/locales/en/tools.json";
 import enRename from "@/locales/en/rename.json";
 import enText from "@/locales/en/text.json";
-import enAudio from "@/locales/en/audio.json";
 
 import jaAbout from "@/locales/ja/about.json";
 import jaCommon from "@/locales/ja/common.json";
@@ -31,7 +30,6 @@ import jaSubtitle from "@/locales/ja/subtitle.json";
 import jaTools from "@/locales/ja/tools.json";
 import jaRename from "@/locales/ja/rename.json";
 import jaText from "@/locales/ja/text.json";
-import jaAudio from "@/locales/ja/audio.json";
 
 import zhAbout from "@/locales/zh/about.json";
 import zhCommon from "@/locales/zh/common.json";
@@ -41,7 +39,6 @@ import zhSubtitle from "@/locales/zh/subtitle.json";
 import zhTools from "@/locales/zh/tools.json";
 import zhRename from "@/locales/zh/rename.json";
 import zhText from "@/locales/zh/text.json";
-import zhAudio from "@/locales/zh/audio.json";
 
 import zhHantAbout from "@/locales/zh-Hant/about.json";
 import zhHantCommon from "@/locales/zh-Hant/common.json";
@@ -51,7 +48,6 @@ import zhHantSubtitle from "@/locales/zh-Hant/subtitle.json";
 import zhHantTools from "@/locales/zh-Hant/tools.json";
 import zhHantRename from "@/locales/zh-Hant/rename.json";
 import zhHantText from "@/locales/zh-Hant/text.json";
-import zhHantAudio from "@/locales/zh-Hant/audio.json";
 
 export const resources: Resource = {
   [LangEnum.EN]: {
@@ -66,7 +62,6 @@ export const resources: Resource = {
     subtitle: enSubtitle,
     rename: enRename,
     text: enText,
-    audio: enAudio,
   },
   [LangEnum.JA]: {
     materials: jaMaterials,
@@ -80,7 +75,6 @@ export const resources: Resource = {
     subtitle: jaSubtitle,
     rename: jaRename,
     text: jaText,
-    audio: jaAudio,
   },
   [LangEnum.ZH]: {
     materials: zhMaterials,
@@ -94,7 +88,6 @@ export const resources: Resource = {
     subtitle: zhSubtitle,
     rename: zhRename,
     text: zhText,
-    audio: zhAudio,
   },
   [LangEnum.ZH_HANT]: {
     materials: zhHantMaterials,
@@ -108,6 +101,5 @@ export const resources: Resource = {
     subtitle: zhHantSubtitle,
     rename: zhHantRename,
     text: zhHantText,
-    audio: zhHantAudio,
   },
 };

@@ -137,11 +137,6 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool file drop surfac
         localStorage.setItem(`${tool}-tour-done`, '1');
       }
       localStorage.setItem('fusionkit-subtitle-converter', JSON.stringify({ version: 1, state: { outputMode: 'source' } }));
-      localStorage.setItem('fusionkit-audio-settings', JSON.stringify({ version: 1, state: {
-        profiles: [{ id: 'drop-qa', name: 'Audio workspace', providerPreset: 'openai', baseUrl: 'http://127.0.0.1:9', apiKey: 'drop-qa', routes: {
-          transcription: { transport: 'openai_audio', model: 'gpt-4o-transcribe', enabled: true },
-        } }], assignment: { transcription: 'drop-qa' }, migration: { legacyModelStore: { status: 'not_needed' } },
-      } }));
       location.hash = '/tools/subtitle/converter';
     });
     await page.reload(); await ready(page);
@@ -232,7 +227,7 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool file drop surfac
     // themes and actual Electron window sizes, even when the picker is offscreen.
     const samples = [
       ['subtitle/converter', files[0]], ['text/translator', textFile],
-      ['rename/name-translator', textFile], ['audio/transcriber', mediaFile],
+      ['rename/name-translator', textFile],
     ];
     for (const [theme, width, height] of [['light', 1280, 860], ['dark', 1280, 860], ['dark', 786, 660]] as const) {
       await page.evaluate(theme => localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme }, version: 0 })), theme);

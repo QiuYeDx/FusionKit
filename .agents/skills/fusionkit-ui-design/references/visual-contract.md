@@ -16,7 +16,6 @@
 | 参数 | `ToolRadioButtonGroup.tsx`、`ToolSwitchRow.tsx`、`src/components/ui/select.tsx` | 为了看起来统一而改变控件语义 |
 | 视图切换 | `src/components/qiuye-ui/clip-path-tabs.tsx` | 只 import 正确组件，却沿用默认 pill |
 | 平滑圆角 | `src/components/qiuye-ui/smooth-corners.tsx` | 只凭 Tailwind 类名断定最终圆角可用 |
-| 音频工具 | `src/pages/Tools/Audio/shared/AudioToolShell.tsx` | 工作区叠加独有的 20–24px 外围留白 |
 | 字幕工作台细节 | `src/pages/Tools/Subtitle/SubtitleStudio/StudioControls.tsx`、`studio.css` | 新建文件名/分页控件后丢失既有处理 |
 
 `ToolPanel` 默认正文没有 padding，这是给表格、列表和空状态自行控制的结构，不是缺陷。需要有内边距的表单正文通常用 `bodyClassName="p-3"`；不能直接给所有面板正文全局加 padding。

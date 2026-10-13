@@ -111,11 +111,10 @@
   min-height: 132px;
   transition: border-color 180ms ease, box-shadow 180ms ease;
 }
-.catalog-tool-card:not(.catalog-tool-card--soon):hover {
+.catalog-tool-card:hover {
   border-color: color-mix(in oklab, var(--tool-tone) 40%, var(--border));
   box-shadow: 0 5px 18px -12px color-mix(in oklab, var(--tool-tone) 32%, transparent);
 }
-.catalog-tool-card--soon { background: color-mix(in oklab, var(--muted) 35%, var(--card)); }
 .tool-chip {
   display: inline-flex;
   max-width: 100%;

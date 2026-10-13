@@ -7,7 +7,6 @@ export type ToolKey =
   | 'transcribe'
   | 'rename'
   | 'longText'
-  | 'audio'
 
 type Item = { title: string; body: string }
 
@@ -239,7 +238,6 @@ export const content: Record<Lang, Content> = {
         { key: 'transcribe', title: '本地字幕转写', body: '用本地 Whisper 模型批量把音视频转写为 SRT / LRC，可交接给字幕翻译。' },
         { key: 'rename', title: '文件名 / 文件夹名翻译', body: 'AI 翻译名称，核对后重命名；由深到浅执行，失败自动回滚，完成后可撤销。' },
         { key: 'longText', title: '长文本翻译', beta: 'Beta', body: '面向小说和长文档的 TXT 翻译，支持连贯串行模式、暂停恢复与从指定分片重翻。' },
-        { key: 'audio', title: '音频工具箱', body: '音频转文本、文本转语音、实时字幕与实时双向语音，使用 OpenAI 或 MiMo 的音频接口。' },
       ],
       extrasTitle: '此外',
       extras: ['深色 / 浅色主题', '简繁中文、English、日本語界面', '应用内自动更新', '系统 / 自定义代理', '任务完成通知与防休眠'],
@@ -252,7 +250,6 @@ export const content: Record<Lang, Content> = {
       rows: [
         ['本地转写', '默认离线，媒体与字幕不出本机；仅下载模型资源时访问固定的下载地址'],
         ['AI 翻译、修订与 Agent', '字幕或文本内容发送到你在设置中配置的模型服务'],
-        ['音频工具箱', '音频文件、录音或麦克风内容发送到你选择的音频服务'],
         ['联网查证（默认关闭）', '只发送检索词与网页链接，不发送字幕或翻译资料'],
         ['外部 Agent 接入（默认关闭）', '只监听本机 127.0.0.1 且需要令牌；外部 Agent 读取的字幕由它按自身的模型服务处理'],
         ['检查更新', '访问 GitHub Releases 获取新版本信息'],
@@ -412,7 +409,6 @@ export const content: Record<Lang, Content> = {
         { key: 'transcribe', title: 'Local subtitle transcription', body: 'Batch-transcribes audio and video to SRT / LRC with local Whisper models, ready to hand to translation.' },
         { key: 'rename', title: 'File and folder name translation', body: 'AI-translates names for review before renaming. Runs deepest-first, rolls back on failure and can be undone.' },
         { key: 'longText', title: 'Long text translation', beta: 'Beta', body: 'Translates TXT novels and long documents, with a coherent sequential mode, pause and resume, and partial re-translation.' },
-        { key: 'audio', title: 'Audio toolbox', body: 'Speech to text, text to speech, live captions and real-time voice, using OpenAI or MiMo audio APIs.' },
       ],
       extrasTitle: 'Also included',
       extras: ['Dark and light themes', 'Four interface languages', 'In-app updates', 'System or custom proxy', 'Notifications, no sleep mid-task'],
@@ -425,7 +421,6 @@ export const content: Record<Lang, Content> = {
       rows: [
         ['Local transcription', 'Nothing by default: media and subtitles stay on your device. Only model downloads reach fixed download addresses'],
         ['AI translation, revision and the Agent', 'Subtitle or text content goes to the model service in your settings'],
-        ['Audio toolbox', 'Audio files, recordings or microphone input go to the audio service you choose'],
         ['Web lookup (off by default)', 'Only search terms and page links; never subtitles or translation materials'],
         ['External agents (off by default)', 'Listens on 127.0.0.1 only and requires a token; subtitles an external agent reads are handled by that agent’s own model service'],
         ['Update checks', 'GitHub Releases, for new version information'],

@@ -3,20 +3,16 @@
   "file_drop": {
     "release": "松开即可导入文件"
   },
-  "description": "探索我们提供的多种实用工具，涵盖字幕处理、音乐编辑和文件重命名等功能，助您高效完成任务。",
+  "description": "探索我们提供的多种实用工具，涵盖字幕处理、文本翻译和文件重命名等功能，助您高效完成任务。",
   "subtitle": {
     "subtitle_tools": "字幕工具箱",
-    "music_tools": "音乐工具箱",
     "rename_tools": "重命名工具箱",
-    "text_tools": "文本工具箱",
-    "audio_tools": "音频工具箱"
+    "text_tools": "文本工具箱"
   },
   "sub_desc": {
     "subtitle_tools": "AI 翻译、格式转换等字幕处理功能。",
-    "music_tools": "将付费音乐转换为 FLAC/MP3 格式。",
     "rename_tools": "轻松批量重命名多个文件。",
-    "text_tools": "长文本 TXT / Markdown 翻译工作区。",
-    "audio_tools": "ASR、TTS、实时字幕与双向语音工作区。"
+    "text_tools": "长文本 TXT / Markdown 翻译工作区。"
   },
   "fields": {
     "subtitle_translator": "字幕AI翻译",
@@ -24,11 +20,7 @@
     "subtitle_language_extractor": "字幕语言提取",
     "local_subtitle_transcriber": "本地字幕转写",
     "name_translator": "文件名/文件夹名翻译",
-    "text_translator": "长文本翻译",
-    "audio_transcriber": "音频转文本",
-    "speech_synthesizer": "文本转音频",
-    "realtime_captions": "实时字幕",
-    "realtime_voice": "双向语音"
+    "text_translator": "长文本翻译"
   },
   "field_desc": {
     "subtitle_translator": "使用AI模型翻译字幕文件",
@@ -37,10 +29,6 @@
     "local_subtitle_transcriber": "使用本地模型批量将音视频转写为 SRT / LRC 字幕",
     "name_translator": "勾选文件和文件夹（含子项），AI 翻译名称，核对修改后一键重命名，支持撤销",
     "text_translator": "通过任务模型翻译长篇 TXT / Markdown 文件，并保留可恢复工作区",
-    "audio_transcriber": "用全局 ASR 配置转写本地音频文件",
-    "speech_synthesizer": "用全局 TTS 配置生成并播放语音音频",
-    "realtime_captions": "使用麦克风输入生成实时或近实时字幕",
-    "realtime_voice": "通过 Realtime/WebRTC 建立双向语音会话",
     "subtitle_studio": "本地转写音视频、AI 翻译字幕，批量导出双语文件"
   },
   "chips": {
@@ -48,24 +36,11 @@
     "name_translator_safe": "核对 · 可撤销",
     "text_translator_txt": "TXT",
     "text_translator_markdown": "Markdown",
-    "audio_file": "音频文件",
-    "openai_mimo": "OpenAI · MiMo",
-    "tts_stream": "流式 TTS",
-    "mimo_voice": "MiMo 音色",
-    "microphone": "麦克风",
-    "realtime": "实时",
-    "webrtc": "WebRTC",
-    "duplex": "双向语音",
     "local_offline": "离线转写",
     "local_batch_formats": "批量 · SRT/LRC",
     "studio_transcription": "本地转写",
     "studio_translation": "AI 翻译",
     "studio_formats": "SRT · VTT · ASS · SSA · SBV · LRC"
-  },
-  "coming_soon": {
-    "title": "敬请期待",
-    "music_desc": "更多音乐工具即将推出",
-    "rename_desc": "批量重命名工具即将推出"
   },
   "catalog": {
     "intro": "让灵感更自由，用好工具，完成更好的作品。",
@@ -90,6 +65,6 @@
     "classic": "经典工具",
     "classic_description": "成熟可用的独立工具，按需处理字幕。",
     "experimental": "实验性工具",
-    "experimental_description": "以下工具仍处于 Beta 阶段，功能与体验尚在打磨，暂不推荐用于正式任务。建议优先使用上方工具。"
+    "experimental_description": "该工具仍处于 Beta 阶段，功能与体验尚在打磨，暂不推荐用于正式任务。建议优先使用上方工具。"
   }
 }

@@ -10,8 +10,6 @@
     "proxy_config": "Proxy Settings",
     "model_assignment": "Model Assignment",
     "model_profiles": "Model Profiles",
-    "audio_assignment": "Audio Task Assignment",
-    "audio_apis": "Audio APIs",
     "agent_config": "Agent settings"
   },
   "nav": {
@@ -26,10 +24,6 @@
     "model": {
       "label": "AI Model",
       "hint": "Text · Agent · Assignment"
-    },
-    "audio": {
-      "label": "Audio",
-      "hint": "APIs · Routes · Assignment"
     },
     "agent": {
       "label": "Agent",
@@ -153,121 +147,6 @@
       "cancel": "Cancel",
       "create": "Create",
       "save": "Save"
-    },
-    "audio": {
-      "assignment": {
-        "description": "Choose the default audio API for each audio task. This section assigns connections only; language, voice, and output preferences stay in the tools.",
-        "transcription": "Audio to text",
-        "speechSynthesis": "Text to audio",
-        "realtimeCaptions": "Realtime captions",
-        "realtimeVoice": "Duplex voice",
-        "not_configured": "Not configured",
-        "no_compatible_api": "No audio API supports this task yet.",
-        "unsupported_select": "This audio profile does not support the selected task or is missing the required model."
-      },
-      "provider": {
-        "openai": "OpenAI",
-        "openai_hint": "File audio and Realtime",
-        "mimo": "MiMo",
-        "mimo_hint": "ASR and three speech modes",
-        "custom_openai_compatible": "Custom compatible API",
-        "custom_openai_compatible_hint": "Configure task routes manually"
-      },
-      "api": {
-        "description": "Manage audio credentials, endpoints, and task routes independently from text model profiles.",
-        "add": "Add audio API",
-        "empty": "No audio APIs",
-        "empty_description": "Add an OpenAI, MiMo, or compatible service connection to assign audio tasks.",
-        "add_first": "Add your first audio API",
-        "in_use": "In use",
-        "edit": "Edit audio API",
-        "delete": "Delete audio API",
-        "assigned_to": "Used by: {{tasks}}",
-        "migration_needs_attention": "Needs configuration",
-        "base_url_missing": "Base URL not configured",
-        "no_routes": "No usable task routes configured",
-        "dialog_title_add": "Add Audio API",
-        "dialog_title_edit": "Edit Audio API",
-        "dialog_description": "Configure the audio service connection and available task routes.",
-        "service_section": "Service",
-        "connection_section": "Connection",
-        "capabilities_section": "Task routes",
-        "name": "Configuration name",
-        "name_placeholder": "e.g. Team MiMo Audio",
-        "base_url": "Base URL",
-        "base_url_placeholder": "e.g. https://api.example.com/v1",
-        "api_key": "API Key",
-        "api_key_placeholder": "Enter the audio service API key",
-        "proxy_summary": "Global proxy",
-        "open_proxy_settings": "Open proxy settings",
-        "advanced_routes_hint": "Enable the tasks you need and enter the corresponding model ID.",
-        "mimo_modes_ready": "{{count}} speech synthesis routes are ready.",
-        "leave_dialog_title": "Leave this edit?",
-        "leave_dialog_description": "Unsaved audio API changes will be discarded.",
-        "default_name": {
-          "openai": "OpenAI Audio",
-          "mimo": "MiMo Audio",
-          "custom_openai_compatible": "Compatible Audio API"
-        },
-        "errors": {
-          "name_required": "Enter a configuration name.",
-          "base_url_required": "Enter a Base URL.",
-          "base_url_invalid": "Enter a valid HTTP or HTTPS Base URL.",
-          "api_key_required": "Enter an API key.",
-          "route_required": "Configure at least one task route.",
-          "route_model_required": "Enter a model ID for this route.",
-          "route_transport_invalid": "This route is incompatible with the selected service."
-        }
-      },
-      "route": {
-        "transcription": "Audio to text",
-        "preset_voice": "Text to audio",
-        "realtimeCaptions": "Realtime captions",
-        "realtimeVoice": "Duplex voice",
-        "model": "Model ID"
-      },
-      "delete": {
-        "title": "Delete audio API",
-        "unused_description": "Delete “{{name}}”?",
-        "in_use_description": "“{{name}}” is assigned to tasks. Choose a replacement API or explicitly unassign every affected task.",
-        "select_replacement": "Choose an action…",
-        "unassign": "Unassign",
-        "required": "Choose a replacement API or unassign this task.",
-        "failed": "The audio API could not be deleted. Check the task replacements.",
-        "confirm": "Delete"
-      },
-      "feedback": {
-        "created": "Audio API created.",
-        "updated": "Audio API updated.",
-        "deleted": "Audio API deleted.",
-        "save_failed": "The audio API could not be saved.",
-        "auto_assigned_title": "Initial defaults assigned",
-        "auto_assigned_description": "The new API was assigned to these compatible tasks: {{tasks}}",
-        "undo": "Undo automatic assignment",
-        "undo_success": "Undid {{count}} automatic assignments.",
-        "assignments_cleared": "Assignments that no longer match the updated routes were cleared",
-        "return_to_tool": "Return to audio tool",
-        "save_and_return": "Save and return",
-        "task_separator": ", "
-      },
-      "profile": {
-        "connection_delete_blocked": "Legacy audio settings have not been migrated safely, so this connection cannot be deleted yet. Restart the app and try again."
-      },
-      "dialect": {
-        "openai_audio": "OpenAI Audio",
-        "mimo_chat_audio": "MiMo Chat Audio",
-        "openai_realtime": "OpenAI Realtime"
-      },
-      "capability": {
-        "file_transcription": "File transcription",
-        "streaming_transcription": "Streaming transcription",
-        "speech_synthesis": "Speech synthesis",
-        "streaming_speech_synthesis": "Streaming synthesis",
-        "realtime_transcription": "Realtime captions",
-        "realtime_duplex_voice": "Duplex voice",
-        "mimo_voice_design": "MiMo voice design",
-        "mimo_voice_clone": "MiMo voice clone"
-      }
     }
   },
   "placeholder": {

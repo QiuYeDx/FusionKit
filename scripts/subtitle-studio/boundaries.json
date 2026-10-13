@@ -86,7 +86,6 @@
     "test/support/testRun.ts",
     "test/support/staleRuns.ts",
     "src/type/model.ts",
-    "src/type/audio.ts",
     "src/constants/model.ts",
     "src/store/useModelStore.ts",
     "src/translation-knowledge/execution-contract.ts",

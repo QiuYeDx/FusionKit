@@ -273,9 +273,7 @@ function ModelProfilesCard() {
 
   const handleDelete = (id: string) => {
     if (confirmDeleteId === id) {
-      if (!removeProfile(id)) {
-        toast.error(t("setting:fields.audio.profile.connection_delete_blocked"));
-      }
+      removeProfile(id);
       setConfirmDeleteId(null);
     } else {
       setConfirmDeleteId(id);

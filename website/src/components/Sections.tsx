@@ -1,5 +1,4 @@
 import {
-  AudioLines,
   BookOpen,
   Check,
   Clapperboard,
@@ -39,7 +38,6 @@ const TOOL_ICONS: Record<ToolKey, LucideIcon> = {
   transcribe: Clapperboard,
   rename: FilePenLine,
   longText: BookOpen,
-  audio: AudioLines,
 }
 
 export function Pillars() {
@@ -383,11 +381,12 @@ export function Tools() {
           <Reveal
             as="li"
             delay={0.12}
-            className="flex h-full flex-col rounded-2xl border border-dashed p-6"
+            // Six tools leave two cells: the extras fill them, so both rows end flush.
+            className="flex h-full flex-col rounded-2xl border border-dashed p-6 sm:col-span-2"
           >
             <Plus className="size-5 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
             <h3 className="mt-5 font-semibold">{tools.extrasTitle}</h3>
-            <ul className="mt-2 space-y-1 text-sm leading-6 text-muted-foreground">
+            <ul className="mt-2 grid gap-x-6 gap-y-1 text-sm leading-6 text-muted-foreground sm:grid-cols-2">
               {tools.extras.map((extra) => (
                 <li key={extra}>{extra}</li>
               ))}

@@ -105,7 +105,6 @@ Group terms, translation requirements and background into a collection per title
 | **Local subtitle transcription** | Batch-transcribes audio and video to SRT / LRC with local Whisper models and can hand the results to subtitle translation |
 | **File and folder name translation** | AI-translates the names you select; review and edit before renaming. Renames run deepest-first, roll back on failure and can be undone |
 | **Long text translation** (Beta) | Translates TXT novels and long documents, with a coherent sequential mode, pause and resume, and re-translation from a chosen chunk |
-| **Audio toolbox** | Speech to text, text to speech, live captions and real-time voice, using OpenAI or MiMo audio APIs |
 
 Also included: dark and light themes; Simplified Chinese, Traditional Chinese, English and Japanese interfaces; in-app updates; system or custom proxy; notifications when tasks finish; and sleep prevention during long tasks.
 
@@ -134,12 +133,11 @@ FusionKit has no server of its own and collects no usage data. Apart from update
 | --- | --- |
 | Local transcription | Nothing by default: media and subtitles stay on your device. Only model downloads reach fixed download addresses |
 | AI translation, revision and the Agent | Subtitle or text content goes to the model service in your settings |
-| Audio toolbox | Audio files, recordings or microphone input go to the audio service you choose |
 | Web lookup (off by default) | Only search terms and page links; never subtitles or translation materials |
 | External agents (off by default) | Listens on 127.0.0.1 only and requires a token; subtitles an external agent reads are handled by that agent's own model service |
 | Update checks | GitHub Releases, for new version information |
 
-API keys are kept in the app's local settings and used only to call the services you configured. They are never written to subtitle recovery files, long text workspaces, audio task data or error details. Before using a third-party model service, check its privacy and data retention policy. Some features, such as the sequential long text mode, use more tokens; your provider's bill is the source of truth for cost.
+API keys are kept in the app's local settings and used only to call the services you configured. They are never written to subtitle recovery files, long text workspaces or error details. Before using a third-party model service, check its privacy and data retention policy. Some features, such as the sequential long text mode, use more tokens; your provider's bill is the source of truth for cost.
 
 ## Development
 

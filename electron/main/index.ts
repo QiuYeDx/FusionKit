@@ -29,8 +29,6 @@ import {
   emitTextTranslationEvent,
   setupTextTranslationIPC,
 } from "./text-translation/ipc";
-import { setupAudioIPC } from "./audio/ipc";
-import { setupAudioRealtimeIPC } from "./audio/realtime-ipc";
 import {
   LocalSubtitleIpcService,
   LocalSubtitleOverwriteRecoveryAdmissionCoordinator,
@@ -521,8 +519,6 @@ app.whenReady().then(async () => {
   setupAgentSessionsIPC();
   setupExternalAgent({ getWindow: () => win });
   setupTextTranslationIPC(textTranslationService);
-  setupAudioIPC();
-  setupAudioRealtimeIPC();
 
   app.on("activate", () => {
     const allWindows = BrowserWindow.getAllWindows();

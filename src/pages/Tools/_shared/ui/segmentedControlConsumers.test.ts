@@ -35,15 +35,11 @@ describe("segmented control consumers", () => {
           source,
         ),
     );
-    expect(legacySelectedButtons.map(([file]) => relativePath(toolsRoot, file))).toEqual([
-      "Audio/SpeechSynthesizer/index.tsx",
-    ]);
-    expect(legacySelectedButtons[0]?.[1]).toContain("OPENAI_VOICE_HINTS.map");
+    expect(legacySelectedButtons.map(([file]) => relativePath(toolsRoot, file))).toEqual([]);
   });
 
   it("uses SegmentedControl for settings-page radio groups", () => {
     const expectedConsumers = [
-      "components/AudioApiConfig.tsx",
       "components/GeneralConfig.tsx",
       "components/ModelConfig.tsx",
       "components/ProxyConfig.tsx",

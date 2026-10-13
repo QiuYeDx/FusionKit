@@ -9,7 +9,7 @@ import {
   type NativeFileSelectionSource,
   type ResolvedNativeInputFile,
 } from "@/type/nativeFileSelectionIpc";
-import { isTrustedAudioSender } from "../audio/audio-ipc-security";
+import { isTrustedAppSender } from "./trusted-sender";
 import { LocalSubtitleAuthorizationError } from "../local-subtitle/authorizations";
 import { resolveLocalSubtitleInputPaths } from "../local-subtitle/windows-explorer-drop-resolver";
 
@@ -99,7 +99,7 @@ export function setupNativeFileSelectionIPC(
   ipcMain.handle(
     NATIVE_FILE_SELECTION_INTERNAL_CHANNELS.resolveInputFiles,
     async (event: IpcMainInvokeEvent, request: unknown) => {
-      if (!isTrustedAudioSender(event)) return invalidRequestFailure();
+      if (!isTrustedAppSender(event)) return invalidRequestFailure();
       return service.resolveInputFiles(request);
     },
   );

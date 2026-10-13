@@ -16,7 +16,6 @@ export const NAMESPACES = [
   "subtitle",
   "rename",
   "text",
-  "audio",
 ] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];

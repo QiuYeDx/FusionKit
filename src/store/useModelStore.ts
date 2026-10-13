@@ -7,15 +7,6 @@ import {
   DEFAULT_OUTPUT_TOKEN_PARAMETER_MAP,
   DEFAULT_TOKEN_PRICING_MAP,
 } from "@/constants/model";
-import {
-  bootstrapLegacyAudioSettingsFromGlobalStorage,
-} from "@/lib/audio-api-migration";
-import {
-  DEFAULT_AUDIO_MODEL_ASSIGNMENT,
-  migrateAudioModelProfiles,
-  normalizeAudioModelAssignment,
-} from "@/lib/audio-profile";
-import type { AudioModelAssignment, AudioModelProfile } from "@/type/audio";
 import type { Model, ModelProfile, ModelAssignment } from "@/type/model";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
@@ -27,10 +18,6 @@ import { persist, createJSONStorage } from "zustand/middleware";
 interface ModelStore {
   profiles: ModelProfile[];
   assignment: ModelAssignment;
-  /** @deprecated Read-only migration backup; remove after the compatibility window. */
-  readonly audioProfiles: AudioModelProfile[];
-  /** @deprecated Read-only migration backup; remove after the compatibility window. */
-  readonly audioAssignment: AudioModelAssignment;
 
   addProfile: (profile: ModelProfileInput) => string;
   updateProfile: (id: string, updates: Partial<ModelProfileInput>) => void;
@@ -104,27 +91,6 @@ export function migrateModelProfilesToV3(raw: unknown): {
   return { profiles, assignment };
 }
 
-export function migrateModelConfigToV4(raw: unknown): {
-  profiles: ModelProfile[];
-  assignment: ModelAssignment;
-  audioProfiles: AudioModelProfile[];
-  audioAssignment: AudioModelAssignment;
-} {
-  const persisted = isRecord(raw) ? raw : {};
-  const textConfig = migrateModelProfilesToV3(persisted);
-  const audioProfiles = migrateAudioModelProfiles(persisted.audioProfiles);
-  const audioProfileIds = new Set(audioProfiles.map((profile) => profile.id));
-
-  return {
-    ...textConfig,
-    audioProfiles,
-    audioAssignment: normalizeAudioModelAssignment(
-      persisted.audioAssignment,
-      audioProfileIds,
-    ),
-  };
-}
-
 /**
  * Migrate from v1 (flat model/apiKeyMap/...) to v3 (profiles + assignment +
  * API format metadata). Creates one profile per provider that has a non-empty
@@ -176,6 +142,8 @@ function migrateFromV1(raw: Record<string, any>): {
 
 const LEGACY_KEY = "modelConfig";
 const MODEL_STORAGE_KEY = "fusionkit-model";
+/** v6 dropped the audio settings backup kept for the removed audio tools. */
+const MODEL_STORE_VERSION = 6;
 
 export interface LegacyModelStorage {
   getItem(key: string): string | null;
@@ -197,14 +165,14 @@ export function migrateLegacyModelStorage(
 
     let migrated;
     if (raw.version === 2 && Array.isArray(raw.profiles)) {
-      migrated = migrateModelConfigToV4(raw);
+      migrated = migrateModelProfilesToV3(raw);
     } else if (raw.model || raw.apiKeyMap) {
-      migrated = migrateModelConfigToV4(migrateFromV1(raw));
+      migrated = migrateModelProfilesToV3(migrateFromV1(raw));
     } else {
       return false;
     }
 
-    const serialized = JSON.stringify({ state: migrated, version: 5 });
+    const serialized = JSON.stringify({ state: migrated, version: MODEL_STORE_VERSION });
     storage.setItem(MODEL_STORAGE_KEY, serialized);
     if (storage.getItem(MODEL_STORAGE_KEY) !== serialized) return false;
     storage.removeItem(LEGACY_KEY);
@@ -214,18 +182,11 @@ export function migrateLegacyModelStorage(
   }
 }
 
-// Must run before Zustand hydration so cross-key migration never depends on
-// whether the source or target Store module was imported first.
-const legacyAudioBootstrapResult =
-  bootstrapLegacyAudioSettingsFromGlobalStorage();
-
 const useModelStore = create<ModelStore>()(
   persist(
     (set, get) => ({
       profiles: [],
       assignment: { agent: null, taskExecution: null },
-      audioProfiles: [],
-      audioAssignment: { ...DEFAULT_AUDIO_MODEL_ASSIGNMENT },
 
       addProfile: (profile) => {
         const id = generateId();
@@ -267,12 +228,6 @@ const useModelStore = create<ModelStore>()(
       removeProfile: (id) => {
         const state = get();
         if (!state.profiles.some((profile) => profile.id === id)) return false;
-        if (
-          hasLegacyAudioConnectionReference(state.audioProfiles, id) &&
-          !isLegacyAudioSourceSafeToDelete()
-        ) {
-          return false;
-        }
 
         const newAssignment = { ...state.assignment };
         if (newAssignment.agent === id) newAssignment.agent = null;
@@ -309,22 +264,19 @@ const useModelStore = create<ModelStore>()(
     {
       name: MODEL_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
-      version: 5,
+      version: MODEL_STORE_VERSION,
       partialize: (state) => ({
         profiles: state.profiles,
         assignment: state.assignment,
-        // Keep one read-compatible backup version; new code must not use it.
-        audioProfiles: state.audioProfiles,
-        audioAssignment: state.audioAssignment,
       }),
       migrate: (persisted: any, version: number) => {
-        // v1 (flat model/apiKeyMap) -> v5 (profiles + normalized audio config)
+        // v1 (flat model/apiKeyMap) -> profiles + assignment; later versions only drop old fields.
         if (version < 2) {
           if (persisted && (persisted.model || persisted.apiKeyMap)) {
-            return migrateModelConfigToV4(migrateFromV1(persisted));
+            return migrateModelProfilesToV3(migrateFromV1(persisted));
           }
         }
-        return migrateModelConfigToV4(persisted);
+        return migrateModelProfilesToV3(persisted);
       },
       onRehydrateStorage: () => {
         try {
@@ -339,22 +291,6 @@ const useModelStore = create<ModelStore>()(
 
 function isRecord(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasLegacyAudioConnectionReference(
-  audioProfiles: readonly AudioModelProfile[],
-  connectionProfileId: string,
-): boolean {
-  return audioProfiles.some(
-    (profile) => profile.connectionProfileId === connectionProfileId,
-  );
-}
-
-function isLegacyAudioSourceSafeToDelete(): boolean {
-  return (
-    legacyAudioBootstrapResult.status === "migrated" ||
-    legacyAudioBootstrapResult.status === "already_complete"
-  );
 }
 
 export default useModelStore;

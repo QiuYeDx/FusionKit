@@ -4,12 +4,8 @@ import {
   Languages,
   RefreshCw,
   FileText,
-  Music,
   Edit,
-  FileAudio,
-  Volume2,
   Captions,
-  Radio,
   Clapperboard,
 } from "lucide-react";
 import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
@@ -21,21 +17,16 @@ export type ToolKey =
   | "converter"
   | "extractor"
   | "localSubtitleTranscriber"
-  | "music"
   | "nameTranslator"
-  | "textTranslator"
-  | "audioTranscriber"
-  | "speechSynthesizer"
-  | "realtimeCaptions"
-  | "realtimeVoice";
+  | "textTranslator";
 
 export type ToolMeta = {
   id: ToolKey;
   /** CSS variable name (without var()) — defined in index.css */
   toneVar: string;
   icon: LucideIcon;
-  category: "subtitle" | "music" | "rename" | "text" | "audio";
-  status: "stable" | "soon";
+  category: "subtitle" | "rename" | "text";
+  status: "stable";
   route?: string;
 };
 
@@ -88,13 +79,6 @@ export const TOOL_META: Record<ToolKey, ToolMeta> = {
     status: "stable",
     route: LOCAL_SUBTITLE_TRANSCRIBER_ROUTE,
   },
-  music: {
-    id: "music",
-    toneVar: "--tool-music",
-    icon: Music,
-    category: "music",
-    status: "soon",
-  },
   nameTranslator: {
     id: "nameTranslator",
     toneVar: "--tool-rename",
@@ -110,38 +94,6 @@ export const TOOL_META: Record<ToolKey, ToolMeta> = {
     category: "text",
     status: "stable",
     route: "/tools/text/translator",
-  },
-  audioTranscriber: {
-    id: "audioTranscriber",
-    toneVar: "--tool-audio-transcriber",
-    icon: FileAudio,
-    category: "audio",
-    status: "stable",
-    route: "/tools/audio/transcriber",
-  },
-  speechSynthesizer: {
-    id: "speechSynthesizer",
-    toneVar: "--tool-speech-synthesizer",
-    icon: Volume2,
-    category: "audio",
-    status: "stable",
-    route: "/tools/audio/speech-synthesis",
-  },
-  realtimeCaptions: {
-    id: "realtimeCaptions",
-    toneVar: "--tool-realtime-captions",
-    icon: Captions,
-    category: "audio",
-    status: "stable",
-    route: "/tools/audio/realtime-captions",
-  },
-  realtimeVoice: {
-    id: "realtimeVoice",
-    toneVar: "--tool-realtime-voice",
-    icon: Radio,
-    category: "audio",
-    status: "stable",
-    route: "/tools/audio/realtime-voice",
   },
 };
 
