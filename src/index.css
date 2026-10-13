@@ -125,20 +125,10 @@
   --color-warning: var(--warning);
   --color-info: var(--info);
 
-  /* 边框圆角 */
-  --radius-sm: var(--radius-sm);
+  /* 圆角比例与阴影使用 Tailwind 默认值，圆角见下方 @theme inline。
+     不要写 --shadow-md: var(--shadow-md) 这类自引用：变量会循环失效，
+     而 ring 与 shadow 共用一条 box-shadow，会让描边和阴影一起消失。 */
   --radius-DEFAULT: var(--radius);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
-  --radius-2xl: var(--radius-2xl);
-
-  /* 阴影系统 */
-  --shadow-sm: var(--shadow-sm);
-  --shadow-DEFAULT: var(--shadow);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
-  --shadow-xl: var(--shadow-xl);
 
   /* 动画持续时间 */
   --animate-duration-fast: var(--duration-fast);

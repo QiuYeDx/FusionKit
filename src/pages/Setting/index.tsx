@@ -205,7 +205,8 @@ const Setting: React.FC = () => {
                 onAnimationStart={(def) => {
                   if (def === "animate") checkScroll();
                 }}
-                className="flex flex-col gap-4 py-1 pr-3"
+                // pl-px：nova Card 的描边是外侧 ring，紧贴 ScrollArea 左缘会被裁掉
+                className="flex flex-col gap-4 py-1 pl-px pr-3"
               >
                 {tab === "general" && <GeneralConfig />}
                 {tab === "proxy" && <ProxyConfig />}
