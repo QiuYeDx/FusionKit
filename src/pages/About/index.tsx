@@ -86,7 +86,7 @@ const About: React.FC = () => {
             <img
               src={FusionKitLogo}
               alt="FusionKit Logo"
-              className="h-16 w-16 rounded-2xl shadow-sm shrink-0"
+              className="h-16 w-16 rounded-2xl shrink-0"
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">

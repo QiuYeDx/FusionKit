@@ -65,7 +65,7 @@ const BottomNavigation: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 68 }}
             transition={springTransition}
-            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-full p-1 shadow-lg"
+            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-full p-1"
           >
             {mainNavItems.map(({ path, icon: Icon, label }) => (
               <Button
@@ -96,7 +96,7 @@ const BottomNavigation: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 68 }}
             transition={springTransition}
-            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-full p-1 shadow-lg"
+            className="my-2 mx-2 flex gap-1 justify-center flex-nowrap pointer-events-auto backdrop-blur-md bg-card/80 border border-border rounded-full p-1"
           >
             <Button
               variant="ghost"

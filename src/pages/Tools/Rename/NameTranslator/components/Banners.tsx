@@ -92,7 +92,7 @@ export function NameTranslatorBanners({ modelReady }: { modelReady: boolean }) {
           role="status"
           data-testid="name-translator-outcome"
           className={cn(
-            "border bg-card text-card-foreground shadow-sm",
+            "border bg-card text-card-foreground",
             outcome.undoState === "partial" ? "border-destructive/40" : "border-emerald-500/30",
           )}
         >

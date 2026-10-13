@@ -152,7 +152,7 @@ export default function LocalSubtitleOverwriteRecoveryPrompt() {
                 type="button"
                 size="icon-sm"
                 variant="outline"
-                className="relative rounded-md bg-background/80 shadow-sm backdrop-blur-md"
+                className="relative rounded-md bg-background/80 backdrop-blur-md"
                 aria-label={triggerLabel}
                 onClick={() => handleOpenChange(true)}
               >

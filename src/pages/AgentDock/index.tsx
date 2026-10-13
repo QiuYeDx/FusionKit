@@ -456,7 +456,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
               {showLatest && <motion.div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center"
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.16 }}>
                 <Button type="button" variant="outline" size="icon" aria-label={t("home:scroll_to_bottom")} onClick={() => scrollToEnd("smooth")}
-                  className="pointer-events-auto size-8 rounded-full bg-background/80 shadow-sm backdrop-blur-[5px]"><ArrowDown className="size-4" /></Button>
+                  className="pointer-events-auto size-8 rounded-full bg-background/80 backdrop-blur-[5px]"><ArrowDown className="size-4" /></Button>
               </motion.div>}
             </AnimatePresence>
           </div>
@@ -469,7 +469,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
             </div>}
             {/* Concentric corners: the controls sit 6px inside the composer, so their radius is 16 - 6. */}
             <SmoothCorners radius={16} smoothing={0.72} {...dropHandlers} data-testid="agent-dock-composer" data-drag-over={isDragOver || undefined}
-              className={cn("relative border bg-background p-1.5 transition-colors focus-within:border-ring/50 focus-within:shadow-sm",
+              className={cn("relative border bg-background p-1.5 transition-colors focus-within:border-ring/50",
                 isDragOver && "border-primary/40 bg-primary/5")}>
               {isDragOver && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-xs font-medium text-primary">{t("home:drop_files_hint")}</div>}
               <Textarea ref={inputRef} rows={1} data-testid="agent-dock-input" aria-label={t("home:agent_input_label")} placeholder={t("home:agent_input_placeholder")}
@@ -482,7 +482,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
                 <SmoothCorners asChild radius={10} smoothing={0.72}><Button type="button" data-testid="agent-dock-send" aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
                   onClick={isStreaming ? () => abortCurrentStream() : () => void send()} disabled={!isStreaming && !canSend}
                   className={cn("size-8 shrink-0 transition-all duration-200",
-                    isStreaming ? "shadow-sm hover:bg-destructive" : canSend ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90" : "bg-transparent text-muted-foreground/45")}>
+                    isStreaming ? "hover:bg-destructive" : canSend ? "bg-primary text-primary-foreground hover:opacity-90" : "bg-transparent text-muted-foreground/45")}>
                   {isStreaming ? <Square className="size-3.5 fill-current" /> : <Send className="size-4" />}
                 </Button></SmoothCorners>
               </div>

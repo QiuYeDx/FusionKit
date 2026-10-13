@@ -32,7 +32,7 @@ export function ToolConfigPanel({
       radius={16}
       smoothing={0.72}
       className={cn(
-        "flex flex-col overflow-hidden border bg-card text-card-foreground shadow-sm",
+        "flex flex-col overflow-hidden border bg-card text-card-foreground",
         className,
       )}
     >

@@ -489,9 +489,9 @@ function HomeAgent() {
       <motion.div
         {...dropHandlers}
         className={cn(
-          "shadow-sm relative",
+          "relative",
           "bg-background",
-          "focus-within:shadow-md focus-within:border-ring/50",
+          "focus-within:border-ring/50",
           "max-w-2xl mx-auto w-full",
           "pointer-events-auto",
           "transition-colors duration-150",
@@ -580,9 +580,9 @@ function HomeAgent() {
                     "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
                     "transition-all duration-200",
                     isStreaming
-                      ? "shadow-sm hover:bg-destructive"
+                      ? "hover:bg-destructive"
                       : canSend
-                        ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+                        ? "bg-primary text-primary-foreground hover:opacity-90"
                         : "bg-transparent text-muted-foreground/45",
                   )}
                 >
@@ -609,9 +609,9 @@ function HomeAgent() {
                   "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
                   "transition-all duration-200",
                   isStreaming
-                    ? "shadow-sm hover:bg-destructive"
+                    ? "hover:bg-destructive"
                     : canSend
-                      ? "bg-primary text-primary-foreground shadow-sm hover:opacity-90"
+                      ? "bg-primary text-primary-foreground hover:opacity-90"
                       : "bg-transparent text-muted-foreground/45",
                 )}
               >

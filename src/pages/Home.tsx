@@ -26,7 +26,7 @@ const Home: React.FC = () => {
         <img
           src={FusionKitLogo}
           alt="FusionKit Logo"
-          className="w-24 h-24 mb-6 rounded-2xl shadow-sm"
+          className="w-24 h-24 mb-6 rounded-2xl"
         />
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-4">
           {t("home:welcome")}
@@ -61,7 +61,7 @@ const Home: React.FC = () => {
             <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
               {/* 字幕处理 */}
               <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-sm"
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200"
                 onClick={() => navigate("/tools")}
               >
                 <div className="flex items-start justify-between">
@@ -84,7 +84,7 @@ const Home: React.FC = () => {
 
               {/* 文件重命名 */}
               <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-sm"
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200"
                 onClick={() => navigate("/tools")}
               >
                 <div className="flex items-start justify-between">
@@ -107,7 +107,7 @@ const Home: React.FC = () => {
 
               {/* 音乐解密 */}
               <div
-                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200 hover:shadow-sm"
+                className="group relative overflow-hidden rounded-lg border bg-background p-4 hover:bg-accent cursor-pointer transition-all duration-200"
                 onClick={() => navigate("/tools")}
               >
                 <div className="flex items-start justify-between">
