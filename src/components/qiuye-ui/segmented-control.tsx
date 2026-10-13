@@ -109,9 +109,9 @@ const sizeStyles: Record<
     content: "gap-1 [&_svg]:size-3.5",
   },
   md: {
-    root: "h-9 min-h-9 shrink-0",
-    containedItem: "h-8 min-w-20 px-4 text-sm",
-    floatingItem: "h-9 min-w-20 px-4 text-sm",
+    root: "h-8 min-h-8 shrink-0",
+    containedItem: "h-7 min-w-16 px-3 text-sm",
+    floatingItem: "h-8 min-w-16 px-3 text-sm",
     content: "gap-2 [&_svg]:size-4",
   },
 };

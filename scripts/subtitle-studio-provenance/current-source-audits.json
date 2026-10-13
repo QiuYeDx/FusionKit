@@ -89,14 +89,14 @@
     {
       "sourcePath": "package.json",
       "frozenBlobOid": "f4796e097b5a65d616db065ae00d96592486982b",
-      "currentBlobOid": "f68ff4440cd2b5d30455aa41d46ad934abea7123",
-      "reason": "Current bytes keep the composition-audited scripts.build change and the 0.3.0 -> 0.3.1 version (see current-composition-audits.json) and add 6f84227's knowledge:artifacts / knowledge:check scripts. Dependencies, the build script and packaging composition are otherwise unchanged. 2026-10-09: the user renamed the unreleased development version 0.3.1 to 0.4.0 because of the scope of changes since 0.3.0; that version string is the only difference from the previously approved bytes. 2026-10-11: adds test:inactive and test:visible scripts, which run the existing test script with a chosen FUSIONKIT_TEST_WINDOW mode; dependencies, the build script and packaging composition are unchanged. 2026-10-13: adds @modelcontextprotocol/sdk 1.30.1 as a devDependency for the external agent (MCP) endpoint; Vite bundles it into the main process, so runtime dependencies, the build script and packaging composition are unchanged."
+      "currentBlobOid": "d026c1f0155188183efa25692d56fb5c4699193f",
+      "reason": "Current bytes keep the composition-audited scripts.build change and the 0.3.0 -> 0.3.1 version (see current-composition-audits.json) and add 6f84227's knowledge:artifacts / knowledge:check scripts. Dependencies, the build script and packaging composition are otherwise unchanged. 2026-10-09: the user renamed the unreleased development version 0.3.1 to 0.4.0 because of the scope of changes since 0.3.0; that version string is the only difference from the previously approved bytes. 2026-10-11: adds test:inactive and test:visible scripts, which run the existing test script with a chosen FUSIONKIT_TEST_WINDOW mode; dependencies, the build script and packaging composition are unchanged. 2026-10-13: adds @modelcontextprotocol/sdk 1.30.1 as a devDependency for the external agent (MCP) endpoint; Vite bundles it into the main process, so runtime dependencies, the build script and packaging composition are unchanged. 2026-10-13 shadcn/ui radix-nova migration: radix-ui ^1.4.3 -> ^1.8.1, react-day-picker ^9.11.1 -> ^10.0.2 with date-fns ^4.4.0 (required by the nova Calendar), and shadcn ^4.21.4 for its Tailwind variants stylesheet. Renderer UI only; the build script, packaging composition and transcription resources are unchanged."
     },
     {
       "sourcePath": "pnpm-lock.yaml",
       "frozenBlobOid": "efefc09954267adfbf98d52080de053732f4ec63",
-      "currentBlobOid": "704943ea26fa391b7c3bf06f5a26a7bd0d09120f",
-      "reason": "2026-10-13: lock entries for the @modelcontextprotocol/sdk 1.30.1 devDependency (external agent MCP endpoint, bundled into the main process by Vite) and its transitive packages; existing resolutions, runtime dependencies and transcription resource composition are unchanged."
+      "currentBlobOid": "700ff43f6d8c4a1f9315ac4aba24ddb32b574d48",
+      "reason": "2026-10-13: lock entries for the @modelcontextprotocol/sdk 1.30.1 devDependency (external agent MCP endpoint, bundled into the main process by Vite) and its transitive packages; existing resolutions, runtime dependencies and transcription resource composition are unchanged. 2026-10-13: lock entries for the shadcn/ui radix-nova migration (radix-ui 1.8.1, react-day-picker 10, date-fns 4, shadcn 4.21.4 and their transitive packages); renderer UI only, transcription resource composition unchanged."
     }
   ]
 }

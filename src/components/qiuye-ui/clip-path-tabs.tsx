@@ -72,9 +72,9 @@ export interface ClipPathTabsProps extends Omit<
   smoothCornerSmoothing?: number;
   /**
    * 标签尺寸
-   * - `"sm"`：32px
-   * - `"md"`：34px
-   * - `"lg"`：44px
+   * - `"sm"`：28px
+   * - `"md"`：32px
+   * - `"lg"`：36px
    * @default "md"
    */
   size?: ClipPathTabsSize;
@@ -140,15 +140,15 @@ export interface ClipPathTabsProps extends Omit<
 const sizeStyles: Record<ClipPathTabsSize, { item: string; content: string }> =
   {
     sm: {
-      item: "h-8 px-3 text-xs",
+      item: "h-7 px-2.5 text-xs",
       content: "gap-1.5 [&_svg]:size-3.5",
     },
     md: {
-      item: "h-[34px] px-2.5 text-sm sm:px-4",
+      item: "h-8 px-2.5 text-sm sm:px-3",
       content: "gap-1.5 sm:gap-2 [&_svg]:size-4",
     },
     lg: {
-      item: "h-11 px-3 text-sm sm:px-5",
+      item: "h-9 px-3 text-sm sm:px-4",
       content: "gap-1.5 sm:gap-2 [&_svg]:size-4.5",
     },
   };
@@ -454,7 +454,8 @@ export const ClipPathTabs = React.forwardRef<
           ref={listRef}
           aria-label={ariaLabel}
           className={cn(
-            "relative grid h-auto max-w-full gap-1 rounded-none bg-transparent p-0 text-current",
+            // group-data-horizontal/tabs:h-auto 覆盖 radix-nova TabsList 的变体高度 h-8
+            "relative grid h-auto max-w-full gap-1 rounded-none bg-transparent p-0 text-current group-data-horizontal/tabs:h-auto",
             fullWidth ? "w-full" : "w-fit",
             listClassName,
           )}
@@ -481,6 +482,8 @@ export const ClipPathTabs = React.forwardRef<
                   "relative min-w-0 flex-none cursor-pointer border-transparent bg-transparent font-medium shadow-none outline-offset-2 transition-none",
                   "text-[var(--clip-path-tabs-inactive-foreground)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--clip-path-tabs-inactive-foreground)] data-[state=active]:shadow-none",
                   "dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-transparent",
+                  // 覆盖 radix-nova TabsTrigger 通过 data-active / group 变体设置的选中态阴影与背景
+                  "group-data-[variant=default]/tabs-list:data-active:shadow-none data-active:bg-transparent dark:data-active:bg-transparent dark:data-active:border-transparent",
                   "focus-visible:outline-2 focus-visible:outline-ring focus-visible:ring-0",
                   shape === "pill" ? "rounded-full" : "rounded-lg",
                   styles.item,

@@ -6,6 +6,7 @@ import "./index.css";
 
 import "@/i18n";
 import { HashRouter } from "react-router-dom";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // 在渲染进程中接收进度更新并调用 store 的 updateProgress 方法
 import "@/renderer/subtitle";
@@ -27,7 +28,9 @@ const root = ReactDOM.createRoot(
 root.render(
   <React.StrictMode>
     <HashRouter>
-      <App />
+      <TooltipProvider>
+        <App />
+      </TooltipProvider>
     </HashRouter>
   </React.StrictMode>
 );
