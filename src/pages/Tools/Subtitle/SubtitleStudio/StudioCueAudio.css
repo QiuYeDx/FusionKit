@@ -2,7 +2,7 @@
 .studio-cue-audio-button {
   position: relative; display: inline-grid; place-items: center; flex: none;
   width: 20px; height: 20px; padding: 0; border: 0; border-radius: 999px;
-  background: transparent; color: var(--muted-foreground); cursor: pointer; outline: none;
+  background: transparent; color: var(--muted-foreground); cursor: var(--clickable-cursor, pointer); outline: none;
 }
 .studio-cue-audio-button:hover { background: var(--accent); color: var(--foreground); }
 .studio-cue-audio-button[aria-disabled=true] { opacity: .4; cursor: default; }

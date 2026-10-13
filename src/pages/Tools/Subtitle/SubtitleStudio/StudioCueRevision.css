@@ -21,7 +21,7 @@
 .studio-cue-revision-list { display: grid; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .studio-cue-revision-list > li + li { border-top: 1px solid var(--border); }
 .studio-cue-revision-list > li:not([data-accepted]) .studio-cue-revision-texts { opacity: .5; }
-.studio-cue-revision-item { display: grid; grid-template-columns: 16px minmax(3.5ch, auto) minmax(0, 1fr); align-items: start; gap: 8px; padding: 8px 10px; cursor: pointer; }
+.studio-cue-revision-item { display: grid; grid-template-columns: 16px minmax(3.5ch, auto) minmax(0, 1fr); align-items: start; gap: 8px; padding: 8px 10px; cursor: var(--clickable-cursor, pointer); }
 .studio-cue-revision-item:hover { background: color-mix(in oklab, var(--muted) 55%, transparent); }
 .studio-cue-revision-item > button { margin-top: 2px; }
 .studio-cue-revision-number { font-size: 11px; line-height: 20px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }

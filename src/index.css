@@ -510,3 +510,40 @@
   border: 1px solid rgb(100, 100, 100) !important;
   color: rgb(249, 250, 251) !important;
 }
+
+/* ---------- 可点击元素的鼠标指针（设置 → 常规；useCursorStore 写入 html[data-cursor]） ----------
+ * 统一控制按钮、链接、菜单项、选项、标签页、开关等可点击元素的指针。
+ * 禁用的元素不受影响（保留 cursor-not-allowed 等）；显式指定了其他指针的元素
+ * （拖拽、调整大小、文本等）也保持原样，只有 cursor-pointer 会随设置切换。
+ * 规则不放进 @layer，才能稳定覆盖组件上的 cursor-* 工具类。 */
+/* 组件 CSS 里的指针统一写成 cursor: var(--clickable-cursor, pointer)。 */
+html[data-cursor="default"] { --clickable-cursor: default; }
+
+html[data-cursor="pointer"]
+  :is(
+    button, a[href], summary, label[for], select,
+    input:is([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="button"], [type="submit"], [type="reset"]),
+    [role="button"], [role="link"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"],
+    [role="option"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="combobox"], [role="treeitem"]
+  ):not(:disabled, [aria-disabled="true"], [data-disabled]):not(
+    [class~="cursor-default"], [class~="cursor-grab"], [class~="cursor-grabbing"], [class~="cursor-move"], [class~="cursor-text"],
+    [class~="cursor-crosshair"], [class~="cursor-help"], [class~="cursor-wait"], [class~="cursor-progress"], [class~="cursor-not-allowed"],
+    [class~="cursor-zoom-in"], [class~="cursor-zoom-out"], [class*="-resize"]
+  ) {
+  cursor: pointer;
+}
+
+html[data-cursor="default"]
+  :is(
+    button, a[href], summary, label[for], select,
+    input:is([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"], [type="button"], [type="submit"], [type="reset"]),
+    [role="button"], [role="link"], [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"],
+    [role="option"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="combobox"], [role="treeitem"],
+    [class~="cursor-pointer"]
+  ):not(:disabled, [aria-disabled="true"], [data-disabled]):not(
+    [class~="cursor-grab"], [class~="cursor-grabbing"], [class~="cursor-move"], [class~="cursor-text"],
+    [class~="cursor-crosshair"], [class~="cursor-help"], [class~="cursor-wait"], [class~="cursor-progress"], [class~="cursor-not-allowed"],
+    [class~="cursor-zoom-in"], [class~="cursor-zoom-out"], [class*="-resize"]
+  ) {
+  cursor: default;
+}

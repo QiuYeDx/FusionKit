@@ -8,7 +8,7 @@
 .studio-remove-translation-target dd { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 500; line-height: 20px; }
 .studio-bilingual-options { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); align-items: center; gap: 16px; }
 .studio-bilingual-switches { display: grid; gap: 4px; min-width: 0; }
-.studio-bilingual-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; padding-block: 4px; cursor: pointer; font-size: 12px; line-height: 18px; }
+.studio-bilingual-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; padding-block: 4px; cursor: var(--clickable-cursor, pointer); font-size: 12px; line-height: 18px; }
 .studio-bilingual-switch > span { min-width: 0; overflow-wrap: anywhere; }
 .studio-bilingual-switch:has(button:disabled) { cursor: not-allowed; color: var(--muted-foreground); }
 .studio-bilingual-decision-note { margin-top: 8px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }

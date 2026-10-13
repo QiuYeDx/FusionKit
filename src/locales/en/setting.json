@@ -48,6 +48,12 @@
     "light_mode": "Light Mode",
     "dark_mode": "Dark Mode",
     "system_mode": "Follow System",
+    "cursor": {
+      "label": "Mouse Pointer",
+      "hint": "The pointer shown over clickable elements (buttons, menu items, options)",
+      "pointer": "Hand",
+      "default": "Arrow"
+    },
     "other": "Other",
     "apikey": "API Key",
     "model_url": "Base URL",

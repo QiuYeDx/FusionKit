@@ -48,6 +48,12 @@
     "light_mode": "浅色模式",
     "dark_mode": "深色模式",
     "system_mode": "跟随系统",
+    "cursor": {
+      "label": "鼠标指针",
+      "hint": "可点击元素（按钮、菜单项、选项等）显示的指针",
+      "pointer": "手形指针",
+      "default": "默认指针"
+    },
     "other": "其他",
     "apikey": "API Key",
     "model_url": "Base URL",

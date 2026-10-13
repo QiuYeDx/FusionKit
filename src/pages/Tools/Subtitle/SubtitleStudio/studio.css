@@ -29,7 +29,7 @@
 .studio-library-search > button { position: absolute; right: 3px; }
 .studio-library-selection, .studio-library-filter-summary { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 var(--studio-library-inset) 4px; font-size: 11px; flex-shrink: 0; }
 .studio-library-selection { justify-content: flex-start; gap: 2px; padding-inline: calc(var(--studio-library-inset) + var(--studio-row-inset)); }
-.studio-library-selection label { display: flex; align-items: center; gap: 8px; min-height: 26px; cursor: pointer; white-space: nowrap; }
+.studio-library-selection label { display: flex; align-items: center; gap: 8px; min-height: 26px; cursor: var(--clickable-cursor, pointer); white-space: nowrap; }
 .studio-library-selection .studio-library-filter-summary { margin-left: auto; padding: 0; gap: 2px; white-space: nowrap; color: var(--muted-foreground); }
 .studio-library-selection:has(.studio-library-filter-summary) .studio-library-selection-scope { margin-left: 0; padding-left: 0; }
 .studio-library-selection-scope { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; padding-left: 6px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -140,7 +140,7 @@
 .studio-library [data-slot=tool-panel-header], .studio-library [data-slot=tool-panel-footer] { flex-shrink: 0; }
 .studio-library [data-slot=tool-panel-body] { min-height: 0; overflow-y: auto; }
 .studio-document-list { display: flex; flex-direction: column; gap: 4px; }
-.studio-document { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 10px; text-align: left; border-radius: 8px; cursor: pointer; transition: background-color 150ms ease-out; }
+.studio-document { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 10px; text-align: left; border-radius: 8px; cursor: var(--clickable-cursor, pointer); transition: background-color 150ms ease-out; }
 .studio-document:disabled { cursor: default; }
 /* pre, not nowrap: a space where the name splits into its two parts would collapse at the flex item edge. */
 .studio-file-name { position: relative; display: flex; min-width: 0; max-width: 100%; white-space: pre; }

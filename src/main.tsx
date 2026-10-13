@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 
 import "./index.css";
+// Applies the clickable-element cursor setting (html[data-cursor]) before the first render.
+import "@/store/useCursorStore";
 
 import "@/i18n";
 import { HashRouter } from "react-router-dom";

@@ -171,8 +171,8 @@ export function CapsuleModeSelector({
 }) {
   const { t } = useTranslation();
   const trigger = (
+      // Default size: nova sizes the sm trigger with data-[size=sm]:h-7 / rounded variants, which would override the capsule.
       <SelectTrigger
-        size="sm"
         aria-label={t("home:execution_mode_label")}
         data-testid="agent-execution-mode"
         className={cn(

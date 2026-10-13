@@ -1,6 +1,7 @@
 import useLanguage from "@/hooks/useLanguage";
 import useThemeStore from "@/store/useThemeStore";
 import useNotificationStore from "@/store/useNotificationStore";
+import useCursorStore, { type ClickableCursor } from "@/store/useCursorStore";
 import { showSystemNotification } from "@/utils/notification";
 import { LangEnum } from "@/type/lang";
 import { useTranslation } from "react-i18next";
@@ -17,6 +18,7 @@ function GeneralConfig() {
   const { theme, setTheme } = useThemeStore();
   const { enabled: notificationEnabled, setEnabled: setNotificationEnabled } =
     useNotificationStore();
+  const { clickableCursor, setClickableCursor } = useCursorStore();
 
   return (
     <Card className="overflow-auto">
@@ -76,6 +78,25 @@ function GeneralConfig() {
               label: t(`setting:fields.${value}_mode`),
             }))}
             onValueChange={(value) => setTheme(value as typeof theme)}
+          />
+        </div>
+
+        {/* 可点击元素的鼠标指针 */}
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
+          <Label className="text-sm font-medium min-w-[80px]">
+            {t("setting:fields.cursor.label")}
+          </Label>
+          <SegmentedControl
+            size="sm"
+            fullWidth
+            className="min-w-0 flex-1"
+            value={clickableCursor}
+            aria-label={t("setting:fields.cursor.hint")}
+            items={(["pointer", "default"] as const).map((value) => ({
+              value,
+              label: t(`setting:fields.cursor.${value}`),
+            }))}
+            onValueChange={(value) => setClickableCursor(value as ClickableCursor)}
           />
         </div>
 

@@ -48,6 +48,12 @@
     "light_mode": "ライトモード",
     "dark_mode": "ダークモード",
     "system_mode": "システムに従う",
+    "cursor": {
+      "label": "マウスポインター",
+      "hint": "クリックできる要素（ボタン、メニュー項目、選択肢など）に表示するポインター",
+      "pointer": "手の形",
+      "default": "標準の矢印"
+    },
     "other": "その他",
     "apikey": "APIキー",
     "model_url": "ベースURL",

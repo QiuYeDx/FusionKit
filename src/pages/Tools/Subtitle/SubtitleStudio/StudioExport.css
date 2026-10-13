@@ -7,7 +7,7 @@
 .studio-export-fields > div { min-width: 0; }
 .studio-export-location { display: grid; gap: 6px; min-width: 0; }
 .studio-export-file-name { overflow-wrap: anywhere; }
-.studio-export-check { display: flex; align-items: flex-start; gap: 8px; min-width: 0; font-size: 12px; line-height: 18px; cursor: pointer; }
+.studio-export-check { display: flex; align-items: flex-start; gap: 8px; min-width: 0; font-size: 12px; line-height: 18px; cursor: var(--clickable-cursor, pointer); }
 .studio-export-check > button { margin-top: 1px; }
 .studio-export-check > span { min-width: 0; overflow-wrap: anywhere; }
 .studio-export-check:has(button:disabled) { color: var(--muted-foreground); cursor: default; }

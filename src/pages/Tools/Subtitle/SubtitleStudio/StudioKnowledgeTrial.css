@@ -4,7 +4,7 @@
 .studio-knowledge-cue { display: grid; min-width: 0; gap: 6px; border-radius: 8px; padding: 8px; transition: background-color 150ms ease; }
 .studio-knowledge-cue:hover { background: color-mix(in srgb, var(--muted) 60%, transparent); }
 .studio-knowledge-cue[data-selected="true"] { background: var(--muted); }
-.studio-knowledge-cue-label { display: grid; min-width: 0; grid-template-columns: 16px minmax(2ch, max-content) minmax(0, 1fr); align-items: start; gap: 8px; cursor: pointer; font-size: 13px; line-height: 20px; }
+.studio-knowledge-cue-label { display: grid; min-width: 0; grid-template-columns: 16px minmax(2ch, max-content) minmax(0, 1fr); align-items: start; gap: 8px; cursor: var(--clickable-cursor, pointer); font-size: 13px; line-height: 20px; }
 .studio-knowledge-cue-label > [data-slot="checkbox"] { margin-top: 2px; }
 .studio-knowledge-cue-number { color: var(--muted-foreground); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
 .studio-knowledge-cue-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

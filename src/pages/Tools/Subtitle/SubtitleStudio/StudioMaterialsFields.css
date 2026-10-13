@@ -87,7 +87,7 @@
 .studio-materials-group-count { color: var(--muted-foreground); font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; }
 .studio-materials-group-chevron { flex-shrink: 0; margin-left: auto; color: var(--muted-foreground); transition: transform 150ms; }
 .studio-materials-group-chevron[data-open="false"] { transform: rotate(-90deg); }
-.studio-materials-collection-row { display: flex; align-items: center; gap: 10px; min-width: 0; border-radius: 7px; padding: 6px 8px; cursor: pointer; transition: background-color 120ms; }
+.studio-materials-collection-row { display: flex; align-items: center; gap: 10px; min-width: 0; border-radius: 7px; padding: 6px 8px; cursor: var(--clickable-cursor, pointer); transition: background-color 120ms; }
 .studio-materials-collection-row:hover { background: var(--accent); }
 .studio-materials-collection-row[data-selected="true"] { background: color-mix(in srgb, var(--muted) 70%, var(--popover)); }
 .studio-materials-collection-row:focus-within { outline: 2px solid var(--ring); outline-offset: -2px; }
