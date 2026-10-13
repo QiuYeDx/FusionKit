@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 const enabled = process.env.FUSIONKIT_STUDIO_I6_WORKSPACE_UI === '1';
 type MainObservation = {
@@ -63,7 +64,7 @@ async function geometry(page: Page) {
 describe.runIf(enabled)('I6 actual Electron workspace layout and selection', () => {
   it('keeps view origins stable and selection local through slow reads, new queries and disposal', async () => {
     const artifacts = path.resolve('test-results/studio-i6-workspace'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')); const profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts); const profile = path.join(root, 'profile');
     const evidence: Record<string, unknown> = {}; const errors: string[] = [];
     let app: ElectronApplication | undefined;
     try {

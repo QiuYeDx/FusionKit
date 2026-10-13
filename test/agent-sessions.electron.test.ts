@@ -1,8 +1,9 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
+import { createTestRun } from './support/testRun';
 
 type ResponsesBody = { instructions: string; tools?: { name: string }[]; input: { role?: string; content?: unknown }[] };
 const TITLE_PREFIX = 'You name conversations.';
@@ -128,7 +129,7 @@ async function reloadHome(page: Page) {
 describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions', () => {
   it('lists, finds, renames, pins, opens and deletes saved sessions in the home sidebar', async () => {
     const artifacts = path.resolve('test-results/agent-sessions'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'list-'));
+    const root = await createTestRun(artifacts, 'list-');
     await seed(path.join(root, 'profile'));
     let run: Awaited<ReturnType<typeof harness>> | undefined;
     const errors: string[] = [];
@@ -307,7 +308,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
 
   it('grows the list out of its two buttons and shrinks it back into them', async () => {
     const artifacts = path.resolve('test-results/agent-sessions'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'motion-'));
+    const root = await createTestRun(artifacts, 'motion-');
     await seed(path.join(root, 'profile'));
     let run: Awaited<ReturnType<typeof harness>> | undefined;
     try {
@@ -398,7 +399,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
 
   it('runs sessions side by side, names them, and keeps them across a restart', async () => {
     const artifacts = path.resolve('test-results/agent-sessions'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'live-'));
+    const root = await createTestRun(artifacts, 'live-');
     let run: Awaited<ReturnType<typeof harness>> | undefined;
     const errors: string[] = [];
     try {
@@ -489,7 +490,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
 
   it('switches sessions from the floating panel and clears them all from settings', async () => {
     const artifacts = path.resolve('test-results/agent-sessions'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'dock-'));
+    const root = await createTestRun(artifacts, 'dock-');
     await seed(path.join(root, 'profile'));
     let run: Awaited<ReturnType<typeof harness>> | undefined;
     const errors: string[] = [];

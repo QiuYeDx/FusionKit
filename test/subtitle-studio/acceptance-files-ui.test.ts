@@ -1,9 +1,10 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 const enabled = process.env.FUSIONKIT_STUDIO_I3_UI === '1';
 const vtt = 'WEBVTT\n\nNOTE keep-note\nThis is private format metadata.\n\nSTYLE\n::cue { color: lime; }\n\nscene-one\n00:00:01.000 --> 00:00:03.000 align:start position:20%\n<b>Hello</b> from the workshop.\n';
@@ -32,7 +33,7 @@ async function prepareAndAccept(page: Page) {
 describe.runIf(enabled)('I3 native files, format preservation and export UI', () => {
   it('imports real dropped Files, translates VTT/ASS, exports to separate source folders and restores locations', async () => {
     const artifacts = path.resolve('test-results/studio-i3-files'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const a = path.join(root, 'A'), b = path.join(root, 'B'); await mkdir(a); await mkdir(b);
     const vttFile = path.join(a, 'Session.vtt'), assFile = path.join(b, 'Dialogue.ass'), badFile = path.join(root, 'notes.txt');
     await writeFile(vttFile, vtt); await writeFile(assFile, ass); await writeFile(badFile, 'Not subtitles');

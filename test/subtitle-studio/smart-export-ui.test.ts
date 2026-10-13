@@ -1,12 +1,13 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_SMART_EXPORT_UI === '1')('content-aware export in real Electron', () => {
   it('restricts source-only scopes and exports mixed target/bilingual files with one source fallback', async () => {
     const artifacts = path.resolve('test-results/studio-smart-export'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')); const profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts); const profile = path.join(root, 'profile');
     const names = ['paired.wav.srt', 'source.MP4.srt'];
     const original = ['1\n00:00:01,000 --> 00:00:02,000\nHello\n你好\n\n2\n00:00:03,000 --> 00:00:04,000\nUntranslated line\n', '1\n00:00:01,000 --> 00:00:02,000\nSource only\n'];
     const files = names.map(name => path.join(root, name));

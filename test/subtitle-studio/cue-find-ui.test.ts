@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
+import { createTestRun } from '../support/testRun';
 
 const time = (ms: number) => new Date(ms).toISOString().slice(11, 23).replace('.', ',');
 /** Lines 3, 120 and 240 mention 法尔童 (line 120 twice). */
@@ -15,7 +16,7 @@ const srt = () => importSubtitleText(Array.from({ length: 250 }, (_, index) =>
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('finding and replacing in the list', () => {
   it('finds across pages, moves between matches, replaces one or all and undoes', async () => {
     const artifacts = path.resolve('test-results/studio-cue-find'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const profile = path.join(root, 'profile');
     await new DocumentRepository(path.join(profile, 'subtitle-studio', 'documents')).create(srt());
     let app: ElectronApplication | undefined;

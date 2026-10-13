@@ -1,8 +1,9 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
+import { createTestRun } from './support/testRun';
 
 type ResponsesBody = { instructions: string; tools: { name: string }[]; input: { type?: string; output?: string }[] };
 type RevisionPayload = { request: string; items: { id: string; source: string }[] };
@@ -22,7 +23,7 @@ function call(name: string, args: unknown) {
 describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent panel', () => {
   it('opens on tool pages, knows the page and prepares a Studio revision the user applies', async () => {
     const artifacts = path.resolve('test-results/agent-dock'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const input = path.join(root, '法厄同.srt');
     const lines = Array.from({ length: 250 }, (_, index) => `第 ${index + 1} 句台词。`);
     lines[4] = '法尔童驾着太阳车出发了。'; lines[119] = '人们说法而童太年轻了。'; lines[239] = '法尔童最终坠落了。';

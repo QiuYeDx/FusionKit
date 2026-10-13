@@ -1,10 +1,11 @@
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
+import { createTestRun } from '../support/testRun';
 
 const srt = (name: string, lines: string[]) => importSubtitleText(lines.map((line, index) => `${index + 1}\n00:00:0${index},000 --> 00:00:0${index},500\n${line}\n`).join('\n'),
   { format: 'srt', displayName: name, encoding: 'utf-8', digest: 'f'.repeat(64) }, randomUUID);
@@ -12,7 +13,7 @@ const srt = (name: string, lines: string[]) => importSubtitleText(lines.map((lin
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('undo history per document', () => {
   it('keeps each document its undo while others are edited and while the studio is left', async () => {
     const artifacts = path.resolve('test-results/studio-cue-history'); await mkdir(artifacts, { recursive: true });
-    const profile = path.join(await mkdtemp(path.join(artifacts, 'run-')), 'profile');
+    const profile = path.join(await createTestRun(artifacts), 'profile');
     const repository = new DocumentRepository(path.join(profile, 'subtitle-studio', 'documents'));
     await repository.create(srt('Alpha.srt', ['A one', 'A two', 'A three']));
     await repository.create(srt('Beta.srt', ['B one', 'B two']));

@@ -1,8 +1,9 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
+import { createTestRun } from './support/testRun';
 
 type ResponsesBody = { instructions: string; tools: { name: string }[]; input: { type?: string; name?: string; output?: string }[] };
 type Sample = { t: number; left: number; top: number; width: number; height: number; panelOpacity: number; homeOpacity: number | null };
@@ -47,7 +48,7 @@ const takeSamples = (page: Page) => page.evaluate(() => (window as unknown as { 
 describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('home and panel handoff', () => {
   it('hands the conversation between home and the panel, follows the translator page settings and opens pages', async () => {
     const artifacts = path.resolve('test-results/agent-handoff'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const input = path.join(root, 'episode.srt');
     await writeFile(input, '1\n00:00:01,000 --> 00:00:02,000\nこんにちは\n');
     let app: ElectronApplication | undefined; let server: Server | undefined;

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
@@ -8,6 +8,7 @@ import { captureSourceInput } from '../../electron/main/subtitle-studio/source-l
 import { transcriptToDocument } from '../../electron/main/subtitle-studio/transcription/document-adapter';
 import { sourceDigest } from '../../electron/main/subtitle-studio/translation-planner';
 import { pcm16WavHeader } from '../../src/subtitle-studio/cue-audio';
+import { createTestRun } from '../support/testRun';
 
 async function tone(file: string, seconds: number) {
   const samples = new Int16Array(8000 * seconds).map((_, i) => Math.round(Math.sin(2 * Math.PI * 440 * i / 8000) * 2000));
@@ -25,7 +26,7 @@ async function leaveTo(page: Page, target: Locator) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('splitting and inserting cues', () => {
   it('splits a cue where the text is clicked, at the word time, inserts a cue in a gap, and undoes both', async () => {
     const artifacts = path.resolve('test-results/studio-cue-split-insert'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const profile = path.join(root, 'profile');
     const media = await tone(path.join(root, 'media', 'Talk.wav'), 12);
     const doc = transcriptToDocument({ schemaVersion: 1, source: { displayName: 'Talk.wav', durationMs: 12000 },

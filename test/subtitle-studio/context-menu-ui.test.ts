@@ -1,12 +1,13 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_CONTEXT_UI === '1')('document context actions in real Electron', () => {
   it('keeps selection and preview independent, freezes cross-page scope and reuses batch workflows', async () => {
     const artifacts = path.resolve('test-results/studio-context'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')), profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts), profile = path.join(root, 'profile');
     const files: string[] = [];
     for (let i = 1; i <= 22; i++) { const file = path.join(root, `${String(i).padStart(2, '0')}-字幕文档.srt`); await writeFile(file, `1\n00:00:01,000 --> 00:00:02,000\nSource ${i}\n`); files.push(file); }
     let app: ElectronApplication | undefined, page: Page | undefined;

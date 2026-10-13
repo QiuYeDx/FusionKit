@@ -1,8 +1,9 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 /** Distances from a row's visible surface to the inner edges of the frame around it. */
 async function insets(row: Locator, frame: Locator, top?: Locator) {
@@ -17,7 +18,7 @@ async function insets(row: Locator, frame: Locator, top?: Locator) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('subtitle studio list insets', () => {
   it('keeps list rows equally inset and the export review compact', async () => {
     const artifacts = path.resolve('test-results/studio-list-insets'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const files = await Promise.all(['01-intro.srt', '02-right.srt', '03-left.srt'].map(async (name, index) => {
       const file = path.join(root, name);
       await writeFile(file, Array.from({ length: 4 }, (_, line) => `${line + 1}\n00:00:0${line + 1},000 --> 00:00:0${line + 1},800\nLine ${index + 1}-${line + 1}\n`).join('\n'));

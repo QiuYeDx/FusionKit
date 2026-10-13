@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { DocumentRepository } from '../../electron/main/subtitle-studio/document
 import { captureSourceInput } from '../../electron/main/subtitle-studio/source-location-service';
 import { transcriptToDocument } from '../../electron/main/subtitle-studio/transcription/document-adapter';
 import { pcm16WavHeader } from '../../src/subtitle-studio/cue-audio';
+import { createTestRun } from '../support/testRun';
 
 const LINES = 120;
 /** One line a second: 0.6 s of tone, then 0.4 s of silence. The app is muted under test. */
@@ -33,7 +34,7 @@ async function leaveTo(page: Page, target: Locator) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofreading', () => {
   it('follows continuous playback across pages, slows or repeats it, and sets times from what is heard', async () => {
     const artifacts = path.resolve('test-results/studio-cue-listening'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const profile = path.join(root, 'profile');
     const media = await tones(path.join(root, 'media', 'Long talk.wav'));
     const repository = new DocumentRepository(path.join(profile, 'subtitle-studio', 'documents'));
@@ -180,7 +181,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
   }, 150_000);
   it('shows the waveform while retiming a line and moves its start and end by dragging', async () => {
     const artifacts = path.resolve('test-results/studio-cue-listening'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const profile = path.join(root, 'profile');
     const media = await tones(path.join(root, 'media', 'Long talk.wav'));
     const repository = new DocumentRepository(path.join(profile, 'subtitle-studio', 'documents'));

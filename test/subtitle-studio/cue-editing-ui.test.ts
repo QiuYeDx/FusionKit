@@ -1,13 +1,14 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('subtitle preview editing', () => {
   it('selects, edits, translates, deletes and undoes cues in the preview list', async () => {
     const artifacts = path.resolve('test-results/studio-cue-editing'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const input = path.join(root, 'cue-editing.srt');
     await writeFile(input, [1, 2, 3, 4, 5].map(index => `${index}\n00:00:0${index},000 --> 00:00:0${index},800\nLine ${index}\n`).join('\n'));
     let app: ElectronApplication | undefined; let server: Server | undefined; let requests = 0;

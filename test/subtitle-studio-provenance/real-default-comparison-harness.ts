@@ -32,6 +32,7 @@ import { LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION, LOCAL_SUBTITLE_PRODUCTION_CONTRAC
 import type { EnqueueTranscriptionRequest } from '../../src/subtitle-studio/transcription/task-contract';
 import { prepareRealDefaultResources } from './real-default-resource-fixture';
 import { analyzeRealDefaultComparison } from './real-default-comparison-analysis';
+import { pruneStaleRuns } from '../support/staleRuns';
 
 const REPOSITORY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MODEL_RELATIVE = 'docs/v0.2.11/local-subtitle-transcriber/poc/runtime-smoke.local/models/ggml-large-v3-q5_0.bin';
@@ -425,7 +426,7 @@ export async function runRealDefaultComparison(): Promise<RealDefaultComparisonR
   assert.equal(process.env.FUSIONKIT_REAL_DEFAULT_ASR, '1', 'Requires explicit FUSIONKIT_REAL_DEFAULT_ASR=1');
   assert.equal(process.platform, 'win32'); assert.equal(process.arch, 'x64');
   const appRoot = await realpath(REPOSITORY), parent = path.join(REPOSITORY, 'test-results', 'studio-t08', 'real-default-comparison');
-  await mkdir(parent, { recursive: true }); const outputRoot = await mkdtemp(path.join(parent, 'run-'));
+  await mkdir(parent, { recursive: true }); await pruneStaleRuns(parent, 'run-'); const outputRoot = await mkdtemp(path.join(parent, 'run-'));
   const report: RealDefaultComparisonReport = { schemaVersion: 1, evidenceKind: 'real-production-default-vad-device-comparison',
     status: 'running', qualityStatus: 'requires_review', outputRoot, startedAt: new Date().toISOString(), budgets: REAL_DEFAULT_BUDGET,
     host: { executable: process.execPath, version: process.version, versions: { ...process.versions }, platform: process.platform, arch: process.arch },

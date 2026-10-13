@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
+import { createTestRun } from './support/testRun';
 
 const enabled = process.env.FUSIONKIT_PRELOAD_LOADING_UI === '1';
 const artifacts = path.resolve('test-results/preload-loading');
@@ -30,7 +31,7 @@ async function waitForExit(page: Page) {
 describe.runIf(enabled)('production preload loading lifecycle in real Electron', () => {
   it('restarts after a hidden reload, recovers a missing start notification, and reloads each theme and language', async () => {
     await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const profile = path.join(root, 'profile');
     let app: ElectronApplication | undefined;
     let page: Page | undefined;

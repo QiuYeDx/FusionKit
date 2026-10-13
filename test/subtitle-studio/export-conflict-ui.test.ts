@@ -1,12 +1,13 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_CONFLICT_UI === '1')('export conflict policy in real Electron', () => {
   it('aligns the footer menu and publishes indexed and native overwrite exports', async () => {
     const artifacts = path.resolve('test-results/studio-export-conflict'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')), profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts), profile = path.join(root, 'profile');
     const raw = '1\n00:00:01,000 --> 00:00:02,000\nSource text\n';
     const files: string[] = [];
     for (const folder of ['a', 'b']) { await mkdir(path.join(root, folder)); const file = path.join(root, folder, 'sample.srt'); await writeFile(file, raw); files.push(file); }

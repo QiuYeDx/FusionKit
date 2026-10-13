@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
@@ -8,6 +8,7 @@ import { DocumentRepository } from '../../electron/main/subtitle-studio/document
 import { captureSourceInput } from '../../electron/main/subtitle-studio/source-location-service';
 import { transcriptToDocument } from '../../electron/main/subtitle-studio/transcription/document-adapter';
 import { pcm16WavHeader } from '../../src/subtitle-studio/cue-audio';
+import { createTestRun } from '../support/testRun';
 
 /** A quiet tone that changes pitch every two seconds; the app is muted under test anyway. */
 async function tone(file: string, seconds: number) {
@@ -32,7 +33,7 @@ async function leaveTo(page: Page, target: Locator) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('playing the original audio of cues', () => {
   it('plays rows, selections and menu items, finds or asks for media, and stays silent under test', async () => {
     const artifacts = path.resolve('test-results/studio-cue-audio'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const profile = path.join(root, 'profile');
     const interview = await tone(path.join(root, 'media', 'Interview.wav'), 24);
     const repository = new DocumentRepository(path.join(profile, 'subtitle-studio', 'documents'));
@@ -241,7 +242,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('playing the original a
   }, 120_000);
   it('plays revision proposals and consistency occurrences without changing them, and stops when the dialogs close', async () => {
     const artifacts = path.resolve('test-results/studio-cue-audio'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const profile = path.join(root, 'profile');
     const meeting = await tone(path.join(root, 'media', 'Meeting.wav'), 16);
     const repository = new DocumentRepository(path.join(profile, 'subtitle-studio', 'documents'));

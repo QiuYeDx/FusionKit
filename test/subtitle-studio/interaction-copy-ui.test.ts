@@ -1,9 +1,10 @@
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator } from 'playwright/test';
 import type { DocumentPage } from '../../src/subtitle-studio/ipc-contract';
+import { createTestRun } from '../support/testRun';
 
 async function waitForMenuStable(menu: Locator) {
   await uiExpect(menu).toBeVisible();
@@ -32,7 +33,7 @@ async function waitForMenuStable(menu: Locator) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_I6_COPY_UI === '1')('I6 explicit copy and concise results', () => {
   it('copies the selected content and reveals operation details only on request', async () => {
     const artifacts = path.resolve('test-results/studio-i6-copy'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')); const profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts); const profile = path.join(root, 'profile');
     const lrc = path.join(root, '01-双语剪贴板测试.lrc');
     await writeFile(lrc, '[00:01.000]Hello world.\n[00:01.000]你好世界。\n[00:03.000]The light is on.\n[00:03.000]灯已经亮了。\n[00:05.000]We can leave now.\n[00:05.000]我们现在可以走了。\n[00:07.000]One more line.\n');
     const srts = [path.join(root, '02-完整时间与长名称-字幕内容测试-September.srt'), path.join(root, '03-待翻译字幕.srt')];

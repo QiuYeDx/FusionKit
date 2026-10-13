@@ -6,6 +6,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { pruneStaleRuns } from '../support/staleRuns';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
 
@@ -50,6 +51,7 @@ describe.runIf(enabled)('release candidate real production workflow', () => {
   it('transcribes on CPU and Metal, reopens documents, translates and exports actual files', async () => {
     const artifacts = path.resolve('test-results/studio-release-real');
     await mkdir(artifacts, { recursive: true });
+    await pruneStaleRuns(artifacts, 'run-');
     const root = await mkdtemp(path.join(artifacts, 'run-'));
     const profile = path.join(root, 'profile');
     const appRoot = path.join(root, 'app');

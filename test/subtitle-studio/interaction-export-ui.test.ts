@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 async function waitForDialogLayout(page: Page) {
   // Wait for the surface being measured, independent of background animations.
@@ -55,7 +56,7 @@ async function closeResult(page: Page, successCount: number, testId = 'studio-ex
 describe.runIf(process.env.FUSIONKIT_STUDIO_I6_EXPORT_UI === '1')('I6 explicit export review and concise operation results', () => {
   it('keeps real plans guarded across back, cancel, expiry, partial blocking and original byte downloads', async () => {
     const artifacts = path.resolve('test-results/studio-i6-export'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')); const profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts); const profile = path.join(root, 'profile');
     const names = ['01-跨语言研讨记录与较长的文档名称-September-Workshop.srt', '02-独立来源目录.srt', '03-缺少结束时间.lrc'];
     const sourceText = '1\n00:00:01,000 --> 00:00:02,000\nOriginal first line.\n\n2\n00:00:03,000 --> 00:00:04,000\nOriginal second line.\n';
     const sourceBytes = [Buffer.from(sourceText), Buffer.from(sourceText), Buffer.from('\ufeff[00:01.00]Missing end time.\n')];

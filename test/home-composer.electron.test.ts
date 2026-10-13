@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from '@playwright/test';
+import { createTestRun } from './support/testRun';
 
 const HISTORY = ['第一条历史消息', '请把这一季所有字幕翻译成简体中文，人名按照翻译资料里的写法统一，双语字幕原文在前、译文在后，保存到原视频旁边，同名文件自动编号', '把 D:\\字幕\\第一季 里的字幕翻译成中文'];
 
@@ -15,7 +16,7 @@ async function layout(page: Page) {
 describe.runIf(process.env.FUSIONKIT_HOME_COMPOSER_E2E === '1')('home composer', () => {
   it('turns multi-line when text wraps and shows where a recalled message sits in the history', async () => {
     const artifacts = path.resolve('test-results/home-composer'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     let app: ElectronApplication | undefined;
     const errors: string[] = [];
     try {

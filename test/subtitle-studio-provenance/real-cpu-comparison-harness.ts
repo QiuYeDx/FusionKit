@@ -26,6 +26,7 @@ import { validateDocument } from '../../src/subtitle-studio/domain';
 import { LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION, LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
   type LocalSubtitleTranscript } from '../../src/type/localSubtitle';
 import type { EnqueueTranscriptionRequest } from '../../src/subtitle-studio/transcription/task-contract';
+import { pruneStaleRuns } from '../support/staleRuns';
 
 const REPOSITORY = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const AUDIO_RELATIVE = 'test-results/subtitle-quality-review/vad-baseline-isolated/A.wav';
@@ -299,6 +300,7 @@ export async function runRealCpuComparison(): Promise<RealCpuComparisonReport> {
   const modelPath = path.resolve(process.env.FUSIONKIT_REAL_ASR_MODEL ?? path.join(REPOSITORY, MODEL_RELATIVE));
   const outputParent = path.join(REPOSITORY, 'test-results', 'studio-t07', 'real-cpu-comparison');
   await mkdir(outputParent, { recursive: true });
+  await pruneStaleRuns(outputParent, 'run-');
   const outputRoot = await mkdtemp(path.join(outputParent, 'run-'));
   const chain = (side: ChainEvidence['side']): ChainEvidence => ({ side, phase: 'not-started', phases: [], serverSnapshots: [], observedProcessIds: [] });
   const report: RealCpuComparisonReport = { schemaVersion: 1, evidenceKind: 'real-production-cpu-comparison', status: 'running',

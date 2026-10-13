@@ -3,6 +3,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
+import { pruneStaleRuns } from '../../support/staleRuns';
 
 const digest = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 
@@ -17,6 +18,7 @@ export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missi
   const repositoryRoot = realpathSync.native(process.cwd());
   const artifactsRoot = path.join(repositoryRoot, 'test-results', 'studio-t06-ui');
   await mkdir(artifactsRoot, { recursive: true });
+  await pruneStaleRuns(artifactsRoot, `${mode}-`);
   const runRoot = realpathSync.native(await mkdtemp(path.join(artifactsRoot, `${mode}-`)));
   const appRoot = path.join(runRoot, 'app'), profile = path.join(runRoot, 'profile');
   await mkdir(appRoot);

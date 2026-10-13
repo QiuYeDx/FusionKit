@@ -1,8 +1,9 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 /** The user's file around the reported repetition, and a second repetition further on. */
 const PAIRS: [string, string, string][] = [
@@ -37,7 +38,7 @@ function call(name: string, args: unknown) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('structure fixes from AI revision and the assistant', () => {
   it('finds repeated lines, applies chosen merges and deletions from the model, and the assistant prepares a merge', async () => {
     const artifacts = path.resolve('test-results/studio-cue-structure-revision'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const file = path.join(root, '01某邮局的工作 - ある郵便局のお仕事.lrc');
     await writeFile(file, PAIRS.map(([time, ja, zh]) => `[${time}]${ja}\n[${time}]${zh}\n`).join(''));
     let app: ElectronApplication | undefined; let server: Server | undefined;

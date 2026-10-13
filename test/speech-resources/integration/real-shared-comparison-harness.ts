@@ -41,6 +41,7 @@ import { LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS, localSubtitleIpcSuccess } from '
 import type { LocalSubtitleIpcHandlerContext } from '../../../electron/main/local-subtitle/ipc';
 import { REAL_DEFAULT_SAMPLES, realDefaultConfig, observeRealMethod, type RealDefaultChainEvidence } from '../../subtitle-studio-provenance/real-default-comparison-harness';
 import { analyzeRealDefaultComparison } from '../../subtitle-studio-provenance/real-default-comparison-analysis';
+import { pruneStaleRuns } from '../../support/staleRuns';
 
 const PROJECT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const MODEL = SPEECH_MODEL_MANIFEST.models.find(model => model.id === 'large-v3-q5_0')!;
@@ -166,6 +167,7 @@ export async function runRealSharedComparison(): Promise<RealSharedReport> {
   assert.ok(realSharedEnabled(), 'Set both FUSIONKIT_REAL_ASR=1 and FUSIONKIT_REAL_SHARED_ASR=1 explicitly');
   assert.equal(process.platform, 'win32'); assert.equal(process.arch, 'x64');
   const evidenceParent = path.join(PROJECT, 'test-results', 'studio-t09'); await mkdir(evidenceParent, { recursive: true });
+  await pruneStaleRuns(evidenceParent, 'real-shared-');
   const outputRoot = await realpath(await mkdtemp(path.join(evidenceParent, 'real-shared-')));
   const report: RealSharedReport = { schemaVersion: 1, evidenceKind: 'real-shared-speech-resources', status: 'running', qualityStatus: 'requires_review',
     outputRoot, startedAt: new Date().toISOString(), host: { version: process.version, versions: process.versions, executable: process.execPath, platform: process.platform, arch: process.arch },

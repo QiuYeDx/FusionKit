@@ -1,9 +1,10 @@
 import { createServer, type Server } from 'node:http';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile, rename } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Locator, type Page } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 async function ready(page: Page) {
   await page.getByTestId('subtitle-studio').waitFor();
@@ -36,7 +37,7 @@ async function prepare(page: Page) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_I5_EXPORT_UI === '1')('I5 export defaults and shared document lists', () => {
   it('uses real tracks, source folders and fallback with one collapsed scope and scroll-aware lists', async () => {
     const artifacts = path.resolve('test-results/studio-i5-export'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')); const profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts); const profile = path.join(root, 'profile');
     const names = ['01-多译轨-跨语言协作记录与长文件名尾部保留-September-Workshop.srt', '02-单译轨.srt', ...Array.from({ length: 6 }, (_, i) => `0${i + 3}-尚未翻译的文档-${i + 1}.srt`)];
     const files: string[] = []; const source = '1\n00:00:01,000 --> 00:00:02,000\nOriginal first line.\n\n2\n00:00:03,000 --> 00:00:04,000\nOriginal second line.\n';
     for (let index = 0; index < names.length; index++) { const directory = path.join(root, `source-${index}`); await mkdir(directory); const file = path.join(directory, names[index]); await writeFile(file, source); files.push(file); }

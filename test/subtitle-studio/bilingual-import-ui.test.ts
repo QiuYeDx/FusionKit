@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 /** The opening of the user's file: each timestamp holds a Japanese line, then its Chinese translation. */
 const PAIRS: [string, string, string][] = [
@@ -22,7 +23,7 @@ const PAIRS: [string, string, string][] = [
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('bilingual subtitles at import', () => {
   it('separates a bilingual LRC picked with other files, says so, and imports it as it was on request', async () => {
     const artifacts = path.resolve('test-results/studio-bilingual-import'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const bilingual = path.join(root, '01某邮局的工作 - ある郵便局のお仕事.lrc');
     const mono = path.join(root, '02 单语.srt');
     await writeFile(bilingual, PAIRS.map(([time, ja, zh]) => `[${time}]${ja}\n[${time}]${zh}\n`).join(''));

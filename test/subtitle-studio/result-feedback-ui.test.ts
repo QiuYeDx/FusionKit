@@ -1,11 +1,12 @@
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
 import zh from '../../src/locales/zh/studio.json';
 import en from '../../src/locales/en/studio.json';
+import { createTestRun } from '../support/testRun';
 
 type Payload = { items: { id: string; text: string }[] };
 const text = (key: string, language: 'zh' | 'en' = 'zh', values: Record<string, string | number> = {}) => {
@@ -46,7 +47,7 @@ async function settled(page: Page) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_I7_RESULT_UI === '1')('I7 consistent operation feedback', () => {
   it('shows actual receipts and action-specific outcomes with one optional detail list and honest request semantics', async () => {
     const artifacts = path.resolve('test-results/studio-i7-results'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')); const profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts); const profile = path.join(root, 'profile');
     const source = '1\n00:00:01,000 --> 00:00:03,000\nA controlled source line.\n';
     const names = ['01-导出后的文件名称应直接可识别-September-Workshop.srt', '02-跨语言研讨会与较长文件名称-用于完整提示和换行检查-International-Research.srt', '03-请求取消的任务.srt', '04-没有待取消任务.srt'];
     const files = names.map(name => path.join(root, name));

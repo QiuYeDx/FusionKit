@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { DocumentRepository } from '../../electron/main/subtitle-studio/document
 import { captureSourceInput } from '../../electron/main/subtitle-studio/source-location-service';
 import { transcriptToDocument } from '../../electron/main/subtitle-studio/transcription/document-adapter';
 import { pcm16WavHeader } from '../../src/subtitle-studio/cue-audio';
+import { createTestRun } from '../support/testRun';
 
 const LINES = 250;
 /** A quiet tone at 8 kHz, long enough for every line; the app is muted under test. */
@@ -26,7 +27,7 @@ async function leaveTo(page: Page, target: Locator) {
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('shifting the whole document', () => {
   it('shifts every page or from one line, nudges, plays the shifted line, explains refusals and undoes', async () => {
     const artifacts = path.resolve('test-results/studio-cue-shift'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const profile = path.join(root, 'profile');
     const media = await tone(path.join(root, 'media', 'Episode.wav'), 110);
     const repository = new DocumentRepository(path.join(profile, 'subtitle-studio', 'documents'));

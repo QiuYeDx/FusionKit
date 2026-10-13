@@ -1,15 +1,16 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 type RevisionPayload = { request: string; editableFields: string[]; items: { id: string; source: string; target?: string }[] };
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('subtitle AI revision', () => {
   it('proposes, previews, applies and undoes an AI revision of selected cues', async () => {
     const artifacts = path.resolve('test-results/studio-cue-revision'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const input = path.join(root, 'cue-revision.srt');
     const lines = ['Welcome back', 'Today deep sea released a new model', 'Deep sea says it is open', 'Thanks for watching', 'See you'];
     await writeFile(input, lines.map((line, index) => `${index + 1}\n00:00:0${index + 1},000 --> 00:00:0${index + 1},800\n${line}\n`).join('\n'));
@@ -147,7 +148,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('subtitle AI revision',
 
   it('finds and revises a misheard name across the whole document without a selection', async () => {
     const artifacts = path.resolve('test-results/studio-cue-revision'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'document-'));
+    const root = await createTestRun(artifacts, 'document-');
     const input = path.join(root, 'cue-revision-document.srt');
     // 250 lines; the misheard name appears on pages 1 and 3, once with another wrong character.
     const lines = Array.from({ length: 250 }, (_, index) => `第 ${index + 1} 句台词。`);

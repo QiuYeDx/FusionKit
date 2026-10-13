@@ -1,12 +1,13 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 describe.runIf(process.env.FUSIONKIT_STUDIO_DENSITY_UI === '1')('responsive document navigation in real Electron', () => {
   it('selects immediately, ignores superseded reads and isolates loading and errors', async () => {
     const artifacts = path.resolve('test-results/studio-density'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')), profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts), profile = path.join(root, 'profile');
     const files: string[] = [];
     for (let i = 1; i <= 22; i++) { const file = path.join(root, `${String(i).padStart(2, '0')}-字幕文档.srt`); await writeFile(file, `1\n00:00:01,000 --> 00:00:02,000\nSource ${i}\n`); files.push(file); }
     let app: ElectronApplication | undefined, page: Page | undefined;

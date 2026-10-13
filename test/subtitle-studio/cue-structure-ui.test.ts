@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 /** The user's file around the reported repetition (19–22 in the flat import, 9–10 once separated). */
 const PAIRS: [string, string, string][] = [
@@ -21,7 +22,7 @@ const PAIRS: [string, string, string][] = [
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('merging cues and editing times', () => {
   it('merges the reported repetition, edits and shifts times, and undoes each', async () => {
     const artifacts = path.resolve('test-results/studio-cue-structure'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const file = path.join(root, '01某邮局的工作 - ある郵便局のお仕事.lrc');
     await writeFile(file, PAIRS.map(([time, ja, zh]) => `[${time}]${ja}\n[${time}]${zh}\n`).join(''));
     let app: ElectronApplication | undefined;

@@ -1,7 +1,8 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 const srt = (prefix: string, count: number) => Array.from({ length: count }, (_, index) => {
   const second = String(index).padStart(2, '0');
@@ -11,7 +12,7 @@ const srt = (prefix: string, count: number) => Array.from({ length: count }, (_,
 describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('expanded subtitle preview', () => {
   it('covers the window in place, keeps the list state and tools, and leaves with Escape after inner layers', async () => {
     const artifacts = path.resolve('test-results/studio-preview-expansion'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-'));
+    const root = await createTestRun(artifacts);
     const first = path.join(root, 'alpha.srt'), second = path.join(root, 'beta.srt');
     await writeFile(first, srt('Alpha', 40)); await writeFile(second, srt('Beta', 12));
     let app: ElectronApplication | undefined;

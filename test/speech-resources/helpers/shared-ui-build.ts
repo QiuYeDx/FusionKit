@@ -5,12 +5,14 @@ import path from 'node:path';
 import os from 'node:os';
 import * as esbuild from 'esbuild';
 import { UI_MODELS } from './shared-ui-data';
+import { pruneStaleRuns } from '../../support/staleRuns';
 
 const digest = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 export async function buildSharedResourceUiApp() {
   const repositoryRoot = realpathSync.native(process.cwd());
   const artifactsRoot = path.join(repositoryRoot, 'test-results', 'studio-t09-ui');
   await mkdir(artifactsRoot, { recursive: true });
+  await pruneStaleRuns(artifactsRoot, 'run-');
   const artifacts = realpathSync.native(await mkdtemp(path.join(artifactsRoot, 'run-')));
   const profile = realpathSync.native(await mkdtemp(path.join(os.tmpdir(), 't9ui-')));
   const profileIdentity = await lstat(profile);

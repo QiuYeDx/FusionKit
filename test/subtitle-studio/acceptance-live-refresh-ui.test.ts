@@ -1,8 +1,9 @@
 import { createServer, type Server } from 'node:http';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
+import { createTestRun } from '../support/testRun';
 
 const enabled = process.env.FUSIONKIT_STUDIO_I5_REFRESH_UI === '1';
 type MainEvidence = {
@@ -54,7 +55,7 @@ async function toolbarGeometry(page: Page) {
 describe.runIf(enabled)('I5 real Electron reader refresh and toolbar', () => {
   it('keeps progress silent, joins foreground clicks and rejects obsolete query results', async () => {
     const artifacts = path.resolve('test-results/studio-i5-refresh'); await mkdir(artifacts, { recursive: true });
-    const root = await mkdtemp(path.join(artifacts, 'run-')); const profile = path.join(root, 'profile');
+    const root = await createTestRun(artifacts); const profile = path.join(root, 'profile');
     const firstName = 'A-long-live-translation-工作台进度与焦点保留.lrc', secondName = 'B-other-document-另一个正在翻译的文档.lrc';
     const source = Array.from({ length: 120 }, (_, index) => `[${String(Math.floor(index / 60)).padStart(2, '0')}:${String(index % 60).padStart(2, '0')}.00]Workshop sentence ${index + 1}.`).join('\n') + '\n';
     const firstPath = path.join(root, firstName), secondPath = path.join(root, secondName);
