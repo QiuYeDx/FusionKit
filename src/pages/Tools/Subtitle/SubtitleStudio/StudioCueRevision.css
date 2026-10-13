@@ -1,6 +1,6 @@
 .studio-cue-revision-content { min-height: 0; }
-.studio-cue-revision-content [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
-.studio-cue-revision-content [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
+.studio-cue-revision-content > [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
+.studio-cue-revision-content > [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
 .studio-cue-revision-body { display: grid; gap: 12px; }
 .studio-cue-revision-form { display: grid; gap: 8px; }
 .studio-cue-revision-options { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

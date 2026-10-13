@@ -99,7 +99,7 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 items-start justify-between gap-3 border-b pb-2 last:border-b-0 last:pb-0">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <Badge variant="outline" className="min-w-0 max-w-[65%] whitespace-normal text-right">
+      <Badge variant="outline" className="h-auto min-h-5 min-w-0 max-w-[65%] whitespace-normal text-right">
         {value}
       </Badge>
     </div>

@@ -24,8 +24,8 @@
 .studio-result-title { margin: 0; font-size: 20px; line-height: 28px; letter-spacing: -.025em; font-weight: 600; outline: none; overflow-wrap: anywhere; }
 .studio-result-description { margin-top: 6px; font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
 .studio-result-content { min-height: 0; }
-.studio-result-content [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
-.studio-result-content [data-slot="scroll-area-viewport"] > div > div { padding: 0 12px; }
+.studio-result-content > [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
+.studio-result-content > [data-slot="scroll-area-viewport"] > div > div { padding: 0 12px; }
 .studio-result-file { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--muted) 35%, var(--background)); font-size: 12px; line-height: 20px; }
 .studio-result-file > svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted-foreground); }
 .studio-result-file .studio-file-name { flex: 1; }

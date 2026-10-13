@@ -273,8 +273,8 @@
 }
 .studio-batch-confirm-dialog { min-width: 0; }
 .studio-batch-confirm-content { min-height: 0; }
-.studio-batch-confirm-content [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
-.studio-batch-confirm-content [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
+.studio-batch-confirm-content > [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
+.studio-batch-confirm-content > [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
 @media (prefers-reduced-motion: reduce) { .studio button { transition: none; } .studio-spin { animation: none; } }
 
 /* Leave the reader its actual remaining space when task summaries occupy two rows. */

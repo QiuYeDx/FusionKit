@@ -197,7 +197,7 @@ function ScrollableDialogContent({
       data-dialog-section="body"
       className={cn(
         "relative overflow-hidden",
-        "[&_[data-radix-scroll-area-viewport]]:border-t [&_[data-radix-scroll-area-viewport]]:border-b [&_[data-radix-scroll-area-viewport]]:border-background",
+        "[&>[data-radix-scroll-area-viewport]]:border-t [&>[data-radix-scroll-area-viewport]]:border-b [&>[data-radix-scroll-area-viewport]]:border-background",
         className
       )}
     >

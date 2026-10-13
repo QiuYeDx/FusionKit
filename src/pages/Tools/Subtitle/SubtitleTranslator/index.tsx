@@ -1881,7 +1881,7 @@ function SubtitleTranslator() {
 
           {/* Summary stat bar */}
           {tokenStats.taskCount > 0 && (
-            <Card className="p-0">
+            <Card className="gap-0 p-0">
               <div className="flex items-center gap-2 p-3 border-b">
                 <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">

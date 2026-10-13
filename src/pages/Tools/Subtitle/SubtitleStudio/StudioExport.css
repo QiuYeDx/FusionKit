@@ -1,7 +1,7 @@
 .studio-export-dialog { min-width: 0; }
 .studio-export-content { min-height: 0; overflow-anchor: none; }
-.studio-export-content [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
-.studio-export-content [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
+.studio-export-content > [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
+.studio-export-content > [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
 .studio-export-form { display: grid; gap: 12px; min-width: 0; }
 .studio-export-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
 .studio-export-fields > div { min-width: 0; }

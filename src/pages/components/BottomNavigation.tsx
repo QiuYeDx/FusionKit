@@ -71,7 +71,7 @@ const BottomNavigation: React.FC = () => {
               <Button
                 key={path}
                 variant="ghost"
-                size="sm"
+                size="default"
                 onClick={() => navigate(path)}
                 className={cn("gap-2 rounded-full relative hover:bg-transparent dark:hover:bg-transparent text-muted-foreground/70 hover:text-foreground transition-colors", location.pathname === path && "text-foreground")}
               >
@@ -100,14 +100,14 @@ const BottomNavigation: React.FC = () => {
           >
             <Button
               variant="ghost"
-              size="sm"
+              size="default"
               onClick={backToTools}
               className="gap-2 rounded-full"
             >
               <RotateCcw className="size-5" />
               {t("menu.back")}
             </Button>
-            <Button variant="secondary" size="sm" className="gap-2 rounded-full">
+            <Button variant="secondary" size="default" className="gap-2 rounded-full">
               <Wrench className="size-5" />
               {t(currentToolName)}
             </Button>
