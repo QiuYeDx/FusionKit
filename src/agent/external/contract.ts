@@ -18,6 +18,11 @@ export const EXTERNAL_AGENT_CHANNELS = {
   connectionInfo: "external-agent:connection-info",
   installSkill: "external-agent:install-skill",
   skillStatus: "external-agent:skill-status",
+  writeClientConfig: "external-agent:write-client-config",
+  clientConfigStatus: "external-agent:client-config-status",
+  revealClientConfig: "external-agent:reveal-client-config",
+  /** Opens a client's own install link (Cursor). */
+  openClientInstall: "external-agent:open-client-install",
   /** Main → window pushes. */
   status: "external-agent:status",
   call: "external-agent:call",
@@ -95,8 +100,13 @@ export interface ExternalConnectionInfo {
   platform: string;
 }
 
-export type ExternalSkillTarget = "claude" | "codex";
+/** claude: ~/.claude/skills (Claude Code); agents: the shared ~/.agents/skills (Codex, Cursor and other agents). */
+export type ExternalSkillTarget = "claude" | "agents";
 export interface ExternalSkillStatus { target: ExternalSkillTarget; path: string; installed: boolean; current: boolean }
+
+/** A desktop client's own MCP configuration file and whether FusionKit is in it. */
+export interface ExternalClientConfigStatus { client: "claude-desktop" | "codex" | "cursor"; path: string; exists: boolean; configured: boolean }
+export interface ExternalClientConfigWrite { client: "claude-desktop" | "codex" | "cursor"; path: string; backupPath?: string }
 
 export type ExternalResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -131,6 +141,10 @@ export interface ExternalAgentApi {
   connectionInfo(): Promise<ExternalResult<ExternalConnectionInfo>>;
   installSkill(target: ExternalSkillTarget): Promise<ExternalResult<ExternalSkillStatus>>;
   skillStatus(): Promise<ExternalResult<ExternalSkillStatus[]>>;
+  writeClientConfig(request: { client: ExternalClientConfigStatus["client"]; transport: "http" | "stdio" }): Promise<ExternalResult<ExternalClientConfigWrite>>;
+  clientConfigStatus(): Promise<ExternalResult<ExternalClientConfigStatus[]>>;
+  revealClientConfig(client: ExternalClientConfigStatus["client"]): Promise<ExternalResult<null>>;
+  openClientInstall(request: { client: "cursor"; transport: "http" | "stdio" }): Promise<ExternalResult<null>>;
   onStatus(listener: (status: ExternalAgentStatus) => void): () => void;
   onCall(listener: (call: ExternalToolCall) => void): () => void;
   onCancel(listener: (cancel: { callId: string }) => void): () => void;

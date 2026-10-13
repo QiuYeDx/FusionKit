@@ -65,8 +65,8 @@
       "approval": {
         "state": "approved",
         "by": "用户（当前会话）",
-        "basis": "2026-10-13 用户审阅整体设计（含 I3：设置页、连接指示、客户端配置片段、stdio 桥自动启动、随附 Skill）后回复「按你建议的来，写进文档然后从P0开始连着一步步开发吧 我只负责最终验收」。I2 完成后按同一授权继续 I3；I3 开始时细化 R-BRIDGE-05/06 与 R-SETTINGS-01..04 的 AC、设计与任务。不提交推送、不发布，不写入真实用户目录（测试以临时 HOME 覆盖），不调用付费 API。",
-        "digest": "13f579a2e9b2dccfc7b975b8ccb403d5efbadfd170d456a89ad9580b246cd8fc"
+        "basis": "2026-10-13 用户审阅整体设计（含 I3：设置页、连接指示、客户端配置片段、stdio 桥自动启动、随附 Skill）后回复「按你建议的来，写进文档然后从P0开始连着一步步开发吧 我只负责最终验收」。I2 完成后按同一授权继续 I3；I3 开始时细化 R-BRIDGE-05/06 与 R-SETTINGS-01..04 的 AC、设计与任务。不提交推送、不发布，不写入真实用户目录（测试以临时 HOME 覆盖），不调用付费 API。 2026-10-13 用户在 ab031e0 推送后补充「其实有可能用的codex和Claude code不是CLI终端版，而是桌面端，也要能支持配置接入MCP，最好完善一下相关指引和接入所使用的信息」，据此扩展 R-SETTINGS-03（AC-SETTINGS-03-4/5，变更记录 changes/2026-10-13-desktop-clients.md）并刷新摘要。 同日用户又提出「感觉可以再支持一下cursor桌面版的」，追加 AC-SETTINGS-03-6（Cursor 官方安装链接）并刷新摘要。 同日用户指正「codex、cursor等通用的路径是.agents不是.codex……只有claude需要在.claude下专门安装」，据 Codex 文档更正 R-SETTINGS-04 的 Skill 安装目录（T-SETTINGS-06）并刷新摘要。",
+        "digest": "abbdacb4c02ca3312925d22d7428cb2915bbad51dca374c8d18ae1d09c490620"
       },
       "acceptance": {
         "state": "pending",

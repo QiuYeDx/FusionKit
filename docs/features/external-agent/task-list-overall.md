@@ -14,6 +14,9 @@
 | T-SETTINGS-01 | SETTINGS | 配置片段、Skill 与安装能力 | 已完成 | I3 | R-SETTINGS-03, R-SETTINGS-04 | T-BRIDGE-04 | Claude（当前会话） | records/i3/T-SETTINGS-01.md | 未提交工作树（基于 2d9f88c） |
 | T-SETTINGS-02 | SETTINGS | 设置分区与连接指示 | 已完成 | I3 | R-SETTINGS-01, R-SETTINGS-02, R-SETTINGS-03, R-SETTINGS-04 | T-SETTINGS-01 | Claude（当前会话） | records/i3/T-SETTINGS-02.md | 未提交工作树（基于 2d9f88c） |
 | T-SETTINGS-03 | SETTINGS | 说明文档 | 已完成 | I3 | R-SETTINGS-04 | T-SETTINGS-02 | Claude（当前会话） | records/i3/T-SETTINGS-03.md | 未提交工作树（基于 2d9f88c） |
+| T-SETTINGS-04 | SETTINGS | 桌面版客户端指引与一键写入配置 | 已完成 | I3 | R-SETTINGS-03 | T-SETTINGS-02 | Claude（当前会话） | records/i3/T-SETTINGS-04.md | 未提交工作树（基于 ab031e0） |
+| T-SETTINGS-05 | SETTINGS | Cursor 桌面版一键添加 | 已完成 | I3 | R-SETTINGS-03 | T-SETTINGS-04 | Claude（当前会话） | records/i3/T-SETTINGS-05.md | 未提交工作树（基于 ab031e0） |
+| T-SETTINGS-06 | SETTINGS | Skill 通用安装目录更正 | 已完成 | I3 | R-SETTINGS-04 | T-SETTINGS-01 | Claude（当前会话） | records/i3/T-SETTINGS-06.md | 未提交工作树（基于 ab031e0） |
 | T-TOOLS-01 | TOOLS | 外部工具宿主与活动存储 | 已完成 | I1 | R-TOOLS-01 | T-BRIDGE-03 | Claude（当前会话） | records/i1/T-TOOLS-01.md | 未提交工作树（基于 2d9f88c） |
 | T-TOOLS-02 | TOOLS | 首批读取工具 | 已完成 | I1 | R-TOOLS-02 | T-TOOLS-01 | Claude（当前会话） | records/i1/T-TOOLS-02.md | 未提交工作树（基于 2d9f88c） |
 | T-TOOLS-03 | TOOLS | 信任判定与应用内确认 | 已完成 | I2 | R-TOOLS-03 | T-TOOLS-02 | Claude（当前会话） | records/i2/T-TOOLS-03.md | 未提交工作树（基于 2d9f88c） |

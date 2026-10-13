@@ -16,8 +16,8 @@ Studio 领域轨道新增可选 `agent`；新增 `createAgentTranslationTrack` �
 
 | 检查 | 结果 | 证据 |
 | --- | --- | --- |
-| V-TOOLS-04-1 | 通过 | file:records/i2/unit.log |
-| V-TOOLS-04-2 | 通过 | file:records/i2/provenance.log |
+| V-TOOLS-04-1 | 通过 | file:records/i2/unit.txt |
+| V-TOOLS-04-2 | 通过 | file:records/i2/provenance.txt |
 
 ## AC 结果
 
@@ -29,4 +29,4 @@ Studio 领域轨道新增可选 `agent`；新增 `createAgentTranslationTrack` �
 
 ## 风险与未执行项
 
-非 UI 工作台全量回归中 `transcription-task-service.test.ts` 的一项在并发负载下 15 秒超时，单独重跑 42 项全部通过（见 provenance.log），与本改动无关的计时抖动。工作台 *-ui 测试（FUSIONKIT_STUDIO_E2E 门控）未全量运行。
+非 UI 工作台全量回归中 `transcription-task-service.test.ts` 的一项在并发负载下 15 秒超时，单独重跑 42 项全部通过（见 provenance.txt），与本改动无关的计时抖动。工作台 *-ui 测试（FUSIONKIT_STUDIO_E2E 门控）未全量运行。

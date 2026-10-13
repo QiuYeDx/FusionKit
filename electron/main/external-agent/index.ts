@@ -1,5 +1,6 @@
 import path from "node:path";
-import { app, BrowserWindow, ipcMain, type IpcMain, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from "electron";
+import { existsSync } from "node:fs";
+import { app, BrowserWindow, ipcMain, shell, type IpcMain, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from "electron";
 import {
   EXTERNAL_AGENT_CHANNELS,
   type ExternalAgentStatus,
@@ -9,6 +10,8 @@ import { EXTERNAL_TOOLS, isExternalToolName } from "../../../src/agent/external/
 import { ExternalAgentSettingsStore } from "./settings-store";
 import { EndpointFile } from "./endpoint-file";
 import { installSkill, skillStatus } from "./skill";
+import { clientConfigPath, clientConfigStatus, ConfigUnreadable, writeClientConfig } from "./client-config-writer";
+import { codexTable, CURSOR_INSTALL_PREFIX, cursorInstallLink, isWritableClient, jsonServerEntry, WRITABLE_CLIENTS } from "../../../src/agent/external/client-configs";
 import { ExternalAgentHttpHost } from "./http-host";
 import { RendererBridge } from "./renderer-bridge";
 
@@ -105,7 +108,7 @@ export function setupExternalAgent(options: {
   ipc.handle(EXTERNAL_AGENT_CHANNELS.closeSession, (event, id: unknown) => reply(event, async () => {
     await host.closeSession(String(id)); return null;
   }));
-  ipc.handle(EXTERNAL_AGENT_CHANNELS.connectionInfo, event => reply(event, async () => {
+  const connectionInfo = () => {
     const packaged = app.isPackaged;
     const script = ["external-agent", "fusionkit-mcp-stdio.cjs"];
     return {
@@ -115,10 +118,51 @@ export function setupExternalAgent(options: {
       ...(packaged ? {} : { appPath: app.getAppPath() }),
       platform: process.platform,
     };
+  };
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.connectionInfo, event => reply(event, async () => connectionInfo()));
+  // Writing FusionKit's entry into a desktop client's own file, only when the user asks.
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.writeClientConfig, async (event, request: unknown) => {
+    if (!fromMainWindow(event, options.getWindow)) return blocked;
+    const { client, transport } = (request ?? {}) as { client?: unknown; transport?: unknown };
+    if (typeof client !== "string" || !isWritableClient(client as never) || (transport !== "http" && transport !== "stdio")) return { ok: false, error: "invalid_settings" };
+    const settings = store.settings;
+    if (!settings.enabled || !settings.token) return { ok: false, error: "not_enabled" };
+    const port = state.state === "running" ? state.port : settings.port;
+    const input = { url: `http://127.0.0.1:${port}/mcp`, token: settings.token, info: connectionInfo() };
+    const target = client as (typeof WRITABLE_CLIENTS)[number];
+    try {
+      const value = await writeClientConfig(target, target === "codex" ? { toml: codexTable(transport, input) }
+        : { json: jsonServerEntry(target === "claude-desktop" ? "stdio" : transport, input) });
+      return { ok: true, value };
+    } catch (error) {
+      return { ok: false, error: error instanceof ConfigUnreadable ? "config_unreadable" : "write_failed" };
+    }
+  });
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.openClientInstall, async (event, request: unknown) => {
+    if (!fromMainWindow(event, options.getWindow)) return blocked;
+    const { client, transport } = (request ?? {}) as { client?: unknown; transport?: unknown };
+    if (client !== "cursor" || (transport !== "http" && transport !== "stdio")) return { ok: false, error: "invalid_settings" };
+    const settings = store.settings;
+    if (!settings.enabled || !settings.token) return { ok: false, error: "not_enabled" };
+    const port = state.state === "running" ? state.port : settings.port;
+    const link = cursorInstallLink(transport, { url: `http://127.0.0.1:${port}/mcp`, token: settings.token, info: connectionInfo() });
+    // Only Cursor's install link leaves through here, never an arbitrary address.
+    if (!link.startsWith(CURSOR_INSTALL_PREFIX)) return { ok: false, error: "invalid_settings" };
+    try { await shell.openExternal(link); return { ok: true, value: null }; }
+    catch { return { ok: false, error: "open_failed" }; }
+  });
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.clientConfigStatus, event => reply(event, () => Promise.all(WRITABLE_CLIENTS.map(client => clientConfigStatus(client)))));
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.revealClientConfig, (event, client: unknown) => reply(event, async () => {
+    if (typeof client !== "string" || !isWritableClient(client as never)) throw new Error("invalid_settings");
+    const file = clientConfigPath(client as (typeof WRITABLE_CLIENTS)[number]);
+    if (existsSync(file)) shell.showItemInFolder(file);
+    else if (existsSync(path.dirname(file))) await shell.openPath(path.dirname(file));
+    else throw new Error("not_found");
+    return null;
   }));
-  ipc.handle(EXTERNAL_AGENT_CHANNELS.skillStatus, event => reply(event, () => Promise.all([skillStatus("claude"), skillStatus("codex")])));
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.skillStatus, event => reply(event, () => Promise.all([skillStatus("claude"), skillStatus("agents")])));
   ipc.handle(EXTERNAL_AGENT_CHANNELS.installSkill, (event, target: unknown) => reply(event, () => {
-    if (target !== "claude" && target !== "codex") throw new Error("invalid_settings");
+    if (target !== "claude" && target !== "agents") throw new Error("invalid_settings");
     return installSkill(target);
   }));
   ipc.on(EXTERNAL_AGENT_CHANNELS.ready, event => {

@@ -17,3 +17,19 @@
 2. 代码块复制按钮 → 压在代码文字上 → 绝对定位无底色 → 按钮外层加边框与半透明背景 → 复拍可辨识。
 3. 客户端标签与连接方式标签同一行 → 看起来像 6 个选项且有两个选中 → 两组放在同一 flex 行 → 改为上下两行 → 复拍分组清楚。
 4. 端口占用截图未包含状态行（测试滚动目标不对）→ 改为把状态行滚到视口中央后截图 → 复拍可见红字状态。
+
+## 桌面版客户端（T-SETTINGS-04 / V-SETTINGS-04-3，2026-10-13）
+
+| 截图 | 状态 / 视口 / 主题 / 语言 | 观察 |
+| --- | --- | --- |
+| screenshots/settings-claude-desktop-zh-light-1280.png | Claude 桌面端，写入后 | stdio JSON；「写入配置文件」「打开所在文件夹」；绿色「已写入」与灰色备份路径 |
+| screenshots/settings-other-fields-zh-light-1280.png | 其他客户端 HTTP | 三步指引、JSON、逐项「地址 / 请求头」与复制按钮 |
+| screenshots/settings-claude-desktop-en-dark-900.png | Claude app，900×700 深色英文 | 只有 stdio 时以一行说明代替方式切换；四步指引换行正常 |
+
+发现与修复：英文 900×700 下五个等宽分段按钮中「Claude Desktop」被截断 → 分段按钮按等宽列分配，最长标签略超列宽（改为全宽后仍不足）→ 英文/日文标签改为较短的「Claude app / Claude アプリ」，说明行与指引中保留「Claude Desktop」名称 → 复拍完整显示。
+
+## Cursor 桌面版（T-SETTINGS-05 / V-SETTINGS-05-3，2026-10-13）
+
+| 截图 | 状态 / 视口 / 主题 / 语言 | 观察 |
+| --- | --- | --- |
+| screenshots/settings-cursor-zh-light-1280.png | Cursor，HTTP，1280×860 浅色中文 | 按钮组以主按钮「添加到 Cursor」开头，其后为描边「写入配置文件」与文字按钮「打开所在文件夹」，层级清楚；三步指引（安装确认、全局 / 项目 mcp.json、Customize 中启用）换行正常；配置文件路径显示在按钮下方。无需修改。 |

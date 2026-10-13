@@ -1,0 +1,30 @@
+ ✓ test/projectMetadata.test.ts (3 tests) 6ms
+ ✓ src/agent/external/client-configs.test.ts (5 tests) 7ms
+ ✓ test/external-agent/client-config-writer.test.ts (5 tests) 130ms
+ ✓ src/pages/Setting/components/audioApiConfigModel.test.ts (6 tests) 6ms
+ ✓ test/external-agent/settings-store.test.ts (6 tests) 105ms
+ ✓ src/agent/external/approval.test.ts (5 tests) 5ms
+ ✓ src/pages/Setting/settingNavigation.test.ts (3 tests) 5ms
+ ✓ test/external-agent/skill.test.ts (2 tests) 47ms
+ ✓ src/agent/external/confirmations.test.ts (8 tests) 63ms
+ ✓ test/external-agent/renderer-bridge.test.ts (5 tests) 439ms
+ ✓ test/external-agent/http-host.test.ts (9 tests) 402ms
+ ✓ src/agent/external/tools/export-transcription.test.ts (6 tests) 75ms
+ ✓ src/agent/external/tools/tools.test.ts (5 tests) 11ms
+ ✓ src/agent/external/tools/studio-tools.test.ts (6 tests) 80ms
+ ✓ src/agent/external/host.test.ts (6 tests) 627ms
+ ✓ test/external-agent/stdio-bridge.test.ts (6 tests) 3217ms
+   ✓ stdio bridge > starts FusionKit without ELECTRON_RUN_AS_NODE and waits for its endpoint 1148ms
+   ✓ stdio bridge > gives up after the wait when the launched app never publishes an endpoint 1674ms
+ ✓ src/agent/external/tools/knowledge-navigation.test.ts (4 tests) 2211ms
+   ✓ tasks and pages > opens a fixed page through the app's router 2011ms
+ ✓ test/external-agent-stdio.electron.test.ts (1 test) 10191ms
+   ✓ external agents reach FusionKit through the stdio bridge > runs the bridge with FusionKit's own executable and starts FusionKit when it is not running 10190ms
+ ✓ test/external-agent.electron.test.ts (1 test) 15793ms
+   ✓ external agents reach FusionKit over MCP > stays closed by default, then serves an authenticated client with real data from the window 15792ms
+ ✓ test/external-agent-settings.electron.test.ts (1 test) 20907ms
+   ✓ external agent settings > turns access on, shows state, configurations and connections, and manages them 20906ms
+ ✓ test/external-agent-tools.electron.test.ts (1 test) 21014ms
+   ✓ external agents translate with FusionKit without an API key > imports, reads, writes its own translations and exports, with every change confirmed as the trust level says 21013ms
+ Test Files  21 passed (21)
+      Tests  94 passed (94)

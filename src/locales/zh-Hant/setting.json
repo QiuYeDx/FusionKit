@@ -370,20 +370,63 @@
       "title": "接入用戶端",
       "transport": "連線方式",
       "claude-code": "Claude Code",
+      "claude-desktop": "Claude 桌面版",
       "codex": "Codex",
       "cursor": "Cursor",
       "json": "其他用戶端",
       "http": "HTTP（推薦）",
       "stdio": "stdio（可自動啟動）",
+      "stdio_only": "Claude 桌面版只能以 stdio 方式連線本機服務",
       "copy": "複製設定",
-      "hint": {
-        "claude-code": "在終端機執行這條命令；--scope user 讓所有專案都能使用。",
-        "codex": "附加到 ~/.codex/config.toml。",
-        "cursor": "合併到 ~/.cursor/mcp.json。",
-        "json": "放入其他支援 MCP 的用戶端設定中的 mcpServers。",
+      "disabled": "開啟「允許外部 Agent 連線」後，這裡會提供可直接複製的設定。",
+      "guide": {
+        "claude-code": {
+          "step1": "終端機版：在終端機執行下面的命令（只需一次）。",
+          "step2": "桌面版（Claude 應用程式的 Code 分頁）與終端機共用這份設定，新開一個本機工作階段即可使用；沒有安裝終端機版時，改用「Claude 桌面版」寫入設定，本機 Code 工作階段同樣會讀取。",
+          "step3": "在工作階段中輸入 /mcp 可查看 fusionkit 是否已連線。"
+        },
+        "claude-desktop": {
+          "step1": "Claude 桌面版的「自訂連接器」從雲端連線，存取不到本機，因此用 stdio 方式寫在 claude_desktop_config.json 中。",
+          "step2": "按「寫入設定檔」自動加入；或在 Claude 中開啟 設定 → 開發者 → 編輯設定，把下面的內容合併進去。",
+          "step3": "完全結束 Claude（系統匣或選單列中的結束）再開啟後生效；Claude 應用程式裡的本機 Code 工作階段也會使用它。"
+        },
+        "codex": {
+          "step1": "終端機版、桌面版與 IDE 擴充功能共用 ~/.codex/config.toml。",
+          "step2": "按「寫入設定檔」自動加入，或把下面的內容附加到 config.toml。桌面版「設定 → MCP 伺服器 → 新增伺服器」的表單無法填寫請求標頭與環境變數，請使用設定檔。",
+          "step3": "桌面版在「設定 → MCP 伺服器」中按「重新啟動」，終端機版重新啟動 codex 後生效。"
+        },
+        "cursor": {
+          "step1": "按「加入 Cursor」：Cursor 桌面版會開啟並跳出安裝確認，確認即可。",
+          "step2": "也可以按「寫入設定檔」寫入 ~/.cursor/mcp.json（對所有專案生效）；只用於某個專案時，把下面的內容放進專案裡的 .cursor/mcp.json。",
+          "step3": "在 Cursor 側邊欄的「Customize」（舊版為 設定 → MCP）中確認 fusionkit 已啟用；沒有出現時重新啟動 Cursor。"
+        },
+        "json": {
+          "step1": "適用於其他支援 MCP 的用戶端：把下面的 JSON 合併到它的 MCP 設定（mcpServers）。",
+          "step2": "用戶端以表單新增伺服器時，依下方各項逐一填寫。",
+          "step3": "HTTP 方式需要用戶端能填寫請求標頭；無法填寫時改用 stdio。"
+        },
         "stdio": "stdio 方式經 FusionKit 內建的程式轉發，FusionKit 未執行時會自動啟動它。"
       },
-      "disabled": "開啟「允許外部 Agent 連線」後，這裡會提供可直接複製的設定。"
+      "write": "寫入設定檔",
+      "reveal": "開啟所在資料夾",
+      "write_done": "已寫入設定檔",
+      "written": "已寫入：{{path}}",
+      "backup": "原檔案已備份為 {{path}}",
+      "configured": "已在設定檔中：{{path}}",
+      "file": "設定檔：{{path}}",
+      "write_failed": "寫入失敗：{{path}}",
+      "config_unreadable": "設定檔無法解析，未做修改：{{path}}",
+      "reveal_failed": "找不到設定檔所在資料夾",
+      "field": {
+        "url": "位址",
+        "header": "請求標頭",
+        "command": "命令",
+        "args": "參數",
+        "env": "環境變數"
+      },
+      "copy_field": "複製",
+      "install_cursor": "加入 Cursor",
+      "install_failed": "無法開啟 Cursor，請確認已安裝 Cursor，或改用「寫入設定檔」"
     },
     "sessions": {
       "title": "目前連線",
@@ -397,9 +440,9 @@
     },
     "skill": {
       "title": "隨附 Skill",
-      "description": "Skill 告訴外部 Agent 怎樣使用 FusionKit（翻譯流程、確認與錯誤處理），在新對話中生效。",
+      "description": "Skill 告訴外部 Agent 怎樣使用 FusionKit（翻譯流程、確認與錯誤處理），在新對話中生效。Claude Code 讀取 ~/.claude/skills；Codex、Cursor 等其他 Agent 讀取通用的 ~/.agents/skills。",
       "install_claude": "安裝到 Claude Code",
-      "install_codex": "安裝到 Codex",
+      "install_agents": "安裝到通用目錄（Codex、Cursor 等）",
       "installed": "已安裝：{{path}}",
       "outdated": "已安裝舊版本，可重新安裝：{{path}}",
       "install_done": "Skill 已安裝",

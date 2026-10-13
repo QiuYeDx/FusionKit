@@ -8,9 +8,12 @@ export const SKILL_NAME = "fusionkit-app";
 /** The bundled skill, with the line endings it is distributed with. */
 export const SKILL_TEXT = skill.replace(/\r\n/g, "\n");
 
-/** Where each agent reads user skills from. Tests point HOME elsewhere. */
+/**
+ * Where agents read user skills from: Claude Code from ~/.claude/skills, Codex, Cursor
+ * and other agents from the shared ~/.agents/skills. Tests point HOME elsewhere.
+ */
 export function skillPath(target: ExternalSkillTarget, home = process.env.FUSIONKIT_EXTERNAL_AGENT_HOME || os.homedir()): string {
-  return path.join(home, target === "claude" ? ".claude" : ".codex", "skills", SKILL_NAME, "SKILL.md");
+  return path.join(home, target === "claude" ? ".claude" : ".agents", "skills", SKILL_NAME, "SKILL.md");
 }
 
 export async function skillStatus(target: ExternalSkillTarget, home?: string): Promise<ExternalSkillStatus> {
@@ -25,7 +28,7 @@ export async function skillStatus(target: ExternalSkillTarget, home?: string): P
 
 /** Writes the bundled skill for one agent, replacing an older copy whole. */
 export async function installSkill(target: ExternalSkillTarget, home?: string): Promise<ExternalSkillStatus> {
-  if (target !== "claude" && target !== "codex") throw new Error("invalid_skill_target");
+  if (target !== "claude" && target !== "agents") throw new Error("invalid_skill_target");
   const file = skillPath(target, home);
   await mkdir(path.dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.tmp`;

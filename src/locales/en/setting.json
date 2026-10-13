@@ -370,20 +370,63 @@
       "title": "Connect a client",
       "transport": "Connection method",
       "claude-code": "Claude Code",
+      "claude-desktop": "Claude app",
       "codex": "Codex",
       "cursor": "Cursor",
       "json": "Other clients",
       "http": "HTTP (recommended)",
       "stdio": "stdio (starts FusionKit)",
+      "stdio_only": "The Claude app (Claude Desktop) reaches local servers through stdio only",
       "copy": "Copy configuration",
-      "hint": {
-        "claude-code": "Run this command in a terminal; --scope user makes it available in every project.",
-        "codex": "Add this to ~/.codex/config.toml.",
-        "cursor": "Merge this into ~/.cursor/mcp.json.",
-        "json": "Put this under mcpServers in the configuration of another MCP client.",
+      "disabled": "Turn on “Allow external agents to connect” to get a configuration you can copy.",
+      "guide": {
+        "claude-code": {
+          "step1": "Terminal: run the command below once.",
+          "step2": "The desktop app (the Code tab in Claude) shares this configuration; start a new local session to use it. Without the terminal version, write the configuration from the Claude app tab instead: local Code sessions read it too.",
+          "step3": "Type /mcp in a session to check that fusionkit is connected."
+        },
+        "claude-desktop": {
+          "step1": "Custom connectors in Claude Desktop connect from the cloud and cannot reach this computer, so FusionKit goes into claude_desktop_config.json as a stdio server.",
+          "step2": "Click “Write to config file”, or in Claude open Settings → Developer → Edit Config and merge the content below.",
+          "step3": "Quit Claude completely (from the tray or menu bar) and open it again. Local Code sessions in the Claude app use it too."
+        },
+        "codex": {
+          "step1": "The terminal, desktop app and IDE extension share ~/.codex/config.toml.",
+          "step2": "Click “Write to config file”, or add the content below to config.toml. The desktop app's Settings → MCP servers → Add server form has no fields for headers or environment variables, so use the file.",
+          "step3": "In the desktop app, click Restart under Settings → MCP servers; restart codex in the terminal."
+        },
+        "cursor": {
+          "step1": "Click “Add to Cursor”: the Cursor desktop app opens and asks you to confirm the installation.",
+          "step2": "Or click “Write to config file” to add it to ~/.cursor/mcp.json (every project); for one project only, put the content below in that project's .cursor/mcp.json.",
+          "step3": "Check that fusionkit is enabled under Customize in Cursor's sidebar (Settings → MCP in older versions); restart Cursor if it does not appear."
+        },
+        "json": {
+          "step1": "For other MCP clients: merge the JSON below into their MCP configuration (mcpServers).",
+          "step2": "If the client adds servers through a form, fill in the fields below one by one.",
+          "step3": "HTTP needs a client that can send a request header; otherwise use stdio."
+        },
         "stdio": "stdio goes through a small program that ships with FusionKit and starts FusionKit when it is not running."
       },
-      "disabled": "Turn on “Allow external agents to connect” to get a configuration you can copy."
+      "write": "Write to config file",
+      "reveal": "Open folder",
+      "write_done": "Configuration written",
+      "written": "Written: {{path}}",
+      "backup": "The previous file was saved as {{path}}",
+      "configured": "Already in the config file: {{path}}",
+      "file": "Config file: {{path}}",
+      "write_failed": "Could not write: {{path}}",
+      "config_unreadable": "The config file could not be read and was left unchanged: {{path}}",
+      "reveal_failed": "The config file's folder was not found",
+      "field": {
+        "url": "URL",
+        "header": "Header",
+        "command": "Command",
+        "args": "Arguments",
+        "env": "Environment"
+      },
+      "copy_field": "Copy",
+      "install_cursor": "Add to Cursor",
+      "install_failed": "Could not open Cursor. Check that Cursor is installed, or use “Write to config file”."
     },
     "sessions": {
       "title": "Connected now",
@@ -397,9 +440,9 @@
     },
     "skill": {
       "title": "Bundled skill",
-      "description": "The skill tells external agents how to use FusionKit (translation workflow, confirmations and errors). It takes effect in new conversations.",
+      "description": "The skill tells external agents how to use FusionKit (translation workflow, confirmations and errors). It takes effect in new conversations. Claude Code reads ~/.claude/skills; Codex, Cursor and other agents read the shared ~/.agents/skills.",
       "install_claude": "Install for Claude Code",
-      "install_codex": "Install for Codex",
+      "install_agents": "Install for Codex, Cursor and others",
       "installed": "Installed: {{path}}",
       "outdated": "An older version is installed; install again to update: {{path}}",
       "install_done": "Skill installed",

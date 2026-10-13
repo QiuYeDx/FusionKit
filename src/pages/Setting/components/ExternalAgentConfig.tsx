@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Check, Copy, Eye, EyeOff, RotateCcw } from "lucide-react";
+import { Check, Copy, ExternalLink, Eye, EyeOff, FilePen, FolderOpen, RotateCcw } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { buildClientConfig, EXTERNAL_CLIENTS, type ExternalClient, type ExternalTransport } from "@/agent/external/client-configs";
-import type { ExternalAgentSettings, ExternalConnectionInfo, ExternalSkillStatus, ExternalSkillTarget, ExternalTrust } from "@/agent/external/contract";
+import { buildClientConfig, clientTransports, connectionFields, EXTERNAL_CLIENTS, isWritableClient, type ExternalClient, type ExternalTransport } from "@/agent/external/client-configs";
+import type { ExternalAgentSettings, ExternalClientConfigStatus, ExternalClientConfigWrite, ExternalConnectionInfo, ExternalSkillStatus, ExternalSkillTarget, ExternalTrust } from "@/agent/external/contract";
 import { useExternalAgentStore } from "@/agent/external/store";
 
 const TRUST_LEVELS: ExternalTrust[] = ["read_only", "confirm_writes", "auto"];
@@ -73,7 +73,10 @@ export default function ExternalAgentConfig() {
   const [showToken, setShowToken] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [client, setClient] = useState<ExternalClient>("claude-code");
-  const [transport, setTransport] = useState<ExternalTransport>("http");
+  const [chosenTransport, setTransport] = useState<ExternalTransport>("http");
+  const [clientFiles, setClientFiles] = useState<ExternalClientConfigStatus[]>([]);
+  const [written, setWritten] = useState<ExternalClientConfigWrite | null>(null);
+  const [writeError, setWriteError] = useState<{ client: string; path?: string; code: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -82,6 +85,7 @@ export default function ExternalAgentConfig() {
     void api.getStatus().then((result) => { if (result.ok) setStatus(result.value); });
     void api.connectionInfo().then((result) => { if (result.ok) setInfo(result.value); });
     void api.skillStatus().then((result) => { if (result.ok) setSkills(result.value); });
+    void api.clientConfigStatus().then((result) => { if (result.ok) setClientFiles(result.value); });
   }, [api, setStatus]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30_000);
@@ -111,7 +115,23 @@ export default function ExternalAgentConfig() {
   const token = settings?.token ?? "";
   const running = status?.state === "running";
   const url = status?.url ?? `http://127.0.0.1:${settings?.port ?? ""}/mcp`;
-  const config = enabled && token && info ? buildClientConfig(client, transport, { url, token, info }) : null;
+  // Claude Desktop only starts local commands; other clients choose.
+  const transports = clientTransports(client);
+  const transport = transports.includes(chosenTransport) ? chosenTransport : transports[0];
+  const input = enabled && token && info ? { url, token, info } : null;
+  const config = input ? buildClientConfig(client, transport, input) : null;
+  const clientFile = isWritableClient(client) ? clientFiles.find((item) => item.client === client) : undefined;
+  const writeClientFile = async () => {
+    if (!isWritableClient(client)) return;
+    setWriteError(null); setWritten(null);
+    const result = await api.writeClientConfig({ client, transport });
+    if (result.ok) {
+      setWritten(result.value);
+      toast.success(t("setting:external_agent.clients.write_done"));
+      const status = await api.clientConfigStatus();
+      if (status.ok) setClientFiles(status.value);
+    } else setWriteError({ client, path: clientFile?.path, code: result.error });
+  };
   const sessions = status?.sessions ?? [];
 
   return (
@@ -198,17 +218,22 @@ export default function ExternalAgentConfig() {
         <div className="space-y-2">
           <div className="text-sm font-medium">{t("setting:external_agent.clients.title")}</div>
           {config ? <>
-            <div className="flex flex-col items-start gap-2">
-              <ClipPathTabs value={client} onValueChange={(value) => setClient(value as ExternalClient)} ariaLabel={t("setting:external_agent.clients.title")}
-                shape="rounded" smoothCorners size="sm" transitionDuration={200} transitionEasing="ease-out"
+            <div className="flex w-full flex-col items-start gap-2">
+              <ClipPathTabs value={client} onValueChange={(value) => { setClient(value as ExternalClient); setWritten(null); setWriteError(null); }} ariaLabel={t("setting:external_agent.clients.title")}
+                shape="rounded" smoothCorners size="sm" fullWidth transitionDuration={200} transitionEasing="ease-out"
                 items={EXTERNAL_CLIENTS.map((value) => ({ value, label: t(`setting:external_agent.clients.${value}`) }))} />
-              <ClipPathTabs value={transport} onValueChange={(value) => setTransport(value as ExternalTransport)} ariaLabel={t("setting:external_agent.clients.transport")}
-                shape="rounded" smoothCorners size="sm" transitionDuration={200} transitionEasing="ease-out"
-                items={[{ value: "http", label: t("setting:external_agent.clients.http") }, { value: "stdio", label: t("setting:external_agent.clients.stdio") }]} />
+              {transports.length > 1 ? (
+                <ClipPathTabs value={transport} onValueChange={(value) => setTransport(value as ExternalTransport)} ariaLabel={t("setting:external_agent.clients.transport")}
+                  shape="rounded" smoothCorners size="sm" transitionDuration={200} transitionEasing="ease-out"
+                  items={[{ value: "http", label: t("setting:external_agent.clients.http") }, { value: "stdio", label: t("setting:external_agent.clients.stdio") }]} />
+              ) : <span className="text-[11px] text-muted-foreground">{t("setting:external_agent.clients.stdio_only")}</span>}
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {t(`setting:external_agent.clients.hint.${client}`)}{transport === "stdio" ? ` ${t("setting:external_agent.clients.hint.stdio")}` : ""}
-            </p>
+            <ol className="list-decimal space-y-1 pl-4 text-xs leading-relaxed text-muted-foreground marker:text-muted-foreground/70" data-testid="setting-external-guide">
+              <li>{t(`setting:external_agent.clients.guide.${client}.step1`)}</li>
+              <li>{t(`setting:external_agent.clients.guide.${client}.step2`)}</li>
+              <li>{t(`setting:external_agent.clients.guide.${client}.step3`)}</li>
+              {transport === "stdio" && <li>{t("setting:external_agent.clients.guide.stdio")}</li>}
+            </ol>
             {/* w-0 min-w-full: the settings scroll area sizes like a table, so a long line must not widen the page; it scrolls in the block. */}
             <div className="relative w-0 min-w-full">
               <pre className="overflow-x-auto whitespace-pre rounded-md border bg-muted/50 p-3 pr-11 font-mono text-[12px] leading-relaxed" data-testid="setting-external-config">{config.text}</pre>
@@ -216,6 +241,42 @@ export default function ExternalAgentConfig() {
                 <CopyButton text={config.text} label={t("setting:external_agent.clients.copy")} testId="setting-external-config-copy" />
               </div>
             </div>
+            {isWritableClient(client) && <div className="space-y-1.5">
+              <div className="flex flex-wrap gap-2">
+                {client === "cursor" && <Button type="button" size="sm" data-testid="setting-external-cursor-install"
+                  onClick={() => void api.openClientInstall({ client: "cursor", transport }).then((result) => { if (!result.ok) toast.error(t("setting:external_agent.clients.install_failed")); })}>
+                  <ExternalLink />{t("setting:external_agent.clients.install_cursor")}
+                </Button>}
+                <Button type="button" variant="outline" size="sm" data-testid="setting-external-write-config" onClick={() => void writeClientFile()}>
+                  <FilePen />{t("setting:external_agent.clients.write")}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" data-testid="setting-external-reveal-config"
+                  onClick={() => void api.revealClientConfig(client).then((result) => { if (!result.ok) toast.error(t("setting:external_agent.clients.reveal_failed")); })}>
+                  <FolderOpen />{t("setting:external_agent.clients.reveal")}
+                </Button>
+              </div>
+              <div className="space-y-0.5 break-all text-[11px]" data-testid="setting-external-config-file">
+                {writeError?.client === client ? <p className="text-destructive" role="alert">
+                  {t(writeError.code === "config_unreadable" ? "setting:external_agent.clients.config_unreadable" : "setting:external_agent.clients.write_failed", { path: writeError.path ?? "" })}
+                </p> : written?.client === client ? <>
+                  <p className="text-emerald-600 dark:text-emerald-400">{t("setting:external_agent.clients.written", { path: written.path })}</p>
+                  {written.backupPath && <p className="text-muted-foreground">{t("setting:external_agent.clients.backup", { path: written.backupPath })}</p>}
+                </> : clientFile && <p className="text-muted-foreground">
+                  {t(clientFile.configured ? "setting:external_agent.clients.configured" : "setting:external_agent.clients.file", { path: clientFile.path })}
+                </p>}
+              </div>
+            </div>}
+            {client === "json" && input && (
+              <div className="w-0 min-w-full divide-y rounded-lg border" data-testid="setting-external-fields">
+                {connectionFields(transport, input).map((field) => (
+                  <div key={field.key} className="flex items-center gap-3 px-3 py-1.5">
+                    <span className="w-16 shrink-0 text-[12px] text-muted-foreground">{t(`setting:external_agent.clients.field.${field.key as "url" | "header" | "command" | "args" | "env"}`)}</span>
+                    <code className="min-w-0 flex-1 truncate font-mono text-[12px]" title={field.value}>{field.value}</code>
+                    <CopyButton text={field.value} label={t("setting:external_agent.clients.copy_field")} />
+                  </div>
+                ))}
+              </div>
+            )}
           </> : <p className="text-xs leading-relaxed text-muted-foreground" data-testid="setting-external-config-disabled">{t("setting:external_agent.clients.disabled")}</p>}
         </div>
 
@@ -254,14 +315,14 @@ export default function ExternalAgentConfig() {
           <div className="text-sm font-medium">{t("setting:external_agent.skill.title")}</div>
           <p className="text-xs leading-relaxed text-muted-foreground">{t("setting:external_agent.skill.description")}</p>
           <div className="flex flex-wrap gap-2">
-            {(["claude", "codex"] as ExternalSkillTarget[]).map((target) => (
+            {(["claude", "agents"] as ExternalSkillTarget[]).map((target) => (
               <Button key={target} type="button" variant="outline" size="sm" data-testid={`setting-external-skill-${target}`}
                 onClick={() => void api.installSkill(target).then((result) => {
                   if (!result.ok) { toast.error(t("setting:external_agent.skill.install_failed")); return; }
                   setSkills((items) => [...items.filter((item) => item.target !== target), result.value]);
                   toast.success(t("setting:external_agent.skill.install_done"));
                 })}>
-                {t(target === "claude" ? "setting:external_agent.skill.install_claude" : "setting:external_agent.skill.install_codex")}
+                {t(target === "claude" ? "setting:external_agent.skill.install_claude" : "setting:external_agent.skill.install_agents")}
               </Button>
             ))}
           </div>

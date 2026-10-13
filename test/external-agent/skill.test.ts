@@ -17,17 +17,17 @@ describe("bundled skill", () => {
     expect(SKILL_TEXT).toContain("get_confirmation_result");
   });
 
-  it("installs for Claude Code and Codex, replacing an older copy", async () => {
+  it("installs for Claude Code and into the shared agents folder, replacing an older copy", async () => {
     const root = await home();
     expect(await skillStatus("claude", root)).toEqual({ target: "claude", path: path.join(root, ".claude", "skills", "fusionkit-app", "SKILL.md"), installed: false, current: false });
-    await mkdir(path.dirname(skillPath("codex", root)), { recursive: true });
-    await writeFile(skillPath("codex", root), "old version");
-    expect(await skillStatus("codex", root)).toMatchObject({ installed: true, current: false });
-    for (const target of ["claude", "codex"] as const) {
+    await mkdir(path.dirname(skillPath("agents", root)), { recursive: true });
+    await writeFile(skillPath("agents", root), "old version");
+    expect(await skillStatus("agents", root)).toMatchObject({ installed: true, current: false });
+    for (const target of ["claude", "agents"] as const) {
       expect(await installSkill(target, root)).toMatchObject({ target, installed: true, current: true });
       expect(await readFile(skillPath(target, root), "utf8")).toBe(SKILL_TEXT);
     }
-    expect(skillPath("codex", root)).toBe(path.join(root, ".codex", "skills", "fusionkit-app", "SKILL.md"));
+    expect(skillPath("agents", root)).toBe(path.join(root, ".agents", "skills", "fusionkit-app", "SKILL.md"));
     await expect(installSkill("other" as never, root)).rejects.toThrow("invalid_skill_target");
   });
 });

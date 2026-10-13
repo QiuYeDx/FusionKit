@@ -83,3 +83,86 @@ README 中英各加「外部 Agent 接入」小节；feature README 汇总接入
 | 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
 | --- | --- | --- | --- | --- |
 | V-SETTINGS-03-1 | static | required | 审阅 README.md / README.en.md 小节内容与链接；pnpm vitest run test/projectMetadata.test.ts（README 结构检查，记录与本改动无关的既有失败） | - |
+
+### T-SETTINGS-04 桌面版客户端指引与一键写入配置
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I3 |
+| 需求 | R-SETTINGS-03 |
+| 验收 | AC-SETTINGS-03-4, AC-SETTINGS-03-5 |
+| 依赖 | T-SETTINGS-02 |
+| 写集 | src/agent/external/client-configs.ts, src/agent/external/contract.ts, electron/main/external-agent/, electron/preload/external-agent-api.ts, src/pages/Setting/components/ExternalAgentConfig.tsx, src/locales/, README.md, README.en.md, docs/features/external-agent/README.md |
+| 负责人 | Claude（当前会话） |
+| 依赖确认 | T-SETTINGS-02 已在 ab031e0 提交并推送，核验见 records/i3/T-SETTINGS-02.md |
+| 完成日期 | 2026-10-13 |
+| 实施记录 | records/i3/T-SETTINGS-04.md |
+| 集成版本 | 未提交工作树（基于 ab031e0） |
+
+#### 实现要点
+
+按 design.md「桌面版客户端与一键写入（变更 2026-10-13）」实现；变更依据见 changes/2026-10-13-desktop-clients.md。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-SETTINGS-04-1 | unit | required | pnpm vitest run src/agent/external/client-configs.test.ts test/external-agent/client-config-writer.test.ts | - |
+| V-SETTINGS-04-2 | integration | required | pnpm vitest run test/external-agent-settings.electron.test.ts（Claude 桌面端仅 stdio 与指引；写入预置的 claude_desktop_config.json、config.toml 后其他内容保留且有备份；损坏的 mcp.json 拒绝写入且不变；其他客户端逐项字段） | - |
+| V-SETTINGS-04-3 | browser | required | 同上测试的 settings-claude-desktop-zh-light-1280、settings-other-fields-zh-light-1280、settings-claude-desktop-en-dark-900 截图审阅并修复复验 | - |
+
+### T-SETTINGS-05 Cursor 桌面版一键添加
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I3 |
+| 需求 | R-SETTINGS-03 |
+| 验收 | AC-SETTINGS-03-6 |
+| 依赖 | T-SETTINGS-04 |
+| 写集 | src/agent/external/client-configs.ts, src/agent/external/contract.ts, electron/main/external-agent/index.ts, electron/preload/external-agent-api.ts, src/pages/Setting/components/ExternalAgentConfig.tsx, src/locales/, README.md, README.en.md, docs/features/external-agent/README.md |
+| 负责人 | Claude（当前会话） |
+| 依赖确认 | T-SETTINGS-04 已在同一工作树（基于 ab031e0，未提交）完成，核验见 records/i3/T-SETTINGS-04.md |
+| 完成日期 | 2026-10-13 |
+| 实施记录 | records/i3/T-SETTINGS-05.md |
+| 集成版本 | 未提交工作树（基于 ab031e0） |
+
+#### 实现要点
+
+按 design.md「Cursor 桌面版一键添加（变更 2026-10-13 追加）」实现。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-SETTINGS-05-1 | unit | required | pnpm vitest run src/agent/external/client-configs.test.ts（安装链接前缀、解码后与服务器项一致、中文路径） | - |
+| V-SETTINGS-05-2 | integration | required | pnpm vitest run test/external-agent-settings.electron.test.ts（点「添加到 Cursor」后主进程打开的链接解码为当前地址与令牌；指引含 Customize） | - |
+| V-SETTINGS-05-3 | browser | required | 审阅 settings-cursor-zh-light-1280 截图 | - |
+
+### T-SETTINGS-06 Skill 通用安装目录更正
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I3 |
+| 需求 | R-SETTINGS-04 |
+| 验收 | AC-SETTINGS-04-1 |
+| 依赖 | T-SETTINGS-01 |
+| 写集 | src/agent/external/contract.ts, electron/main/external-agent/skill.ts, electron/main/external-agent/index.ts, src/pages/Setting/components/ExternalAgentConfig.tsx, src/locales/, docs/features/external-agent/README.md |
+| 负责人 | Claude（当前会话） |
+| 依赖确认 | T-SETTINGS-01 已在 ab031e0 提交并推送，核验见 records/i3/T-SETTINGS-01.md |
+| 完成日期 | 2026-10-13 |
+| 实施记录 | records/i3/T-SETTINGS-06.md |
+| 集成版本 | 未提交工作树（基于 ab031e0） |
+
+#### 实现要点
+
+按 changes/2026-10-13-desktop-clients.md「更正：Skill 的通用安装目录」把第二个安装目标由 `~/.codex/skills` 改为通用的 `~/.agents/skills`。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-SETTINGS-06-1 | unit | required | pnpm vitest run test/external-agent/skill.test.ts（claude 与 agents 两个目标的路径、安装与覆盖） | - |
+| V-SETTINGS-06-2 | integration | required | pnpm vitest run test/external-agent-settings.electron.test.ts（点「安装到通用目录」后 ~/.agents/skills/fusionkit-app/SKILL.md 存在且界面显示该路径，不创建 ~/.codex/skills） | - |

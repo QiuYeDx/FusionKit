@@ -75,7 +75,13 @@ On every other page, the Agent button in the bottom-left corner opens a floating
 Already using Claude Code, Codex, Cursor or another AI agent? Let it work in FusionKit directly. FusionKit serves MCP: an external agent can read Subtitle Studio, import and transcribe, **write its own translations** back into Studio and export subtitle files, **with no API key configured in FusionKit**.
 
 1. In **Settings → External agents**, turn on “Allow external agents to connect”.
-2. Pick your client (Claude Code / Codex / Cursor / other) and copy the configuration shown: HTTP works as pasted; stdio also starts FusionKit when it is not running.
+2. Pick your client and follow the steps shown; terminal and desktop versions both work:
+   - **Claude Code**: run the command shown in a terminal; the Code tab in the Claude app shares this configuration.
+   - **Claude app (Claude Desktop)**: click “Write to config file” (it goes into `claude_desktop_config.json`, with a backup of the previous file), then quit and reopen Claude. It reaches this computer through stdio only.
+   - **Codex** (terminal, desktop app and IDE extension share `~/.codex/config.toml`): click “Write to config file”; in the desktop app, click Restart under Settings → MCP servers.
+   - **Cursor**: click “Add to Cursor” and confirm in the Cursor desktop app; or write it into `~/.cursor/mcp.json`, or a project's `.cursor/mcp.json`.
+   - **Other clients**: copy the configuration; for clients that only take a form, fill in the URL, header or command listed on the page.
+   stdio starts FusionKit when it is not running.
 3. Optionally install the bundled skill so the agent knows FusionKit's translation workflow.
 
 There are three permission levels: **Read only**, **Ask before changes** (default) and **Automatic**. Imports, written translations, exports and other changes ask for your OK in FusionKit (you can allow a kind of change for the rest of a connection); replacing existing files and changing translation materials always ask. Translations written by an agent are marked as unreviewed AI translations that you can review and undo in Studio. The service listens on 127.0.0.1 only, requires a token and is off by default.

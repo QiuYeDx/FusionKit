@@ -41,7 +41,7 @@ TOML 用单引号字面量字符串承载 Windows 路径；JSON 用 `JSON.string
 
 ## 主进程补充 IPC（module-bridge 落点）
 
-`external-agent:connection-info`；`external-agent:install-skill`（`target: "claude" | "codex"` → 写 `<home>/.claude/skills/fusionkit-app/SKILL.md` 或 `<home>/.codex/skills/fusionkit-app/SKILL.md`，内容为构建时以 `?raw` 内联的 `.agents/skills/fusionkit-app/SKILL.md`，临时文件后替换，返回路径）；`external-agent:skill-status`（两处是否已安装且与内置内容一致）。`<home>` 默认为 `os.homedir()`，测试以 `FUSIONKIT_EXTERNAL_AGENT_HOME` 覆盖。
+`external-agent:connection-info`；`external-agent:install-skill`（`target: "claude" | "agents"` → 写 `<home>/.claude/skills/fusionkit-app/SKILL.md` 或通用目录 `<home>/.agents/skills/fusionkit-app/SKILL.md`（Codex、Cursor 等共用；2026-10-13 由 `.codex/skills` 更正），内容为构建时以 `?raw` 内联的 `.agents/skills/fusionkit-app/SKILL.md`，临时文件后替换，返回路径）；`external-agent:skill-status`（两处是否已安装且与内置内容一致）。`<home>` 默认为 `os.homedir()`，测试以 `FUSIONKIT_EXTERNAL_AGENT_HOME` 覆盖。
 
 ## 代码落点
 
@@ -67,3 +67,20 @@ TOML 用单引号字面量字符串承载 Windows 路径；JSON 用 `JSON.string
 - 单元：client-configs 各组合（JSON 用 `JSON.parse` 校验；TOML 做结构与字面量断言）；skill 安装写入与覆盖；设置导航含 external。
 - Electron 端到端 + 渲染审查（`test/external-agent-settings.electron.test.ts`）：开关、状态、端口冲突、信任档位、令牌显示/复制/重置、片段复制内容、连接列表与断开、标题栏圆点、Skill 安装到临时 HOME；截图 1280×860 / 900×700、浅/深、中/英，逐张审阅并修复复验。
 - 风险：测试不写真实 `~/.claude`，以环境变量覆盖用户目录（仅测试使用）。
+
+## 桌面版客户端与一键写入（变更 2026-10-13）
+
+依据与查证来源见 `../../changes/2026-10-13-desktop-clients.md`。
+
+- 客户端：Claude Code（终端与桌面 Code 标签共用配置）、Claude 桌面端（聊天，仅 stdio）、Codex（终端、桌面、IDE 共用 config.toml）、Cursor、其他。`clientTransports("claude-desktop") = ["stdio"]`，此时不显示方式切换，改为一行说明；英文/日文标签用较短的「Claude app / Claude アプリ」，避免在等宽分段按钮中被截断。
+- 指引：每个客户端三步（`clients.guide.<client>.step1..3`），stdio 时追加一步说明桥会自动启动 FusionKit；文字写明终端版与桌面版各自的位置、菜单与生效方式。
+- 一键写入（Claude 桌面端、Codex、Cursor）：主进程 `electron/main/external-agent/client-config-writer.ts`。路径：Claude 桌面端 Windows `%APPDATA%\Claude\claude_desktop_config.json`、macOS `~/Library/Application Support/Claude/…`、Linux `~/.config/Claude/…`；Codex `$CODEX_HOME/config.toml` 或 `~/.codex/config.toml`；Cursor `~/.cursor/mcp.json`。JSON 只设置 `mcpServers.fusionkit`；TOML 删除旧的 `[mcp_servers.fusionkit]` 及其子表后在末尾追加；写前备份为 `<文件>.fusionkit-backup`，临时文件后替换；无法解析的文件拒绝写入（`config_unreadable`）。不自动修改 `~/.claude.json`。IPC：`write-client-config`、`client-config-status`、`reveal-client-config`（在文件夹中显示）。
+- 其他客户端：`connectionFields()` 逐项列出地址与请求头（HTTP）或命令、参数、环境变量（stdio），每项可复制。
+- 验证：`test/external-agent/client-config-writer.test.ts`（路径、合并、备份、幂等、不可解析、TOML 子表）；设置端到端增加 Claude 桌面端 stdio、三种文件写入（含预置内容与损坏文件）与逐项字段，截图 `settings-claude-desktop-*`、`settings-other-fields-*`。
+
+## Cursor 桌面版一键添加（变更 2026-10-13 追加）
+
+- `cursorInstallLink(transport, input)` = `cursor://anysphere.cursor-deeplink/mcp/install?name=fusionkit&config=<encodeURIComponent(base64(UTF-8 JSON.stringify(jsonServerEntry)))>`（cursor.com/docs/mcp/install-links；base64 前按 UTF-8 编码，路径可含中文）。
+- 主进程 IPC `open-client-install`（仅 `client: "cursor"`）在主进程生成链接，校验以 `CURSOR_INSTALL_PREFIX` 开头后 `shell.openExternal`；渲染进程不传入任意地址。
+- 界面：Cursor 标签的按钮组首位为主按钮「添加到 Cursor」，其后「写入配置文件」「打开所在文件夹」；指引改为：安装确认 → 全局 / 项目 mcp.json → 侧边栏 Customize 中启用。
+- 验证：client-configs 单测解码链接并与服务器项比较（含中文路径）；设置端到端在主进程替换 `shell.openExternal` 记录链接并解码比较，截图 `settings-cursor-zh-light-1280`。

@@ -1,0 +1,8 @@
+integration audit exit 0
+   × reclaims clean released-owner task history so later owners do not inherit exhausted capacity 15203ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed | 71 passed | 7 skipped (79)
+      Tests  1 failed | 1155 passed | 11 skipped (1167)
+--- rerun alone ---
+ Test Files  1 passed (1)
+      Tests  42 passed (42)

@@ -70,13 +70,16 @@
 
 #### 说明
 
-按客户端（Claude Code、Codex、Cursor、通用 JSON）与方式（HTTP；stdio 桥，可在 FusionKit 未运行时自动启动）生成可直接复制的配置，内容随当前端口、令牌与本机安装路径生成；每个片段附一句放置位置说明。
+按客户端（Claude Code 终端与桌面端、Claude 桌面端聊天、Codex 终端与桌面端、Cursor、其他客户端）与方式（HTTP；stdio 桥，可在 FusionKit 未运行时自动启动）生成可直接复制的配置，内容随当前端口、令牌与本机安装路径生成；每个客户端给出分步指引，写明终端版与桌面版各自的配置位置与生效方式。Claude 桌面端只提供 stdio（其自定义连接器从云端连接，无法访问本机）。对以文件配置的 Claude 桌面端、Codex、Cursor 提供「一键写入配置」：只改 `fusionkit` 一项并备份原文件。Cursor 另提供「添加到 Cursor」：用 Cursor 官方安装链接打开 Cursor 的安装确认。「其他客户端」逐项列出地址、请求头、命令、参数与环境变量。变更记录见 ../../changes/2026-10-13-desktop-clients.md。
 
 #### 验收标准
 
 - AC-SETTINGS-03-1: 在接入开启时，各客户端 HTTP 片段包含当前地址与 `Bearer <令牌>`，stdio 片段包含 FusionKit 可执行文件、桥脚本与端点文件的真实路径和 `ELECTRON_RUN_AS_NODE=1`；点「复制」写入剪贴板。
 - AC-SETTINGS-03-2: 在生成的 Codex 片段为合法 TOML、JSON 片段为合法 JSON（含 Windows 反斜杠路径）。
 - AC-SETTINGS-03-3: 在接入关闭或尚无令牌时，片段区提示先开启接入，不显示含空令牌的配置。
+- AC-SETTINGS-03-4: 在选择 Claude Code、Claude 桌面端或 Codex 时，指引分别说明终端版与桌面版的配置位置与生效方式（Claude Code 桌面端与终端共用配置且本地会话也读取 Claude 桌面端配置；Claude 桌面端经「设置 → 开发者 → 编辑配置」并需完全退出重启；Codex 桌面端共用 config.toml，在「设置 → MCP 服务器」重启）；Claude 桌面端只提供 stdio 配置。
+- AC-SETTINGS-03-5: 在点击「写入配置文件」后，目标文件（Claude 桌面端 claude_desktop_config.json、Codex config.toml、Cursor mcp.json）出现与片段一致的 `fusionkit` 项，原有其他内容保持不变，原文件另存备份；再次写入替换旧的 `fusionkit` 项而不重复；文件无法解析时拒绝写入并提示，文件不变。
+- AC-SETTINGS-03-6: 在选择 Cursor 并点「添加到 Cursor」时，FusionKit 用系统打开 `cursor://anysphere.cursor-deeplink/mcp/install?name=fusionkit&config=…` 链接，其中 config 解码后与当前方式的 `fusionkit` 服务器项一致（含非 ASCII 路径）；Cursor 指引说明安装确认、全局与项目配置文件以及在侧边栏「Customize」中启用。
 
 #### 边界与异常
 
@@ -93,7 +96,7 @@
 
 #### 说明
 
-仓库 `.agents/skills/fusionkit-app/SKILL.md` 提供一份很薄的 Skill（何时使用、工作流、领域概念、确认与错误处理，不重复工具说明）；设置分区可一键安装到 Claude Code（`~/.claude/skills/fusionkit-app/`）或 Codex（`~/.codex/skills/fusionkit-app/`）。README（中英）与 `docs/features/external-agent/README.md` 说明接入方法。
+仓库 `.agents/skills/fusionkit-app/SKILL.md` 提供一份很薄的 Skill（何时使用、工作流、领域概念、确认与错误处理，不重复工具说明）；设置分区可一键安装到 Claude Code（`~/.claude/skills/fusionkit-app/`）或 Codex、Cursor 等其他 Agent 共用的通用目录（`~/.agents/skills/fusionkit-app/`；Codex 用户级 Skill 位于 `$HOME/.agents/skills`，见 learn.chatgpt.com/docs/build-skills）。README（中英）与 `docs/features/external-agent/README.md` 说明接入方法。
 
 #### 验收标准
 

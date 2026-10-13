@@ -11,10 +11,21 @@
 ## 怎样接入
 
 1. FusionKit **设置 → 外部 Agent**，打开「允许外部 Agent 连接」（默认关闭；只监听 `127.0.0.1`，默认端口 47361，需要令牌）。
-2. 选客户端与方式，复制配置：
-   - **HTTP**（推荐）：Claude Code 运行页面给出的 `claude mcp add --scope user --transport http fusionkit http://127.0.0.1:47361/mcp --header "Authorization: Bearer <令牌>"`；Codex 追加 `[mcp_servers.fusionkit]` 到 `~/.codex/config.toml`；Cursor 合并到 `~/.cursor/mcp.json`。
-   - **stdio**：由 FusionKit 可执行文件以 `ELECTRON_RUN_AS_NODE=1` 运行随附的 `fusionkit-mcp-stdio.cjs`，FusionKit 未运行时会自动启动它。
-3. 可选：一键安装随附 Skill（`~/.claude/skills/fusionkit-app/` 或 `~/.codex/skills/fusionkit-app/`），源文件在 `.agents/skills/fusionkit-app/SKILL.md`。
+2. 选择客户端，按页面上的步骤操作（终端版与桌面版都覆盖；依据见 [changes/2026-10-13-desktop-clients.md](changes/2026-10-13-desktop-clients.md)）：
+
+| 客户端 | 配置在哪里 | 推荐做法 | 生效 |
+| --- | --- | --- | --- |
+| Claude Code 终端版 | `~/.claude.json`（user 范围） | 运行页面给出的 `claude mcp add --scope user …`（HTTP） | 新会话中 `/mcp` 可见 |
+| Claude Code 桌面版（Claude 应用的 Code 标签） | 与终端共用 `~/.claude.json`；本地会话也读取 `claude_desktop_config.json` | 装了终端版就运行上面的命令；没装就用「Claude 桌面端」的「写入配置文件」 | 新开本地会话（云端会话访问不到本机） |
+| Claude 桌面端（聊天） | `claude_desktop_config.json`（Windows `%APPDATA%\Claude\`，macOS `~/Library/Application Support/Claude/`；Claude 中 设置 → 开发者 → 编辑配置） | 「写入配置文件」（stdio；自定义连接器从云端连接，访问不到本机） | 完全退出 Claude 再打开 |
+| Codex 终端版 / 桌面版 / IDE 扩展 | 共用 `~/.codex/config.toml` | 「写入配置文件」（HTTP，令牌写在 `http_headers`）；桌面版「添加服务器」表单不能填请求头与环境变量 | 桌面版 设置 → MCP 服务器 → 重启；终端重启 codex |
+| Cursor 桌面版 | 全局 `~/.cursor/mcp.json`；项目 `.cursor/mcp.json` | 「添加到 Cursor」（Cursor 官方安装链接，弹出安装确认）；或「写入配置文件」、复制 JSON | 在侧边栏「Customize」（旧版 设置 → MCP）中确认已启用，未出现时重启 Cursor |
+| 其他客户端 | 各自的 MCP 配置 | 复制 JSON，或按页面逐项填写地址、请求头 / 命令、参数、环境变量 | 依客户端 |
+
+「写入配置文件」只改 `fusionkit` 一项，原文件另存为 `<文件>.fusionkit-backup`；文件无法解析时不做任何修改。`~/.claude.json` 由 Claude Code 持续读写，FusionKit 不自动修改它。
+
+3. 两种连接方式：**HTTP**（`http://127.0.0.1:47361/mcp`，请求头 `Authorization: Bearer <令牌>`）；**stdio**（FusionKit 可执行文件以 `ELECTRON_RUN_AS_NODE=1` 运行随附的 `fusionkit-mcp-stdio.cjs`，FusionKit 未运行时会自动启动它）。
+4. 可选：一键安装随附 Skill：Claude Code 装到 `~/.claude/skills/fusionkit-app/`；Codex、Cursor 等其他 Agent 共用的通用目录为 `~/.agents/skills/fusionkit-app/`。源文件在 `.agents/skills/fusionkit-app/SKILL.md`。
 
 ## 工具
 
@@ -46,6 +57,8 @@
 
 1. 设置页打开开关，复制 Claude Code 的 HTTP 命令运行，在 Claude Code 中 `/mcp` 可见 fusionkit 已连接；FusionKit 标题栏出现绿点。
 2. 让 Claude Code「把字幕工作台里的某个日语字幕翻译成中文并导出双语 SRT」：首次写入时 FusionKit 弹出确认，勾选本次连接放行后后续写入不再询问；工作台出现以客户端命名的译文轨道，导出文件在原字幕旁。
-3. 对 Codex 重复一次（`~/.codex/config.toml` 的 HTTP 片段；如你的 Codex 版本不支持 HTTP，改用 stdio 片段）。
+3. 对 Codex 重复一次：桌面版点「写入配置文件」后在 设置 → MCP 服务器 中重启，确认 fusionkit 出现且可用（如你的版本不认 HTTP 的 `http_headers`，切到 stdio 再写入一次）。
+3b. Cursor：「Cursor」标签点「添加到 Cursor」，在 Cursor 中确认安装后能看到 FusionKit 的工具。
+3a. Claude 桌面端（聊天）：「Claude 桌面端」标签点「写入配置文件」，完全退出再打开 Claude，在对话中确认能看到 FusionKit 的工具；Claude 应用的 Code 标签新开本地会话同样可用。
 4. 关闭 FusionKit 后用 stdio 配置的客户端发起请求，确认 FusionKit 被自动启动并完成调用。
 5. 在 macOS 上确认 stdio 片段中的可执行文件路径可用（自动化测试只在 Windows 上运行）。

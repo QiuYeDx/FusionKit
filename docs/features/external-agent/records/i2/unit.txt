@@ -1,0 +1,54 @@
+ ✓ src/agent/runtime/responses-agent-adapter.test.ts (25 tests) 128ms
+ ✓ src/agent/external/confirmations.test.ts (8 tests) 54ms
+ ✓ test/external-agent/http-host.test.ts (9 tests) 321ms
+ ✓ src/agent/external/tools/export-transcription.test.ts (6 tests) 69ms
+ ✓ src/agent/runtime/chat-completions-agent-adapter.test.ts (9 tests) 6ms
+ ✓ src/agent/session-io.test.ts (8 tests) 98ms
+ ✓ src/agent/web-tools.test.ts (9 tests) 120ms
+ ✓ src/agent/orchestrator.test.ts (31 tests) 531ms
+ ✓ src/agent/session-title-generator.test.ts (6 tests) 25ms
+ ✓ src/agent/prepared-actions.test.ts (9 tests) 29ms
+ ✓ test/external-agent/renderer-bridge.test.ts (5 tests) 434ms
+ ✓ src/agent/page-context.test.ts (5 tests) 8ms
+ ✓ src/agent/classic-page-contexts.test.ts (4 tests) 16ms
+ ✓ src/agent/external/tools/studio-tools.test.ts (6 tests) 70ms
+ ✓ src/agent/external/tools/tools.test.ts (5 tests) 11ms
+ ✓ src/agent/knowledge-tools.test.ts (13 tests) 484ms
+ ✓ src/agent/queue-batch.test.ts (5 tests) 7ms
+ ✓ src/agent/tool-schemas.test.ts (15 tests) 15ms
+ ✓ src/agent/modern-tools.test.ts (46 tests) 96ms
+ ✓ src/agent/task-model-config.test.ts (4 tests) 5ms
+ ✓ src/agent/guarded-tools.test.ts (4 tests) 9ms
+ ✓ src/agent/tool-executor-translation.test.ts (20 tests) 42ms
+ ✓ src/agent/conversation-context.test.ts (6 tests) 11ms
+ ✓ src/agent/session-schema.test.ts (9 tests) 19ms
+ ✓ src/agent/tool-executor-scope.test.ts (13 tests) 42ms
+ ✓ src/agent/session-persistence.test.ts (9 tests) 643ms
+   ✓ saving sessions > drops the oldest log details first, then old log entries, to stay within the limit 598ms
+ ✓ test/external-agent/settings-store.test.ts (6 tests) 133ms
+ ✓ src/agent/external/host.test.ts (6 tests) 625ms
+ ✓ src/agent/name-plan-confirmation.test.ts (36 tests) 11ms
+ ✓ src/agent/session-title.test.ts (5 tests) 22ms
+ ✓ src/agent/external/approval.test.ts (5 tests) 5ms
+ ✓ src/agent/user-intent-authority.test.ts (13 tests) 7ms
+ ✓ src/agent/session-list.test.ts (3 tests) 5ms
+ ✓ src/agent/ui-events.test.ts (3 tests) 4ms
+ ✓ src/agent/navigation-tools.test.ts (3 tests) 95ms
+ ✓ src/agent/translation-slice-config.test.ts (5 tests) 6ms
+ ✓ src/agent/api-format-capability.test.ts (3 tests) 3ms
+ ✓ src/agent/plan.test.ts (7 tests) 12ms
+ ✓ src/agent/pipeline-watch.test.ts (4 tests) 3ms
+ ✓ src/agent/tool-page-settings.test.ts (3 tests) 3ms
+ ✓ src/agent/pipeline-watch-session.test.ts (2 tests) 16ms
+ ✓ src/agent/capability-catalog.test.ts (2 tests) 527ms
+   ✓ translation materials capability > lists the knowledge tools the agent can call 523ms
+ ✓ test/subtitle-studio/agent-track.test.ts (3 tests) 111ms
+ ✓ src/agent/external/tools/knowledge-navigation.test.ts (4 tests) 2204ms
+   ✓ tasks and pages > opens a fixed page through the app's router 2018ms
+ ✓ test/subtitle-studio/cue-edit.test.ts (13 tests) 2254ms
+   ✓ cue edits > edits source text, marks translations stale and makes them current again on undo 567ms
+   ✓ cue edits > writes human translations, review marks and clears, each with an exact undo 568ms
+ ✓ test/subtitle-studio/boundaries.test.ts (8 tests) 3723ms
+   ✓ studio boundaries > keeps the current repository within audited dependency boundaries 3484ms
+ Test Files  46 passed (46)
+      Tests  423 passed (423)

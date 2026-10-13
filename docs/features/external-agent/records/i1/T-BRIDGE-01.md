@@ -16,9 +16,9 @@
 
 | 检查 | 结果 | 证据 |
 | --- | --- | --- |
-| V-BRIDGE-01-1 | 通过 | file:records/i1/unit.log |
-| V-BRIDGE-01-2 | 通过 | file:records/i1/e2e.log |
-| V-BRIDGE-01-3 | 通过 | file:records/i1/tsc.log |
+| V-BRIDGE-01-1 | 通过 | file:records/i1/unit.txt |
+| V-BRIDGE-01-2 | 通过 | file:records/i1/e2e.txt |
+| V-BRIDGE-01-3 | 通过 | file:records/i1/tsc.txt |
 
 ## AC 结果
 

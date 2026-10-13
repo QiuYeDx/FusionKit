@@ -1,0 +1,35 @@
+# Full suite (pnpm vitest run, after vite build --mode=test), 2026-10-13
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  3 failed | 415 passed | 85 skipped (503)
+      Tests  3 failed | 5610 passed | 107 skipped (5720)
+   Duration  185.52s (transform 34.96s, setup 0ms, collect 283.96s, tests 1156.87s, environment 113ms, prepare 71.32s)
+## Failures in the full run
+   × consistency service > is cancelled by its owner 57ms
+   × reclaims clean released-owner task history so later owners do not inherit exhausted capacity 15099ms
+   × local subtitle media runtime and probing > bounds draft probe records without expiring a committed task selection 29109ms
+## External agent files in the full run
+ ✓ test/external-agent/http-host.test.ts (9 tests) 444ms
+ ✓ src/agent/external/tools/export-transcription.test.ts (6 tests) 72ms
+ ✓ src/agent/external/tools/studio-tools.test.ts (6 tests) 85ms
+ ✓ src/agent/external/confirmations.test.ts (8 tests) 56ms
+ ✓ test/external-agent-tools.electron.test.ts (1 test) 29304ms
+ ✓ test/external-agent.electron.test.ts (1 test) 21288ms
+ ✓ src/agent/external/host.test.ts (6 tests) 640ms
+ ✓ src/agent/external/tools/knowledge-navigation.test.ts (4 tests) 2281ms
+ ✓ test/external-agent-settings.electron.test.ts (1 test) 24158ms
+ ✓ test/subtitle-studio/agent-track.test.ts (3 tests) 287ms
+ ✓ test/external-agent/stdio-bridge.test.ts (6 tests) 3502ms
+ ✓ src/agent/external/tools/tools.test.ts (5 tests) 10ms
+ ✓ test/external-agent/renderer-bridge.test.ts (5 tests) 444ms
+ ✓ src/agent/external/client-configs.test.ts (4 tests) 7ms
+ ✓ test/external-agent/settings-store.test.ts (6 tests) 100ms
+ ✓ src/agent/external/approval.test.ts (5 tests) 6ms
+ ✓ test/external-agent/skill.test.ts (2 tests) 38ms
+ ✓ test/external-agent-stdio.electron.test.ts (1 test) 12517ms
+ ✓ src/pages/Setting/settingNavigation.test.ts (3 tests) 4ms
+## Rerun of the three failures alone
+ ✓ test/subtitle-studio/consistency.test.ts (14 tests) 700ms
+ ✓ test/local-subtitle/mediaNormalizer.test.ts (47 tests) 7681ms
+ ✓ test/subtitle-studio/transcription-task-service.test.ts (42 tests) 7417ms
+ Test Files  3 passed (3)
+      Tests  103 passed (103)

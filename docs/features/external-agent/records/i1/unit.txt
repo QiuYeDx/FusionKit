@@ -1,0 +1,9 @@
+ ✓ test/external-agent/settings-store.test.ts (6 tests) 50ms
+ ✓ test/external-agent/http-host.test.ts (9 tests) 278ms
+ ✓ test/external-agent/renderer-bridge.test.ts (5 tests) 434ms
+ ✓ src/agent/external/tools/tools.test.ts (5 tests) 6ms
+ ✓ src/agent/modern-tools.test.ts (46 tests) 53ms
+ ✓ src/agent/knowledge-tools.test.ts (13 tests) 204ms
+ ✓ src/agent/external/host.test.ts (6 tests) 626ms
+ Test Files  7 passed (7)
+      Tests  90 passed (90)

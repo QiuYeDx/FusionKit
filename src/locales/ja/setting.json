@@ -370,20 +370,63 @@
       "title": "クライアントの接続",
       "transport": "接続方法",
       "claude-code": "Claude Code",
+      "claude-desktop": "Claude アプリ",
       "codex": "Codex",
       "cursor": "Cursor",
       "json": "その他のクライアント",
       "http": "HTTP（おすすめ）",
       "stdio": "stdio（自動起動）",
+      "stdio_only": "Claude アプリ（Claude デスクトップ）はローカルサーバーに stdio でのみ接続できます",
       "copy": "設定をコピー",
-      "hint": {
-        "claude-code": "ターミナルでこのコマンドを実行します。--scope user ですべてのプロジェクトで使えます。",
-        "codex": "~/.codex/config.toml に追記します。",
-        "cursor": "~/.cursor/mcp.json に統合します。",
-        "json": "ほかの MCP クライアントの設定の mcpServers に入れます。",
+      "disabled": "「外部エージェントの接続を許可」をオンにすると、コピーできる設定が表示されます。",
+      "guide": {
+        "claude-code": {
+          "step1": "ターミナル版：下のコマンドを一度実行します。",
+          "step2": "デスクトップ版（Claude アプリの Code タブ）はこの設定を共有します。新しいローカルセッションで使えます。ターミナル版がない場合は「Claude アプリ」タブから設定を書き込んでください。ローカルの Code セッションも読み込みます。",
+          "step3": "セッションで /mcp と入力すると、fusionkit の接続を確認できます。"
+        },
+        "claude-desktop": {
+          "step1": "Claude デスクトップのカスタムコネクタはクラウドから接続するためこのコンピューターに届きません。そのため claude_desktop_config.json に stdio サーバーとして登録します。",
+          "step2": "「設定ファイルに書き込む」を押すか、Claude で 設定 → 開発者 → 設定を編集 を開き、下の内容を統合します。",
+          "step3": "Claude を完全に終了（タスクトレイまたはメニューバーから）してから開き直すと有効になります。Claude アプリのローカル Code セッションでも使われます。"
+        },
+        "codex": {
+          "step1": "ターミナル版・デスクトップ版・IDE 拡張は ~/.codex/config.toml を共有します。",
+          "step2": "「設定ファイルに書き込む」を押すか、下の内容を config.toml に追記します。デスクトップ版の 設定 → MCP サーバー → サーバーを追加 のフォームにはヘッダーと環境変数の欄がないため、設定ファイルを使ってください。",
+          "step3": "デスクトップ版は 設定 → MCP サーバー で「再起動」、ターミナル版は codex を再起動すると有効になります。"
+        },
+        "cursor": {
+          "step1": "「Cursor に追加」を押すと Cursor デスクトップ版が開き、インストールの確認が表示されます。",
+          "step2": "「設定ファイルに書き込む」で ~/.cursor/mcp.json（すべてのプロジェクト）に追加することもできます。特定のプロジェクトだけで使う場合は、下の内容をそのプロジェクトの .cursor/mcp.json に入れます。",
+          "step3": "Cursor のサイドバーの「Customize」（旧バージョンでは 設定 → MCP）で fusionkit が有効か確認します。表示されない場合は Cursor を再起動します。"
+        },
+        "json": {
+          "step1": "ほかの MCP クライアント向け：下の JSON をその MCP 設定（mcpServers）に統合します。",
+          "step2": "フォームでサーバーを追加するクライアントでは、下の各項目を入力します。",
+          "step3": "HTTP にはヘッダーを送れるクライアントが必要です。送れない場合は stdio を使ってください。"
+        },
         "stdio": "stdio は FusionKit に同梱の小さなプログラムを経由し、FusionKit が起動していなければ起動します。"
       },
-      "disabled": "「外部エージェントの接続を許可」をオンにすると、コピーできる設定が表示されます。"
+      "write": "設定ファイルに書き込む",
+      "reveal": "フォルダーを開く",
+      "write_done": "設定を書き込みました",
+      "written": "書き込み済み：{{path}}",
+      "backup": "元のファイルは {{path}} に保存しました",
+      "configured": "設定ファイルに登録済み：{{path}}",
+      "file": "設定ファイル：{{path}}",
+      "write_failed": "書き込めませんでした：{{path}}",
+      "config_unreadable": "設定ファイルを読み取れないため変更していません：{{path}}",
+      "reveal_failed": "設定ファイルのフォルダーが見つかりません",
+      "field": {
+        "url": "URL",
+        "header": "ヘッダー",
+        "command": "コマンド",
+        "args": "引数",
+        "env": "環境変数"
+      },
+      "copy_field": "コピー",
+      "install_cursor": "Cursor に追加",
+      "install_failed": "Cursor を開けませんでした。Cursor がインストールされているか確認するか、「設定ファイルに書き込む」を使ってください。"
     },
     "sessions": {
       "title": "現在の接続",
@@ -397,9 +440,9 @@
     },
     "skill": {
       "title": "同梱スキル",
-      "description": "スキルは外部エージェントに FusionKit の使い方（翻訳の流れ、確認とエラー処理）を伝えます。新しい会話から有効です。",
+      "description": "スキルは外部エージェントに FusionKit の使い方（翻訳の流れ、確認とエラー処理）を伝えます。新しい会話から有効です。Claude Code は ~/.claude/skills、Codex や Cursor などほかのエージェントは共通の ~/.agents/skills を読み込みます。",
       "install_claude": "Claude Code にインストール",
-      "install_codex": "Codex にインストール",
+      "install_agents": "共通フォルダーにインストール（Codex・Cursor など）",
       "installed": "インストール済み：{{path}}",
       "outdated": "古いバージョンがインストールされています。再インストールで更新できます：{{path}}",
       "install_done": "スキルをインストールしました",

@@ -1,6 +1,6 @@
 import { createServer as createNetServer, type Server as NetServer } from 'node:net';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -100,6 +100,73 @@ describe('external agent settings', () => {
       expect(JSON.parse(await config.textContent() ?? '')).toMatchObject({ mcpServers: { fusionkit: { env: { ELECTRON_RUN_AS_NODE: '1' } } } });
       await page.getByRole('tab', { name: 'HTTP（推荐）' }).click();
       await page.getByRole('tab', { name: 'Claude Code' }).click();
+
+      // Desktop clients. Claude Desktop only takes the stdio bridge; FusionKit writes its entry into each
+      // client's own file, keeping the other entries and a backup, and leaves an unreadable file alone.
+      const claudeFile = path.join(home, 'AppData', 'Roaming', 'Claude', 'claude_desktop_config.json');
+      await mkdir(path.dirname(claudeFile), { recursive: true });
+      await writeFile(claudeFile, JSON.stringify({ mcpServers: { other: { command: 'other-server' } } }, null, 2));
+      await page.getByRole('tab', { name: 'Claude 桌面端' }).click();
+      await uiExpect(page.getByText('Claude 桌面端只能以 stdio 方式连接本机服务')).toBeVisible();
+      await uiExpect(page.getByRole('tab', { name: 'HTTP（推荐）' })).toHaveCount(0);
+      await uiExpect(page.getByTestId('setting-external-guide')).toContainText('设置 → 开发者 → 编辑配置');
+      expect(JSON.parse(await config.textContent() ?? '')).toMatchObject({ mcpServers: { fusionkit: { env: { ELECTRON_RUN_AS_NODE: '1' } } } });
+      await uiExpect(page.getByTestId('setting-external-config-file')).toHaveText(`配置文件：${claudeFile}`);
+      await page.getByTestId('setting-external-write-config').click();
+      await uiExpect(page.getByTestId('setting-external-config-file')).toContainText(`已写入：${claudeFile}`);
+      await uiExpect(page.getByTestId('setting-external-config-file')).toContainText(`原文件已备份为 ${claudeFile}.fusionkit-backup`);
+      const claudeConfig = JSON.parse(await readFile(claudeFile, 'utf8'));
+      expect(Object.keys(claudeConfig.mcpServers)).toEqual(['other', 'fusionkit']);
+      expect(claudeConfig.mcpServers.fusionkit).toEqual(JSON.parse(await config.textContent() ?? '').mcpServers.fusionkit);
+      await page.getByTestId('setting-external-write-config').scrollIntoViewIfNeeded();
+      await shot(page, 'settings-claude-desktop-zh-light-1280');
+
+      const codexFile = path.join(home, '.codex', 'config.toml');
+      await mkdir(path.dirname(codexFile), { recursive: true });
+      await writeFile(codexFile, 'model = "gpt-5"\n\n[mcp_servers.linear]\nurl = "https://mcp.linear.app/mcp"\n');
+      await page.getByRole('tab', { name: 'Codex' }).click();
+      await uiExpect(page.getByRole('tab', { name: 'HTTP（推荐）' })).toBeVisible();
+      await uiExpect(page.getByTestId('setting-external-guide')).toContainText('设置 → MCP 服务器');
+      await page.getByTestId('setting-external-write-config').click();
+      await uiExpect(page.getByTestId('setting-external-config-file')).toContainText(`已写入：${codexFile}`);
+      const codexText = await readFile(codexFile, 'utf8');
+      expect(codexText).toContain('[mcp_servers.linear]');
+      expect(codexText).toContain(`url = 'http://127.0.0.1:${port}/mcp'`);
+      expect(codexText.match(/\[mcp_servers\.fusionkit\]/g)).toHaveLength(1);
+
+      const cursorFile = path.join(home, '.cursor', 'mcp.json');
+      await mkdir(path.dirname(cursorFile), { recursive: true });
+      await writeFile(cursorFile, '{ not json');
+      await page.getByRole('tab', { name: 'Cursor' }).click();
+      // Cursor desktop: its own install link, opened by the system (recorded here instead of launching Cursor).
+      await app.evaluate(({ shell }) => {
+        const opened: string[] = [];
+        (globalThis as unknown as { opened: string[] }).opened = opened;
+        (shell as unknown as { openExternal: (url: string) => Promise<void> }).openExternal = async (url: string) => { opened.push(url); };
+      });
+      await uiExpect(page.getByTestId('setting-external-guide')).toContainText('Customize');
+      await page.getByTestId('setting-external-cursor-install').click();
+      await expect.poll(() => app!.evaluate(() => (globalThis as unknown as { opened: string[] }).opened.length)).toBe(1);
+      const cursorLink = await app.evaluate(() => (globalThis as unknown as { opened: string[] }).opened[0]);
+      expect(cursorLink.startsWith('cursor://anysphere.cursor-deeplink/mcp/install?name=fusionkit&config=')).toBe(true);
+      expect(JSON.parse(Buffer.from(new URL(cursorLink).searchParams.get('config')!, 'base64').toString('utf8')))
+        .toEqual({ url: `http://127.0.0.1:${port}/mcp`, headers: { Authorization: `Bearer ${token}` } });
+      await page.getByTestId('setting-external-cursor-install').scrollIntoViewIfNeeded();
+      await shot(page, 'settings-cursor-zh-light-1280');
+      await page.getByTestId('setting-external-write-config').click();
+      await uiExpect(page.getByTestId('setting-external-config-file')).toHaveText(`配置文件无法解析，未做修改：${cursorFile}`);
+      expect(await readFile(cursorFile, 'utf8')).toBe('{ not json');
+
+      // Other clients: field by field, for clients configured through a form.
+      await page.getByRole('tab', { name: '其他客户端' }).click();
+      const fields = page.getByTestId('setting-external-fields');
+      await uiExpect(fields).toContainText(`http://127.0.0.1:${port}/mcp`);
+      await uiExpect(fields).toContainText(`Authorization: Bearer ${token}`);
+      await uiExpect(page.getByTestId('setting-external-write-config')).toHaveCount(0);
+      await fields.scrollIntoViewIfNeeded();
+      await shot(page, 'settings-other-fields-zh-light-1280');
+      await page.getByRole('tab', { name: 'Claude Code' }).click();
+      await uiExpect(page.getByTestId('setting-external-guide')).toContainText('Code 标签');
       await scrollTo(page, 'setting-external-config');
       await shot(page, 'settings-on-zh-light-1280');
 
@@ -151,9 +218,11 @@ describe('external agent settings', () => {
       const claudeSkill = path.join(home, '.claude', 'skills', 'fusionkit-app', 'SKILL.md');
       await uiExpect(page.getByTestId('setting-external-skill-status-claude')).toHaveText(`已安装：${claudeSkill}`);
       expect((await readFile(claudeSkill, 'utf8')).replace(/\r\n/g, '\n')).toBe((await readFile(path.resolve('.agents/skills/fusionkit-app/SKILL.md'), 'utf8')).replace(/\r\n/g, '\n'));
-      await page.getByTestId('setting-external-skill-codex').click();
-      await expect.poll(() => existsSync(path.join(home, '.codex', 'skills', 'fusionkit-app', 'SKILL.md'))).toBe(true);
-      await scrollTo(page, 'setting-external-skill-status-codex');
+      await page.getByTestId('setting-external-skill-agents').click();
+      const agentsSkill = path.join(home, '.agents', 'skills', 'fusionkit-app', 'SKILL.md');
+      await uiExpect(page.getByTestId('setting-external-skill-status-agents')).toHaveText(`已安装：${agentsSkill}`);
+      expect(existsSync(path.join(home, '.codex', 'skills'))).toBe(false);
+      await scrollTo(page, 'setting-external-skill-status-agents');
       await shot(page, 'settings-skill-zh-light-1280');
       expect(errors).toEqual([]);
 
@@ -170,6 +239,10 @@ describe('external agent settings', () => {
       await shot(page, 'settings-stdio-en-dark-900');
       await scrollTo(page, 'setting-external-sessions');
       await shot(page, 'settings-connections-en-dark-900');
+      await page.getByRole('tab', { name: 'Claude app' }).click();
+      await uiExpect(page.getByTestId('setting-external-config-file')).toContainText('Already in the config file');
+      await scrollTo(page, 'setting-external-guide');
+      await shot(page, 'settings-claude-desktop-en-dark-900');
       // The page never scrolls sideways: long paths scroll inside their code block.
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       expect(await page.getByTestId('setting-external-config').evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);

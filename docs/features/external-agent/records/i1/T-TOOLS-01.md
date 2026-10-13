@@ -16,8 +16,8 @@
 
 | 检查 | 结果 | 证据 |
 | --- | --- | --- |
-| V-TOOLS-01-1 | 通过 | file:records/i1/unit.log |
-| V-TOOLS-01-2 | 通过 | file:records/i1/e2e.log |
+| V-TOOLS-01-1 | 通过 | file:records/i1/unit.txt |
+| V-TOOLS-01-2 | 通过 | file:records/i1/e2e.txt |
 
 ## AC 结果
 

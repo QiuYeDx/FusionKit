@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bridgeArgs, buildClientConfig, EXTERNAL_CLIENTS } from "./client-configs";
+import { bridgeArgs, buildClientConfig, clientTransports, connectionFields, CURSOR_INSTALL_PREFIX, cursorInstallLink, EXTERNAL_CLIENTS, isWritableClient, jsonServerEntry } from "./client-configs";
 
 const TOKEN = "abcDEF0123456789abcDEF0123456789abcDEF01234";
 const url = "http://127.0.0.1:47361/mcp";
@@ -47,6 +47,33 @@ describe("client configurations", () => {
   it("falls back to escaped TOML strings for paths with apostrophes", () => {
     const odd = { ...installed, exePath: "C:\\Users\\O'Neil\\FusionKit.exe" };
     expect(buildClientConfig("codex", "stdio", { url, token: TOKEN, info: odd }).text).toContain(`command = "C:\\\\Users\\\\O'Neil\\\\FusionKit.exe"`);
-    expect(EXTERNAL_CLIENTS).toEqual(["claude-code", "codex", "cursor", "json"]);
+    expect(EXTERNAL_CLIENTS).toEqual(["claude-code", "claude-desktop", "codex", "cursor", "json"]);
+  });
+
+  it("gives Claude Desktop the stdio bridge only, and lists fields for form-based clients", () => {
+    expect(clientTransports("claude-desktop")).toEqual(["stdio"]);
+    expect(clientTransports("codex")).toEqual(["http", "stdio"]);
+    for (const transport of ["http", "stdio"] as const) {
+      expect(JSON.parse(buildClientConfig("claude-desktop", transport, { url, token: TOKEN, info: installed }).text))
+        .toEqual({ mcpServers: { fusionkit: { command: installed.exePath, args: bridgeArgs(installed), env: { ELECTRON_RUN_AS_NODE: "1" } } } });
+    }
+    expect(["claude-desktop", "codex", "cursor"].every(client => isWritableClient(client as never))).toBe(true);
+    expect(isWritableClient("claude-code")).toBe(false);
+    expect(connectionFields("http", { url, token: TOKEN, info: installed })).toEqual([{ key: "url", value: url }, { key: "header", value: `Authorization: Bearer ${TOKEN}` }]);
+    expect(connectionFields("stdio", { url, token: TOKEN, info: installed })).toEqual([
+      { key: "command", value: installed.exePath },
+      { key: "args", value: `"${installed.scriptPath}" --endpoint "${installed.endpointPath}" --launch "${installed.exePath}"` },
+      { key: "env", value: "ELECTRON_RUN_AS_NODE=1" }]);
+  });
+
+  it("builds Cursor's install link from the same entry, safe for any characters in paths", () => {
+    const named = { ...installed, exePath: "C:\Users\秋叶\FusionKit\FusionKit.exe" };
+    for (const transport of ["http", "stdio"] as const) {
+      const link = cursorInstallLink(transport, { url, token: TOKEN, info: named });
+      expect(link.startsWith(`${CURSOR_INSTALL_PREFIX}name=fusionkit&config=`)).toBe(true);
+      const config = new URL(link).searchParams.get("config")!;
+      const decoded = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(config), char => char.charCodeAt(0))));
+      expect(decoded).toEqual(jsonServerEntry(transport, { url, token: TOKEN, info: named }));
+    }
   });
 });

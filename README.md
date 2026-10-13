@@ -75,7 +75,13 @@
 已经在用 Claude Code、Codex、Cursor 等 AI Agent？可以让它们直接操作 FusionKit：FusionKit 提供 MCP 服务，外部 Agent 能读取字幕工作台、导入与转写、**自己撰写译文**写回工作台并导出字幕，**无需在 FusionKit 中配置任何 API Key**。
 
 1. 在 **设置 → 外部 Agent** 打开「允许外部 Agent 连接」。
-2. 选择你的客户端（Claude Code / Codex / Cursor / 其他），复制页面给出的配置：HTTP 方式粘贴即用；stdio 方式在 FusionKit 未运行时会自动启动它。
+2. 选择你的客户端，按页面上的步骤接入，终端版与桌面版都支持：
+   - **Claude Code**：终端运行页面给出的命令；Claude 应用里的 Code 标签与终端共用这份配置。
+   - **Claude 桌面端**：点「写入配置文件」（写入 `claude_desktop_config.json`，原文件自动备份），然后完全退出并重新打开 Claude。它只能用 stdio 方式连接本机。
+   - **Codex**（终端版、桌面版、IDE 扩展共用 `~/.codex/config.toml`）：点「写入配置文件」，桌面版再到「设置 → MCP 服务器」里点「重启」。
+   - **Cursor**：点「添加到 Cursor」，Cursor 桌面版会弹出安装确认；也可以写入 `~/.cursor/mcp.json` 或放进项目的 `.cursor/mcp.json`。
+   - **其他客户端**：复制配置；只能用表单添加服务器的客户端，按页面列出的地址、请求头或命令逐项填写。
+   stdio 方式在 FusionKit 未运行时会自动启动它。
 3. 可一键安装随附的 Skill，让 Agent 了解 FusionKit 的翻译流程。
 
 权限分三档：**只读**、**修改前询问**（默认）、**自动执行**。导入、写入译文、导出等修改会在 FusionKit 中弹出确认（可在一次连接内放行同类操作）；覆盖已有文件与修改翻译资料在任何档位都需要确认。外部 Agent 写入的译文标为未复核的 AI 译文，可在工作台复核与撤销。服务只监听本机 127.0.0.1，需要令牌才能连接，默认关闭。

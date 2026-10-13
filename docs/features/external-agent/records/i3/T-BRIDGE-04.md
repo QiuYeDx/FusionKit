@@ -16,8 +16,8 @@
 
 | 检查 | 结果 | 证据 |
 | --- | --- | --- |
-| V-BRIDGE-04-1 | 通过 | file:records/i3/full-suite.log |
-| V-BRIDGE-04-2 | 通过 | file:records/i3/full-suite.log |
+| V-BRIDGE-04-1 | 通过 | file:records/i3/full-suite.txt |
+| V-BRIDGE-04-2 | 通过 | file:records/i3/full-suite.txt |
 
 ## AC 结果
 
@@ -32,4 +32,4 @@
 
 ## 风险与未执行项
 
-安装版（electron-builder 打包后）的脚本路径与 runAsNode 行为未在本机打包验证（磁盘余量有限且不在本任务发布范围），以开发版路径与 Electron 可执行文件验证；macOS 未验证。 全量回归中 3 项与本功能无关的计时用例在并发负载下失败，单独重跑全部通过（见 full-suite.log）。
+安装版（electron-builder 打包后）的脚本路径与 runAsNode 行为未在本机打包验证（磁盘余量有限且不在本任务发布范围），以开发版路径与 Electron 可执行文件验证；macOS 未验证。 全量回归中 3 项与本功能无关的计时用例在并发负载下失败，单独重跑全部通过（见 full-suite.txt）。

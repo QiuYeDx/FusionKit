@@ -12,6 +12,7 @@ function fakeApi() {
   const status: ExternalAgentStatus = { enabled: true, state: "running", port: 1, trust: "confirm_writes", sessions: [{ id: "s1", client: { name: "claude-code", version: "2" }, connectedAt: 1, lastActiveAt: 1 }] };
   const api = {
     getSettings: vi.fn(), updateSettings: vi.fn(), regenerateToken: vi.fn(), closeSession: vi.fn(), connectionInfo: vi.fn(), installSkill: vi.fn(), skillStatus: vi.fn(),
+    writeClientConfig: vi.fn(), clientConfigStatus: vi.fn(), revealClientConfig: vi.fn(), openClientInstall: vi.fn(),
     getStatus: vi.fn(async () => ({ ok: true as const, value: status })),
     onCall: (listener) => { listeners.call.push(listener); return () => { listeners.call = listeners.call.filter(item => item !== listener); }; },
     onCancel: (listener) => { listeners.cancel.push(listener); return () => { listeners.cancel = []; }; },

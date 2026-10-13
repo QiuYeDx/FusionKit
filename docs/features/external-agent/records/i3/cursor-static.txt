@@ -1,0 +1,2 @@
+tsc exit 0
+All source translation keys resolve.

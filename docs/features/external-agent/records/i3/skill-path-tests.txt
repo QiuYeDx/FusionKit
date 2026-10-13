@@ -1,0 +1,23 @@
+tsc exit 0
+All source translation keys resolve.
+ ✓ src/agent/external/client-configs.test.ts (6 tests) 9ms
+ ✓ test/external-agent/skill.test.ts (2 tests) 48ms
+ ✓ test/external-agent/client-config-writer.test.ts (5 tests) 122ms
+ ✓ test/external-agent/settings-store.test.ts (6 tests) 87ms
+ ✓ src/agent/external/approval.test.ts (5 tests) 6ms
+ ✓ src/agent/external/confirmations.test.ts (8 tests) 46ms
+ ✓ test/external-agent/renderer-bridge.test.ts (5 tests) 447ms
+ ✓ test/external-agent/http-host.test.ts (9 tests) 359ms
+ ✓ src/agent/external/tools/export-transcription.test.ts (6 tests) 72ms
+ ✓ src/agent/external/tools/tools.test.ts (5 tests) 7ms
+ ✓ src/agent/external/tools/studio-tools.test.ts (6 tests) 69ms
+ ✓ src/agent/external/host.test.ts (6 tests) 626ms
+ ✓ test/external-agent/stdio-bridge.test.ts (6 tests) 3039ms
+   ✓ stdio bridge > starts FusionKit without ELECTRON_RUN_AS_NODE and waits for its endpoint 1121ms
+   ✓ stdio bridge > gives up after the wait when the launched app never publishes an endpoint 1590ms
+ ✓ src/agent/external/tools/knowledge-navigation.test.ts (4 tests) 2177ms
+   ✓ tasks and pages > opens a fixed page through the app's router 2009ms
+ ✓ test/external-agent-settings.electron.test.ts (1 test) 19994ms
+   ✓ external agent settings > turns access on, shows state, configurations and connections, and manages them 19993ms
+ Test Files  15 passed (15)
+      Tests  80 passed (80)
