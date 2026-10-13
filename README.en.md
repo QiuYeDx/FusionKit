@@ -70,6 +70,16 @@ Drive the whole app from a conversation on the home page:
 
 On every other page, the Agent button in the bottom-left corner opens a floating panel that shares the same conversation as the home page. The Agent knows which page you are on and what it shows: in the Studio you can say "this word should always be spelled like that", and on a tool page "switch the target language to English".
 
+### External agents (MCP)
+
+Already using Claude Code, Codex, Cursor or another AI agent? Let it work in FusionKit directly. FusionKit serves MCP: an external agent can read Subtitle Studio, import and transcribe, **write its own translations** back into Studio and export subtitle files, **with no API key configured in FusionKit**.
+
+1. In **Settings → External agents**, turn on “Allow external agents to connect”.
+2. Pick your client (Claude Code / Codex / Cursor / other) and copy the configuration shown: HTTP works as pasted; stdio also starts FusionKit when it is not running.
+3. Optionally install the bundled skill so the agent knows FusionKit's translation workflow.
+
+There are three permission levels: **Read only**, **Ask before changes** (default) and **Automatic**. Imports, written translations, exports and other changes ask for your OK in FusionKit (you can allow a kind of change for the rest of a connection); replacing existing files and changing translation materials always ask. Translations written by an agent are marked as unreviewed AI translations that you can review and undo in Studio. The service listens on 127.0.0.1 only, requires a token and is off by default.
+
 ### Translation materials
 
 Group terms, translation requirements and background into a collection per title or streamer, and tick collections (or pick a preset) when translating or revising so names, forms of address and terms stay consistent. Type terms straight into the table; they apply as soon as they are saved and can be disabled one by one. Materials are stored locally and can be shared as `.fktk.json` files with diff previews. Each task pins the version of the materials it used, so later edits never rewrite past tasks.
@@ -120,6 +130,7 @@ FusionKit has no server of its own and collects no usage data. Apart from update
 | AI translation, revision and the Agent | Subtitle or text content goes to the model service in your settings |
 | Audio toolbox | Audio files, recordings or microphone input go to the audio service you choose |
 | Web lookup (off by default) | Only search terms and page links; never subtitles or translation materials |
+| External agents (off by default) | Listens on 127.0.0.1 only and requires a token; subtitles an external agent reads are handled by that agent's own model service |
 | Update checks | GitHub Releases, for new version information |
 
 API keys are kept in the app's local settings and used only to call the services you configured. They are never written to subtitle recovery files, long text workspaces, audio task data or error details. Before using a third-party model service, check its privacy and data retention policy. Some features, such as the sequential long text mode, use more tokens; your provider's bill is the source of truth for cost.

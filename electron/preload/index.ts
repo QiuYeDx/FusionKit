@@ -29,6 +29,7 @@ import { assertLegacyKnowledgeChannelAllowed, createTranslationKnowledgeApi } fr
 import { assertLegacyNameTranslationChannelAllowed, createNameTranslationApi } from './name-translation-api'
 import { assertLegacyWebLookupChannelAllowed, createWebLookupApi } from './web-lookup-api'
 import { assertLegacyAgentSessionsChannelAllowed, createAgentSessionsApi } from './agent-sessions-api'
+import { assertLegacyExternalAgentChannelAllowed, createExternalAgentApi } from './external-agent-api'
 
 const AUDIO_CHANNEL_PREFIX = 'audio:'
 const AUDIO_REGISTER_CAPABILITY_CHANNEL =
@@ -61,6 +62,7 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
   assertLegacyNameTranslationChannelAllowed(channel)
   assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyAgentSessionsChannelAllowed(channel)
+  assertLegacyExternalAgentChannelAllowed(channel)
   assertLegacyKnowledgeChannelAllowed(channel)
   assertLegacySpeechResourcesChannelAllowed(channel)
   assertLegacyStudioChannelAllowed(channel)
@@ -78,6 +80,7 @@ const assertLegacyListenChannelAllowed = (channel: string) => {
   assertLegacyNameTranslationChannelAllowed(channel)
   assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyAgentSessionsChannelAllowed(channel)
+  assertLegacyExternalAgentChannelAllowed(channel)
   assertLegacyKnowledgeChannelAllowed(channel)
   assertLegacySpeechResourcesChannelAllowed(channel)
   assertLegacyStudioChannelAllowed(channel)
@@ -98,6 +101,7 @@ contextBridge.exposeInMainWorld('speechResources', createSpeechResourcesApi(ipcR
 contextBridge.exposeInMainWorld('nameTranslation', createNameTranslationApi(ipcRenderer))
 contextBridge.exposeInMainWorld('webLookup', createWebLookupApi(ipcRenderer))
 contextBridge.exposeInMainWorld('agentSessions', createAgentSessionsApi(ipcRenderer))
+contextBridge.exposeInMainWorld('externalAgent', createExternalAgentApi(ipcRenderer))
 contextBridge.exposeInMainWorld(
   'ipcRenderer',
   createSafeLegacyIpcBridge({

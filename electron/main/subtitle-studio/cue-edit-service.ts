@@ -186,6 +186,18 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
       applied = changedEntries(track, writeEntries(track, { [cue.id]: entry }));
       break;
     }
+    case 'agent': {
+      const track = trackOf(operation.trackId);
+      // Only a track an external agent made takes its translations; FusionKit's own tracks keep their records.
+      if (!track.agent) throw new StudioError('invalid_input');
+      const entries: Record<string, TranslationEntry> = {};
+      for (const [cueId, text] of Object.entries(operation.targets)) {
+        const cue = cueOf(cueId);
+        entries[cueId] = { sourceRevision: cue.sourceRevision, sourceHash: sourceDigest(cue), text, origin: 'ai', reviewStatus: 'unreviewed' };
+      }
+      applied = changedEntries(track, writeEntries(track, entries));
+      break;
+    }
     case 'clear': {
       const track = trackOf(operation.trackId);
       applied = changedEntries(track, writeEntries(track, Object.fromEntries(operation.cueIds.map(id => [id, null]))));

@@ -9,6 +9,7 @@ import HomeAgent from "@/pages/HomeAgent";
 import useAgentStore from "@/store/agent/useAgentStore";
 import AgentDock from "@/pages/AgentDock";
 import ClassicPageContexts from "@/pages/AgentDock/ClassicPageContexts";
+import ExternalAgentHost from "@/pages/AgentDock/ExternalAgentHost";
 import Tools from "@/pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
@@ -179,6 +180,8 @@ function App() {
       {/* 各页面的悬浮 Agent（首页本身即完整 Agent） */}
       <AgentDock />
       <ClassicPageContexts />
+      {/* 外部 Agent（MCP）的工具调用在此窗口执行 */}
+      <ExternalAgentHost />
 
       {/* 全局 Toast */}
       <Toaster position="top-right" />

@@ -1,7 +1,7 @@
 import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
 
 /** What an edit did, for undo/redo labels. */
-export type CueEditLabel = 'source' | 'target' | 'clear' | 'review' | 'unreview' | 'delete' | 'revise' | 'unify' | 'merge' | 'timing' | 'recognize' | 'shift' | 'split' | 'insert' | 'replace';
+export type CueEditLabel = 'source' | 'target' | 'clear' | 'review' | 'unreview' | 'delete' | 'revise' | 'unify' | 'merge' | 'timing' | 'recognize' | 'shift' | 'split' | 'insert' | 'replace' | 'agent';
 export type CueHistoryEntry = { label: CueEditLabel; count: number; operation: CueEditOperation };
 type State = { revision: number; undo: CueHistoryEntry[]; redo: CueHistoryEntry[] };
 
@@ -20,6 +20,13 @@ export class CueHistory {
   private readonly states = new Map<string, State>();
   /** The document shown, whose history `peek` and `discard` use. */
   private current: string | undefined;
+  private listeners = new Set<() => void>();
+
+  /** Called after an edit made outside the studio page (an external agent's) is recorded. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
 
   /**
    * Shows a document's history, dropping it when the document moved on without us.
@@ -46,6 +53,7 @@ export class CueHistory {
     const state = this.states.get(documentId);
     const kept = state?.revision === from ? state.undo : [];
     this.put(documentId, { revision: to, undo: [...kept, entry].slice(-LIMIT), redo: [] });
+    for (const listener of this.listeners) listener();
   }
 
   /** Moves the top entry to the other stack after it was applied, replacing its operation with the new inverse. */

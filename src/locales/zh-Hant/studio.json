@@ -796,7 +796,8 @@
       "shift": "平移 {{count}} 條字幕的時間",
       "split": "拆分字幕",
       "insert": "插入字幕",
-      "replace": "取代 {{count}} 條字幕"
+      "replace": "取代 {{count}} 條字幕",
+      "agent": "外部 Agent 寫入 {{count}} 條譯文"
     }
   },
   "cue_help": {

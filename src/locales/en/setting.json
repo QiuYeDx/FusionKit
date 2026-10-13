@@ -34,6 +34,10 @@
     "agent": {
       "label": "Agent",
       "hint": "Web lookups, conversation history"
+    },
+    "external": {
+      "label": "External agents",
+      "hint": "Let Claude Code and others use FusionKit"
     }
   },
   "fields": {
@@ -313,6 +317,129 @@
       "cancel": "Cancel",
       "cleared": "All conversations deleted",
       "clear_failed": "Couldn't delete everything; some conversation files may remain on disk"
+    }
+  },
+  "external_agent": {
+    "title": "External agent access",
+    "copied": "Copied",
+    "copy_failed": "Could not copy",
+    "save_failed": "Could not save. Try again.",
+    "titlebar": "External agents connected: {{count}}",
+    "enable": {
+      "label": "Allow external agents to connect",
+      "description": "Claude Code, Codex and other agents can read and work in FusionKit over MCP and do the translating themselves, so no API key is needed here. Listens on this computer only (127.0.0.1) and requires the token."
+    },
+    "status": {
+      "running": "Running",
+      "stopped": "Off",
+      "port_in_use": "Port {{port}} is used by another program. Choose another port.",
+      "listen_failed": "Could not listen on port {{port}}."
+    },
+    "trust": {
+      "title": "What external agents may do",
+      "recommended": "Recommended",
+      "read_only": {
+        "name": "Read only",
+        "description": "Read state, subtitles and translation materials; change nothing."
+      },
+      "confirm_writes": {
+        "name": "Ask before changes",
+        "description": "Imports, written translations, exports and other changes need your OK in FusionKit; you can allow a kind of change for the rest of a connection."
+      },
+      "auto": {
+        "name": "Automatic",
+        "description": "Changes run right away; replacing existing files and changing translation materials still ask."
+      }
+    },
+    "connection": {
+      "title": "Connection",
+      "port": "Port",
+      "port_invalid": "Enter a whole number from 1024 to 65535.",
+      "token": "Token",
+      "show": "Show token",
+      "hide": "Hide token",
+      "copy": "Copy token",
+      "reset": "Reset token",
+      "reset_title": "Reset the token?",
+      "reset_description": "The old token stops working at once and connected agents are disconnected. Copy the configuration again afterwards.",
+      "reset_confirm": "Reset",
+      "cancel": "Cancel",
+      "no_token": "Created when you turn access on"
+    },
+    "clients": {
+      "title": "Connect a client",
+      "transport": "Connection method",
+      "claude-code": "Claude Code",
+      "codex": "Codex",
+      "cursor": "Cursor",
+      "json": "Other clients",
+      "http": "HTTP (recommended)",
+      "stdio": "stdio (starts FusionKit)",
+      "copy": "Copy configuration",
+      "hint": {
+        "claude-code": "Run this command in a terminal; --scope user makes it available in every project.",
+        "codex": "Add this to ~/.codex/config.toml.",
+        "cursor": "Merge this into ~/.cursor/mcp.json.",
+        "json": "Put this under mcpServers in the configuration of another MCP client.",
+        "stdio": "stdio goes through a small program that ships with FusionKit and starts FusionKit when it is not running."
+      },
+      "disabled": "Turn on “Allow external agents to connect” to get a configuration you can copy."
+    },
+    "sessions": {
+      "title": "Connected now",
+      "empty": "No external agent is connected.",
+      "connected_now": "Just connected",
+      "connected_minutes": "Connected for {{count}} min",
+      "last": "Last: {{tool}}",
+      "ok": "OK",
+      "failed": "failed ({{error}})",
+      "disconnect": "Disconnect"
+    },
+    "skill": {
+      "title": "Bundled skill",
+      "description": "The skill tells external agents how to use FusionKit (translation workflow, confirmations and errors). It takes effect in new conversations.",
+      "install_claude": "Install for Claude Code",
+      "install_codex": "Install for Codex",
+      "installed": "Installed: {{path}}",
+      "outdated": "An older version is installed; install again to update: {{path}}",
+      "install_done": "Skill installed",
+      "install_failed": "Could not install"
+    },
+    "confirm": {
+      "title": "{{client}} wants to {{action}}",
+      "queue": "{{count}} more waiting",
+      "action": {
+        "import": "import subtitles",
+        "translation": "edit subtitle translations",
+        "export": "export subtitles",
+        "transcription": "transcribe locally",
+        "knowledge": "change translation materials"
+      },
+      "summary": {
+        "import": "Import the subtitles in {{count}} paths into Subtitle Studio.",
+        "create_track": "Create the translation track “{{track}}” ({{language}}) in “{{document}}”.",
+        "write_translations": "Write {{count}} translations to “{{track}}” in “{{document}}”, marked as unreviewed AI translations. You can undo this in Subtitle Studio.",
+        "export_source": "Export “{{document}}” as {{format}} ({{content}}) to the original file’s folder.",
+        "export_choose": "Export “{{document}}” as {{format}} ({{content}}); you choose where to save it next.",
+        "transcription": "Transcribe the audio and video in {{count}} paths into Subtitle Studio with the local model {{model}}.",
+        "knowledge": "Save {{count}} translation material changes. They are enabled right away."
+      },
+      "content": {
+        "source": "source",
+        "target": "translation",
+        "bilingual": "bilingual"
+      },
+      "overwrite_warning": "A file with the same name will be replaced. This cannot be undone.",
+      "more": "{{count}} more",
+      "allow_session": "Allow this kind of action for the rest of this connection",
+      "allow": "Allow",
+      "decline": "Decline",
+      "tag": {
+        "collection": "Collection",
+        "term": "Term",
+        "rule": "Rule",
+        "context": "Context"
+      }
     }
   }
 }

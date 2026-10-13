@@ -34,6 +34,10 @@
     "agent": {
       "label": "Agent",
       "hint": "Web 検索・会話履歴"
+    },
+    "external": {
+      "label": "外部エージェント",
+      "hint": "Claude Code などから FusionKit を使う"
     }
   },
   "fields": {
@@ -313,6 +317,129 @@
       "cancel": "キャンセル",
       "cleared": "すべての会話を削除しました",
       "clear_failed": "一部の会話ファイルを削除できなかった可能性があります"
+    }
+  },
+  "external_agent": {
+    "title": "外部エージェント連携",
+    "copied": "コピーしました",
+    "copy_failed": "コピーできませんでした",
+    "save_failed": "保存できませんでした。もう一度お試しください。",
+    "titlebar": "外部エージェントが {{count}} 件接続中",
+    "enable": {
+      "label": "外部エージェントの接続を許可",
+      "description": "Claude Code や Codex などが MCP で FusionKit を読み取り・操作し、翻訳も自分で行います。ここで API キーを設定する必要はありません。このコンピューター（127.0.0.1）でのみ待ち受け、トークンが必要です。"
+    },
+    "status": {
+      "running": "実行中",
+      "stopped": "オフ",
+      "port_in_use": "ポート {{port}} はほかのプログラムが使用しています。別のポートを選んでください。",
+      "listen_failed": "ポート {{port}} で待ち受けできません。"
+    },
+    "trust": {
+      "title": "外部エージェントの権限",
+      "recommended": "おすすめ",
+      "read_only": {
+        "name": "読み取りのみ",
+        "description": "状態・字幕・翻訳資料の読み取りのみ。変更はできません。"
+      },
+      "confirm_writes": {
+        "name": "変更前に確認",
+        "description": "読み込み、訳文の書き込み、書き出しなどの変更は FusionKit での許可が必要です。同じ種類の操作は接続中まとめて許可できます。"
+      },
+      "auto": {
+        "name": "自動実行",
+        "description": "変更はすぐに実行されます。既存ファイルの上書きと翻訳資料の変更は引き続き確認します。"
+      }
+    },
+    "connection": {
+      "title": "接続情報",
+      "port": "ポート",
+      "port_invalid": "1024〜65535 の整数を入力してください。",
+      "token": "トークン",
+      "show": "トークンを表示",
+      "hide": "トークンを隠す",
+      "copy": "トークンをコピー",
+      "reset": "トークンを再発行",
+      "reset_title": "トークンを再発行しますか？",
+      "reset_description": "古いトークンはすぐに無効になり、接続中のエージェントは切断されます。設定をもう一度コピーしてください。",
+      "reset_confirm": "再発行",
+      "cancel": "キャンセル",
+      "no_token": "オンにすると作成されます"
+    },
+    "clients": {
+      "title": "クライアントの接続",
+      "transport": "接続方法",
+      "claude-code": "Claude Code",
+      "codex": "Codex",
+      "cursor": "Cursor",
+      "json": "その他のクライアント",
+      "http": "HTTP（おすすめ）",
+      "stdio": "stdio（自動起動）",
+      "copy": "設定をコピー",
+      "hint": {
+        "claude-code": "ターミナルでこのコマンドを実行します。--scope user ですべてのプロジェクトで使えます。",
+        "codex": "~/.codex/config.toml に追記します。",
+        "cursor": "~/.cursor/mcp.json に統合します。",
+        "json": "ほかの MCP クライアントの設定の mcpServers に入れます。",
+        "stdio": "stdio は FusionKit に同梱の小さなプログラムを経由し、FusionKit が起動していなければ起動します。"
+      },
+      "disabled": "「外部エージェントの接続を許可」をオンにすると、コピーできる設定が表示されます。"
+    },
+    "sessions": {
+      "title": "現在の接続",
+      "empty": "接続中の外部エージェントはありません。",
+      "connected_now": "接続したばかり",
+      "connected_minutes": "{{count}} 分間接続",
+      "last": "最近：{{tool}}",
+      "ok": "成功",
+      "failed": "失敗（{{error}}）",
+      "disconnect": "切断"
+    },
+    "skill": {
+      "title": "同梱スキル",
+      "description": "スキルは外部エージェントに FusionKit の使い方（翻訳の流れ、確認とエラー処理）を伝えます。新しい会話から有効です。",
+      "install_claude": "Claude Code にインストール",
+      "install_codex": "Codex にインストール",
+      "installed": "インストール済み：{{path}}",
+      "outdated": "古いバージョンがインストールされています。再インストールで更新できます：{{path}}",
+      "install_done": "スキルをインストールしました",
+      "install_failed": "インストールできませんでした"
+    },
+    "confirm": {
+      "title": "{{client}} が{{action}}を求めています",
+      "queue": "ほかに {{count}} 件の要求",
+      "action": {
+        "import": "字幕の読み込み",
+        "translation": "字幕訳文の編集",
+        "export": "字幕の書き出し",
+        "transcription": "ローカル文字起こし",
+        "knowledge": "翻訳資料の変更"
+      },
+      "summary": {
+        "import": "{{count}} 個のパスにある字幕を字幕ワークベンチに読み込みます。",
+        "create_track": "「{{document}}」に訳文トラック「{{track}}」（{{language}}）を作成します。",
+        "write_translations": "「{{document}}」の「{{track}}」に訳文を {{count}} 件書き込みます。未確認の AI 訳文として記録され、字幕ワークベンチで元に戻せます。",
+        "export_source": "「{{document}}」を {{format}}（{{content}}）として元のファイルのフォルダーに書き出します。",
+        "export_choose": "「{{document}}」を {{format}}（{{content}}）として書き出します。保存先はこのあと選びます。",
+        "transcription": "ローカルモデル {{model}} で、{{count}} 個のパスにある音声・動画を字幕ワークベンチに文字起こしします。",
+        "knowledge": "翻訳資料の変更 {{count}} 件を保存し、すぐに有効にします。"
+      },
+      "content": {
+        "source": "原文",
+        "target": "訳文",
+        "bilingual": "対訳"
+      },
+      "overwrite_warning": "同じ名前のファイルは上書きされ、元に戻せません。",
+      "more": "ほか {{count}} 件",
+      "allow_session": "この接続中は同じ種類の操作を確認せずに許可する",
+      "allow": "許可",
+      "decline": "拒否",
+      "tag": {
+        "collection": "新しい資料集",
+        "term": "用語",
+        "rule": "ルール",
+        "context": "背景"
+      }
     }
   }
 }

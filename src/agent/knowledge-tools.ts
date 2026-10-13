@@ -14,7 +14,7 @@ function knowledgeApi() {
   if (typeof window === "undefined" || !window.translationKnowledge) throw new ToolFailure("translation_knowledge_unavailable");
   return window.translationKnowledge;
 }
-async function readLibrary(): Promise<LibrarySnapshot> {
+export async function readLibrary(): Promise<LibrarySnapshot> {
   const response = await knowledgeApi().read();
   if (!response.ok) throw new ToolFailure(response.error);
   return response.value;
@@ -76,14 +76,14 @@ function withWebPages<T extends ProposalInput>(input: T): T {
   }) };
 }
 /** What the model sees of a proposal: status and wording per item, never ids it did not send. */
-function brief(items: ProposalItem[]) {
+export function brief(items: ProposalItem[]) {
   return items.slice(0, 60).map(item => ({ status: item.status, group: item.group, ...(item.kind ? { kind: item.kind } : {}), label: safeText(item.label, 160),
     ...(item.collectionName ? { collection: safeText(item.collectionName, 120) } : {}), ...(item.sourceSite ? { site: item.sourceSite } : {}), ...(item.reason ? { reason: item.reason } : {}),
     ...(item.warnings.length ? { warnings: item.warnings.map(warning => `${warning.code}: ${safeText(warning.target ?? "", 120)} in ${safeText(warning.collectionName ?? "", 120)}`) } : {}) }));
 }
 
 /** Rebuild against the newest library with the same ids, then save in one transaction. */
-async function saveProposal(input: ProposalInput, ids: Record<string, string>): Promise<PreparedActionResult> {
+export async function saveProposal(input: ProposalInput, ids: Record<string, string>): Promise<PreparedActionResult> {
   try {
     const library = await readLibrary();
     const proposal = buildKnowledgeProposal(input, library, { ids });
@@ -100,59 +100,69 @@ async function saveProposal(input: ProposalInput, ids: Record<string, string>): 
   }
 }
 
+/** search_translation_knowledge, shared with external agents. */
+export function searchKnowledgeLibrary(input: z.output<typeof knowledgeSearchSchema>, library: LibrarySnapshot) {
+  const { collections: allCollections, entries: allEntries, presets: allPresets } = library.data;
+  const collectionById = new Map(allCollections.map(item => [item.id, item]));
+  const tokens = input.query.split(/\s+/).map(token => fold(token.trim())).filter(Boolean).slice(0, 8);
+  const matches = (words: (string | undefined)[]) => { const haystack = fold(words.filter(Boolean).join("\n")); return tokens.every(token => haystack.includes(token)); };
+  const collectionWords = (collection: Collection | undefined) => collection ? [collection.name, collection.description] : [];
+  const entryWords = (entry: Entry) => entry.kind === "term"
+    ? [entry.payload.source, entry.payload.target, ...entry.payload.aliases, entry.payload.note] : [entry.payload.text];
+  const directionMatches = (pair: { source: string; target: string }) => (!input.languagePair?.source || pair.source === input.languagePair.source)
+    && (!input.languagePair?.target || pair.target === input.languagePair.target);
+  const entries = allEntries.filter(entry => {
+    const collection = collectionById.get(entry.collectionId);
+    if (!collection || (!input.includeArchived && collection.archived)) return false;
+    if (input.collectionId && entry.collectionId !== input.collectionId) return false;
+    if (input.kind !== "all" && entry.kind !== input.kind) return false;
+    if (!directionMatches(collection.languagePair)) return false;
+    if (input.enabled !== "all" && entry.enabled !== (input.enabled === "enabled")) return false;
+    return matches([...entryWords(entry), ...collectionWords(collection)]);
+  });
+  const collections = allCollections.filter(item => (input.includeArchived || !item.archived) && (!input.collectionId || item.id === input.collectionId)
+    && directionMatches(item.languagePair) && matches(collectionWords(item)));
+  const presets = allPresets.filter(item => directionMatches(item.languagePair) && matches([item.name]));
+  const window = <T>(items: T[]) => items.slice(input.offset, input.offset + input.limit);
+  return { generation: library.generation, counts: { entries: allEntries.length, collections: allCollections.length, presets: allPresets.length },
+    pagination: { offset: input.offset, limit: input.limit, entries: paginate(input.offset, input.limit, entries.length),
+      collections: paginate(input.offset, input.limit, collections.length), presets: paginate(input.offset, input.limit, presets.length) },
+    total: entries.length, offset: input.offset,
+    entries: window(entries).map(item => ({ id: item.id, revision: item.revision, kind: item.kind, collectionId: item.collectionId,
+      collection: safeText(collectionById.get(item.collectionId)?.name ?? "", 120), enabled: item.enabled, summary: safeText(entrySummary(item), 400) })),
+    collections: window(collections).map(item => ({ id: item.id, name: safeText(item.name), languagePair: pairText(item.languagePair),
+      entryCount: allEntries.filter(entry => entry.collectionId === item.id).length, ...(item.archived ? { archived: true } : {}) })),
+    presets: window(presets).map(item => ({ id: item.id, name: safeText(item.name), languagePair: pairText(item.languagePair), collectionIds: item.collectionIds })) };
+}
+
+/** list_translation_knowledge_catalog, shared with external agents. */
+export function knowledgeCatalog(input: z.output<typeof knowledgeCatalogSchema>, library: LibrarySnapshot) {
+  const collections = byName(library.data.collections.filter(item => input.includeArchived || !item.archived));
+  const presets = byName(library.data.presets);
+  const collectionName = (collectionId: string) => safeText(library.data.collections.find(item => item.id === collectionId)?.name ?? "", 120);
+  const window = <T>(items: T[]) => items.slice(input.offset, input.offset + input.limit);
+  return { generation: library.generation,
+    pagination: { offset: input.offset, limit: input.limit, collections: paginate(input.offset, input.limit, collections.length),
+      presets: paginate(input.offset, input.limit, presets.length) },
+    collections: window(collections).map(item => {
+      const entries = library.data.entries.filter(entry => entry.collectionId === item.id);
+      return { id: item.id, name: safeText(item.name), description: safeText(item.description, 200), languagePair: pairText(item.languagePair),
+        ...(item.archived ? { archived: true } : {}), entryCount: entries.length, enabledCount: entries.filter(entry => entry.enabled).length };
+    }),
+    presets: window(presets).map(item => ({ id: item.id, name: safeText(item.name), languagePair: pairText(item.languagePair), collectionIds: item.collectionIds,
+      collections: item.collectionIds.map(collectionName).filter(Boolean) })) };
+}
+
 export const knowledgeAgentTools = {
   search_translation_knowledge: tool({ description: "Search translation materials. Every word of the query must match an entry's wording, aliases, note or text, or the name or description of its collection, so a work's or streamer's name finds its collection and entries. Filter by collection, kind, language pair (the collection's direction) or enabled state. Returns bounded summaries with ids and revisions. Read only.",
     inputSchema: knowledgeSearchSchema, execute: (args, options) => runKnowledge(knowledgeSearchSchema, args, options, async (input, ctx) => {
       const library = await readLibrary(); ctx.check();
-      const { collections: allCollections, entries: allEntries, presets: allPresets } = library.data;
-      const collectionById = new Map(allCollections.map(item => [item.id, item]));
-      const tokens = input.query.split(/\s+/).map(token => fold(token.trim())).filter(Boolean).slice(0, 8);
-      const matches = (words: (string | undefined)[]) => { const haystack = fold(words.filter(Boolean).join("\n")); return tokens.every(token => haystack.includes(token)); };
-      const collectionWords = (collection: Collection | undefined) => collection ? [collection.name, collection.description] : [];
-      const entryWords = (entry: Entry) => entry.kind === "term"
-        ? [entry.payload.source, entry.payload.target, ...entry.payload.aliases, entry.payload.note] : [entry.payload.text];
-      const directionMatches = (pair: { source: string; target: string }) => (!input.languagePair?.source || pair.source === input.languagePair.source)
-        && (!input.languagePair?.target || pair.target === input.languagePair.target);
-      const entries = allEntries.filter(entry => {
-        const collection = collectionById.get(entry.collectionId);
-        if (!collection || (!input.includeArchived && collection.archived)) return false;
-        if (input.collectionId && entry.collectionId !== input.collectionId) return false;
-        if (input.kind !== "all" && entry.kind !== input.kind) return false;
-        if (!directionMatches(collection.languagePair)) return false;
-        if (input.enabled !== "all" && entry.enabled !== (input.enabled === "enabled")) return false;
-        return matches([...entryWords(entry), ...collectionWords(collection)]);
-      });
-      const collections = allCollections.filter(item => (input.includeArchived || !item.archived) && (!input.collectionId || item.id === input.collectionId)
-        && directionMatches(item.languagePair) && matches(collectionWords(item)));
-      const presets = allPresets.filter(item => directionMatches(item.languagePair) && matches([item.name]));
-      const window = <T>(items: T[]) => items.slice(input.offset, input.offset + input.limit);
-      return succeeded({ generation: library.generation, counts: { entries: allEntries.length, collections: allCollections.length, presets: allPresets.length },
-        pagination: { offset: input.offset, limit: input.limit, entries: paginate(input.offset, input.limit, entries.length),
-          collections: paginate(input.offset, input.limit, collections.length), presets: paginate(input.offset, input.limit, presets.length) },
-        total: entries.length, offset: input.offset,
-        entries: window(entries).map(item => ({ id: item.id, revision: item.revision, kind: item.kind, collectionId: item.collectionId,
-          collection: safeText(collectionById.get(item.collectionId)?.name ?? "", 120), enabled: item.enabled, summary: safeText(entrySummary(item), 400) })),
-        collections: window(collections).map(item => ({ id: item.id, name: safeText(item.name), languagePair: pairText(item.languagePair),
-          entryCount: allEntries.filter(entry => entry.collectionId === item.id).length, ...(item.archived ? { archived: true } : {}) })),
-        presets: window(presets).map(item => ({ id: item.id, name: safeText(item.name), languagePair: pairText(item.languagePair), collectionIds: item.collectionIds })) });
+      return succeeded(searchKnowledgeLibrary(input, library));
     }) }),
   list_translation_knowledge_catalog: tool({ description: "List the translation materials catalog: collections (one per work, streamer or topic, each with its language pair and entry counts) and presets (named sets of collections used together in Subtitle Studio). Use it to choose where new entries belong, or which collections or preset a translation should use. Read only.",
     inputSchema: knowledgeCatalogSchema, execute: (args, options) => runKnowledge(knowledgeCatalogSchema, args, options, async (input, ctx) => {
       const library = await readLibrary(); ctx.check();
-      const collections = byName(library.data.collections.filter(item => input.includeArchived || !item.archived));
-      const presets = byName(library.data.presets);
-      const collectionName = (collectionId: string) => safeText(library.data.collections.find(item => item.id === collectionId)?.name ?? "", 120);
-      const window = <T>(items: T[]) => items.slice(input.offset, input.offset + input.limit);
-      return succeeded({ generation: library.generation,
-        pagination: { offset: input.offset, limit: input.limit, collections: paginate(input.offset, input.limit, collections.length),
-          presets: paginate(input.offset, input.limit, presets.length) },
-        collections: window(collections).map(item => {
-          const entries = library.data.entries.filter(entry => entry.collectionId === item.id);
-          return { id: item.id, name: safeText(item.name), description: safeText(item.description, 200), languagePair: pairText(item.languagePair),
-            ...(item.archived ? { archived: true } : {}), entryCount: entries.length, enabledCount: entries.filter(entry => entry.enabled).length };
-        }),
-        presets: window(presets).map(item => ({ id: item.id, name: safeText(item.name), languagePair: pairText(item.languagePair), collectionIds: item.collectionIds,
-          collections: item.collectionIds.map(collectionName).filter(Boolean) })) });
+      return succeeded(knowledgeCatalog(input, library));
     }) }),
   prepare_knowledge_changes: tool({ description: "Prepare changes to translation materials for the user to confirm on a card: create collections, create or edit term/rule/context entries, disable or enable entries. Nothing is saved until the user confirms, in every execution mode; confirmed entries are enabled at once and the outcome arrives as an interface event. A collection is the work, streamer or topic itself (there are no separate subjects): look for it with list_translation_knowledge_catalog first, and when none fits, create one named after the work with its languagePair. Reference existing records by id (edits, disables and enables also need the entry's revision); name a new collection with a short ref and point to it with {ref}. Terms take the exact source-language wording (from the subtitle source text or the user) and the target wording; rules and context take text, with required=true only for what must always hold. basis: user_stated = the user said this wording; user_revision = it comes from a revision the user applied; document = read from the subtitles; agent_inferred = your own knowledge (say it needs checking); web = read on a page with web_read, with url = that page's link and evidence = the sentence that shows it. evidence: a short quote supporting it. Language tags such as ja, en, zh-Hans, zh-Hant.",
     inputSchema: prepareKnowledgeChangesSchema, execute: (args, options) => runKnowledge(prepareKnowledgeChangesSchema, args, options, async (raw, ctx) => {

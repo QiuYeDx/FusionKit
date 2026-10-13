@@ -74,7 +74,7 @@ function redactSecrets(text: string): string {
   return [getAgentProfile()?.apiKey, getTaskProfile()?.apiKey].reduce<string>(
     (value, key) => key && key.trim() ? value.split(key).join("[redacted]") : value, text);
 }
-function documentSummary(document: DocumentSummary) {
+export function documentSummary(document: DocumentSummary) {
   return { documentId: document.id, revision: document.revision, name: safeText(document.origin.displayName),
     format: document.origin.format, cueCount: document.cueCount, translationStatus: document.translationStatus,
     canTranslate: document.capabilities.translate,

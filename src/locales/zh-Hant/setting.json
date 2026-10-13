@@ -34,6 +34,10 @@
     "agent": {
       "label": "Agent",
       "hint": "連網查詢、會話記錄"
+    },
+    "external": {
+      "label": "外部 Agent",
+      "hint": "讓 Claude Code 等連線 FusionKit"
     }
   },
   "fields": {
@@ -313,6 +317,129 @@
       "cancel": "取消",
       "cleared": "已清除全部會話",
       "clear_failed": "清除失敗，部分會話檔案可能仍在磁碟上"
+    }
+  },
+  "external_agent": {
+    "title": "外部 Agent 接入",
+    "copied": "已複製",
+    "copy_failed": "複製失敗",
+    "save_failed": "儲存失敗，請重試",
+    "titlebar": "{{count}} 個外部 Agent 已連線",
+    "enable": {
+      "label": "允許外部 Agent 連線",
+      "description": "讓 Claude Code、Codex 等透過 MCP 讀取與操作 FusionKit，由它們完成翻譯，無需在這裡設定 API Key。只監聽本機（127.0.0.1），並且需要權杖。"
+    },
+    "status": {
+      "running": "執行中",
+      "stopped": "未開啟",
+      "port_in_use": "連接埠 {{port}} 已被其他程式佔用，請換一個連接埠。",
+      "listen_failed": "無法監聽連接埠 {{port}}。"
+    },
+    "trust": {
+      "title": "外部 Agent 的權限",
+      "recommended": "推薦",
+      "read_only": {
+        "name": "唯讀",
+        "description": "只能讀取狀態、字幕與翻譯資料，不能做任何修改。"
+      },
+      "confirm_writes": {
+        "name": "修改前詢問",
+        "description": "匯入、寫入譯文、匯出等修改需要你在 FusionKit 中允許，可在一次連線內放行同類操作。"
+      },
+      "auto": {
+        "name": "自動執行",
+        "description": "修改直接執行；覆蓋既有檔案和修改翻譯資料仍會詢問。"
+      }
+    },
+    "connection": {
+      "title": "連線資訊",
+      "port": "連接埠",
+      "port_invalid": "請輸入 1024–65535 之間的整數。",
+      "token": "權杖",
+      "show": "顯示權杖",
+      "hide": "隱藏權杖",
+      "copy": "複製權杖",
+      "reset": "重設權杖",
+      "reset_title": "重設權杖？",
+      "reset_description": "舊權杖立即失效，已連線的外部 Agent 會中斷，需要重新複製設定。",
+      "reset_confirm": "重設",
+      "cancel": "取消",
+      "no_token": "開啟後產生"
+    },
+    "clients": {
+      "title": "接入用戶端",
+      "transport": "連線方式",
+      "claude-code": "Claude Code",
+      "codex": "Codex",
+      "cursor": "Cursor",
+      "json": "其他用戶端",
+      "http": "HTTP（推薦）",
+      "stdio": "stdio（可自動啟動）",
+      "copy": "複製設定",
+      "hint": {
+        "claude-code": "在終端機執行這條命令；--scope user 讓所有專案都能使用。",
+        "codex": "附加到 ~/.codex/config.toml。",
+        "cursor": "合併到 ~/.cursor/mcp.json。",
+        "json": "放入其他支援 MCP 的用戶端設定中的 mcpServers。",
+        "stdio": "stdio 方式經 FusionKit 內建的程式轉發，FusionKit 未執行時會自動啟動它。"
+      },
+      "disabled": "開啟「允許外部 Agent 連線」後，這裡會提供可直接複製的設定。"
+    },
+    "sessions": {
+      "title": "目前連線",
+      "empty": "還沒有外部 Agent 連線。",
+      "connected_now": "剛剛連線",
+      "connected_minutes": "已連線 {{count}} 分鐘",
+      "last": "最近：{{tool}}",
+      "ok": "成功",
+      "failed": "失敗（{{error}}）",
+      "disconnect": "中斷"
+    },
+    "skill": {
+      "title": "隨附 Skill",
+      "description": "Skill 告訴外部 Agent 怎樣使用 FusionKit（翻譯流程、確認與錯誤處理），在新對話中生效。",
+      "install_claude": "安裝到 Claude Code",
+      "install_codex": "安裝到 Codex",
+      "installed": "已安裝：{{path}}",
+      "outdated": "已安裝舊版本，可重新安裝：{{path}}",
+      "install_done": "Skill 已安裝",
+      "install_failed": "安裝失敗"
+    },
+    "confirm": {
+      "title": "{{client}} 請求{{action}}",
+      "queue": "還有 {{count}} 個請求",
+      "action": {
+        "import": "匯入字幕",
+        "translation": "編輯字幕譯文",
+        "export": "匯出字幕",
+        "transcription": "本機轉寫",
+        "knowledge": "修改翻譯資料"
+      },
+      "summary": {
+        "import": "把 {{count}} 個路徑中的字幕匯入字幕工作台。",
+        "create_track": "在《{{document}}》中新增譯文軌道「{{track}}」（{{language}}）。",
+        "write_translations": "向《{{document}}》的「{{track}}」寫入 {{count}} 條譯文，標為未複核的 AI 譯文，可在字幕工作台復原。",
+        "export_source": "把《{{document}}》匯出為 {{format}}（{{content}}），儲存到原檔案所在資料夾。",
+        "export_choose": "把《{{document}}》匯出為 {{format}}（{{content}}），儲存位置稍後由你選擇。",
+        "transcription": "用本機模型 {{model}} 把 {{count}} 個路徑中的影音轉寫進字幕工作台。",
+        "knowledge": "儲存 {{count}} 項翻譯資料變更，儲存後立即啟用。"
+      },
+      "content": {
+        "source": "原文",
+        "target": "譯文",
+        "bilingual": "雙語"
+      },
+      "overwrite_warning": "同名檔案會被覆蓋，無法復原。",
+      "more": "另有 {{count}} 項",
+      "allow_session": "本次連線內允許此類操作，不再詢問",
+      "allow": "允許",
+      "decline": "拒絕",
+      "tag": {
+        "collection": "新資料集",
+        "term": "術語",
+        "rule": "要求",
+        "context": "背景"
+      }
     }
   }
 }

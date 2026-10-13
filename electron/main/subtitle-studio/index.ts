@@ -447,6 +447,11 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const value = await bilingual.removeTrack(request.documentId, request.revision, trackId, alive); alive();
           return { ok: true, value: summarizeDocument(value) };
         }
+        if (method === 'createAgentTranslationTrack') {
+          const { language, name, agent } = requestSchemas.createAgentTranslationTrack.parse(payload);
+          const { document, trackId } = await tracks.createAgentTrack(request.documentId, request.revision, { language, name, agent }, alive); alive();
+          return { ok: true, value: { summary: summarizeDocument(document), trackId } };
+        }
         if (method === 'renameTranslationTrack') {
           const { trackId, name } = requestSchemas.renameTranslationTrack.parse(payload);
           const value = await tracks.rename(request.documentId, request.revision, trackId, name, alive); alive();

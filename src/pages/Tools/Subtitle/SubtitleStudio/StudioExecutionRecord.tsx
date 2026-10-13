@@ -25,8 +25,12 @@ import './StudioExecutionRecord.css';
 
 type TranslationTrack = DocumentPage["translationTracks"][number];
 type AvailableRecord = Extract<ExecutionRecordPage, { state: "available" }>;
-/** This also recognizes tracks written before the explicit origin field existed. */
+/**
+ * This also recognizes tracks written before the explicit origin field existed. A track an
+ * external agent made holds that agent's own translations and has no record to show.
+ */
 export function hasExecutionRecordEntry(track: TranslationTrack) {
+  if (track.agent && !track.executionRef) return false;
   return (
     !!track.executionRef ||
     track.origin === "ai" ||

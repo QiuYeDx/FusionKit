@@ -4,6 +4,7 @@ import { localSubtitleTranscriptSchema } from './transcription/ipc-contract';
 export const LIMITS = { inputBytes: 16 * 1024 * 1024, cues: 100000, nodes: 200000, cueBytes: 64 * 1024, snapshotBytes: 128 * 1024 * 1024, pageSize: 100 } as const;
 export const idSchema = z.string().uuid();
 export const translationTrackNameSchema = z.string().trim().max(100).refine(value => !/[\u0000-\u001f\u007f]/u.test(value));
+export const agentTrackOwnerSchema = z.object({ name: translationTrackNameSchema.pipe(z.string().min(1)) }).strict();
 /** Public provenance is an opaque reference; execution inputs stay in the private snapshot. */
 export const executionRefSchema = z.object({ version: z.literal(1), id: idSchema, digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export type ExecutionRef = z.infer<typeof executionRefSchema>;
@@ -47,6 +48,8 @@ const textDocumentSchema = z.object({
     id: idSchema, language: z.string().max(100), name: translationTrackNameSchema.optional(), revision,
     origin: z.enum(['imported', 'ai', 'human']).optional(),
     executionRef: executionRefSchema.optional(),
+    /** Made by an external agent (over MCP), which writes its own translations; such tracks have no execution record. */
+    agent: agentTrackOwnerSchema.optional(),
     entries: z.record(idSchema, translationEntrySchema),
   }).strict()).max(100),
   bilingualImport: bilingualImportSchema.optional(),

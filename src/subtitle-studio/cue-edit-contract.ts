@@ -39,6 +39,8 @@ const singleOperationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('target'), trackId: idSchema, cueId: idSchema, text: textSchema.nullable() }).strict(),
   z.object({ kind: z.literal('clear'), trackId: idSchema, cueIds: cueIdsSchema }).strict(),
   z.object({ kind: z.literal('review'), trackId: idSchema, cueIds: cueIdsSchema, reviewed: z.boolean() }).strict(),
+  /** Translations an external agent wrote on a track it made: unreviewed AI entries of the current sources. */
+  z.object({ kind: z.literal('agent'), trackId: idSchema, targets: textsSchema.refine(texts => Object.keys(texts).length >= 1) }).strict(),
   /** Puts exact entries back (undo of target, clear and review). */
   z.object({ kind: z.literal('entries'), trackId: idSchema, entries: entriesSchema }).strict(),
   /**

@@ -796,7 +796,8 @@
       "shift": "shift {{count}} cue(s)",
       "split": "split a cue",
       "insert": "insert a cue",
-      "replace": "replace in {{count}} cue(s)"
+      "replace": "replace in {{count}} cue(s)",
+      "agent": "External agent wrote {{count}} translations"
     }
   },
   "cue_help": {

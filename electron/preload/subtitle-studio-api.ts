@@ -86,6 +86,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     revertBilingual: request => invoke(STUDIO_CHANNELS.revertBilingual, request),
     removeTranslationTrack: request => invoke(STUDIO_CHANNELS.removeTranslationTrack, request),
     renameTranslationTrack: request => invoke(STUDIO_CHANNELS.renameTranslationTrack, request),
+    createAgentTranslationTrack: request => invoke(STUDIO_CHANNELS.createAgentTranslationTrack, request),
     editCues: request => invoke(STUDIO_CHANNELS.editCues, request),
     locateCueRevision: request => invoke(STUDIO_CHANNELS.locateCueRevision, request),
     reviseCues: request => invoke(STUDIO_CHANNELS.reviseCues, request),

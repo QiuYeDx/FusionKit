@@ -796,7 +796,8 @@
       "shift": "{{count}} 件の字幕の時間をずらす",
       "split": "字幕を分割",
       "insert": "字幕を挿入",
-      "replace": "{{count}} 件の字幕を置換"
+      "replace": "{{count}} 件の字幕を置換",
+      "agent": "外部エージェントが訳文を {{count}} 件書き込み"
     }
   },
   "cue_help": {

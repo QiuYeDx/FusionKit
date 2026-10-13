@@ -1,0 +1,3 @@
+interface:
+  display_name: "FusionKit"
+  short_description: "通过 FusionKit 的 MCP 工具在字幕工作台中导入、转写、翻译并导出字幕，由你撰写译文，无需 API Key"

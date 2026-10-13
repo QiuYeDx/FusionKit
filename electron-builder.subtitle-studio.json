@@ -24,6 +24,13 @@
       "filter": [
         "**/*"
       ]
+    },
+    {
+      "from": "resources/external-agent",
+      "to": "external-agent",
+      "filter": [
+        "**/*"
+      ]
     }
   ],
   "beforePack": "scripts/packaging/subtitle-studio-before-pack.cjs",

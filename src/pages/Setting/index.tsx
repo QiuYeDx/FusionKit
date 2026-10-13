@@ -8,6 +8,7 @@ import {
   Globe,
   Cpu,
   LucideIcon,
+  Plug,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,7 @@ import ModelConfig from "./components/ModelConfig";
 import ProxyConfig from "./components/ProxyConfig";
 import AudioApiConfig from "./components/AudioApiConfig";
 import AgentConfig from "./components/AgentConfig";
+import ExternalAgentConfig from "./components/ExternalAgentConfig";
 import {
   createSettingSearchParams,
   resolveAudioSettingsReturnTo,
@@ -37,6 +39,7 @@ const NAV: NavItem[] = [
   { key: "model",   labelKey: "setting:nav.model.label",   hintKey: "setting:nav.model.hint",   icon: Cpu },
   { key: "audio",   labelKey: "setting:nav.audio.label",   hintKey: "setting:nav.audio.hint",   icon: AudioLines },
   { key: "agent",   labelKey: "setting:nav.agent.label",   hintKey: "setting:nav.agent.hint",   icon: Bot },
+  { key: "external", labelKey: "setting:nav.external.label", hintKey: "setting:nav.external.hint", icon: Plug },
 ];
 
 const EASE_OUT_QUAD = [0.25, 0.46, 0.45, 0.94] as const;
@@ -208,6 +211,7 @@ const Setting: React.FC = () => {
                 {tab === "proxy" && <ProxyConfig />}
                 {tab === "model" && <ModelConfig />}
                 {tab === "agent" && <AgentConfig />}
+                {tab === "external" && <ExternalAgentConfig />}
                 {tab === "audio" && (
                   <AudioApiConfig
                     returnTo={returnTo}

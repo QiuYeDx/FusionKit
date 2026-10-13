@@ -199,6 +199,8 @@ export default function SubtitleStudio() {
   // revision before the page reloads, and renders in between still show the old one.
   const [, showHistory] = useReducer((value: number) => value + 1, 0);
   useEffect(() => { if (cueHistory.current.sync(page?.summary.id, page?.summary.revision)) showHistory(); }, [page?.summary.id, page?.summary.revision]);
+  // An external agent's write records its undo step whenever it lands, possibly after this page reloaded.
+  useEffect(() => cueHistory.current.subscribe(showHistory), []);
   const [cueNotice, setCueNotice] = useState<{ deleted: number; stopped: number } | null>(null);
   /** Wordings an applied AI revision settled, offered for keeping until the document changes again. */
   const [knowledgeOffer, setKnowledgeOffer] = useState<{ documentId: string; revision: number; hints: CueRevisionHint[]; pair: Partial<LanguagePair>; preferredCollectionId?: string; instructions: string } | null>(null);

@@ -16,6 +16,7 @@ interface Window {
   nameTranslation: import('./name-translation/contract').NameTranslationRendererApi;
   webLookup: import('./web-lookup/contract').WebLookupApi;
   agentSessions?: import('./agent/session-store-contract').AgentSessionsApi;
+  externalAgent?: import('./agent/external/contract').ExternalAgentApi;
   // expose in the `electron/preload/index.ts`
   ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge
   audioApi: import('@/type/audioIpc').AudioRendererApi

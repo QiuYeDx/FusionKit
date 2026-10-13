@@ -34,6 +34,10 @@
     "agent": {
       "label": "Agent",
       "hint": "联网查询、会话记录"
+    },
+    "external": {
+      "label": "外部 Agent",
+      "hint": "让 Claude Code 等连接 FusionKit"
     }
   },
   "fields": {
@@ -313,6 +317,129 @@
       "cancel": "取消",
       "cleared": "已清空全部会话",
       "clear_failed": "清空失败，部分会话文件可能仍在磁盘上"
+    }
+  },
+  "external_agent": {
+    "title": "外部 Agent 接入",
+    "copied": "已复制",
+    "copy_failed": "复制失败",
+    "save_failed": "保存失败，请重试",
+    "titlebar": "{{count}} 个外部 Agent 已连接",
+    "enable": {
+      "label": "允许外部 Agent 连接",
+      "description": "让 Claude Code、Codex 等通过 MCP 读取与操作 FusionKit，由它们完成翻译，无需在这里配置 API Key。只监听本机（127.0.0.1），并且需要令牌。"
+    },
+    "status": {
+      "running": "运行中",
+      "stopped": "未开启",
+      "port_in_use": "端口 {{port}} 已被其他程序占用，请换一个端口。",
+      "listen_failed": "无法监听端口 {{port}}。"
+    },
+    "trust": {
+      "title": "外部 Agent 的权限",
+      "recommended": "推荐",
+      "read_only": {
+        "name": "只读",
+        "description": "只能读取状态、字幕与翻译资料，不能做任何修改。"
+      },
+      "confirm_writes": {
+        "name": "修改前询问",
+        "description": "导入、写入译文、导出等修改需要你在 FusionKit 中允许，可在一次连接内放行同类操作。"
+      },
+      "auto": {
+        "name": "自动执行",
+        "description": "修改直接执行；覆盖已有文件和修改翻译资料仍会询问。"
+      }
+    },
+    "connection": {
+      "title": "连接信息",
+      "port": "端口",
+      "port_invalid": "请输入 1024–65535 之间的整数。",
+      "token": "令牌",
+      "show": "显示令牌",
+      "hide": "隐藏令牌",
+      "copy": "复制令牌",
+      "reset": "重置令牌",
+      "reset_title": "重置令牌？",
+      "reset_description": "旧令牌立即失效，已连接的外部 Agent 会断开，需要重新复制配置。",
+      "reset_confirm": "重置",
+      "cancel": "取消",
+      "no_token": "开启后生成"
+    },
+    "clients": {
+      "title": "接入客户端",
+      "transport": "连接方式",
+      "claude-code": "Claude Code",
+      "codex": "Codex",
+      "cursor": "Cursor",
+      "json": "其他客户端",
+      "http": "HTTP（推荐）",
+      "stdio": "stdio（可自动启动）",
+      "copy": "复制配置",
+      "hint": {
+        "claude-code": "在终端运行这条命令；--scope user 让所有项目都能使用。",
+        "codex": "追加到 ~/.codex/config.toml。",
+        "cursor": "合并到 ~/.cursor/mcp.json。",
+        "json": "放入其他支持 MCP 的客户端配置中的 mcpServers。",
+        "stdio": "stdio 方式经 FusionKit 自带的程序转发，FusionKit 未运行时会自动启动它。"
+      },
+      "disabled": "开启「允许外部 Agent 连接」后，这里会给出可直接复制的配置。"
+    },
+    "sessions": {
+      "title": "当前连接",
+      "empty": "还没有外部 Agent 连接。",
+      "connected_now": "刚刚连接",
+      "connected_minutes": "已连接 {{count}} 分钟",
+      "last": "最近：{{tool}}",
+      "ok": "成功",
+      "failed": "失败（{{error}}）",
+      "disconnect": "断开"
+    },
+    "skill": {
+      "title": "随附 Skill",
+      "description": "Skill 告诉外部 Agent 怎样使用 FusionKit（翻译流程、确认与错误处理），在新对话中生效。",
+      "install_claude": "安装到 Claude Code",
+      "install_codex": "安装到 Codex",
+      "installed": "已安装：{{path}}",
+      "outdated": "已安装旧版本，可重新安装：{{path}}",
+      "install_done": "Skill 已安装",
+      "install_failed": "安装失败"
+    },
+    "confirm": {
+      "title": "{{client}} 请求{{action}}",
+      "queue": "还有 {{count}} 个请求",
+      "action": {
+        "import": "导入字幕",
+        "translation": "编辑字幕译文",
+        "export": "导出字幕",
+        "transcription": "本地转写",
+        "knowledge": "修改翻译资料"
+      },
+      "summary": {
+        "import": "把 {{count}} 个路径中的字幕导入字幕工作台。",
+        "create_track": "在《{{document}}》中新建译文轨道「{{track}}」（{{language}}）。",
+        "write_translations": "向《{{document}}》的「{{track}}」写入 {{count}} 条译文，标为未复核的 AI 译文，可在字幕工作台撤销。",
+        "export_source": "把《{{document}}》导出为 {{format}}（{{content}}），保存到原文件所在文件夹。",
+        "export_choose": "把《{{document}}》导出为 {{format}}（{{content}}），保存位置稍后由你选择。",
+        "transcription": "用本地模型 {{model}} 把 {{count}} 个路径中的音视频转写进字幕工作台。",
+        "knowledge": "保存 {{count}} 项翻译资料变更，保存后立即启用。"
+      },
+      "content": {
+        "source": "原文",
+        "target": "译文",
+        "bilingual": "双语"
+      },
+      "overwrite_warning": "同名文件会被覆盖，无法撤销。",
+      "more": "另有 {{count}} 项",
+      "allow_session": "本次连接内允许此类操作，不再询问",
+      "allow": "允许",
+      "decline": "拒绝",
+      "tag": {
+        "collection": "新资料集",
+        "term": "术语",
+        "rule": "要求",
+        "context": "背景"
+      }
     }
   }
 }

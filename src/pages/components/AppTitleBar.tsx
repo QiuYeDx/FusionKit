@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useExternalAgentStore } from "@/agent/external/store";
 
 const isMac = navigator.userAgent.includes("Mac");
 const isWindows = navigator.userAgent.includes("Windows");
@@ -14,6 +15,15 @@ const WINDOWS_TRAFFIC_LIGHTS: ReadonlyArray<{
   { action: "minimize", ariaLabel: "最小化窗口", colorClassName: "bg-[#FEBC2E]" },
   { action: "toggle-maximize", ariaLabel: "最大化或还原窗口", colorClassName: "bg-[#28C840]" },
 ];
+
+/** A small dot before the app name while external agents are connected over MCP. */
+function ExternalAgentDot() {
+  const { t } = useTranslation();
+  const count = useExternalAgentStore((state) => state.status?.sessions.length ?? 0);
+  if (!count) return null;
+  const label = t("setting:external_agent.titlebar", { count });
+  return <span className="mr-2 inline-block size-1.5 shrink-0 rounded-full bg-emerald-500" role="img" aria-label={label} title={label} data-testid="titlebar-external-agent" />;
+}
 
 function AppTitleBar() {
   const { t } = useTranslation();
@@ -39,7 +49,8 @@ function AppTitleBar() {
       >
         {isWindows ? (
           <>
-            <span className="transition-opacity duration-150 group-hover:opacity-0">
+            <span className="flex items-center transition-opacity duration-150 group-hover:opacity-0">
+              <ExternalAgentDot />
               {appName}
             </span>
             <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto">
@@ -56,7 +67,7 @@ function AppTitleBar() {
             </div>
           </>
         ) : (
-          appName
+          <span className="flex items-center"><ExternalAgentDot />{appName}</span>
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { encodingSchema, idSchema, LIMITS, SUBTITLE_TEXT_FORMATS, translationTrackNameSchema, type ErrorCode, type SubtitleDocument } from './domain';
+import { agentTrackOwnerSchema, encodingSchema, idSchema, LIMITS, SUBTITLE_TEXT_FORMATS, translationTrackNameSchema, type ErrorCode, type SubtitleDocument } from './domain';
 import { translationConfigSchema, translationModelSchema, translationScopeSchema, type TranslationPlanSummary } from './translation-contract';
 import { cueEditOperationSchema, type CueEditResult } from './cue-edit-contract';
 import { cueRevisionRequestSchemas, type CueFindResult, type CueRevisionLocation, type CueRevisionResult } from './cue-revision-contract';
@@ -70,6 +70,7 @@ export const STUDIO_CHANNELS = {
   revertBilingual: 'subtitle-studio:revert-bilingual',
   removeTranslationTrack: 'subtitle-studio:remove-translation-track',
   renameTranslationTrack: 'subtitle-studio:rename-translation-track',
+  createAgentTranslationTrack: 'subtitle-studio:create-agent-translation-track',
   editCues: 'subtitle-studio:edit-cues',
   locateCueRevision: 'subtitle-studio:locate-cue-revision',
   reviseCues: 'subtitle-studio:revise-cues',
@@ -166,6 +167,8 @@ export const requestSchemas = {
   revertBilingual: z.object({ documentId: idSchema, revision: z.number().int().positive().safe() }).strict(),
   removeTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema }).strict(),
   renameTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), trackId: idSchema, name: translationTrackNameSchema }).strict(),
+  /** An empty track an external agent fills with its own translations. */
+  createAgentTranslationTrack: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), language: z.string().trim().min(1).max(35), name: translationTrackNameSchema.optional(), agent: agentTrackOwnerSchema }).strict(),
   editCues: z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), operation: cueEditOperationSchema }).strict(),
   ...cueRevisionRequestSchemas,
   ...consistencyRequestSchemas,
@@ -275,6 +278,7 @@ export interface SubtitleStudioApi {
   revertBilingual(request: z.infer<typeof requestSchemas.revertBilingual>): Promise<StudioResult<DocumentSummary>>;
   removeTranslationTrack(request: z.infer<typeof requestSchemas.removeTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
   renameTranslationTrack(request: z.infer<typeof requestSchemas.renameTranslationTrack>): Promise<StudioResult<DocumentSummary>>;
+  createAgentTranslationTrack(request: z.infer<typeof requestSchemas.createAgentTranslationTrack>): Promise<StudioResult<{ summary: DocumentSummary; trackId: string }>>;
   editCues(request: z.infer<typeof requestSchemas.editCues>): Promise<StudioResult<CueEditResult>>;
   locateCueRevision(request: z.infer<typeof requestSchemas.locateCueRevision>): Promise<StudioResult<CueRevisionLocation>>;
   reviseCues(request: z.infer<typeof requestSchemas.reviseCues>): Promise<StudioResult<CueRevisionResult>>;

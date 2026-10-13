@@ -1,0 +1,151 @@
+{
+  "schema_version": 2,
+  "feature": "external-agent",
+  "tier": "L",
+  "risk": "high",
+  "current_increment": "I3",
+  "modules": [
+    {
+      "slug": "bridge",
+      "code": "BRIDGE",
+      "path": "modules/module-bridge"
+    },
+    {
+      "slug": "tools",
+      "code": "TOOLS",
+      "path": "modules/module-tools"
+    },
+    {
+      "slug": "settings",
+      "code": "SETTINGS",
+      "path": "modules/module-settings"
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "最小端到端链路：本机 MCP 端点、鉴权、会话、转发与首批读取工具",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-13 用户在审阅对话中的整体设计（MCP 端点 + 渲染进程执行 + 外部 Agent 当译者 + 三档信任 + stdio 桥 + 薄 Skill，P0–P4）后回复「按你建议的来，写进文档然后从P0开始连着一步步开发吧 我只负责最终验收」。据此连续实施 I1–I3；不代签用户验收，不提交推送、不发布，不在真实 userData 上运行测试，不调用付费 API。",
+        "digest": "1c003324c00b3a621b35bc014a9c17eb7f4133179008935a7ec499eee83ec27d"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "工具面与应用内确认：外部 Agent 当译者",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-13 用户审阅整体设计（含 I2：外部 Agent 当译者的工具面、三档信任与应用内确认）后回复「按你建议的来，写进文档然后从P0开始连着一步步开发吧 我只负责最终验收」。I1 完成后按同一授权继续 I2；I2 开始时细化 R-TOOLS-03..10 的 AC、设计与任务，范围与对话中的设计一致。不提交推送、不发布，不在真实 userData 上运行测试，不调用付费 API。",
+        "digest": "560a977d9794f59ecedd5631a4712d9896f7fe88d18473aa7e8db210c8dc102b"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I3",
+      "title": "接入体验：设置页、连接指示、配置片段、stdio 桥、Skill 与文档",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-13 用户审阅整体设计（含 I3：设置页、连接指示、客户端配置片段、stdio 桥自动启动、随附 Skill）后回复「按你建议的来，写进文档然后从P0开始连着一步步开发吧 我只负责最终验收」。I2 完成后按同一授权继续 I3；I3 开始时细化 R-BRIDGE-05/06 与 R-SETTINGS-01..04 的 AC、设计与任务。不提交推送、不发布，不写入真实用户目录（测试以临时 HOME 覆盖），不调用付费 API。",
+        "digest": "13f579a2e9b2dccfc7b975b8ccb403d5efbadfd170d456a89ad9580b246cd8fc"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "Q-01",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "首版重点：外部 Agent 当译者，还是原样暴露内置 Agent 能力",
+      "resolution": "2026-10-13 用户「按你建议的来」：以外部 Agent 当译者（读字幕、写译文、翻译资料）为首版重点，配合读取与本地处理工具"
+    },
+    {
+      "id": "Q-02",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "默认信任档位",
+      "resolution": "2026-10-13 用户「按你建议的来」：默认「写操作需确认」(confirm_writes)，破坏性操作任何档位都需确认"
+    },
+    {
+      "id": "Q-03",
+      "increment": "I3",
+      "blocking": false,
+      "state": "resolved",
+      "text": "FusionKit 未运行时如何处理",
+      "resolution": "2026-10-13 用户「按你建议的来」：HTTP 为主；另提供 stdio 桥，应用未运行时自动启动后再连接"
+    },
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "外部工具是否包裹内置 Agent 工具执行器",
+      "resolution": "不包裹：外部工具在 src/agent/external 独立实现于同一批渲染端 IPC 之上，复用纯函数；内置 Agent 的用户输入授权、会话卡片与执行模式保持不变"
+    },
+    {
+      "id": "A-02",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "外部 Agent 给出的文件路径如何授权",
+      "resolution": "外部 Agent 以用户身份运行、本就可读写文件，路径直接接受；写入按信任档位确认，覆盖已有文件等破坏性操作任何档位都需应用内确认"
+    },
+    {
+      "id": "A-03",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "端口冲突时是否自动换端口",
+      "resolution": "不自动换：客户端配置写死地址；状态显示 port_in_use，由用户改端口（默认 47361）"
+    },
+    {
+      "id": "A-04",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "外部 Agent 写入译文的来源标记",
+      "resolution": "记为 AI 来源、未审校，便于用户在工作台审校；一次写入可整体撤销"
+    },
+    {
+      "id": "A-05",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "MCP SDK 依赖方式",
+      "resolution": "@modelcontextprotocol/sdk@1.30.1（发布于 2026-09-23）作为开发依赖，由 Vite 打包进主进程，不增加运行时 node_modules"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

@@ -4,6 +4,7 @@ export const SETTING_TAB_KEYS = [
   "model",
   "audio",
   "agent",
+  "external",
 ] as const;
 
 export type SettingTabKey = (typeof SETTING_TAB_KEYS)[number];
