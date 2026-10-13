@@ -32,30 +32,47 @@
 
 .studio-cue-marquee { position: absolute; z-index: 2; pointer-events: none; border-radius: 3px; border: 1px solid rgb(14 165 233 / .6); background: rgb(14 165 233 / .1); }
 
-.studio-cue-editor { display: grid; gap: 3px; margin: -3px -5px; }
+/* Editors float over what they edit. The text, time range and row stay where they are (hidden under
+   the editor), so opening one never moves the rows below; hints, messages and the waveform float
+   beside the row in small layers, below it or above it when only that fits (data-side). */
+.studio-cue-field[data-editing] > :not(.studio-cue-editor), .studio-cue-time-box[data-editing] > .studio-time-range { visibility: hidden; }
+.studio-cue-time-box { position: relative; }
+.studio-cue-editor { position: absolute; top: -3px; left: -5px; right: -5px; z-index: 3; }
 .studio-cue-editor textarea {
   display: block; width: 100%; min-height: 26px; resize: none; overflow: hidden;
   padding: 2px 5px; border: 1px solid var(--studio-cue-focus, var(--ring)); border-radius: 6px;
   background: var(--background); color: var(--foreground);
   font: inherit; line-height: 20px; white-space: pre-wrap; overflow-wrap: anywhere;
-  outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent);
+  outline: none; box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent), 0 6px 16px -6px rgb(0 0 0 / .18);
   user-select: text; -webkit-user-select: text;
 }
 .studio-cue-editor[data-saving] textarea { opacity: .7; }
-.studio-cue-editor textarea[aria-invalid=true] { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 18%, transparent); }
-.studio-cue-editor-meta { padding-inline: 5px; font-size: 10.5px; line-height: 15px; color: var(--muted-foreground); white-space: normal; }
+.studio-cue-editor textarea[aria-invalid=true] { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 18%, transparent), 0 6px 16px -6px rgb(0 0 0 / .18); }
+/* A chip of hints or a message, floating under (or over) the editor. */
+.studio-cue-editor-meta {
+  position: absolute; left: 0; z-index: 3; width: max-content; max-width: max(100%, 240px); padding: 2px 7px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--popover); color: var(--muted-foreground);
+  box-shadow: 0 4px 12px -4px rgb(0 0 0 / .16); font-size: 10.5px; line-height: 16px; white-space: normal; pointer-events: none;
+}
+.studio-cue-editor-meta:not([data-side=top]) { top: calc(100% + 6px); }
+.studio-cue-editor-meta[data-side=top] { bottom: calc(100% + 6px); }
+.studio-cue-editor-meta[data-tone=error] { border-color: color-mix(in oklab, var(--destructive) 35%, var(--border)); }
 .studio-cue-editor-error { color: var(--destructive); }
 .studio-cue-editor-saving { display: inline-flex; align-items: center; gap: 4px; }
 .studio-cue-editor-saving > svg { width: 11px; height: 11px; }
-/* Start and end in place of the time range; stacked when the column is narrow. */
-.studio-cue-time-editor { display: grid; gap: 3px; margin: -3px -5px; }
+/* Start and end over the time range; where the column is too narrow for both they stack, over the row below. */
+.studio-cue-time-editor { position: absolute; top: -3px; left: -5px; right: -5px; z-index: 3; }
 .studio-cue-time-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .studio-cue-time-fields > svg { width: 12px; height: 12px; flex: none; color: var(--muted-foreground); }
-.studio-cue-time-fields input { flex: none; width: calc(12ch + 14px); height: 26px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); font: inherit; font-variant-numeric: tabular-nums; outline: none; }
+.studio-cue-time-fields input { flex: none; width: calc(12ch + 14px); height: 26px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); font: inherit; font-variant-numeric: tabular-nums; outline: none; box-shadow: 0 2px 8px -4px rgb(0 0 0 / .14); }
 .studio-cue-time-fields input:focus { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 22%, transparent); }
 .studio-cue-time-fields input[aria-invalid=true] { border-color: var(--destructive); box-shadow: 0 0 0 3px color-mix(in oklab, var(--destructive) 18%, transparent); }
 .studio-cue-time-editor[data-saving] input { opacity: .7; }
-.studio-cue-time-editor .studio-cue-editor-meta { max-width: 30ch; }
+.studio-cue-time-editor .studio-cue-editor-meta { max-width: 320px; font-family: var(--font-sans); }
+@media (prefers-reduced-motion: no-preference) {
+  :is(.studio-cue-editor-meta, .studio-cue-wave-slot) { animation: studio-cue-float-in 120ms ease-out; }
+}
+@keyframes studio-cue-float-in { from { opacity: 0; } }
 
 /* The toolbar sits in the sticky header's last cell and grows leftwards over the column labels. */
 .studio-cue-table th.studio-cue-toolbar-cell { position: sticky; }
@@ -86,8 +103,13 @@
 
 /* The waveform of a cue being retimed: one strip across the row's text cell, play button on the
    left and the stretch's length on the right, the stretch tinted between bracket markers. */
-.studio-cue-wave-slot { margin-top: 6px; }
+.studio-cue-list tbody td.studio-cue-text { position: relative; }
+.studio-cue-wave-slot { position: absolute; left: 8px; right: 8px; z-index: 3; display: grid; justify-items: start; gap: 4px; }
+.studio-cue-wave-slot:not([data-side=top]) { top: calc(100% + 2px); }
+.studio-cue-wave-slot[data-side=top] { bottom: calc(100% + 2px); }
 .studio-cue-wave-slot:empty { display: none; }
+.studio-cue-wave-slot > .studio-cue-waveform { justify-self: stretch; box-shadow: 0 8px 20px -8px rgb(0 0 0 / .22), 0 1px 3px rgb(0 0 0 / .06); }
+.studio-cue-wave-slot > .studio-cue-editor-meta { position: static; }
 .studio-cue-waveform { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 2px; min-width: 0;
   padding: 3px 8px 3px 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--background);
   --studio-wave-dim: color-mix(in oklab, var(--muted-foreground) 38%, transparent);

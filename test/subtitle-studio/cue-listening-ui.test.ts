@@ -211,6 +211,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       await uiExpect(page.getByTestId('studio-cue-media')).toHaveAttribute('data-status', 'ready');
 
       // Line 5 is 4.0–4.6 s; the waveform shows 2.5–6.1 s with sound in 4.0–4.6 and silence after it.
+      const rowBefore = (await rows.nth(4).boundingBox())!;
+      const nextBefore = (await rows.nth(5).boundingBox())!;
       await rows.nth(4).locator('.studio-cue-time').dblclick();
       const wave = rows.nth(4).getByTestId('studio-cue-waveform');
       await uiExpect(wave).toHaveAttribute('data-loaded', 'true', { timeout: 1500 });
@@ -234,12 +236,14 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('listening while proofr
       await uiExpect(wave.locator('.studio-cue-wave-marker[data-which=start]')).toHaveCount(1);
       await uiExpect(wave.locator('.studio-cue-wave-marker[data-which=end]:not([data-implied])')).toHaveCount(1);
       await uiExpect(wave.getByTestId('studio-cue-waveform-length')).toHaveText(locale.cue_listen.length.replace('{{seconds}}', '0.60'));
-      // The strip sits in the row's wide text cell, so the row grows by one strip only.
+      // The strip floats along the row's wide text cell, below the row: the row and the rows under it stay put.
       const textCell = (await rows.nth(4).locator('td.studio-cue-text').boundingBox())!;
       const waveCard = (await wave.boundingBox())!;
       expect(waveCard.x).toBeGreaterThanOrEqual(textCell.x - 1);
       expect(waveCard.width).toBeGreaterThan(textCell.width * 0.8);
-      expect((await rows.nth(4).boundingBox())!.height).toBeLessThan(110);
+      expect(waveCard.y).toBeGreaterThanOrEqual(textCell.y + textCell.height - 1);
+      expect((await rows.nth(4).boundingBox())!.height).toBe(rowBefore.height);
+      expect((await rows.nth(5).boundingBox())!.y).toBe(nextBefore.y);
       await shot('studio-cue-listening--08-waveform-1280-light');
       // Dragging the end marker writes the end field (to 10 ms); Enter saves and Ctrl+Z undoes.
       await page.mouse.move(x(4600), box.y + 18); await page.mouse.down();

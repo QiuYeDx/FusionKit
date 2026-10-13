@@ -114,7 +114,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const listRef = useRef<HTMLDivElement>(null);
   const order = page.cues.map(cue => cue.id);
   const [editing, setEditing] = useState<{ cueId: string; field: CueField | 'timing' } | null>(null);
-  // The retimed row's text cell, where the time editor puts its waveform.
+  // A layer along the retimed row's text cell, where the time editor floats its waveform.
   const [waveformSlot, setWaveformSlot] = useState<HTMLDivElement | null>(null);
   const [shifting, setShifting] = useState<CueShiftRequest | null>(null);
   const [splitting, setSplitting] = useState<CueSplitRequest | null>(null);
@@ -475,8 +475,10 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
             <td className="studio-cue-number" data-audio={media.ready || undefined}><span className="studio-cue-number-text">{page.offset + index + 1}</span>
               {media.ready && <CueAudioButton playKey={following === cue.id ? followKey : cueAudioKey(documentId, cue.id)} request={cueAudioRequest([cue.id])} tabbable={false} {...control}
                 label={t('studio:cue_audio.play_cue', { number: page.offset + index + 1 })} data-testid="studio-cue-play" />}</td>
-            <td className="studio-cue-time" onDoubleClick={() => startTiming(cue.id)}>{editingField === 'timing'
-              ? <StudioCueTimeEditor startMs={cue.timing.startMs} endMs={cue.timing.endMs} saving={saving} error={editError}
+            {/* Editors float over what they edit, which stays in place hidden: the row keeps its height. */}
+            <td className="studio-cue-time" onDoubleClick={() => startTiming(cue.id)}><div className="studio-cue-time-box" data-editing={editingField === 'timing' || undefined}>
+              <div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div>
+              {editingField === 'timing' && <StudioCueTimeEditor startMs={cue.timing.startMs} endMs={cue.timing.endMs} saving={saving} error={editError}
                 nextStartMs={page.cues.slice(index + 1).find(next => next.timing.startMs > cue.timing.startMs)?.timing.startMs}
                 // Only text subtitles may leave the end unknown; LRC never has one.
                 allowUnknownEnd={page.summary.origin.format !== 'media' && (cue.timing.endMs === null || page.summary.origin.format === 'lrc')}
@@ -485,14 +487,16 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
                 waveform={media.ready ? { playKey: `edit:${documentId}:${cue.id}`,
                   load: (startMs, endMs, buckets) => cueAudioPlayer.peaks({ documentId, revision: page.summary.revision, startMs, endMs }, buckets),
                   known: (startMs, endMs, buckets) => cueAudioPlayer.knownPeaks({ documentId, revision: page.summary.revision, startMs, endMs }, buckets),
-                  request: (startMs, endMs) => ({ documentId, target: { range: { startMs, endMs } } }) } : undefined} waveformSlot={waveformSlot} />
-              : <div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div>}</td>
+                  request: (startMs, endMs) => ({ documentId, target: { range: { startMs, endMs } } }) } : undefined} waveformSlot={waveformSlot} />}
+            </div></td>
             <td className="studio-cue-text"><div className={track ? 'studio-parallel-text' : undefined}>
-              <div className="studio-cue-field" data-field="source" data-active={lead && activeField === 'source' || undefined} onPointerDown={() => setField('source')} onDoubleClick={() => startEdit(cue.id, 'source')}>
-                {editingField === 'source' ? editor('source') : <Spans text={cue.source} find={highlight && highlight.field !== 'target' ? highlight : undefined} />}
+              <div className="studio-cue-field" data-field="source" data-editing={editingField === 'source' || undefined} data-active={lead && activeField === 'source' || undefined} onPointerDown={() => setField('source')} onDoubleClick={() => startEdit(cue.id, 'source')}>
+                <Spans text={cue.source} find={highlight && highlight.field !== 'target' ? highlight : undefined} />
+                {editingField === 'source' && editor('source')}
               </div>
-              {track && <div className="studio-target-text studio-cue-field" data-field="target" data-active={lead && activeField === 'target' || undefined} onPointerDown={() => setField('target')} onDoubleClick={() => startEdit(cue.id, 'target')}>
-                {editingField === 'target' ? editor('target') : entry ? <>
+              {track && <div className="studio-target-text studio-cue-field" data-field="target" data-editing={editingField === 'target' || undefined} data-active={lead && activeField === 'target' || undefined} onPointerDown={() => setField('target')} onDoubleClick={() => startEdit(cue.id, 'target')}>
+                {editingField === 'target' && editor('target')}
+                {entry ? <>
                   {entry.sourceRevision !== cue.sourceRevision && <span className="block text-xs text-amber-600">{t('studio:translation_stale')}</span>}
                   <Spans text={entry.text} find={highlight && highlight.field !== 'source' ? highlight : undefined} />
                   {(entry.reviewStatus === 'reviewed' || entry.origin === 'human') && <Tooltip delayDuration={350}>

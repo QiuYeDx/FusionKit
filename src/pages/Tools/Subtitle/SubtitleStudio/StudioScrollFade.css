@@ -9,11 +9,16 @@
 /* Fill mode: a flex column hands its remaining height down to the viewport (also when capped by max-height). */
 .studio-scroll-fade[data-fill], .studio-scroll-fade[data-fill] > .studio-scroll-fade-area { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
 .studio-scroll-fade[data-fill] > .studio-scroll-fade-area > .studio-scroll-fade-viewport { flex: 1 1 auto; height: auto; min-height: 0; }
-.studio-scroll-fade-area > [data-slot="scroll-area-scrollbar"] { width: var(--studio-scroll-gutter); padding: 1px 0; border: 0; }
-.studio-scroll-fade-area > [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"] { background: color-mix(in srgb, var(--muted-foreground) 25%, transparent); }
-.studio-scroll-fade-area > [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"]:hover { background: color-mix(in srgb, var(--muted-foreground) 40%, transparent); }
+/* A thin overlay bar like the Agent panel's: a 4px thumb inset from the panel edge, fading in on hover or scroll. */
+:is(.studio-scroll-fade-area, .studio-reader-area) > [data-slot="scroll-area-scrollbar"] { width: var(--studio-scroll-gutter, 8px); padding: 3px calc((var(--studio-scroll-gutter, 8px) - 4px) / 2); border: 0; }
+:is(.studio-scroll-fade-area, .studio-reader-area) > [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"] { background: color-mix(in oklab, var(--muted-foreground) 28%, transparent); transition: background-color 150ms; }
+:is(.studio-scroll-fade-area, .studio-reader-area) > [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"]:is(:hover, :active) { background: color-mix(in oklab, var(--muted-foreground) 50%, transparent); }
+:is(.studio-scroll-fade-area, .studio-reader-area) > [data-slot="scroll-area-scrollbar"][data-state="visible"] { animation: studio-scrollbar-in 150ms ease-out; }
+:is(.studio-scroll-fade-area, .studio-reader-area) > [data-slot="scroll-area-scrollbar"][data-state="hidden"] { animation: studio-scrollbar-out 200ms ease-in forwards; }
+@keyframes studio-scrollbar-in { from { opacity: 0; } }
+@keyframes studio-scrollbar-out { to { opacity: 0; } }
 .studio-scroll-fade-edge { position: absolute; left: 0; right: var(--studio-scroll-gutter); height: var(--studio-scroll-fade-size, 16px); z-index: 1; pointer-events: none; opacity: 0; transition: opacity 150ms ease; }
 .studio-scroll-fade-edge[data-edge="top"] { top: 0; background: linear-gradient(to bottom, var(--studio-scroll-fade-surface, var(--background)), transparent); }
 .studio-scroll-fade-edge[data-edge="bottom"] { bottom: 0; background: linear-gradient(to top, var(--studio-scroll-fade-surface, var(--background)), transparent); }
 .studio-scroll-fade[data-fade-top="true"] > [data-edge="top"], .studio-scroll-fade[data-fade-bottom="true"] > [data-edge="bottom"] { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .studio-scroll-fade-edge { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .studio-scroll-fade-edge { transition: none; } :is(.studio-scroll-fade-area, .studio-reader-area) > [data-slot="scroll-area-scrollbar"] { animation: none !important; } }

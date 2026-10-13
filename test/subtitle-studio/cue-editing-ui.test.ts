@@ -66,10 +66,15 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('subtitle preview editi
       await uiExpect(rows.nth(2).locator('[data-field=target]')).toHaveText(/^译\d+ Line 3$/);
       await uiExpect(page.locator('.studio-translation-track-controls [role=combobox]')).toHaveCount(1);
 
-      // Inline source edit: the existing translation becomes stale.
+      // Inline source edit: the existing translation becomes stale. The editor floats over the text,
+      // so opening it moves no row; its key hints float in a chip beside it.
+      const rowsTop = () => rows.evaluateAll(list => list.map(row => row.getBoundingClientRect().top));
+      const topsBefore = await rowsTop();
       await rows.nth(1).locator('[data-field=source]').dblclick();
       const editor = rows.nth(1).locator('.studio-cue-editor textarea');
       await uiExpect(editor).toBeFocused();
+      await uiExpect(rows.nth(1).locator('.studio-cue-editor-meta')).toBeVisible();
+      expect(await rowsTop()).toEqual(topsBefore);
       await editor.fill('Line two, corrected');
       await page.screenshot({ path: path.join(artifacts, '02-inline-editor.png') });
       await editor.press('Enter');

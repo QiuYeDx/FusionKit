@@ -6,6 +6,7 @@ import { parseStudioTime } from '@/subtitle-studio/cue-structure';
 import { formatStudioTime } from './StudioControls';
 import { CUE_CONTROL_ATTR } from './useCueSelection';
 import { StudioCueWaveform, type CueWaveformSource } from './StudioCueWaveform';
+import { useCueFloatSide } from './useCueFloatSide';
 
 /** The waveform shows this much before the start and after the end. */
 const WAVEFORM_MARGIN_MS = 1500;
@@ -27,6 +28,8 @@ export const timeProblemKeys: Record<CueTimeProblem, string> = {
 /**
  * Inline editor for a cue's start and end time. Enter saves, Escape cancels, Tab moves between
  * the two fields; leaving the editor saves. An empty end means unknown where the format allows it.
+ * The fields float over the time range (kept in place, hidden, so the row keeps its height); the
+ * waveform and any message float beside the row instead of growing it.
  */
 export function StudioCueTimeEditor({ startMs, endMs, nextStartMs, allowUnknownEnd, saving, error, check, onSave, onCancel, waveform, waveformSlot }: {
   startMs: number;
@@ -43,8 +46,8 @@ export function StudioCueTimeEditor({ startMs, endMs, nextStartMs, allowUnknownE
   /** Shows the cue's waveform with draggable start and end, when the document's media can be read. */
   waveform?: CueWaveformSource;
   /**
-   * Where the waveform goes: the row's wide text cell, so the row grows by one strip instead of
-   * stacking it under the fields in the narrow time column. Inline when absent.
+   * Where the waveform goes: a layer floating along the row's wide text cell, below the row (above it
+   * when only that fits). The message joins it there. Without it, the message floats under the fields.
    */
   waveformSlot?: HTMLElement | null;
 }) {
@@ -59,6 +62,9 @@ export function StudioCueTimeEditor({ startMs, endMs, nextStartMs, allowUnknownE
   const [view] = useState(() => ({ startMs: Math.max(0, startMs - WAVEFORM_MARGIN_MS),
     endMs: Math.min(endMs ?? impliedEndMs, startMs + WAVEFORM_SPAN_MS) + WAVEFORM_MARGIN_MS }));
   const root = useRef<HTMLDivElement>(null);
+  const [chip, setChip] = useState<HTMLDivElement | null>(null);
+  useCueFloatSide(chip, () => root.current);
+  useCueFloatSide(waveformSlot, () => waveformSlot?.closest('tr'));
   const first = useRef<HTMLInputElement>(null);
   const settled = useRef(false);
   useLayoutEffect(() => { first.current?.focus({ preventScroll: true }); first.current?.select(); }, []);
@@ -82,6 +88,10 @@ export function StudioCueTimeEditor({ startMs, endMs, nextStartMs, allowUnknownE
   };
   const message = problem ? t(timeProblemKeys[problem]) : error;
   const keyHints = t('studio:cue_structure.time_keys');
+  const meta = (saving || message) && <div ref={waveformSlot ? undefined : setChip} className="studio-cue-editor-meta" data-tone={saving ? undefined : 'error'} aria-live="polite">
+    {saving ? <span className="studio-cue-editor-saving"><LoaderCircle className="studio-spin" />{t('studio:cue_edit.saving')}</span>
+      : <span role="alert" className="studio-cue-editor-error">{message}</span>}
+  </div>;
   const wave = waveform && <StudioCueWaveform source={waveform} viewStartMs={view.startMs} viewEndMs={view.endMs}
     startMs={parseStudioTime(start)} endMs={end.trim() ? parseStudioTime(end) : null} impliedEnd={allowUnknownEnd ? { ms: impliedEndMs, toNext } : undefined}
     onMove={(which, ms) => {
@@ -105,10 +115,6 @@ export function StudioCueTimeEditor({ startMs, endMs, nextStartMs, allowUnknownE
         placeholder={allowUnknownEnd ? t('studio:cue_structure.unknown') : undefined} data-testid="studio-cue-time-end"
         onChange={event => { setEnd(event.target.value); setProblem(null); settled.current = false; }} onKeyDown={keys} />
     </div>
-    {wave && (waveformSlot ? createPortal(wave, waveformSlot) : wave)}
-    {(saving || message) && <div className="studio-cue-editor-meta" aria-live="polite">
-      {saving ? <span className="studio-cue-editor-saving"><LoaderCircle className="studio-spin" />{t('studio:cue_edit.saving')}</span>
-        : <span role="alert" className="studio-cue-editor-error">{message}</span>}
-    </div>}
+    {waveformSlot ? createPortal(<>{wave}{meta}</>, waveformSlot) : <>{wave}{meta}</>}
   </div>;
 }

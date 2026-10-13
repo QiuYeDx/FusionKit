@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CUE_CONTROL_ATTR } from './useCueSelection';
+import { useCueFloatSide } from './useCueFloatSide';
 
 export type CueEditorMove = 'stay' | 'next' | 'previous';
 
@@ -9,6 +10,9 @@ export type CueEditorMove = 'stay' | 'next' | 'previous';
  * Inline editor for one cue text. Enter saves, Shift+Enter breaks the line,
  * Tab / Shift+Tab save and continue on the next / previous cue, Escape cancels.
  * Leaving the editor saves as well, like a spreadsheet cell.
+ *
+ * It floats over the field it edits (the field keeps its text, hidden, so the row keeps its height),
+ * grows over the rows below when the text gets longer, and shows its hints in a chip beside it.
  */
 export function StudioCueEditor({ initial, label, saving, error, note, onSave, onCancel }: {
   initial: string;
@@ -22,12 +26,16 @@ export function StudioCueEditor({ initial, label, saving, error, note, onSave, o
   const { t } = useTranslation();
   const [value, setValue] = useState(initial);
   const area = useRef<HTMLTextAreaElement>(null);
+  const [chip, setChip] = useState<HTMLDivElement | null>(null);
+  useCueFloatSide(chip, () => area.current);
   const settled = useRef(false);
+  /** Covers at least the field's own text, which stays in place under the editor. */
   const fit = () => {
     const element = area.current;
     if (!element) return;
+    const field = element.parentElement?.parentElement;
     element.style.height = 'auto';
-    element.style.height = `${element.scrollHeight}px`;
+    element.style.height = `${Math.max(element.scrollHeight, (field?.offsetHeight ?? 0) + 6)}px`;
   };
   useLayoutEffect(() => {
     const element = area.current;
@@ -63,7 +71,7 @@ export function StudioCueEditor({ initial, label, saving, error, note, onSave, o
         else if (event.key === 'Tab') { event.preventDefault(); save(event.shiftKey ? 'previous' : 'next'); }
       }}
     />
-    <div className="studio-cue-editor-meta" aria-live="polite">
+    <div ref={setChip} className="studio-cue-editor-meta" data-tone={error && !saving ? 'error' : undefined} aria-live="polite">
       {saving ? <span className="studio-cue-editor-saving"><LoaderCircle className="studio-spin" />{t('studio:cue_edit.saving')}</span>
         : error ? <span role="alert" className="studio-cue-editor-error">{error}</span>
           : <span>{note ?? t('studio:cue_edit.keys')}</span>}
