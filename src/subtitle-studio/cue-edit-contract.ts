@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { bilingualImportSchema, cueSchema, diagnosticSchema, idSchema, LIMITS, textSchema, translationEntrySchema, type SubtitleText } from './domain';
 import type { DocumentSummary } from './ipc-contract';
-import { cueShiftDeltaSchema } from './cue-shift';
+import { cueShiftDeltaSchema, cueStretchRatioSchema } from './cue-shift';
+import { cueFindOptionShape, cueFindQuerySchema } from './cue-find-query';
 
 /** Upper bound for cues touched by one edit; the preview list shows at most one page. */
 export const CUE_EDIT_LIMIT = 1000;
@@ -64,6 +65,14 @@ const singleOperationSchema = z.discriminatedUnion('kind', [
   /** Every cue from `fromCueId` (or the whole document) moves earlier or later by `deltaMs`; its undo moves them back. */
   z.object({ kind: z.literal('shift'), deltaMs: cueShiftDeltaSchema, fromCueId: idSchema.optional() }).strict(),
   /**
+   * Every cue from `fromCueId` (or the whole document) is stretched by `ratio` around the start of
+   * that cue (or 0). Its undo is a `retime` with the times from before, never the inverse ratio.
+   */
+  z.object({ kind: z.literal('stretch'), ratio: cueStretchRatioSchema, fromCueId: idSchema.optional() }).strict(),
+  /** Sets the times of every cue from `fromCueId` (or the first) to the end, in order: the undo and redo of a stretch. */
+  z.object({ kind: z.literal('retime'), fromCueId: idSchema.optional(),
+    times: z.array(z.tuple([z.number().int().min(0), z.number().int().min(0).nullable()])).min(1).max(LIMITS.cues) }).strict(),
+  /**
    * The cue keeps the first text and ends at `splitMs`; a new cue after it takes the second text from
    * `splitMs` to the old end. `targets` replaces both translations on `trackId` as human ones; without
    * them the first keeps its translation and the second has none.
@@ -74,11 +83,11 @@ const singleOperationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('insert'), cueId: idSchema, position: z.enum(['before', 'after']), timing: timingSchema, source: textSchema,
     trackId: idSchema.optional(), target: textSchema.optional() }).strict().refine(value => !value.target || value.trackId),
   /**
-   * Replaces every literal match of `query` in the sources and/or the translations on `trackId`,
-   * of `cueIds` or of every cue (the same rules as `cue-find.ts`, which this contract does not import).
+   * Replaces every match of `query` in the sources and/or the translations on `trackId`, of `cueIds`
+   * or of every cue, with the search's matching rules (`cue-find-query.ts`).
    */
-  z.object({ kind: z.literal('replace'), query: z.string().min(1).max(200).refine(value => value.trim().length > 0), replacement: z.string().max(200),
-    matchCase: z.boolean(), field: z.enum(['source', 'target', 'both']), trackId: idSchema.optional(), cueIds: cueIdsSchema.optional() }).strict()
+  z.object({ kind: z.literal('replace'), query: cueFindQuerySchema, replacement: z.string().max(200), ...cueFindOptionShape,
+    field: z.enum(['source', 'target', 'both']), trackId: idSchema.optional(), cueIds: cueIdsSchema.optional() }).strict()
     .refine(value => value.field === 'source' || value.trackId),
 ]);
 /** Several operations applied in order as one edit, with one undo. */

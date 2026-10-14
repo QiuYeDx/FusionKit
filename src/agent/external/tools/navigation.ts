@@ -8,7 +8,9 @@ import { ExternalToolError, type ExternalToolContext } from "../errors";
 type PageInput = z.output<typeof EXTERNAL_TOOLS.open_fusionkit_page.inputSchema>;
 type ConfirmationInput = z.output<typeof EXTERNAL_TOOLS.get_confirmation_result.inputSchema>;
 
-const PAGES = { home: "home", subtitle_studio: "subtitle_studio", translation_knowledge: "translation_knowledge", settings: "agent_settings" } as const;
+const PAGES = { home: "home", subtitle_studio: "subtitle_studio", translation_knowledge: "translation_knowledge", settings: "agent_settings",
+  subtitle_translator: "subtitle_translator", subtitle_converter: "subtitle_converter", subtitle_extractor: "subtitle_extractor", name_translator: "name_translator",
+  local_subtitle_transcriber: "local_subtitle_transcriber", text_translator: "text_translator" } as const;
 
 export async function openFusionkitPage(input: PageInput, ctx: ExternalToolContext) {
   const result = await executeOpenAppPage({ page: PAGES[input.page], ...(input.page === "subtitle_studio" && input.studioView ? { studioView: input.studioView } : {}) }, ctx.signal) as { success: boolean; error?: string };

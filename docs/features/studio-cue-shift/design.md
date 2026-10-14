@@ -49,12 +49,44 @@
 - **预览文案**改为“第 X 条从 a 移到 b，共 N 条。”（原为“第一条从…”），“所选”范围也用同一句；`test/subtitle-studio/cue-structure-ui.test.ts` 的对应断言随之更新（测试写集之外的一行改动）。
 - **界面测试观察试听请求**：在主进程包装 `subtitle-studio:read-cue-audio` 的调用处理器记录请求，必须在工作台注册处理器之后再包装（过早包装会使工作台注册时报重复处理器）。
 
+## I2：按比例伸缩（2026-10-14）
+
+### 方案
+
+- **纯模块** `src/subtitle-studio/cue-shift.ts` 增加：
+  - `cueStretchRatioSchema`：`{ num, den }` 为 1–1 000 000 的整数，`0.5 ≤ num/den ≤ 2` 且 `num ≠ den`。
+  - `stretchTime(t, anchorMs, ratio) = anchorMs + Math.round((t − anchorMs) × num / den)`（用整数乘法后除，避免浮点累积；`(t − anchor) × num` 在 10 万条、24 小时内不超过安全整数）。
+  - `stretchProblem(cues, from, ratio, mediaDurationMs?)`：只有 `beyond_media`（锚点不动且比例为正，不会出现负时间或越过前一条）。
+  - 帧率表 `FRAME_RATES`：23.976 = 24000/1001、24、25、29.97 = 30000/1001、30（每项为分子 / 分母）；`frameRateRatio(subtitleFps, videoFps)` 得到比例 = 字幕帧率 ÷ 视频帧率（约分）。
+  - 自定义比例：渲染端把最多 6 位小数的输入转换为 `{ num: round(x × 10⁶), den: 10⁶ }` 后约分。
+  - 请求 `previewCueStretch { documentId, revision, ratio, fromCueId? }` → `{ count, lastBeforeMs?, lastAfterMs?, lastEndAfterMs?, problem? }`。
+- **编辑操作**（`cue-edit-contract.ts`）：
+  - `{ kind: 'stretch', ratio, fromCueId? }`：锚点为 0（整篇）或 `fromCueId` 那条的开始。
+  - `{ kind: 'retime', fromCueId?, times: [startMs, endMs | null][] }`：从起点到结尾逐条设定时间，条数必须与文档从起点到结尾的条数相同，时间须满足文档校验——只作为“伸缩”的撤销与重做使用（决策 A-04）。
+- **主进程** `cue-edit-service.ts`：`stretch` 先 `stretchProblem`，再逐条换算、`timingRevision++`；撤销为携带原时间的 `retime`；`retime` 的撤销为携带当前时间的 `retime`（重做精确）。`index.ts` 新增只读通道 `previewCueStretch`（与 `previewCueShift` 同处），更新组合审计；预载与通道白名单同步。
+- **渲染端** `StudioCueShift.tsx`：
+  - 顶部 `ToolRadioButtonGroup`：平移 / 按比例伸缩（对话框标题“调整时间”）；伸缩方式的范围为“从第 N 条到结尾 / 整篇”（无锚点或锚点为第 1 条时只有整篇）。
+  - 帧率换算：两个 `Select`（字幕原本对应 / 视频）+ 比例读数；“自定义比例”切换为数字输入。
+  - 预检 150 毫秒去抖（与平移相同的过期丢弃）；预览文案“共 N 条 · 最后一条 A → B”。
+  - 试听：整篇最后一条按伸缩后的时间段播放（预检返回其伸缩后的开始与结束；结束未知时取开始后 5 秒）；关闭对话框停止。
+  - 应用发送 `stretch`，历史标签 `stretch`（`cue-history.ts`）。
+  - 列表上方按钮文案改为“调整时间…”。
+- i18n：`studio:cue_structure.adjust_title`、`mode_shift`、`mode_stretch`、`stretch_*`（帧率、自定义、比例读数、预览、范围说明、无效）、`cue_history.labels.stretch`，4 种语言。
+
+### UI 设计基准（I2）
+
+- 参照：现有“平移时间”对话框（宽 480、范围单选、预检一行、试听按钮）；方式切换与范围用同一 `ToolRadioButtonGroup` 样式；帧率选择用项目 `Select`。
+- 层级：方式 → 范围 → 换算（两个帧率 + 比例，或自定义）→ 预览 → 试听；底部按钮。
+- 样本：整篇 25→23.976、从第 120 条、自定义 0.4（错误）、转写越界、1280 浅色与 786 深色。
+
 ## 需求映射
 
 | 需求 | 设计元素 |
 | --- | --- |
 | R-SHIFT-01 | `cue-shift.ts`、`shift` 操作与撤销、`previewCueShift`、组合审计 |
 | R-SHIFT-02 | `StudioCueShift` 范围 / 微调 / 预检 / 试听、表格入口与默认范围、历史标签 |
+| R-SHIFT-03 | `stretchTime` / `stretchProblem` / 帧率表、`stretch` 与 `retime` 操作和撤销、`previewCueStretch`、组合审计 |
+| R-SHIFT-04 | `StudioCueShift` 方式切换、帧率换算 / 自定义比例、伸缩预检与试听、历史标签 `stretch` |
 
 ## 代码落点
 
@@ -68,4 +100,5 @@
 
 - 单元：纯函数的各原因与边界；编辑服务对 250 条文档平移、撤销精确、从某条起、拒绝不留改动、翻译进行中拒绝、转写文档媒体时长；预检不修改文档。
 - 界面：真实 Electron（静默）验证 Ctrl+A 默认整篇、跨页生效与撤销、工具栏入口、微调、从第 120 条与越界原因、试听范围（读主进程收到的请求）、截图审查。
+- I2 风险：伸缩的撤销携带从起点到结尾每条的原时间（10 万条约 20 万个整数，存于渲染端撤销栈，每份文档最多 100 步），换取精确恢复；单元测试覆盖 10 万条往返一致与耗时。
 - 风险：10 万条文档平移在一次事务中写入，耗时与现有大编辑相当（主进程逐条修改内存对象后保存一次）；撤销栈每项只存一个小操作，不随条数增大。

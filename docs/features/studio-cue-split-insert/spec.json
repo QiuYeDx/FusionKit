@@ -3,7 +3,7 @@
   "feature": "studio-cue-split-insert",
   "tier": "M",
   "risk": "medium",
-  "current_increment": "I1",
+  "current_increment": "I2",
   "modules": [
     {
       "slug": "studio-cue-split-insert",
@@ -21,6 +21,24 @@
         "by": "用户（当前任务）",
         "basis": "2026-10-11 用户：“你上面说的这些建议都挺好的，可以记录到一个TODO文档，然后再逐一处理”；随后“跑完后提交并推送，然后继续下一项”。按项目惯例先写本规格再自主实现与隔离验证；只读用户媒体与已安装模型，不下载或删除模型，不调用付费服务；完成后按用户既有要求提交并推送。",
         "digest": "8f09e98c1c199a79a9f40fedb022de244a9d35ece4fceac7a9f96450f56d5a64"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "Agent 拆分与插入字幕",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-14 用户在 v0.5.0 回顾后选定后续项：“除了第五点感觉没用，不用做，其他的都可以做一下。可以先写文档再进行开发”。按此先写本批次规格（ready 通过）再自主实现与隔离验证；不提交、不推送（等用户要求），不调用付费服务，测试只用临时目录与临时用户数据。",
+        "digest": "892359b0c8cb3a0d3cb801a97815c1f525c3d85004311df2940a45a1c9638dad"
       },
       "acceptance": {
         "state": "pending",
@@ -47,6 +65,22 @@
       "state": "resolved",
       "text": "撤销与重做",
       "resolution": "撤销为删除新字幕（并恢复原字幕的文字、时间与译文），重做由删除的反向操作 restore 完成，新字幕 id 与内容不变。"
+    },
+    {
+      "id": "A-03",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "外部 Agent 拆分 / 插入的确认类别",
+      "resolution": "新确认组 studio_structure：拆分 / 插入改变所有译文轨共用的结构与原文，不能随“写入译文”放行；按信任档位确认（可撤销，故不设为每次必确认）。"
+    },
+    {
+      "id": "A-04",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "内置 Agent 用新工具还是扩展现有工具",
+      "resolution": "扩展 studio_prepare_cue_edits：与合并 / 删除 / 改时间同一准备—预览—应用流程与一次撤销，避免两套结构编辑入口。"
     }
   ],
   "parallel": {

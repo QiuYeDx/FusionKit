@@ -3,7 +3,7 @@
   "feature": "studio-cue-find",
   "tier": "M",
   "risk": "medium",
-  "current_increment": "I1",
+  "current_increment": "I2",
   "modules": [
     {
       "slug": "studio-cue-find",
@@ -29,6 +29,24 @@
         "digest": "",
         "record": ""
       }
+    },
+    {
+      "id": "I2",
+      "title": "正则表达式与全词匹配",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-14 用户在 v0.5.0 回顾后选定后续项：“除了第五点感觉没用，不用做，其他的都可以做一下。可以先写文档再进行开发”。按此先写本批次规格（ready 通过）再自主实现与隔离验证；不提交、不推送（等用户要求），不调用付费服务，测试只用临时目录与临时用户数据。",
+        "digest": "ff90947aa66365ba0780af7a04fa36d2e7109ac7536100a3c5b64680890d0719"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
     }
   ],
   "decisions": [
@@ -46,7 +64,23 @@
       "blocking": false,
       "state": "resolved",
       "text": "匹配方式",
-      "resolution": "字面匹配，可选区分大小写；不支持正则与整词，近似查找仍由 AI 修订负责。"
+      "resolution": "字面匹配，可选区分大小写；不支持正则与整词，近似查找仍由 AI 修订负责。（I1 决策；I2 加入正则与全词匹配，见 A-03、A-04。）"
+    },
+    {
+      "id": "A-03",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "如何防止正则卡住主进程",
+      "resolution": "正则模式的整篇匹配在一次性 worker_threads Worker 中执行，3 秒超时即 terminate 并返回 pattern_too_slow；主线程只用 Worker 返回的匹配展开替换。不引入 RE2 等原生依赖（打包与 provenance 成本），保留完整 JS 正则语法。"
+    },
+    {
+      "id": "A-04",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "全词匹配如何对待中日文",
+      "resolution": "按匹配处两端的字符决定：端字符为汉字、平假名、片假名或泰文时该端不检查边界；其他文字要求相邻字符不是 Unicode 字母、数字或下划线。不用 Intl.Segmenter（依赖词典、对人名不可预测）。"
     }
   ],
   "parallel": {

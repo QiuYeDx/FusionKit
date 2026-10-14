@@ -7,6 +7,7 @@ import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, Scro
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
 import { cueTextProblem, normalizeCueText, type CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
 import { parseStudioTime } from '@/subtitle-studio/cue-structure';
+import { defaultInsertTiming, insertTimeProblem } from '@/subtitle-studio/cue-split';
 import type { CueEditLabel } from '@/services/subtitle-studio/cue-history';
 import { formatStudioTime } from './StudioControls';
 import { CueAudioButton, useStopCueAudioOnClose } from './StudioCueAudio';
@@ -15,23 +16,7 @@ import { timeProblemKeys, type CueTimeProblem } from './StudioCueTimeEditor';
 import './StudioCueSplit.css';
 
 export type CueInsertRequest = { cueId: string; position: 'before' | 'after'; serial: number };
-/** Longest default for a new cue, filling the gap between its neighbours. */
-const DEFAULT_MS = 2000;
-
-/** The gap beside the anchor: after it, from its end (or start) to the next start; before it, from the previous end. */
-export function defaultInsertTiming(cues: readonly DocumentPage['cues'][number][], index: number, position: 'before' | 'after') {
-  const anchor = cues[index];
-  if (position === 'after') {
-    const startMs = anchor.timing.endMs ?? anchor.timing.startMs;
-    const next = cues[index + 1]?.timing.startMs;
-    const endMs = next !== undefined && next > startMs ? Math.min(next, startMs + DEFAULT_MS) : startMs + 1000;
-    return { startMs, endMs };
-  }
-  const previous = cues[index - 1];
-  const endMs = anchor.timing.startMs;
-  const startMs = Math.max(0, previous ? Math.max(previous.timing.endMs ?? previous.timing.startMs, endMs - DEFAULT_MS) : endMs - DEFAULT_MS);
-  return { startMs: Math.min(startMs, endMs), endMs };
-}
+export { defaultInsertTiming };
 const plain = (text: string) => ({ plain: text, spans: [{ text, marks: [] as never[] }] });
 
 /** Inserts a new cue before or after one, with its time, text and an optional translation. */
@@ -74,11 +59,8 @@ export function StudioCueInsert({ page, request, track, mediaReady, busy, onClos
   const at = index + (request?.position === 'after' ? 1 : 0);
   const previous = page.cues[at - 1]?.timing.startMs, next = page.cues[at]?.timing.startMs;
   const timeProblem: CueTimeProblem | null = startMs === null || (end.trim() && endMs === null) ? 'invalid'
-    : endMs === null && !allowUnknownEnd ? 'end_required'
-    : endMs !== null && endMs < startMs ? 'end_before_start'
-    : previous !== undefined && startMs < previous ? 'before_previous'
-    : next !== undefined && startMs > next ? 'after_next'
-    : media && endMs !== null && 'durationMs' in page.summary.origin && endMs > page.summary.origin.durationMs ? 'beyond_media' : null;
+    : insertTimeProblem({ startMs, endMs, previousStartMs: previous, nextStartMs: next, allowUnknownEnd,
+      ...(media && 'durationMs' in page.summary.origin ? { mediaDurationMs: page.summary.origin.durationMs } : {}) });
   const text = normalizeCueText(source), translation = normalizeCueText(target);
   const textProblem = text ? cueTextProblem(text) : null;
   const targetProblem = translation ? cueTextProblem(translation) : null;

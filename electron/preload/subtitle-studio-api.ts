@@ -101,6 +101,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     recognizeCue: request => invoke(STUDIO_CHANNELS.recognizeCue, request),
     cancelCueRecognition: request => invoke(STUDIO_CHANNELS.cancelCueRecognition, request),
     previewCueShift: request => invoke(STUDIO_CHANNELS.previewCueShift, request),
+    previewCueStretch: request => invoke(STUDIO_CHANNELS.previewCueStretch, request),
     suggestCueSplit: request => invoke(STUDIO_CHANNELS.suggestCueSplit, request),
     searchCues: request => invoke(STUDIO_CHANNELS.searchCues, request),
     subscribe: listener => {

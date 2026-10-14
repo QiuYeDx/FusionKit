@@ -95,7 +95,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('merging cues and editi
       await rows.nth(2).locator('.studio-cue-number').click({ modifiers: ['Shift'] });
       await rows.nth(1).click({ button: 'right' });
       await page.getByTestId('studio-cue-context-menu').getByRole('menuitem', { name: '平移时间…' }).click();
-      const shift = page.getByRole('dialog', { name: '平移时间' });
+      const shift = page.getByRole('dialog', { name: '调整时间' });
       await shift.getByTestId('studio-cue-shift-delta').fill('500');
       await uiExpect(shift.getByTestId('studio-cue-shift-preview')).toHaveText('第 2 条从 00:00:08.020 移到 00:00:08.520，共 2 条。');
       await shot('04-shift-1280-light');

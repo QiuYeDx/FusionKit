@@ -341,7 +341,10 @@
         "translation": "edit subtitle translations",
         "export": "export subtitles",
         "transcription": "transcribe locally",
-        "knowledge": "change translation materials"
+        "knowledge": "change translation materials",
+        "structure": "change the subtitle structure",
+        "files": "convert subtitle files",
+        "rename": "rename files"
       },
       "summary": {
         "import": "Import the subtitles in {{count}} paths into Subtitle Studio.",
@@ -350,7 +353,16 @@
         "export_source": "Export “{{document}}” as {{format}} ({{content}}) to the original file’s folder.",
         "export_choose": "Export “{{document}}” as {{format}} ({{content}}); you choose where to save it next.",
         "transcription": "Transcribe the audio and video in {{count}} paths into Subtitle Studio with the local model {{model}}.",
-        "knowledge": "Save {{count}} translation material changes. They are enabled right away."
+        "knowledge": "Save {{count}} translation material changes. They are enabled right away.",
+        "split_cue": "Split line {{number}} of “{{document}}” in two at {{time}}. Other tracks’ translations of it are marked as made for an older source. You can undo this in Subtitle Studio.",
+        "insert_cue_before": "Insert a new line before line {{number}} of “{{document}}” ({{time}}). You can undo this in Subtitle Studio.",
+        "insert_cue_after": "Insert a new line after line {{number}} of “{{document}}” ({{time}}). You can undo this in Subtitle Studio.",
+        "convert_source": "Convert {{count}} subtitle files to {{format}} and save each next to its original; existing names get a number.",
+        "convert_directory": "Convert {{count}} subtitle files to {{format}} and save them in “{{directory}}”; existing names get a number.",
+        "extract_source": "Keep only {{language}} from {{count}} bilingual subtitle files; the new files go next to the originals, and existing names get a number.",
+        "extract_directory": "Keep only {{language}} from {{count}} bilingual subtitle files and save the new files in “{{directory}}”; existing names get a number.",
+        "rename_paths": "Rename the {{count}} files or folders below to the names the external agent gave. Runs deepest first and restores everything if a step fails; can be undone afterwards.",
+        "undo_rename": "Undo an earlier rename by the external agent and give the files and folders their old names back."
       },
       "content": {
         "source": "source",

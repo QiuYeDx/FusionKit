@@ -50,3 +50,22 @@
   - 2026-10-12 完成：11 个文件（12 项）全部通过。两处是真问题，已修产品代码：`vertical-layout` 发现最小窗口下展开“文档检查”后字幕列表只剩 19 px（诊断改为手风琴后 `.studio-diagnostics[open]` 不再匹配，120 px 下限失效）；`recovery-batch-ui` 发现清理无法恢复的文档后焦点停在对话框容器、没有落到“关闭”。其余为随界面改版过时的断言：双语 LRC 不再弹“整理双语字幕”、工具页边距统一后不再固定 28–36 px、标题栏留白改为随页面滚动的占位、文档库左栏标题改为紧凑 6 px、翻译概览改为计数、批量翻译改为“检查 → 确认”、“下载原文件”改为先选保存位置、队列菜单项带说明、行内样式类改名，以及 Agent 面板变高后对话不再溢出。`experience-transcription-ui` / `interaction-queue-ui` 的窗口宽度 799：隐藏标题栏的窗口在测试环境中内容区比外框宽 12×6 px，改为与窗口实际报告的内容尺寸比较，而非与外框尺寸比较。
 - [x] **`library-ui` 默认跑不起来**：需要开发服务器或打包产物，回归时被跳过；改为使用 `vite build --mode=test` 的测试构建运行。
   - 2026-10-11 完成：`FUSIONKIT_STUDIO_E2E=1`（且无开发服务器）时在测试构建上运行；同时更新了三处随界面改版过时的断言（批量翻译检查改为摘要“2 份文档中，2 份已就绪”、预览标题栏多了“放大查看”、导出检查的文件名在各文档行的 `.studio-export-output-name`）。
+
+## v0.5.0 后续（2026-10-14 记录）
+
+来源：2026-10-14 用户在 v0.5.0 回顾后选定（“调整字幕顺序”不做），要求先写文档再开发。较大的条目在各自已有规格中新增批次。
+
+- [x] **外部 Agent 开放经典工具**：见 `docs/features/external-agent/`（批次 I4）。
+  - 2026-10-14 实现并验证（待验收）：只开放不需要 Key 的经典工具——`convert_subtitle_files`、`extract_subtitle_language`、`get_classic_tasks`、`inspect_name_paths`、`rename_paths`、`undo_name_changes`，`open_fusionkit_page` 可打开经典页面；共 22 个工具。记录见 `records/i4/`。
+- [x] **Agent 拆分、插入字幕**：内置 Agent 与外部 Agent 都能拆分、插入字幕；见 `docs/features/studio-cue-split-insert/`（批次 I2）。
+  - 2026-10-14 实现并验证（待验收）：内置 Agent 在 AI 修订预览中准备拆分 / 插入；外部工具 `split_studio_cue` / `insert_studio_cue`（确认类别“修改字幕结构”）。记录见 `records/T-SPLIT-04..06.md`。
+- [x] **整篇按比例伸缩时间**：帧率换算（如 23.976 ↔ 25）与自定义比例；见 `docs/features/studio-cue-shift/`（批次 I2）。
+  - 2026-10-14 实现并验证（待验收）：“调整时间”对话框新增“按比例伸缩”，精确分数比例，撤销逐条精确恢复。记录见 `records/T-SHIFT-04..06.md`。
+- [x] **查找替换支持正则与整词**：见 `docs/features/studio-cue-find/`（批次 I2）。
+  - 2026-10-14 实现并验证（待验收）：查找栏新增全词匹配（Alt+W）与正则（Alt+R），替换支持 `$1` / `$<名称>` / `$&`；正则在后台线程执行、3 秒超时。记录见 `records/T-FIND-04..06.md`。
+- [x] **清理已移除音频工具的本地设置**（小改动，不单独建规格）：
+  - 目标：v0.5.0 移除了音频转文本、文本转音频、实时字幕、双向语音后，用户本机 `localStorage` 里仍留着这些工具的设置，其中 `fusionkit-audio-settings` 可能含音频服务的 API Key。应用启动时删除这些不再被读取的数据。
+  - 范围：只删除这 5 个键：`fusionkit-audio-settings`、`fusionkit-audio-transcriber`、`fusionkit-speech-synthesizer`、`fusionkit-realtime-captions`、`fusionkit-realtime-voice`。不动其他键；文本模型配置 `fusionkit-model` 里旧的音频备份字段已由模型配置 v6 迁移去除，不在此处理。
+  - 验收：存在这些键时启动后全部消失，其他键（如 `fusionkit-model`、`lang`）原样保留；键不存在或 `localStorage` 不可用（抛错）时启动不受影响；每次启动重复执行无副作用。
+  - 验证：单元测试覆盖上述三种情况；在测试构建的应用中预置这些键后启动，确认被删除。
+  - 2026-10-14 完成：`src/lib/legacy-storage-cleanup.ts` 的 `removeRemovedToolSettings()` 在 `src/main.tsx` 渲染前执行，逐键 `removeItem` 并吞掉存储异常。验证：`src/lib/legacy-storage-cleanup.test.ts`（3 项通过）；测试构建的应用中预置 5 个键与 `lang`、另一无关键后重新加载，只剩 `lang` 与无关键。

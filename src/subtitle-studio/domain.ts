@@ -12,7 +12,7 @@ export type ExecutionRef = z.infer<typeof executionRefSchema>;
 export const SUBTITLE_TEXT_FORMATS = ['srt', 'lrc', 'vtt', 'ass', 'ssa', 'sbv'] as const;
 export type SubtitleTextFormat = typeof SUBTITLE_TEXT_FORMATS[number];
 export const encodingSchema = z.enum(['utf-8', 'gb18030', 'shift_jis', 'utf-16le']);
-export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'knowledge_check_failed', 'translation_protocol_invalid', 'translation_record_unavailable', 'translation_output_limit', 'translation_failed', 'transcription_failed', 'interrupted', 'resource_busy']);
+export const errorCodeSchema = z.enum(['invalid_input', 'unsupported_feature', 'encoding_required', 'limit_exceeded', 'revision_conflict', 'access_denied', 'document_unavailable', 'output_write_failed', 'needs_configuration', 'knowledge_check_failed', 'translation_protocol_invalid', 'translation_record_unavailable', 'translation_output_limit', 'translation_failed', 'transcription_failed', 'interrupted', 'resource_busy', 'invalid_pattern', 'pattern_too_slow']);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;
 export class StudioError extends Error {
   constructor(public readonly code: ErrorCode) { super(code); }

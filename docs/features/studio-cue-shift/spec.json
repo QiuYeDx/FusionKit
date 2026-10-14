@@ -3,7 +3,7 @@
   "feature": "studio-cue-shift",
   "tier": "M",
   "risk": "medium",
-  "current_increment": "I1",
+  "current_increment": "I2",
   "modules": [
     {
       "slug": "studio-cue-shift",
@@ -21,6 +21,24 @@
         "by": "用户（当前任务）",
         "basis": "2026-10-11 用户：“你上面说的这些建议都挺好的，可以记录到一个TODO文档，然后再逐一处理”；随后“跑完后提交并推送，然后继续下一项”。按项目惯例先写本规格再自主实现与隔离验证；只读用户媒体与已安装模型，不下载或删除模型，不调用付费服务；完成后按用户既有要求提交并推送。",
         "digest": "f50259bd16dca1de5df059cfdc5bc12467917bf829bc09180776810f586c7101"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "按比例伸缩时间",
+      "status": "verifying",
+      "approval": {
+        "state": "delegated",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-14 用户在 v0.5.0 回顾后选定后续项：“除了第五点感觉没用，不用做，其他的都可以做一下。可以先写文档再进行开发”。按此先写本批次规格（ready 通过）再自主实现与隔离验证；不提交、不推送（等用户要求），不调用付费服务，测试只用临时目录与临时用户数据。 2026-10-14 实施中规格纠正（不改范围）：AC-SHIFT-03-2 与 R-SHIFT-03 说明原写“第 N 条不动”，实际语义是第 N 条的开始不动、它的结束随之后的时间一起按比例伸缩（锚点为该条开始）；措辞改为准确描述，摘要随之刷新。 同日渲染审查后的规格纠正（不改范围）：伸缩的“从第 N 条起”只在打开时选中了字幕时提供；试听改为整篇最后一条（偏差最大处），预检随之返回其伸缩后的结束。",
+        "digest": "d91527e2f0cf0b70ca8b5388dd55b061b34aea5466b7b0df93a0dcbe2c15820e"
       },
       "acceptance": {
         "state": "pending",
@@ -55,6 +73,22 @@
       "state": "resolved",
       "text": "按比例伸缩与自动对齐",
       "resolution": "不在本次范围：TODO 只要求整体平移并试听确认。"
+    },
+    {
+      "id": "A-04",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "伸缩的撤销如何精确",
+      "resolution": "撤销携带从起点到结尾每条的原时间（retime 操作），不用反比例换算：取整会累积 ±1 毫秒误差，压缩时多个时间可能并到同一值而无法反推。代价是撤销栈中一项较大（10 万条约 20 万个整数）。"
+    },
+    {
+      "id": "A-05",
+      "increment": "I2",
+      "blocking": false,
+      "state": "resolved",
+      "text": "伸缩的锚点",
+      "resolution": "整篇以 0 为锚点（帧率换算的正确语义）；从第 N 条起以该条开始为锚点，该条不动，避免越过前一条。"
     }
   ],
   "parallel": {

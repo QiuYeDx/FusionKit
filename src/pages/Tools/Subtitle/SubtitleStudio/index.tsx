@@ -66,6 +66,7 @@ const focusCueList = () => document.querySelector<HTMLElement>('[data-testid=stu
 
 const errorKeys: Record<ErrorCode, string> = {
   resource_busy: 'studio:errors.resource_busy',
+  invalid_pattern: 'studio:errors.invalid_pattern', pattern_too_slow: 'studio:errors.pattern_too_slow',
   translation_output_limit: 'studio:errors.translation_output_limit',
   knowledge_check_failed: 'studio:errors.knowledge_check_failed', needs_configuration: 'studio:errors.needs_configuration', translation_protocol_invalid: 'studio:errors.translation_protocol_invalid', translation_record_unavailable: 'studio:errors.translation_record_unavailable', translation_failed: 'studio:errors.translation_failed', interrupted: 'studio:errors.interrupted',
   transcription_failed: 'studio:errors.transcription_failed',

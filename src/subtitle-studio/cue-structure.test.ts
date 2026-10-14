@@ -104,3 +104,20 @@ describe('applying a revision with structure', () => {
     expect(revisionOperation(null, [merge])).toEqual({ kind: 'merge', cueIds: ['a', 'b'], source: plain('One'), origin: 'human' });
   });
 });
+
+describe('splits and inserts in one edit', () => {
+  it('come after text changes, merges, deletions and new times', () => {
+    const current = { source: { plain: '甲。乙。', spans: [{ text: '甲。乙。', marks: [] as ('b' | 'i' | 'u')[] }] } };
+    const operation = revisionOperation(null, [
+      { kind: 'insert', cueId: 'c', index: 2, position: 'after', timing: { startMs: 5000, endMs: 6000 }, source: '补', target: 'added' },
+      { kind: 'split', cueId: 'b', index: 1, current, timing: { startMs: 1000, endMs: 4000 }, sources: ['甲。', '乙。'], splitMs: 2500, basis: 'words' },
+      { kind: 'timing', cueId: 'a', index: 0, current, before: { startMs: 0, endMs: 900 }, timing: { startMs: 100, endMs: 900 } },
+    ], 'track');
+    expect(operation).toMatchObject({ kind: 'batch', operations: [
+      { kind: 'timing', changes: { a: { startMs: 100, endMs: 900 } } },
+      { kind: 'split', cueId: 'b', splitMs: 2500, sources: [{ plain: '甲。' }, { plain: '乙。' }] },
+      { kind: 'insert', cueId: 'c', position: 'after', timing: { startMs: 5000, endMs: 6000 }, source: { plain: '补' }, trackId: 'track', target: { plain: 'added' } },
+    ] });
+    expect(structureKey({ kind: 'insert', cueId: 'c', index: 2, position: 'before', timing: { startMs: 0, endMs: 1 }, source: 'x' })).toBe('insert:before:c');
+  });
+});

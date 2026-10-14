@@ -179,7 +179,7 @@ export const content: Record<Lang, Content> = {
       external: {
         label: '外部 Agent · MCP',
         title: '也可以交给\u200b你正在用的 Agent',
-        body: '已经在用 Claude Code、Codex 或 Cursor？打开外部 Agent 接入后，它们可以读取字幕工作台、导入与转写、亲自撰写译文写回工作台并导出字幕，无需在 FusionKit 中配置任何 API Key。',
+        body: '已经在用 Claude Code、Codex 或 Cursor？打开外部 Agent 接入后，它们可以读取字幕工作台、导入与转写、亲自撰写译文写回工作台并导出字幕，也能转换字幕格式、提取双语字幕、按它翻译的名称批量重命名文件，无需在 FusionKit 中配置任何 API Key。',
         clientsLabel: '支持的客户端',
         clients: ['Claude Code', 'Claude 应用', 'Codex', 'Cursor', '其他 MCP 客户端'],
         steps: [
@@ -350,7 +350,7 @@ export const content: Record<Lang, Content> = {
       external: {
         label: 'External agents · MCP',
         title: 'Or hand it to the agent you already use',
-        body: 'Already on Claude Code, Codex or Cursor? Turn on external agents and they can read Subtitle Studio, import and transcribe, write their own translations back into Studio and export subtitle files, with no API key configured in FusionKit.',
+        body: 'Already on Claude Code, Codex or Cursor? Turn on external agents and they can read Subtitle Studio, import and transcribe, write their own translations back into Studio and export subtitle files, convert formats, extract one language and rename files to names they translate, with no API key configured in FusionKit.',
         clientsLabel: 'Works with',
         clients: ['Claude Code', 'Claude app', 'Codex', 'Cursor', 'Other MCP clients'],
         steps: [

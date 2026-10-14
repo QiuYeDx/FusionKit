@@ -163,6 +163,51 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('structure fixes from A
       await expect.poll(() => JSON.stringify(agentRequests.at(-1)?.input ?? [])).toContain('1 merge(s)');
       await page.getByTestId('agent-dock-minimize').click({ timeout: 2000 }).catch(() => {});
 
+      // The assistant splits a line, inserts a missing one and retimes another in one preview; one undo reverts all three.
+      const splitEdits = { edits: [
+        { kind: 'timing', number: 1, start: '00:02.000' },
+        { kind: 'split', number: 8, before: 'スズメさん' },
+        { kind: 'insert', number: 13, position: 'after', text: 'おわり', translation: '完' },
+      ] };
+      agentQueue.push(call('studio_prepare_cue_edits', splitEdits));
+      agentQueue.push(say('已准备好：改第 1 条的时间、拆开第 8 条、在最后插入一条。'));
+      const launcherSplit = page.getByTestId('agent-dock-launcher');
+      if (await launcherSplit.getAttribute('aria-expanded') !== 'true') await launcherSplit.click();
+      await page.getByTestId('agent-dock-input').fill('第 8 条从“スズメさん”拆开，结尾补一句“おわり”，第 1 条从 2 秒开始');
+      await page.getByTestId('agent-dock-input').press('Enter');
+      await uiExpect(dialog.getByTestId('studio-cue-revision-prepared')).toBeVisible();
+      await uiExpect(items).toHaveCount(3);
+      await uiExpect(items.nth(1)).toHaveAttribute('data-kind', 'split');
+      await uiExpect(items.nth(1).locator('[data-part]')).toHaveText(['8私の知り合いで同じ種族の住人の白鸽とか', '9スズメさんにも、']);
+      await uiExpect(items.nth(1).getByTestId('studio-cue-structure-basis')).toHaveText('按字数估算');
+      await uiExpect(items.nth(2)).toHaveAttribute('data-kind', 'insert');
+      await uiExpect(items.nth(2)).toContainText('在第 13 条后插入');
+      await uiExpect(items.nth(2).locator('.studio-cue-revision-number')).toHaveText('14');
+      await uiExpect(items.nth(2)).toContainText('おわり · 完');
+      await uiExpect(dialog.getByTestId('studio-cue-revision-summary')).toContainText('拆分 1 条');
+      await uiExpect(dialog.getByTestId('studio-cue-revision-summary')).toContainText('插入 1 条');
+      await page.getByTestId('agent-dock-minimize').click({ timeout: 2000 }).catch(() => {});
+      await shot('05-agent-split-insert-1280-light');
+      await dialog.getByTestId('studio-cue-revision-apply').click();
+      await uiExpect(dialog).toBeHidden();
+      await uiExpect(rows).toHaveCount(PAIRS.length + 1);
+      await uiExpect(rows.nth(7).locator('[data-field=source]')).toHaveText('私の知り合いで同じ種族の住人の白鸽とか');
+      await uiExpect(rows.nth(8).locator('[data-field=source]')).toHaveText('スズメさんにも、');
+      await uiExpect(rows.last().locator('[data-field=source]')).toHaveText('おわり');
+      await uiExpect(rows.last().locator('[data-field=target]')).toContainText('完');
+      await uiExpect(rows.nth(0).locator('.studio-time-range > span').first()).toHaveText('00:00:02.000');
+      const launcherReport = page.getByTestId('agent-dock-launcher');
+      if (await launcherReport.getAttribute('aria-expanded') !== 'true') await launcherReport.click();
+      agentQueue.push(say('三处都已应用。'));
+      await page.getByTestId('agent-dock-input').fill('好了吗？');
+      await page.getByTestId('agent-dock-input').press('Enter');
+      await expect.poll(() => JSON.stringify(agentRequests.at(-1)?.input ?? [])).toContain('1 split(s), 1 insertion(s)');
+      await page.getByTestId('agent-dock-minimize').click({ timeout: 2000 }).catch(() => {});
+      await page.getByTestId('studio-cue-list').focus();
+      await page.keyboard.press('Control+z');
+      await uiExpect(rows).toHaveCount(PAIRS.length - 1);
+      await uiExpect(rows.nth(7).locator('[data-field=source]')).toHaveText('私の知り合いで同じ種族の住人の白鸽とかスズメさんにも、');
+
       // Narrow and dark: the structure rows wrap inside the preview.
       await win.evaluate(window => window.setSize(786, 660));
       await uiExpect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThan(900);
@@ -173,6 +218,19 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('structure fixes from A
       await shot('04-duplicates-786-dark');
       const overflow = await items.first().evaluate(element => element.scrollWidth - element.clientWidth);
       expect(overflow).toBeLessThanOrEqual(0);
+      // The split and insert rows in the narrow dark preview.
+      await page.keyboard.press('Escape');
+      await uiExpect(dialog).toBeHidden();
+      agentQueue.push(call('studio_prepare_cue_edits', splitEdits));
+      agentQueue.push(say('已准备好。'));
+      const launcherDark = page.getByTestId('agent-dock-launcher');
+      if (await launcherDark.getAttribute('aria-expanded') !== 'true') await launcherDark.click();
+      await page.getByTestId('agent-dock-input').fill('再准备一次');
+      await page.getByTestId('agent-dock-input').press('Enter');
+      await uiExpect(items).toHaveCount(3);
+      await page.getByTestId('agent-dock-minimize').click({ timeout: 2000 }).catch(() => {});
+      await shot('06-agent-split-insert-786-dark');
+      for (const item of await items.all()) expect(await item.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
       expect(errors).toEqual([]);
     } finally {
       await app?.close();

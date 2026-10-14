@@ -38,3 +38,42 @@ describe('replacing text', () => {
     expect(replaceText(text([['only', []]]), 'only', '', true)).toEqual({ plain: '', spans: [] });
   });
 });
+
+describe('regular expressions and whole words', () => {
+  const ranges = (plain: string, query: string, options: { matchCase?: boolean; wholeWord?: boolean; regex?: boolean }) => findRanges(plain, query, { matchCase: false, ...options });
+
+  it('matches a regular expression per line, with case and without empty matches', () => {
+    expect(ranges('1999年，二〇〇〇年，2001 年', String.raw`\d+年`, { regex: true })).toEqual([[0, 5]]);
+    expect(ranges('Paris\nparis', '^paris$', { regex: true })).toEqual([[0, 5], [6, 11]]);
+    expect(ranges('Paris\nparis', '^paris$', { regex: true, matchCase: true })).toEqual([[6, 11]]);
+    // a* matches nothing between the letters: only the non-empty runs count.
+    expect(ranges('baab a', 'a*', { regex: true })).toEqual([[1, 3], [5, 6]]);
+    expect(ranges('😀x😀', '.', { regex: true })).toEqual([[0, 2], [2, 3], [3, 5]]);
+  });
+
+  it('matches whole words in any script, but not at an end written in Han, kana or Thai', () => {
+    expect(ranges('a cat. category bobcat cat', 'cat', { wholeWord: true })).toEqual([[2, 5], [23, 26]]);
+    expect(ranges('un café, cafés', 'café', { wholeWord: true })).toEqual([[3, 7]]);
+    expect(ranges('Привет мир, приветствую', 'привет', { wholeWord: true })).toEqual([[0, 6]]);
+    expect(ranges('snake_case case', 'case', { wholeWord: true })).toEqual([[11, 15]]);
+    // Han ends never need a boundary, so a name inside a sentence is still found.
+    expect(ranges('法尔童说法尔童', '法尔童', { wholeWord: true })).toEqual([[0, 3], [4, 7]]);
+    expect(ranges('東京タワーへ', 'タワー', { wholeWord: true })).toEqual([[2, 5]]);
+    // A Latin end next to Han still needs its own boundary.
+    expect(ranges('用Ai写', 'A', { wholeWord: true })).toEqual([]);
+    expect(ranges('the cat sat', String.raw`c\w+`, { regex: true, wholeWord: true })).toEqual([[4, 7]]);
+    // A rejected candidate does not hide a later whole word that overlaps it.
+    expect(ranges('bobcat cat', 'cat', { wholeWord: true })).toEqual([[7, 10]]);
+  });
+
+  it('expands capture groups only for regular expressions', () => {
+    const regex = { matchCase: false, regex: true };
+    expect(replaceText(text([['1999年来了', []]]), String.raw`(\d+)年`, '$1 年', regex)).toEqual(text([['1999 年来了', []]]));
+    expect(replaceText(text([['1999年', []]]), String.raw`\d+年`, '$&份', regex)).toEqual(text([['1999年份', []]]));
+    expect(replaceText(text([['Doe, John', []]]), String.raw`(?<last>\w+), (?<first>\w+)`, '$<first> $<last> $$5 $9 $<none>', regex))
+      .toEqual(text([['John Doe $5 $9 $<none>', []]]));
+    expect(replaceText(text([['ab', []]]), '(a)(b)', '$10$2', regex)).toEqual(text([['a0b', []]]));
+    expect(replaceText(text([['1999年', []]]), '1999年', '$1 $&', false)).toEqual(text([['$1 $&', []]]));
+    expect(replaceText(text([['Hello ', []], ['Paris', ['b']]]), 'paris', 'Rome', { matchCase: false, regex: true })).toEqual(text([['Hello ', []], ['Rome', ['b']]]));
+  });
+});

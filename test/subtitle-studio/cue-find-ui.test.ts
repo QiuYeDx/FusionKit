@@ -98,4 +98,103 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('finding and replacing 
       expect(errors).toEqual([]);
     } finally { await app?.close().catch(() => undefined); }
   }, 180_000);
+
+  it('finds with regular expressions and whole words, expands groups when replacing, and reports invalid patterns', async () => {
+    const artifacts = path.resolve('test-results/studio-cue-find'); await mkdir(artifacts, { recursive: true });
+    const root = await createTestRun(artifacts);
+    const profile = path.join(root, 'profile');
+    const lines = ['1999年的冬天', '二〇〇〇年', '2001 年', 'a cat sat', 'the category', '1987年和1988年'];
+    await new DocumentRepository(path.join(profile, 'subtitle-studio', 'documents')).create(importSubtitleText(
+      lines.map((line, index) => `${index + 1}\n${time(index * 1000)} --> ${time(index * 1000 + 500)}\n${line}\n`).join('\n'),
+      { format: 'srt', displayName: 'Regex.srt', encoding: 'utf-8', digest: 'e'.repeat(64) }, randomUUID));
+    let app: ElectronApplication | undefined;
+    const errors: string[] = [];
+    try {
+      app = await electron.launch({ args: ['.', `--user-data-dir=${profile}`], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
+      const page = await app.firstWindow(); page.on('pageerror', error => errors.push(error.message));
+      const win = await app.browserWindow(page); await win.evaluate(window => { window.setSize(1280, 860); window.webContents.setBackgroundThrottling(false); });
+      await page.evaluate(() => {
+        localStorage.setItem('lang', 'zh'); localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'light' }, version: 0 }));
+        location.hash = '/tools/subtitle/studio';
+      });
+      await page.reload(); await page.getByTestId('subtitle-studio').waitFor();
+      await page.waitForFunction(() => !document.querySelector('.app-loading-wrap') && !document.querySelector('#app-loading-style'));
+      const shot = async (name: string) => { await page.waitForTimeout(300); await page.screenshot({ path: path.join(artifacts, `${name}.png`) }); };
+      const rows = page.locator('.studio-cue-table tbody tr');
+      const list = page.getByTestId('studio-cue-list');
+      const bar = page.getByTestId('studio-cue-find');
+      const query = bar.getByTestId('studio-cue-find-query');
+      const count = bar.getByTestId('studio-cue-find-count');
+      const regex = bar.getByTestId('studio-cue-find-regex');
+      const whole = bar.getByTestId('studio-cue-find-whole-word');
+      await page.getByTestId('studio-library-row').filter({ hasText: 'Regex.srt' }).locator('button.studio-document').click();
+      await uiExpect(rows).toHaveCount(6);
+      await list.focus();
+      await page.keyboard.press('Control+f');
+
+      // A regular expression: counted, marked and moved through like words.
+      await regex.click();
+      await uiExpect(regex).toHaveAttribute('aria-pressed', 'true');
+      await query.fill(String.raw`\d+年`);
+      await uiExpect(count).toHaveText('第 1 / 2 条 · 共 3 处');
+      await uiExpect(rows.nth(0).locator('mark')).toHaveText('1999年');
+      await uiExpect(rows.nth(5).locator('mark')).toHaveCount(2);
+      await shot('studio-cue-find--03-regex-1280-light');
+      // Alt+R searches the same words literally.
+      await query.press('Alt+r');
+      await uiExpect(regex).toHaveAttribute('aria-pressed', 'false');
+      await uiExpect(count).toHaveText('无匹配');
+      await query.press('Alt+r');
+      await uiExpect(count).toHaveText('第 1 / 2 条 · 共 3 处');
+
+      // An invalid expression says so instead of "no matches", and replacing is off.
+      await bar.getByTestId('studio-cue-find-toggle-replace').click();
+      await query.fill('(abc');
+      await uiExpect(count).toHaveText('正则表达式无效');
+      await uiExpect(count).toHaveAttribute('data-error', 'invalid_pattern');
+      await uiExpect(bar.getByTestId('studio-cue-find-replace-all')).toBeDisabled();
+      await uiExpect(page.locator('mark.studio-cue-find-mark')).toHaveCount(0);
+
+      // Groups in the replacement; one undo puts everything back.
+      await query.fill(String.raw`(\d+)年`);
+      await uiExpect(count).toHaveText('第 1 / 2 条 · 共 3 处');
+      await bar.getByTestId('studio-cue-find-replacement').fill('$1 年');
+      await bar.getByTestId('studio-cue-find-replace-all').click();
+      await uiExpect(count).toHaveText('无匹配');
+      await uiExpect(rows.nth(0).locator('[data-field=source]')).toHaveText('1999 年的冬天');
+      await uiExpect(rows.nth(5).locator('[data-field=source]')).toHaveText('1987 年和1988 年');
+      await page.getByTestId('studio-cue-undo').click();
+      await uiExpect(rows.nth(5).locator('[data-field=source]')).toHaveText('1987年和1988年');
+      await uiExpect(count).toHaveText('第 1 / 2 条 · 共 3 处');
+
+      // Whole words: cat, not category.
+      await query.press('Alt+r');
+      await query.fill('cat');
+      await uiExpect(count).toHaveText('第 1 / 2 条 · 共 2 处');
+      await query.press('Alt+w');
+      await uiExpect(whole).toHaveAttribute('aria-pressed', 'true');
+      await uiExpect(count).toHaveText('第 1 / 1 条 · 共 1 处');
+      await uiExpect(rows.nth(4).locator('mark')).toHaveCount(0);
+
+      // The options stay for the session: closing and reopening keeps them.
+      await query.press('Escape');
+      await uiExpect(bar).toHaveCount(0);
+      await page.keyboard.press('Control+f');
+      await uiExpect(whole).toHaveAttribute('aria-pressed', 'true');
+      await uiExpect(regex).toHaveAttribute('aria-pressed', 'false');
+
+      // Narrow and dark: three toggles and the error fit.
+      await win.evaluate(window => window.setSize(786, 660));
+      await uiExpect.poll(() => page.evaluate(() => window.innerWidth)).toBeLessThan(900);
+      await page.evaluate(() => document.documentElement.classList.add('dark'));
+      await regex.click();
+      await bar.getByTestId('studio-cue-find-toggle-replace').click();
+      await query.fill('[a-');
+      await uiExpect(count).toHaveText('正则表达式无效');
+      expect(await bar.evaluate(element => element.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
+      expect(await bar.locator('.studio-cue-find-row').first().evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+      await shot('studio-cue-find--04-invalid-786-dark');
+      expect(errors).toEqual([]);
+    } finally { await app?.close().catch(() => undefined); }
+  }, 180_000);
 });

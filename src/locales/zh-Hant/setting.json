@@ -341,7 +341,10 @@
         "translation": "編輯字幕譯文",
         "export": "匯出字幕",
         "transcription": "本機轉寫",
-        "knowledge": "修改翻譯資料"
+        "knowledge": "修改翻譯資料",
+        "structure": "修改字幕結構",
+        "files": "轉換字幕檔案",
+        "rename": "重新命名檔案"
       },
       "summary": {
         "import": "把 {{count}} 個路徑中的字幕匯入字幕工作台。",
@@ -350,7 +353,16 @@
         "export_source": "把《{{document}}》匯出為 {{format}}（{{content}}），儲存到原檔案所在資料夾。",
         "export_choose": "把《{{document}}》匯出為 {{format}}（{{content}}），儲存位置稍後由你選擇。",
         "transcription": "用本機模型 {{model}} 把 {{count}} 個路徑中的影音轉寫進字幕工作台。",
-        "knowledge": "儲存 {{count}} 項翻譯資料變更，儲存後立即啟用。"
+        "knowledge": "儲存 {{count}} 項翻譯資料變更，儲存後立即啟用。",
+        "split_cue": "把《{{document}}》第 {{number}} 條在 {{time}} 拆成兩條；其他譯文軌中這條的譯文會標為原文已變更。可在字幕工作台復原。",
+        "insert_cue_before": "在《{{document}}》第 {{number}} 條之前插入一條新字幕（{{time}}）。可在字幕工作台復原。",
+        "insert_cue_after": "在《{{document}}》第 {{number}} 條之後插入一條新字幕（{{time}}）。可在字幕工作台復原。",
+        "convert_source": "把 {{count}} 個字幕檔案轉換為 {{format}}，儲存在各自原檔案旁，重名時自動編號。",
+        "convert_directory": "把 {{count}} 個字幕檔案轉換為 {{format}}，儲存到「{{directory}}」，重名時自動編號。",
+        "extract_source": "從 {{count}} 個雙語字幕檔案中只保留 {{language}}，新檔案儲存在各自原檔案旁，重名時自動編號。",
+        "extract_directory": "從 {{count}} 個雙語字幕檔案中只保留 {{language}}，新檔案儲存到「{{directory}}」，重名時自動編號。",
+        "rename_paths": "把下面 {{count}} 個檔案或資料夾改為外部 Agent 給出的名稱。按由深到淺執行，失敗時自動還原；完成後可以復原。",
+        "undo_rename": "復原外部 Agent 之前的一次重新命名，把檔案和資料夾改回原來的名稱。"
       },
       "content": {
         "source": "原文",

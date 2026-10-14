@@ -6,7 +6,7 @@ import { cueRevisionRequestSchemas, type CueFindResult, type CueRevisionLocation
 import { consistencyRequestSchemas, type ConsistencyResult } from './consistency-contract';
 import { cueAudioRequestSchemas, type CueAudioResult, type CueMediaStatus } from './cue-audio';
 import { cueRecognizeRequestSchemas, type CueRecognizeResult } from './cue-recognize-contract';
-import { cueShiftRequestSchemas, type CueShiftPreview } from './cue-shift';
+import { cueShiftRequestSchemas, cueStretchRequestSchemas, type CueShiftPreview, type CueStretchPreview } from './cue-shift';
 import { cueSplitRequestSchemas, type CueSplitSuggestion } from './cue-split';
 import { cueFindRequestSchemas, type CueFindResult as CueSearchResult } from './cue-find';
 import type { DocumentSnapshot } from './persistence-contract';
@@ -85,6 +85,7 @@ export const STUDIO_CHANNELS = {
   recognizeCue: 'subtitle-studio:recognize-cue',
   cancelCueRecognition: 'subtitle-studio:cancel-cue-recognition',
   previewCueShift: 'subtitle-studio:preview-cue-shift',
+  previewCueStretch: 'subtitle-studio:preview-cue-stretch',
   suggestCueSplit: 'subtitle-studio:suggest-cue-split',
   searchCues: 'subtitle-studio:search-cues',
   changed: 'subtitle-studio:changed',
@@ -175,6 +176,7 @@ export const requestSchemas = {
   ...cueAudioRequestSchemas,
   ...cueRecognizeRequestSchemas,
   ...cueShiftRequestSchemas,
+  ...cueStretchRequestSchemas,
   ...cueSplitRequestSchemas,
   ...cueFindRequestSchemas,
 };
@@ -299,6 +301,7 @@ export interface SubtitleStudioApi {
   cancelCueRecognition(request: z.infer<typeof requestSchemas.cancelCueRecognition>): Promise<StudioResult<null>>;
   /** How many cues a whole-document (or from-a-cue) shift moves, or why it cannot; changes nothing. */
   previewCueShift(request: z.infer<typeof requestSchemas.previewCueShift>): Promise<StudioResult<CueShiftPreview>>;
+  previewCueStretch(request: z.infer<typeof requestSchemas.previewCueStretch>): Promise<StudioResult<CueStretchPreview>>;
   /** When to split a cue at a place in its text: at a word's start in an untouched transcript, else by the share of the text. */
   suggestCueSplit(request: z.infer<typeof requestSchemas.suggestCueSplit>): Promise<StudioResult<CueSplitSuggestion>>;
   /** Finds a literal text in every cue's source and/or translation, for the list's find bar. */

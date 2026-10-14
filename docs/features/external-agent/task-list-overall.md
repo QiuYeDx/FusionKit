@@ -3,7 +3,7 @@
 
 由各模块 tasks.md 生成；它不是第二份任务状态来源。
 
-规模：L；风险：high；当前批次：I3。
+规模：L；风险：high；当前批次：I4。
 
 | 任务 | 模块 | 标题 | 状态 | 批次 | 需求 | 依赖 | 负责人 | 实施记录 | 集成版本 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -24,6 +24,9 @@
 | T-TOOLS-05 | TOOLS | 文档读取、导入与译文工具 | 已完成 | I2 | R-TOOLS-04, R-TOOLS-05, R-TOOLS-06 | T-TOOLS-03, T-TOOLS-04 | Claude（当前会话） | records/i2/T-TOOLS-05.md | 未提交工作树（基于 2d9f88c） |
 | T-TOOLS-06 | TOOLS | 导出与本地转写工具 | 已完成 | I2 | R-TOOLS-07, R-TOOLS-08 | T-TOOLS-05 | Claude（当前会话） | records/i2/T-TOOLS-06.md | 未提交工作树（基于 2d9f88c） |
 | T-TOOLS-07 | TOOLS | 翻译资料、任务进度与打开页面 | 已完成 | I2 | R-TOOLS-09, R-TOOLS-10 | T-TOOLS-03 | Claude（当前会话） | records/i2/T-TOOLS-07.md | 未提交工作树（基于 2d9f88c） |
+| T-TOOLS-08 | TOOLS | 经典工具：转换、提取与任务 / 页面 | 已完成 | I4 | R-TOOLS-11, R-TOOLS-13 | - | Claude | records/i4/T-TOOLS-08.md | - |
+| T-TOOLS-09 | TOOLS | 经典工具：按外部 Agent 的名称重命名 | 已完成 | I4 | R-TOOLS-12 | T-TOOLS-08 | Claude | records/i4/T-TOOLS-09.md | - |
+| T-TOOLS-10 | TOOLS | I4 端到端、说明与文档 | 已完成 | I4 | R-TOOLS-11, R-TOOLS-12, R-TOOLS-13 | T-TOOLS-09 | Claude | records/i4/T-TOOLS-10.md | - |
 
 ## 批次与批准
 
@@ -32,3 +35,4 @@
 | I1 | 最小端到端链路：本机 MCP 端点、鉴权、会话、转发与首批读取工具 | verifying | approved | pending |
 | I2 | 工具面与应用内确认：外部 Agent 当译者 | verifying | approved | pending |
 | I3 | 接入体验：设置页、连接指示、配置片段、stdio 桥、Skill 与文档 | verifying | approved | pending |
+| I4 | 经典工具：转换、提取、按外部 Agent 的名称重命名、任务与页面 | verifying | approved | pending |

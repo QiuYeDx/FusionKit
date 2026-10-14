@@ -3,7 +3,7 @@
   "feature": "external-agent",
   "tier": "L",
   "risk": "high",
-  "current_increment": "I3",
+  "current_increment": "I4",
   "modules": [
     {
       "slug": "bridge",
@@ -67,6 +67,24 @@
         "by": "用户（当前会话）",
         "basis": "2026-10-13 用户审阅整体设计（含 I3：设置页、连接指示、客户端配置片段、stdio 桥自动启动、随附 Skill）后回复「按你建议的来，写进文档然后从P0开始连着一步步开发吧 我只负责最终验收」。I2 完成后按同一授权继续 I3；I3 开始时细化 R-BRIDGE-05/06 与 R-SETTINGS-01..04 的 AC、设计与任务。不提交推送、不发布，不写入真实用户目录（测试以临时 HOME 覆盖），不调用付费 API。 2026-10-13 用户在 ab031e0 推送后补充「其实有可能用的codex和Claude code不是CLI终端版，而是桌面端，也要能支持配置接入MCP，最好完善一下相关指引和接入所使用的信息」，据此扩展 R-SETTINGS-03（AC-SETTINGS-03-4/5，变更记录 changes/2026-10-13-desktop-clients.md）并刷新摘要。 同日用户又提出「感觉可以再支持一下cursor桌面版的」，追加 AC-SETTINGS-03-6（Cursor 官方安装链接）并刷新摘要。 同日用户指正「codex、cursor等通用的路径是.agents不是.codex……只有claude需要在.claude下专门安装」，据 Codex 文档更正 R-SETTINGS-04 的 Skill 安装目录（T-SETTINGS-06）并刷新摘要。",
         "digest": "abbdacb4c02ca3312925d22d7428cb2915bbad51dca374c8d18ae1d09c490620"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I4",
+      "title": "经典工具：转换、提取、按外部 Agent 的名称重命名、任务与页面",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-14 用户在 v0.5.0 回顾后选定后续项：“除了第五点感觉没用，不用做，其他的都可以做一下。可以先写文档再进行开发”。按此先写本批次规格（ready 通过）再自主实现与隔离验证；不提交、不推送（等用户要求），不调用付费服务，测试只用临时目录与临时用户数据。 范围由用户在选择题中确认：“外部 Agent 开放经典工具，这一批开放哪些？”=“只开放不需要 Key 的”（格式转换、语言提取、文件名翻译——译名由外部 Agent 给出，FusionKit 核对并执行、可撤销——查看经典工具任务、打开经典工具页面；字幕 AI 翻译与长文本翻译不开放）。 同日渲染审查后的规格纠正（不改范围）：与目标格式相同的文件不列入转换确认框（原先计入条数、会误导），全部相同时不请求确认；摘要随之刷新。",
+        "digest": "74271c4e274e288e654355f51cfbb899a23f987ce07f653ca43f743a9f2ad9de"
       },
       "acceptance": {
         "state": "pending",
@@ -141,6 +159,22 @@
       "state": "resolved",
       "text": "MCP SDK 依赖方式",
       "resolution": "@modelcontextprotocol/sdk@1.30.1（发布于 2026-09-23）作为开发依赖，由 Vite 打包进主进程，不增加运行时 node_modules"
+    },
+    {
+      "id": "A-06",
+      "increment": "I4",
+      "blocking": false,
+      "state": "resolved",
+      "text": "外部 Agent 开放哪些经典工具",
+      "resolution": "2026-10-14 用户选择“只开放不需要 Key 的”：格式转换、语言提取、文件名翻译（译名由外部 Agent 给出）、查看经典工具任务、打开经典工具页面；不开放字幕 AI 翻译、长文本翻译（使用用户 API Key）与经典本地转写（与 start_studio_transcription 重复）。"
+    },
+    {
+      "id": "A-07",
+      "increment": "I4",
+      "blocking": false,
+      "state": "resolved",
+      "text": "经典工具是否进入页面队列",
+      "resolution": "不进入：外部工具在调用内逐文件执行并返回结果，复用经典页面已用的通道；页面队列以文件名为键，外部批量会与用户任务冲突。get_classic_tasks 只读用户自己的队列。"
     }
   ],
   "parallel": {

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { suggestCueSplit } from './cue-split';
+import { suggestCueSplit, defaultInsertTiming, insertTimeProblem, splitHalves, splitOffsetAt } from './cue-split';
 import { importSubtitleText } from './formats/import';
 import type { SubtitleText } from './domain';
 import { transcriptToDocument } from '../../electron/main/subtitle-studio/transcription/document-adapter';
@@ -44,5 +44,32 @@ describe('suggesting where to split a cue', () => {
     // "First line" has ten characters: a split needs text on both sides.
     for (const offset of [0, 10]) expect(() => suggestCueSplit(lrc, lrc.cues[0].id, offset)).toThrow('invalid_input');
     expect(() => suggestCueSplit(lrc, randomUUID(), 3)).toThrow('invalid_input');
+  });
+});
+
+describe('splitting at words and inserting beside a cue', () => {
+  it('finds where the second part starts', () => {
+    expect(splitOffsetAt('甲。乙。', '乙')).toBe(2);
+    expect(splitOffsetAt('a b a b', 'a')).toBeNull();
+    expect(splitOffsetAt('a b a b', 'a', 2)).toBe(4);
+    expect(splitOffsetAt('a b a b', 'a', 3)).toBeNull();
+    expect(splitOffsetAt('first second', 'first')).toBeNull();
+    expect(splitOffsetAt('first second', 'missing')).toBeNull();
+    expect(splitHalves('first  second', 6)).toEqual(['first', 'second']);
+  });
+
+  it('fills the gap beside a cue and checks inserted times by the main process rules', () => {
+    const cues = [{ timing: { startMs: 1000, endMs: 2000 } }, { timing: { startMs: 6000, endMs: 7000 } }];
+    expect(defaultInsertTiming(cues, 0, 'after')).toEqual({ startMs: 2000, endMs: 4000 });
+    expect(defaultInsertTiming(cues, 1, 'before')).toEqual({ startMs: 4000, endMs: 6000 });
+    expect(defaultInsertTiming([{ timing: { startMs: 500, endMs: 900 } }], 0, 'before')).toEqual({ startMs: 0, endMs: 500 });
+    const rule = { previousStartMs: 1000, nextStartMs: 6000, allowUnknownEnd: false };
+    expect(insertTimeProblem({ ...rule, startMs: 2000, endMs: 3000 })).toBeNull();
+    expect(insertTimeProblem({ ...rule, startMs: 500, endMs: 3000 })).toBe('before_previous');
+    expect(insertTimeProblem({ ...rule, startMs: 6500, endMs: 7000 })).toBe('after_next');
+    expect(insertTimeProblem({ ...rule, startMs: 3000, endMs: 2000 })).toBe('end_before_start');
+    expect(insertTimeProblem({ ...rule, startMs: 3000, endMs: null })).toBe('end_required');
+    expect(insertTimeProblem({ ...rule, allowUnknownEnd: true, startMs: 3000, endMs: null })).toBeNull();
+    expect(insertTimeProblem({ ...rule, startMs: 3000, endMs: 9000, mediaDurationMs: 8000 })).toBe('beyond_media');
   });
 });

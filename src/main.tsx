@@ -15,7 +15,10 @@ import "@/renderer/subtitle";
 import { getLocalSubtitleEnvironmentService } from "@/services/local-subtitle/localSubtitleEnvironmentService";
 import { getLocalSubtitleRuntimeService } from "@/services/local-subtitle/localSubtitleRuntimeService";
 import { initAgentSessions } from "@/agent/session-persistence";
+import { removeRemovedToolSettings } from "@/lib/legacy-storage-cleanup";
 
+// Settings left behind by removed tools (they could hold an API key).
+removeRemovedToolSettings();
 // Local subtitle execution and its initial environment snapshot belong to the
 // renderer session, not to a route component. Both services are idempotent.
 void getLocalSubtitleRuntimeService().start();

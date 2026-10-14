@@ -48,6 +48,7 @@ const errorKeys = {
   transcription_failed: 'studio:errors.transcription_failed',
   resource_busy: 'studio:cue_edit.blocked_translation',
   interrupted: 'studio:errors.interrupted',
+  invalid_pattern: 'studio:errors.invalid_pattern', pattern_too_slow: 'studio:errors.pattern_too_slow',
 } as const satisfies Record<ErrorCode, string>;
 const fieldKeys = { source: 'studio:cue_revision.fields.source', target: 'studio:cue_revision.fields.target', both: 'studio:cue_revision.fields.both' } as const;
 /** Kept for the session so that repeated revisions start where the last one ended. */
@@ -68,9 +69,11 @@ export type CueRevisionPreset = { instructions: string; scope: Scope; fields?: C
   /** Called after the user applies the previewed revision, with the wordings it settled and the structural changes. */
   onApplied?: (count: number, hints: CueRevisionHint[], changes: StructureCounts) => void };
 /** Structural changes in a revision: cues merged away, deleted and retimed. */
-export type StructureCounts = { merges: number; deletes: number; timings: number };
-const countStructure = (structure: readonly CueStructureProposal[]): StructureCounts => ({
-  merges: structure.filter(item => item.kind === 'merge').length, deletes: structure.filter(item => item.kind === 'delete').length, timings: structure.filter(item => item.kind === 'timing').length });
+export type StructureCounts = { merges: number; deletes: number; timings: number; splits: number; inserts: number };
+const countStructure = (structure: readonly CueStructureProposal[]): StructureCounts => {
+  const count = (kind: CueStructureProposal['kind']) => structure.filter(item => item.kind === kind).length;
+  return { merges: count('merge'), deletes: count('delete'), timings: count('timing'), splits: count('split'), inserts: count('insert') };
+};
 /** How a preset run ended; reported once. Applying stays with the user in the dialog. */
 export type CueRevisionOutcome =
   | { status: 'ready'; checked: number; proposals: number; notes: string[]; plan?: CueRevisionLocation['plan']; knowledgeHints?: CueRevisionHint[]; structure?: StructureCounts }
@@ -226,11 +229,14 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
     ? <CueAudioButton playKey={key} request={{ documentId, revision: page.summary.revision, ...what }} label={t('studio:cue_audio.play_cue', { number })}
       className="studio-cue-revision-audio" data-testid="studio-cue-revision-play" />
     : null;
-  /** Merges play from the first cue's start to the last one's end; a time change plays its proposed time. */
+  /**
+   * Merges play from the first cue's start to the last one's end; a time change or an insert plays
+   * its proposed time; a split plays the cue it splits.
+   */
   const structureAudio = (proposal: CueStructureProposal, numbers: string) => {
     const key = `structure:${documentId}:${structureKey(proposal)}`;
     const cueIds = proposal.kind === 'merge' ? proposal.cueIds : [proposal.cueId];
-    if (proposal.kind === 'delete') return audio(key, numbers, { target: { cueIds: [proposal.cueId] }, rows: cueIds });
+    if (proposal.kind === 'delete' || proposal.kind === 'split') return audio(key, numbers, { target: { cueIds: [proposal.cueId] }, rows: cueIds });
     const { startMs, endMs } = proposal.timing;
     if (endMs !== null && endMs > Math.max(0, startMs)) return audio(key, numbers, { target: { range: { startMs: Math.max(0, startMs), endMs } }, rows: cueIds });
     return proposal.kind === 'merge' ? audio(key, numbers, { target: { cueIds: [cueIds[0], cueIds.at(-1)!] }, rows: cueIds }) : null;
@@ -384,7 +390,8 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
       if (proposal.source !== undefined) sources[proposal.cueId] = editedText(proposal.current.source, proposal.source);
       if (proposal.target !== undefined && track) targets[proposal.cueId] = proposal.keptTarget && proposal.current.target ? proposal.current.target : editedText(proposal.current.target, proposal.target);
     }
-    const count = new Set([...Object.keys(sources), ...Object.keys(targets), ...taken]).size;
+    // Each insert adds one cue that no text change names.
+    const count = new Set([...Object.keys(sources), ...Object.keys(targets), ...taken]).size + structure.filter(item => item.kind === 'insert').length;
     if (!count || count > CUE_EDIT_LIMIT) return;
     const operation = revisionOperation({ kind: 'revise', sources, ...(track && Object.keys(targets).length ? { trackId: track.id, targets } : {}) }, structure, track?.id);
     if (!operation) return;
@@ -443,24 +450,36 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
   const structureRow = (proposal: CueStructureProposal) => {
     const key = structureKey(proposal);
     const checked = accepted.has(key);
-    const numbers = proposal.kind === 'merge' ? `${proposal.indexes[0] + 1}–${proposal.indexes.at(-1)! + 1}` : String(proposal.index + 1);
+    // An insert shows the number the new line will have.
+    const numbers = proposal.kind === 'merge' ? `${proposal.indexes[0] + 1}–${proposal.indexes.at(-1)! + 1}`
+      : proposal.kind === 'insert' ? String(proposal.index + (proposal.position === 'after' ? 2 : 1)) : String(proposal.index + 1);
+    const tag = proposal.kind === 'merge' ? <><Combine />{t('studio:cue_revision.tag_merge', { count: proposal.cueIds.length })}</>
+      : proposal.kind === 'insert' ? t(`studio:cue_revision.tag_insert_${proposal.position}`, { number: proposal.index + 1 })
+      : t(`studio:cue_revision.tag_${proposal.kind}`);
+    const time = proposal.kind === 'timing' ? `${range(proposal.before)}  ⇒  ${range(proposal.timing)}`
+      : proposal.kind === 'split' ? `${range(proposal.timing)}  ·  ${t('studio:cue_revision.split_at', { time: formatStudioTime(proposal.splitMs) })}`
+      : range(proposal.timing);
     return <li key={key} data-testid="studio-cue-structure-item" data-kind={proposal.kind} data-accepted={checked || undefined}>
       <label className="studio-cue-revision-item">
         <Checkbox checked={checked} onCheckedChange={value => toggle(key, value === true)} aria-label={t('studio:cue_revision.include_structure', { numbers })} />
         <span className="studio-cue-revision-number">{structureAudio(proposal, numbers)}{numbers}</span>
         <span className="studio-cue-revision-texts">
           <span className="studio-cue-structure-head">
-            <span className="studio-cue-revision-tag" data-tone={proposal.kind === 'delete' ? 'warning' : undefined}>
-              {proposal.kind === 'merge' ? <><Combine />{t('studio:cue_revision.tag_merge', { count: proposal.cueIds.length })}</> : t(`studio:cue_revision.tag_${proposal.kind}`)}
-            </span>
-            <span className="studio-cue-structure-time">{proposal.kind === 'timing' ? `${range(proposal.before)}  ⇒  ${range(proposal.timing)}` : range(proposal.timing)}</span>
+            <span className="studio-cue-revision-tag" data-tone={proposal.kind === 'delete' ? 'warning' : undefined}>{tag}</span>
+            <span className="studio-cue-structure-time">{time}</span>
+            {proposal.kind === 'split' && <span className="studio-cue-revision-tag" data-testid="studio-cue-structure-basis">{t(proposal.basis === 'given' ? 'studio:cue_revision.split_basis_given' : `studio:cue_split.basis_${proposal.basis}`)}</span>}
           </span>
           {proposal.kind === 'merge' ? <>
             <span className="studio-cue-revision-text" data-field="source">{proposal.source}</span>
             {proposal.target !== undefined && <span className="studio-cue-revision-text" data-field="target">{proposal.target}
               {proposal.targetStale && <span className="studio-cue-revision-tag" data-tone="warning">{t('studio:cue_revision.target_stale')}</span>}</span>}
             <span className="studio-cue-structure-old">{proposal.current.map((item, index) => <span key={index}><del>{structureText(item)}</del>{item.target && <del className="text-muted-foreground"> · {item.target.plain}</del>}</span>)}</span>
-          </> : proposal.kind === 'delete' ? <span className="studio-cue-revision-text" data-field="source"><del>{proposal.current.source.plain}</del>{proposal.current.target && <del className="text-muted-foreground"> · {proposal.current.target.plain}</del>}</span>
+          </> : proposal.kind === 'split' ? <>
+            {proposal.sources.map((text, part) => <span key={part} className="studio-cue-revision-text" data-field="source" data-part={part + 1}>
+              <span className="studio-cue-structure-part">{proposal.index + 1 + part}</span>{text}{proposal.targets && <span className="text-muted-foreground"> · {proposal.targets[part]}</span>}</span>)}
+            <span className="studio-cue-structure-old"><span><del>{proposal.current.source.plain}</del>{proposal.current.target && <del className="text-muted-foreground"> · {proposal.current.target.plain}</del>}</span></span>
+          </> : proposal.kind === 'insert' ? <span className="studio-cue-revision-text" data-field="source">{proposal.source}{proposal.target && <span className="text-muted-foreground"> · {proposal.target}</span>}</span>
+          : proposal.kind === 'delete' ? <span className="studio-cue-revision-text" data-field="source"><del>{proposal.current.source.plain}</del>{proposal.current.target && <del className="text-muted-foreground"> · {proposal.current.target.plain}</del>}</span>
             : <span className="studio-cue-revision-text studio-cue-revision-unchanged" data-field="source">{proposal.current.source.plain}</span>}
         </span>
       </label>
@@ -471,7 +490,8 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
     if (!structure.length) return t('studio:cue_revision.summary', { count: proposals.length, total: result!.checked });
     const counts = countStructure(structure);
     const parts = [proposals.length && t('studio:cue_revision.part_texts', { count: proposals.length }), counts.merges && t('studio:cue_revision.part_merges', { count: counts.merges }),
-      counts.deletes && t('studio:cue_revision.part_deletes', { count: counts.deletes }), counts.timings && t('studio:cue_revision.part_timings', { count: counts.timings })].filter(Boolean);
+      counts.deletes && t('studio:cue_revision.part_deletes', { count: counts.deletes }), counts.timings && t('studio:cue_revision.part_timings', { count: counts.timings }),
+      counts.splits && t('studio:cue_revision.part_splits', { count: counts.splits }), counts.inserts && t('studio:cue_revision.part_inserts', { count: counts.inserts })].filter(Boolean);
     const joined = parts.join(t('studio:cue_revision.materials_separator'));
     return result!.origin === 'prepared' ? t('studio:cue_revision.summary_prepared', { parts: joined }) : t('studio:cue_revision.summary_structure', { parts: joined, total: result!.checked });
   };

@@ -341,7 +341,10 @@
         "translation": "字幕訳文の編集",
         "export": "字幕の書き出し",
         "transcription": "ローカル文字起こし",
-        "knowledge": "翻訳資料の変更"
+        "knowledge": "翻訳資料の変更",
+        "structure": "字幕構成の変更",
+        "files": "字幕ファイルの変換",
+        "rename": "ファイル名の変更"
       },
       "summary": {
         "import": "{{count}} 個のパスにある字幕を字幕ワークベンチに読み込みます。",
@@ -350,7 +353,16 @@
         "export_source": "「{{document}}」を {{format}}（{{content}}）として元のファイルのフォルダーに書き出します。",
         "export_choose": "「{{document}}」を {{format}}（{{content}}）として書き出します。保存先はこのあと選びます。",
         "transcription": "ローカルモデル {{model}} で、{{count}} 個のパスにある音声・動画を字幕ワークベンチに文字起こしします。",
-        "knowledge": "翻訳資料の変更 {{count}} 件を保存し、すぐに有効にします。"
+        "knowledge": "翻訳資料の変更 {{count}} 件を保存し、すぐに有効にします。",
+        "split_cue": "「{{document}}」の {{number}} 件目を {{time}} で 2 件に分割します。ほかの訳文トラックのこの行の訳文は原文変更済みになります。字幕ワークスペースで元に戻せます。",
+        "insert_cue_before": "「{{document}}」の {{number}} 件目の前に新しい字幕を挿入します（{{time}}）。字幕ワークスペースで元に戻せます。",
+        "insert_cue_after": "「{{document}}」の {{number}} 件目の後に新しい字幕を挿入します（{{time}}）。字幕ワークスペースで元に戻せます。",
+        "convert_source": "{{count}} 件の字幕ファイルを {{format}} に変換し、それぞれ元のファイルの横に保存します。同名のファイルには番号を付けます。",
+        "convert_directory": "{{count}} 件の字幕ファイルを {{format}} に変換し、「{{directory}}」に保存します。同名のファイルには番号を付けます。",
+        "extract_source": "{{count}} 件の二言語字幕から {{language}} だけを残します。新しいファイルは元のファイルの横に保存し、同名のファイルには番号を付けます。",
+        "extract_directory": "{{count}} 件の二言語字幕から {{language}} だけを残し、新しいファイルを「{{directory}}」に保存します。同名のファイルには番号を付けます。",
+        "rename_paths": "以下の {{count}} 件のファイル・フォルダーを外部エージェントが示した名前に変更します。深い階層から順に実行し、失敗したときは元に戻します。完了後も元に戻せます。",
+        "undo_rename": "外部エージェントによる以前の名前変更を元に戻し、ファイルとフォルダーを元の名前にします。"
       },
       "content": {
         "source": "原文",

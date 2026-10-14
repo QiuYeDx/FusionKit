@@ -444,6 +444,16 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(await owner.invoke(STUDIO_CHANNELS.previewCueShift, shift)).toEqual({ ok: true, value: { count: page.value.summary.cueCount } });
     expect(await owner.invoke(STUDIO_CHANNELS.previewCueShift, { ...shift, deltaMs: -page.value.cues[0].timing.startMs - 1 }))
       .toEqual({ ok: true, value: { count: page.value.summary.cueCount, problem: 'negative' } });
+    // The stretch preview reads only, like the shift preview.
+    expect(typeof api.previewCueStretch).toBe('function');
+    expect(isPublicStudioChannel(STUDIO_CHANNELS.previewCueStretch)).toBe(true);
+    const stretch = { documentId: doc.id, revision: page.value.summary.revision, ratio: { num: 1001, den: 960 } };
+    expect(await attach().invoke(STUDIO_CHANNELS.previewCueStretch, stretch)).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.previewCueStretch, { ...stretch, ratio: { num: 3, den: 1 } })).toEqual({ ok: false, error: 'invalid_input' });
+    const lastStart = (await owner.invoke(STUDIO_CHANNELS.previewCueStretch, stretch) as { ok: true; value: { count: number; lastBeforeMs: number; lastAfterMs: number } }).value;
+    expect(lastStart).toMatchObject({ count: page.value.summary.cueCount });
+    expect(lastStart.lastAfterMs).toBe(Math.round(lastStart.lastBeforeMs * 1001 / 960));
+    expect((await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { documentId: doc.id, revision: page.value.summary.revision, offset: 0 }) as { ok: boolean }).ok).toBe(true);
     // Suggesting where to split reads only, like the shift preview.
     expect(typeof api.suggestCueSplit).toBe('function');
     expect(isPublicStudioChannel(STUDIO_CHANNELS.suggestCueSplit)).toBe(true);
@@ -459,6 +469,11 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(await owner.invoke(STUDIO_CHANNELS.searchCues, { ...search, query: '  ' })).toEqual({ ok: false, error: 'invalid_input' });
     expect(await owner.invoke(STUDIO_CHANNELS.searchCues, { ...search, trackId: randomUUID() })).toEqual({ ok: false, error: 'invalid_input' });
     expect(await owner.invoke(STUDIO_CHANNELS.searchCues, search)).toMatchObject({ ok: true, value: { cues: expect.arrayContaining([expect.objectContaining({ cueId: page.value.cues[0].id })]), truncated: false } });
+    // Regular expressions and whole words; an invalid pattern has its own error.
+    const escaped = search.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    expect(await owner.invoke(STUDIO_CHANNELS.searchCues, { ...search, query: escaped, regex: true, wholeWord: false })).toMatchObject({ ok: true, value: { cues: expect.arrayContaining([expect.objectContaining({ cueId: page.value.cues[0].id })]) } });
+    expect(await owner.invoke(STUDIO_CHANNELS.searchCues, { ...search, query: '(', regex: true })).toEqual({ ok: false, error: 'invalid_pattern' });
+    expect(await owner.invoke(STUDIO_CHANNELS.searchCues, { ...search, regex: 'yes' })).toEqual({ ok: false, error: 'invalid_input' });
   }, 30_000);
 
   it('reveals a bound source folder without granting path or cross-owner authority', async () => {

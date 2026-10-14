@@ -63,6 +63,9 @@ I1 部分见「宿主」至「工具实现」；I2 部分见「I2：信任与确
 | R-TOOLS-08 | tools/transcription.ts（转写控制器） |
 | R-TOOLS-09 | knowledge-tools 纯函数抽取、tools/knowledge.ts、资料变更确认 |
 | R-TOOLS-10 | tools/tasks.ts、tools/navigation.ts |
+| R-TOOLS-11 | I4 `classic.ts` 路径收集与逐文件转换 / 提取、`classic_files` 确认组与覆盖 destructive |
+| R-TOOLS-12 | I4 `classic.ts`：`inspect_name_paths` / `rename_paths` / `undo_name_changes`、名称校验、preflight 直达、旧名 → 新名确认行 |
+| R-TOOLS-13 | I4 `classic.ts` 任务映射、`open_fusionkit_page` 经典页面 |
 
 ## 验证与风险
 
@@ -143,3 +146,49 @@ export 的 overwrite 在调用时升级为 destructive（工具实现按参数�
 - Electron 端到端（`test/external-agent-tools.electron.test.ts`）：不配置任何模型，外部客户端完成 导入→读取→建轨→分批写→导出双语，确认对话框真实点击（允许 + 本次连接放行、拒绝、只读拒绝、overwrite 必问）；工作台界面可见轨道与 AI 未审校标记、撤销一步撤回；资料变更确认后入库。
 - 渲染审查：确认对话框按上述样本截图审阅（`test-results/external-agent/*.png`），修复后复验。
 - 风险：Studio 领域 schema 变更须确认持久化读写与导出不受影响（运行工作台相关测试）；`subtitle-studio/index.ts` 为审计文件，改后重登记。
+
+## I4：经典工具（2026-10-14）
+
+### I4 方案与取舍
+
+- 不新增主进程通道、不改预载：转换与提取复用经典页面与内置 Agent 已在用的通道——`scan-directory`（文件夹）、`get-file-metadata`、`read-file-head`（`lines: 100000` 读全文、UTF-8）、`convert-subtitle`、`extract-subtitle-language`（主进程按重名策略写入并返回最终路径）；名称翻译复用 `window.nameTranslation`（`inspectPaths({ source: 'agent' })`、`collectDescendants`、`preflight`、`apply`、`undo`），重命名的核对、由深到浅执行、日志与回滚都在主进程现有执行器中。这些通道接受任意路径，门槛是外部 Agent 的信任档位与 FusionKit 内的确认（与 A-02 一致）。
+- 工具不进入经典页面的任务队列（页面队列以文件名为键，外部批量会与用户的任务冲突）：转换 / 提取在工具调用内逐个执行并返回逐文件结果；`get_classic_tasks` 只读用户自己在页面中的队列。
+- 新确认组：`classic_files`（转换与提取，可在本次连接放行）；重命名与撤销为 `confirm: 'always'`（会改动用户已有文件的名称）；转换 / 提取的“覆盖”以运行时 `destructive: true` 提交（与导出覆盖相同）。
+- 不开放字幕 AI 翻译、长文本翻译（使用用户 API Key）与经典本地转写（`start_studio_transcription` 已覆盖）。
+
+### 工具实现
+
+- 转换与提取（`src/agent/external/tools/classic.ts`，新）：
+  - 路径收集：每个路径先 `get-file-metadata`，是文件夹时 `scan-directory`（扩展名 SRT / VTT / LRC / ASS / SSA / SBV，可选递归），去重后超过 200 个 → `too_many_files`；不存在 → `path_not_found`。
+  - 输出位置：`source_directory` 用每个文件所在文件夹；`directory` 用给定路径（主进程 `mkdir -p`）。
+  - 确认后逐个读取、转换 / 提取、写入；单个失败记入该文件结果并继续。
+- 名称（同在 `classic.ts`）：`inspect_name_paths` → `inspectPaths` + 可选 `collectDescendants`（上限 2000）；`rename_paths` → 校验新名称为单一名称（不含分隔符、不为空、不是 `.`/`..`）→ `preflight`（有问题直接返回逐条问题）→ `confirmed()`（行：旧名 → 新名，超过 20 行时显示前 20 行与总数）→ `apply`，返回改名数、撤销编号、回滚状态；`undo_name_changes` → `confirmed()` → `undo`。
+- 任务（同在 `classic.ts`）：读取 `useSubtitleTranslatorStore` / `useSubtitleConverterStore` / `useSubtitleExtractorStore` 的任务，映射为 `{ tool, fileName, status, progress?, outputPath?, error? }`，每个工具最多 50 条。
+- `catalog.ts`：6 个新工具定义（英文描述）与 `open_fusionkit_page` 的页面枚举增加 6 个经典页面（路由取 `src/constants/router.ts` / `TOOL_META`）；`ExternalApprovalGroup` 增加 `classic_files`。
+- `confirmations.ts`：`ConfirmationAction` 增加 `files`、`rename`；`ConfirmationSummary` 增加 `convert_files`、`extract_language`、`rename_paths`、`undo_rename`；`ExternalAgentConfirmDialog.tsx` 支持“旧名 → 新名”行；4 种语言 `setting:external_agent.confirm.*`。
+- `instructions.ts` 与 `.agents/skills/fusionkit-app/SKILL.md`：经典工具的用途、名称由 Agent 自己翻译后用 `rename_paths`、改名前先 `inspect_name_paths`。
+
+### UI 设计基准（I4）
+
+- 参照：现有外部 Agent 确认框（导入：路径行；知识变更：标签行）。重命名行为“旧名 → 新名”两段，旧名弱化、新名正常字重，完整路径在下方小字；长列表用确认框现有的滚动区。
+- 样本：3 个文件转换、覆盖确认、4 项重命名（含子文件夹）、25 项重命名（截断说明），1280 浅色与 900 深色。
+
+### I4 代码落点
+
+- `src/agent/external/catalog.ts`、`src/agent/external/tools/{classic,navigation,index}.ts`、`src/agent/external/confirmations.ts`、`src/agent/external/instructions.ts`、`src/agent/navigation-tools.ts`（页面键 `text_translator`）
+- `src/pages/AgentDock/ExternalAgentConfirmDialog.tsx`、`src/locales/{zh,en,ja,zh-Hant}/setting.json`
+- `.agents/skills/fusionkit-app/SKILL.md`、`docs/features/external-agent/README.md`（工具表与验收清单）、`README.md` / `README.en.md`（外部 Agent 工具说明）、`CHANGELOG.md`（工具数与“当前范围”）、`website/src/content.ts`（如提到工具范围）
+- 测试：`src/agent/external/tools/classic-tools.test.ts`（新）、`test/external-agent-classic.electron.test.ts`（新）
+
+### I4 验证与风险
+
+- 单元：路径收集（文件 / 文件夹 / 递归 / 去重 / 上限 / 不存在）、转换与提取逐文件结果与跳过、覆盖为 destructive、三档信任下的确认与放行；名称校验、preflight 问题直达、确认行生成、apply / undo 结果、busy；任务映射。
+- Electron：真实 MCP 客户端在临时目录上转换、提取、重命名与撤销，确认框截图；只读档拒绝。
+- 风险：这些通道本身不做路径授权（经典页面也如此），外部 Agent 的门槛完全在信任档位与确认——重命名与覆盖在任何档位确认，转换 / 提取在“自动执行”档位会直接写出新文件（不覆盖已有文件，覆盖仍确认）。
+
+### I4 实施中确定（2026-10-14）
+
+- 三组工具放在同一个 `src/agent/external/tools/classic.ts`（彼此共用路径与结果工具函数），未按设计拆成三个文件；测试相应合并为 `classic-tools.test.ts`。
+- 确认框“旧名 → 新名”：`ConfirmationItem` 增加可选 `from`（旧名，弱化显示），对话框在 `text`（新名）前渲染；其他确认项不受影响。
+- `open_fusionkit_page` 的“长文本翻译”页需要内置 Agent 的页面表中有对应键，`AGENT_PAGES` 增加 `text_translator`（内置 Agent 的“打开页面”因此也能打开该页）。
+- 端到端测试单独成文件 `test/external-agent-classic.electron.test.ts`（临时目录：ASS 转 SRT、提取中文、3 项重命名与撤销、25 项截断、只读拒绝、英文深色 900 宽），未并入 `external-agent-tools.electron.test.ts`。

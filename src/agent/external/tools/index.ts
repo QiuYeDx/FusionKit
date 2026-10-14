@@ -11,6 +11,8 @@ import { listStudioDocuments } from "./studio-documents";
 import { getStudioTasks } from "./tasks";
 import { startStudioTranscription } from "./transcription";
 import { createStudioTranslationTrack, writeStudioTranslations } from "./translation";
+import { insertStudioCue, splitStudioCue } from "./structure";
+import { convertSubtitleFiles, extractSubtitleLanguage, getClassicTasks, inspectNamePaths, renamePaths, undoNameChanges } from "./classic";
 
 export type ExternalToolImplementations = {
   [K in ExternalToolName]: (input: z.output<(typeof EXTERNAL_TOOLS)[K]["inputSchema"]>, ctx: ExternalToolContext) => Promise<unknown>;
@@ -23,6 +25,14 @@ export const EXTERNAL_TOOL_IMPLEMENTATIONS: ExternalToolImplementations = {
   import_studio_subtitles: importStudioSubtitles,
   create_studio_translation_track: createStudioTranslationTrack,
   write_studio_translations: writeStudioTranslations,
+  split_studio_cue: splitStudioCue,
+  insert_studio_cue: insertStudioCue,
+  convert_subtitle_files: convertSubtitleFiles,
+  extract_subtitle_language: extractSubtitleLanguage,
+  get_classic_tasks: async (input) => getClassicTasks(input),
+  inspect_name_paths: inspectNamePaths,
+  rename_paths: renamePaths,
+  undo_name_changes: undoNameChanges,
   export_studio_document: exportStudioDocument,
   start_studio_transcription: startStudioTranscription,
   get_studio_tasks: getStudioTasks,

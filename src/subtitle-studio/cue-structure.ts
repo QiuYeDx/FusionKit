@@ -111,12 +111,18 @@ export type CueTiming = { startMs: number; endMs: number | null };
 export type CueStructureProposal =
   | { kind: 'merge'; cueIds: string[]; indexes: number[]; current: CueStructureCurrent[]; source: string; target?: string; targetStale?: true; timing: CueTiming; origin: 'human' | 'ai' }
   | { kind: 'delete'; cueId: string; index: number; current: CueStructureCurrent; timing: CueTiming }
-  | { kind: 'timing'; cueId: string; index: number; current: CueStructureCurrent; before: CueTiming; timing: CueTiming };
+  | { kind: 'timing'; cueId: string; index: number; current: CueStructureCurrent; before: CueTiming; timing: CueTiming }
+  /** The cue split at `splitMs` into two texts (and translations, when given); `timing` is its time before. */
+  | { kind: 'split'; cueId: string; index: number; current: CueStructureCurrent; timing: CueTiming; sources: [string, string]; splitMs: number;
+    basis: 'words' | 'proportional' | 'given'; targets?: [string, string] }
+  /** A new cue before or after the cue `cueId` (at `index`). */
+  | { kind: 'insert'; cueId: string; index: number; position: 'before' | 'after'; timing: CueTiming; source: string; target?: string };
 
 /** Identifies a structure proposal in the preview, next to text proposals keyed by cue id. */
-export const structureKey = (proposal: CueStructureProposal) => `${proposal.kind}:${proposal.kind === 'merge' ? proposal.cueIds[0] : proposal.cueId}`;
-/** The cues a proposal takes over, so a text change to them is not applied as well. */
-export const structureCueIds = (proposal: CueStructureProposal) => proposal.kind === 'merge' ? proposal.cueIds : [proposal.cueId];
+export const structureKey = (proposal: CueStructureProposal) =>
+  proposal.kind === 'insert' ? `insert:${proposal.position}:${proposal.cueId}` : `${proposal.kind}:${proposal.kind === 'merge' ? proposal.cueIds[0] : proposal.cueId}`;
+/** The cues a proposal takes over, so a text change to them is not applied as well; an insert takes over none. */
+export const structureCueIds = (proposal: CueStructureProposal) => proposal.kind === 'merge' ? proposal.cueIds : proposal.kind === 'insert' ? [] : [proposal.cueId];
 
 const currentTexts = (cue: SubtitleCue, track?: Track): CueStructureCurrent => {
   const entry = track && current(track, cue);
@@ -160,9 +166,11 @@ export function findAdjacentDuplicates(cues: readonly (SubtitleCue & { index: nu
   return proposals;
 }
 
+const typed = (text: string) => ({ plain: text, spans: text ? [{ text, marks: [] as ('b' | 'i' | 'u')[] }] : [] });
+
 /**
  * The single edit that applies the accepted proposals: text changes first, then merges and
- * deletions, then new times. Only text changes stay one `revise`, as before.
+ * deletions, then new times, then splits and inserts. Only text changes stay one `revise`, as before.
  */
 export function revisionOperation(texts: Extract<CueEditOperation, { kind: 'revise' }> | null, structure: readonly CueStructureProposal[], trackId?: string): CueEditOperation | null {
   const operations: Exclude<CueEditOperation, { kind: 'batch' }>[] = [];
@@ -176,6 +184,16 @@ export function revisionOperation(texts: Extract<CueEditOperation, { kind: 'revi
   if (deletes.length) operations.push({ kind: 'delete', cueIds: deletes });
   const timings = structure.flatMap(proposal => proposal.kind === 'timing' ? [[proposal.cueId, proposal.timing] as const] : []);
   if (timings.length) operations.push({ kind: 'timing', changes: Object.fromEntries(timings) });
+  // Splits and inserts name cues no other proposal touches, so they come last.
+  for (const proposal of structure) if (proposal.kind === 'split') {
+    operations.push({ kind: 'split', cueId: proposal.cueId, splitMs: proposal.splitMs,
+      sources: [editedText(proposal.current.source, proposal.sources[0]), editedText(proposal.current.source, proposal.sources[1])],
+      ...(trackId && proposal.targets ? { trackId, targets: [editedText(proposal.current.target, proposal.targets[0]), editedText(proposal.current.target, proposal.targets[1])] as [SubtitleText, SubtitleText] } : {}) });
+  }
+  for (const proposal of structure) if (proposal.kind === 'insert') {
+    operations.push({ kind: 'insert', cueId: proposal.cueId, position: proposal.position, timing: { ...proposal.timing }, source: typed(proposal.source),
+      ...(trackId && proposal.target ? { trackId, target: typed(proposal.target) } : {}) });
+  }
   if (!operations.length) return null;
   return operations.length === 1 ? operations[0] : { kind: 'batch', operations };
 }

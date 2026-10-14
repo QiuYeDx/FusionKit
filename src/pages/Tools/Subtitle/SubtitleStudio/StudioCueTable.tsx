@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Combine, Ellipsis, Languages, MoveHorizontal, Redo2, Search, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { DocumentPage } from '@/subtitle-studio/ipc-contract';
 import { LIMITS, type SubtitleText } from '@/subtitle-studio/domain';
-import { findRanges } from '@/subtitle-studio/cue-find';
+import { findRanges, type CueFindOptions } from '@/subtitle-studio/cue-find';
 import { cueTextProblem, editedText, hasMixedStyle, normalizeCueText, type CueEditOperation, type CueTextProblem } from '@/subtitle-studio/cue-edit-contract';
 import { buildCueCopyText } from '@/services/subtitle-studio/cue-copy';
 import type { CueEditLabel, CueHistoryEntry } from '@/services/subtitle-studio/cue-history';
@@ -41,8 +41,8 @@ const HELP_ITEMS = ['select', 'marquee', 'edit', 'editor', 'field', 'timing', 'p
 export const cueAudioKey = (documentId: string, cueId: string) => `cue:${documentId}:${cueId}`;
 
 /** A cue's styled text; matches of the find bar's words are marked. */
-function Spans({ text, find }: { text: SubtitleText; find?: { query: string; matchCase: boolean } }) {
-  const ranges = find ? findRanges(text.plain, find.query, find.matchCase) : [];
+function Spans({ text, find }: { text: SubtitleText; find?: CueFindOptions & { query: string } }) {
+  const ranges = useMemo(() => find ? findRanges(text.plain, find.query, find) : [], [text.plain, find?.query, find?.matchCase, find?.wholeWord, find?.regex]);
   let offset = 0;
   return <>{text.spans.map((span, i) => {
     const start = offset;

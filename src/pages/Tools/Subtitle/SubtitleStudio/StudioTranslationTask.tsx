@@ -23,6 +23,7 @@ const errorKeys = {
   translation_output_limit: 'studio:errors.translation_output_limit', translation_failed: 'studio:errors.translation_failed',
   transcription_failed: 'studio:errors.transcription_failed', resource_busy: 'studio:errors.resource_busy',
   interrupted: 'studio:errors.interrupted',
+  invalid_pattern: 'studio:errors.invalid_pattern', pattern_too_slow: 'studio:errors.pattern_too_slow',
 } as const satisfies Record<ErrorCode, string>;
 type Props = {
   page: DocumentPage;

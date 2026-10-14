@@ -171,6 +171,44 @@ describe('external agents translate with FusionKit without an API key', () => {
       const file = await readFile(path.join(subtitles, exported.fileName), 'utf8');
       expect(file).toContain('おはよう'); expect(file).toContain('早上好'); expect(file).toContain('明天见');
 
+      // Structure: allowing translation writes does not cover splitting or inserting; each is one undo step.
+      const splitting = call(agent, 'split_studio_cue', { documentId, revision: rewritten.value.revision, cueId: cueIds[1], splitBefore: '天気' });
+      await uiExpect(dialog(page)).toContainText('修改字幕结构');
+      await uiExpect(dialog(page)).toContainText('拆成两条');
+      await decline(page).click();
+      expect((await splitting).error).toBe('declined_by_user');
+      await uiExpect(rows).toHaveCount(3);
+      const splitAgain = call(agent, 'split_studio_cue', { documentId, revision: rewritten.value.revision, cueId: cueIds[1], splitBefore: '天気' });
+      await uiExpect(dialog(page)).toContainText('拆成两条');
+      await uiExpect(dialog(page).getByTestId('external-agent-confirm-items')).toContainText('天気だね');
+      await shot(page, 'confirm-split-zh-light-1280');
+      await allow(page).click();
+      const split = (await splitAgain).value;
+      expect(split).toMatchObject({ cueId: expect.any(String), basis: 'proportional' });
+      await uiExpect(rows).toHaveCount(4);
+      await uiExpect(rows.nth(1).locator('[data-field=source]')).toHaveText('いい');
+      await uiExpect(rows.nth(2).locator('[data-field=source]')).toHaveText('天気だね');
+      const inserting = call(agent, 'insert_studio_cue', { documentId, revision: split.revision, cueId: cueIds[2], position: 'after', startMs: 4000, endMs: 4500, text: '补一句' });
+      await uiExpect(dialog(page)).toContainText('之后插入一条新字幕');
+      await page.getByText('本次连接内允许此类操作，不再询问').click();
+      await allow(page).click();
+      const inserted = (await inserting).value;
+      expect(inserted).toMatchObject({ cueId: expect.any(String), revision: split.revision + 1 });
+      await uiExpect(rows).toHaveCount(5);
+      await uiExpect(rows.nth(4).locator('[data-field=source]')).toHaveText('补一句');
+      // Allowed for this connection now.
+      const secondInsert = await call(agent, 'insert_studio_cue', { documentId, revision: inserted.revision, cueId: cueIds[0], position: 'before', startMs: 0, endMs: 500, text: 'はじめ' });
+      expect(secondInsert.error).toBeNull();
+      await uiExpect(dialog(page)).toBeHidden();
+      await uiExpect(rows).toHaveCount(6);
+      expect((await call(agent, 'insert_studio_cue', { documentId, revision: secondInsert.value.revision, cueId: cueIds[0], position: 'after', startMs: 9000, endMs: 9500, text: 'x' })).error).toBe('invalid_time');
+      await uiExpect(undo).toHaveAccessibleName(/插入/);
+      for (let step = 0; step < 3; step++) await undo.click();
+      await uiExpect(rows).toHaveCount(3);
+      const restored = (await call(agent, 'read_studio_document', { documentId, trackId: track.trackId })).value;
+      expect(restored.cues.map((cue: { text: string }) => cue.text)).toEqual(['おはよう', 'いい天気だね', 'また明日']);
+      exported.revision = restored.document.revision;
+
       // Auto: writes run silently, but overwriting a file is always asked; declining leaves it alone.
       await setTrust('auto');
       // A plain write runs without asking.
@@ -248,6 +286,12 @@ describe('external agents translate with FusionKit without an API key', () => {
       await shot(page, 'confirm-overwrite-en-dark-900');
       await decline(page).click();
       expect((await englishOverwrite).error).toBe('declined_by_user');
+      const englishInsert = call(later, 'insert_studio_cue', { documentId, revision: direct.document.revision, cueId: direct.cues[2].cueId, position: 'after', startMs: 4000, endMs: 4600, text: 'A line that was missing from the end of the episode' });
+      await uiExpect(dialog(page)).toContainText('claude-code wants to change the subtitle structure');
+      await uiExpect(dialog(page)).toContainText('Insert a new line after line 3');
+      await shot(page, 'confirm-insert-en-dark-900');
+      await decline(page).click();
+      expect((await englishInsert).error).toBe('declined_by_user');
       expect(errors).toEqual([]);
     } finally {
       for (const client of clients) await client.close().catch(() => undefined);

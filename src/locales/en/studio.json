@@ -270,7 +270,9 @@
     "interrupted": "Translation was interrupted. Completed translations have been kept.",
     "resource_busy": "This shared resource is in use. Wait for tasks or resource operations in both subtitle tools to finish, then retry.",
     "translation_record_unavailable": "The execution record is missing, damaged, or incompatible with this version. The task cannot continue safely. Saved translations are retained; repair the record or create a new translation.",
-    "knowledge_check_failed": "Automatic translation knowledge did not pass its checks. Your source subtitles are saved. View the knowledge issues, adjust your choices, and check again."
+    "knowledge_check_failed": "Automatic translation knowledge did not pass its checks. Your source subtitles are saved. View the knowledge issues, adjust your choices, and check again.",
+    "invalid_pattern": "This regular expression is not valid.",
+    "pattern_too_slow": "The expression is too complex, so the search stopped. Simplify it and try again."
   },
   "diagnostics": {
     "empty_document": "No timed subtitle text",
@@ -797,7 +799,8 @@
       "split": "split a cue",
       "insert": "insert a cue",
       "replace": "replace in {{count}} cue(s)",
-      "agent": "External agent wrote {{count}} translations"
+      "agent": "External agent wrote {{count}} translations",
+      "stretch": "stretch {{count}} cue(s)"
     }
   },
   "cue_help": {
@@ -945,7 +948,14 @@
     "summary_structure": "Suggested: {{parts}} ({{total}} checked)",
     "prepared_by_agent": "The Agent prepared these changes from your request; nothing changes until you apply them.",
     "reading": "Reading {{done}} / {{total}} cues…",
-    "summary_prepared": "Prepared: {{parts}}"
+    "summary_prepared": "Prepared: {{parts}}",
+    "tag_split": "Split",
+    "tag_insert_before": "Insert before line {{number}}",
+    "tag_insert_after": "Insert after line {{number}}",
+    "part_splits": "{{count}} split(s)",
+    "part_inserts": "{{count}} insertion(s)",
+    "split_at": "split at {{time}}",
+    "split_basis_given": "Given time"
   },
   "agent": {
     "suggest_fix": "Fix a misheard word",
@@ -1053,8 +1063,25 @@
     "shift_checking": "Checking…",
     "shift_beyond_media": "They would end after the media",
     "shift_failed": "Could not check the shift; try again",
-    "shift_document": "Shift the whole document…",
-    "unknown": "Unknown"
+    "shift_document": "Adjust the whole document's time…",
+    "unknown": "Unknown",
+    "adjust_title": "Adjust time",
+    "adjust_mode": "How to adjust",
+    "mode_shift": "Shift",
+    "mode_stretch": "Stretch",
+    "stretch_description_all": "Stretch or compress the times of all {{count}} cues by a ratio, for a video at a different frame rate (such as 25 and 23.976).",
+    "stretch_description_from": "Stretch or compress the times after the start of line {{number}} by a ratio; earlier lines stay as they are.",
+    "stretch_source": "Ratio",
+    "stretch_source_rates": "Frame rates",
+    "stretch_source_custom": "Custom ratio",
+    "stretch_subtitle_fps": "Subtitles made for",
+    "stretch_video_fps": "Video frame rate",
+    "stretch_ratio": "Times ×{{ratio}}",
+    "stretch_custom_label": "Ratio (0.5–2, up to 6 decimals)",
+    "stretch_invalid": "The ratio must be between 0.5 and 2, and not 1",
+    "stretch_preview": "{{count}} cues · last one {{from}} → {{to}}",
+    "stretch_listen": "Play line {{number}} at its stretched time",
+    "stretch_apply": "Stretch"
   },
   "cue_split": {
     "menu": "Split cue…",
@@ -1108,7 +1135,11 @@
     "scope_target": "Translation",
     "scope_both": "Both",
     "replace": "Replace in this cue (Enter)",
-    "replace_all": "Replace all ({{count}} cues)"
+    "replace_all": "Replace all ({{count}} cues)",
+    "whole_word": "Match whole word (Alt+W). Chinese and Japanese text still matches character by character",
+    "regex": "Use regular expression (Alt+R)",
+    "invalid_pattern": "Invalid regular expression",
+    "pattern_too_slow": "Expression too complex"
   },
   "cue_audio": {
     "play": "Play original audio",

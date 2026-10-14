@@ -15,6 +15,7 @@ export const AGENT_PAGES = {
   subtitle_extractor: "/tools/subtitle/extractor",
   local_subtitle_transcriber: LOCAL_SUBTITLE_TRANSCRIBER_ROUTE,
   name_translator: "/tools/rename/name-translator",
+  text_translator: "/tools/text/translator",
   model_settings: "/setting",
   agent_settings: "/setting",
 } as const satisfies Record<string, string>;

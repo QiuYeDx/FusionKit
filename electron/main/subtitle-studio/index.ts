@@ -13,9 +13,9 @@ import { SourceLocationService } from './source-location-service';
 import { CueMediaService } from './cue-media-service';
 import { CueAudioClipper, readCueAudio } from './cue-audio-clip';
 import { recognizeCue } from './cue-recognize-service';
-import { shiftProblem, shiftStart } from '../../../src/subtitle-studio/cue-shift';
+import { shiftProblem, shiftStart, stretchAnchor, stretchProblem, stretchTime } from '../../../src/subtitle-studio/cue-shift';
 import { suggestCueSplit } from '../../../src/subtitle-studio/cue-split';
-import { searchDocument } from '../../../src/subtitle-studio/cue-find';
+import { searchCuesInDocument } from './cue-find-worker';
 import { CUE_MEDIA_EXTENSIONS } from '../../../src/subtitle-studio/cue-audio';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
@@ -497,14 +497,25 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           const problem = shiftProblem(doc.cues, from, deltaMs, doc.schemaVersion === 2 ? doc.origin.durationMs : undefined);
           return { ok: true, value: { count: doc.cues.length - from, ...(problem ? { problem } : {}) } };
         }
+        if (method === 'previewCueStretch') {
+          const { ratio, fromCueId } = requestSchemas.previewCueStretch.parse(payload);
+          const from = shiftStart(doc.cues, fromCueId);
+          const anchor = stretchAnchor(doc.cues, from, fromCueId);
+          const problem = stretchProblem(doc.cues, from, ratio, anchor, doc.schemaVersion === 2 ? doc.origin.durationMs : undefined);
+          const last = doc.cues.at(-1)?.timing;
+          return { ok: true, value: { count: doc.cues.length - from, ...(problem ? { problem } : {}),
+            ...(last ? { lastBeforeMs: last.startMs, lastAfterMs: stretchTime(last.startMs, anchor, ratio), ...(last.endMs === null ? {} : { lastEndAfterMs: stretchTime(last.endMs, anchor, ratio) }) } : {}) } };
+        }
         if (method === 'suggestCueSplit') {
           const { cueId, offset } = requestSchemas.suggestCueSplit.parse(payload);
           return { ok: true, value: suggestCueSplit(doc, cueId, offset) };
         }
         if (method === 'searchCues') {
-          const { query, field, trackId, matchCase } = requestSchemas.searchCues.parse(payload);
+          const { query, field, trackId, matchCase, wholeWord, regex } = requestSchemas.searchCues.parse(payload);
           if (trackId && !doc.translationTracks.some(track => track.id === trackId)) throw new StudioError('invalid_input');
-          return { ok: true, value: searchDocument(doc, { query, field, matchCase, ...(trackId ? { trackId } : {}) }) };
+          // Regular expressions run in a worker thread that is stopped when a pattern is too slow.
+          const value = await searchCuesInDocument(doc, { query, field, matchCase, wholeWord, regex, ...(trackId ? { trackId } : {}) }); alive();
+          return { ok: true, value };
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
         if (!doc.capabilities.preserveSource) throw new StudioError('unsupported_feature');

@@ -48,6 +48,9 @@ export async function buildTranscriptionUiApp(mode: 'controlled' | 'actual-missi
           if (!resolved) throw new Error(`UI fixture cannot resolve application alias ${args.path}`);
           return { path: resolved };
         });
+        // Vite `?raw` imports (the bundled agent skill) load as text, as in the production build.
+        build.onResolve({ filter: /\?raw$/ }, args => ({ path: path.resolve(args.resolveDir, args.path.slice(0, -'?raw'.length)), namespace: 'raw-text' }));
+        build.onLoad({ filter: /.*/, namespace: 'raw-text' }, async args => ({ contents: await readFile(args.path, 'utf8'), loader: 'text' }));
         build.onLoad({ filter: /[\\/]subtitle-studio[\\/]transcription[\\/]runtime\.ts$/ }, async args => {
           if (path.resolve(args.path) !== runtimeSource) throw new Error(`Unexpected runtime substitution ${args.path}`);
           substitutions++;

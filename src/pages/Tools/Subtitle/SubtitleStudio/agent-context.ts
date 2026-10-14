@@ -4,6 +4,8 @@ import type { DocumentPage, StudioResult, SubtitleStudioApi } from '@/subtitle-s
 import { reportPageEvent, type AgentPageContext, type PageSuggestion, type PageToolSet } from '@/agent/page-context';
 import type { CueRevisionOutcome, CueRevisionPreset, StructureCounts } from './StudioCueRevision';
 import { MERGE_LIMIT, mergeProposal, parseStudioTime, type CueStructureProposal } from '@/subtitle-studio/cue-structure';
+import { defaultInsertTiming, insertTimeProblem, splitHalves, splitOffsetAt } from '@/subtitle-studio/cue-split';
+import { cueTextProblem, normalizeCueText } from '@/subtitle-studio/cue-edit-contract';
 import type { ConsistencyOutcome } from './StudioConsistencyCheck';
 import type { CueRevisionHint } from '@/subtitle-studio/cue-revision-contract';
 import type { CueTrack } from './StudioCueMenu';
@@ -95,7 +97,8 @@ const reviseSchema = z.object({
 function reportApplied(count: number, hints: CueRevisionHint[], changes?: StructureCounts) {
   reportPageEvent({ kind: 'revision_applied',
     values: { count, hints: hints.slice(0, 5).map(hint => `${clip(hint.source)} → ${clip(hint.target)}`).join('; '), hintCount: hints.length,
-      ...(changes?.merges ? { merged: changes.merges } : {}), ...(changes?.deletes ? { deleted: changes.deletes } : {}), ...(changes?.timings ? { retimed: changes.timings } : {}) } });
+      ...(changes?.merges ? { merged: changes.merges } : {}), ...(changes?.deletes ? { deleted: changes.deletes } : {}), ...(changes?.timings ? { retimed: changes.timings } : {}),
+      ...(changes?.splits ? { split: changes.splits } : {}), ...(changes?.inserts ? { inserted: changes.inserts } : {}) } });
 }
 
 const EDIT_LIMIT = 200;
@@ -107,6 +110,17 @@ const editSchema = z.object({
     z.object({ kind: z.literal('delete'), numbers: z.array(cueNumber).min(1).max(EDIT_LIMIT) }).strict(),
     z.object({ kind: z.literal('timing'), number: cueNumber, start: time.optional(), end: z.union([time, z.literal('unknown')]).optional() }).strict()
       .describe('New start and/or end of one cue; end "unknown" only for LRC documents.'),
+    z.object({ kind: z.literal('split'), number: cueNumber,
+      before: z.string().min(1).max(200).describe('The words the second cue starts with, copied exactly from the cue\u2019s source text.'),
+      occurrence: z.number().int().min(1).max(100).optional().describe('Which appearance of those words, from 1, when they appear more than once.'),
+      time: time.optional().describe('When the second cue starts; by default it is worked out from the word timing or the share of the text.'),
+      translation: z.object({ first: z.string().trim().min(1).max(2000), second: z.string().trim().min(1).max(2000) }).strict().optional()
+        .describe('The shown translation split the same way; without it the first cue keeps the translation, marked as outdated.'),
+    }).strict().describe('Split one cue into two where the second part starts.'),
+    z.object({ kind: z.literal('insert'), number: cueNumber, position: z.enum(['before', 'after']), text: z.string().trim().min(1).max(2000),
+      translation: z.string().trim().min(1).max(2000).optional().describe('A translation for the shown translation track.'),
+      start: time.optional(), end: z.union([time, z.literal('unknown')]).optional(),
+    }).strict().describe('Insert a new cue before or after one; by default it fills the gap next to it (at most two seconds).'),
   ])).min(1).max(EDIT_LIMIT),
 }).strict();
 const duplicatesSchema = z.object({
@@ -130,7 +144,11 @@ async function cuesByNumber(deps: StudioAgentDeps, page: DocumentPage, numbers: 
 /** The structure proposals for the edits the user asked for, or why they cannot be made. */
 async function prepareEdits(deps: StudioAgentDeps, page: DocumentPage, edits: z.infer<typeof editSchema>['edits'], check: () => void): Promise<CueStructureProposal[]> {
   const total = page.summary.cueCount;
-  const numbers = edits.flatMap(edit => edit.kind === 'merge' ? Array.from({ length: Math.max(0, edit.to - edit.from + 1) }, (_, offset) => edit.from + offset) : edit.kind === 'delete' ? edit.numbers : [edit.number]);
+  // An insert also claims the neighbour on its side, so two inserts into one gap overlap.
+  const neighbour = (edit: { number: number; position: 'before' | 'after' }) => edit.position === 'after' ? edit.number + 1 : edit.number - 1;
+  const numbers = edits.flatMap(edit => edit.kind === 'merge' ? Array.from({ length: Math.max(0, edit.to - edit.from + 1) }, (_, offset) => edit.from + offset)
+    : edit.kind === 'delete' ? edit.numbers
+    : edit.kind === 'insert' ? [edit.number, neighbour(edit)].filter(number => number >= 1 && number <= total) : [edit.number]);
   if (numbers.some(number => number > total)) throw new PageFailure('invalid_cue_number');
   if (numbers.length > EDIT_LIMIT * 2 || new Set(numbers).size !== numbers.length) throw new PageFailure(new Set(numbers).size !== numbers.length ? 'overlapping_edits' : 'too_many_edits');
   const { cues, track } = await cuesByNumber(deps, page, numbers, check);
@@ -145,6 +163,42 @@ async function prepareEdits(deps: StudioAgentDeps, page: DocumentPage, edits: z.
         const entry = track?.entries[cue.id];
         proposals.push({ kind: 'delete', cueId: cue.id, index: cue.index, current: { source: cue.source, ...(entry && entry.sourceRevision === cue.sourceRevision ? { target: entry.text } : {}) }, timing: { ...cue.timing } });
       }
+    } else if (edit.kind === 'split') {
+      const cue = cues.get(edit.number)!;
+      const offset = splitOffsetAt(cue.source.plain, edit.before, edit.occurrence);
+      if (offset === null) throw new PageFailure('invalid_split');
+      const sources = splitHalves(cue.source.plain, offset);
+      const entry = track?.entries[cue.id];
+      const current = { source: cue.source, ...(entry && entry.sourceRevision === cue.sourceRevision ? { target: entry.text } : {}) };
+      const targets = edit.translation ? [normalizeCueText(edit.translation.first), normalizeCueText(edit.translation.second)] as [string, string] : undefined;
+      if (targets && (!track || targets.some(text => !text || cueTextProblem(text)))) throw new PageFailure(track ? 'invalid_text' : 'no_translation_track');
+      let splitMs: number, basis: 'words' | 'proportional' | 'given';
+      if (edit.time !== undefined) {
+        const given = parseStudioTime(edit.time);
+        if (given === null || given <= cue.timing.startMs || (cue.timing.endMs !== null && given >= cue.timing.endMs)) throw new PageFailure('invalid_time');
+        splitMs = given; basis = 'given';
+      } else {
+        ({ splitMs, basis } = unwrap(await deps.api().suggestCueSplit({ documentId: page.summary.id, revision: page.summary.revision, cueId: cue.id, offset })));
+        check();
+      }
+      proposals.push({ kind: 'split', cueId: cue.id, index: cue.index, current, timing: { ...cue.timing }, sources, splitMs, basis, ...(targets ? { targets } : {}) });
+    } else if (edit.kind === 'insert') {
+      const anchor = cues.get(edit.number)!;
+      const source = normalizeCueText(edit.text), target = edit.translation ? normalizeCueText(edit.translation) : undefined;
+      if (!source || cueTextProblem(source) || (target !== undefined && (!target || cueTextProblem(target)))) throw new PageFailure('invalid_text');
+      if (target !== undefined && !track) throw new PageFailure('no_translation_track');
+      // The cues on both sides of the new one: their starts bound its start.
+      const previous = cues.get(edit.position === 'after' ? edit.number : edit.number - 1), next = cues.get(edit.position === 'after' ? edit.number + 1 : edit.number);
+      const around = [previous, next].filter((item): item is NonNullable<typeof item> => !!item);
+      const defaults = defaultInsertTiming(around, edit.position === 'after' ? 0 : around.indexOf(anchor), edit.position);
+      const startMs = edit.start === undefined ? defaults.startMs : parseStudioTime(edit.start);
+      const endMs = edit.end === undefined ? defaults.endMs : edit.end === 'unknown' ? null : parseStudioTime(edit.end);
+      const format = page.summary.origin.format;
+      const media = page.summary.origin.format === 'media' && 'durationMs' in page.summary.origin ? page.summary.origin.durationMs : undefined;
+      if (startMs === null || (edit.end !== undefined && edit.end !== 'unknown' && endMs === null) || insertTimeProblem({ startMs, endMs,
+        previousStartMs: previous?.timing.startMs, nextStartMs: next?.timing.startMs, mediaDurationMs: media,
+        allowUnknownEnd: format !== 'media' && (format === 'lrc' || anchor.timing.endMs === null) })) throw new PageFailure('invalid_time');
+      proposals.push({ kind: 'insert', cueId: anchor.id, index: anchor.index, position: edit.position, timing: { startMs, endMs }, source, ...(target ? { target } : {}) });
     } else {
       const cue = cues.get(edit.number)!;
       const startMs = edit.start === undefined ? cue.timing.startMs : parseStudioTime(edit.start);
@@ -188,7 +242,7 @@ function consistencyResult(outcome: ConsistencyOutcome): Result {
 function outcomeResult(outcome: CueRevisionOutcome): Result {
   switch (outcome.status) {
     case 'ready': return ok({ status: 'awaiting_user_review', checkedCues: outcome.checked, proposedRevisions: outcome.proposals, notes: outcome.notes, ...(outcome.plan ? { plan: outcome.plan } : {}),
-      ...(outcome.structure ? { structure: { merges: outcome.structure.merges, deletes: outcome.structure.deletes, timings: outcome.structure.timings } } : {}),
+      ...(outcome.structure ? { structure: { merges: outcome.structure.merges, deletes: outcome.structure.deletes, timings: outcome.structure.timings, splits: outcome.structure.splits, inserts: outcome.structure.inserts } } : {}),
       ...(outcome.knowledgeHints?.length ? { knowledgeHints: outcome.knowledgeHints.slice(0, 5).map(hint => ({ source: clip(hint.source), target: clip(hint.target) })) } : {}),
       nextAction: outcome.proposals ? 'The revision preview is open in Subtitle Studio. The user reviews the changes and applies them there; nothing has been written yet.' : 'No change was proposed; the preview is open for the user to adjust the request.' });
     case 'needs_confirmation': return ok({ status: 'awaiting_scan_confirmation', cueCount: outcome.count, plan: outcome.plan,
@@ -284,7 +338,8 @@ export function createStudioAgentTools(deps: StudioAgentDeps): PageToolSet {
       }),
     },
     studio_prepare_cue_edits: {
-      description: 'Prepare structural edits the user asked for in the open Subtitle Studio document, by cue number: merge consecutive cues into one (texts joined without repeating; from the first start to the last end), delete cues, or change a cue\u2019s start or end time. ' +
+      description: 'Prepare structural edits the user asked for in the open Subtitle Studio document, by cue number: merge consecutive cues into one (texts joined without repeating; from the first start to the last end), delete cues, change a cue\u2019s start or end time, ' +
+        'split a cue in two where the second part starts (at its word timing or by the share of the text, unless a time is given), or insert a new cue before or after one (by default filling the gap next to it). ' +
         'No model is used. The edits open in the revision preview, where the user reviews and applies them as one undoable edit; this tool never writes.',
       inputSchema: editSchema,
       execute: (input: unknown, options?: { abortSignal?: AbortSignal }) => guard(async () => {
@@ -326,7 +381,7 @@ export const STUDIO_AGENT_INSTRUCTIONS = [
   'To change subtitle text (misheard names or terms, what a line should say, punctuation, translations), call studio_prepare_revision. It opens the AI revision preview; the user reviews and applies the changes there. Never claim the text has been changed.',
   'When the user names wrong spellings, use scope=document and pass terms with the wrong forms and likely mis-transcriptions (homophones, near misses), so no extra planning request is needed; for numbered lines pass lines. Use scope=selection when the user refers to the selected cues.',
   'Use studio_read_cues or studio_find_cues to look at the text before answering questions about it. Translating, exporting and library work keep using the fixed Subtitle Studio tools.',
-  'To merge, delete or retime cues the user names ("merge 19 and 20", "start line 5 at 00:01:02.300"), call studio_prepare_cue_edits. To find lines speech recognition repeated, call studio_find_duplicates; for repeats only the model can judge, studio_prepare_revision may also propose merges and deletions. The user applies them in the preview.',
+  'To merge, delete, retime, split or insert cues the user names ("merge 19 and 20", "start line 5 at 00:01:02.300", "split line 7 before 不过", "line 12 is missing 谢谢 after it"), call studio_prepare_cue_edits; for a split, copy the words the second part starts with exactly from the source text (read the cue first). To find lines speech recognition repeated, call studio_find_duplicates; for repeats only the model can judge, studio_prepare_revision may also propose merges and deletions. The user applies them in the preview.',
   'When the user asks whether names or terms are consistent or wants them unified across the document, call studio_check_consistency (optionally with a focus); the user unifies them in the check window.',
   'When the user wants a wording kept in translation materials (after a revision or not), take the exact source form from the cues the revision touched, use the source and translation languages of the document as the language pair, and prepare it with prepare_knowledge_changes.',
 ].join(' ');

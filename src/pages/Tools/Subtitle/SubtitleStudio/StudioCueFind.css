@@ -8,6 +8,7 @@
 .studio-cue-find-replace { padding-left: 34px; }
 .studio-cue-find-scope { padding-left: 34px; }
 .studio-cue-find [data-state=on] { background: var(--accent); color: var(--accent-foreground); }
+.studio-cue-find-count[data-error] { color: var(--destructive); }
 mark.studio-cue-find-mark { border-radius: 2px; background: color-mix(in oklab, #facc15 45%, transparent); color: inherit; }
 .studio-cue-list tbody tr[data-find-current] mark.studio-cue-find-mark { background: color-mix(in oklab, #f97316 50%, transparent); outline: 1px solid #ea580c; }
 .dark mark.studio-cue-find-mark { background: color-mix(in oklab, #facc15 35%, transparent); }

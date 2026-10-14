@@ -193,3 +193,84 @@
 | --- | --- | --- | --- | --- |
 | V-TOOLS-07-1 | unit | required | pnpm vitest run src/agent/external/tools/knowledge-navigation.test.ts src/agent/knowledge-tools.test.ts | - |
 | V-TOOLS-07-2 | integration | required | pnpm vitest run test/external-agent-tools.electron.test.ts（资料变更对话框允许后入库、拒绝不变；打开工作台后 currentPage 变化；转写任务读取的错误码） | - |
+
+### T-TOOLS-08 经典工具：转换、提取与任务 / 页面
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I4 |
+| 需求 | R-TOOLS-11, R-TOOLS-13 |
+| 验收 | AC-TOOLS-11-1, AC-TOOLS-11-2, AC-TOOLS-11-3, AC-TOOLS-11-4, AC-TOOLS-13-1, AC-TOOLS-13-2 |
+| 依赖 | - |
+| 写集 | src/agent/external/catalog.ts, src/agent/external/tools/classic.ts, src/agent/external/tools/navigation.ts, src/agent/navigation-tools.ts, src/agent/external/tools/index.ts, src/agent/external/tools/classic-tools.test.ts, src/agent/external/confirmations.ts, src/pages/AgentDock/ExternalAgentConfirmDialog.tsx, src/locales/ |
+| 负责人 | Claude |
+| 依赖确认 | - |
+| 完成日期 | 2026-10-14 |
+| 实施记录 | records/i4/T-TOOLS-08.md |
+| 集成版本 | - |
+
+#### 实现要点
+
+按 design.md「I4 → 工具实现」的转换 / 提取与任务（`classic.ts`）、页面枚举、`classic_files` 组与确认文字。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-TOOLS-08-1 | unit | required | node node_modules/vitest/vitest.mjs run src/agent/external：路径收集、逐文件结果与跳过、编号 / 覆盖、三档信任与放行、`too_many_files` / `path_not_found`、任务映射、页面枚举 | - |
+| V-TOOLS-08-2 | static | required | pnpm exec tsc --noEmit -p tsconfig.json；pnpm run i18n:check | - |
+
+### T-TOOLS-09 经典工具：按外部 Agent 的名称重命名
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I4 |
+| 需求 | R-TOOLS-12 |
+| 验收 | AC-TOOLS-12-1, AC-TOOLS-12-2, AC-TOOLS-12-3, AC-TOOLS-12-4 |
+| 依赖 | T-TOOLS-08 |
+| 写集 | src/agent/external/catalog.ts, src/agent/external/tools/classic.ts, src/agent/external/tools/index.ts, src/agent/external/tools/classic-tools.test.ts, src/agent/external/confirmations.ts, src/pages/AgentDock/ExternalAgentConfirmDialog.tsx, src/locales/ |
+| 负责人 | Claude |
+| 依赖确认 | T-TOOLS-08：同一工作树，确认组与确认框扩展已就绪 |
+| 完成日期 | 2026-10-14 |
+| 实施记录 | records/i4/T-TOOLS-09.md |
+| 集成版本 | - |
+
+#### 实现要点
+
+按 design.md「I4 → 工具实现」的名称部分（`classic.ts`）、名称校验、preflight 直达、“旧名 → 新名”确认行；初版后渲染审查确认框并修复复验。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-TOOLS-09-1 | unit | required | node node_modules/vitest/vitest.mjs run src/agent/external：名称校验、preflight 问题直达不确认、确认行与截断、apply / undo 结果、busy、只读拒绝、自动执行仍确认 | - |
+| V-TOOLS-09-2 | manual | required | 查看重命名确认框截图（4 项、25 项截断；1280 浅色、900 深色），问题修复后复验 | - |
+
+### T-TOOLS-10 I4 端到端、说明与文档
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I4 |
+| 需求 | R-TOOLS-11, R-TOOLS-12, R-TOOLS-13 |
+| 验收 | AC-TOOLS-11-1, AC-TOOLS-12-1, AC-TOOLS-12-3, AC-TOOLS-13-2 |
+| 依赖 | T-TOOLS-09 |
+| 写集 | test/external-agent-classic.electron.test.ts, src/agent/external/instructions.ts, .agents/skills/fusionkit-app/SKILL.md, docs/features/external-agent/README.md, README.md, README.en.md, CHANGELOG.md, docs/TODO.md |
+| 负责人 | Claude |
+| 依赖确认 | T-TOOLS-09：同一工作树，单元测试通过后端到端 |
+| 完成日期 | 2026-10-14 |
+| 实施记录 | records/i4/T-TOOLS-10.md |
+| 集成版本 | - |
+
+#### 实现要点
+
+真实 MCP 客户端端到端（临时目录与临时用户数据）；说明文字与 Skill；README / 外部 Agent README 工具表与验收清单、CHANGELOG 工具数与“当前范围”、TODO。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-TOOLS-10-1 | browser | required | 运行 test/external-agent-classic.electron.test.ts 与 test/external-agent.electron.test.ts：真实 MCP 客户端转换、提取、重命名与撤销、只读拒绝、打开页面；确认框截图 | - |
+| V-TOOLS-10-2 | integration | required | node node_modules/vitest/vitest.mjs run src/agent test/external-agent --maxWorkers=4 --minWorkers=1 | - |

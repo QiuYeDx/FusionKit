@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { StudioError, validateDocument, type SubtitleCue, type SubtitleText, type TranslationEntry } from '../../../src/subtitle-studio/domain';
 import { CUE_EDIT_LIMIT, cueEditOperationSchema, storedTextProblem, type CueEditOperation, type RemovedCues, type SingleCueEditOperation } from '../../../src/subtitle-studio/cue-edit-contract';
 import type { DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
-import { shiftProblem, shiftStart } from '../../../src/subtitle-studio/cue-shift';
+import { shiftProblem, shiftStart, stretchAnchor, stretchProblem, stretchTime } from '../../../src/subtitle-studio/cue-shift';
 import { replaceText } from '../../../src/subtitle-studio/cue-find';
+import { validCueFindPattern } from '../../../src/subtitle-studio/cue-find-query';
+import { replaceMatches, replaceMatchKey, type ReplaceMatches } from './cue-find-worker';
 import type { DocumentRepository } from './document-repository';
 import { sourceDigest } from './translation-planner';
 import { retireResumableTasks } from './translation-service';
@@ -20,7 +22,7 @@ function assertStoredText(text: SubtitleText) {
  * running translation; paused tasks that the edit invalidates are stopped so
  * they cannot later fail to resume.
  */
-export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation): AppliedCueEdit {
+export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation, found?: ReplaceMatches): AppliedCueEdit {
   const parsed = cueEditOperationSchema.safeParse(input);
   if (!parsed.success) throw new StudioError('invalid_input');
   const doc = snapshot.document;
@@ -258,6 +260,40 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
       applied = { undo: { kind: 'shift', deltaMs: -operation.deltaMs, ...(operation.fromCueId ? { fromCueId: operation.fromCueId } : {}) }, changed: doc.cues.length - from, stoppedTasks: 0 };
       break;
     }
+    case 'stretch': {
+      const from = shiftStart(doc.cues, operation.fromCueId);
+      const anchor = stretchAnchor(doc.cues, from, operation.fromCueId);
+      if (stretchProblem(doc.cues, from, operation.ratio, anchor, doc.schemaVersion === 2 ? doc.origin.durationMs : undefined)) throw new StudioError('invalid_input');
+      // The undo restores every time exactly: rounding makes the inverse ratio drift by a millisecond.
+      const before: [number, number | null][] = [];
+      for (const cue of doc.cues.slice(from) as SubtitleCue[]) {
+        const timing = cue.timing as { startMs: number; endMs: number | null };
+        before.push([timing.startMs, timing.endMs]);
+        timing.startMs = stretchTime(timing.startMs, anchor, operation.ratio);
+        if (timing.endMs !== null) timing.endMs = stretchTime(timing.endMs, anchor, operation.ratio);
+        cue.timingRevision++;
+      }
+      applied = { undo: { kind: 'retime', times: before, ...(operation.fromCueId ? { fromCueId: operation.fromCueId } : {}) }, changed: before.length, stoppedTasks: 0 };
+      break;
+    }
+    case 'retime': {
+      const from = shiftStart(doc.cues, operation.fromCueId);
+      const cues = doc.cues.slice(from) as SubtitleCue[];
+      if (cues.length !== operation.times.length) throw new StudioError('invalid_input');
+      const before: [number, number | null][] = [];
+      cues.forEach((cue, index) => {
+        const timing = cue.timing as { startMs: number; endMs: number | null };
+        const [startMs, endMs] = operation.times[index];
+        // An unknown end stays unknown and a known one stays known, as a stretch leaves them.
+        if ((endMs === null) !== (timing.endMs === null) || (endMs !== null && endMs < startMs)) throw new StudioError('invalid_input');
+        before.push([timing.startMs, timing.endMs]);
+        timing.startMs = startMs;
+        timing.endMs = endMs;
+        cue.timingRevision++;
+      });
+      applied = { undo: { kind: 'retime', times: before, ...(operation.fromCueId ? { fromCueId: operation.fromCueId } : {}) }, changed: cues.length, stoppedTasks: 0 };
+      break;
+    }
     case 'split': {
       const cue = cueOf(operation.cueId);
       const index = positions().get(cue.id)!;
@@ -301,17 +337,21 @@ export function applyCueEdit(snapshot: DocumentSnapshot, input: CueEditOperation
       if (operation.field !== 'source' && !track) throw new StudioError('invalid_input');
       // The replacement is typed text: no markup brackets, as in an inline edit.
       if (/[<>]/.test(operation.replacement)) throw new StudioError('invalid_input');
+      if (operation.regex && !validCueFindPattern(operation.query)) throw new StudioError('invalid_pattern');
+      const options = { matchCase: operation.matchCase, wholeWord: operation.wholeWord, regex: operation.regex };
+      // A regular expression's matches were found in a worker before the transaction (see CueEditService).
+      const matchesOf = (cueId: string, field: 'source' | 'target') => operation.regex && found ? found.get(replaceMatchKey(cueId, field)) ?? [] : undefined;
       const cues = operation.cueIds ? operation.cueIds.map(cueOf) : doc.cues as SubtitleCue[];
       const oldSources: Record<string, SubtitleText> = {};
       const targets: Record<string, TranslationEntry> = {};
       const touched = new Set<string>();
       for (const cue of cues) {
         if (operation.field !== 'target') {
-          const next = replaceText(cue.source, operation.query, operation.replacement, operation.matchCase);
+          const next = replaceText(cue.source, operation.query, operation.replacement, options, matchesOf(cue.id, 'source'));
           if (next) { oldSources[cue.id] = structuredClone(cue.source); writeSource(cue, next); touched.add(cue.id); }
         }
         const entry = track && operation.field !== 'source' ? track.entries[cue.id] : undefined;
-        const text = entry && replaceText(entry.text, operation.query, operation.replacement, operation.matchCase);
+        const text = entry && replaceText(entry.text, operation.query, operation.replacement, options, matchesOf(cue.id, 'target'));
         if (text) {
           assertStoredText(text);
           targets[cue.id] = { sourceRevision: cue.sourceRevision, sourceHash: sourceDigest(cue), text, origin: 'human', reviewStatus: 'reviewed' };
@@ -462,8 +502,33 @@ export class CueEditService {
   constructor(private repository: DocumentRepository) {}
 
   async apply(documentId: string, revision: number, operation: CueEditOperation, guard: () => void = () => {}) {
+    const found = await this.regexMatches(documentId, revision, operation); guard();
     let applied: AppliedCueEdit | undefined;
-    const snapshot = await this.repository.transact(documentId, revision, value => { applied = applyCueEdit(value, operation); }, guard);
+    const snapshot = await this.repository.transact(documentId, revision, value => { applied = applyCueEdit(value, operation, found); }, guard);
     return { snapshot, ...applied! };
+  }
+
+  /**
+   * A regular expression replace runs its pattern in a worker thread first, at the same
+   * revision, so a pattern that backtracks badly is stopped instead of blocking the app.
+   * Only a replace on its own may use a regular expression: in a batch, texts would change under it.
+   */
+  private async regexMatches(documentId: string, revision: number, operation: CueEditOperation): Promise<ReplaceMatches | undefined> {
+    const replaces = (operation.kind === 'batch' ? operation.operations : [operation]).filter(item => item.kind === 'replace' && item.regex);
+    if (!replaces.length) return undefined;
+    if (operation.kind !== 'replace') throw new StudioError('invalid_input');
+    if (!validCueFindPattern(operation.query)) throw new StudioError('invalid_pattern');
+    const doc = (await this.repository.readSnapshot(documentId)).document;
+    if (doc.revision !== revision) throw new StudioError('revision_conflict');
+    const track = operation.trackId ? doc.translationTracks.find(item => item.id === operation.trackId) : undefined;
+    const wanted = operation.cueIds ? new Set(operation.cueIds) : undefined;
+    const slots: { key: string; text: string }[] = [];
+    for (const cue of doc.cues) {
+      if (wanted && !wanted.has(cue.id)) continue;
+      if (operation.field !== 'target') slots.push({ key: replaceMatchKey(cue.id, 'source'), text: cue.source.plain });
+      const entry = track && operation.field !== 'source' ? track.entries[cue.id] : undefined;
+      if (entry) slots.push({ key: replaceMatchKey(cue.id, 'target'), text: entry.text.plain });
+    }
+    return replaceMatches(slots, operation.query, { matchCase: operation.matchCase, wholeWord: operation.wholeWord, regex: true });
   }
 }

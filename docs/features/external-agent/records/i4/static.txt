@@ -1,0 +1,12 @@
+$ pnpm exec tsc --noEmit -p tsconfig.json
+exit 0
+$ pnpm run i18n:check
+  Resolved keys   : 3214
+
+All source translation keys resolve.
+exit 0
+$ node scripts/subtitle-studio-provenance/shared-resource-integration.mjs
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit 0

@@ -270,7 +270,9 @@
     "interrupted": "翻訳が中断されました。完了した訳文は保持されています。",
     "resource_busy": "共有リソースは使用中です。両方の字幕ツールのタスクやリソース操作が終了してから再試行してください。",
     "translation_record_unavailable": "実行記録が見つからないか、破損しているか、このバージョンと互換性がないため、安全に再開できません。保存済みの訳文は保持されます。記録を修復するか、新しい翻訳を作成してください。",
-    "knowledge_check_failed": "自動翻訳の資料チェックに通りませんでした。元の字幕は保存されています。資料の問題を確認し、調整してから再チェックしてください。"
+    "knowledge_check_failed": "自動翻訳の資料チェックに通りませんでした。元の字幕は保存されています。資料の問題を確認し、調整してから再チェックしてください。",
+    "invalid_pattern": "正規表現が正しくありません。",
+    "pattern_too_slow": "式が複雑すぎるため検索を中止しました。簡単にしてから再試行してください。"
   },
   "diagnostics": {
     "empty_document": "時間付きの字幕本文がありません",
@@ -797,7 +799,8 @@
       "split": "字幕を分割",
       "insert": "字幕を挿入",
       "replace": "{{count}} 件の字幕を置換",
-      "agent": "外部エージェントが訳文を {{count}} 件書き込み"
+      "agent": "外部エージェントが訳文を {{count}} 件書き込み",
+      "stretch": "{{count}} 件の字幕の時間を伸縮"
     }
   },
   "cue_help": {
@@ -945,7 +948,14 @@
     "summary_structure": "提案：{{parts}}（{{total}} 件を確認）",
     "prepared_by_agent": "Agent が依頼に沿って用意した変更です。適用するまで反映されません。",
     "reading": "{{done}} / {{total}} 件を読み込み中…",
-    "summary_prepared": "用意した変更：{{parts}}"
+    "summary_prepared": "用意した変更：{{parts}}",
+    "tag_split": "分割",
+    "tag_insert_before": "{{number}} 件目の前に挿入",
+    "tag_insert_after": "{{number}} 件目の後に挿入",
+    "part_splits": "分割 {{count}} 件",
+    "part_inserts": "挿入 {{count}} 件",
+    "split_at": "{{time}} で分割",
+    "split_basis_given": "指定の時刻"
   },
   "agent": {
     "suggest_fix": "誤認識を直す",
@@ -1053,8 +1063,25 @@
     "shift_checking": "確認中…",
     "shift_beyond_media": "メディアの長さを超えます",
     "shift_failed": "確認できませんでした。もう一度お試しください",
-    "shift_document": "全体の時間をずらす…",
-    "unknown": "不明"
+    "shift_document": "全体の時間を調整…",
+    "unknown": "不明",
+    "adjust_title": "時間を調整",
+    "adjust_mode": "調整方法",
+    "mode_shift": "ずらす",
+    "mode_stretch": "比率で伸縮",
+    "stretch_description_all": "全 {{count}} 件の字幕の時間を比率で伸ばす・縮めます。フレームレートの違う映像（25 と 23.976 など）に合わせるときに使います。",
+    "stretch_description_from": "{{number}} 件目の開始を基準に、それ以降の時間を比率で伸ばす・縮めます。それより前は変わりません。",
+    "stretch_source": "換算方法",
+    "stretch_source_rates": "フレームレート",
+    "stretch_source_custom": "比率を指定",
+    "stretch_subtitle_fps": "字幕の元のフレームレート",
+    "stretch_video_fps": "映像のフレームレート",
+    "stretch_ratio": "時間 ×{{ratio}}",
+    "stretch_custom_label": "比率（0.5～2、小数 6 桁まで）",
+    "stretch_invalid": "比率は 0.5～2 の範囲で、1 以外にしてください",
+    "stretch_preview": "{{count}} 件 · 最後の字幕 {{from}} → {{to}}",
+    "stretch_listen": "伸縮後の時間で {{number}} 件目を再生",
+    "stretch_apply": "伸縮"
   },
   "cue_split": {
     "menu": "字幕を分割…",
@@ -1108,7 +1135,11 @@
     "scope_target": "訳文",
     "scope_both": "すべて",
     "replace": "この行で置換（Enter）",
-    "replace_all": "すべて置換（{{count}} 件）"
+    "replace_all": "すべて置換（{{count}} 件）",
+    "whole_word": "単語単位で検索（Alt+W）。中国語・日本語は文字単位のまま検索します",
+    "regex": "正規表現を使用（Alt+R）",
+    "invalid_pattern": "正規表現が正しくありません",
+    "pattern_too_slow": "式が複雑すぎます"
   },
   "cue_audio": {
     "play": "元の音声を再生",

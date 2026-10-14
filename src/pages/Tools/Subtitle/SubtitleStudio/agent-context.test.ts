@@ -132,7 +132,7 @@ describe('revisions the assistant prepared and the user applied', () => {
     const hints = [{ source: 'テイムフィールド家のお嬢様', target: '泰姆菲尔德家的大小姐', cueIds: ['cue-5'] }];
     opened[0].onSettled({ status: 'ready', checked: 2, proposals: 2, notes: [], knowledgeHints: hints });
     expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', knowledgeHints: [{ source: 'テイムフィールド家のお嬢様', target: '泰姆菲尔德家的大小姐' }] });
-    opened[0].preset.onApplied!(2, hints, { merges: 0, deletes: 0, timings: 0 });
+    opened[0].preset.onApplied!(2, hints, { merges: 0, deletes: 0, timings: 0, splits: 0, inserts: 0 });
     await vi.waitFor(() => expect(reported).toHaveLength(1));
     expect(reported[0]).toEqual({ kind: 'revision_applied', values: { count: 2, hintCount: 1, hints: 'テイムフィールド家のお嬢様 → 泰姆菲尔德家的大小姐' } });
   });
@@ -185,9 +185,9 @@ describe('structural edits the assistant prepares', () => {
     ]);
     // Only the pages holding the named cues are read, the visible one not again.
     expect(api.readDocumentPage).toHaveBeenCalledTimes(1);
-    opened[0].onSettled({ status: 'ready', checked: 3, proposals: 3, notes: [], structure: { merges: 1, deletes: 1, timings: 1 } });
-    expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', proposedRevisions: 3, structure: { merges: 1, deletes: 1, timings: 1 } });
-    preset.onApplied!(4, [], { merges: 1, deletes: 1, timings: 1 });
+    opened[0].onSettled({ status: 'ready', checked: 3, proposals: 3, notes: [], structure: { merges: 1, deletes: 1, timings: 1, splits: 0, inserts: 0 } });
+    expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', proposedRevisions: 3, structure: { merges: 1, deletes: 1, timings: 1, splits: 0, inserts: 0 } });
+    preset.onApplied!(4, [], { merges: 1, deletes: 1, timings: 1, splits: 0, inserts: 0 });
     await vi.waitFor(() => expect(reported).toHaveLength(1));
     expect(reported[0]).toMatchObject({ kind: 'revision_applied', values: { count: 4, merged: 1, deleted: 1, retimed: 1 } });
   });
@@ -209,8 +209,81 @@ describe('structural edits the assistant prepares', () => {
     const pending = call(tools, 'studio_find_duplicates', { scope: 'selection' });
     await vi.waitFor(() => expect(opened).toHaveLength(1));
     expect(opened[0]).toMatchObject({ cueIds: ['cue-102', 'cue-101', 'missing'], preset: { mode: 'duplicates', scope: 'selection' } });
-    opened[0].onSettled({ status: 'ready', checked: 2, proposals: 0, notes: [], structure: { merges: 0, deletes: 0, timings: 0 } });
+    opened[0].onSettled({ status: 'ready', checked: 2, proposals: 0, notes: [], structure: { merges: 0, deletes: 0, timings: 0, splits: 0, inserts: 0 } });
     expect((await pending).data).toMatchObject({ status: 'awaiting_user_review', proposedRevisions: 0 });
     expect(await call(createStudioAgentTools({ ...value, selection: () => [] }), 'studio_find_duplicates', { scope: 'selection' })).toMatchObject({ success: false, error: 'empty_selection' });
+  });
+});
+
+describe('splits and inserts the assistant prepares', () => {
+  it('splits where the second part starts, at the suggested time, with or without the translation', async () => {
+    const { value, opened, api } = deps();
+    const suggestCueSplit = vi.fn(async () => ({ ok: true, value: { splitMs: 100_400, basis: 'proportional' } }));
+    Object.assign(api, { suggestCueSplit });
+    const current = value.page()!;
+    current.cues[0] = { ...current.cues[0], source: text('甲。乙。') };
+    const tools = createStudioAgentTools(value);
+    const pending = call(tools, 'studio_prepare_cue_edits', { edits: [
+      { kind: 'split', number: 101, before: '乙', translation: { first: '甲。', second: '乙。' } },
+      { kind: 'split', number: 120, before: '120', time: '00:01:59.300' },
+    ] });
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    expect(suggestCueSplit).toHaveBeenCalledWith({ documentId: 'doc-1', revision: 7, cueId: 'cue-101', offset: 2 });
+    expect(opened[0].preset.structure).toEqual([
+      expect.objectContaining({ kind: 'split', cueId: 'cue-101', index: 100, sources: ['甲。', '乙。'], splitMs: 100_400, basis: 'proportional', targets: ['甲。', '乙。'] }),
+      expect.objectContaining({ kind: 'split', cueId: 'cue-120', sources: ['line', '120'], splitMs: 119_300, basis: 'given' }),
+    ]);
+    opened[0].onSettled({ status: 'ready', checked: 2, proposals: 2, notes: [], structure: { merges: 0, deletes: 0, timings: 0, splits: 2, inserts: 0 } });
+    expect((await pending).data).toMatchObject({ structure: { splits: 2, inserts: 0 } });
+  });
+
+  it('inserts with the gap next to a cue by default, or the given times', async () => {
+    const { value, opened } = deps();
+    const tools = createStudioAgentTools(value);
+    const pending = call(tools, 'studio_prepare_cue_edits', { edits: [
+      { kind: 'insert', number: 102, position: 'after', text: '补上的一句', translation: 'The missing line' },
+      { kind: 'insert', number: 150, position: 'before', text: '另一句', start: '00:02:28.900', end: '00:02:29.000' },
+    ] });
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    // Line 102 ends at 101.8 s and line 103 starts at 102 s: the gap is 0.2 s.
+    expect(opened[0].preset.structure).toEqual([
+      { kind: 'insert', cueId: 'cue-102', index: 101, position: 'after', timing: { startMs: 101_800, endMs: 102_000 }, source: '补上的一句', target: 'The missing line' },
+      { kind: 'insert', cueId: 'cue-150', index: 149, position: 'before', timing: { startMs: 148_900, endMs: 149_000 }, source: '另一句' },
+    ]);
+  });
+
+  it('refuses splits and inserts it cannot prepare, with stable codes and no preview', async () => {
+    const { value, opened } = deps();
+    const tools = createStudioAgentTools(value);
+    const refused = async (edits: unknown[], error: string) => expect(await call(tools, 'studio_prepare_cue_edits', { edits })).toMatchObject({ success: false, error });
+    await refused([{ kind: 'split', number: 101, before: '没有' }], 'invalid_split');
+    // "1" appears twice in "line 101": ambiguous without an occurrence.
+    await refused([{ kind: 'split', number: 101, before: '1' }], 'invalid_split');
+    // At the very start the first part would be empty.
+    await refused([{ kind: 'split', number: 101, before: 'line' }], 'invalid_split');
+    await refused([{ kind: 'split', number: 101, before: '101', time: '00:01:42.000' }], 'invalid_time');
+    await refused([{ kind: 'split', number: 101, before: '101' }, { kind: 'delete', numbers: [101] }], 'overlapping_edits');
+    // After 101 and before 102 is the same gap.
+    await refused([{ kind: 'insert', number: 101, position: 'after', text: 'a' }, { kind: 'insert', number: 102, position: 'before', text: 'b' }], 'overlapping_edits');
+    await refused([{ kind: 'insert', number: 101, position: 'after', text: 'a', start: '00:01:50.000' }], 'invalid_time');
+    await refused([{ kind: 'insert', number: 101, position: 'after', text: 'a', end: 'unknown' }], 'invalid_time');
+    await refused([{ kind: 'insert', number: 101, position: 'after', text: '<i>a</i>' }], 'invalid_text');
+    expect(opened).toHaveLength(0);
+    expect(await call(createStudioAgentTools({ ...value, track: () => undefined }), 'studio_prepare_cue_edits', { edits: [{ kind: 'insert', number: 101, position: 'after', text: 'a', translation: 'b' }] }))
+      .toMatchObject({ success: false, error: 'no_translation_track' });
+  });
+
+  it('reports applied splits and inserts with the other changes', async () => {
+    reported.length = 0;
+    const { setPageEventSink } = await import('@/agent/page-context');
+    setPageEventSink(event => { reported.push(event); });
+    const { value, opened } = deps();
+    const pending = call(createStudioAgentTools(value), 'studio_prepare_cue_edits', { edits: [{ kind: 'insert', number: 101, position: 'after', text: 'a' }] });
+    await vi.waitFor(() => expect(opened).toHaveLength(1));
+    opened[0].onSettled({ status: 'ready', checked: 1, proposals: 1, notes: [], structure: { merges: 0, deletes: 0, timings: 1, splits: 1, inserts: 1 } });
+    await pending;
+    opened[0].preset.onApplied!(3, [], { merges: 0, deletes: 0, timings: 1, splits: 1, inserts: 1 });
+    await vi.waitFor(() => expect(reported).toHaveLength(1));
+    expect(reported[0]).toMatchObject({ kind: 'revision_applied', values: { count: 3, retimed: 1, split: 1, inserted: 1 } });
   });
 });

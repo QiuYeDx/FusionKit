@@ -9,6 +9,7 @@ import type { CueEditOperation } from '../../src/subtitle-studio/cue-edit-contra
 import { searchDocument } from '../../src/subtitle-studio/cue-find';
 import { applyCueEdit, CueEditService } from '../../electron/main/subtitle-studio/cue-edit-service';
 import { DocumentRepository } from '../../electron/main/subtitle-studio/document-repository';
+import { searchCuesInDocument } from '../../electron/main/subtitle-studio/cue-find-worker';
 import { sourceDigest } from '../../electron/main/subtitle-studio/translation-planner';
 
 const time = (ms: number) => new Date(ms).toISOString().slice(11, 23).replace('.', ',');
@@ -86,5 +87,56 @@ describe('replacing text in cues', () => {
     const document = await current.read();
     const busy = { schemaVersion: 1, document, tasks: [{ status: 'running' }] } as unknown as Parameters<typeof applyCueEdit>[0];
     expect(() => applyCueEdit(busy, { kind: 'replace', query: '法尔童', replacement: 'x', matchCase: true, field: 'source' })).toThrow('resource_busy');
+  });
+});
+
+describe('regular expression and whole word replace', () => {
+  it('replaces with capture groups through the worker, and undoes it', async () => {
+    const current = await fixture(srt(30, index => index === 4 || index === 20));
+    const before = await current.read();
+    const replaced = await current.edit({ kind: 'replace', query: String.raw`(法)(尔)童`, replacement: '$1厄$2', matchCase: true, regex: true, field: 'source' });
+    expect(replaced.changed).toBe(2);
+    expect(replaced.snapshot.document.cues[4].source.plain).toBe('这是法厄尔');
+    const undone = await current.edit(replaced.undo);
+    expect(sources(undone.snapshot.document)).toEqual(sources(before));
+  });
+
+  it('refuses an invalid pattern, an empty result and markup from an expansion, leaving the document as it was', async () => {
+    const current = await fixture(srt(10, index => index === 3));
+    const before = await current.read();
+    await expect(current.edit({ kind: 'replace', query: '(法尔童', replacement: 'x', matchCase: true, regex: true, field: 'source' })).rejects.toMatchObject({ code: 'invalid_pattern' });
+    await expect(current.edit({ kind: 'replace', query: String.raw`^.*$`, replacement: '', matchCase: true, regex: true, field: 'source' })).rejects.toBeTruthy();
+    expect(sources(await current.read())).toEqual(sources(before));
+    expect((await current.read()).revision).toBe(before.revision);
+  });
+
+  it('matches whole words without a regular expression', async () => {
+    const doc = importSubtitleText('1\n00:00:01,000 --> 00:00:02,000\na cat and a category\n', { format: 'srt', displayName: 'cat.srt', encoding: 'utf-8', digest: 'f'.repeat(64) }, randomUUID);
+    const current = await fixture(doc);
+    const replaced = await current.edit({ kind: 'replace', query: 'cat', replacement: 'dog', matchCase: true, wholeWord: true, field: 'source' });
+    expect(replaced.snapshot.document.cues[0].source.plain).toBe('a dog and a category');
+  });
+
+  it('stops a pattern that backtracks badly and reports it, without blocking or editing', async () => {
+    const doc = importSubtitleText(Array.from({ length: 200 }, (_, index) => `${index + 1}\n${time(index * 1000)} --> ${time(index * 1000 + 500)}\n${'a'.repeat(40)}!\n`).join('\n'),
+      { format: 'srt', displayName: 'slow.srt', encoding: 'utf-8', digest: 'f'.repeat(64) }, randomUUID);
+    const current = await fixture(doc);
+    const before = await current.read();
+    const started = Date.now();
+    let ticks = 0;
+    const timer = setInterval(() => { ticks++; }, 50);
+    await expect(searchCuesInDocument(before, { query: '(a+)+$', field: 'source', matchCase: true, regex: true }, 500)).rejects.toMatchObject({ code: 'pattern_too_slow' });
+    clearInterval(timer);
+    expect(Date.now() - started).toBeLessThan(3000);
+    // The main thread kept running while the worker searched.
+    expect(ticks).toBeGreaterThan(3);
+    expect((await current.read()).revision).toBe(before.revision);
+  });
+
+  it('counts regular expression matches in the worker like the search in process', async () => {
+    const doc = srt();
+    const viaWorker = await searchCuesInDocument(doc, { query: '法尔童', field: 'source', matchCase: true, regex: true });
+    expect(viaWorker).toEqual(searchDocument(doc, { query: '法尔童', field: 'source', matchCase: true }));
+    await expect(searchCuesInDocument(doc, { query: '(', field: 'source', matchCase: true, regex: true })).rejects.toMatchObject({ code: 'invalid_pattern' });
   });
 });

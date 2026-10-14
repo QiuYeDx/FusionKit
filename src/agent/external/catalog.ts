@@ -10,7 +10,7 @@ import { PROPOSAL_LIMITS } from "@/translation-knowledge/proposal";
 /** read: changes nothing; write: changes FusionKit data or starts work, undoable or cancellable; destructive: replaces files. */
 export type ExternalToolAccess = "read" | "write" | "destructive";
 /** Writes of one kind a user may allow for the rest of a connection. */
-export type ExternalApprovalGroup = "studio_import" | "studio_translation" | "studio_export" | "studio_transcription";
+export type ExternalApprovalGroup = "studio_import" | "studio_translation" | "studio_structure" | "studio_export" | "studio_transcription" | "classic_files";
 
 export interface ExternalToolDefinition {
   title: string;
@@ -35,6 +35,7 @@ const paths = z.array(z.string().min(1).max(4096).refine(value => !value.include
 const languagePair = z.object({ source: z.string().trim().min(2).max(35), target: z.string().trim().min(2).max(35) }).strict();
 const knowledgeRef = z.union([z.object({ id }).strict(), z.object({ ref: z.string().trim().min(1).max(40) }).strict()]);
 const shortText = (length: number) => z.string().max(length);
+const classicPaths = z.array(z.string().min(1).max(4096).refine(value => !value.includes("\0"))).min(1).max(50);
 
 export const EXTERNAL_TOOLS = {
   get_fusionkit_status: {
@@ -113,6 +114,45 @@ export const EXTERNAL_TOOLS = {
     }).strict(),
     access: "write",
     group: "studio_translation",
+  },
+  split_studio_cue: {
+    title: "Split a cue",
+    description: "Split one cue of a Subtitle Studio document in two, when it holds two sentences. Give the words the second part starts with, copied exactly from the cue's source text "
+      + "(and occurrence when they appear more than once). splitMs (milliseconds) is when the second part starts; leave it out to use the word timing of a transcript or the share of the text. "
+      + "This changes the cues every track shares: other tracks keep their translation on the first part, marked as made for an older source. "
+      + "translations splits the translation on your own track the same way. Returns the new revision, the new cue's id, splitMs and how it was chosen. "
+      + "One undoable edit in Subtitle Studio; may ask the user in FusionKit first (they can allow structure changes for the rest of this connection).",
+    inputSchema: z.object({
+      documentId: id,
+      revision,
+      cueId: id,
+      splitBefore: z.string().min(1).max(200).describe("The text the second part starts with, as it appears in the cue's source text."),
+      occurrence: z.number().int().min(1).max(100).optional().describe("Which appearance of splitBefore, from 1, when it appears more than once."),
+      splitMs: z.number().int().min(0).max(86_400_000).optional(),
+      translations: z.object({ trackId: id, first: shortText(20000), second: shortText(20000) }).strict().optional()
+        .describe("The two parts of the translation on a track you created with create_studio_translation_track."),
+    }).strict(),
+    access: "write",
+    group: "studio_structure",
+  },
+  insert_studio_cue: {
+    title: "Insert a cue",
+    description: "Insert a new cue before or after one in a Subtitle Studio document, when a line is missing. Times are in milliseconds: the start may not be before the start of the cue "
+      + "before it or after the start of the cue after it; endMs may be null only in LRC documents (or next to a cue without an end); a transcript's lines end within its media. "
+      + "Plain text only, no < or >. translation writes its translation on your own track. Returns the new revision and the new cue's id. "
+      + "One undoable edit in Subtitle Studio; may ask the user in FusionKit first (they can allow structure changes for the rest of this connection).",
+    inputSchema: z.object({
+      documentId: id,
+      revision,
+      cueId: id.describe("The cue to insert next to."),
+      position: z.enum(["before", "after"]),
+      startMs: z.number().int().min(0).max(86_400_000),
+      endMs: z.number().int().min(0).max(86_400_000).nullable(),
+      text: shortText(20000),
+      translation: z.object({ trackId: id, text: shortText(20000) }).strict().optional(),
+    }).strict(),
+    access: "write",
+    group: "studio_structure",
   },
   export_studio_document: {
     title: "Export a subtitle file",
@@ -211,12 +251,84 @@ export const EXTERNAL_TOOLS = {
     inputSchema: z.object({ confirmationId: z.string().min(1).max(100) }).strict(),
     access: "read",
   },
+  convert_subtitle_files: {
+    title: "Convert subtitle files",
+    description: "Convert subtitle files to another format (SRT, VTT, LRC, ASS, SSA, SBV) with FusionKit's subtitle converter, without Subtitle Studio. "
+      + "paths are absolute files or folders (recursive includes subfolders); files are read as UTF-8, at most 200 per call. The output goes next to each file, or to outputDirectory. "
+      + "conflict indexed adds a number to an existing name; overwrite replaces it (always confirmed by the user). Files already in the target format are skipped. "
+      + "Returns each file's output path or error. May ask the user in FusionKit first (they can allow conversions for the rest of this connection).",
+    inputSchema: z.object({
+      paths: classicPaths,
+      to: z.enum(["srt", "vtt", "lrc", "ass", "ssa", "sbv"]),
+      recursive: z.boolean().default(false),
+      outputDirectory: z.string().min(1).max(4096).optional().describe("An absolute folder; by default each output goes next to its file."),
+      conflict: z.enum(["indexed", "overwrite"]).default("indexed"),
+      lrcLastDurationMs: z.number().int().min(100).max(60_000).default(2000).describe("From LRC: how long the last line lasts, since LRC has no end times."),
+    }).strict(),
+    access: "write",
+    group: "classic_files",
+    mayDestroy: true,
+  },
+  extract_subtitle_language: {
+    title: "Extract one language from bilingual subtitles",
+    description: "Keep one language of bilingual subtitle files (two languages in each cue) and write a new file in the same format, with FusionKit's language extractor. "
+      + "Works best for Chinese and Japanese. paths, recursive, outputDirectory and conflict work as in convert_subtitle_files. "
+      + "Returns each file's output path or error. May ask the user in FusionKit first (they can allow this for the rest of this connection).",
+    inputSchema: z.object({
+      paths: classicPaths,
+      keep: z.enum(["zh", "ja", "en", "ko", "fr", "de", "es", "ru", "pt"]),
+      recursive: z.boolean().default(false),
+      outputDirectory: z.string().min(1).max(4096).optional(),
+      conflict: z.enum(["indexed", "overwrite"]).default("indexed"),
+    }).strict(),
+    access: "write",
+    group: "classic_files",
+    mayDestroy: true,
+  },
+  get_classic_tasks: {
+    title: "Classic tool tasks",
+    description: "Read the tasks the user queued in FusionKit's classic tool pages (subtitle translator, converter, language extractor): file name, status, progress, "
+      + "output path when done and the error when failed. Queued or running is not finished. Read only.",
+    inputSchema: z.object({ tool: z.enum(["all", "subtitle_translator", "subtitle_converter", "subtitle_extractor"]).default("all") }).strict(),
+    access: "read",
+  },
+  inspect_name_paths: {
+    title: "Inspect files and folders to rename",
+    description: "List files and folders for renaming: path, current name, kind and an identity that rename_paths needs. includeChildren also lists everything inside folders "
+      + "(at most 2000 entries). Protected system paths and missing paths come back in rejected. Read only.",
+    inputSchema: z.object({
+      paths: classicPaths,
+      includeChildren: z.boolean().default(false),
+      includeHidden: z.boolean().default(false),
+    }).strict(),
+    access: "read",
+  },
+  rename_paths: {
+    title: "Rename files and folders",
+    description: "Rename files and folders to names you give, for example names you translated yourself (FusionKit uses no model for this). "
+      + "Use path, kind and identity from inspect_name_paths; newName is the new name only (with the extension for files), never a path. At most 500 per call. "
+      + "FusionKit checks the names first (illegal characters, names that already exist, two entries with one name, entries changed since inspection) and returns the issues without renaming anything. "
+      + "Then the user always confirms the list in FusionKit; renaming runs deepest first and rolls back on failure. Returns a journalId for undo_name_changes.",
+    inputSchema: z.object({
+      items: z.array(z.object({ path: z.string().min(1).max(4096), kind: z.enum(["file", "directory"]), identity: z.string().min(1).max(128), newName: z.string().max(255) }).strict())
+        .min(1).max(500).refine(items => new Set(items.map(item => item.path)).size === items.length, "Each path may appear once."),
+    }).strict(),
+    access: "write",
+    confirm: "always",
+  },
+  undo_name_changes: {
+    title: "Undo a rename",
+    description: "Put back the names a rename_paths call changed, by its journalId. The user always confirms in FusionKit.",
+    inputSchema: z.object({ journalId: z.string().min(1).max(128) }).strict(),
+    access: "write",
+    confirm: "always",
+  },
   open_fusionkit_page: {
     title: "Show a FusionKit page",
     description: "Switch FusionKit's window to a page so the user can see your work: home, subtitle_studio (studioView documents or transcription), "
-      + "translation_knowledge or settings. Changes no data.",
+      + "translation_knowledge, settings, or a classic tool page (subtitle_translator, subtitle_converter, subtitle_extractor, name_translator, local_subtitle_transcriber, text_translator). Changes no data.",
     inputSchema: z.object({
-      page: z.enum(["home", "subtitle_studio", "translation_knowledge", "settings"]),
+      page: z.enum(["home", "subtitle_studio", "translation_knowledge", "settings", "subtitle_translator", "subtitle_converter", "subtitle_extractor", "name_translator", "local_subtitle_transcriber", "text_translator"]),
       studioView: z.enum(["documents", "transcription"]).optional(),
     }).strict(),
     access: "read",

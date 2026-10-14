@@ -31,6 +31,9 @@
 - **Reviewable and reversible**: every AI change is shown as a diff first, written only after you confirm, and can be undone.
 - **Bring your own API key**: FusionKit does not provide a model API. AI features use your own key for DeepSeek, OpenAI or any OpenAI-compatible service, with live token usage and estimated cost.
 
+> [!NOTE]
+> This branch is the **0.5.0 development version**. External agent access (MCP) and other features here are not in a stable release yet. See [Releases](https://github.com/QiuYeDx/FusionKit/releases/latest) for the latest stable version and the [CHANGELOG](CHANGELOG.md) for what changed (the changelog is written in Chinese).
+
 ## Features
 
 ### Subtitle Studio
@@ -72,7 +75,7 @@ On every other page, the Agent button in the bottom-left corner opens a floating
 
 ### External agents (MCP)
 
-Already using Claude Code, Codex, Cursor or another AI agent? Let it work in FusionKit directly. FusionKit serves MCP: an external agent can read Subtitle Studio, import and transcribe, **write its own translations** back into Studio and export subtitle files, **with no API key configured in FusionKit**.
+Already using Claude Code, Codex, Cursor or another AI agent? Let it work in FusionKit directly. FusionKit serves MCP: an external agent can read Subtitle Studio, import and transcribe, **write its own translations** back into Studio and export subtitle files; it can also split or insert cues, convert subtitle formats, keep one language of bilingual subtitles and rename files to names it translated (undoable), **with no API key configured in FusionKit**.
 
 1. In **Settings → External agents**, turn on “Allow external agents to connect”.
 2. Pick your client and follow the steps shown; terminal and desktop versions both work:
@@ -84,7 +87,7 @@ Already using Claude Code, Codex, Cursor or another AI agent? Let it work in Fus
    stdio starts FusionKit when it is not running.
 3. Optionally install the bundled skill so the agent knows FusionKit's translation workflow.
 
-There are three permission levels: **Read only**, **Ask before changes** (default) and **Automatic**. Imports, written translations, exports and other changes ask for your OK in FusionKit (you can allow a kind of change for the rest of a connection); replacing existing files and changing translation materials always ask. Translations written by an agent are marked as unreviewed AI translations that you can review and undo in Studio. The service listens on 127.0.0.1 only, requires a token and is off by default.
+There are three permission levels: **Read only**, **Ask before changes** (default) and **Automatic**. Imports, written translations, exports and other changes ask for your OK in FusionKit (you can allow a kind of change for the rest of a connection); replacing existing files, renaming files and changing translation materials always ask. Translations written by an agent are marked as unreviewed AI translations that you can review and undo in Studio. The service listens on 127.0.0.1 only, requires a token and is off by default.
 
 ### Translation materials
 

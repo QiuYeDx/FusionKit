@@ -41,9 +41,14 @@
 | import_studio_subtitles | 写入 | 按路径导入字幕 |
 | create_studio_translation_track | 写入 | 新建由外部 Agent 填写的译文轨道 |
 | write_studio_translations | 写入 | 批量写入译文（AI、未复核，一次可撤销） |
+| split_studio_cue / insert_studio_cue | 写入（“修改字幕结构”，单独放行） | 拆分一条字幕、在某条前后插入字幕（I2 of studio-cue-split-insert，一次可撤销） |
 | export_studio_document | 写入（overwrite 为破坏性） | 导出到源文件夹或由用户选择位置 |
 | start_studio_transcription | 写入 | 用本地模型转写音视频 |
 | prepare_knowledge_changes | 总是确认 | 新建 / 修改翻译资料 |
+| convert_subtitle_files / extract_subtitle_language | 写入（overwrite 为破坏性） | 按路径转换字幕格式、提取双语字幕中的一种语言（I4） |
+| get_classic_tasks | 读取 | 经典工具页中的任务进度（I4） |
+| inspect_name_paths | 读取 | 列出要改名的文件 / 文件夹及身份标识（I4） |
+| rename_paths / undo_name_changes | 总是确认 | 按外部 Agent 给出的名称重命名（先核对，由深到浅、失败回滚）与撤销（I4） |
 
 ## 安全边界
 
@@ -62,3 +67,5 @@
 3a. Claude 桌面端（聊天）：「Claude 桌面端」标签点「写入配置文件」，完全退出再打开 Claude，在对话中确认能看到 FusionKit 的工具；Claude 应用的 Code 标签新开本地会话同样可用。
 4. 关闭 FusionKit 后用 stdio 配置的客户端发起请求，确认 FusionKit 被自动启动并完成调用。
 5. 在 macOS 上确认 stdio 片段中的可执行文件路径可用（自动化测试只在 Windows 上运行）。
+6. （I4）让外部 Agent「把某个文件夹里的 ASS 都转成 SRT」「把这个双语字幕只留中文」：FusionKit 弹出确认，新文件出现在原文件旁。
+7. （I4）让外部 Agent「把这个文件夹里的日文文件名翻译成中文」：它先检查条目、给出译名，FusionKit 列出“旧名 → 新名”确认后改名；再让它撤销，名称恢复。

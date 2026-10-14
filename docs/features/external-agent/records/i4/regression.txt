@@ -1,0 +1,1006 @@
+$ node node_modules/vitest/vitest.mjs run src/agent test/external-agent --maxWorkers=4 --minWorkers=1
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ src/agent/runtime/responses-agent-adapter.test.ts (25 tests) 102ms
+ ✓ src/agent/orchestrator.test.ts (31 tests) 511ms
+stderr | src/agent/tool-executor-translation.test.ts > passes cancellation into name planning and leaves no pending preview after cancellation
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation producer > revokes a picker selection returned after cancellation without queueing
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation producer > releases registered authority if cancellation arrives before queue admission
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation producer > queues only picker-authorized path-free tasks
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation producer > rejects legacy renderer authority before opening a picker: { filePaths: [ '/private/input.srt' ] }
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation producer > rejects legacy renderer authority before opening a picker: { scanId: 'scan-renderer' }
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation producer > rejects legacy renderer authority before opening a picker: { outputDir: '/private/output' }
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > paths the user typed > translates the subtitles under a typed folder and saves to a typed output folder, without a picker
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > paths the user typed > refuses a path the user did not type and reports a folder without subtitles
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > paths the user typed > scans a typed recovery folder instead of opening the picker
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation recovery > uses the fixed 'directory' picker and returns only opaque scan data
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation recovery > uses the fixed 'manifest' picker and returns only opaque scan data
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation recovery > reauthorizes recovery and preserves its receipt when its session is deleted meanwhile: false
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation recovery > reauthorizes recovery and preserves its receipt when its session is deleted meanwhile: true
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation recovery > asks for the output directory once across batches of the same scan
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation recovery > keeps a retained recovery directory while the user switches sessions and releases it when the session is deleted
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > Agent subtitle translation recovery > stops on target cancellation and revokes an unused target after prepare fails
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > settings the request leaves out follow the tool pages > queues translation with the translator page's current settings and reports their sources
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-translation.test.ts > settings the request leaves out follow the tool pages > still requires the user's words for an overwrite the model asks for
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+
+ ✓ src/agent/tool-executor-translation.test.ts (20 tests) 25ms
+stderr | src/agent/tool-executor-translation.test.ts > settings the request leaves out follow the tool pages > plans name translation with the name translator page's format and languages
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > uses a native import and preserves cancellation without starting translation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > imports subtitles from a folder the user typed, and from no other
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > rejects forbidden filePaths before opening a picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > rejects forbidden apiKey before opening a picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > rejects forbidden endpoint before opening a picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > rejects forbidden fileToken before opening a picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > distinguishes fixed API failures and unavailable bridge from an empty library
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > checks abort before a native picker or configuration mutation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > preserves an already committed import receipt when stop occurs in the native picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > keeps actual queued task status and projects out model metadata
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > bounds document results and forbids excessive pagination
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > modern tools fixed API boundaries > projects unavailable documents to a count without recovery capabilities or native paths
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > preserves preparation and submission failures alongside the actual admitted subset
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > returns per-file reasons when every document fails preparation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > retains all-failed admission receipts in queue_only without retrying
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > retains all-failed admission receipts in auto_execute without retrying
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > does not invent per-file failures or retry when the admission response is lost
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > does not submit in queue_only and submits the exact batch once on confirmation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > does not submit in ask_before_execute and submits the exact batch once on confirmation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > auto mode returns submitted receipts rather than claiming translation completion
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > rejects stale sessions after planning without registering executable authority
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > records a plan revision conflict once without retrying the mutation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > never falls back to an unassigned task model
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > translation preparation and admission > retires the old main-owned plan before a replacement, including cancelled planning
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > refuses existing manual drafts before changing configuration or opening a picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > takes media from paths the user typed, and from nothing else, without opening the picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > reports a typed folder without media instead of preparing nothing
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > hands the whole transcribe, translate and export job to Studio for this batch only
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > expands a preset into the batch's translation materials and refuses an unknown one
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > follows the Studio export setting when the user did not mention export, and fills what a requested export leaves open
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > refuses translated output without a translation, and restores the choice when the user drops the card
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > uses the prepared media only after confirmation and keeps auto translation off
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > rejects a prepared batch when one draft becomes unready without leaking native draft tokens
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > retains exact file evidence when expiry is detected inside scoped admission
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > does not silently include drafts added after preparation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > rejects a changed configuration and releases only its prepared draft
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > does not silently reuse old configuration when the supplied prompt is invalid
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > dismissal releases its fixed-picker media without submitting
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > cleans owned drafts when cancellation arrives while the native picker is open
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > transcription preparation ownership > retains unknown submission evidence and never retries or removes it automatically
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > local handoff > rejects unsupported classic output formats without changing preferences
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > local handoff > does not report all-failed local IPC reads as an empty successful queue
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > local handoff > only updates local transcription preferences and never consumes input authority
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-local-subtitle-transcriber', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > settings follow the Studio > prepares translation with the last translation dialog settings unless the user named them
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > settings follow the Studio > falls back to the translation dialog defaults without a draft
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/modern-tools.test.ts > settings follow the Studio > keeps the Studio transcription task mode and prompt when they are omitted
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+ ✓ src/agent/modern-tools.test.ts (46 tests) 56ms
+stderr | src/agent/knowledge-tools.test.ts > translation knowledge search > paginates matched entries, collections and presets independently beyond the first page
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > translation knowledge search > returns bounded summaries with the entry's collection and enabled state
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > translation knowledge search > finds a work's collection and entries by its name or nickname
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > translation knowledge search > requires every word of a multi-word query
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > translation knowledge search > lists the catalog with language pairs, counts and presets
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > translation knowledge search > tells the model what was wrong with its arguments
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > translation knowledge search > reports an unavailable library with a stable code
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > prepares a card without writing, even in automatic execution
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > prepares a card without writing, even in automatic execution
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > prepares a card without writing, even in automatic execution
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > prepares a card without writing, even in automatic execution
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > refuses invalid proposals with reasons and reports already saved wording as unchanged
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > refuses invalid proposals with reasons and reports already saved wording as unchanged
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > refuses invalid proposals with reasons and reports already saved wording as unchanged
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > saves everything once on confirmation, enabled at once
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > saves everything once on confirmation, enabled at once
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > saves everything once on confirmation, enabled at once
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > saves everything once on confirmation, enabled at once
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > saves everything once on confirmation, enabled at once
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > fails without writing when an edited entry changed after preparation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > fails without writing when an edited entry changed after preparation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > fails without writing when an edited entry changed after preparation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > fails without writing when an edited entry changed after preparation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > saves after an unrelated change and treats a repeated save of the same records as done
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > saves after an unrelated change and treats a repeated save of the same records as done
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > saves after an unrelated change and treats a repeated save of the same records as done
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > leaves the library unchanged when dismissed
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > leaves the library unchanged when dismissed
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+ ✓ src/agent/knowledge-tools.test.ts (13 tests) 279ms
+stderr | src/agent/knowledge-tools.test.ts > prepared translation knowledge changes > leaves the library unchanged when dismissed
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+ ✓ src/agent/external/tools/classic-tools.test.ts (8 tests) 187ms
+ ✓ test/external-agent.electron.test.ts (1 test) 15457ms
+   ✓ external agents reach FusionKit over MCP > stays closed by default, then serves an authenticated client with real data from the window 15456ms
+stderr | src/agent/web-tools.test.ts > web lookup settings > is off by default and every source starts on
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web lookup settings > parses wiki codes and names the invalid ones
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web lookup settings > keeps only valid persisted values
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web lookup tools > refuse while web lookups are off, without asking the main process
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web lookup tools > respect turned-off sources and the configured Bilibili wiki
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web lookup tools > limits a Bing search to the given site and reports lookup failures with stable codes
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web lookup tools > returns bounded page text
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web-sourced translation materials > saves an entry read on a page, enabled, with that page as its origin
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web-sourced translation materials > saves an entry read on a page, enabled, with that page as its origin
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web-sourced translation materials > saves an entry read on a page, enabled, with that page as its origin
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/web-tools.test.ts > web-sourced translation materials > needs the link of a page the assistant read
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+ ✓ src/agent/web-tools.test.ts (9 tests) 82ms
+stderr | src/agent/web-tools.test.ts > web-sourced translation materials > needs the link of a page the assistant read
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+ ✓ test/external-agent-classic.electron.test.ts (1 test) 15104ms
+   ✓ external agents use the classic tools without an API key > converts, extracts, renames with its own names and undoes, each confirmed as the trust level says 15103ms
+ ✓ test/external-agent/http-host.test.ts (9 tests) 270ms
+ ✓ src/agent/external/tools/studio-tools.test.ts (6 tests) 62ms
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > reports bounded queue metadata without subtitle bodies or source paths
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > auto_execute starts only the newly admitted task
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > ask_before_execute starts only the newly admitted task
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > does not count duplicate filenames or reuse an old resolved confirmation
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > cannot start a removed and recreated same-name task using an old receipt
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > stops admission after asynchronous file read returns
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > does not scan subsequent directories after stopping
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > retains sequential conversion scheduling without starting unrelated queued files
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent exact queue receipts > does not accept a rename confirmation in the preview's creating turn
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent filesystem authority from user intent > ignores a model-invented output directory and asks with the picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent filesystem authority from user intent > accepts a directory the user typed without opening a picker
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent filesystem authority from user intent > creates no task when the output picker is cancelled
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/tool-executor-scope.test.ts > Agent filesystem authority from user intent > downgrades overwrite unless the latest user message asks for it
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+
+ ✓ src/agent/tool-executor-scope.test.ts (13 tests) 25ms
+ ✓ src/agent/external/tools/export-transcription.test.ts (6 tests) 64ms
+ ✓ src/agent/external/tools/structure-tools.test.ts (5 tests) 72ms
+ ✓ src/agent/session-persistence.test.ts (9 tests) 492ms
+   ✓ saving sessions > drops the oldest log details first, then old log entries, to stay within the limit 467ms
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > runs the action on confirmation and keeps confirmation-only actions and their details
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > timestamps actual state changes when an older preparation completes after newer actions
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > claims synchronously so concurrent confirmation submits only once
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > keeps a card confirmable while the user looks at other sessions
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > dismisses a deleted session's authority and invokes cleanup once
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > never retries a failed or ambiguous invocation and does not expose thrown secrets
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > retains preparation details and all-failed submission receipts without enabling retry
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > keeps running receipts truthful when the chat changes
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+stderr | src/agent/prepared-actions.test.ts > prepared action authority > refuses stale registrations and bounds pending authority without silently deleting it
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+ ✓ src/agent/prepared-actions.test.ts (9 tests) 22ms
+ ✓ src/agent/external/confirmations.test.ts (8 tests) 56ms
+ ✓ src/agent/external/host.test.ts (6 tests) 624ms
+ ✓ test/external-agent-settings.electron.test.ts (1 test) 20801ms
+   ✓ external agent settings > turns access on, shows state, configurations and connections, and manages them 20800ms
+ ✓ src/agent/session-title-generator.test.ts (6 tests) 18ms
+ ✓ src/agent/external/client-configs.test.ts (6 tests) 5ms
+ ✓ test/external-agent/client-config-writer.test.ts (5 tests) 30ms
+ ✓ src/agent/external/tools/knowledge-navigation.test.ts (4 tests) 2169ms
+   ✓ tasks and pages > opens a fixed page through the app's router 2009ms
+ ✓ src/agent/runtime/chat-completions-agent-adapter.test.ts (9 tests) 5ms
+ ✓ test/external-agent-tools.electron.test.ts (1 test) 23661ms
+   ✓ external agents translate with FusionKit without an API key > imports, reads, writes its own translations and exports, with every change confirmed as the trust level says 23660ms
+stderr | src/agent/classic-page-contexts.test.ts > classic tool page contexts > updates only the page's settings and reports before and after
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-translator-config', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-subtitle-converter', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-name-translator', the given storage is currently unavailable.
+
+ ✓ src/agent/classic-page-contexts.test.ts (4 tests) 7ms
+ ✓ src/agent/session-io.test.ts (8 tests) 87ms
+ ✓ src/agent/external/tools/tools.test.ts (5 tests) 6ms
+ ✓ src/agent/page-context.test.ts (5 tests) 5ms
+ ✓ src/agent/tool-schemas.test.ts (15 tests) 8ms
+ ✓ test/external-agent/renderer-bridge.test.ts (5 tests) 432ms
+ ✓ src/agent/guarded-tools.test.ts (4 tests) 6ms
+ ✓ src/agent/queue-batch.test.ts (5 tests) 4ms
+ ✓ test/external-agent/stdio-bridge.test.ts (6 tests) 2935ms
+   ✓ stdio bridge > starts FusionKit without ELECTRON_RUN_AS_NODE and waits for its endpoint 1099ms
+   ✓ stdio bridge > gives up after the wait when the launched app never publishes an endpoint 1595ms
+ ✓ src/agent/task-model-config.test.ts (4 tests) 3ms
+ ✓ test/external-agent/settings-store.test.ts (6 tests) 48ms
+ ✓ src/agent/conversation-context.test.ts (6 tests) 6ms
+ ✓ src/agent/session-schema.test.ts (9 tests) 9ms
+ ✓ src/agent/external/approval.test.ts (5 tests) 3ms
+ ✓ src/agent/name-plan-confirmation.test.ts (36 tests) 5ms
+ ✓ src/agent/pipeline-watch.test.ts (4 tests) 3ms
+ ✓ src/agent/navigation-tools.test.ts (3 tests) 96ms
+ ✓ src/agent/session-title.test.ts (5 tests) 14ms
+ ✓ src/agent/user-intent-authority.test.ts (13 tests) 4ms
+ ✓ test/external-agent/skill.test.ts (2 tests) 17ms
+ ✓ src/agent/session-list.test.ts (3 tests) 3ms
+ ✓ src/agent/ui-events.test.ts (3 tests) 2ms
+stderr | src/agent/pipeline-watch-session.test.ts > pipeline reports and sessions > reports to the session that submitted the batch while the user is in another one
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+ ✓ src/agent/plan.test.ts (7 tests) 8ms
+ ✓ src/agent/pipeline-watch-session.test.ts (2 tests) 16ms
+stderr | src/agent/pipeline-watch-session.test.ts > pipeline reports and sessions > stops watching once the session is deleted
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+[zustand persist middleware] Unable to update item 'fusionkit-agent', the given storage is currently unavailable.
+
+ ✓ src/agent/tool-page-settings.test.ts (3 tests) 3ms
+ ✓ src/agent/translation-slice-config.test.ts (5 tests) 3ms
+ ✓ src/agent/capability-catalog.test.ts (2 tests) 386ms
+   ✓ translation materials capability > lists the knowledge tools the agent can call 384ms
+ ✓ test/external-agent-stdio.electron.test.ts (1 test) 9279ms
+   ✓ external agents reach FusionKit through the stdio bridge > runs the bridge with FusionKit's own executable and starts FusionKit when it is not running 9278ms
+ ✓ src/agent/api-format-capability.test.ts (3 tests) 2ms
+
+ Test Files  54 passed (54)
+      Tests  436 passed (436)
+   Start at  17:28:27
+   Duration  34.41s (transform 1.34s, setup 0ms, collect 15.96s, tests 93.58s, environment 7ms, prepare 3.48s)
+
+exit 0

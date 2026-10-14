@@ -270,7 +270,9 @@
     "interrupted": "翻譯已中斷，已完成的譯文已保留。",
     "resource_busy": "共用資源正在使用中，請等待兩個字幕工具中的工作或資源操作結束後重試。",
     "translation_record_unavailable": "執行記錄遺失、損毀或與目前版本不相容，無法安全繼續。已有譯文已保留；請修復記錄或重新建立翻譯。",
-    "knowledge_check_failed": "自動翻譯資料檢查未通過。原字幕已保留，可查看資料問題並調整後重新檢查。"
+    "knowledge_check_failed": "自動翻譯資料檢查未通過。原字幕已保留，可查看資料問題並調整後重新檢查。",
+    "invalid_pattern": "正規表示式無效。",
+    "pattern_too_slow": "表示式過於複雜，已停止尋找。請簡化後重試。"
   },
   "diagnostics": {
     "empty_document": "沒有帶時間的字幕正文",
@@ -797,7 +799,8 @@
       "split": "拆分字幕",
       "insert": "插入字幕",
       "replace": "取代 {{count}} 條字幕",
-      "agent": "外部 Agent 寫入 {{count}} 條譯文"
+      "agent": "外部 Agent 寫入 {{count}} 條譯文",
+      "stretch": "伸縮 {{count}} 條字幕的時間"
     }
   },
   "cue_help": {
@@ -945,7 +948,14 @@
     "summary_structure": "建議修改：{{parts}}（共檢查 {{total}} 條）",
     "prepared_by_agent": "這些修改由 Agent 依你的要求準備，確認後才會生效。",
     "reading": "正在讀取 {{done}} / {{total}} 條字幕…",
-    "summary_prepared": "已準備：{{parts}}"
+    "summary_prepared": "已準備：{{parts}}",
+    "tag_split": "拆分",
+    "tag_insert_before": "在第 {{number}} 條前插入",
+    "tag_insert_after": "在第 {{number}} 條後插入",
+    "part_splits": "拆分 {{count}} 條",
+    "part_inserts": "插入 {{count}} 條",
+    "split_at": "於 {{time}} 拆開",
+    "split_basis_given": "指定時刻"
   },
   "agent": {
     "suggest_fix": "修正辨識錯誤",
@@ -1053,8 +1063,25 @@
     "shift_checking": "正在檢查…",
     "shift_beyond_media": "移動後會超出媒體時長",
     "shift_failed": "無法檢查平移結果，請稍後重試",
-    "shift_document": "平移整篇時間…",
-    "unknown": "未知"
+    "shift_document": "調整整篇時間…",
+    "unknown": "未知",
+    "adjust_title": "調整時間",
+    "adjust_mode": "調整方式",
+    "mode_shift": "平移",
+    "mode_stretch": "按比例伸縮",
+    "stretch_description_all": "按比例拉長或壓縮整篇 {{count}} 條字幕的時間，用於影格率不同的片源（如 25 與 23.976）。",
+    "stretch_description_from": "以第 {{number}} 條的開始為基準，按比例拉長或壓縮它之後的字幕時間；之前的字幕不變。",
+    "stretch_source": "換算方式",
+    "stretch_source_rates": "影格率換算",
+    "stretch_source_custom": "自訂比例",
+    "stretch_subtitle_fps": "字幕原本對應",
+    "stretch_video_fps": "影片影格率",
+    "stretch_ratio": "時間 ×{{ratio}}",
+    "stretch_custom_label": "比例（0.5–2，最多 6 位小數）",
+    "stretch_invalid": "比例須在 0.5–2 之間且不為 1",
+    "stretch_preview": "共 {{count}} 條 · 最後一條 {{from}} → {{to}}",
+    "stretch_listen": "按伸縮後的時間試聽第 {{number}} 條",
+    "stretch_apply": "伸縮"
   },
   "cue_split": {
     "menu": "拆分字幕…",
@@ -1108,7 +1135,11 @@
     "scope_target": "譯文",
     "scope_both": "全部",
     "replace": "取代目前這條（Enter）",
-    "replace_all": "全部取代（{{count}} 條）"
+    "replace_all": "全部取代（{{count}} 條）",
+    "whole_word": "全字比對（Alt+W）：中日文仍按字尋找",
+    "regex": "使用正規表示式（Alt+R）",
+    "invalid_pattern": "正規表示式無效",
+    "pattern_too_slow": "表示式過於複雜"
   },
   "cue_audio": {
     "play": "播放原始音訊",

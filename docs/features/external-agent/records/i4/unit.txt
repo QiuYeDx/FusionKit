@@ -1,0 +1,22 @@
+$ node node_modules/vitest/vitest.mjs run src/agent/external
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ src/agent/external/client-configs.test.ts (6 tests) 8ms
+ ✓ src/agent/external/approval.test.ts (5 tests) 3ms
+ ✓ src/agent/external/confirmations.test.ts (8 tests) 50ms
+ ✓ src/agent/external/tools/export-transcription.test.ts (6 tests) 78ms
+ ✓ src/agent/external/tools/tools.test.ts (5 tests) 6ms
+ ✓ src/agent/external/tools/classic-tools.test.ts (8 tests) 196ms
+ ✓ src/agent/external/tools/structure-tools.test.ts (5 tests) 66ms
+ ✓ src/agent/external/tools/studio-tools.test.ts (6 tests) 65ms
+ ✓ src/agent/external/host.test.ts (6 tests) 626ms
+ ✓ src/agent/external/tools/knowledge-navigation.test.ts (4 tests) 2175ms
+   ✓ tasks and pages > opens a fixed page through the app's router 2013ms
+
+ Test Files  10 passed (10)
+      Tests  59 passed (59)
+   Start at  17:24:56
+   Duration  3.91s (transform 1.49s, setup 0ms, collect 9.62s, tests 3.27s, environment 1ms, prepare 1.17s)
+
+exit 0

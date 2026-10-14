@@ -45,3 +45,62 @@ export function suggestCueSplit(doc: SubtitleDocument, cueId: string, offset: nu
   const splitMs = Math.round((startMs + (endMs - startMs) * share) / 10) * 10;
   return { splitMs: Math.min(Math.max(splitMs, startMs + 1), Math.max(startMs + 1, endMs - 1)), basis: 'proportional' };
 }
+
+/**
+ * Where a cue's text splits so that the second part starts with `before`: its `occurrence`-th
+ * appearance (from 1). Null when it does not appear, appears more than once without an occurrence,
+ * or leaves either part empty.
+ */
+export function splitOffsetAt(text: string, before: string, occurrence?: number): number | null {
+  if (!before) return null;
+  const positions: number[] = [];
+  for (let at = text.indexOf(before); at >= 0; at = text.indexOf(before, at + 1)) positions.push(at);
+  if (occurrence === undefined && positions.length !== 1) return null;
+  const offset = positions[(occurrence ?? 1) - 1];
+  if (offset === undefined) return null;
+  const [first, second] = splitHalves(text, offset);
+  return first && second ? offset : null;
+}
+
+/** The two texts a split at `offset` leaves, without the spaces around the split. */
+export function splitHalves(text: string, offset: number): [string, string] {
+  return [text.slice(0, offset).trim(), text.slice(offset).trim()];
+}
+
+type Timed = { timing: { startMs: number; endMs: number | null } };
+/** Longest default for a new cue, filling the gap between its neighbours. */
+const DEFAULT_INSERT_MS = 2000;
+
+/**
+ * The default time of a cue inserted beside `cues[index]`: after it, from its end (or start) to the
+ * next start; before it, from the previous end. At most two seconds; one second when there is no gap.
+ */
+export function defaultInsertTiming(cues: readonly Timed[], index: number, position: 'before' | 'after') {
+  const anchor = cues[index];
+  if (position === 'after') {
+    const startMs = anchor.timing.endMs ?? anchor.timing.startMs;
+    const next = cues[index + 1]?.timing.startMs;
+    const endMs = next !== undefined && next > startMs ? Math.min(next, startMs + DEFAULT_INSERT_MS) : startMs + 1000;
+    return { startMs, endMs };
+  }
+  const previous = cues[index - 1];
+  const endMs = anchor.timing.startMs;
+  const startMs = Math.max(0, previous ? Math.max(previous.timing.endMs ?? previous.timing.startMs, endMs - DEFAULT_INSERT_MS) : endMs - DEFAULT_INSERT_MS);
+  return { startMs: Math.min(startMs, endMs), endMs };
+}
+
+export type CueInsertTimeProblem = 'end_required' | 'end_before_start' | 'before_previous' | 'after_next' | 'beyond_media';
+/**
+ * Why an inserted cue cannot take these times, by the rules the main process applies: it may not
+ * start before the cue before it or after the cue after it, nor end before it starts; an unknown
+ * end only where the format allows one; a transcript's lines end within its media.
+ */
+export function insertTimeProblem(input: { startMs: number; endMs: number | null; previousStartMs?: number; nextStartMs?: number; allowUnknownEnd: boolean; mediaDurationMs?: number }): CueInsertTimeProblem | null {
+  const { startMs, endMs } = input;
+  if (endMs === null && !input.allowUnknownEnd) return 'end_required';
+  if (endMs !== null && endMs < startMs) return 'end_before_start';
+  if (input.previousStartMs !== undefined && startMs < input.previousStartMs) return 'before_previous';
+  if (input.nextStartMs !== undefined && startMs > input.nextStartMs) return 'after_next';
+  if (input.mediaDurationMs !== undefined && endMs !== null && endMs > input.mediaDurationMs) return 'beyond_media';
+  return null;
+}

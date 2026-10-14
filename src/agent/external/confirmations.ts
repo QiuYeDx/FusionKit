@@ -13,15 +13,17 @@ export const CONFIRMATION_EXPIRY_MS = 10 * 60_000;
 const DECIDED_KEPT = 20;
 export const CONFIRMATION_ITEMS_SHOWN = 8;
 
-export type ConfirmationAction = "import" | "translation" | "export" | "transcription" | "knowledge";
+export type ConfirmationAction = "import" | "translation" | "structure" | "export" | "transcription" | "knowledge" | "files" | "rename";
 /** One row of the dialog: a name, the full path or collection under it, and what kind of record it is. */
-export interface ConfirmationItem { text: string; detail?: string; tag?: "collection" | "term" | "rule" | "context" }
+export interface ConfirmationItem { text: string; detail?: string; tag?: "collection" | "term" | "rule" | "context";
+  /** A rename's old name, shown muted before the new one in `text`. */
+  from?: string }
 /** A path as a row: its last part first, the whole path under it. */
 export function pathItem(value: string): ConfirmationItem {
   const parts = value.replace(/[\\/]+$/, "").split(/[\\/]/);
   return { text: parts.at(-1) || value, detail: value };
 }
-export type ConfirmationSummary = "import" | "create_track" | "write_translations" | "export_source" | "export_choose" | "transcription" | "knowledge";
+export type ConfirmationSummary = "import" | "create_track" | "write_translations" | "split_cue" | "insert_cue_before" | "insert_cue_after" | "convert_source" | "convert_directory" | "extract_source" | "extract_directory" | "rename_paths" | "undo_rename" | "export_source" | "export_choose" | "transcription" | "knowledge";
 
 /** What the dialog shows; FusionKit writes it from the call's arguments, never the agent's own words. */
 export interface ConfirmationDisplay {
@@ -161,7 +163,7 @@ export async function confirmed<T>(ctx: ExternalToolContext, tool: ExternalToolN
 
   const id = `confirm-${Date.now().toString(36)}-${(++sequence).toString(36)}`;
   const request: ConfirmationRequest = {
-    ...display, items: display.items.map(item => ({ ...item, text: item.text.slice(0, 600), ...(item.detail ? { detail: item.detail.slice(0, 600) } : {}) })),
+    ...display, items: display.items.map(item => ({ ...item, text: item.text.slice(0, 600), ...(item.detail ? { detail: item.detail.slice(0, 600) } : {}), ...(item.from ? { from: item.from.slice(0, 600) } : {}) })),
     id, sessionId: ctx.sessionId, client: ctx.client.name.slice(0, 100), tool, ...(definition.group ? { group: definition.group } : {}),
     sessionGrant: need.sessionGrant, destructive: !!options.destructive || definition.access === "destructive",
     status: "pending", createdAt: Date.now(),
