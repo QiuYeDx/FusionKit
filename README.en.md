@@ -31,9 +31,6 @@
 - **Reviewable and reversible**: every AI change is shown as a diff first, written only after you confirm, and can be undone.
 - **Bring your own API key**: FusionKit does not provide a model API. AI features use your own key for DeepSeek, OpenAI or any OpenAI-compatible service, with live token usage and estimated cost.
 
-> [!NOTE]
-> This branch is the **0.5.0 development version**. External agent access (MCP) and other features here are not in a stable release yet. See [Releases](https://github.com/QiuYeDx/FusionKit/releases/latest) for the latest stable version and the [CHANGELOG](CHANGELOG.md) for what changed (the changelog is written in Chinese).
-
 ## Features
 
 ### Subtitle Studio

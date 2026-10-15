@@ -174,7 +174,7 @@ try {
   await page.waitForTimeout(1500);
   if (await page.getByTestId('studio-library-result').isVisible().catch(() => false)) await page.locator('#studio-result-close').click();
   const openStudioDocument = async () => {
-    await page.getByText('灯台守の夜 第01話.srt').first().click();
+    await page.getByTestId('studio-library-row').filter({ hasText: '灯台守の夜 第01話.srt' }).locator('button.studio-document').first().click();
     await expect(page.locator('.studio-cue-table tbody tr')).toHaveCount(14);
   };
   await openStudioDocument();
