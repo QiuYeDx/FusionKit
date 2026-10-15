@@ -1,4 +1,5 @@
 import { Moon, Sun } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { useSite } from '../context'
 import { REPO } from '../hooks'
@@ -24,6 +25,7 @@ export function Header({ onToggleLang, onToggleTheme }: { onToggleLang: () => vo
     ['#privacy', t.nav.privacy],
     ['#download', t.nav.download],
   ] as const
+  const active = useActiveSection()
 
   return (
     <header
@@ -43,16 +45,30 @@ export function Header({ onToggleLang, onToggleTheme }: { onToggleLang: () => vo
           <Logo className="size-7 rounded-[7px] dark:ring-1 dark:ring-white/15" />
           <span className="text-[17px]">FusionKit</span>
         </a>
-        <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
-          {links.map(([href, label]) => (
-            <a
-              key={href}
-              href={href}
-              className="rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              {label}
-            </a>
-          ))}
+        <nav className="isolate hidden items-center gap-1 md:flex" aria-label="Primary">
+          {links.map(([href, label]) => {
+            const current = active === href.slice(1)
+            return (
+              <a
+                key={href}
+                href={href}
+                aria-current={current ? 'location' : undefined}
+                className={cx(
+                  'relative rounded-full px-3 py-1.5 text-sm transition-colors hover:text-foreground',
+                  current ? 'text-foreground' : 'text-muted-foreground',
+                )}
+              >
+                {current && (
+                  <motion.span
+                    layoutId="nav-pill"
+                    className="absolute inset-0 -z-10 rounded-full bg-muted"
+                    transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+                  />
+                )}
+                {label}
+              </a>
+            )
+          })}
         </nav>
         <div className="ml-auto flex items-center gap-1">
           <button
@@ -78,4 +94,28 @@ export function Header({ onToggleLang, onToggleTheme }: { onToggleLang: () => vo
       </Container>
     </header>
   )
+}
+
+/** The `data-nav` value of the section under the upper middle of the viewport. */
+function useActiveSection() {
+  const [active, setActive] = useState<string | null>(null)
+  useEffect(() => {
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-nav]'))
+    const update = () => {
+      const line = window.innerHeight * 0.4
+      const hit = sections.find((section) => {
+        const rect = section.getBoundingClientRect()
+        return rect.top <= line && rect.bottom > line
+      })
+      setActive(hit?.dataset.nav ?? null)
+    }
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
+  return active
 }

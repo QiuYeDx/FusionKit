@@ -1,7 +1,8 @@
 import { ArrowUpRight, Download as DownloadIcon, Laptop, Monitor } from 'lucide-react'
 import { useSite } from '../context'
 import { REPO, detectPlatform, useLatestRelease } from '../hooks'
-import { Container, Reveal, SectionHeading, cx } from './ui'
+import { motion } from 'motion/react'
+import { Container, Reveal, SectionHeading, Stagger, cx, item, trackSpotlight } from './ui'
 
 const platform = detectPlatform()
 
@@ -22,7 +23,7 @@ export function Download() {
   ] as const
 
   return (
-    <section id="download" className="border-t bg-surface py-24 sm:py-32" aria-labelledby="download-title">
+    <section id="download" data-nav="download" className="border-t bg-surface py-24 sm:py-32" aria-labelledby="download-title">
       <Container>
         <Reveal>
           <SectionHeading
@@ -43,8 +44,9 @@ export function Download() {
               return (
                 <div
                   key={key}
+                  onPointerMove={trackSpotlight}
                   className={cx(
-                    'flex flex-col rounded-2xl border bg-card p-6',
+                    'spotlight flex flex-col rounded-2xl border bg-card p-6',
                     preferred && 'ring-1 ring-foreground/15',
                   )}
                 >
@@ -58,12 +60,7 @@ export function Download() {
                   </div>
                   <a
                     href={href}
-                    className={cx(
-                      'mt-6 inline-flex h-10 items-center justify-center gap-2 rounded-full px-5 text-sm font-medium transition-colors',
-                      preferred
-                        ? 'bg-primary text-primary-foreground hover:opacity-90'
-                        : 'border bg-background hover:bg-muted',
-                    )}
+                    className={cx('btn mt-6 h-10', preferred ? 'btn-primary' : 'btn-secondary')}
                   >
                     <DownloadIcon className="size-4" aria-hidden="true" />
                     {download.button} {title}
@@ -82,21 +79,23 @@ export function Download() {
           </p>
         </Reveal>
 
-        <Reveal className="mx-auto mt-20 max-w-5xl" delay={0.06}>
-          <h3 className="text-center text-sm font-semibold text-muted-foreground">{download.stepsTitle}</h3>
-          <ol className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mx-auto mt-20 max-w-5xl">
+          <Reveal>
+            <h3 className="text-center text-sm font-semibold text-muted-foreground">{download.stepsTitle}</h3>
+          </Reveal>
+          <Stagger as="ol" className="mt-6 grid gap-4 md:grid-cols-3">
             {download.steps.map((step, index) => (
-              <li key={step.title} className="rounded-2xl border bg-card p-6">
+              <motion.li key={step.title} variants={item} className="rounded-2xl border bg-card p-6">
                 <span className="inline-flex size-7 items-center justify-center rounded-full bg-muted font-mono text-xs tabular-nums">
                   {index + 1}
                 </span>
                 <h4 className="mt-4 font-semibold">{step.title}</h4>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.body}</p>
-              </li>
+              </motion.li>
             ))}
-          </ol>
+          </Stagger>
           <p className="mx-auto mt-8 max-w-2xl text-center text-xs leading-5 text-balance text-muted-foreground">{download.note}</p>
-        </Reveal>
+        </div>
       </Container>
     </section>
   )

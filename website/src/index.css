@@ -21,6 +21,7 @@
   --knowledge: oklch(0.55 0.13 290);
   --knowledge-soft: oklch(0.965 0.02 290);
   --shot-shadow: 0 1px 2px oklch(0 0 0 / 4%), 0 12px 40px -12px oklch(0 0 0 / 14%);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .dark {
@@ -114,4 +115,141 @@
 
 .shot {
   box-shadow: var(--shot-shadow);
+}
+
+/* Components live in a layer so Tailwind utilities on the same element still win. */
+@layer components {
+  /* Large type: tight leading and negative tracking that loosens as it shrinks. */
+  .display {
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+  }
+  :lang(zh) .display {
+    letter-spacing: -0.01em;
+  }
+
+  /* Soft light pooled under the hero screenshot. */
+  .shot-halo {
+    background: radial-gradient(
+      50% 60% at 50% 40%,
+      color-mix(in oklch, var(--studio) 18%, transparent),
+      color-mix(in oklch, var(--knowledge) 8%, transparent) 55%,
+      transparent 75%
+    );
+    filter: blur(24px);
+  }
+
+  .word-fallback {
+    background: linear-gradient(100deg, var(--studio), var(--knowledge));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Buttons answer the press itself, not the release. */
+  .btn {
+    display: inline-flex;
+    height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 999px;
+    padding-inline: 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition:
+      transform 160ms var(--ease-out),
+      background-color 160ms ease,
+      opacity 160ms ease,
+      box-shadow 200ms ease;
+  }
+  .btn:active {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: 0 1px 2px oklch(0 0 0 / 10%);
+  }
+  .btn-primary:hover {
+    opacity: 0.9;
+    box-shadow: 0 6px 20px -6px color-mix(in oklch, var(--foreground) 40%, transparent);
+  }
+  .btn-secondary {
+    border: 1px solid var(--border);
+    background: var(--background);
+  }
+  .btn-secondary:hover {
+    background: var(--muted);
+  }
+
+  /* Cards that light up under the pointer (see trackSpotlight in ui.tsx). */
+  .spotlight {
+    position: relative;
+    isolation: isolate;
+    transition:
+      transform 300ms var(--ease-out),
+      border-color 300ms ease,
+      box-shadow 300ms ease;
+  }
+  .spotlight::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: radial-gradient(
+      360px circle at var(--x, 50%) var(--y, 0%),
+      color-mix(in oklch, var(--studio) 10%, transparent),
+      transparent 60%
+    );
+    opacity: 0;
+    transition: opacity 300ms ease;
+  }
+  @media (hover: hover) {
+    .spotlight:hover {
+      transform: translateY(-3px);
+      border-color: color-mix(in oklch, var(--foreground) 16%, var(--border));
+      box-shadow: 0 18px 40px -24px oklch(0 0 0 / 35%);
+    }
+    .spotlight:hover::before {
+      opacity: 1;
+    }
+  }
+
+  /* The same light for cells that must not move (the Studio grid). */
+  .cell-glow {
+    position: relative;
+    isolation: isolate;
+  }
+  .cell-glow::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(
+      320px circle at var(--x, 50%) var(--y, 0%),
+      color-mix(in oklch, var(--studio) 9%, transparent),
+      transparent 60%
+    );
+    opacity: 0;
+    transition: opacity 300ms ease;
+  }
+  @media (hover: hover) {
+    .cell-glow:hover::before {
+      opacity: 1;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .spotlight {
+    transition: none;
+  }
+  .btn:active,
+  .spotlight:hover {
+    transform: none;
+  }
 }

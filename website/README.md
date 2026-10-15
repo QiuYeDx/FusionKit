@@ -19,6 +19,10 @@ pnpm build    # outputs dist/
   the site picks them up on the next build.
 - **Downloads** link straight to the installers of the latest GitHub release
   (looked up in the browser), falling back to the Releases page.
+- **Hero particles** (`src/hero/`) re-form the word "subtitles" in several
+  languages, adapted from the `particle-type` demo in motion-3d-lab. It is plain
+  three.js in a lazily loaded chunk, pauses off screen and in background tabs,
+  stays still for reduced motion, and falls back to text without WebGL.
 
 ## Deployment
 
