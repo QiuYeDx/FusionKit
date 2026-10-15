@@ -44,7 +44,7 @@ void main() {
   vec3 p = mix(position, aTo, e);
   float mid = sin(e * 3.14159265);
   // Positions are in units of the stage height; the swirl works on that scale.
-  p += swirl(p * 2.4, uTime * 0.6 + aRand.y * 6.2831) * mid * uScatter * (0.12 + aRand.z * 0.16);
+  p += swirl(p * 2.4, uTime * 0.6 + aRand.y * 6.2831) * mid * uScatter * (0.08 + aRand.z * 0.11);
   p += swirl(p * 4.0 + aRand.xyz, uTime * 0.5) * 0.004;
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
@@ -128,14 +128,27 @@ function scatterPoints(count: number, width: number) {
 
 export function createWordCloud(
   canvas: HTMLCanvasElement,
-  { theme, count }: { theme: CloudTheme; count: number },
+  {
+    theme,
+    count,
+    bleedX = 0,
+    bleedY = 0,
+  }: {
+    theme: CloudTheme
+    count: number
+    /** How far the canvas extends past the stage on each side, as a fraction of the stage size. */
+    bleedX?: number
+    bleedY?: number
+  },
 ): WordCloud {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: 'low-power' })
   renderer.setClearColor(0x000000, 0)
   const scene = new THREE.Scene()
-  // One world unit is the stage height: at z = 0 the view is exactly 1 unit tall.
+  // One world unit is the stage height. The canvas is larger than the stage (the bleed)
+  // so particles flying out mid-morph have room before the canvas edge, which is feathered.
   const fov = 30
-  const depth = 0.5 / Math.tan(THREE.MathUtils.degToRad(fov / 2))
+  const viewHeight = 1 + 2 * bleedY
+  const depth = viewHeight / 2 / Math.tan(THREE.MathUtils.degToRad(fov / 2))
   const camera = new THREE.PerspectiveCamera(fov, 1, 0.05, 20)
   camera.position.z = depth
 
@@ -194,18 +207,21 @@ export function createWordCloud(
 
   let width = 1
   let height = 1
+  let stageAspect = 1
   function resize() {
     const rect = canvas.getBoundingClientRect()
     width = Math.max(1, rect.width)
     height = Math.max(1, rect.height)
+    const stageHeight = height / viewHeight
+    stageAspect = width / (1 + 2 * bleedX) / stageHeight
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     renderer.setPixelRatio(dpr)
     renderer.setSize(width, height, false)
     camera.aspect = width / height
     camera.updateProjectionMatrix()
     // Point size in device pixels, relative to the stage height.
-    material.uniforms.uSize.value = Math.max(1.4, height * 0.0095) * dpr * sizeBoost
-    material.uniforms.uWidth.value = (width / height) * 0.86
+    material.uniforms.uSize.value = Math.max(1.4, stageHeight * 0.0095) * dpr * sizeBoost
+    material.uniforms.uWidth.value = stageAspect * 0.86
   }
   resize()
   const observer = new ResizeObserver(() => {
@@ -223,10 +239,9 @@ export function createWordCloud(
   let first = true
 
   function show(text: string, opts: { duration?: number; scatter?: number } = {}) {
-    const aspect = width / height
-    const next = textPoints(text, count, aspect * 0.86, 0.62)
+    const next = textPoints(text, count, stageAspect * 0.86, 0.62)
     if (first) {
-      from.set(scatterPoints(count, aspect))
+      from.set(scatterPoints(count, stageAspect))
       first = false
     } else if (progress < 1) {
       // Bake the in-flight state into `from` so an interrupted morph continues smoothly.

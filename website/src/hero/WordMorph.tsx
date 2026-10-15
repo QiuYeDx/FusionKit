@@ -15,6 +15,10 @@ const WORDS = [
 ] as const
 
 const INTERVAL = 5200
+// The canvas reaches this far past the stage on each side (fractions of the stage
+// size), so particles in flight fade out at a feathered edge instead of being cut off.
+const BLEED_X = 0.1
+const BLEED_Y = 0.45
 
 function supportsWebGL() {
   try {
@@ -57,7 +61,7 @@ export function WordMorph() {
     Promise.all([import('./wordCloud'), document.fonts?.ready])
       .then(([{ createWordCloud }]) => {
         if (disposed) return
-        const cloud = createWordCloud(canvas, { theme, count })
+        const cloud = createWordCloud(canvas, { theme, count, bleedX: BLEED_X, bleedY: BLEED_Y })
         cloudRef.current = cloud
         setReady(true)
       })
@@ -123,7 +127,7 @@ export function WordMorph() {
   }, [animating])
 
   return (
-    <div ref={stageRef} className="relative mx-auto w-full max-w-4xl" aria-hidden="true">
+    <div ref={stageRef} className="relative isolate mx-auto w-full max-w-4xl" aria-hidden="true">
       <div className="relative h-[clamp(132px,24vw,240px)]">
         {failed ? (
           <p
@@ -135,7 +139,14 @@ export function WordMorph() {
         ) : (
           <motion.canvas
             ref={canvasRef}
-            className="absolute inset-0 size-full"
+            // Behind the label and headline, never catching clicks meant for them.
+            className="word-canvas pointer-events-none absolute -z-10"
+            style={{
+              left: `${-BLEED_X * 100}%`,
+              top: `${-BLEED_Y * 100}%`,
+              width: `${(1 + 2 * BLEED_X) * 100}%`,
+              height: `${(1 + 2 * BLEED_Y) * 100}%`,
+            }}
             initial={{ opacity: 0 }}
             animate={{ opacity: ready ? 1 : 0 }}
             transition={{ duration: 0.6 }}

@@ -139,6 +139,17 @@
     filter: blur(24px);
   }
 
+  /* Feather all four edges of the particle canvas: whatever drifts that far fades
+     out gradually, so the canvas bounds are never visible as a hard cut. */
+  .word-canvas {
+    --feather-y: linear-gradient(to bottom, transparent, #000 24%, #000 76%, transparent);
+    --feather-x: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+    -webkit-mask-image: var(--feather-y), var(--feather-x);
+    -webkit-mask-composite: source-in;
+    mask-image: var(--feather-y), var(--feather-x);
+    mask-composite: intersect;
+  }
+
   .word-fallback {
     background: linear-gradient(100deg, var(--studio), var(--knowledge));
     -webkit-background-clip: text;
