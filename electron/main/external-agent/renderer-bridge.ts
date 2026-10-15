@@ -8,6 +8,7 @@ import {
   type ExternalToolCall,
   type ExternalToolOutcome,
 } from "../../../src/agent/external/contract";
+import { activityNoteSchema, type ActivityNote } from "../../../src/agent/external/activity";
 
 /** The part of the main window's webContents the bridge uses. */
 export interface BridgeTarget {
@@ -16,9 +17,12 @@ export interface BridgeTarget {
   isDestroyed(): boolean;
 }
 
+/** The window's answer, and what it adds to the activity record. */
+export interface BridgeAnswer { outcome: ExternalToolOutcome; activity?: ActivityNote }
+
 interface PendingCall {
   targetId: number;
-  finish: (outcome: ExternalToolOutcome) => void;
+  finish: (outcome: ExternalToolOutcome, activity?: ActivityNote) => void;
 }
 
 const unavailable: ExternalToolOutcome = { ok: false, error: "fusionkit_window_unavailable" };
@@ -78,16 +82,16 @@ export class RendererBridge {
     });
   }
 
-  async call(input: Omit<ExternalToolCall, "callId">, signal?: AbortSignal): Promise<ExternalToolOutcome> {
-    if (signal?.aborted) return { ok: false, error: "cancelled" };
-    if (!(await this.waitForReady(signal))) return signal?.aborted ? { ok: false, error: "cancelled" } : unavailable;
+  async call(input: Omit<ExternalToolCall, "callId">, signal?: AbortSignal): Promise<BridgeAnswer> {
+    if (signal?.aborted) return { outcome: { ok: false, error: "cancelled" } };
+    if (!(await this.waitForReady(signal))) return { outcome: signal?.aborted ? { ok: false, error: "cancelled" } : unavailable };
     const target = this.options.getTarget();
-    if (!target || target.isDestroyed()) return unavailable;
+    if (!target || target.isDestroyed()) return { outcome: unavailable };
     const callId = randomUUID();
-    return new Promise<ExternalToolOutcome>(resolve => {
-      const finish = (outcome: ExternalToolOutcome) => {
+    return new Promise<BridgeAnswer>(resolve => {
+      const finish = (outcome: ExternalToolOutcome, activity?: ActivityNote) => {
         clearTimeout(timer); signal?.removeEventListener("abort", abort); this.pending.delete(callId);
-        resolve(outcome);
+        resolve({ outcome, ...(activity ? { activity } : {}) });
       };
       const abort = () => {
         if (!this.pending.has(callId)) return;
@@ -114,7 +118,9 @@ export class RendererBridge {
     let size = Infinity;
     try { size = Buffer.byteLength(JSON.stringify(outcome)); } catch { /* unserializable counts as too large */ }
     if (size > EXTERNAL_MAX_BODY_BYTES) outcome = { ok: false, error: "result_too_large" };
-    call.finish(outcome);
+    // A note that does not fit the record's shape is dropped; the answer still counts.
+    const note = parsed.data.activity === undefined ? undefined : activityNoteSchema.safeParse(parsed.data.activity);
+    call.finish(outcome, note?.success ? note.data : undefined);
     return true;
   }
 

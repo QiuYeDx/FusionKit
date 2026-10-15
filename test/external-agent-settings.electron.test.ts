@@ -176,8 +176,8 @@ describe('external agent settings', () => {
       await claude.callTool({ name: 'list_studio_documents', arguments: {} });
       const rows = page.getByTestId('setting-external-session');
       await uiExpect(rows).toHaveCount(2);
-      await uiExpect(rows.filter({ hasText: 'claude-code' })).toContainText('最近：list_studio_documents 成功');
-      await uiExpect(page.getByTestId('titlebar-external-agent')).toHaveAttribute('title', '2 个外部 Agent 已连接');
+      await uiExpect(rows.filter({ hasText: 'claude-code' })).toContainText('最近：列出字幕工作台文档 成功');
+      await uiExpect(page.getByTestId('titlebar-external-agent')).toHaveAttribute('title', '2 个外部 Agent 已连接 · 查看外部 Agent 活动');
       await scrollTo(page, 'setting-external-sessions');
       await shot(page, 'settings-connections-zh-light-1280');
 

@@ -18,7 +18,7 @@ export function normalizeSettings(raw: unknown): ExternalAgentSettings {
     const parsed = shape[key].safeParse(record[key]);
     return parsed.success ? parsed.data as ExternalAgentSettings[K] : DEFAULT_EXTERNAL_AGENT_SETTINGS[key];
   };
-  const settings: ExternalAgentSettings = { version: 1, enabled: field("enabled"), port: field("port"), token: field("token"), trust: field("trust") };
+  const settings: ExternalAgentSettings = { version: 1, enabled: field("enabled"), port: field("port"), token: field("token"), trust: field("trust"), notices: field("notices") };
   // Access without a token would be unusable; keep it off until a token exists.
   if (settings.enabled && !settings.token) settings.token = newExternalToken();
   return settings;

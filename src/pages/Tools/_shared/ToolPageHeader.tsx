@@ -4,7 +4,7 @@ import ToolBadge from "./ToolBadge";
 import { toneCss } from "./toolMeta";
 
 type Props = {
-  meta: ToolMeta;
+  meta: Pick<ToolMeta, "icon" | "toneVar">;
   title: string;
   description?: React.ReactNode;
   /** Optional right-side slot (e.g. model tag, settings button) */

@@ -63,7 +63,7 @@ describe('external agents reach FusionKit over MCP', () => {
 
       // Fresh profile: off, default port, confirm writes, nothing listening.
       const defaults = await settings(page);
-      expect(defaults).toEqual({ ok: true, value: { version: 1, enabled: false, port: 47361, token: '', trust: 'confirm_writes' } });
+      expect(defaults).toEqual({ ok: true, value: { version: 1, enabled: false, port: 47361, token: '', trust: 'confirm_writes', notices: true } });
       expect(await status(page)).toMatchObject({ ok: true, value: { enabled: false, state: 'stopped', sessions: [] } });
 
       // Only the main window may configure access.
@@ -168,7 +168,7 @@ describe('external agents reach FusionKit over MCP', () => {
       await app.close(); app = undefined;
       ({ app } = await launch(profile));
       page = await app.firstWindow();
-      expect((await settings(page)).value).toEqual({ version: 1, enabled: true, port, token: renewed.value!.token, trust: 'confirm_writes' });
+      expect((await settings(page)).value).toEqual({ version: 1, enabled: true, port, token: renewed.value!.token, trust: 'confirm_writes', notices: true });
       expect(JSON.parse(await readFile(path.join(profile, 'external-agent', 'settings.json'), 'utf8')).token).toBe(renewed.value!.token);
       const afterRestart = await connect(port, renewed.value!.token, 'after-restart');
       clients.push(afterRestart.client);

@@ -4,6 +4,8 @@ import type { ExternalToolOutcome } from "./contract";
 import { approvalNeed } from "./approval";
 import { ExternalToolError, type ExternalToolContext } from "./errors";
 import { useExternalAgentStore } from "./store";
+import type { ActivityAction, ActivitySummaryKey } from "./activity";
+import { deriveNote, noteOf, summaryOf, unaskedApproval } from "./activity-note";
 
 /** How long a tool call waits for the user before answering confirmation_pending. */
 export const CONFIRMATION_WAIT_MS = 45_000;
@@ -13,7 +15,7 @@ export const CONFIRMATION_EXPIRY_MS = 10 * 60_000;
 const DECIDED_KEPT = 20;
 export const CONFIRMATION_ITEMS_SHOWN = 8;
 
-export type ConfirmationAction = "import" | "translation" | "structure" | "export" | "transcription" | "knowledge" | "files" | "rename";
+export type ConfirmationAction = ActivityAction;
 /** One row of the dialog: a name, the full path or collection under it, and what kind of record it is. */
 export interface ConfirmationItem { text: string; detail?: string; tag?: "collection" | "term" | "rule" | "context";
   /** A rename's old name, shown muted before the new one in `text`. */
@@ -23,7 +25,7 @@ export function pathItem(value: string): ConfirmationItem {
   const parts = value.replace(/[\\/]+$/, "").split(/[\\/]/);
   return { text: parts.at(-1) || value, detail: value };
 }
-export type ConfirmationSummary = "import" | "create_track" | "write_translations" | "split_cue" | "insert_cue_before" | "insert_cue_after" | "convert_source" | "convert_directory" | "extract_source" | "extract_directory" | "rename_paths" | "undo_rename" | "export_source" | "export_choose" | "transcription" | "knowledge";
+export type ConfirmationSummary = ActivitySummaryKey;
 
 /** What the dialog shows; FusionKit writes it from the call's arguments, never the agent's own words. */
 export interface ConfirmationDisplay {
@@ -63,6 +65,8 @@ interface ConfirmationsState {
 const actions = new Map<string, () => Promise<unknown>>();
 const waiters = new Map<string, Set<() => void>>();
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Requests whose call already answered confirmation_pending: their outcome is reported to the activity record. */
+const deferred = new Set<string>();
 let sequence = 0;
 
 const terminal = (status: ConfirmationStatus) => status !== "pending" && status !== "running";
@@ -81,8 +85,23 @@ function update(id: string, change: Partial<ConfirmationRequest>) {
   });
   if (change.status && terminal(change.status)) {
     clearTimeout(timers.get(id)); timers.delete(id); actions.delete(id);
+    if (deferred.delete(id)) reportSettled(id);
   }
   notify(id);
+}
+
+/** Updates the activity record of a call that answered before the user decided. */
+function reportSettled(id: string) {
+  const request = useExternalConfirmationsStore.getState().requests.find(item => item.id === id);
+  if (!request || !terminal(request.status)) return;
+  const outcome = request.outcome;
+  const status = request.status === "completed" ? "ok" as const : request.status === "failed" ? "failed" as const : request.status === "declined" ? "declined" as const : "expired" as const;
+  const reason = outcome && !outcome.ok && typeof outcome.detail?.reason === "string" ? outcome.detail.reason.slice(0, 300) : undefined;
+  const derived = outcome?.ok ? deriveNote(request.tool, outcome.data) : {};
+  const note = { ...derived, ...(reason ? { reason } : {}) };
+  try {
+    window.externalAgent?.reportActivity({ confirmationId: id, status, ...(outcome && !outcome.ok ? { error: outcome.error.slice(0, 100) } : {}), ...(Object.keys(note).length ? { note } : {}) });
+  } catch { /* the record is a courtesy; the call already answered */ }
 }
 
 function outcomeOf(error: unknown): ExternalToolOutcome {
@@ -157,8 +176,10 @@ export async function confirmed<T>(ctx: ExternalToolContext, tool: ExternalToolN
   const trust = useExternalAgentStore.getState().status?.trust ?? "confirm_writes";
   const granted = !!definition.group && (useExternalConfirmationsStore.getState().grants[ctx.sessionId] ?? []).includes(definition.group);
   const need = approvalNeed(trust, definition, { destructive: options.destructive, granted });
-  if (need.kind === "refuse") throw new ExternalToolError(need.error);
-  if (need.kind === "none") return execute();
+  const note = noteOf(ctx);
+  note.summary = summaryOf(display);
+  if (need.kind === "refuse") { note.approval = "read_only"; throw new ExternalToolError(need.error); }
+  if (need.kind === "none") { note.approval = unaskedApproval(trust, definition, granted); return execute(); }
   if (ctx.signal.aborted) throw new ExternalToolError("cancelled");
 
   const id = `confirm-${Date.now().toString(36)}-${(++sequence).toString(36)}`;
@@ -182,11 +203,14 @@ export async function confirmed<T>(ctx: ExternalToolContext, tool: ExternalToolN
       if (useExternalConfirmationsStore.getState().requests.find(item => item.id === id)?.status === "pending") update(id, { status: "expired" });
       throw new ExternalToolError("cancelled");
     }
+    note.confirmationId = id;
+    deferred.add(id);
     throw new ExternalToolError("confirmation_pending", {
       confirmationId: id,
       hint: "The user has not decided in FusionKit yet. Tell them to look at the FusionKit window, then call get_confirmation_result with this confirmationId.",
     });
   }
+  note.approval = settled.status === "declined" ? "declined" : settled.status === "expired" ? "expired" : "confirmed";
   return resultOf(settled) as T;
 }
 
@@ -215,6 +239,6 @@ export function forgetEndedSessions(liveSessionIds: ReadonlySet<string>): void {
 /** Test reset. */
 export function resetExternalConfirmations(): void {
   for (const timer of timers.values()) clearTimeout(timer);
-  timers.clear(); actions.clear(); waiters.clear();
+  timers.clear(); actions.clear(); waiters.clear(); deferred.clear();
   useExternalConfirmationsStore.setState({ requests: [], grants: {} });
 }

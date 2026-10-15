@@ -4,7 +4,7 @@ import { AnimatePresence } from 'motion/react';
 import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
-import { readStudioNavigationView } from './navigation';
+import { readStudioNavigationDocument, readStudioNavigationView } from './navigation';
 import { AlertCircle, AudioLines, BookOpen, CheckCheck, Ellipsis, FilePlus2, Library, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText, Columns2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -173,6 +173,8 @@ export default function SubtitleStudio() {
   const observedRevisions = useRef(new Map<string, number>());
   const [listOffset, setListOffset] = useState(0);
   const [page, setPage] = useState<DocumentPage | null>(null);
+  /** A linked document that is no longer in the library. */
+  const [missingDocument, setMissingDocument] = useState(false);
   const [previewRequest, setPreviewRequest] = useState<{ document: DocumentSummary; error?: ErrorCode } | null>(null);
   const previewReceipt = useRef<typeof previewRequest>(null);
   if (previewRequest) previewReceipt.current = previewRequest;
@@ -492,6 +494,16 @@ export default function SubtitleStudio() {
     void run('load', () => load(0, true));
     return () => { mounted.current = false; invalidateSelectionRequest(); owner.dispose(); unsubscribe(); if (coordinator.current === owner) coordinator.current = null; };
   }, []);
+  // A link to one document (from the external agent activity page): open it once, then drop the hint.
+  useEffect(() => {
+    const documentId = readStudioNavigationDocument(searchParams.toString());
+    if (!documentId) return;
+    // The view hint effect above writes from the same snapshot; drop both so the last write is clean.
+    const next = new URLSearchParams(searchParams); next.delete('document'); next.delete('view');
+    setSearchParams(next, { replace: true });
+    setMissingDocument(false);
+    void openTranscriptionDocument(documentId).catch(() => { if (mounted.current) setMissingDocument(true); });
+  }, [searchParams, setSearchParams]);
   useEffect(() => {
     if (!copied) return;
     const timeout = setTimeout(() => setCopied(null), 1800);
@@ -745,6 +757,7 @@ export default function SubtitleStudio() {
         {refresh}{recoveryButton}
       </div>
       {error && <StudioNotice role="alert" className="text-destructive border-destructive/20 bg-destructive/5"><AlertCircle /><span>{t(errorKeys[error])}</span>{retry.current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => retry.current?.()}>{t('studio:retry')}</Button>}<StudioIconButton label={t('studio:dismiss')} onClick={() => setError(null)}><X /></StudioIconButton></StudioNotice>}
+      {missingDocument && <StudioNotice role="alert" data-testid="studio-document-missing"><AlertCircle className="text-amber-600 dark:text-amber-400" /><span>{t('studio:document_missing')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setMissingDocument(false)}><X /></StudioIconButton></StudioNotice>}
       {unavailable.length > 0 && recoveryKey !== dismissedRecoveryKey && <StudioNotice role="status" data-testid="studio-recovery-warning"><AlertCircle className="text-amber-600 dark:text-amber-400" /><span>{t('studio:unavailable_documents', { count: unavailable.length })}</span><Button variant="ghost" size="sm" onClick={() => setRecoveryOpen(true)}>{t('studio:recovery.view')}</Button><StudioIconButton label={t('studio:dismiss')} onClick={() => dismissRecovery(recoveryKey)}><X /></StudioIconButton></StudioNotice>}
       {exported && <StudioNotice role="status"><CheckCheck className="text-emerald-600 dark:text-emerald-400" /><span>{t('studio:exported', { name: exported })}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setExported('')}><X /></StudioIconButton></StudioNotice>}
       {cleanupPending && <StudioNotice role="status"><AlertCircle /><span>{t('studio:cleanup_pending')}</span><StudioIconButton label={t('studio:dismiss')} onClick={() => setCleanupPending(false)}><X /></StudioIconButton></StudioNotice>}

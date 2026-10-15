@@ -1218,5 +1218,6 @@
       "interrupted": "停止しました",
       "failed": "認識に失敗しました"
     }
-  }
+  },
+  "document_missing": "この文書はもう存在しません。"
 }

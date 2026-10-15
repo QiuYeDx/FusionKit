@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ActivityListPage, ActivityListRequest, ActivityRecord, ActivitySessionSummary, ActivityUpdate } from "./activity";
 
 // ---------------------------------------------------------------------------
 // External agent bridge — what the main process, the preload and the renderer
@@ -23,13 +24,22 @@ export const EXTERNAL_AGENT_CHANNELS = {
   revealClientConfig: "external-agent:reveal-client-config",
   /** Opens a client's own install link (Cursor). */
   openClientInstall: "external-agent:open-client-install",
+  /** The activity record: pages of calls, connections, clearing, a rename undone from the page. */
+  activityList: "external-agent:activity-list",
+  activitySessions: "external-agent:activity-sessions",
+  activityClear: "external-agent:activity-clear",
+  activityUndone: "external-agent:activity-undone",
   /** Main → window pushes. */
   status: "external-agent:status",
+  /** A call recorded or updated, or the record cleared. */
+  activity: "external-agent:activity",
   call: "external-agent:call",
   cancel: "external-agent:cancel",
   /** Window → main. */
   ready: "external-agent:ready",
   respond: "external-agent:respond",
+  /** A call that waited for the user settled later. */
+  reportActivity: "external-agent:report-activity",
 } as const;
 
 export const DEFAULT_EXTERNAL_AGENT_PORT = 47361;
@@ -53,17 +63,20 @@ export const externalAgentSettingsSchema = z.object({
   /** Empty until access is first enabled. */
   token: z.union([externalTokenSchema, z.literal("")]),
   trust: externalTrustSchema,
+  /** Show a notice when a change ran without asking. */
+  notices: z.boolean(),
 }).strict();
 export type ExternalAgentSettings = z.infer<typeof externalAgentSettingsSchema>;
 
 export const DEFAULT_EXTERNAL_AGENT_SETTINGS: ExternalAgentSettings = {
-  version: 1, enabled: false, port: DEFAULT_EXTERNAL_AGENT_PORT, token: "", trust: "confirm_writes",
+  version: 1, enabled: false, port: DEFAULT_EXTERNAL_AGENT_PORT, token: "", trust: "confirm_writes", notices: true,
 };
 
 export const externalAgentSettingsUpdateSchema = z.object({
   enabled: z.boolean().optional(),
   port: externalPortSchema.optional(),
   trust: externalTrustSchema.optional(),
+  notices: z.boolean().optional(),
 }).strict();
 export type ExternalAgentSettingsUpdate = z.infer<typeof externalAgentSettingsUpdateSchema>;
 
@@ -128,8 +141,12 @@ export type ExternalToolOutcome = z.infer<typeof externalToolOutcomeSchema>;
 export const externalToolResponseSchema = z.object({
   callId: z.string().min(1).max(100),
   result: externalToolOutcomeSchema,
+  /** What FusionKit remembers about the call; never sent back to the agent. */
+  activity: z.unknown().optional(),
 }).strict();
 export type ExternalToolResponse = z.infer<typeof externalToolResponseSchema>;
+
+export type ExternalActivityEvent = { type: "record"; record: ActivityRecord } | { type: "cleared" };
 
 /** What the window sees as `window.externalAgent`. */
 export interface ExternalAgentApi {
@@ -151,4 +168,10 @@ export interface ExternalAgentApi {
   ready(): void;
   requestAttention(): void;
   respond(response: ExternalToolResponse): Promise<void>;
+  activityList(request: ActivityListRequest): Promise<ExternalResult<ActivityListPage>>;
+  activitySessions(): Promise<ExternalResult<ActivitySessionSummary[]>>;
+  activityClear(): Promise<ExternalResult<null>>;
+  activityUndone(id: string): Promise<ExternalResult<ActivityRecord | null>>;
+  reportActivity(update: ActivityUpdate): void;
+  onActivity(listener: (event: ExternalActivityEvent) => void): () => void;
 }

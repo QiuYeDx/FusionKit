@@ -1218,5 +1218,6 @@
       "interrupted": "Stopped",
       "failed": "Recognition failed"
     }
-  }
+  },
+  "document_missing": "This document no longer exists."
 }

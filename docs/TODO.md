@@ -63,6 +63,8 @@
   - 2026-10-14 实现并验证（待验收）：“调整时间”对话框新增“按比例伸缩”，精确分数比例，撤销逐条精确恢复。记录见 `records/T-SHIFT-04..06.md`。
 - [x] **查找替换支持正则与整词**：见 `docs/features/studio-cue-find/`（批次 I2）。
   - 2026-10-14 实现并验证（待验收）：查找栏新增全词匹配（Alt+W）与正则（Alt+R），替换支持 `$1` / `$<名称>` / `$&`；正则在后台线程执行、3 秒超时。记录见 `records/T-FIND-04..06.md`。
+- [x] **外部 Agent 活动记录**（2026-10-14 用户反馈：放行后外部调用“一点痕迹都没有”）：见 `docs/features/external-agent/`（批次 I5，module-activity）。
+  - 2026-10-15 实现并验证（待验收）：主进程在本机记录每次调用（30 天、改动 2000 条 / 读取 1000 条、不存正文与令牌），“外部 Agent 活动”页面按连接查看与筛选、打开文档、撤销重命名、在文件夹中显示；标题栏指示（执行中 / 等待确认 / 未查看数）与合并的轻提示（设置中可关）。记录见 `records/i5/`。
 - [x] **清理已移除音频工具的本地设置**（小改动，不单独建规格）：
   - 目标：v0.5.0 移除了音频转文本、文本转音频、实时字幕、双向语音后，用户本机 `localStorage` 里仍留着这些工具的设置，其中 `fusionkit-audio-settings` 可能含音频服务的 API Key。应用启动时删除这些不再被读取的数据。
   - 范围：只删除这 5 个键：`fusionkit-audio-settings`、`fusionkit-audio-transcriber`、`fusionkit-speech-synthesizer`、`fusionkit-realtime-captions`、`fusionkit-realtime-voice`。不动其他键；文本模型配置 `fusionkit-model` 里旧的音频备份字段已由模型配置 v6 迁移去除，不在此处理。

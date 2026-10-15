@@ -28,7 +28,16 @@ const BottomNavigation: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isDark, setTheme } = useThemeStore();
-  const backToTools = useCallback(() => { toast.dismiss("tool-escape"); navigate("/tools"); }, [navigate]);
+  // The activity page is reached from anywhere (title bar, notices, settings): back returns there, or to settings.
+  const backToTools = useCallback(() => {
+    toast.dismiss("tool-escape");
+    if (location.pathname === "/external-agent") {
+      if ((window.history.state as { idx?: number } | null)?.idx) navigate(-1);
+      else navigate("/setting?tab=external");
+      return;
+    }
+    navigate("/tools");
+  }, [navigate, location.pathname]);
   const armEscape = useCallback(() => toast(t("menu.escape_again"), { id: "tool-escape", duration: ESCAPE_CONFIRM_MS }), [t]);
   useToolPageEscape(location.pathname, backToTools, { confirm: confirmEscape, onArm: armEscape });
 

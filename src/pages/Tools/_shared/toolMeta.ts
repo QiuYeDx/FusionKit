@@ -97,4 +97,4 @@ export const TOOL_META: Record<ToolKey, ToolMeta> = {
   },
 };
 
-export const toneCss = (meta: ToolMeta) => `var(${meta.toneVar})`;
+export const toneCss = (meta: Pick<ToolMeta, "toneVar">) => `var(${meta.toneVar})`;

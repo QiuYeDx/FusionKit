@@ -1,4 +1,5 @@
 import useModelStore from "@/store/useModelStore";
+import type { ActivityNote } from "./activity";
 
 /** A failure with a stable code the external agent can act on. */
 export class ExternalToolError extends Error {
@@ -9,6 +10,8 @@ export interface ExternalToolContext {
   sessionId: string;
   client: { name: string; version: string };
   signal: AbortSignal;
+  /** What this call adds to FusionKit's activity record (see activity-note.ts). */
+  note?: ActivityNote;
 }
 
 /** Stops work once the external agent cancelled the call. */

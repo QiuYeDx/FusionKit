@@ -21,6 +21,8 @@ import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageEx
 import LocalSubtitleTranscriber from "./pages/Tools/Subtitle/LocalSubtitleTranscriber";
 import NameTranslator from "./pages/Tools/Rename/NameTranslator";
 import TextTranslator from "./pages/Tools/Text/TextTranslator";
+import ExternalAgentActivity from "./pages/ExternalAgentActivity";
+import { EXTERNAL_ACTIVITY_ROUTE } from "./pages/ExternalAgentActivity/route";
 import { Toaster } from "@/components/ui/sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Update from "@/components/update";
@@ -40,6 +42,7 @@ const ROUTE_ORDER: Record<string, number> = {
 function getRouteIndex(pathname: string): number {
   if (ROUTE_ORDER[pathname] !== undefined) return ROUTE_ORDER[pathname];
   if (pathname.startsWith("/tools/")) return ROUTE_ORDER["/tools"] + 0.5;
+  if (pathname === EXTERNAL_ACTIVITY_ROUTE) return ROUTE_ORDER["/setting"] + 0.5;
   return -1;
 }
 
@@ -110,7 +113,7 @@ function App() {
             >
               <ToolFileDropScope
                 enabled={location.pathname.startsWith('/tools/')}
-                className={location.pathname === '/tools' || location.pathname.startsWith('/tools/') ? undefined : 'pt-10'}
+                className={location.pathname === '/tools' || location.pathname.startsWith('/tools/') || location.pathname === EXTERNAL_ACTIVITY_ROUTE ? undefined : 'pt-10'}
               >
               <Routes location={location}>
                 {/* 一级页面 */}
@@ -119,6 +122,7 @@ function App() {
                 <Route path="/tools" element={<Tools />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/setting" element={<Setting />} />
+                <Route path={EXTERNAL_ACTIVITY_ROUTE} element={<ExternalAgentActivity />} />
 
                 {/* 二级页面 */}
                 <Route path="/tools/subtitle/studio" element={<SubtitleStudio />} />

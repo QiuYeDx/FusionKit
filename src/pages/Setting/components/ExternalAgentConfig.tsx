@@ -15,6 +15,10 @@ import { cn } from "@/lib/utils";
 import { buildClientConfig, clientTransports, connectionFields, EXTERNAL_CLIENTS, isWritableClient, type ExternalClient, type ExternalTransport } from "@/agent/external/client-configs";
 import type { ExternalAgentSettings, ExternalClientConfigStatus, ExternalClientConfigWrite, ExternalConnectionInfo, ExternalSkillStatus, ExternalSkillTarget, ExternalTrust } from "@/agent/external/contract";
 import { useExternalAgentStore } from "@/agent/external/store";
+import { setActivityNotices } from "@/agent/external/activity-store";
+import { toolLabel } from "@/agent/external/activity-text";
+import { externalActivityPath } from "@/pages/ExternalAgentActivity/route";
+import { Link } from "react-router-dom";
 
 const TRUST_LEVELS: ExternalTrust[] = ["read_only", "confirm_writes", "auto"];
 
@@ -176,6 +180,14 @@ export default function ExternalAgentConfig() {
               </label>
             ))}
           </RadioGroup>
+          <label htmlFor="setting-external-notices" className="flex cursor-pointer items-start justify-between gap-6 rounded-smooth-lg border px-3.5 py-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-medium">{t("setting:external_agent.activity.settings.notices_title")}</div>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{t("setting:external_agent.activity.settings.notices_description")}</p>
+            </div>
+            <Switch id="setting-external-notices" checked={settings?.notices ?? true} disabled={!settings || saving} data-testid="setting-external-notices"
+              onCheckedChange={(checked) => void save(() => api.updateSettings({ notices: checked })).then((saved) => { if (saved) setActivityNotices(checked); })} />
+          </label>
         </div>
 
         {/* Port and token */}
@@ -282,7 +294,12 @@ export default function ExternalAgentConfig() {
 
         {/* Live connections */}
         <div className="space-y-2">
-          <div className="text-sm font-medium">{t("setting:external_agent.sessions.title")}</div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-medium">{t("setting:external_agent.sessions.title")}</div>
+            <Button asChild variant="link" size="sm" className="h-auto px-0 text-xs" data-testid="setting-external-activity">
+              <Link to={externalActivityPath()}>{t("setting:external_agent.activity.settings.view_all")}</Link>
+            </Button>
+          </div>
           {sessions.length ? (
             <div className="divide-y rounded-smooth-lg border" data-testid="setting-external-sessions">
               {sessions.map((session) => {
@@ -297,12 +314,17 @@ export default function ExternalAgentConfig() {
                       </div>
                       <div className="mt-0.5 truncate text-xs text-muted-foreground">
                         {minutes ? t("setting:external_agent.sessions.connected_minutes", { count: minutes }) : t("setting:external_agent.sessions.connected_now")}
-                        {last && <> · {t("setting:external_agent.sessions.last", { tool: last.tool })} <span className={last.ok ? "" : "text-destructive"}>
+                        {last && <> · {t("setting:external_agent.sessions.last", { tool: toolLabel(t, last.tool) })} <span className={last.ok ? "" : "text-destructive"}>
                           {last.ok ? t("setting:external_agent.sessions.ok") : t("setting:external_agent.sessions.failed", { error: last.error ?? "" })}</span></>}
                       </div>
                     </div>
-                    <Button type="button" variant="outline" size="sm" className="shrink-0" data-testid="setting-external-disconnect"
-                      onClick={() => void api.closeSession(session.id)}>{t("setting:external_agent.sessions.disconnect")}</Button>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Button asChild variant="ghost" size="sm" data-testid="setting-external-session-activity">
+                        <Link to={externalActivityPath(session.id)}>{t("setting:external_agent.activity.settings.view_session")}</Link>
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" data-testid="setting-external-disconnect"
+                        onClick={() => void api.closeSession(session.id)}>{t("setting:external_agent.sessions.disconnect")}</Button>
+                    </div>
                   </div>
                 );
               })}

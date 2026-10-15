@@ -18,6 +18,7 @@ function fakeApi() {
     onCancel: (listener) => { listeners.cancel.push(listener); return () => { listeners.cancel = []; }; },
     onStatus: (listener) => { listeners.status.push(listener); return () => { listeners.status = []; }; },
     ready: vi.fn(), requestAttention: vi.fn(),
+    activityList: vi.fn(), activitySessions: vi.fn(), activityClear: vi.fn(), activityUndone: vi.fn(), reportActivity: vi.fn(), onActivity: () => () => {},
     respond: vi.fn(async (response: ExternalToolResponse) => { responses.push(response); }),
   } satisfies ExternalAgentApi;
   const send = (tool: string, args: Record<string, unknown> = {}, callId = `call-${responses.length}-${Math.random()}`) => {
@@ -93,6 +94,20 @@ describe("external tool host", () => {
     expect(useExternalAgentStore.getState().activity.s1.at(-1)).toMatchObject({ tool: "list_studio_documents", ok: true });
     listeners.status.forEach(listener => listener({ ...status, sessions: [] }));
     expect(useExternalAgentStore.getState().activity.s1).toBeUndefined();
+  });
+
+  it("answers with the activity note: a read's document, nothing for a bare read", async () => {
+    const { api, send, responses } = fakeApi();
+    installExternalAgentHost(api, {
+      read_studio_document: async () => ({ document: { documentId: "d1", name: "Ep01.srt" }, cues: [] }),
+      list_studio_documents: async () => ({ items: [] }),
+    });
+    const read = send("read_studio_document", { documentId: "8d0f6f1e-2c1b-4d7a-9a51-3f0d2b7c9e10" });
+    expect(await answer(responses, read)).toMatchObject({ ok: true });
+    expect(responses.find(item => item.callId === read)?.activity).toEqual({ target: { documentId: "d1", documentName: "Ep01.srt" } });
+    const list = send("list_studio_documents");
+    await answer(responses, list);
+    expect(responses.find(item => item.callId === list)).not.toHaveProperty("activity");
   });
 
   it("does nothing without the preload API", () => {

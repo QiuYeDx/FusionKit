@@ -3,10 +3,14 @@
 
 由各模块 tasks.md 生成；它不是第二份任务状态来源。
 
-规模：L；风险：high；当前批次：I4。
+规模：L；风险：high；当前批次：I5。
 
 | 任务 | 模块 | 标题 | 状态 | 批次 | 需求 | 依赖 | 负责人 | 实施记录 | 集成版本 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| T-ACTIVITY-01 | ACTIVITY | 主进程记录与保存 | 已完成 | I5 | R-ACTIVITY-01 | - | Claude（当前会话） | records/i5/T-ACTIVITY-01.md | - |
+| T-ACTIVITY-02 | ACTIVITY | 渲染端补充与放行方式 | 已完成 | I5 | R-ACTIVITY-01 | T-ACTIVITY-01 | Claude（当前会话） | records/i5/T-ACTIVITY-02.md | - |
+| T-ACTIVITY-03 | ACTIVITY | 活动页面、标题栏指示、轻提示与设置入口 | 已完成 | I5 | R-ACTIVITY-02, R-ACTIVITY-03, R-ACTIVITY-04 | T-ACTIVITY-02 | Claude（当前会话） | records/i5/T-ACTIVITY-03.md | - |
+| T-ACTIVITY-04 | ACTIVITY | I5 回归与文档 | 已完成 | I5 | R-ACTIVITY-01, R-ACTIVITY-02, R-ACTIVITY-03, R-ACTIVITY-04 | T-ACTIVITY-03 | Claude（当前会话） | records/i5/T-ACTIVITY-04.md | - |
 | T-BRIDGE-01 | BRIDGE | 共享契约、设置存储与设置 IPC | 已完成 | I1 | R-BRIDGE-01 | - | Claude（当前会话） | records/i1/T-BRIDGE-01.md | 未提交工作树（基于 2d9f88c） |
 | T-BRIDGE-02 | BRIDGE | 本机 HTTP 端点与 MCP 会话 | 已完成 | I1 | R-BRIDGE-02, R-BRIDGE-03 | T-BRIDGE-01 | Claude（当前会话） | records/i1/T-BRIDGE-02.md | 未提交工作树（基于 2d9f88c） |
 | T-BRIDGE-03 | BRIDGE | 工具调用转发到渲染进程 | 已完成 | I1 | R-BRIDGE-04 | T-BRIDGE-02 | Claude（当前会话） | records/i1/T-BRIDGE-03.md | 未提交工作树（基于 2d9f88c） |
@@ -36,3 +40,4 @@
 | I2 | 工具面与应用内确认：外部 Agent 当译者 | verifying | approved | pending |
 | I3 | 接入体验：设置页、连接指示、配置片段、stdio 桥、Skill 与文档 | verifying | approved | pending |
 | I4 | 经典工具：转换、提取、按外部 Agent 的名称重命名、任务与页面 | verifying | approved | pending |
+| I5 | 活动记录：外部 Agent 做了什么——本机记录、活动页面、标题栏指示与提示 | verifying | approved | pending |

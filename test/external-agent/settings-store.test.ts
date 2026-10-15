@@ -11,7 +11,7 @@ afterEach(async () => { await rm(directory, { recursive: true, force: true }); }
 describe("external agent settings", () => {
   it("starts off on port 47361, confirming writes, without a token, when nothing is saved", async () => {
     const store = new ExternalAgentSettingsStore(directory);
-    expect(await store.load()).toEqual({ version: 1, enabled: false, port: 47361, token: "", trust: "confirm_writes" });
+    expect(await store.load()).toEqual({ version: 1, enabled: false, port: 47361, token: "", trust: "confirm_writes", notices: true });
   });
 
   it("falls back field by field when the file is damaged", async () => {
@@ -19,7 +19,7 @@ describe("external agent settings", () => {
     await writeFile(path.join(directory, "settings.json"), "{not json");
     expect((await new ExternalAgentSettingsStore(directory).load()).port).toBe(47361);
     await writeFile(path.join(directory, "settings.json"), JSON.stringify({ enabled: "yes", port: 80, trust: "auto", token: "short" }));
-    expect(await new ExternalAgentSettingsStore(directory).load()).toEqual({ version: 1, enabled: false, port: 47361, token: "", trust: "auto" });
+    expect(await new ExternalAgentSettingsStore(directory).load()).toEqual({ version: 1, enabled: false, port: 47361, token: "", trust: "auto", notices: true });
   });
 
   it("mints a 43-character base64url token on first enable and keeps changes across restarts", async () => {
@@ -30,6 +30,14 @@ describe("external agent settings", () => {
     const reloaded = await new ExternalAgentSettingsStore(directory).load();
     expect(reloaded).toEqual(saved);
     expect(JSON.parse(await readFile(path.join(directory, "settings.json"), "utf8"))).toEqual(saved);
+  });
+
+  it("keeps the notice switch across restarts; files from before it have notices on", async () => {
+    const store = new ExternalAgentSettingsStore(directory);
+    await store.load();
+    expect((await store.update({ notices: false })).notices).toBe(false);
+    expect((await new ExternalAgentSettingsStore(directory).load()).notices).toBe(false);
+    await expect(store.update({ notices: "no" })).rejects.toThrow("invalid_settings");
   });
 
   it("rejects invalid changes whole and leaves the settings untouched", async () => {

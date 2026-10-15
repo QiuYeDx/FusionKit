@@ -1,10 +1,13 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { app, BrowserWindow, ipcMain, shell, type IpcMain, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from "electron";
 import {
   EXTERNAL_AGENT_CHANNELS,
   type ExternalAgentStatus,
   type ExternalResult,
+  type ExternalToolCall,
+  type ExternalToolOutcome,
 } from "../../../src/agent/external/contract";
 import { EXTERNAL_TOOLS, isExternalToolName } from "../../../src/agent/external/catalog";
 import { ExternalAgentSettingsStore } from "./settings-store";
@@ -14,6 +17,8 @@ import { clientConfigPath, clientConfigStatus, ConfigUnreadable, writeClientConf
 import { codexTable, CURSOR_INSTALL_PREFIX, cursorInstallLink, isWritableClient, jsonServerEntry, WRITABLE_CLIENTS } from "../../../src/agent/external/client-configs";
 import { ExternalAgentHttpHost } from "./http-host";
 import { RendererBridge } from "./renderer-bridge";
+import { ActivityLog } from "./activity-log";
+import { activityListRequestSchema, activityUpdateSchema, type ActivityAccess, type ActivityNote, type ActivityRecord } from "../../../src/agent/external/activity";
 
 /** Only the main window, from its main frame, may configure access or answer calls. */
 function fromMainWindow(event: IpcMainInvokeEvent | IpcMainEvent, getWindow: () => BrowserWindow | null): boolean {
@@ -39,13 +44,42 @@ export function setupExternalAgent(options: {
     return window && !window.isDestroyed() ? window.webContents : null;
   };
   const bridge = new RendererBridge({ getTarget: target });
+  const activity = new ActivityLog(directory, {
+    onEvent: event => { const contents = target(); if (contents && !contents.isDestroyed()) contents.send(EXTERNAL_AGENT_CHANNELS.activity, event); },
+  });
+  const accessOf = (tool: string): ActivityAccess => isExternalToolName(tool) ? EXTERNAL_TOOLS[tool].access : "read";
+  // Every call leaves a record; the session, client and tool are the main process's own.
+  const remember = (call: Omit<ExternalToolCall, "callId">, startedAt: number, outcome: ExternalToolOutcome, note?: ActivityNote, refused = false) => {
+    const { approval, confirmationId, reason, ...rest } = note ?? {};
+    const pending = !outcome.ok && outcome.error === "confirmation_pending";
+    const status: ActivityRecord["status"] = outcome.ok ? "ok" : pending ? "pending"
+      : outcome.error === "declined_by_user" ? "declined" : outcome.error === "confirmation_expired" ? "expired" : outcome.error === "cancelled" ? "cancelled" : "failed";
+    const detailReason = !outcome.ok && typeof outcome.detail?.reason === "string" ? outcome.detail.reason : undefined;
+    const kept = { ...rest, ...((reason ?? detailReason) ? { reason: (reason ?? detailReason)!.slice(0, 300) } : {}) };
+    const destructive = accessOf(call.tool) === "destructive" || rest.summary?.warning === "overwrite";
+    activity.record({
+      id: randomUUID(), sessionId: call.sessionId, client: { name: call.client.name.slice(0, 100), version: call.client.version.slice(0, 50) },
+      tool: call.tool.slice(0, 100), access: destructive ? "destructive" : accessOf(call.tool), startedAt, endedAt: Date.now(), status,
+      ...(!outcome.ok && !pending ? { error: outcome.error } : {}),
+      ...(refused ? { approval: "read_only" as const } : approval ? { approval } : {}),
+      ...(pending && confirmationId ? { confirmationId } : {}),
+      ...(Object.keys(kept).length ? { note: kept } : {}),
+    });
+  };
   let state: Pick<ExternalAgentStatus, "state" | "error" | "port"> = { state: "stopped", port: 0 };
   const host = new ExternalAgentHttpHost({
     version,
     callTool: async (call, signal) => {
+      const startedAt = Date.now();
       // Read-only access refuses every change here, before the window is involved.
-      if (store.settings.trust === "read_only" && isExternalToolName(call.tool) && EXTERNAL_TOOLS[call.tool].access !== "read") return { ok: false, error: "read_only" };
-      return bridge.call(call, signal);
+      if (store.settings.trust === "read_only" && isExternalToolName(call.tool) && EXTERNAL_TOOLS[call.tool].access !== "read") {
+        const outcome: ExternalToolOutcome = { ok: false, error: "read_only" };
+        remember(call, startedAt, outcome, undefined, true);
+        return outcome;
+      }
+      const answer = await bridge.call(call, signal);
+      remember(call, startedAt, answer.outcome, answer.activity);
+      return answer.outcome;
     },
     onSessionsChanged: () => publish(),
   });
@@ -61,6 +95,7 @@ export function setupExternalAgent(options: {
     };
   };
   function publish() {
+    activity.syncSessions(host.sessionSummaries());
     const contents = target();
     if (contents && !contents.isDestroyed()) contents.send(EXTERNAL_AGENT_CHANNELS.status, status());
   }
@@ -105,6 +140,20 @@ export function setupExternalAgent(options: {
     const settings = await store.regenerateToken(); await apply(); return settings;
   }));
   ipc.handle(EXTERNAL_AGENT_CHANNELS.getStatus, event => reply(event, async () => status()));
+  const liveIds = () => new Set(host.sessionSummaries().map(session => session.id));
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.activityList, (event, request: unknown) => reply(event, async () => {
+    const parsed = activityListRequestSchema.safeParse(request);
+    if (!parsed.success) throw new Error("invalid_settings");
+    return activity.list(parsed.data);
+  }));
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.activitySessions, event => reply(event, async () => activity.sessionSummaries(liveIds())));
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.activityClear, event => reply(event, async () => { await activity.clear(liveIds()); return null; }));
+  ipc.handle(EXTERNAL_AGENT_CHANNELS.activityUndone, (event, id: unknown) => reply(event, async () => typeof id === "string" ? activity.markUndone(id) : null));
+  ipc.on(EXTERNAL_AGENT_CHANNELS.reportActivity, (event, update: unknown) => {
+    if (!fromMainWindow(event, options.getWindow)) return;
+    const parsed = activityUpdateSchema.safeParse(update);
+    if (parsed.success) activity.settle(parsed.data);
+  });
   ipc.handle(EXTERNAL_AGENT_CHANNELS.closeSession, (event, id: unknown) => reply(event, async () => {
     await host.closeSession(String(id)); return null;
   }));
@@ -197,8 +246,8 @@ export function setupExternalAgent(options: {
   app.on("browser-window-created", () => setImmediate(watch));
   watch();
 
-  const ready = store.load().then(() => apply(true));
+  const ready = Promise.all([store.load(), activity.load()]).then(() => apply(true));
   app.on("before-quit", () => { bridge.close(); endpoint.clearSync(); void host.stop(); });
 
-  return { store, host, bridge, ready, status, apply, endpoint, stop: async () => { bridge.close(); await host.stop(); await endpoint.clear(); } };
+  return { store, host, bridge, activity, ready, status, apply, endpoint, stop: async () => { bridge.close(); await host.stop(); await endpoint.clear(); } };
 }

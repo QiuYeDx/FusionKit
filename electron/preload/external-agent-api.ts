@@ -36,5 +36,11 @@ export function createExternalAgentApi(ipc: Ipc): ExternalAgentApi {
     ready: () => ipc.send(EXTERNAL_AGENT_CHANNELS.ready),
     requestAttention: () => ipc.send(EXTERNAL_AGENT_CHANNELS.requestAttention),
     respond: async response => { await ipc.invoke(EXTERNAL_AGENT_CHANNELS.respond, response); },
+    activityList: request => ipc.invoke(EXTERNAL_AGENT_CHANNELS.activityList, request),
+    activitySessions: () => ipc.invoke(EXTERNAL_AGENT_CHANNELS.activitySessions),
+    activityClear: () => ipc.invoke(EXTERNAL_AGENT_CHANNELS.activityClear),
+    activityUndone: id => ipc.invoke(EXTERNAL_AGENT_CHANNELS.activityUndone, id),
+    reportActivity: update => ipc.send(EXTERNAL_AGENT_CHANNELS.reportActivity, update),
+    onActivity: listener => subscribe(EXTERNAL_AGENT_CHANNELS.activity, listener),
   } satisfies ExternalAgentApi);
 }

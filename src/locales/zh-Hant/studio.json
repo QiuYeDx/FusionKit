@@ -1218,5 +1218,6 @@
       "interrupted": "已停止",
       "failed": "辨識失敗"
     }
-  }
+  },
+  "document_missing": "這份文件已不存在。"
 }

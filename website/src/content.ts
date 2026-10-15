@@ -187,7 +187,7 @@ export const content: Record<Lang, Content> = {
           { title: '接入客户端', body: '按页面指引复制命令、一键写入配置文件或“添加到 Cursor”，终端版与桌面版都支持。' },
           { title: '直接提需求', body: '在你的 Agent 里说要做什么；导入、写入译文、导出前会在 FusionKit 中弹出确认。' },
         ],
-        note: '服务只监听本机并需要令牌。权限分为只读、修改前询问和自动执行；外部 Agent 写入的译文标为未复核，可以撤销。',
+        note: '服务只监听本机并需要令牌。权限分为只读、修改前询问和自动执行；外部 Agent 写入的译文标为未复核，可以撤销；它做过的每件事都记录在“外部 Agent 活动”页面。',
         demo: {
           label: '外部 Agent 通过 MCP 操作 FusionKit 的示例过程',
           client: 'Claude Code',
@@ -358,7 +358,7 @@ export const content: Record<Lang, Content> = {
           { title: 'Connect your client', body: 'Copy a command, write the config file in one click or use “Add to Cursor”. Terminal and desktop apps both work.' },
           { title: 'Just ask', body: 'Tell your agent what you need. Imports, translations and exports ask for your OK in FusionKit first.' },
         ],
-        note: 'Listens on your computer only and requires a token. Choose read only, ask before changes or auto; translations from an external agent are marked unreviewed and can be undone.',
+        note: 'Listens on your computer only and requires a token. Choose read only, ask before changes or auto; translations from an external agent are marked unreviewed and can be undone, and everything it does is listed on the activity page.',
         demo: {
           label: 'An external agent working in FusionKit over MCP',
           client: 'Claude Code',

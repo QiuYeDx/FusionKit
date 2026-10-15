@@ -1218,5 +1218,6 @@
       "interrupted": "已停止",
       "failed": "识别失败"
     }
-  }
+  },
+  "document_missing": "这个文档已不存在。"
 }

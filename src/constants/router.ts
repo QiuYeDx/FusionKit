@@ -10,4 +10,5 @@ export const ToolNameMap: { [key: string]: string } = {
   [LOCAL_SUBTITLE_TRANSCRIBER_ROUTE]: "menu.subtitle.local_transcriber",
   "/tools/rename/name-translator": "menu.rename.name_translator",
   "/tools/text/translator": "menu.text.translator",
+  "/external-agent": "setting:external_agent.activity.title",
 };

@@ -15,6 +15,8 @@ interface ExternalAgentState {
   status: ExternalAgentStatus | null;
   /** Recent calls per connected session, newest last. */
   activity: Record<string, ExternalActivityEntry[]>;
+  /** Calls the window is running now. */
+  running: number;
   setStatus: (status: ExternalAgentStatus) => void;
   record: (sessionId: string, entry: ExternalActivityEntry) => void;
 }
@@ -23,6 +25,7 @@ interface ExternalAgentState {
 export const useExternalAgentStore = create<ExternalAgentState>((set) => ({
   status: null,
   activity: {},
+  running: 0,
   setStatus: (status) => set((state) => {
     const live = new Set(status.sessions.map((session) => session.id));
     const activity = Object.fromEntries(Object.entries(state.activity).filter(([id]) => live.has(id)));
