@@ -197,7 +197,7 @@ function ScrollableDialogContent({
       data-dialog-section="body"
       className={cn(
         "relative overflow-hidden",
-        "[&>[data-radix-scroll-area-viewport]]:border-t [&>[data-radix-scroll-area-viewport]]:border-b [&>[data-radix-scroll-area-viewport]]:border-background",
+        "[&>[data-radix-scroll-area-viewport]]:border-t [&>[data-radix-scroll-area-viewport]]:border-b [&>[data-radix-scroll-area-viewport]]:border-transparent",
         className
       )}
     >
@@ -214,7 +214,7 @@ function ScrollableDialogContent({
         {fadeMasks && showTopFade && (
           <motion.div
             aria-hidden="true"
-            className="pointer-events-none absolute left-0 right-0 top-0 z-[5] bg-gradient-to-b from-background to-transparent"
+            className="pointer-events-none absolute left-0 right-0 top-0 z-[5] bg-gradient-to-b from-popover to-transparent"
             style={{ height: `${fadeMaskHeight}px` }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -229,7 +229,7 @@ function ScrollableDialogContent({
         {fadeMasks && showBottomFade && (
           <motion.div
             aria-hidden="true"
-            className="pointer-events-none absolute left-0 right-0 bottom-0 z-[5] bg-gradient-to-t from-background to-transparent"
+            className="pointer-events-none absolute left-0 right-0 bottom-0 z-[5] bg-gradient-to-t from-popover to-transparent"
             style={{ height: `${fadeMaskHeight}px` }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

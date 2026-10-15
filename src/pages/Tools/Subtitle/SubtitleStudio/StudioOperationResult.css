@@ -1,7 +1,8 @@
 .studio-result-dialog {
   border-radius: 18px;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  box-shadow: 0 18px 64px -16px rgb(0 0 0 / 22%), 0 2px 8px rgb(0 0 0 / 5%);
+  /* Keeps the shared dialog ring, which a plain box-shadow would replace. */
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent), 0 18px 64px -16px rgb(0 0 0 / 22%), 0 2px 8px rgb(0 0 0 / 5%);
 }
 .studio-result-dialog > [data-slot="dialog-close"] {
   display: none;

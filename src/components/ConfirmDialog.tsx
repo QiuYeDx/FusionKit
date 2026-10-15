@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -29,6 +30,7 @@ function ConfirmDialog({
   cancelText,
   variant = "destructive",
 }: ConfirmDialogProps) {
+  const { t } = useTranslation("common");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false}>
@@ -38,7 +40,7 @@ function ConfirmDialog({
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {cancelText}
+            {cancelText ?? t("action.cancel")}
           </Button>
           <Button
             variant={variant}
@@ -47,7 +49,7 @@ function ConfirmDialog({
               onOpenChange(false);
             }}
           >
-            {confirmText}
+            {confirmText ?? t("action.confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>
