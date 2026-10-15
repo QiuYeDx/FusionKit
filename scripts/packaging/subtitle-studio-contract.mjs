@@ -10,6 +10,14 @@ export const RESOURCE_CONTRIBUTIONS = Object.freeze({
     runtimeVerifier: '../subtitle-studio/transcription/runtime/runtime-manifest.mjs', overwriteVerifier: '../subtitle-studio/transcription/overwrite-native/overwrite-native-staging.mjs' }),
 });
 
+/**
+ * Ordinary application resources after the frozen runtime roots: copied as they are and
+ * signed with the app, with no runtime verifier. The external agent's stdio bridge script.
+ */
+export const APPLICATION_RESOURCES = Object.freeze([
+  Object.freeze({ from: 'resources/external-agent', to: 'external-agent' }),
+]);
+
 export function packagingError(message, contribution, cause) {
   const error = new Error(message, cause === undefined ? undefined : { cause });
   error.code = typeof cause?.code === 'string' ? cause.code : 'runtime_staging_invalid';
@@ -28,8 +36,8 @@ function selectedContributions(ids) {
 
 export function assertPackagingConfig(config, { contributionIds = ['legacy', 'studio'] } = {}) {
   const selected = selectedContributions(contributionIds);
-  if (!config || config.beforePack !== PACKAGING_HOOK || !Array.isArray(config.extraResources) || config.extraResources.length !== selected.length) throw packagingError('The complete builder resource configuration is invalid.');
-  const expectedMappings = selected.map(([, item]) => ({ from: item.from, to: item.to, filter: ['**/*'] }));
+  const expectedMappings = [...selected.map(([, item]) => item), ...APPLICATION_RESOURCES].map(item => ({ from: item.from, to: item.to, filter: ['**/*'] }));
+  if (!config || config.beforePack !== PACKAGING_HOOK || !Array.isArray(config.extraResources) || config.extraResources.length !== expectedMappings.length) throw packagingError('The complete builder resource configuration is invalid.');
   if (config.extraResources.some((item, index) => !exactObject(item, ['from', 'to', 'filter']) || item.from !== expectedMappings[index].from || item.to !== expectedMappings[index].to || !Array.isArray(item.filter) || item.filter.length !== 1 || item.filter[0] !== '**/*')) throw packagingError('The builder contains an incorrect resource mapping.');
   for (const [platform, targets, arch] of [['mac', ['dmg', 'zip'], 'arm64'], ['win', ['nsis'], 'x64']]) {
     const value = config[platform];

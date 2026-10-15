@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { assertPackagingConfig, resolvePackagingTarget, verifyPackagingContributions, loadContributionVerifiers, RESOURCE_CONTRIBUTIONS } from './subtitle-studio-contract.mjs';
+import { APPLICATION_RESOURCES, assertPackagingConfig, resolvePackagingTarget, verifyPackagingContributions, loadContributionVerifiers, RESOURCE_CONTRIBUTIONS } from './subtitle-studio-contract.mjs';
 import { createBeforePackHook } from './subtitle-studio-before-pack.cjs';
 import { getLocalSubtitleStagingTarget } from '../subtitle-studio/transcription/runtime/staging-contract.mjs';
 
@@ -47,6 +47,7 @@ test('validates the real electron-builder resolved configuration without modifyi
   const expected = structuredClone(old);
   expected.beforePack = 'scripts/packaging/subtitle-studio-before-pack.cjs';
   expected.extraResources.push({ from: RESOURCE_CONTRIBUTIONS.studio.from, to: RESOURCE_CONTRIBUTIONS.studio.to, filter: ['**/*'] });
+  for (const item of APPLICATION_RESOURCES) expected.extraResources.push({ from: item.from, to: item.to, filter: ['**/*'] });
   expected.mac.signIgnore.push('Contents/Resources/subtitle-studio/transcription/');
   assert.deepEqual(readConfig(), expected);
   assert.equal(old.extraResources.length, 1);
@@ -61,6 +62,8 @@ test('checks the complete config before loading any verifier', async () => {
     value => { value.extraResources[1].filter = ['**/*.node']; },
     value => { value.extraResources[1].optional = true; },
     value => { value.extraResources.push(structuredClone(value.extraResources[1])); },
+    value => { value.extraResources.splice(2, 1); },
+    value => { value.extraResources[2].from = 'resources'; },
     value => { value.mac.signIgnore.pop(); },
     value => { value.mac.signIgnore[1] = 'Contents/Resources/'; },
     value => { value.mac.target[0].arch = ['x64']; },
