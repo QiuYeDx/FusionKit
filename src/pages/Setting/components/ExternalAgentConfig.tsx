@@ -19,8 +19,10 @@ import { setActivityNotices } from "@/agent/external/activity-store";
 import { toolLabel } from "@/agent/external/activity-text";
 import { externalActivityPath } from "@/pages/ExternalAgentActivity/route";
 import { Link } from "react-router-dom";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { ExternalAgentPermissions } from "./ExternalAgentPermissions";
 
-const TRUST_LEVELS: ExternalTrust[] = ["read_only", "confirm_writes", "auto"];
+const TRUST_LEVELS: ExternalTrust[] = ["read_only", "confirm_writes", "auto", "full", "custom"];
 
 /** Clipboard writes from an unfocused window can fail; a hidden textarea still works there. */
 async function copyText(text: string): Promise<boolean> {
@@ -82,6 +84,8 @@ export default function ExternalAgentConfig() {
   const [written, setWritten] = useState<ExternalClientConfigWrite | null>(null);
   const [writeError, setWriteError] = useState<{ client: string; path?: string; code: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [confirmFull, setConfirmFull] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!api) return;
@@ -166,13 +170,18 @@ export default function ExternalAgentConfig() {
         <div className="space-y-2">
           <div className="text-sm font-medium">{t("setting:external_agent.trust.title")}</div>
           <RadioGroup value={settings?.trust ?? "confirm_writes"} disabled={!settings || saving} className="gap-0 divide-y rounded-smooth-lg border"
-            onValueChange={(value) => void save(() => api.updateSettings({ trust: value as ExternalTrust }))}>
+            onValueChange={(value) => {
+              // Full access asks once, here, instead of in every call.
+              if (value === "full") setConfirmFull(true);
+              else void save(() => api.updateSettings({ trust: value as ExternalTrust }));
+            }}>
             {TRUST_LEVELS.map((level) => (
               <label key={level} htmlFor={`setting-external-trust-${level}`} className="flex cursor-pointer items-start justify-between gap-6 px-3.5 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                     <span className="text-[13px] font-medium">{t(`setting:external_agent.trust.${level}.name`)}</span>
                     {level === "confirm_writes" && <span className="text-[11px] text-muted-foreground">{t("setting:external_agent.trust.recommended")}</span>}
+                    {level === "full" && <span className="text-[11px] text-amber-600 dark:text-amber-400">{t("setting:external_agent.trust.full.badge")}</span>}
                   </div>
                   <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{t(`setting:external_agent.trust.${level}.description`)}</p>
                 </div>
@@ -180,6 +189,23 @@ export default function ExternalAgentConfig() {
               </label>
             ))}
           </RadioGroup>
+          <AnimatePresence initial={false}>
+            {settings?.trust === "custom" && (
+              <motion.div key="permissions" className="!mt-0 overflow-hidden"
+                initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.32, bounce: 0 }}>
+                {/* The gap lives inside, so it opens and closes with the panel. */}
+                <div className="pt-2">
+                  <ExternalAgentPermissions permissions={settings.permissions} disabled={saving}
+                    onChange={(change) => void save(() => api.updateSettings({ permissions: change }))} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <ConfirmDialog open={confirmFull} onOpenChange={setConfirmFull}
+            title={t("setting:external_agent.trust.full.confirm_title")} description={t("setting:external_agent.trust.full.confirm_body")}
+            confirmText={t("setting:external_agent.trust.full.confirm_action")}
+            onConfirm={() => { setConfirmFull(false); void save(() => api.updateSettings({ trust: "full" })); }} />
           <label htmlFor="setting-external-notices" className="flex cursor-pointer items-start justify-between gap-6 rounded-smooth-lg border px-3.5 py-3">
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-medium">{t("setting:external_agent.activity.settings.notices_title")}</div>

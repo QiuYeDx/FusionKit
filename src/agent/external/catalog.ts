@@ -19,7 +19,7 @@ export interface ExternalToolDefinition {
   access: ExternalToolAccess;
   /** Writes allowed together for a connection; absent for reads and always-confirmed tools. */
   group?: ExternalApprovalGroup;
-  /** The user confirms every call, in every trust level. */
+  /** The user confirms every call unless the full or a custom permission level allows it. */
   confirm?: "always";
   /** Some calls of this tool replace files (the MCP hint is static). */
   mayDestroy?: boolean;
@@ -159,7 +159,7 @@ export const EXTERNAL_TOOLS = {
     description: "Write a Subtitle Studio document to a subtitle file: content source, target (one translation track) or bilingual; "
       + "format auto keeps the document's format (LRC for audio transcripts, SRT for video). destination source_directory saves next to the original file; "
       + "choose_location opens a save dialog in FusionKit for the user. conflict indexed adds a number to an existing name; overwrite replaces it "
-      + "(always confirmed by the user). Returns the file name and any accepted losses.",
+      + "(confirmed by the user unless their permissions allow it). Returns the file name and any accepted losses.",
     inputSchema: z.object({
       documentId: id,
       revision,
@@ -223,7 +223,7 @@ export const EXTERNAL_TOOLS = {
   prepare_knowledge_changes: {
     title: "Propose translation material changes",
     description: "Propose changes to the user's translation materials: create collections, create or edit term/rule/context entries, disable or enable entries. "
-      + "The user always reviews them in FusionKit; confirmed entries are saved and enabled. Find the collection with list_translation_knowledge_catalog first; "
+      + "The user reviews them in FusionKit (unless their permissions allow saving without asking); confirmed entries are saved and enabled. Find the collection with list_translation_knowledge_catalog first; "
       + "when none fits, create one named after the work with its languagePair and point to it with {ref}. Edits, disables and enables need the entry's id and revision. "
       + "Terms take the exact source wording and the target wording. basis: user_stated, user_revision, document (read from the subtitles), "
       + "agent_inferred (your own knowledge), web (with url). evidence: a short supporting quote.",
@@ -255,7 +255,7 @@ export const EXTERNAL_TOOLS = {
     title: "Convert subtitle files",
     description: "Convert subtitle files to another format (SRT, VTT, LRC, ASS, SSA, SBV) with FusionKit's subtitle converter, without Subtitle Studio. "
       + "paths are absolute files or folders (recursive includes subfolders); files are read as UTF-8, at most 200 per call. The output goes next to each file, or to outputDirectory. "
-      + "conflict indexed adds a number to an existing name; overwrite replaces it (always confirmed by the user). Files already in the target format are skipped. "
+      + "conflict indexed adds a number to an existing name; overwrite replaces it (confirmed by the user unless their permissions allow it). Files already in the target format are skipped. "
       + "Returns each file's output path or error. May ask the user in FusionKit first (they can allow conversions for the rest of this connection).",
     inputSchema: z.object({
       paths: classicPaths,
@@ -308,7 +308,7 @@ export const EXTERNAL_TOOLS = {
     description: "Rename files and folders to names you give, for example names you translated yourself (FusionKit uses no model for this). "
       + "Use path, kind and identity from inspect_name_paths; newName is the new name only (with the extension for files), never a path. At most 500 per call. "
       + "FusionKit checks the names first (illegal characters, names that already exist, two entries with one name, entries changed since inspection) and returns the issues without renaming anything. "
-      + "Then the user always confirms the list in FusionKit; renaming runs deepest first and rolls back on failure. Returns a journalId for undo_name_changes.",
+      + "Then the user confirms the list in FusionKit (unless their permissions allow renames without asking); renaming runs deepest first and rolls back on failure. Returns a journalId for undo_name_changes.",
     inputSchema: z.object({
       items: z.array(z.object({ path: z.string().min(1).max(4096), kind: z.enum(["file", "directory"]), identity: z.string().min(1).max(128), newName: z.string().max(255) }).strict())
         .min(1).max(500).refine(items => new Set(items.map(item => item.path)).size === items.length, "Each path may appear once."),
@@ -318,7 +318,7 @@ export const EXTERNAL_TOOLS = {
   },
   undo_name_changes: {
     title: "Undo a rename",
-    description: "Put back the names a rename_paths call changed, by its journalId. The user always confirms in FusionKit.",
+    description: "Put back the names a rename_paths call changed, by its journalId. The user confirms in FusionKit unless their permissions allow it.",
     inputSchema: z.object({ journalId: z.string().min(1).max(128) }).strict(),
     access: "write",
     confirm: "always",

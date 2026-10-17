@@ -16,3 +16,14 @@
   app-region: no-drag;
   -webkit-app-region: no-drag;
 }
+
+/* Toasts move out of the way of the title bar's external agent panel with the same easing as the panel. */
+[data-sonner-toaster][data-y-position="top"] {
+  transition: top 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toaster][data-y-position="top"] {
+    transition: none;
+  }
+}

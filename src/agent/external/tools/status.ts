@@ -44,6 +44,7 @@ export async function getFusionkitStatus(_input: Record<string, never>, ctx: Ext
     interfaceLanguage: i18n.resolvedLanguage ?? i18n.language,
     currentPage: usePageContextStore.getState().pathname,
     trust: status?.trust ?? "confirm_writes",
+    ...(status?.trust === "custom" ? { permissions: status.permissions } : {}),
     fusionkitModels: { agent: modelState(models.getAgentProfile()), taskExecution: modelState(models.getTaskProfile()) },
     subtitleStudio: await studioState(ctx),
   };

@@ -8,6 +8,7 @@ import {
   type ExternalResult,
   type ExternalToolCall,
   type ExternalToolOutcome,
+  isExternalPermissionCode,
 } from "../../../src/agent/external/contract";
 import { EXTERNAL_TOOLS, isExternalToolName } from "../../../src/agent/external/catalog";
 import { ExternalAgentSettingsStore } from "./settings-store";
@@ -49,7 +50,7 @@ export function setupExternalAgent(options: {
   });
   const accessOf = (tool: string): ActivityAccess => isExternalToolName(tool) ? EXTERNAL_TOOLS[tool].access : "read";
   // Every call leaves a record; the session, client and tool are the main process's own.
-  const remember = (call: Omit<ExternalToolCall, "callId">, startedAt: number, outcome: ExternalToolOutcome, note?: ActivityNote, refused = false) => {
+  const remember = (call: Omit<ExternalToolCall, "callId">, startedAt: number, outcome: ExternalToolOutcome, note?: ActivityNote, refused?: "read_only" | "not_permitted") => {
     const { approval, confirmationId, reason, ...rest } = note ?? {};
     const pending = !outcome.ok && outcome.error === "confirmation_pending";
     const status: ActivityRecord["status"] = outcome.ok ? "ok" : pending ? "pending"
@@ -61,7 +62,7 @@ export function setupExternalAgent(options: {
       id: randomUUID(), sessionId: call.sessionId, client: { name: call.client.name.slice(0, 100), version: call.client.version.slice(0, 50) },
       tool: call.tool.slice(0, 100), access: destructive ? "destructive" : accessOf(call.tool), startedAt, endedAt: Date.now(), status,
       ...(!outcome.ok && !pending ? { error: outcome.error } : {}),
-      ...(refused ? { approval: "read_only" as const } : approval ? { approval } : {}),
+      ...(refused ? { approval: refused } : approval ? { approval } : {}),
       ...(pending && confirmationId ? { confirmationId } : {}),
       ...(Object.keys(kept).length ? { note: kept } : {}),
     });
@@ -71,10 +72,13 @@ export function setupExternalAgent(options: {
     version,
     callTool: async (call, signal) => {
       const startedAt = Date.now();
-      // Read-only access refuses every change here, before the window is involved.
-      if (store.settings.trust === "read_only" && isExternalToolName(call.tool) && EXTERNAL_TOOLS[call.tool].access !== "read") {
-        const outcome: ExternalToolOutcome = { ok: false, error: "read_only" };
-        remember(call, startedAt, outcome, undefined, true);
+      // Read-only access, and a custom permission that denies the operation, refuse here before the window is involved.
+      const { trust, permissions } = store.settings;
+      if (isExternalToolName(call.tool) && EXTERNAL_TOOLS[call.tool].access !== "read"
+        && (trust === "read_only" || (trust === "custom" && isExternalPermissionCode(call.tool) && permissions[call.tool] === "deny"))) {
+        const error = trust === "read_only" ? "read_only" as const : "not_permitted" as const;
+        const outcome: ExternalToolOutcome = { ok: false, error };
+        remember(call, startedAt, outcome, undefined, error);
         return outcome;
       }
       const answer = await bridge.call(call, signal);
@@ -88,7 +92,7 @@ export function setupExternalAgent(options: {
     const settings = store.settings;
     const port = state.state === "running" ? state.port : settings.port;
     return {
-      enabled: settings.enabled, state: state.state, port, trust: settings.trust,
+      enabled: settings.enabled, state: state.state, port, trust: settings.trust, permissions: settings.permissions,
       ...(state.state === "running" ? { url: `http://127.0.0.1:${port}/mcp` } : {}),
       ...(state.error ? { error: state.error } : {}),
       sessions: host.sessionSummaries(),

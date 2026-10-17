@@ -3,6 +3,7 @@ import { request as httpRequest } from 'node:http';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { DEFAULT_EXTERNAL_PERMISSIONS } from '../src/agent/external/contract';
 import { describe, expect, it } from 'vitest';
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -63,7 +64,7 @@ describe('external agents reach FusionKit over MCP', () => {
 
       // Fresh profile: off, default port, confirm writes, nothing listening.
       const defaults = await settings(page);
-      expect(defaults).toEqual({ ok: true, value: { version: 1, enabled: false, port: 47361, token: '', trust: 'confirm_writes', notices: true } });
+      expect(defaults).toEqual({ ok: true, value: { version: 1, enabled: false, port: 47361, token: '', trust: 'confirm_writes', permissions: DEFAULT_EXTERNAL_PERMISSIONS, notices: true } });
       expect(await status(page)).toMatchObject({ ok: true, value: { enabled: false, state: 'stopped', sessions: [] } });
 
       // Only the main window may configure access.
@@ -168,7 +169,7 @@ describe('external agents reach FusionKit over MCP', () => {
       await app.close(); app = undefined;
       ({ app } = await launch(profile));
       page = await app.firstWindow();
-      expect((await settings(page)).value).toEqual({ version: 1, enabled: true, port, token: renewed.value!.token, trust: 'confirm_writes', notices: true });
+      expect((await settings(page)).value).toEqual({ version: 1, enabled: true, port, token: renewed.value!.token, trust: 'confirm_writes', permissions: DEFAULT_EXTERNAL_PERMISSIONS, notices: true });
       expect(JSON.parse(await readFile(path.join(profile, 'external-agent', 'settings.json'), 'utf8')).token).toBe(renewed.value!.token);
       const afterRestart = await connect(port, renewed.value!.token, 'after-restart');
       clients.push(afterRestart.client);

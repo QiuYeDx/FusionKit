@@ -49,9 +49,41 @@ export const EXTERNAL_READY_WAIT_MS = 15_000;
 export const EXTERNAL_CALL_TIMEOUT_MS = 150_000;
 export const EXTERNAL_MAX_BODY_BYTES = 4 * 1024 * 1024;
 
-/** read_only: reads only; confirm_writes: writes ask in FusionKit; auto: writes run, destructive ones still ask. */
-export const externalTrustSchema = z.enum(["read_only", "confirm_writes", "auto"]);
+/**
+ * read_only: reads only; confirm_writes: writes ask in FusionKit; auto: writes run, destructive ones still ask;
+ * full: everything runs without asking; custom: each operation follows its own permission below.
+ */
+export const externalTrustSchema = z.enum(["read_only", "confirm_writes", "auto", "full", "custom"]);
 export type ExternalTrust = z.infer<typeof externalTrustSchema>;
+
+/** One permission code per operation that changes something; overwrite_files also applies to any call that replaces files. */
+export const EXTERNAL_PERMISSION_CODES = [
+  "import_studio_subtitles", "create_studio_translation_track", "write_studio_translations",
+  "split_studio_cue", "insert_studio_cue", "export_studio_document", "start_studio_transcription",
+  "prepare_knowledge_changes", "convert_subtitle_files", "extract_subtitle_language",
+  "rename_paths", "undo_name_changes", "overwrite_files",
+] as const;
+export type ExternalPermissionCode = typeof EXTERNAL_PERMISSION_CODES[number];
+/** deny: refused; ask: the user confirms in FusionKit; allow: runs without asking. */
+export const externalPermissionSchema = z.enum(["deny", "ask", "allow"]);
+export type ExternalPermission = z.infer<typeof externalPermissionSchema>;
+export type ExternalPermissions = Record<ExternalPermissionCode, ExternalPermission>;
+const ASKED_IN_AUTO: ReadonlySet<ExternalPermissionCode> = new Set(["prepare_knowledge_changes", "rename_paths", "undo_name_changes", "overwrite_files"]);
+/** Custom starts where auto is: writes run; knowledge changes, renames and overwrites ask. */
+export const DEFAULT_EXTERNAL_PERMISSIONS: ExternalPermissions = Object.fromEntries(
+  EXTERNAL_PERMISSION_CODES.map(code => [code, ASKED_IN_AUTO.has(code) ? "ask" : "allow"])) as ExternalPermissions;
+export const isExternalPermissionCode = (value: string): value is ExternalPermissionCode => (EXTERNAL_PERMISSION_CODES as readonly string[]).includes(value);
+/** Unknown codes are dropped and missing ones take their default, so one bad entry never resets the rest. */
+export const externalPermissionsSchema = z.record(z.string(), z.unknown()).transform((raw): ExternalPermissions => {
+  const result = { ...DEFAULT_EXTERNAL_PERMISSIONS };
+  for (const code of EXTERNAL_PERMISSION_CODES) {
+    const parsed = externalPermissionSchema.safeParse(raw[code]);
+    if (parsed.success) result[code] = parsed.data;
+  }
+  return result;
+});
+const externalPermissionsUpdateSchema = z.object(Object.fromEntries(EXTERNAL_PERMISSION_CODES.map(code => [code, externalPermissionSchema.optional()])) as
+  Record<ExternalPermissionCode, z.ZodOptional<typeof externalPermissionSchema>>).strict();
 
 export const externalPortSchema = z.number().int().min(1024).max(65535);
 export const externalTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
@@ -63,22 +95,26 @@ export const externalAgentSettingsSchema = z.object({
   /** Empty until access is first enabled. */
   token: z.union([externalTokenSchema, z.literal("")]),
   trust: externalTrustSchema,
+  /** What each operation may do in the custom level; kept when another level is chosen. */
+  permissions: externalPermissionsSchema,
   /** Show a notice when a change ran without asking. */
   notices: z.boolean(),
 }).strict();
-export type ExternalAgentSettings = z.infer<typeof externalAgentSettingsSchema>;
+export type ExternalAgentSettings = z.output<typeof externalAgentSettingsSchema>;
 
 export const DEFAULT_EXTERNAL_AGENT_SETTINGS: ExternalAgentSettings = {
-  version: 1, enabled: false, port: DEFAULT_EXTERNAL_AGENT_PORT, token: "", trust: "confirm_writes", notices: true,
+  version: 1, enabled: false, port: DEFAULT_EXTERNAL_AGENT_PORT, token: "", trust: "confirm_writes", permissions: DEFAULT_EXTERNAL_PERMISSIONS, notices: true,
 };
 
 export const externalAgentSettingsUpdateSchema = z.object({
   enabled: z.boolean().optional(),
   port: externalPortSchema.optional(),
   trust: externalTrustSchema.optional(),
+  /** Changes only the codes given. */
+  permissions: externalPermissionsUpdateSchema.optional(),
   notices: z.boolean().optional(),
 }).strict();
-export type ExternalAgentSettingsUpdate = z.infer<typeof externalAgentSettingsUpdateSchema>;
+export type ExternalAgentSettingsUpdate = z.input<typeof externalAgentSettingsUpdateSchema>;
 
 export interface ExternalClientInfo { name: string; version: string }
 
@@ -98,6 +134,8 @@ export interface ExternalAgentStatus {
   url?: string;
   error?: ExternalAgentErrorCode;
   trust: ExternalTrust;
+  /** Enforced only when trust is custom; the defaults apply when absent. */
+  permissions?: ExternalPermissions;
   sessions: ExternalSessionSummary[];
 }
 

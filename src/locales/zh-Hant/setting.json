@@ -233,7 +233,19 @@
       },
       "auto": {
         "name": "自動執行",
-        "description": "修改直接執行；覆蓋既有檔案和修改翻譯資料仍會詢問。"
+        "description": "修改直接執行；重新命名、覆蓋既有檔案和修改翻譯資料仍會詢問。"
+      },
+      "full": {
+        "name": "完全開放",
+        "badge": "不再詢問",
+        "description": "外部 Agent 的所有操作都直接執行，包括重新命名、修改翻譯資料和覆蓋既有檔案，不會再彈出確認。活動記錄仍會保存每一步。",
+        "confirm_title": "完全開放權限？",
+        "confirm_body": "外部 Agent 將可以不經確認就重新命名檔案、覆蓋既有檔案、修改翻譯資料。只在你信任目前使用的 Agent 時開啟；隨時可以在這裡改回。",
+        "confirm_action": "完全開放"
+      },
+      "custom": {
+        "name": "自訂",
+        "description": "為每種操作單獨選擇：不允許、需要批准或直接允許。"
       }
     },
     "connection": {
@@ -432,7 +444,10 @@
         "auto": "自動執行",
         "declined": "你拒絕了",
         "expired": "未決定，已過期",
-        "read_only": "唯讀權限拒絕"
+        "read_only": "唯讀權限拒絕",
+        "full": "完全開放",
+        "permitted": "依自訂權限執行",
+        "not_permitted": "權限設定不允許"
       },
       "status": {
         "pending": "等待你確認",
@@ -465,7 +480,8 @@
         "revision_conflict": "文件在此期間被修改過，外部 Agent 需要重新讀取。",
         "invalid_arguments": "外部 Agent 給出的參數不正確。",
         "tool_failed": "執行時出錯。",
-        "unknown": "錯誤代碼：{{code}}"
+        "unknown": "錯誤代碼：{{code}}",
+        "not_permitted": "你的自訂權限不允許這項操作。"
       },
       "reason": "原因：{{reason}}",
       "more": "另有 {{count}} 項",
@@ -491,7 +507,20 @@
         "pending": "有請求等待你確認",
         "running": "正在執行",
         "unseen_one": "{{count}} 項未查看的變更",
-        "connections_one": "{{count}} 個連線"
+        "connections_one": "{{count}} 個連線",
+        "panel_title": "外部 Agent",
+        "state_waiting": "等待你確認",
+        "state_running": "正在執行",
+        "state_connected": "已連線",
+        "state_idle": "沒有連線",
+        "waiting": "{{count}} 項操作等待你確認",
+        "waiting_one": "{{count}} 項操作等待你確認",
+        "more": "還有 {{count}} 個連線",
+        "more_one": "還有 {{count}} 個連線",
+        "no_calls": "還沒有呼叫",
+        "view_activity": "查看活動記錄",
+        "settings": "權限與連線設定",
+        "close": "收起"
       },
       "settings": {
         "view_all": "查看活動記錄",
@@ -552,6 +581,42 @@
       },
       "changes_count_one": "{{count}} 項變更",
       "undone_toast_one": "已復原 {{count}} 項原名"
+    },
+    "permissions": {
+      "description": "每種會修改內容的操作對應一個權限碼。唯讀操作始終允許。",
+      "reset": "恢復預設",
+      "all": {
+        "deny": "全部不允許",
+        "ask": "全部需批准",
+        "allow": "全部允許"
+      },
+      "levels": {
+        "deny": "不允許",
+        "ask": "需批准",
+        "allow": "允許"
+      },
+      "groups": {
+        "studio": "字幕工作台",
+        "knowledge": "翻譯資料",
+        "files": "檔案工具",
+        "safety": "附加限制"
+      },
+      "overwrite_files": "覆蓋既有檔案",
+      "codes": {
+        "import_studio_subtitles": "把字幕檔匯入字幕工作台。",
+        "create_studio_translation_track": "在文件中新建一條譯文軌道。",
+        "write_studio_translations": "把譯文寫入外部 Agent 新建的軌道。",
+        "split_studio_cue": "把一條字幕拆成兩條，會改變所有軌道共用的字幕結構。",
+        "insert_studio_cue": "在字幕之間插入新的一條。",
+        "export_studio_document": "把文件匯出為字幕檔。",
+        "start_studio_transcription": "用本機語音模型轉寫影音。",
+        "prepare_knowledge_changes": "新增或修改術語、規則等翻譯資料。",
+        "convert_subtitle_files": "轉換字幕檔格式並寫出新檔案。",
+        "extract_subtitle_language": "從雙語字幕中擷取一種語言並寫出新檔案。",
+        "rename_paths": "依外部 Agent 給出的名稱重新命名檔案和資料夾。",
+        "undo_name_changes": "復原一次重新命名，恢復原來的名稱。",
+        "overwrite_files": "任何會取代既有檔案的操作（匯出、轉換、擷取時選擇覆蓋）還需要滿足這一項，取兩者中更嚴格的一個。"
+      }
     }
   }
 }

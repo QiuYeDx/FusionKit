@@ -164,9 +164,20 @@ describe('external agent activity', () => {
       expect((await call(agent, 'write_studio_translations', { documentId, revision, trackId: track.trackId, translations: [{ cueId: cueIds[0], text: 'x' }] })).error).toBe('read_only');
       await setTrust('confirm_writes');
 
-      // The indicator opens this connection's activity; the count is cleared.
+      // The indicator grows into a panel (Escape folds it back); its button opens this connection's activity and clears the count.
+      const panel = page.getByTestId('titlebar-external-panel');
       await indicator.click();
+      await uiExpect(panel).toContainText('claude-code');
+      await uiExpect(panel).toContainText('当前权限：修改前询问');
+      await uiExpect(page.getByTestId('titlebar-external-agent-root')).toHaveAttribute('data-open', 'true');
+      await shot(page, 'titlebar-panel-zh-light-1280');
+      await page.keyboard.press('Escape');
+      await uiExpect(indicator).toBeVisible();
+      await uiExpect(page.getByTestId('titlebar-external-agent-root')).not.toHaveAttribute('data-open', 'true');
+      await indicator.click();
+      await page.getByTestId('titlebar-external-open').click();
       await page.waitForURL(/#\/external-agent\?session=/);
+      await uiExpect(indicator).toBeVisible();
       await uiExpect(page.getByTestId('titlebar-external-unseen')).toHaveCount(0);
       await uiExpect(notice).toHaveCount(0);
       await uiExpect(page.locator('#external-activity-panel')).toContainText('claude-code');

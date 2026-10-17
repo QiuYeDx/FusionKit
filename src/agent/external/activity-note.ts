@@ -40,7 +40,7 @@ export function summaryOf(display: ConfirmationDisplay): ActivitySummary {
 export function unaskedApproval(trust: ExternalTrust, definition: Pick<ExternalToolDefinition, "access">, granted: boolean): ActivityApproval {
   if (definition.access === "read") return "none";
   if (granted) return "session";
-  return trust === "auto" ? "auto" : "none";
+  return trust === "auto" ? "auto" : trust === "full" ? "full" : trust === "custom" ? "permitted" : "none";
 }
 
 type Data = Record<string, unknown>;

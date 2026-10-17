@@ -168,7 +168,8 @@ function App() {
       <ExternalAgentHost />
 
       {/* 全局 Toast */}
-      <Toaster position="top-right" />
+      {/* Below the title bar's top-right capsule; its panel pushes them further down while open. */}
+      <Toaster position="top-right" offset={{ top: "calc(44px + var(--titlebar-panel-push, 0px))", right: 16 }} />
 
       {/* 自动更新检测 */}
       <Update autoCheck showTrigger={false} />

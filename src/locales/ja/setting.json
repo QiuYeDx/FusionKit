@@ -233,7 +233,19 @@
       },
       "auto": {
         "name": "自動実行",
-        "description": "変更はすぐに実行されます。既存ファイルの上書きと翻訳資料の変更は引き続き確認します。"
+        "description": "変更はすぐに実行されます。名前の変更、既存ファイルの上書き、翻訳資料の変更は引き続き確認します。"
+      },
+      "full": {
+        "name": "フルアクセス",
+        "badge": "確認しない",
+        "description": "名前の変更、翻訳資料の変更、既存ファイルの上書きを含むすべての操作を確認なしで実行します。アクティビティ記録にはすべて残ります。",
+        "confirm_title": "フルアクセスにしますか？",
+        "confirm_body": "外部 Agent が確認なしでファイル名の変更、既存ファイルの上書き、翻訳資料の変更を行えるようになります。信頼できる Agent の場合だけ有効にしてください。ここでいつでも戻せます。",
+        "confirm_action": "フルアクセスにする"
+      },
+      "custom": {
+        "name": "カスタム",
+        "description": "操作ごとに「許可しない」「確認する」「許可する」を選びます。"
       }
     },
     "connection": {
@@ -432,7 +444,10 @@
         "auto": "自動実行",
         "declined": "拒否しました",
         "expired": "未決定のまま期限切れ",
-        "read_only": "読み取り専用のため拒否"
+        "read_only": "読み取り専用のため拒否",
+        "full": "フルアクセス",
+        "permitted": "カスタム権限で実行",
+        "not_permitted": "権限設定で拒否"
       },
       "status": {
         "pending": "確認待ち",
@@ -465,7 +480,8 @@
         "revision_conflict": "その間に文書が変更されたため、外部エージェントは読み直す必要があります。",
         "invalid_arguments": "外部エージェントの引数が正しくありません。",
         "tool_failed": "実行中にエラーが発生しました。",
-        "unknown": "エラーコード：{{code}}"
+        "unknown": "エラーコード：{{code}}",
+        "not_permitted": "カスタム権限でこの操作は許可されていません。"
       },
       "reason": "理由：{{reason}}",
       "more": "他 {{count}} 件",
@@ -491,7 +507,20 @@
         "pending": "確認待ちのリクエストがあります",
         "running": "実行中",
         "unseen_one": "未確認の変更 {{count}} 件",
-        "connections_one": "{{count}} 件の接続"
+        "connections_one": "{{count}} 件の接続",
+        "panel_title": "外部 Agent",
+        "state_waiting": "確認待ち",
+        "state_running": "実行中",
+        "state_connected": "接続中",
+        "state_idle": "接続なし",
+        "waiting": "{{count}} 件の操作が確認を待っています",
+        "waiting_one": "{{count}} 件の操作が確認を待っています",
+        "more": "ほか {{count}} 件の接続",
+        "more_one": "ほか {{count}} 件の接続",
+        "no_calls": "まだ呼び出しはありません",
+        "view_activity": "アクティビティを見る",
+        "settings": "権限と接続の設定",
+        "close": "閉じる"
       },
       "settings": {
         "view_all": "アクティビティを表示",
@@ -552,6 +581,42 @@
       },
       "changes_count_one": "変更 {{count}} 件",
       "undone_toast_one": "{{count}} 件の名前を元に戻しました"
+    },
+    "permissions": {
+      "description": "変更を伴う操作ごとに権限コードがあります。読み取りは常に許可されます。",
+      "reset": "既定に戻す",
+      "all": {
+        "deny": "すべて許可しない",
+        "ask": "すべて確認",
+        "allow": "すべて許可"
+      },
+      "levels": {
+        "deny": "許可しない",
+        "ask": "確認",
+        "allow": "許可"
+      },
+      "groups": {
+        "studio": "字幕スタジオ",
+        "knowledge": "翻訳資料",
+        "files": "ファイルツール",
+        "safety": "追加の制限"
+      },
+      "overwrite_files": "既存ファイルの上書き",
+      "codes": {
+        "import_studio_subtitles": "字幕ファイルを字幕スタジオに読み込みます。",
+        "create_studio_translation_track": "ドキュメントに訳文トラックを追加します。",
+        "write_studio_translations": "Agent が作成したトラックに訳文を書き込みます。",
+        "split_studio_cue": "字幕を 2 つに分割します。全トラック共通の字幕構造が変わります。",
+        "insert_studio_cue": "字幕の間に新しい字幕を挿入します。",
+        "export_studio_document": "ドキュメントを字幕ファイルとして書き出します。",
+        "start_studio_transcription": "ローカル音声モデルで音声・動画を文字起こしします。",
+        "prepare_knowledge_changes": "用語やルールなどの翻訳資料を追加・変更します。",
+        "convert_subtitle_files": "字幕形式を変換して新しいファイルを書き出します。",
+        "extract_subtitle_language": "対訳字幕から 1 言語を取り出して新しいファイルを書き出します。",
+        "rename_paths": "Agent が示した名前でファイルとフォルダーの名前を変更します。",
+        "undo_name_changes": "名前の変更を取り消して元の名前に戻します。",
+        "overwrite_files": "既存ファイルを置き換える操作（上書きでの書き出し・変換・抽出）はこの項目も満たす必要があり、より厳しい方が適用されます。"
+      }
     }
   }
 }

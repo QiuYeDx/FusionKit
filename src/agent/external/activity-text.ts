@@ -6,7 +6,7 @@ type T = (key: string, options?: Record<string, unknown>) => string;
 
 export const ACTIVITY_RESULT_KEYS = ["written", "unchanged", "imported", "total", "queued", "files", "skipped", "failed", "renamed", "restored"] as const;
 type ResultKey = (typeof ACTIVITY_RESULT_KEYS)[number];
-const KNOWN_ERRORS = ["read_only", "declined_by_user", "confirmation_expired", "cancelled", "tool_timeout", "fusionkit_window_unavailable",
+const KNOWN_ERRORS = ["read_only", "not_permitted", "declined_by_user", "confirmation_expired", "cancelled", "tool_timeout", "fusionkit_window_unavailable",
   "revision_conflict", "invalid_arguments", "tool_failed"] as const;
 type KnownError = (typeof KNOWN_ERRORS)[number];
 const isKnownError = (code: string): code is KnownError => (KNOWN_ERRORS as readonly string[]).includes(code);
@@ -38,11 +38,11 @@ export function activityBadges(t: T, record: ActivityRecord): ActivityBadge[] {
   const approval = record.approval;
   if (approval === "confirmed") badges.push({ label: t("setting:external_agent.activity.approval.confirmed"), tone: "neutral" });
   else if (approval === "session") badges.push({ label: t("setting:external_agent.activity.approval.session"), tone: "info" });
-  else if (approval === "auto") badges.push({ label: t("setting:external_agent.activity.approval.auto"), tone: "info" });
+  else if (approval === "auto" || approval === "full" || approval === "permitted") badges.push({ label: t(`setting:external_agent.activity.approval.${approval}`), tone: "info" });
   else if (approval === "declined") badges.push({ label: t("setting:external_agent.activity.approval.declined"), tone: "danger" });
   else if (approval === "expired") badges.push({ label: t("setting:external_agent.activity.approval.expired"), tone: "warning" });
-  else if (approval === "read_only") badges.push({ label: t("setting:external_agent.activity.approval.read_only"), tone: "danger" });
-  if (record.status === "failed" && approval !== "read_only") badges.push({ label: t("setting:external_agent.activity.status.failed"), tone: "danger" });
+  else if (approval === "read_only" || approval === "not_permitted") badges.push({ label: t(`setting:external_agent.activity.approval.${approval}`), tone: "danger" });
+  if (record.status === "failed" && approval !== "read_only" && approval !== "not_permitted") badges.push({ label: t("setting:external_agent.activity.status.failed"), tone: "danger" });
   if (record.status === "cancelled") badges.push({ label: t("setting:external_agent.activity.status.cancelled"), tone: "warning" });
   if (record.undone) badges.push({ label: t("setting:external_agent.activity.status.undone"), tone: "neutral" });
   return badges;

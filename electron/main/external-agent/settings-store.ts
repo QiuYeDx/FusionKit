@@ -18,7 +18,7 @@ export function normalizeSettings(raw: unknown): ExternalAgentSettings {
     const parsed = shape[key].safeParse(record[key]);
     return parsed.success ? parsed.data as ExternalAgentSettings[K] : DEFAULT_EXTERNAL_AGENT_SETTINGS[key];
   };
-  const settings: ExternalAgentSettings = { version: 1, enabled: field("enabled"), port: field("port"), token: field("token"), trust: field("trust"), notices: field("notices") };
+  const settings: ExternalAgentSettings = { version: 1, enabled: field("enabled"), port: field("port"), token: field("token"), trust: field("trust"), permissions: field("permissions"), notices: field("notices") };
   // Access without a token would be unusable; keep it off until a token exists.
   if (settings.enabled && !settings.token) settings.token = newExternalToken();
   return settings;
@@ -31,7 +31,7 @@ export class ExternalAgentSettingsStore {
   constructor(private readonly directory: string) {}
 
   get file() { return path.join(this.directory, "settings.json"); }
-  get settings(): ExternalAgentSettings { return { ...this.current }; }
+  get settings(): ExternalAgentSettings { return { ...this.current, permissions: { ...this.current.permissions } }; }
 
   async load(): Promise<ExternalAgentSettings> {
     let raw: unknown;
@@ -49,7 +49,8 @@ export class ExternalAgentSettingsStore {
   async update(input: unknown): Promise<ExternalAgentSettings> {
     const parsed = externalAgentSettingsUpdateSchema.safeParse(input);
     if (!parsed.success) throw new Error("invalid_settings");
-    const next: ExternalAgentSettings = { ...this.current, ...parsed.data };
+    const { permissions, ...rest } = parsed.data;
+    const next: ExternalAgentSettings = { ...this.current, ...rest, permissions: { ...this.current.permissions, ...permissions } };
     if (next.enabled && !next.token) next.token = newExternalToken();
     await this.save(next);
     return this.settings;

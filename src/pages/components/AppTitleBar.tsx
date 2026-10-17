@@ -1,10 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
-import { useExternalAgentStore } from "@/agent/external/store";
-import { useExternalConfirmationsStore } from "@/agent/external/confirmations";
-import { unseenTotal, useExternalActivityStore } from "@/agent/external/activity-store";
-import { externalActivityPath } from "@/pages/ExternalAgentActivity/route";
-import { cn } from "@/lib/utils";
+import ExternalAgentIndicator from "./ExternalAgentIndicator";
 
 const isMac = navigator.userAgent.includes("Mac");
 const isWindows = navigator.userAgent.includes("Windows");
@@ -20,42 +15,6 @@ const WINDOWS_TRAFFIC_LIGHTS: ReadonlyArray<{
   { action: "minimize", ariaLabel: "最小化窗口", colorClassName: "bg-[#FEBC2E]" },
   { action: "toggle-maximize", ariaLabel: "最大化或还原窗口", colorClassName: "bg-[#28C840]" },
 ];
-
-/**
- * A small capsule left of the app name: connected external agents, whether one is
- * working or waiting for a yes, and how many changes ran without asking since the
- * activity page was last open. Clicking opens that page.
- */
-function ExternalAgentIndicator() {
-  const { t } = useTranslation("setting");
-  const navigate = useNavigate();
-  const sessions = useExternalAgentStore((state) => state.status?.sessions);
-  const running = useExternalAgentStore((state) => state.running);
-  const waiting = useExternalConfirmationsStore((state) => state.requests.some((item) => item.status === "pending"));
-  const unseen = useExternalActivityStore((state) => state.unseen);
-  const total = unseenTotal({ unseen });
-  const count = sessions?.length ?? 0;
-  if (!count && !total) return null;
-  const target = Object.entries(unseen).find(([, value]) => value > 0)?.[0] ?? (count === 1 ? sessions![0].id : undefined);
-  const name = count === 1 ? sessions![0].client.name : count > 1 ? t("external_agent.activity.titlebar.connections", { count }) : null;
-  const label = [
-    count ? t("external_agent.titlebar", { count }) : null,
-    total ? t("external_agent.activity.titlebar.unseen", { count: total }) : null,
-    waiting ? t("external_agent.activity.titlebar.pending") : running ? t("external_agent.activity.titlebar.running") : null,
-    t("external_agent.activity.titlebar.open"),
-  ].filter(Boolean).join(" · ");
-  return (
-    <button type="button" onClick={() => navigate(externalActivityPath(target))} aria-label={label} title={label} data-testid="titlebar-external-agent"
-      data-state={waiting ? "waiting" : running ? "running" : count ? "connected" : "idle"}
-      className="app-region-no-drag flex h-7 max-w-48 items-center gap-1.5 rounded-full border border-border/40 bg-background/60 px-2.5 text-xs backdrop-blur-md transition-colors hover:bg-background/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full",
-        waiting ? "bg-amber-500" : count ? "bg-emerald-500" : "bg-muted-foreground/50",
-        running && !waiting && "animate-pulse motion-reduce:animate-none")} />
-      {name && <span className="min-w-0 truncate font-mono">{name}</span>}
-      {total > 0 && <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium tabular-nums text-primary-foreground" data-testid="titlebar-external-unseen">{total > 99 ? "99+" : total}</span>}
-    </button>
-  );
-}
 
 function AppTitleBar() {
   const { t } = useTranslation();
@@ -74,9 +33,8 @@ function AppTitleBar() {
       {isMac && (
         <div className="absolute left-1.5 top-1/2 -translate-y-1/2 h-7 w-[72px] rounded-full bg-background/60 backdrop-blur-md border border-border/40 pointer-events-none" />
       )}
-      {/* Left of the name, so the name stays centred and Windows' hover buttons never cover it. */}
-      <div className="relative flex items-center">
-      <div className="absolute right-full top-1/2 mr-2 -translate-y-1/2">
+      {/* Top right, away from the centred name and its Windows hover buttons; it grows downwards into a panel. */}
+      <div className="absolute right-2 top-1.5">
         <ExternalAgentIndicator />
       </div>
       <div
@@ -105,7 +63,6 @@ function AppTitleBar() {
         ) : (
           <span className="flex items-center">{appName}</span>
         )}
-      </div>
       </div>
     </div>
   );

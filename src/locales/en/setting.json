@@ -233,7 +233,19 @@
       },
       "auto": {
         "name": "Automatic",
-        "description": "Changes run right away; replacing existing files and changing translation materials still ask."
+        "description": "Changes run right away; renames, replacing existing files and changing translation materials still ask."
+      },
+      "full": {
+        "name": "Full access",
+        "badge": "Never asks",
+        "description": "Every operation runs right away, including renames, translation material changes and replacing existing files; nothing asks. The activity record still keeps every step.",
+        "confirm_title": "Give full access?",
+        "confirm_body": "External agents will rename files, replace existing files and change translation materials without asking. Turn this on only for agents you trust; you can change it back here at any time.",
+        "confirm_action": "Give full access"
+      },
+      "custom": {
+        "name": "Custom",
+        "description": "Choose for each operation: not allowed, ask first, or allowed."
       }
     },
     "connection": {
@@ -432,7 +444,10 @@
         "auto": "Ran automatically",
         "declined": "You declined",
         "expired": "Not decided, expired",
-        "read_only": "Refused: read only"
+        "read_only": "Refused: read only",
+        "full": "Full access",
+        "permitted": "Allowed by custom permission",
+        "not_permitted": "Refused by permissions"
       },
       "status": {
         "pending": "Waiting for you",
@@ -465,7 +480,8 @@
         "revision_conflict": "The document changed in the meantime; the agent has to read it again.",
         "invalid_arguments": "The external agent's arguments were not valid.",
         "tool_failed": "Something went wrong while running it.",
-        "unknown": "Error code: {{code}}"
+        "unknown": "Error code: {{code}}",
+        "not_permitted": "Your custom permissions do not allow this operation."
       },
       "reason": "Reason: {{reason}}",
       "more": "{{count}} more",
@@ -491,7 +507,20 @@
         "pending": "A request is waiting for you",
         "running": "Working",
         "unseen_one": "1 unseen change",
-        "connections_one": "1 connection"
+        "connections_one": "1 connection",
+        "panel_title": "External agents",
+        "state_waiting": "Waiting for you",
+        "state_running": "Working",
+        "state_connected": "Connected",
+        "state_idle": "No connections",
+        "waiting": "{{count}} operations are waiting for you",
+        "waiting_one": "1 operation is waiting for you",
+        "more": "{{count}} more connections",
+        "more_one": "1 more connection",
+        "no_calls": "No calls yet",
+        "view_activity": "View activity",
+        "settings": "Permissions and connection",
+        "close": "Close"
       },
       "settings": {
         "view_all": "View activity",
@@ -552,6 +581,42 @@
       },
       "changes_count_one": "1 change",
       "undone_toast_one": "1 name restored"
+    },
+    "permissions": {
+      "description": "Each operation that changes something has its own permission code. Reading is always allowed.",
+      "reset": "Reset",
+      "all": {
+        "deny": "Deny all",
+        "ask": "Ask for all",
+        "allow": "Allow all"
+      },
+      "levels": {
+        "deny": "Deny",
+        "ask": "Ask",
+        "allow": "Allow"
+      },
+      "groups": {
+        "studio": "Subtitle Studio",
+        "knowledge": "Translation materials",
+        "files": "File tools",
+        "safety": "Extra limit"
+      },
+      "overwrite_files": "Replace existing files",
+      "codes": {
+        "import_studio_subtitles": "Import subtitle files into Subtitle Studio.",
+        "create_studio_translation_track": "Add a translation track to a document.",
+        "write_studio_translations": "Write translations into a track the agent created.",
+        "split_studio_cue": "Split one cue into two; this changes the cues every track shares.",
+        "insert_studio_cue": "Insert a new cue between cues.",
+        "export_studio_document": "Export a document as a subtitle file.",
+        "start_studio_transcription": "Transcribe audio or video with local speech models.",
+        "prepare_knowledge_changes": "Add or change terms, rules and other translation materials.",
+        "convert_subtitle_files": "Convert subtitle formats and write new files.",
+        "extract_subtitle_language": "Keep one language of bilingual subtitles and write new files.",
+        "rename_paths": "Rename files and folders to names the agent gives.",
+        "undo_name_changes": "Undo a rename and put the old names back.",
+        "overwrite_files": "Any call that replaces existing files (export, convert or extract with overwrite) must also pass this; the stricter of the two applies."
+      }
     }
   }
 }

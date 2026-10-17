@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ExternalAgentSettingsStore, normalizeSettings } from "../../electron/main/external-agent/settings-store";
+import { DEFAULT_EXTERNAL_PERMISSIONS } from "../../src/agent/external/contract";
 
 let directory = "";
 beforeEach(async () => { directory = await mkdtemp(path.join(os.tmpdir(), "fusionkit-external-settings-")); });
@@ -11,7 +12,7 @@ afterEach(async () => { await rm(directory, { recursive: true, force: true }); }
 describe("external agent settings", () => {
   it("starts off on port 47361, confirming writes, without a token, when nothing is saved", async () => {
     const store = new ExternalAgentSettingsStore(directory);
-    expect(await store.load()).toEqual({ version: 1, enabled: false, port: 47361, token: "", trust: "confirm_writes", notices: true });
+    expect(await store.load()).toEqual({ version: 1, enabled: false, port: 47361, token: "", trust: "confirm_writes", permissions: DEFAULT_EXTERNAL_PERMISSIONS, notices: true });
   });
 
   it("falls back field by field when the file is damaged", async () => {
@@ -19,7 +20,7 @@ describe("external agent settings", () => {
     await writeFile(path.join(directory, "settings.json"), "{not json");
     expect((await new ExternalAgentSettingsStore(directory).load()).port).toBe(47361);
     await writeFile(path.join(directory, "settings.json"), JSON.stringify({ enabled: "yes", port: 80, trust: "auto", token: "short" }));
-    expect(await new ExternalAgentSettingsStore(directory).load()).toEqual({ version: 1, enabled: false, port: 47361, token: "", trust: "auto", notices: true });
+    expect(await new ExternalAgentSettingsStore(directory).load()).toEqual({ version: 1, enabled: false, port: 47361, token: "", trust: "auto", permissions: DEFAULT_EXTERNAL_PERMISSIONS, notices: true });
   });
 
   it("mints a 43-character base64url token on first enable and keeps changes across restarts", async () => {
@@ -38,6 +39,18 @@ describe("external agent settings", () => {
     expect((await store.update({ notices: false })).notices).toBe(false);
     expect((await new ExternalAgentSettingsStore(directory).load()).notices).toBe(false);
     await expect(store.update({ notices: "no" })).rejects.toThrow("invalid_settings");
+  });
+
+  it("changes only the permission codes given, keeps them across restarts and drops bad saved ones", async () => {
+    const store = new ExternalAgentSettingsStore(directory);
+    await store.load();
+    await store.update({ trust: "custom", permissions: { rename_paths: "allow" } });
+    const saved = await store.update({ permissions: { overwrite_files: "deny" } });
+    expect(saved.permissions).toEqual({ ...DEFAULT_EXTERNAL_PERMISSIONS, rename_paths: "allow", overwrite_files: "deny" });
+    expect((await new ExternalAgentSettingsStore(directory).load()).permissions).toEqual(saved.permissions);
+    await expect(store.update({ permissions: { rename_paths: "sometimes" } })).rejects.toThrow("invalid_settings");
+    expect(normalizeSettings({ trust: "full", permissions: { rename_paths: "allow", split_studio_cue: 3 } }))
+      .toMatchObject({ trust: "full", permissions: { ...DEFAULT_EXTERNAL_PERMISSIONS, rename_paths: "allow" } });
   });
 
   it("rejects invalid changes whole and leaves the settings untouched", async () => {

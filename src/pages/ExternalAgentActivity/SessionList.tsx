@@ -46,7 +46,8 @@ export function SessionList({ sessions, liveIds, selected, onSelect }: {
   const unseen = useExternalActivityStore(state => state.unseen);
   const total = sessions?.reduce((sum, item) => sum + item.changes, 0) ?? 0;
   return (
-    <ScrollArea className="max-h-[min(60vh,560px)]" data-testid="external-activity-sessions">
+    // The cap goes on the viewport: a capped root lets a size-full viewport grow past it, under the panel footer.
+    <ScrollArea viewportProps={{ className: "max-h-[min(60vh,560px)]" }} data-testid="external-activity-sessions">
       <nav className="flex flex-col gap-1 p-1.5" aria-label={t("external_agent.activity.connections")}>
         <Row active={selected === ALL_SESSIONS} onClick={() => onSelect(ALL_SESSIONS)} testId="external-activity-session-all">
           <Layers aria-hidden className="mt-[3px] size-3.5 shrink-0 text-muted-foreground" />

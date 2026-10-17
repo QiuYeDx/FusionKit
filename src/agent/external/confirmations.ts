@@ -173,12 +173,13 @@ function resultOf(request: ConfirmationRequest): unknown {
 export async function confirmed<T>(ctx: ExternalToolContext, tool: ExternalToolName, display: ConfirmationDisplay,
   execute: () => Promise<T>, options: { destructive?: boolean; waitMs?: number } = {}): Promise<T> {
   const definition = externalToolDefinition(tool);
-  const trust = useExternalAgentStore.getState().status?.trust ?? "confirm_writes";
+  const status = useExternalAgentStore.getState().status;
+  const trust = status?.trust ?? "confirm_writes";
   const granted = !!definition.group && (useExternalConfirmationsStore.getState().grants[ctx.sessionId] ?? []).includes(definition.group);
-  const need = approvalNeed(trust, definition, { destructive: options.destructive, granted });
+  const need = approvalNeed(trust, definition, { destructive: options.destructive, granted, tool, permissions: status?.permissions });
   const note = noteOf(ctx);
   note.summary = summaryOf(display);
-  if (need.kind === "refuse") { note.approval = "read_only"; throw new ExternalToolError(need.error); }
+  if (need.kind === "refuse") { note.approval = need.error; throw new ExternalToolError(need.error); }
   if (need.kind === "none") { note.approval = unaskedApproval(trust, definition, granted); return execute(); }
   if (ctx.signal.aborted) throw new ExternalToolError("cancelled");
 

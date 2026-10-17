@@ -34,14 +34,14 @@ Translations you write are stored as unreviewed AI translations; the user review
 ## Other files (no Studio)
 
 - Convert formats: `convert_subtitle_files` (paths to files or folders, `to`). Bilingual to one language: `extract_subtitle_language` (`keep`). New files go next to the originals unless you pass `outputDirectory`; `conflict: overwrite` only when the user asked to replace files.
-- Translate file or folder names: `inspect_name_paths` (with `includeChildren` for folder contents), translate the names yourself (keep extensions), then `rename_paths` with each `path`, `kind`, `identity` and `newName`. FusionKit checks the names first and the user always confirms; keep the returned `journalId` so `undo_name_changes` can put the names back.
+- Translate file or folder names: `inspect_name_paths` (with `includeChildren` for folder contents), translate the names yourself (keep extensions), then `rename_paths` with each `path`, `kind`, `identity` and `newName`. FusionKit checks the names first and the user confirms unless their permissions allow renames; keep the returned `journalId` so `undo_name_changes` can put the names back.
 - `get_classic_tasks` lists tasks the user queued in the classic tool pages; `open_fusionkit_page` can show those pages.
 
 ## When FusionKit asks the user
 
-- A dialog in FusionKit asks before changes (by trust level). Tell the user to look at FusionKit when you expect one, especially for the first write; they can allow the rest of the connection.
+- A dialog in FusionKit asks before changes (by trust level: read_only, confirm_writes, auto, full, or custom with a permission per operation, all shown by `get_fusionkit_status`). Tell the user to look at FusionKit when you expect one, especially for the first write; they can allow the rest of the connection.
 - `confirmation_pending`: the user has not decided yet. Say so, then call `get_confirmation_result` with the confirmationId.
-- `declined_by_user`: stop that action and ask what they want instead. `read_only`: only reading is allowed; ask the user to change the trust level if they want changes.
+- `declined_by_user`: stop that action and ask what they want instead. `read_only`: only reading is allowed; ask the user to change the trust level if they want changes. `not_permitted`: the user's custom permissions forbid that operation; do not retry it, ask the user instead.
 
 ## Errors
 

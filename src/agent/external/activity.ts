@@ -30,9 +30,11 @@ export const ACTIVITY_TEXT_ACTIONS: ReadonlySet<ActivityAction> = new Set(["stru
 /**
  * none: a read, or nothing needed asking; confirmed: the user allowed it in the dialog;
  * session: allowed earlier for the rest of this connection; auto: the auto trust level ran it;
- * declined / expired: the user said no or never decided; read_only: refused by the trust level.
+ * full: the full-access level ran it; permitted: a custom permission allowed it;
+ * declined / expired: the user said no or never decided; read_only: refused by the trust level;
+ * not_permitted: refused by a custom permission.
  */
-export const activityApprovalSchema = z.enum(["none", "confirmed", "session", "auto", "declined", "expired", "read_only"]);
+export const activityApprovalSchema = z.enum(["none", "confirmed", "session", "auto", "full", "permitted", "declined", "expired", "read_only", "not_permitted"]);
 export type ActivityApproval = z.infer<typeof activityApprovalSchema>;
 export const activityStatusSchema = z.enum(["ok", "failed", "declined", "pending", "cancelled", "expired"]);
 export type ActivityStatus = z.infer<typeof activityStatusSchema>;
@@ -133,10 +135,10 @@ export interface ActivityListPage { records: ActivityRecord[]; next?: { at: numb
 export const isChange = (record: Pick<ActivityRecord, "access">) => record.access !== "read";
 export const isProblem = (record: Pick<ActivityRecord, "status" | "approval">) =>
   record.status === "failed" || record.status === "declined" || record.status === "expired"
-  || record.approval === "declined" || record.approval === "read_only" || record.approval === "expired";
+  || record.approval === "declined" || record.approval === "read_only" || record.approval === "not_permitted" || record.approval === "expired";
 /** A change that ran without anyone being asked. */
 export const ranUnasked = (record: Pick<ActivityRecord, "access" | "status" | "approval">) =>
-  isChange(record) && record.status === "ok" && (record.approval === "session" || record.approval === "auto");
+  isChange(record) && record.status === "ok" && (record.approval === "session" || record.approval === "auto" || record.approval === "full" || record.approval === "permitted");
 
 export function matchesFilter(record: ActivityRecord, filter: ActivityFilter): boolean {
   if (filter === "changes") return isChange(record);

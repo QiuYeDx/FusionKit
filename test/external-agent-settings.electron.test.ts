@@ -186,7 +186,34 @@ describe('external agent settings', () => {
       await expect.poll(async () => (await page.evaluate(() => window.externalAgent!.getSettings())).value?.trust).toBe('read_only');
       const refused = await claude.callTool({ name: 'import_studio_subtitles', arguments: { paths: [root] } }) as { isError?: boolean; content: { text: string }[] };
       expect(JSON.parse(refused.content[0].text).error).toBe('read_only');
+
+      // Custom: one choice per permission code; a denied operation is refused before the window is asked.
+      const savedSettings = async () => (await page.evaluate(() => window.externalAgent!.getSettings())).value;
+      await page.locator('#setting-external-trust-custom').click();
+      const permissions = page.getByTestId('setting-external-permissions');
+      await uiExpect(permissions).toBeVisible();
+      await uiExpect(page.getByTestId('setting-external-permission')).toHaveCount(13);
+      await page.getByTestId('setting-external-permission-import_studio_subtitles-deny').click();
+      await expect.poll(async () => (await savedSettings())?.permissions.import_studio_subtitles).toBe('deny');
+      const denied = await claude.callTool({ name: 'import_studio_subtitles', arguments: { paths: [root] } }) as { isError?: boolean; content: { text: string }[] };
+      expect(JSON.parse(denied.content[0].text).error).toBe('not_permitted');
+      const reported = await claude.callTool({ name: 'get_fusionkit_status', arguments: {} }) as { content: { text: string }[] };
+      expect(JSON.parse(reported.content[0].text)).toMatchObject({ trust: 'custom', permissions: { import_studio_subtitles: 'deny', rename_paths: 'ask' } });
+      await page.getByTestId('setting-external-permissions-reset').click();
+      await expect.poll(async () => (await savedSettings())?.permissions.import_studio_subtitles).toBe('allow');
+      await page.getByTestId('setting-external-permission-rename_paths-allow').click();
+      await expect.poll(async () => (await savedSettings())?.permissions.rename_paths).toBe('allow');
+      await permissions.evaluate(element => element.scrollIntoView({ block: 'center' }));
+      await shot(page, 'settings-custom-permissions-zh-light-1280');
+
+      // Full access asks once, here; the custom choices are kept for later.
+      await page.locator('#setting-external-trust-full').click();
+      await page.getByRole('dialog').getByRole('button', { name: '完全开放', exact: true }).click();
+      await expect.poll(async () => (await savedSettings())?.trust).toBe('full');
+      await uiExpect(permissions).toHaveCount(0);
+      expect((await savedSettings())?.permissions.rename_paths).toBe('allow');
       await page.locator('#setting-external-trust-confirm_writes').click();
+      await expect.poll(async () => (await savedSettings())?.trust).toBe('confirm_writes');
 
       // Disconnecting one client ends its session.
       await rows.filter({ hasText: 'codex' }).getByTestId('setting-external-disconnect').click();
