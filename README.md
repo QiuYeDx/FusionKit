@@ -31,9 +31,6 @@
 - **可审可撤**：AI 的每一次修改都先预览差异，由你确认后才写入，并且可以撤销。
 - **接入你自己的模型服务**：应用不提供模型 API，AI 功能需要配置你自己的 API Key；支持 DeepSeek、OpenAI 及任意 OpenAI 兼容接口，Token 用量与预估费用实时可见。
 
-> [!NOTE]
-> 当前分支为 **0.5.1 开发版本**，新手引导、帮助页、国内下载源与应用内更新等功能尚未进入正式发行版。最新正式版本见 [Releases](https://github.com/QiuYeDx/FusionKit/releases/latest)，各版本变化见 [CHANGELOG](CHANGELOG.md)。
-
 ## 功能
 
 ### 字幕工作台

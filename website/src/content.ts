@@ -129,7 +129,7 @@ export const content: Record<Lang, Content> = {
       skip: '跳到正文',
     },
     hero: {
-      notice: '新：让 Claude Code、Codex、Cursor 直接操作 FusionKit',
+      notice: '新：新手引导、国内下载源与应用内更新，装好就能用',
       title: '字幕与翻译，\u200b一站完成。',
       subtitle: '转写、翻译、校对、导出，都在一个工作台里。\u200b剩下的，说一句交给 Agent。',
       download: { mac: '下载 macOS 版', windows: '下载 Windows 版', other: '下载 FusionKit' },
@@ -318,7 +318,7 @@ export const content: Record<Lang, Content> = {
       skip: 'Skip to content',
     },
     hero: {
-      notice: 'New: Claude Code, Codex and Cursor can drive FusionKit',
+      notice: 'New: a setup guide, download mirrors and in-app updates',
       title: 'Subtitles and translation. \u200bAll in one place.',
       subtitle: 'Transcribe, translate, proofread and export in one workspace. For everything else, just ask the Agent.',
       download: { mac: 'Download for macOS', windows: 'Download for Windows', other: 'Download FusionKit' },
