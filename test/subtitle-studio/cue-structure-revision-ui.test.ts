@@ -99,7 +99,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('structure fixes from A
       const items = dialog.getByTestId('studio-cue-structure-item');
       await uiExpect(items).toHaveCount(2);
       await uiExpect(dialog.getByTestId('studio-cue-revision-summary')).toHaveText('建议修改：合并 2 处（共检查 14 条）');
-      await uiExpect(dialog.locator('.studio-cue-revision-footnote')).not.toContainText('tokens');
+      await uiExpect(dialog.locator('.studio-cue-revision-footnote')).not.toContainText(/tokens?/i);
       await uiExpect(items.nth(0)).toContainText('9–10');
       await uiExpect(items.nth(0)).toContainText('先輩みたいに朝から眠そうにしてる方、');
       await uiExpect(items.nth(0)).toContainText('像前辈这样一大早就犯困的，');

@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import axios from 'axios';
 import { webReadRequestSchema, webSearchRequestSchema, type WebLookupResult, type WebPage, type WebSearchResult } from '../../../src/web-lookup/contract';
-import { getAxiosProxyConfig } from '../proxy';
+import { getAxiosProxyConfig } from '../network/runtime';
 import { assertPublicHost, isPrivateAddress, parsePublicUrl, WebLookupError, type LookupAll } from './guard';
 import { readPage, searchSource, type FetchText } from './sources';
 
@@ -18,9 +18,10 @@ function userAgent() {
 }
 
 /**
- * The connection resolves the host again; on a direct connection it may only use public addresses, so
- * a name that changes its answer after the check still cannot reach the local network. Through a
- * proxy, the proxy resolves the target and the check before the request applies.
+ * The connection resolves the host again and may only use public addresses, so a name that changes
+ * its answer after the check still cannot reach the local network. The network agents keep this
+ * through a proxy for plain http: the tunnel goes to the address this lookup approved. For https the
+ * proxy resolves the name, and the certificate, checked against the name, stops a local server.
  */
 export function publicOnlyLookup(lookup: LookupAll = host => dnsLookup(host, { all: true })) {
   return async (hostname: string) => {
@@ -29,14 +30,10 @@ export function publicOnlyLookup(lookup: LookupAll = host => dnsLookup(host, { a
     return addresses.map(({ address, family }) => ({ address, family }));
   };
 }
-const directConnection = (proxy: ReturnType<typeof getAxiosProxyConfig>) =>
-  proxy.proxy === false || (!('proxy' in proxy) && !process.env.HTTPS_PROXY && !process.env.HTTP_PROXY && !process.env.https_proxy && !process.env.http_proxy);
-
 export const axiosGet: HttpGet = async (url, accept) => {
   try {
-    const proxy = getAxiosProxyConfig();
     const response = await axios.get<ArrayBuffer>(url, {
-      ...proxy, ...(directConnection(proxy) ? { lookup: publicOnlyLookup() as never } : {}), maxRedirects: 0, validateStatus: () => true, responseType: 'arraybuffer', timeout: TIMEOUT_MS,
+      ...getAxiosProxyConfig(), lookup: publicOnlyLookup() as never, maxRedirects: 0, validateStatus: () => true, responseType: 'arraybuffer', timeout: TIMEOUT_MS,
       maxContentLength: WEB_MAX_BYTES, maxBodyLength: WEB_MAX_BYTES, decompress: true, withCredentials: false,
       headers: { 'User-Agent': userAgent(), Accept: accept === 'json' ? 'application/json' : 'text/html,application/xhtml+xml;q=0.9,text/plain;q=0.8', 'Accept-Language': 'zh-CN,zh;q=0.9,ja;q=0.8,en;q=0.7' },
     });

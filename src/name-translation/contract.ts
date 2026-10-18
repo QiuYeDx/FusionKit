@@ -1,3 +1,4 @@
+import type { ModelErrorCategory } from "@/lib/model-error-category";
 import { z } from "zod";
 
 /**
@@ -240,6 +241,8 @@ export type NameTranslationErrorCode =
 export interface NameTranslationError {
   readonly code: NameTranslationErrorCode;
   readonly message: string;
+  /** Why the model request failed (wrong key, no balance...), when known. */
+  readonly category?: ModelErrorCategory;
 }
 
 export type NameTranslationIpcResult<T> =

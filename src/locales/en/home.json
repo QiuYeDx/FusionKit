@@ -14,8 +14,8 @@
   "core_features_title": "Core Features",
   "feature_fast": "Fast & Efficient",
   "feature_fast_description": "Optimized architecture and efficient processing pipelines, delivering blazing-fast performance and responsiveness.",
-  "feature_secure": "Secure & Reliable",
-  "feature_secure_description": "All data is processed locally without uploading to the cloud, ensuring your privacy and security.",
+  "feature_secure": "You know where data goes",
+  "feature_secure_description": "Local transcription runs on this computer and never uploads audio or video; AI translation sends subtitles or text to the model service you set up.",
   "agent_not_configured": "The Agent model is not configured. Please go to Settings to add a model profile.",
   "agent_api_format_unsupported": "The Agent does not support {{format}} yet. Choose a Chat Completions model profile for Agent in Settings.",
   "api_format_responses": "Responses API",
@@ -59,7 +59,7 @@
   "total_cost_label": "Total Cost",
   "token_log": "Token Log",
   "unknown_model": "Unknown Model",
-  "context_window": "context window",
+  "context_window": "context limit",
   "tool_name_scan": "Scan Subtitle Files",
   "tool_name_translate": "Queue Translation",
   "tool_name_convert": "Queue Conversion",
@@ -441,5 +441,7 @@
   "knowledge_count_enabled": "enabled: {{count}}",
   "knowledge_kind_disable": "Disable",
   "knowledge_kind_enable": "Enable",
-  "knowledge_ai_inferred": "AI inferred, please check"
+  "knowledge_ai_inferred": "AI inferred, please check",
+  "token_explanation": "Tokens are the unit AI services measure text and cost in, roughly one Chinese character or one English word each. Context usage is how much of this conversation the model is already reading; start a new conversation when it is full.",
+  "token_help": "About tokens and cost"
 }

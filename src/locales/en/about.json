@@ -11,7 +11,10 @@
     "tech_stack": "Tech Stack & Build Info"
   },
   "badge": {
-    "latest": "Latest"
+    "latest": "Latest",
+    "available": "v{{version}} available",
+    "downloading": "Downloading {{percent}}%",
+    "downloaded": "Downloaded, restart to install"
   },
   "stats": {
     "platform": "Platforms",

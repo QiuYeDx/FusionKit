@@ -153,7 +153,12 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
         expect(await page.locator('.studio-transcription-layout, .studio-transcription-workspace, .studio-transcription-task-list').evaluateAll(elements =>
           elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
         await uiExpect(rows[5].locator('.studio-transcription-row-warning')).toHaveText(t.durability_uncertain);
-        await uiExpect(rows[6].locator('.studio-transcription-row-warning')).toHaveText([t.task_failed, t.task_cleanup_pending]);
+        // The fixture fails with runtime_protocol_mismatch: the row names that cause and its next step, not a generic failure.
+        await uiExpect(rows[6].locator('.studio-transcription-row-warning')).toHaveText([t.task_error.runtime.cause, t.task_cleanup_pending]);
+        await uiExpect(rows[6].getByTestId('studio-transcription-task-error')).toContainText(t.task_error.runtime.next);
+        // A known code: "view help" for transcription failures, no "copy diagnostics" (that is for codes this version does not know).
+        await uiExpect(rows[6].getByTestId('studio-task-error-help')).toBeVisible();
+        await uiExpect(rows[6].getByTestId('studio-copy-diagnostics')).toHaveCount(0);
         await uiExpect(rows[6].getByRole('button', { name: t.remove_task, exact: true })).toBeDisabled();
         const tooltips: Record<string, string> = {};
         for (const [index, description] of [[1, t.auto_translation_pending], [4, t.auto_translation_admitted], [5, t.auto_translation_recovery]] as const) {
@@ -165,7 +170,8 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
           await uiExpect(tooltip).toHaveCount(0);
         }
         const longModel = rows[1].locator('.studio-task-model'); await longModel.scrollIntoViewIfNeeded(); await longModel.focus();
-        await uiExpect(page.getByRole('tooltip')).toHaveText(`${modelLabel} · CPU`);
+        // The automatic device ended on the CPU although the (controlled) NVIDIA pack is installed: the label says so.
+        await uiExpect(page.getByRole('tooltip')).toHaveText(`${modelLabel} · CPU · ${t.cpu_reason_unavailable}`);
         await page.keyboard.press('Escape'); await longModel.evaluate(element => (element as HTMLElement).blur());
         const progress: Record<string, unknown> = {};
         for (const [index, value] of [[2, 0], [0, 37], [3, 100]] as const) {

@@ -167,7 +167,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await executionDialog(page).getByRole('button', { name: '关闭', exact: true }).click();
     // The task dialog reports each task's own API usage, not only the global total.
     await page.getByTestId('studio-translation-overview-details').click();
-    await uiExpect(taskUsage(page)).toHaveText('180 tokens');
+    await uiExpect(taskUsage(page)).toHaveText('180 Token');
     await taskUsage(page).hover();
     await uiExpect(page.getByRole('tooltip')).toContainText('输入 120 · 输出 60');
     await page.screenshot({ path: path.join(artifacts, 'task-usage-light.png'), animations: 'disabled' });
@@ -200,7 +200,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await configureProfiles(page, [fallbackProfile], fallbackProfile.id);
     await reload(page);
     await page.getByRole('button', { name: '继续翻译', exact: true }).click();
-    await uiExpect(recoveryDialog(page)).toContainText('原模型配置缺失、已变更或 API 密钥不可用');
+    await uiExpect(recoveryDialog(page)).toContainText('原来的模型配置不见了、改过了，或者密钥（API Key）不能用了');
     await uiExpect(recoveryDialog(page).getByRole('button', { name: '继续翻译', exact: true })).toBeDisabled();
     await uiExpect(recoveryDialog(page).getByRole('button', { name: '模型设置', exact: true })).toBeVisible();
     expect(requests).toHaveLength(2);
@@ -227,7 +227,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await uiExpect(page.locator('.studio-target-text').filter({ hasText: '译文：' })).toHaveCount(6);
     // An attempt lost in the crash has unknown cost, so this task's usage is honestly unknown rather than understated.
     await page.getByTestId('studio-translation-overview-details').click();
-    await uiExpect(taskUsage(page)).toHaveText('实际 tokens 未提供');
+    await uiExpect(taskUsage(page)).toHaveText('实际 Token 未提供');
     await page.screenshot({ path: path.join(artifacts, 'task-usage-unknown-dark-narrow.png'), animations: 'disabled' });
     await page.keyboard.press('Escape');
     await uiExpect(page.getByRole('dialog')).toHaveCount(0);

@@ -16,6 +16,7 @@ import { actionErrorMessage } from "./action-error";
 import AgentActionReceipt from "./AgentActionReceipt";
 import AgentKnowledgeChanges, { knowledgeChangesSummary, knowledgeSavedSummary } from "./AgentKnowledgeChanges";
 import { actionFailureReceipt, actionReceipt, agentToolPath, groupPreparedActions, objectValue } from "../presentation";
+import { resourceNameKey } from "@/pages/Tools/Subtitle/SubtitleStudio/resource-names";
 
 const actionStatusKeys = { ready: "home:action_ready", running: "home:action_running", completed: "home:action_completed", failed: "home:action_failed", dismissed: "home:action_dismissed" } as const;
 
@@ -30,6 +31,13 @@ function languageName(value: unknown, locale: string): string {
   const text = String(value ?? "");
   if (!/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(text)) return text;
   try { return new Intl.DisplayNames([locale], { type: "language" }).of(text) ?? text; } catch { return text; }
+}
+
+/** A transcription model by its plain name ("large-v3-q5_0" → "标准"); a model this version does not know keeps its id. */
+function modelName(value: string | number | undefined, t: TFunction): string | number | undefined {
+  if (typeof value !== "string") return value;
+  const key = resourceNameKey({ resourceId: value, resourceType: "model", displayName: value, compatibleBackends: [] }, "short");
+  return key ? t(key) : value;
 }
 
 /** What runs after transcription without the assistant: translation, export, or both. */
@@ -56,7 +64,8 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
     : action.summaryKey === "home:prepared_transcription_summary" ? t("home:prepared_transcription_title")
     : action.knowledge ? t("home:prepared_knowledge_title") : labels ? t(labels.title) : action.title;
   // The files are the receipt's items; the summary keeps to one line of what will happen.
-  const values = action.summaryValues ? { ...action.summaryValues, language: languageName(action.summaryValues.language, i18n.resolvedLanguage || i18n.language) } : undefined;
+  const values = action.summaryValues ? { ...action.summaryValues, language: languageName(action.summaryValues.language, i18n.resolvedLanguage || i18n.language),
+    ...(action.summaryKey === "home:prepared_transcription_summary" ? { model: modelName(action.summaryValues.model, t) } : {}) } : undefined;
   const summary = action.knowledge ? knowledgeSavedSummary(action, t) ?? knowledgeChangesSummary(action.knowledge, t)
     : action.summaryKey ? t(action.summaryKey, values) : action.summary;
   const focusCollectionId = objectValue(action.result).focusCollectionId;

@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
+  CircleHelp,
   Home,
   Wrench,
   Info,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import useThemeStore from "@/store/useThemeStore";
 import { ToolNameMap } from "@/constants/router";
+import { HELP_ROUTE } from "@/pages/Help/helpNavigation";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { ThemeTransitionToggle } from "@/components/qiuye-ui/theme-transition-toggle";
@@ -46,13 +48,14 @@ const BottomNavigation: React.FC = () => {
   }, [location.pathname]);
 
   // 判断当前是否为主菜单
-  const isMainMenu = ["/", "/about", "/setting", "/tools"].includes(
+  const isMainMenu = ["/", "/about", HELP_ROUTE, "/setting", "/tools"].includes(
     location.pathname
   );
 
   const mainNavItems = [
     { path: "/", icon: Home, label: "menu.home" },
     { path: "/tools", icon: Wrench, label: "menu.tools" },
+    { path: HELP_ROUTE, icon: CircleHelp, label: "menu.help" },
     { path: "/about", icon: Info, label: "menu.about" },
     { path: "/setting", icon: Settings, label: "menu.setting" },
   ];

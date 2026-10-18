@@ -79,7 +79,9 @@
       "path_selection_failed": "路径选择失败，请重试",
       "please_select_output_url": "请先选择输出路径",
       "source_path_missing": "无法读取源文件路径，请改用自定义输出目录",
-      "read_file_failed": "读取文件 {file} 失败"
+      "read_file_failed": "读取文件 {file} 失败",
+      "request_failed": "翻译请求失败",
+      "request_failed_cause": "翻译请求失败：{{cause}}"
     },
     "upload_section": "文件上传",
     "task_management": "任务队列",
@@ -90,12 +92,12 @@
       "total_cost": "预估总费用",
       "pending_tokens": "待处理Token",
       "pending_cost": "待处理费用",
-      "cost_tooltip": "当前仅为翻译前预估，最终以模型服务商返回的 usage 和账单为准。",
+      "cost_tooltip": "这是翻译开始前的预估。Token 是 AI 计算文字长度和费用的单位，大约一个汉字或一个英文单词算 1 个；实际费用以服务商的账单为准。",
       "actual_tokens": "实际 Token",
       "calculated_cost": "已发生计算费用",
       "remaining_estimated_cost": "剩余预估费用",
-      "actual_usage_tooltip": "Token 数来自模型 API 响应中的 usage 字段，并按每次已返回的请求累计。",
-      "partial_usage_tooltip": "部分模型响应没有返回完整 usage；当前数字仅累计了服务商已报告的 Token，可能低于实际消耗。",
+      "actual_usage_tooltip": "这里的 Token 数是 AI 服务每次回答时报告的用量，按已经完成的请求累计。",
+      "partial_usage_tooltip": "有的回答没有报告完整的用量，这里只累计了已报告的部分，可能比实际用得少。",
       "calculated_cost_tooltip": "根据 API 报告的实际 Token 和任务创建时冻结的模型单价计算，不等同于服务商账单。DeepSeek 的缓存命中与分时价格可能造成差异。",
       "unpriced_cost_tooltip": "部分实际用量来自没有冻结模型单价的旧任务，无法可靠计算汇总费用。",
       "remaining_cost_tooltip": "未开始任务使用完整预估；运行中任务扣除已发生的计算费用。失败和已完成任务不计入剩余。"
@@ -105,7 +107,7 @@
       "slice_mode": "分片模式",
       "api_model": "API 模型",
       "thinking_mode": "Thinking 模式",
-      "api_endpoint": "API 地址",
+      "api_endpoint": "接口地址",
       "source_file": "源文件",
       "output_path": "输出路径",
       "conflict_policy": "重名策略",
@@ -117,9 +119,9 @@
       "actual_usage": "实际用量",
       "estimated_usage": "任务预估",
       "calculated_cost": "计算费用",
-      "request_coverage": "Usage 覆盖请求",
+      "request_coverage": "报告了用量的请求",
       "cached_input": "缓存输入",
-      "reasoning_output": "推理 Token",
+      "reasoning_output": "思考用的 Token",
       "actual_short": "实际",
       "input": "输入",
       "output": "输出",
@@ -262,7 +264,7 @@
       "title": "转写配置",
       "model": "本地模型",
       "no_model": "没有可用模型",
-      "model_details": "{{format}} · {{quantization}} · {{size}}",
+      "model_details": "模型大小：{{size}}",
       "device": "计算设备",
       "device_option": {
         "auto": "自动选择（推荐）",
@@ -284,23 +286,23 @@
       "task_mode": "任务模式",
       "task_transcribe": "原文转写",
       "task_translate_english": "转为英文",
-      "vad": "语音活动检测",
-      "vad_hint": "减少静音片段中的误识别。",
+      "vad": "语音检测",
+      "vad_hint": "自动跳过没有人说话的部分，减少误识别。",
       "window_strategy": "音频分块",
       "window_fixed": "固定窗口",
       "window_pause": "优先按停顿分块（推荐）",
       "window_strategy_hint": "仅影响新任务；重试沿用原任务的选择。",
-      "window_pause_note": "优先在明显停顿处切块，减少接缝重复；无合适停顿时使用重叠窗口。自动开启 VAD，如需关闭请先切换为固定窗口。30 秒以内或超过 24 小时的音频沿用固定窗口。",
-      "window_pause_vad_required": "停顿分块需要 VAD，已自动开启。如需关闭，请先将音频分块切换为固定窗口。",
-      "vad_ready": "VAD 资源已就绪",
-      "vad_not_ready": "启用后需要先安装 VAD 资源",
-      "initial_prompt": "初始提示词",
+      "window_pause_note": "优先在明显停顿处切块，减少接缝重复；没有合适停顿时使用重叠窗口。会自动开启语音检测，如需关闭请先切换为固定窗口。30 秒以内或超过 24 小时的音频沿用固定窗口。",
+      "window_pause_vad_required": "按停顿分块需要语音检测，已自动开启。如需关闭，请先将音频分块切换为固定窗口。",
+      "vad_ready": "语音检测已就绪",
+      "vad_not_ready": "开启前需要先安装语音检测",
+      "initial_prompt": "上下文提示",
       "initial_prompt_hint": "仅用于当前页面会话，不会保存到本地。",
       "initial_prompt_placeholder": "人名、术语或上下文",
       "advanced": "高级设置",
-      "beam_size": "Beam 数量",
+      "beam_size": "搜索宽度",
       "temperature": "温度",
-      "vad_silence": "VAD 静音 (ms)",
+      "vad_silence": "最短静音（毫秒）",
       "max_cue_duration": "建议单条时长 (ms)",
       "max_cue_chars": "建议单条字数",
       "max_line_chars": "建议每行字数",
@@ -327,15 +329,15 @@
       "status_summary": "{{status}} · 资源 {{ready}} / {{total}}",
       "unavailable_short": "不可用",
       "platform": "平台",
-      "contract": "服务合同",
-      "runner": "Whisper 运行器",
+      "contract": "服务版本",
+      "runner": "转写程序",
       "ffmpeg": "FFmpeg",
       "not_ready": "未就绪",
-      "runtime_details": "运行时详情",
-      "backends": "后端探测",
+      "runtime_details": "详细信息",
+      "backends": "可用的处理设备",
       "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
-      "resolving_backend": "正在解析执行后端",
-      "no_backend_data": "暂无后端探测数据",
+      "resolving_backend": "正在确认用哪种设备处理",
+      "no_backend_data": "还没有检查处理设备",
       "backend": {
         "cpu": "CPU",
         "cuda": "CUDA",
@@ -344,19 +346,20 @@
       "backend_status": {
         "available": "可用",
         "unavailable": "不可用",
-        "unverified": "未验证",
-        "not_reported": "未报告"
+        "unverified": "还没确认能用",
+        "not_reported": "没有检查"
       },
       "error": {
-        "unsupported_platform": "当前平台不受本地字幕运行时支持。",
-        "unsupported_architecture": "当前设备架构与本地字幕运行时不匹配。",
-        "runtime_missing": "应用自带的 Whisper 运行器缺失。",
-        "runtime_protocol_mismatch": "应用自带的 Whisper 运行器损坏或版本不匹配。",
-        "media_runtime_missing": "应用自带的 FFmpeg/ffprobe 运行时缺失。",
-        "media_runtime_invalid": "应用自带的 FFmpeg/ffprobe 运行时损坏或版本不匹配。",
-        "media_runtime_launch_failed": "应用自带的 FFmpeg/ffprobe 无法启动。",
+        "unsupported_platform": "这台电脑的系统暂不支持本地转写。",
+        "unsupported_architecture": "这台电脑的处理器类型暂不支持本地转写。",
+        "runtime_missing": "应用自带的转写程序不见了。",
+        "runtime_protocol_mismatch": "应用自带的转写程序损坏，或者版本对不上。",
+        "media_runtime_missing": "应用自带的音视频处理组件不见了。",
+        "media_runtime_invalid": "应用自带的音视频处理组件损坏，或者版本对不上。",
+        "media_runtime_launch_failed": "应用自带的音视频处理组件无法启动。",
         "unknown": "无法完成本地运行环境检查。",
-        "recovery": "这些组件应随 FusionKit 一起提供，无需另行安装 FFmpeg 或 Whisper。请先重新检查；若仍失败，源码运行请重新组装项目内的本地运行时，安装版请更新或重新安装 FusionKit。已下载模型和已导出字幕不会因此删除。"
+        "recovery": "这些组件随 FusionKit 一起安装，不需要另外安装 FFmpeg 或 Whisper。请先点“重新检查环境”；仍然失败的话，请更新或重新安装 FusionKit。已下载的模型和导出的字幕不会被删除。",
+        "recovery_dev": "开发提示：从源码运行时，请重新组装项目内的本地运行时。"
       }
     },
     "file": {
@@ -442,19 +445,19 @@
       "error": {
         "configuration_not_ready": "字幕翻译配置仍在加载，请等待翻译器就绪后重试。",
         "directory_authorization_required": "使用此模式前，请在字幕翻译器中选择或重新授权输出目录。",
-        "profile_required": "自动开始翻译需要有效的翻译配置和 API Key。"
+        "profile_required": "自动开始翻译需要可用的翻译配置和密钥（API Key）。"
       }
     },
     "resources": {
-      "title": "托管资源",
-      "managed_only": "来自内置清单的受控资源",
+      "title": "本地资源",
+      "managed_only": "只能安装列表里的资源",
       "disk_usage": "已占用：{{size}}",
-      "loading": "正在读取托管资源清单...",
-      "empty": "当前平台没有可用的托管资源。",
+      "loading": "正在读取资源列表…",
+      "empty": "这台电脑暂时没有可安装的资源。",
       "type": {
         "model": "模型",
-        "vad": "语音活动检测",
-        "accelerator": "GPU 加速组件"
+        "vad": "语音检测",
+        "accelerator": "显卡加速"
       },
       "status": {
         "not_installed": "未安装",
@@ -465,18 +468,18 @@
       "job": {
         "queued": "等待开始",
         "acquiring": "正在获取文件",
-        "verifying": "正在校验完整性",
-        "load_smoke": "正在检查运行兼容性",
-        "signature_check": "正在检查签名",
-        "committing": "正在提交资源",
+        "verifying": "正在检查文件是否完整",
+        "load_smoke": "正在试运行，确认能用",
+        "signature_check": "正在检查文件来源",
+        "committing": "正在完成安装",
         "completed": "安装完成",
         "cancelling": "正在取消",
         "cancelled": "已取消",
         "failed": "安装失败"
       },
       "import": {
-        "title": "导入兼容模型",
-        "description": "选择与内置清单匹配的 GGML 模型文件。FusionKit 会在提交前验证文件大小、哈希和 CPU 加载能力。",
+        "title": "导入模型",
+        "description": "选择与内置清单中某个模型完全一致的文件（大小和内容都相同）。导入时会检查文件是否完整、能否正常加载。",
         "estimated_usage": "预计新增占用：{{size}}",
         "matched_model": "匹配模型：{{name}}",
         "unrecognized_model": "该文件大小与尚未安装的内置模型不匹配。",
@@ -484,13 +487,13 @@
         "copy": "复制",
         "move": "移动",
         "copy_hint": "验证并安装副本后，所选源文件会继续保留。",
-        "move_hint": "仅在模型完成验证并安全提交后移除所选源文件。"
+        "move_hint": "确认模型可以使用并装好之后，才会删除原来的文件。"
       },
       "delete": {
-        "title": "删除托管资源？",
-        "description": "将从 FusionKit 的托管存储中删除 {{name}}，之后仍可重新安装。"
+        "title": "删除这个资源？",
+        "description": "将从 FusionKit 中删除 {{name}}，之后可以重新安装。"
       },
-      "shared_hint": "模型、语音检测与 CUDA 资源保存在应用共享目录，两个字幕工具共用一份，安装一次即可使用。",
+      "shared_hint": "模型、语音检测和显卡加速保存在同一个地方，“本地字幕转写”和“字幕工作台”共用一份，安装一次即可。",
       "migration_issues": "部分旧资源未能安全迁移，原文件已保留。可重新打开应用重试；若仍未就绪，请检查资源状态。",
       "shared_cleanup_pending": "共享资源仍在清理，请等待清理完成后再安装或删除。",
       "shared_busy": "资源正被字幕任务或资源操作占用。",
@@ -500,12 +503,12 @@
     "readiness": {
       "environment_loading": "正在检查本地运行环境。",
       "environment_unavailable": "无法读取本地运行环境状态。",
-      "runtime_unavailable": "本地转写运行时或 CPU 后端当前不可用。",
+      "runtime_unavailable": "本地转写程序暂时用不了，请点“重新检查环境”。",
       "session_unavailable": "任务会话尚未就绪，请重新检查环境。",
       "model_required": "需要一个已安装且可用的本地模型。",
-      "vad_required": "语音活动检测已启用，请先安装并验证 VAD 资源。",
-      "backend_preview_loading": "正在解析当前模型的执行后端。",
-      "backend_preview_unavailable": "无法验证当前模型的执行后端，请重新检查本地环境。",
+      "vad_required": "已开启语音检测，请先安装语音检测，或者把它关掉。",
+      "backend_preview_loading": "正在确认这个模型用哪种设备处理。",
+      "backend_preview_unavailable": "还不能确认这个模型能用哪种设备处理，请点“重新检查环境”。",
       "file_required": "请至少选择一个音频或视频文件。",
       "media_probe_loading": "正在读取所选文件的媒体信息。",
       "media_probe_failed": "部分文件的媒体信息读取失败，请重试或移除文件。",
@@ -654,11 +657,11 @@
     },
     "tour": {
       "model_setup_title": "先准备本地模型",
-      "model_setup_content": "首次使用前必须先准备模型，否则无法开始转写。可在本地环境中下载托管模型，或点击“导入模型”添加兼容的 GGML 模型文件。",
+      "model_setup_content": "第一次转写前要先准备模型，否则无法开始。可以在本地环境里下载列表中的模型；已有模型文件的话，也可以点“导入模型”，但文件必须和列表中的模型完全一致。",
       "config_title": "转写配置",
       "config_content": "在左侧面板配置本地模型、计算设备、输出格式和转写完成后的处理方式。设置会自动保存。",
       "model_title": "选择本地模型",
-      "model_content": "选择已安装且可用的本地 Whisper 模型。模型越大通常越准确，但需要更多磁盘空间和计算资源。",
+      "model_content": "选择一个已经装好的识别模型。模型越大通常越准确，但会占用更多磁盘空间，转写也更慢。",
       "language_title": "设置源语言",
       "language_content": "选择媒体中的语言，或保留自动检测，让模型根据音频内容判断。",
       "upload_title": "添加音频或视频",
@@ -668,6 +671,127 @@
       "start_title": "开始转写",
       "start_content": "确认环境、模型和媒体都准备好后，点击这里开始全部待处理任务。",
       "trigger": "使用引导"
+    },
+    "error_guide": {
+      "details": "诊断信息",
+      "copy": "复制诊断信息",
+      "copied": "已复制诊断信息",
+      "open_network_settings": "打开网络设置",
+      "open_translator": "打开字幕翻译",
+      "runtime_crashed": {
+        "cause": "转写程序意外退出了，或者长时间没有响应。",
+        "next": "请再试一次。Windows 上如果页面上方提示缺少微软运行库，请先点“一键修复”；仍然失败的话，重启电脑后再试。",
+        "next_cpu": "可以点“改用 CPU 重试”。Windows 上如果页面上方提示缺少微软运行库，请先点“一键修复”。"
+      },
+      "accelerator": {
+        "cause": "显卡加速现在用不了。",
+        "next": "可以在本地环境里重新安装显卡加速，或者更新显卡驱动；也可以把“计算设备”改成 CPU 后再转写。",
+        "next_cpu": "可以点“改用 CPU 重试”；也可以在本地环境里重新安装显卡加速，或者更新显卡驱动。"
+      },
+      "model_missing": {
+        "cause": "选中的模型还没有装好。",
+        "next": "请先在本地环境里下载这个模型。"
+      },
+      "model_incompatible": {
+        "cause": "模型文件没能正常加载。",
+        "next": "Windows 上请先确认微软运行库已经装好（缺少时页面上方会提示），然后重新下载模型。"
+      },
+      "verify": {
+        "cause": "下载的文件没有通过完整性检查。",
+        "next": "请再下载一次；还是失败的话，可以在“设置 → 网络”里换个下载源。"
+      },
+      "download": {
+        "cause": "下载没有完成，通常是连不上下载地址或被网络拦截。",
+        "next": "可以在“设置 → 网络”里换个下载源或开启代理，再重新下载。"
+      },
+      "disk": {
+        "cause": "磁盘空间不够。",
+        "next": "请清理出足够的空间后再试一次。"
+      },
+      "not_allowed": {
+        "cause": "这个资源不在可以下载的列表里。",
+        "next": "请更新 FusionKit 后再试。"
+      },
+      "authorization": {
+        "cause": "访问这个文件的授权已经过期。",
+        "next": "请重新选择文件后再试。"
+      },
+      "media": {
+        "cause": "这个文件里读不出可以转写的声音。",
+        "next": "请确认文件能正常播放，或者转换成常见格式（如 MP4、MP3）后再试。"
+      },
+      "no_audio": {
+        "cause": "这个文件里没有音轨。",
+        "next": "请换一个有声音的文件。"
+      },
+      "media_changed": {
+        "cause": "转写过程中，原文件被修改或移动了。",
+        "next": "请重新添加文件后再转写。"
+      },
+      "transcription": {
+        "cause": "转写没能完成。",
+        "next": "请再试一次；仍然失败的话，可以换一个模型再转写。",
+        "next_cpu": "可以再试一次，或者点“改用 CPU 重试”。"
+      },
+      "memory": {
+        "cause": "电脑内存不够用了。",
+        "next": "请关掉其他占用内存的程序，或者换一个体积较小的模型后再试。"
+      },
+      "output_conflict": {
+        "cause": "保存位置已经有同名文件。",
+        "next": "可以在“文件冲突”里选“自动编号”，或者换一个输出目录。"
+      },
+      "output_write": {
+        "cause": "字幕文件没能保存。",
+        "next": "请确认输出目录存在、可以写入，并且空间足够。"
+      },
+      "cleanup": {
+        "cause": "临时文件没能清理干净。",
+        "next": "可以重启 FusionKit 后再试。"
+      },
+      "artifact": {
+        "cause": "这个字幕文件已经被修改、移动或删除了。",
+        "next": "可以在文件夹中查看，或者重新转写。"
+      },
+      "preview": {
+        "cause": "这个字幕文件太大，或者格式不对。",
+        "next": "可以在文件夹中直接打开它。"
+      },
+      "limit": {
+        "cause": "一次添加的文件或内容超出了上限。",
+        "next": "请减少数量后再试。"
+      },
+      "partial": {
+        "cause": "任务已取消，取消前已经导出的字幕保留了下来。"
+      },
+      "page_stale": {
+        "cause": "页面和本地转写服务之间的连接已经失效。",
+        "next": "请重启 FusionKit 后再试。"
+      },
+      "translation_setup": {
+        "cause": "字幕翻译还没有可用的模型配置。",
+        "next": "请在“设置 → AI 模型”里添加配置并填好密钥，再在“执行配置”里选择它。"
+      },
+      "duplicate": {
+        "cause": "这个字幕已经在字幕翻译的列表里了，没有重复加入。",
+        "next": "可以打开字幕翻译查看。"
+      },
+      "unsupported_format": {
+        "cause": "字幕翻译不支持这种字幕格式。",
+        "next": "请在“翻译交接格式”里换一种格式后再试。"
+      },
+      "import_failed": {
+        "cause": "字幕没能加入字幕翻译。",
+        "next": "请再试一次；仍然失败的话，可以打开字幕翻译，手动导入这个字幕文件。"
+      },
+      "not_started": {
+        "cause": "字幕已经加入字幕翻译，但翻译没有自动开始。",
+        "next": "请打开字幕翻译，确认任务后手动开始。"
+      },
+      "unknown": {
+        "cause": "操作没有完成。",
+        "next": "请再试一次；仍然失败的话，可以复制下面的诊断信息反馈给开发者。"
+      }
     }
   },
   "extractor": {

@@ -1,3 +1,4 @@
+import type { ModelErrorCategory } from "@/lib/model-error-category";
 import { cloneDeep } from "lodash";
 import {
   SubtitleTranslatorTask,
@@ -513,6 +514,7 @@ export function failTask(
     stackTrace?: string;
     recovery?: SubtitleTranslationRecovery;
     actualUsage?: SubtitleTranslationUsage;
+    errorCategory?: ModelErrorCategory;
   },
   maxConcurrency: number,
 ): TranslatorQueueResult {
@@ -535,6 +537,7 @@ export function failTask(
       timestamp: errorData.timestamp,
       stackTrace: errorData.stackTrace,
       errorLogs: errorData.errorLogs || [],
+      ...(errorData.errorCategory ? { errorCategory: errorData.errorCategory } : {}),
     },
   };
 

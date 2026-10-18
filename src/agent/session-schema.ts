@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { agentPlanInputSchema } from "./plan";
 import { AGENT_LOG_ENTRY_TYPES, AGENT_UI_EVENT_KINDS, type SessionExportData } from "./types";
+import { MODEL_ERROR_CATEGORIES } from "@/lib/model-error-category";
 
 export const MAX_SESSION_BYTES = 8 * 1024 * 1024;
 const text = z.string().max(1_000_000);
@@ -18,10 +19,12 @@ const message = z.object({
     kind: z.enum(AGENT_UI_EVENT_KINDS),
     values: z.record(z.string().max(100), z.union([z.string().max(2000), z.number().finite(), z.boolean()])).optional(),
   }).optional(),
+  failure: z.object({ category: z.enum(MODEL_ERROR_CATEGORIES) }).strict().optional(),
 }).superRefine((value, context) => {
   if (value.role === "tool" && !value.toolResult) context.addIssue({ code: "custom", message: "Tool messages require a result." });
   if (value.toolCalls && value.role !== "assistant") context.addIssue({ code: "custom", message: "Only assistant messages may contain tool calls." });
   if (value.event && value.role !== "user") context.addIssue({ code: "custom", message: "Only user-turn messages may carry interface events." });
+  if (value.failure && value.role !== "assistant") context.addIssue({ code: "custom", message: "Only assistant messages may report a failed request." });
 });
 const plan = z.object({ id, goal: z.string(), steps: z.array(z.unknown()), updatedAt: time }).transform((value, context) => {
   const parsed = agentPlanInputSchema.safeParse({ goal: value.goal, steps: value.steps });

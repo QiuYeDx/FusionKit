@@ -24,8 +24,8 @@
       "desc": "支援 TXT 與 Markdown、並行或連貫串行、僅譯文或雙語輸出。",
       "source_lang": "源語言",
       "target_lang": "目標語言",
-      "slice_tokens": "分片 token",
-      "memory_tokens": "記憶 token",
+      "slice_tokens": "分片 Token",
+      "memory_tokens": "記憶 Token",
       "concurrency": "並行數",
       "execution_mode": "執行模式",
       "project_mode": "專案模式",
@@ -110,8 +110,8 @@
     },
     "budget": {
       "title": "上下文預算",
-      "within": "目前設定可放入預設模型上下文視窗。",
-      "exceeded": "目前設定超過預設模型上下文視窗，請降低分片或記憶 token。",
+      "within": "目前設定沒有超過模型一次能讀的長度。",
+      "exceeded": "目前設定超過了模型一次能讀的長度，請減小「分片 Token」或「記憶 Token」。",
       "model_context": "模型上下文",
       "required": "預計需求",
       "output_reserve": "輸出預留"
@@ -125,7 +125,7 @@
       "reset_placeholder": "如：1, 3",
       "glossary_placeholder": "每行一個：原文 => 譯文 # 備註",
       "serial_cost_title": "串行費用提示",
-      "serial_cost_desc": "連貫串行會為每片額外攜帶最多 {{tokens}} 語義記憶 token，實際輸入費用通常高於並行模式。"
+      "serial_cost_desc": "連貫串行會為每片額外帶上最多 {{tokens}} 個「記憶 Token」，實際輸入費用通常高於並行模式。"
     },
     "languages": {
       "AUTO": "自動"
@@ -158,7 +158,7 @@
       "file_path_unavailable": "無法讀取所選檔案路徑。",
       "unsupported_file": "僅支援 .txt、.md 和 .markdown 檔案。",
       "output_dir_required": "請選擇輸出目錄，或使用源檔目錄。",
-      "budget_exceeded": "目前 token 預算超過模型上下文視窗。",
+      "budget_exceeded": "設定的 Token 數超過了模型一次能讀的長度。",
       "output_not_ready": "輸出檔案尚未就緒。",
       "view_details": "查看失敗原因",
       "detail_title": "翻譯失敗原因",

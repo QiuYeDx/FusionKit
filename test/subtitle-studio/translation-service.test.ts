@@ -259,6 +259,18 @@ describe('subtitle studio translation service with an isolated repository', () =
   });
 
   it.each([
+    [new ModelRuntimeClientError('http_non_retryable', 'Model request failed with HTTP 402: Insufficient Balance', false, { status: 402 }), 'needs_configuration', 'balance'],
+    [new ModelRuntimeClientError('http_unauthorized', 'Model request failed with HTTP 401.', false, { status: 401 }), 'needs_configuration', 'auth'],
+    [new ModelRuntimeClientError('network_error', 'getaddrinfo ENOTFOUND api.example.test', true, { networkCategory: 'dns' }), 'translation_failed', 'network'],
+  ] as const)('records why the model request failed: %s', async (failure, error, category) => {
+    const current = await fixture(async () => { throw failure; });
+    const snapshot = await run(current, config({ maxBatchCues: 1 }));
+    expect(snapshot.tasks[0]).toMatchObject({ translation: { error, errorCategory: category } });
+    const reopened = await new DocumentRepository(path.join(current.root, 'documents')).readSnapshot(current.doc.id);
+    expect(reopened.tasks[0].translation).toMatchObject({ error, errorCategory: category });
+  });
+
+  it.each([
     { mode: 'runtime-error', failingBatch: 1, reportedUsage: usage },
     { mode: 'runtime-error', failingBatch: 2, reportedUsage: usage },
     { mode: 'runtime-error', failingBatch: 1, reportedUsage: undefined },

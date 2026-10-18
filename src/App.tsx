@@ -3,6 +3,8 @@ import { Routes, Route, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import "@/App.css";
 import About from "@/pages/About";
+import Help from "@/pages/Help";
+import { HELP_ROUTE } from "@/pages/Help/helpNavigation";
 import Setting from "@/pages/Setting";
 import Home from "@/pages/Home";
 import HomeAgent from "@/pages/HomeAgent";
@@ -26,6 +28,8 @@ import { EXTERNAL_ACTIVITY_ROUTE } from "./pages/ExternalAgentActivity/route";
 import { Toaster } from "@/components/ui/sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Update from "@/components/update";
+import WelcomeWizard from "@/components/onboarding/WelcomeWizard";
+import { VcRuntimePageNotice } from "@/components/system-setup/VcRuntimeNotice";
 import LocalSubtitleOverwriteRecoveryPrompt from "@/components/local-subtitle/LocalSubtitleOverwriteRecoveryPrompt";
 import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
 import { ToolFileDropScope } from "@/pages/Tools/_shared/ui/ToolFileDropScope";
@@ -35,8 +39,9 @@ const ROUTE_ORDER: Record<string, number> = {
   "/": 0,
   "/home-classic": 0,
   "/tools": 1,
-  "/about": 2,
-  "/setting": 3,
+  [HELP_ROUTE]: 2,
+  "/about": 3,
+  "/setting": 4,
 };
 
 function getRouteIndex(pathname: string): number {
@@ -120,6 +125,7 @@ function App() {
                 <Route path="/" element={<HomeAgent />} />
                 <Route path="/home-classic" element={<Home />} />
                 <Route path="/tools" element={<Tools />} />
+                <Route path={HELP_ROUTE} element={<Help />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/setting" element={<Setting />} />
                 <Route path={EXTERNAL_ACTIVITY_ROUTE} element={<ExternalAgentActivity />} />
@@ -141,7 +147,13 @@ function App() {
                 />
                 <Route
                   path={LOCAL_SUBTITLE_TRANSCRIBER_ROUTE}
-                  element={<LocalSubtitleTranscriber />}
+                  element={
+                    <>
+                      {/* 经典转写页已冻结：缺少微软运行库时的提示放在页面上方 */}
+                      <VcRuntimePageNotice />
+                      <LocalSubtitleTranscriber />
+                    </>
+                  }
                 />
                 <Route
                   path="/tools/rename/name-translator"
@@ -173,6 +185,9 @@ function App() {
 
       {/* 自动更新检测 */}
       <Update autoCheck showTrigger={false} />
+
+      {/* 首次启动的新手引导（设置中可重新打开） */}
+      <WelcomeWizard />
 
       <LocalSubtitleOverwriteRecoveryPrompt />
 

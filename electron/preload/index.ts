@@ -17,6 +17,10 @@ import { assertLegacyNameTranslationChannelAllowed, createNameTranslationApi } f
 import { assertLegacyWebLookupChannelAllowed, createWebLookupApi } from './web-lookup-api'
 import { assertLegacyAgentSessionsChannelAllowed, createAgentSessionsApi } from './agent-sessions-api'
 import { assertLegacyExternalAgentChannelAllowed, createExternalAgentApi } from './external-agent-api'
+import { assertLegacyNetworkChannelAllowed, createNetworkApi } from './network-api'
+import { assertLegacyModelSetupChannelAllowed, createModelSetupApi } from './model-setup-api'
+import { assertLegacySystemSetupChannelAllowed, createSystemSetupApi } from './system-setup-api'
+import { assertLegacyAppUpdateChannelAllowed, createAppUpdateApi } from './app-update-api'
 
 const localSubtitleOwnerSessionRegistration = ipcRenderer.sendSync(
   LOCAL_SUBTITLE_PRELOAD_INTERNAL_CHANNELS.registerOwnerSession,
@@ -28,6 +32,10 @@ const subtitleTranslationOwnerSessionRegistration = ipcRenderer.sendSync(
 )
 
 const assertLegacyIpcChannelAllowed = (channel: string) => {
+  assertLegacyAppUpdateChannelAllowed(channel)
+  assertLegacyNetworkChannelAllowed(channel)
+  assertLegacyModelSetupChannelAllowed(channel)
+  assertLegacySystemSetupChannelAllowed(channel)
   assertLegacyNameTranslationChannelAllowed(channel)
   assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyAgentSessionsChannelAllowed(channel)
@@ -41,6 +49,10 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
 }
 
 const assertLegacyListenChannelAllowed = (channel: string) => {
+  assertLegacyAppUpdateChannelAllowed(channel)
+  assertLegacyNetworkChannelAllowed(channel)
+  assertLegacyModelSetupChannelAllowed(channel)
+  assertLegacySystemSetupChannelAllowed(channel)
   assertLegacyNameTranslationChannelAllowed(channel)
   assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyAgentSessionsChannelAllowed(channel)
@@ -60,6 +72,10 @@ contextBridge.exposeInMainWorld('nameTranslation', createNameTranslationApi(ipcR
 contextBridge.exposeInMainWorld('webLookup', createWebLookupApi(ipcRenderer))
 contextBridge.exposeInMainWorld('agentSessions', createAgentSessionsApi(ipcRenderer))
 contextBridge.exposeInMainWorld('externalAgent', createExternalAgentApi(ipcRenderer))
+contextBridge.exposeInMainWorld('network', createNetworkApi(ipcRenderer))
+contextBridge.exposeInMainWorld('modelSetup', createModelSetupApi(ipcRenderer))
+contextBridge.exposeInMainWorld('systemSetup', createSystemSetupApi(ipcRenderer))
+contextBridge.exposeInMainWorld('appUpdate', createAppUpdateApi(ipcRenderer))
 contextBridge.exposeInMainWorld(
   'ipcRenderer',
   createSafeLegacyIpcBridge({

@@ -27,12 +27,14 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
 import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
+import { settingPath } from "@/pages/Setting/settingNavigation";
+import { helpPath } from "@/pages/Help/helpNavigation";
 import { exportSession, importSession } from "@/agent/session-io";
 import SessionLogViewer from "./SessionLogViewer";
 import SessionSidebar from "./SessionSidebar";
 import { homeContentShift } from "./home-layout";
 import { newSession } from "@/agent/session-persistence";
-import { readSessionDraft, writeSessionDraft } from "@/agent/session-drafts";
+import { onSessionDraftFilled, readSessionDraft, writeSessionDraft } from "@/agent/session-drafts";
 import AgentCapabilities from "./components/AgentCapabilities";
 import { registerHomeColumn } from "../AgentDock/handoff";
 import {
@@ -183,6 +185,13 @@ function HomeAgent() {
   useEffect(() => {
     writeSessionDraft(draftOwner.current, input);
   }, [input]);
+
+  // An example task (from the welcome wizard) fills this composer as a suggestion pill does.
+  useEffect(() => onSessionDraftFilled((sessionId, text) => {
+    if (sessionId !== draftOwner.current) return;
+    setInput(text);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }), []);
 
   // Another session on screen: its own draft, and its latest messages in view.
   useEffect(() => {
@@ -401,7 +410,7 @@ function HomeAgent() {
           variant="outline"
           size="sm"
           className="shrink-0 gap-1 text-xs rounded-full"
-          onClick={() => navigate("/setting")}
+          onClick={() => navigate(settingPath("model"))}
         >
           <Settings className="h-3 w-3" />
           {t("home:go_settings")}
@@ -910,6 +919,7 @@ function formatTokenCount(count: number): string {
 
 function TokenStatsBar({ className }: { className?: string } = {}) {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const tokenStats = useAgentStore((s) => s.tokenStats);
   const isStreaming = useAgentStore((s) => s.isStreaming);
   const agentProfile = useModelStore((s) => s.getAgentProfile());
@@ -1135,6 +1145,18 @@ function TokenStatsBar({ className }: { className?: string } = {}) {
                 </div>
               </div>
             )}
+
+            {/* --- What the numbers mean, for whoever sees tokens here first --- */}
+            <p data-testid="agent-token-explanation" className="text-[11px] leading-4 text-muted-foreground">
+              {t("home:token_explanation")}{" "}
+              <button
+                type="button"
+                className="text-foreground/80 underline-offset-2 hover:underline"
+                onClick={() => navigate(helpPath("models-and-cost"))}
+              >
+                {t("home:token_help")}
+              </button>
+            </p>
 
             {/* --- Model info footer --- */}
             <div className="text-[10px] text-muted-foreground/40 pt-1 border-t border-border/20">

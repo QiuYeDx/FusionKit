@@ -73,7 +73,23 @@
 .studio-resource-delete:not(:disabled):hover { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 12%, transparent); }
 .studio-resource-feedback { display: grid; gap: 4px; padding-top: 6px; }
 .studio-resource-feedback .studio-transcription-progress, .studio-resource-feedback .studio-transcription-help, .studio-resource-feedback .studio-transcription-row-warning { margin: 0; }
+.studio-resource-failure { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.studio-resource-failure .studio-transcription-row-warning { flex: 1 1 240px; }
+/* A failed task: the cause, the next step under it, then the buttons that help. */
+.studio-task-failure { min-width: 0; }
+.studio-task-failure .studio-transcription-help { margin-top: 2px; }
+.studio-task-failure-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .studio-resource-row:hover .studio-transcription-progress, .studio-resource-row:focus-within .studio-transcription-progress { --studio-transcription-progress-track: var(--background); }
+/* The catalog's own name next to the plain one; long names wrap inside the row. */
+.studio-resource-detail { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.studio-resources-overview > .studio-resources-vc-runtime { margin-top: 8px; }
+/* One-click prepare: a quiet card above the rows, the same padding as a row. */
+.studio-resources-prepare { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: color-mix(in srgb, var(--muted) 45%, transparent); }
+.studio-resources-prepare .studio-transcription-help { margin-top: 2px; }
+.studio-resources-prepare .studio-resource-feedback .studio-transcription-help { margin: 0; }
+.studio-resources-prepare .studio-transcription-progress { --studio-transcription-progress-track: var(--background); }
+.studio-resources-prepare-done { margin: 0; font-size: 11px; line-height: 18px; color: var(--color-emerald-700); overflow-wrap: anywhere; }
+.dark .studio-resources-prepare-done { color: var(--color-emerald-400); }
 @media (max-width: 520px) {
   .studio-resource-heading { flex-wrap: wrap; }
   .studio-resource-actions { margin-left: auto; }

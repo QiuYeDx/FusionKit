@@ -59,8 +59,15 @@ it.runIf(Boolean(devUrl))('uses the dev renderer to import, preview and export a
     await application!.evaluate(({ dialog }, output) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath: output }); }, output);
     await page.getByRole('button', { name: '下载', exact: true }).click();
     await page.getByRole('menuitem', { name: '下载原文件', exact: true }).click();
+    // "Download original" opens its dialog (saving next to the source by default); save elsewhere through the save dialog above.
+    const download = page.getByRole('dialog', { name: '下载原文件' });
+    await download.getByRole('combobox').first().click();
+    await page.getByRole('option', { name: '选择其他位置', exact: true }).click();
+    await download.getByRole('button', { name: '保存原始文件…', exact: true }).click();
     await uiExpect(page.getByText('已下载：exported.srt', { exact: true })).toBeVisible();
     expect(await readFile(output, 'utf8')).toBe(content);
+    await download.getByRole('button', { name: '完成', exact: true }).click();
+    await uiExpect(page.getByRole('dialog')).toHaveCount(0);
     await application!.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(786, 540); });
     await page.evaluate(() => { localStorage.setItem('fusionkit-theme', JSON.stringify({ state: { theme: 'dark' }, version: 0 })); });
     await page.reload();

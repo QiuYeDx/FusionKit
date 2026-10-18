@@ -20,6 +20,8 @@ import {
 } from '@/subtitle-studio/cue-revision-contract';
 import { translationModelSchema, type TranslationUsage } from '@/subtitle-studio/translation-contract';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
+import { ModelErrorGuide } from '@/components/model-error/ModelErrorGuide';
+import type { ModelErrorCategory } from '@/lib/model-error-category';
 import { hasMaterials, translationDraftMemory } from '@/services/subtitle-studio/translation-draft';
 import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 import { appliedHints, materialNames, mergeHints } from './knowledge-hints';
@@ -152,6 +154,8 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
   const [result, setResult] = useState<Outcome | null>(null);
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
   const [error, setError] = useState<ErrorCode | null>(null);
+  /** Why the model request behind `error` failed, when known. */
+  const [modelFailure, setModelFailure] = useState<{ error: ErrorCode; category: ModelErrorCategory } | null>(null);
   /** The request in flight, and the run it belongs to; a new run or closing invalidates both. */
   const running = useRef<string | null>(null);
   const generation = useRef(0);
@@ -272,7 +276,7 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
       try { return await unwrapStudio(send(requestId)); }
       finally { if (running.current === requestId) running.current = null; }
     };
-    setPending('generate'); setError(null); setConfirm(null);
+    setPending('generate'); setError(null); setModelFailure(null); setConfirm(null);
     try {
       let location = confirmed;
       if (scope === 'document' && !location) {
@@ -315,6 +319,7 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
       if (!current()) return;
       const code = failure instanceof StudioError ? failure.code : 'translation_failed';
       if (code !== 'interrupted') setError(code);
+      setModelFailure(failure instanceof StudioError && failure.category ? { error: code, category: failure.category } : null);
       settle(code === 'interrupted' ? { status: 'cancelled' } : { status: 'failed', error: code });
     } finally {
       if (current()) { setPending(null); setProgress(null); }
@@ -527,6 +532,7 @@ export function StudioCueRevision({ page, track, request, editBlocked, onClose, 
         {!configured && <div className="studio-translation-configuration"><p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.model_required')}</p><Button variant="outline" size="sm" onClick={() => { close(); navigate('/setting?tab=model'); }}><Settings />{t('studio:translation.model_settings')}</Button></div>}
       </div>
       {error && <p role="alert" className="studio-cue-revision-error"><AlertCircle />{t(errorKeys[error], { limit: CUE_REVISION_DOCUMENT_LIMIT })}</p>}
+      {error && modelFailure?.error === error && <ModelErrorGuide category={modelFailure.category} profile={profile} onBeforeAction={close} testId="studio-cue-revision-error-guide" />}
       {progress && <div className="studio-cue-revision-progress" role="status" data-testid="studio-cue-revision-progress">
         <span><LoaderCircle className="animate-spin" />{progress.stage === 'locating' ? t('studio:cue_revision.locating') : t(pending === 'duplicates' ? 'studio:cue_revision.reading' : 'studio:cue_revision.revising', { done: progress.done, total: progress.total })}</span>
         {progress.stage === 'revising' && progress.total > CUE_REVISION_LIMIT && <span className="studio-cue-revision-bar" aria-hidden="true"><span style={{ width: `${progress.done / progress.total * 100}%` }} /></span>}

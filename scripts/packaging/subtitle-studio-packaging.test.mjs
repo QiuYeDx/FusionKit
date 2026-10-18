@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { APPLICATION_RESOURCES, assertPackagingConfig, resolvePackagingTarget, verifyPackagingContributions, loadContributionVerifiers, RESOURCE_CONTRIBUTIONS } from './subtitle-studio-contract.mjs';
+import { APPLICATION_RESOURCES, assertPackagingConfig, DMG_CONTENTS, DMG_HELP_FILE, DMG_HELP_NAME, DMG_WINDOW, NSIS_INCLUDE, resolvePackagingTarget, verifyPackagingContributions, loadContributionVerifiers, RESOURCE_CONTRIBUTIONS, WINDOWS_RESOURCES } from './subtitle-studio-contract.mjs';
 import { createBeforePackHook } from './subtitle-studio-before-pack.cjs';
 import { getLocalSubtitleStagingTarget } from '../subtitle-studio/transcription/runtime/staging-contract.mjs';
 
@@ -49,7 +49,14 @@ test('validates the real electron-builder resolved configuration without modifyi
   expected.extraResources.push({ from: RESOURCE_CONTRIBUTIONS.studio.from, to: RESOURCE_CONTRIBUTIONS.studio.to, filter: ['**/*'] });
   for (const item of APPLICATION_RESOURCES) expected.extraResources.push({ from: item.from, to: item.to, filter: ['**/*'] });
   expected.mac.signIgnore.push('Contents/Resources/subtitle-studio/transcription/');
+  // Windows only: the VC++ redistributable and the NSIS include that installs it.
+  expected.win.extraResources = WINDOWS_RESOURCES.map(item => ({ from: item.from, to: item.to, filter: [...item.filter] }));
+  expected.nsis.include = NSIS_INCLUDE;
+  // macOS only: the DMG also holds the help page on opening an unsigned app.
+  expected.dmg.window = { ...DMG_WINDOW };
+  expected.dmg.contents = DMG_CONTENTS.map(entry => ({ ...entry }));
   assert.deepEqual(readConfig(), expected);
+  assert.equal(fs.existsSync(path.join(projectRoot, NSIS_INCLUDE)), true);
   assert.equal(old.extraResources.length, 1);
 });
 
@@ -70,7 +77,31 @@ test('checks the complete config before loading any verifier', async () => {
     value => { value.win.target[0].target = 'zip'; },
     value => { value.mac.artifactName = '${productName}.${ext}'; },
     value => { value.mac.extraResources = []; },
+    value => { value.mac.extraResources = structuredClone(value.win.extraResources); },
+    value => { delete value.win.extraResources; },
+    value => { value.win.extraResources = []; },
+    value => { value.win.extraResources[0].from = 'build'; },
+    value => { value.win.extraResources[0].to = 'resources'; },
+    value => { value.win.extraResources[0].filter = ['**/*']; },
+    value => { value.win.extraResources[0].filter.push('vc-redist-version.nsh'); },
+    value => { value.win.extraResources.push({ from: 'build', to: 'extra', filter: ['**/*'] }); },
+    value => { value.win.extraFiles = []; },
+    value => { delete value.nsis.include; },
+    value => { value.nsis.include = 'build/other.nsh'; },
+    value => { value.nsis.perMachine = true; },
+    value => { value.nsis.script = 'build/custom.nsi'; },
     value => { value.afterSign = 'unreviewed.cjs'; },
+    value => { delete value.dmg.contents; },
+    value => { value.dmg.contents.pop(); },
+    value => { value.dmg.contents[2].path = 'build/dmg/other.html'; },
+    value => { value.dmg.contents[2].type = 'dir'; },
+    value => { value.dmg.contents[2].name = '打不开请看这里.html'; },
+    value => { delete value.dmg.contents[2].name; },
+    value => { value.dmg.contents[0].path = 'FusionKit.app'; },
+    value => { value.dmg.contents[1].path = '/Users'; },
+    value => { value.dmg.contents.push({ x: 1, y: 1, type: 'file', path: 'package.json' }); },
+    value => { value.dmg.window.height = 300; },
+    value => { delete value.dmg.window; },
   ];
   let loads = 0;
   const hook = createBeforePackHook({ host: { platform: 'darwin', arch: 'arm64' }, loadVerifiers: () => { loads++; throw new Error('must not load'); } });
@@ -79,6 +110,53 @@ test('checks the complete config before loading any verifier', async () => {
     await assert.rejects(hook(context(projectRoot, config)), error => error.code === 'runtime_staging_invalid');
   }
   assert.equal(loads, 0);
+});
+
+test('the DMG help page exists, is self-contained and gives the same steps in Chinese and English', () => {
+  const html = fs.readFileSync(path.join(projectRoot, DMG_HELP_FILE), 'utf8');
+  assert.match(html, /^<!doctype html>/i);
+  assert.match(html, /<meta charset="utf-8">/i);
+  // Opened from the DMG without a network: nothing is loaded from elsewhere.
+  for (const external of [/<script[^>]+src=/i, /<link\b/i, /<img\b/i, /<iframe\b/i, /@import/i, /url\(/i, /\bsrc="https?:/i]) assert.doesNotMatch(html, external);
+  const command = 'xattr -dr com.apple.quarantine /Applications/FusionKit.app';
+  assert.equal(html.split(command).length - 1, 2);
+  for (const text of ['隐私与安全性', '仍要打开', '已损坏', '应用程序', 'macOS 12', 'Privacy &amp; Security', 'Open Anyway', 'is damaged', 'Applications', 'Apple silicon']) assert.ok(html.includes(text), text);
+  // In the DMG it is named in Chinese and English, so either reader knows what it is (dmg-builder
+  // escapes the quote for dmgbuild; the file in the repository keeps its Chinese name).
+  assert.equal(path.basename(DMG_HELP_FILE), '打不开请看这里.html');
+  assert.equal(DMG_HELP_NAME, "打不开请看这里 Can't open.html");
+  assert.deepEqual(DMG_CONTENTS.filter(entry => entry.type === 'file').map(entry => entry.name), [DMG_HELP_NAME]);
+});
+
+/** Width and height of the first image in a TIFF file (dmg-builder's background is one). */
+function tiffSize(bytes) {
+  const littleEndian = bytes.toString('latin1', 0, 2) === 'II';
+  const u16 = offset => (littleEndian ? bytes.readUInt16LE(offset) : bytes.readUInt16BE(offset));
+  const u32 = offset => (littleEndian ? bytes.readUInt32LE(offset) : bytes.readUInt32BE(offset));
+  const directory = u32(4);
+  const tags = {};
+  for (let index = 0; index < u16(directory); index++) {
+    const entry = directory + 2 + index * 12;
+    tags[u16(entry)] = u16(entry + 2) === 3 ? u16(entry + 8) : u32(entry + 8);
+  }
+  return { width: tags[256], height: tags[257] };
+}
+
+test('the DMG layout fits the background dmg-builder draws behind it', () => {
+  const config = readConfig();
+  // No picture or colour of our own and none in build/: dmg-builder uses its template background.
+  assert.equal(Object.hasOwn(config.dmg, 'background') || Object.hasOwn(config.dmg, 'backgroundColor'), false);
+  for (const name of ['background.tiff', 'background.png']) assert.equal(fs.existsSync(path.join(projectRoot, 'build', name)), false, name);
+  const background = tiffSize(fs.readFileSync(require.resolve('dmg-builder/templates/background.tiff')));
+  assert.deepEqual(DMG_WINDOW, background);
+  // The app and the Applications link stay where electron-builder puts them by default, at both
+  // ends of the template's arrow (positions are icon centres).
+  const [app, applications, help] = DMG_CONTENTS;
+  assert.deepEqual([app, applications].map(({ x, y }) => [x, y]), [[130, 220], [410, 220]]);
+  // The help page's icon (80 px, the default size) and a two-line label fit in the band above them.
+  const iconHalf = 40, label = 32;
+  assert.ok(help.y - iconHalf >= 0 && help.y + iconHalf + label <= app.y - iconHalf, `help page at y=${help.y}`);
+  assert.ok(help.x - iconHalf >= 0 && help.x + iconHalf <= DMG_WINDOW.width);
 });
 
 test('enforces exact native host, builder and packager targets', () => {
@@ -110,6 +188,72 @@ test('dispatches both full verifiers with canonical roots and rejects partial re
       verifyStagedOverwriteNativeAddon: async () => ({ ready: true, moduleExportsVerified: kind !== 'overwrite' }),
     }) }), /failed verification/);
   } finally { f.cleanup(); }
+});
+
+test('stages the VC++ redistributable for Windows only, after both contributions, and refuses an unverified one', async () => {
+  const f = fixture();
+  try {
+    const calls = [];
+    const loadVerifiers = async id => ({
+      verifyRuntimeBundle: async () => { calls.push(`runtime:${id}`); return { ready: true }; },
+      verifyStagedOverwriteNativeAddon: async () => { calls.push(`overwrite:${id}`); return { ready: true, moduleExportsVerified: true }; },
+    });
+    const record = { schemaVersion: 1, fileName: 'vc_redist.x64.exe', version: '14.52.36500.0', sha256: 'a'.repeat(64), byteSize: 25_000_000, signer: 'O=Microsoft Corporation', source: 'cache' };
+    const prepareVcRedist = async options => { calls.push(`vc-redist:${options.projectRoot}`); return record; };
+    const windows = await createBeforePackHook({ host: { platform: 'win32', arch: 'x64' }, loadVerifiers, prepareVcRedist })(context(f.root, readConfig(), 'win32', 1));
+    assert.deepEqual(calls, ['runtime:legacy', 'overwrite:legacy', 'runtime:studio', 'overwrite:studio', `vc-redist:${f.root}`]);
+    assert.deepEqual(windows.vcRedist, record);
+    assert.equal(windows.ready, true);
+
+    calls.length = 0;
+    const mac = await createBeforePackHook({ host: { platform: 'darwin', arch: 'arm64' }, loadVerifiers, prepareVcRedist })(context(f.root));
+    assert.equal(calls.some(call => call.startsWith('vc-redist')), false);
+    assert.equal(Object.hasOwn(mac, 'vcRedist'), false);
+
+    const refused = createBeforePackHook({ host: { platform: 'win32', arch: 'x64' }, loadVerifiers, prepareVcRedist: async () => {
+      throw Object.assign(new Error('The VC++ redistributable is not signed by Microsoft Corporation.'), { code: 'vc_redist_invalid' });
+    } });
+    await assert.rejects(refused(context(f.root, readConfig(), 'win32', 1)), error => error.code === 'vc_redist_invalid' && error.contribution === 'vc-redist'
+      && /failed verification/.test(error.message) && /Microsoft Corporation/.test(error.cause.message));
+  } finally { f.cleanup(); }
+});
+
+test('the NSIS include installs the redistributable only below the runtime the programs need, without failing the installation', () => {
+  const script = fs.readFileSync(path.join(projectRoot, NSIS_INCLUDE), 'utf8');
+  const lines = script.split(/\r?\n/u).map(line => line.trim());
+  const has = line => assert.ok(lines.includes(line), `missing: ${line}`);
+  const install = script.slice(script.indexOf('!macro customInstall'), script.indexOf('!macroend'));
+  has(String.raw`!include "vc-redist\vc-redist-version.nsh"`);
+  assert.ok(script.indexOf('!macro customInstall') < script.indexOf('!macroend'));
+  assert.ok(script.indexOf('SetRegView 64') < script.indexOf('SetRegView lastused'));
+  for (const [register, value] of [['$0', 'Installed'], ['$1', 'Major'], ['$2', 'Minor'], ['$3', 'Bld']]) {
+    has(String.raw`ReadRegDWORD ${register} HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64" "${value}"`);
+  }
+  // Compared with the minimum, not the bundled build: a working runtime is never upgraded by an update.
+  has('StrCmp $0 "1" 0 fusionkit_vc_install');
+  has('IntCmp $1 ${VC_RUNTIME_MIN_MAJOR} 0 fusionkit_vc_install fusionkit_vc_done');
+  has('IntCmp $2 ${VC_RUNTIME_MIN_MINOR} 0 fusionkit_vc_install fusionkit_vc_done');
+  has('IntCmp $3 ${VC_RUNTIME_MIN_BUILD} fusionkit_vc_done fusionkit_vc_install fusionkit_vc_done');
+  assert.doesNotMatch(install, /IntCmp \$\d \$\{VC_REDIST_/u);
+  has(String.raw`IfFileExists "$INSTDIR\resources\vc-redist\vc_redist.x64.exe" 0 fusionkit_vc_done`);
+  // An update after a declined confirmation skips it; a decline is remembered, a success forgets it.
+  has('${If} ${isUpdated}');
+  has('ReadRegStr $1 HKCU "${FUSIONKIT_SETUP_KEY}" "VcRedistDeclined"');
+  has('StrCmp $1 "" 0 fusionkit_vc_done');
+  assert.ok(install.indexOf('${If} ${isUpdated}') < install.indexOf('ExecWait'));
+  has(String.raw`ExecWait '"$INSTDIR\resources\vc-redist\vc_redist.x64.exe" /install /quiet /norestart' $0`);
+  for (const code of ['0', '1638', '3010']) has(`StrCmp $0 "${code}" fusionkit_vc_installed`);
+  for (const code of ['1602', '1223']) has(`StrCmp $0 "${code}" fusionkit_vc_declined`);
+  has('WriteRegStr HKCU "${FUSIONKIT_SETUP_KEY}" "VcRedistDeclined" "${VC_REDIST_VERSION}"');
+  has('DeleteRegValue HKCU "${FUSIONKIT_SETUP_KEY}" "VcRedistDeclined"');
+  // The status line before Windows asks is in the installer's language (Simplified, Traditional Chinese, Japanese, else English).
+  for (const language of ['2052', '1028', '1041']) assert.match(install, new RegExp(String.raw`\$LANGUAGE == ${language}\n\s*DetailPrint "[^"]+"`, 'u'));
+  // Only a real uninstall forgets the decline.
+  assert.match(script, /!macro customUnInstall\n\s*\$\{IfNot\} \$\{isUpdated\}\n\s*DeleteRegKey HKCU "\$\{FUSIONKIT_SETUP_KEY\}"/u);
+  // Declining the confirmation or a failure must never stop FusionKit's own installation.
+  assert.doesNotMatch(script, /\b(?:Abort|Quit|MessageBox|SetErrorLevel)\b/u);
+  assert.equal(script.match(/^\s*Push \$\d$/gmu).length, 4);
+  assert.equal(script.match(/^\s*Pop \$\d$/gmu).length, 4);
 });
 
 test('rejects absent and linked canonical roots before loading verifier code', async () => {

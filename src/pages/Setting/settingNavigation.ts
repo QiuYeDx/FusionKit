@@ -24,3 +24,8 @@ export function createSettingSearchParams(
   next.set("tab", tab);
   return next;
 }
+
+/** The settings page opened on one tab, for "go to settings" buttons elsewhere in the app. */
+export function settingPath(tab: SettingTabKey): string {
+  return `/setting?${createSettingSearchParams(new URLSearchParams(), tab).toString()}`;
+}

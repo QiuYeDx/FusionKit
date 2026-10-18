@@ -234,7 +234,7 @@
   },
   "errors": {
     "invalid_request": "請求無效",
-    "model_auth": "模型驗證失敗，請檢查 API Key",
+    "model_auth": "金鑰（API Key）不對或已經失效，請到模型設定裡檢查",
     "model_quota": "模型額度不足",
     "model_not_found": "找不到所設定的模型",
     "model_failed": "模型請求失敗",

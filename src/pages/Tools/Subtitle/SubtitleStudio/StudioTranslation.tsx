@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Calculator, CheckCheck, FileText, Files, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
+import { AlertCircle, Calculator, CheckCheck, CircleHelp, FileText, Files, Languages, LoaderCircle, Play, Settings, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Input } from '@/components/ui/input';
@@ -36,6 +36,8 @@ import { QuickTermDialog } from '@/pages/TranslationKnowledge/QuickTermDialog';
 import { StudioMaterialsFields, materialProblem } from './StudioMaterialsFields';
 import { emptySelection, hasMaterials, knowledgeTarget, reusableTranslationDraft, translationDraftMemory, type TranslationDraft } from '@/services/subtitle-studio/translation-draft';
 import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences';
+import { ModelErrorGuide } from '@/components/model-error/ModelErrorGuide';
+import { helpPath } from '@/pages/Help/helpNavigation';
 import { TranslationSession, readyCount, partialCheck, type TranslationCheck, type TranslationSessionInput } from '@/services/subtitle-studio/translation-session';
 const errorKeys = {
   invalid_input: 'studio:errors.invalid_input',
@@ -327,7 +329,7 @@ export function StudioTranslation({ page, documents, triggerContainer, openReque
           <DialogTransition transitionKey="knowledge-scope" stageClassName="pt-3">{usingMaterials && !batch && page && <StudioKnowledgeScope page={page} cueIds={draft.cueIds} disabled={pending} onCueIdsChange={cueIds => patch({ cueIds })} onCheck={() => void execute('trial-check')} canCheck={canAct} />}</DialogTransition></div>
           <div>
           <div>
-          <StudioDisclosure triggerTestId="studio-translation-advanced" className="studio-translation-advanced -mx-3 border-y border-b-0" contentClassName="space-y-3 px-3 pb-3 pt-2" title={<span className="flex min-w-0 items-center gap-2"><SlidersHorizontal aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />{t('studio:translation.advanced')}</span>}><div className="studio-translation-budget-fields">{(['contextWindow', 'maxOutputTokens', 'maxBatchCues'] as const).map((key, index) => <ToolField key={key} label={t(index === 0 ? 'studio:translation.context_window' : index === 1 ? 'studio:translation.max_output' : 'studio:translation.batch_cues')} htmlFor={`${controlId}-${key}`}><Input id={`${controlId}-${key}`} type="number" className="h-8 font-mono text-xs" value={draft[key]} disabled={pending} onChange={event => patch({ [key]: event.target.value })} /></ToolField>)}</div></StudioDisclosure>
+          <StudioDisclosure triggerTestId="studio-translation-advanced" className="studio-translation-advanced -mx-3 border-y border-b-0" contentClassName="space-y-3 px-3 pb-3 pt-2" title={<span className="flex min-w-0 items-center gap-2"><SlidersHorizontal aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />{t('studio:translation.advanced')}</span>}><p className="text-xs leading-5 text-muted-foreground" data-testid="studio-translation-advanced-hint">{t('studio:translation.advanced_hint')}</p><Button variant="ghost" size="xs" className="-ml-2 text-muted-foreground" data-testid="studio-translation-token-help" disabled={pending} onClick={() => { close(); navigate(helpPath('models-and-cost')); }}><CircleHelp />{t('common:action.token_help')}</Button><div className="studio-translation-budget-fields">{(['contextWindow', 'maxOutputTokens', 'maxBatchCues'] as const).map((key, index) => <ToolField key={key} label={t(index === 0 ? 'studio:translation.context_window' : index === 1 ? 'studio:translation.max_output' : 'studio:translation.batch_cues')} htmlFor={`${controlId}-${key}`}><Input id={`${controlId}-${key}`} type="number" className="h-8 font-mono text-xs" value={draft[key]} disabled={pending} onChange={event => patch({ [key]: event.target.value })} /></ToolField>)}</div></StudioDisclosure>
           </div>
           <DialogTransition transitionKey={`${!needsConfiguration && !config.success}:${unavailable && batch && usingMaterials && targets.length > 20}:${notice}:${!reviewOpen && error}`} stageClassName="space-y-3 pt-6">
             {!needsConfiguration && !config.success && <p role="alert" className="studio-translation-error">{t('studio:translation.invalid_options')}</p>}
@@ -384,6 +386,13 @@ export function StudioTranslationStatus({ page, trackId, busy = false, onRecheck
     <Tooltip><TooltipTrigger asChild><span tabIndex={0} className="studio-translation-usage">{t('studio:translation.usage_total', { value: count(usage.inputTokens === null || usage.outputTokens === null ? null : usage.inputTokens + usage.outputTokens) })}</span></TooltipTrigger><TooltipContent className="max-w-xs">{t('studio:translation.actual_usage', { input: count(task.translation.usage.inputTokens), output: count(task.translation.usage.outputTokens) })}</TooltipContent></Tooltip>
     {(task.translation.uncertainAttempts ?? task.uncertainBatchIds.length) > 0 && <span>{t('studio:translation.uncertain_usage', { count: task.translation.uncertainAttempts ?? task.uncertainBatchIds.length })}</span>}
     {task.translation.error && <span className="studio-translation-error text-destructive">{t(errorKeys[task.translation.error])}</span>}
+    {task.translation.errorCategory && task.status !== 'queued' && task.status !== 'running' && <StudioModelErrorGuide category={task.translation.errorCategory} profileId={task.translation.config.model.profileId} />}
     {execution}
   </div>;
+}
+
+/** Why the model request failed and the next step, under a failed translation task. */
+function StudioModelErrorGuide({ category, profileId }: { category: NonNullable<NonNullable<DocumentPage['tasks'][number]['translation']>['errorCategory']>; profileId: string }) {
+  const profile = useModelStore(value => value.profiles.find(item => item.id === profileId));
+  return <ModelErrorGuide category={category} profile={profile} className="basis-full" testId="studio-translation-error-guide" />;
 }

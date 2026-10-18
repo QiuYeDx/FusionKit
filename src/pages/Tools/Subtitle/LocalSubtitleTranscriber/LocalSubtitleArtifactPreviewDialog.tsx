@@ -57,12 +57,13 @@ export function LocalSubtitleArtifactPreviewDialog({ selection, onOpenChange }: 
       if (current !== generation.current) return;
       setState(result.ok ? { status: "ready", ref: artifactRef, data: result.data } : { status: "error", ref: artifactRef, error: result.error });
     }).catch((error: unknown) => {
+      // The thrown message is for the diagnostics; the notice says the content could not be read.
       if (current === generation.current) setState({ status: "error", ref: artifactRef, error: {
-        message: error instanceof Error ? error.message : t("subtitle:local_transcriber.preview.read_failed"),
+        message: error instanceof Error ? error.message : "",
       } });
     });
     return () => { generation.current++; clearTimeout(copyTimer.current); };
-  }, [artifactRef, retry, t]);
+  }, [artifactRef, retry]);
 
   const data = state.ref === artifactRef && state.status === "ready" ? state.data : null;
   const error = state.ref === artifactRef && state.status === "error" ? state.error : null;
@@ -126,7 +127,7 @@ export function LocalSubtitleArtifactPreviewDialog({ selection, onOpenChange }: 
       <ScrollableDialogContent key={`${artifactRef}-${effectiveMode}-${currentPage}-${query}`} fadeMasks fadeMaskHeight={18}
         className="min-h-0 min-w-0 bg-muted/10 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!w-full [&_[data-slot=scroll-area-viewport]>div]:!min-w-0 [&_[data-slot=scroll-area-viewport]>div>div]:!p-0">
         {!data && !error ? <div role="status" className="flex min-h-64 flex-col items-center justify-center gap-3 text-sm text-muted-foreground"><Loader2 className="size-6 animate-spin motion-reduce:animate-none text-primary" />{t("subtitle:local_transcriber.preview.loading")}</div> : null}
-        {error ? <div className="mx-auto flex max-w-lg flex-col items-start gap-4 px-6 py-14"><LocalSubtitleErrorNotice error={error} /><Button variant="outline" size="sm" onClick={() => setRetry(value => value + 1)}><RefreshCw className="size-4" />{t("subtitle:local_transcriber.preview.retry")}</Button></div> : null}
+        {error ? <div className="mx-auto flex max-w-lg flex-col items-start gap-4 px-6 py-14"><LocalSubtitleErrorNotice error={error} cause={error.code ? undefined : t("subtitle:local_transcriber.preview.read_failed")} /><Button variant="outline" size="sm" onClick={() => setRetry(value => value + 1)}><RefreshCw className="size-4" />{t("subtitle:local_transcriber.preview.retry")}</Button></div> : null}
         {data ? <>
           <TabsContent value="reading" className="m-0" data-testid="local-subtitle-artifact-preview">
             {visible.length ? <ol className="divide-y divide-border/50" start={start + 1}>

@@ -2,6 +2,7 @@ import type {
   NameTranslationApplyResult,
   NameTranslationPlanSummary,
 } from "@/services/name-translation/agentPlan";
+import type { ModelErrorCategory } from "@/lib/model-error-category";
 
 // ---------------------------------------------------------------------------
 // Agent 会话与消息类型
@@ -30,6 +31,12 @@ export interface AgentMessage {
    * (confirming a rename, a prepared action...) so the agent can follow up. Never user authorization.
    */
   event?: AgentUiEvent;
+  /** An assistant message that reports a failed model request: why it failed, for the next-step card. */
+  failure?: AgentMessageFailure;
+}
+
+export interface AgentMessageFailure {
+  category: ModelErrorCategory;
 }
 
 /** Also the import/persistence schema's list: a kind missing there would make sessions unsavable. */

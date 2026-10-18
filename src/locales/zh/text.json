@@ -24,8 +24,8 @@
       "desc": "支持 TXT 与 Markdown、并发或连贯串行、仅译文或双语输出。",
       "source_lang": "源语言",
       "target_lang": "目标语言",
-      "slice_tokens": "分片 token",
-      "memory_tokens": "记忆 token",
+      "slice_tokens": "分片 Token",
+      "memory_tokens": "记忆 Token",
       "concurrency": "并发数",
       "execution_mode": "执行模式",
       "project_mode": "项目模式",
@@ -110,8 +110,8 @@
     },
     "budget": {
       "title": "上下文预算",
-      "within": "当前配置可放入默认模型上下文窗口。",
-      "exceeded": "当前配置超过默认模型上下文窗口，请降低分片或记忆 token。",
+      "within": "当前设置没有超过模型一次能读的长度。",
+      "exceeded": "当前设置超过了模型一次能读的长度，请减小“分片 Token”或“记忆 Token”。",
       "model_context": "模型上下文",
       "required": "预计需求",
       "output_reserve": "输出预留"
@@ -125,7 +125,7 @@
       "reset_placeholder": "如：1, 3",
       "glossary_placeholder": "每行一个：原文 => 译文 # 备注",
       "serial_cost_title": "串行费用提示",
-      "serial_cost_desc": "连贯串行会为每片额外携带最多 {{tokens}} 语义记忆 token，实际输入费用通常高于并发模式。"
+      "serial_cost_desc": "连贯串行会为每片额外带上最多 {{tokens}} 个“记忆 Token”，实际输入费用通常高于并发模式。"
     },
     "languages": {
       "AUTO": "自动"
@@ -158,7 +158,7 @@
       "file_path_unavailable": "无法读取所选文件路径。",
       "unsupported_file": "仅支持 .txt、.md 和 .markdown 文件。",
       "output_dir_required": "请选择输出目录，或使用源文件目录。",
-      "budget_exceeded": "当前 token 预算超过模型上下文窗口。",
+      "budget_exceeded": "设置的 Token 数超过了模型一次能读的长度。",
       "output_not_ready": "输出文件尚未就绪。",
       "view_details": "查看失败原因",
       "detail_title": "翻译失败原因",

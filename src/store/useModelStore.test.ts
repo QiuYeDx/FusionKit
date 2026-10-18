@@ -25,6 +25,7 @@ const localStorageItems = vi.hoisted(() => {
 });
 
 import {
+  assignNewProfile,
   migrateLegacyModelStorage,
   migrateModelProfilesToV3,
   normalizeModelProfileForRuntime,
@@ -135,6 +136,50 @@ describe("model store profile migration", () => {
     expect(useModelStore.getState().profiles.some((profile) => profile.id === profileId)).toBe(false);
     expect(useModelStore.getState().assignment.agent).toBeNull();
     expect(useModelStore.getState().removeProfile(profileId)).toBe(false);
+  });
+
+  it("gives a new profile the roles nobody has yet", () => {
+    useModelStore.setState({ profiles: [], assignment: { agent: null, taskExecution: null } });
+    const input = (name: string) => ({
+      name,
+      provider: Model.DeepSeek,
+      apiKey: "sk-test",
+      baseUrl: "https://api.deepseek.com/v1",
+      modelKey: "deepseek-v4-flash",
+      tokenPricing: { inputTokensPerMillion: 1, outputTokensPerMillion: 2 },
+    });
+    const first = useModelStore.getState().addProfile(input("first"));
+    // The first profile works everywhere without a separate assignment.
+    expect(useModelStore.getState().assignment).toEqual({ agent: first, taskExecution: first });
+    const second = useModelStore.getState().addProfile(input("second"));
+    expect(useModelStore.getState().assignment).toEqual({ agent: first, taskExecution: first });
+    // A role left empty goes to the next new profile; the other keeps its choice.
+    useModelStore.getState().setAssignment("taskExecution", null);
+    const third = useModelStore.getState().addProfile(input("third"));
+    expect(useModelStore.getState().assignment).toEqual({ agent: first, taskExecution: third });
+    // A role pointing at a profile that no longer exists counts as empty.
+    useModelStore.setState({ assignment: { agent: "deleted", taskExecution: third } });
+    const fourth = useModelStore.getState().addProfile(input("fourth"));
+    expect(useModelStore.getState().assignment).toEqual({ agent: fourth, taskExecution: third });
+    // "all" makes the new profile the one for every role.
+    const fifth = useModelStore.getState().addProfile(input("fifth"), { assignRoles: "all" });
+    expect(useModelStore.getState().assignment).toEqual({ agent: fifth, taskExecution: fifth });
+    expect(useModelStore.getState().profiles.map((profile) => profile.id)).toEqual([first, second, third, fourth, fifth]);
+  });
+
+  it("does not give the Agent a profile whose API format it cannot use", () => {
+    const profile = {
+      id: "unsupported",
+      name: "Unsupported",
+      provider: Model.Other,
+      apiKey: "k",
+      baseUrl: "https://example.com/v1",
+      modelKey: "m",
+      tokenPricing: { inputTokensPerMillion: 1, outputTokensPerMillion: 2 },
+      apiFormat: "completions" as unknown as ModelProfile["apiFormat"],
+    };
+    expect(assignNewProfile({ agent: null, taskExecution: null }, profile, [])).toEqual({ agent: null, taskExecution: "unsupported" });
+    expect(assignNewProfile({ agent: null, taskExecution: null }, { ...profile, apiFormat: "responses" }, [])).toEqual({ agent: "unsupported", taskExecution: "unsupported" });
   });
 
   it("removes legacy model storage only after an exact verified write", () => {

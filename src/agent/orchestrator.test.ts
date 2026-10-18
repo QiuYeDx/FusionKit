@@ -302,6 +302,19 @@ describe("Agent turn ownership and receipts", () => {
     expect(JSON.stringify(useAgentStore.getState().getSessionExportData())).not.toContain("secret-test-key");
   });
 
+  it("marks a failed request with its cause so the conversation can show the next step", async () => {
+    const balance = Object.assign(new Error("Insufficient Balance"), { name: "AI_APICallError", statusCode: 402, responseBody: JSON.stringify({ error: { message: "Insufficient Balance" } }) });
+    mocks.chat.mockReturnValue(turn((async function* () { throw balance; yield* []; })()));
+    await handleUserMessage("first");
+    const reply = useAgentStore.getState().session.messages.at(-1)!;
+    expect(reply).toMatchObject({ role: "assistant", failure: { category: "balance" } });
+    expect(reply.content).toContain("Insufficient Balance");
+    // A cause nothing recognises keeps the plain error message only.
+    mocks.chat.mockReturnValue(turn((async function* () { throw new Error("odd failure"); yield* []; })()));
+    await handleUserMessage("second");
+    expect(useAgentStore.getState().session.messages.at(-1)).not.toHaveProperty("failure");
+  });
+
   it("restores the composer when stopping an abort-aware tool request", async () => {
     mocks.execute.mockImplementation((_input, options) => new Promise((_resolve, reject) => {
       options.abortSignal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });

@@ -35,9 +35,13 @@ export interface StudioTranscriptionState {
   readonly runtime: TranscriptionRuntimeSummary | null;
   readonly resources: readonly LocalSubtitleManagedResourceSummary[];
   readonly resourceJobs: readonly TranscriptionResourceJob[];
+  /** Jobs started by importing a model file (the others download), so a failure is described right. */
+  readonly importJobIds: readonly string[];
   readonly sharedResources?: SpeechResourcesStatus;
   readonly drafts: readonly StudioTranscriptionDraft[];
   readonly tasks: readonly TranscriptionTaskSummary[];
+  /** Tasks this window started with the automatic device, so a CPU result can say why. */
+  readonly autoDeviceTaskIds: readonly string[];
   readonly config: Config;
   readonly autoTranslation: AutomaticTranslationPreferences;
   readonly autoTranslationReady: boolean;
@@ -129,10 +133,12 @@ export class StudioTranscriptionController {
   private readonly subscribers = new Set<() => void>();
   private readonly revocations = new Map<string, Revocation>();
   private readonly resourceActions = new Set<string>();
+  private readonly importJobs = new Set<string>();
+  private readonly autoDeviceTasks = new Set<string>();
   private readonly taskActions = new Set<string>();
   private readonly cancelling = new Set<string>();
   private readonly probing = new Map<string, object>();
-  private state: StudioTranscriptionState = Object.freeze({ phase: 'idle', runtime: null, resources: [], resourceJobs: [], drafts: [], tasks: [],
+  private state: StudioTranscriptionState = Object.freeze({ phase: 'idle', runtime: null, resources: [], resourceJobs: [], importJobIds: [], drafts: [], tasks: [], autoDeviceTaskIds: [],
     config: DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, autoTranslation: DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, autoTranslationReady: true,
     autoExport: DEFAULT_AUTOMATIC_EXPORT_PREFERENCES,
     autoKnowledgeLibrary: null, autoKnowledgeLoading: false, autoKnowledgeStale: false,
@@ -207,7 +213,8 @@ export class StudioTranscriptionController {
   private emit(change: Partial<StudioTranscriptionState> = {}) {
     if (this.disposed) return;
     this.state = Object.freeze({ ...this.state, ...change,
-      resourceActions: Object.freeze([...this.resourceActions]), taskActions: Object.freeze([...this.taskActions]),
+      resourceActions: Object.freeze([...this.resourceActions]), importJobIds: Object.freeze([...this.importJobs]), taskActions: Object.freeze([...this.taskActions]),
+      autoDeviceTaskIds: Object.freeze([...this.autoDeviceTasks]),
       cancellingTaskIds: Object.freeze([...this.cancelling]), cleanupPendingCount: this.revocations.size });
     for (const listener of [...this.subscribers]) { try { listener(); } catch { /* View observers cannot interrupt capability bookkeeping. */ } }
   }
@@ -250,6 +257,7 @@ export class StudioTranscriptionController {
       const tasks = Object.freeze(raw.map(value => Object.freeze(transcriptionTaskSummarySchema.parse(value))));
       if (version !== this.taskVersion || this.taskActions.size || this.state.submitting) { this.taskDirty = true; return; }
       for (const id of this.cancelling) if (!tasks.some(task => task.taskId === id && activeTask(task))) this.cancelling.delete(id);
+      for (const id of this.autoDeviceTasks) if (!tasks.some(task => task.taskId === id)) this.autoDeviceTasks.delete(id);
       this.emit({ tasks });
     }).catch(error => { this.emit({ error: asError(error) }); }).finally(() => {
       this.taskRead = undefined;
@@ -529,6 +537,7 @@ export class StudioTranscriptionController {
       const merged = new Map(this.state.tasks.map(task => [task.taskId, task]));
       for (const task of tasks) merged.set(task.taskId, task);
       for (const draft of drafts) this.queueRevoke(draft.media!);
+      if (request.config.devicePreference === 'auto') for (const task of tasks) this.autoDeviceTasks.add(task.taskId);
       this.emit({ tasks: Object.freeze([...merged.values()]), drafts: Object.freeze(this.state.drafts.filter(draft => !ids.has(draft.id))) });
       return admission;
     }).catch(error => {
@@ -606,7 +615,11 @@ export class StudioTranscriptionController {
     try { await action(); } catch (error) { this.emit({ error: asError(error) }); }
     finally { this.taskActions.delete(taskId); this.taskVersion++; this.taskDirty = true; this.emit(); void this.readTasks(); this.armPoll(); }
   }
-  importModel = (modelId: string): Promise<void> => this.mutateResource(modelId, () => unwrap(this.api().importTranscriptionModel({ modelId })));
+  importModel = (modelId: string): Promise<void> => this.mutateResource(modelId, async () => {
+    const job = await unwrap(this.api().importTranscriptionModel({ modelId }));
+    if (job) this.importJobs.add(job.jobId);
+    return job;
+  });
   installResource = (resourceId: string): Promise<void> => this.mutateResource(resourceId, () => unwrap(this.api().installTranscriptionResource({ resourceId })));
   cancelResourceJob = (jobId: string): Promise<void> => this.mutateResource(jobId, async () => { await unwrap(this.api().cancelTranscriptionResourceJob({ jobId })); return null; });
   deleteResource = async (resourceId: string): Promise<boolean> => {

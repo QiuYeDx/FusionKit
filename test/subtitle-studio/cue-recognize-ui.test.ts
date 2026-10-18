@@ -85,8 +85,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('recognizing cues again
       await control(app, { operation: 'recognitions', delayMs: 400,
         recognitions: [{ text: heard[0] }, { text: heard[1] }, { text: LINES[2] }, { text: heard[2] }, { error: 'limit_exceeded' }] });
       await openFor(0, 4);
-      // The defaults come from the transcription settings.
-      await uiExpect(dialog.getByTestId('studio-cue-recognize-model')).toContainText('Large v3');
+      // The defaults come from the transcription settings; the model has its plain name.
+      await uiExpect(dialog.getByTestId('studio-cue-recognize-model')).toContainText(locale.transcription.resource_name_standard);
       await uiExpect(dialog.getByTestId('studio-cue-recognize-language')).toContainText('自动识别');
       await dialog.getByTestId('studio-cue-recognize-prompt').fill('先輩');
       await dialog.getByTestId('studio-cue-recognize-start').click();

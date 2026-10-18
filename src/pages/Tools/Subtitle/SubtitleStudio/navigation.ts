@@ -19,3 +19,13 @@ export function readStudioNavigationView(search: string): StudioNavigationView |
   const values = new URLSearchParams(search).getAll("view");
   return values.length === 1 && (values[0] === "documents" || values[0] === "transcription") ? values[0] : null;
 }
+
+/** The transcription workspace with its resource manager open, where the model and voice detection are prepared. */
+export function studioResourcesPath(): string {
+  return `${studioNavigationPath("transcription")}&resources=open`;
+}
+
+export function readStudioNavigationResources(search: string): boolean {
+  const values = new URLSearchParams(search).getAll("resources");
+  return values.length === 1 && values[0] === "open";
+}

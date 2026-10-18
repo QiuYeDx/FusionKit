@@ -9,6 +9,7 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import { abortCurrentStream, handleUserMessage } from "@/agent/orchestrator";
 import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
+import { settingPath } from "@/pages/Setting/settingNavigation";
 import { pageTitleKey, usePageContextStore } from "@/agent/page-context";
 import { setAgentNavigator } from "@/agent/navigation-tools";
 import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
@@ -465,7 +466,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
             {!configured && <div className="mb-2 flex items-center gap-2 rounded-smooth-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2" data-testid="agent-dock-not-configured">
               <AlertTriangle className="size-3.5 shrink-0 text-amber-500" />
               <span className="min-w-0 flex-1 text-xs leading-5 text-amber-700 dark:text-amber-400">{t("home:agent_not_configured")}</span>
-              <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 rounded-full px-2 text-xs" onClick={() => navigate("/setting")}><Settings className="size-3" />{t("home:go_settings")}</Button>
+              <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 rounded-full px-2 text-xs" onClick={() => navigate(settingPath("model"))}><Settings className="size-3" />{t("home:go_settings")}</Button>
             </div>}
             {/* Concentric corners: the controls sit 6px inside the composer, so their radius is 16 - 6. */}
             <SmoothCorners radius={16} smoothing={0.72} {...dropHandlers} data-testid="agent-dock-composer" data-drag-over={isDragOver || undefined}

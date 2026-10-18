@@ -1,4 +1,5 @@
-import { ArrowUpRight, Download as DownloadIcon, Laptop, Monitor } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowUpRight, Check, Copy, Download as DownloadIcon, Laptop, Monitor } from 'lucide-react'
 import { useSite } from '../context'
 import { REPO, detectPlatform, useLatestRelease } from '../hooks'
 import { motion } from 'motion/react'
@@ -96,7 +97,55 @@ export function Download() {
           </Stagger>
           <p className="mx-auto mt-8 max-w-2xl text-center text-xs leading-5 text-balance text-muted-foreground">{download.note}</p>
         </div>
+
+        <div id="cannot-open" className="mx-auto mt-16 grid max-w-5xl scroll-mt-24 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+          <Reveal className="rounded-2xl border bg-card p-6">
+            <h3 className="font-semibold">{download.requirements.title}</h3>
+            <dl className="mt-4 space-y-3 text-sm">
+              {download.requirements.items.map(([label, value]) => (
+                <div key={label}>
+                  <dt className="font-medium">{label}</dt>
+                  <dd className="mt-0.5 leading-6 text-muted-foreground">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Reveal>
+          <Reveal className="rounded-2xl border bg-card p-6" delay={0.06}>
+            <h3 className="font-semibold">{download.cannotOpen.title}</h3>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{download.cannotOpen.intro}</p>
+            <ul className="mt-4 space-y-3 text-sm">
+              {download.cannotOpen.items.map((entry) => (
+                <li key={entry.title}>
+                  <p className="font-medium">{entry.title}</p>
+                  <p className="mt-0.5 leading-6 text-muted-foreground">{entry.body}</p>
+                </li>
+              ))}
+            </ul>
+            <CommandLine command={download.cannotOpen.command} copy={download.cannotOpen.copy} copied={download.cannotOpen.copied} />
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{download.cannotOpen.commandNote}</p>
+          </Reveal>
+        </div>
       </Container>
     </section>
+  )
+}
+
+/** The one macOS command, selectable as a whole and copied with one click. */
+function CommandLine({ command, copy, copied }: { command: string; copy: string; copied: string }) {
+  const [done, setDone] = useState(false)
+  const onCopy = () => {
+    navigator.clipboard?.writeText(command).then(() => {
+      setDone(true)
+      window.setTimeout(() => setDone(false), 2000)
+    }, () => undefined)
+  }
+  return (
+    <div className="mt-4 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border bg-surface px-3 py-2">
+      <code className="min-w-0 flex-1 basis-[16rem] font-mono text-xs leading-5 [overflow-wrap:anywhere] select-all">{command}</code>
+      <button type="button" onClick={onCopy} className="btn btn-secondary h-8 px-3 text-xs" aria-live="polite">
+        {done ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+        {done ? copied : copy}
+      </button>
+    </div>
   )
 }

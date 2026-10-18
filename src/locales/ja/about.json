@@ -11,7 +11,10 @@
     "tech_stack": "技術スタックとビルド情報"
   },
   "badge": {
-    "latest": "最新"
+    "latest": "最新",
+    "available": "新バージョン v{{version}}",
+    "downloading": "ダウンロード中 {{percent}}%",
+    "downloaded": "ダウンロード済み・再起動でインストール"
   },
   "stats": {
     "platform": "対応プラットフォーム",

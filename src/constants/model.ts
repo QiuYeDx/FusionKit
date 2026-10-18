@@ -8,6 +8,12 @@ import {
 
 export const DEFAULT_MODEL = Model.DeepSeek;
 
+/** The provider offered first and marked as recommended: reachable from mainland China and inexpensive. */
+export const RECOMMENDED_MODEL_PROVIDER = Model.DeepSeek;
+/** DeepSeek's open platform: where a key is created and where the account is topped up. */
+export const DEEPSEEK_API_KEYS_URL = "https://platform.deepseek.com/api_keys";
+export const DEEPSEEK_TOP_UP_URL = "https://platform.deepseek.com/top_up";
+
 type ModelOption = {
   label: string;
   value: string;

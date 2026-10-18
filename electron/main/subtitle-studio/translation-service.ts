@@ -5,7 +5,7 @@ import { assertExecutionRecordsSize } from '../../../src/subtitle-studio/executi
 import { sameTrackLanguage, type TranslationConfig, type TranslationModel, type TranslationPlanSummary, type TranslationScope, type TranslationUsage } from '../../../src/subtitle-studio/translation-contract';
 import { validateTranslationResponse } from '../../../src/subtitle-studio/translation-protocol';
 import { sendModelRuntimeText, type ModelRuntimeTextRequest, type ModelRuntimeTextResult, type ModelRuntimeUsage } from '../ai/model-runtime-client';
-import { ModelRuntimeClientError } from '../ai/model-runtime-errors';
+import { ModelRuntimeClientError, modelErrorCategory } from '../ai/model-runtime-errors';
 import { DocumentRepository } from './document-repository';
 import { buildTranslationRequest, planTranslation, requestTokenEstimate, type TranslationPlan } from './translation-planner';
 import { checkpointForPlan, documentSourceDigest, publishTransaction, restoreTranslationPlan, sameTranslationModel, translationScheduler, type TranslationScheduler } from './translation-recovery';
@@ -55,6 +55,7 @@ function interruptTask(task: Task, status: 'interrupted' | 'cancelled', receipt?
     accountAttempt(task, received?.usage ?? normalizeUsage(), received?.uncertain ?? true);
     if (status === 'interrupted') task.translation.error = 'interrupted';
     else delete task.translation.error;
+    delete task.translation.errorCategory;
   }
   task.status = status;
   task.generation++;
@@ -364,6 +365,7 @@ export class TranslationService {
       currentTask.status = configured ? 'queued' : 'needs_configuration';
       if (configured) delete currentTask.translation!.error;
       else currentTask.translation!.error = 'needs_configuration';
+      delete currentTask.translation!.errorCategory;
     }, () => { this.assertOpen(); guard(); });
     for (const handle of this.handles) if (handle.taskId === taskId) handle.controller.abort();
     if (configured) this.launch(plan, snapshot, taskId, apiKey);
@@ -524,6 +526,10 @@ export class TranslationService {
           if (run.receipt) accountAttempt(task, run.receipt.usage, run.receipt.uncertain);
           task.status = code === 'interrupted' ? 'interrupted' : code === 'needs_configuration' ? 'needs_configuration' : 'failed';
           task.translation!.error = code;
+          // Why the model request failed, so the task can say what to do next.
+          const category = code === 'interrupted' ? 'unknown' : error instanceof StudioError && error.category ? error.category : modelErrorCategory(error);
+          if (category !== 'unknown') task.translation!.errorCategory = category;
+          else delete task.translation!.errorCategory;
         });
       } catch { /* A tombstone or a newer generation owns the document; late responses cannot write. */ }
     }

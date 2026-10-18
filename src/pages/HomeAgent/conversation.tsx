@@ -45,6 +45,8 @@ import {
   nameTranslationApplyResultWidget,
   nameTranslationPlanWidget,
 } from "./components/NameTranslationPlanWidget";
+import { ModelErrorGuide } from "@/components/model-error/ModelErrorGuide";
+import useModelStore from "@/store/useModelStore";
 
 // Conversation parts shared by the home page and the floating assistant panel.
 // Both read the same agent store, so a conversation continues in either place.
@@ -319,9 +321,16 @@ const AssistantText = React.memo(function AssistantText({ message, widgetContext
         widgetContext={widgetContext}
         codeBlock={{ colorTheme: "qiuvision" }}
       />
+      {message.failure && <AgentFailureGuide category={message.failure.category} />}
     </div>
   );
 });
+
+/** Why the request failed and the next step, under the error the assistant reported. */
+function AgentFailureGuide({ category }: { category: NonNullable<AgentMessage["failure"]>["category"] }) {
+  const profile = useModelStore((state) => state.getAgentProfile());
+  return <ModelErrorGuide category={category} profile={profile} className="mt-2" testId="agent-error-guide" />;
+}
 
 const ToolGroup = React.memo(function ToolGroup({ entries }: { entries: ToolEntry[] }) {
   return <AgentToolGroup entries={entries} />;

@@ -20,6 +20,7 @@ import {
 } from "@/services/subtitle/generatedSubtitleImportCoordinator";
 import { releaseSubtitleTranslationTaskAuthority } from "@/services/subtitle/translatorExecutionService";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
   RotateCw,
@@ -63,6 +64,9 @@ import { showToast } from "@/utils/toast";
 import useModelStore from "@/store/useModelStore";
 import { Model } from "@/type/model";
 import ErrorDetailModal from "@/components/ErrorDetailModal";
+import { ModelErrorGuide } from "@/components/model-error/ModelErrorGuide";
+import { helpPath } from "@/pages/Help/helpNavigation";
+import { isModelErrorCategory } from "@/lib/model-error-category";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   Dialog,
@@ -132,6 +136,7 @@ function CostEstimateHelp({ content }: { content: string }) {
 
 function SubtitleTranslator() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const {
     // fileType,
     notStartedTaskQueue,
@@ -1887,6 +1892,18 @@ function SubtitleTranslator() {
                 <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-foreground/80">
                   {t("subtitle:translator.token_stats.title")}
                 </span>
+                {/* Token is explained on the help page; the tooltips here only say how each number is counted. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="ml-auto -my-1 text-muted-foreground"
+                  data-testid="subtitle-translator-token-help"
+                  onClick={() => navigate(helpPath("models-and-cost"))}
+                >
+                  <CircleHelp />
+                  {t("common:action.token_help")}
+                </Button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-y md:divide-y-0">
                 <Stat
@@ -1948,6 +1965,14 @@ function SubtitleTranslator() {
           []
         }
         timestamp={selectedErrorTask?.extraInfo?.timestamp}
+        guide={isModelErrorCategory(selectedErrorTask?.extraInfo?.errorCategory) ? (
+          <ModelErrorGuide
+            category={selectedErrorTask.extraInfo.errorCategory}
+            profile={taskProfile}
+            onBeforeAction={closeErrorModal}
+            testId="subtitle-translator-error-guide"
+          />
+        ) : undefined}
       />
 
       <ConfirmDialog

@@ -79,7 +79,9 @@
       "path_selection_failed": "Path selection failed, please try again",
       "please_select_output_url": "Please select the output URL first",
       "source_path_missing": "Cannot read source file path. Use a custom output directory.",
-      "read_file_failed": "Failed to read file {file}"
+      "read_file_failed": "Failed to read file {file}",
+      "request_failed": "Translation request failed",
+      "request_failed_cause": "Translation request failed: {{cause}}"
     },
     "upload_section": "File Upload",
     "task_management": "Task Queue",
@@ -90,12 +92,12 @@
       "total_cost": "Estimated Total Cost",
       "pending_tokens": "Pending Tokens",
       "pending_cost": "Pending Cost",
-      "cost_tooltip": "This is a preflight estimate. Use provider-reported usage and billing as the final source of truth.",
+      "cost_tooltip": "This is an estimate made before translating. Tokens are the unit AI services measure text and cost in, roughly one Chinese character or one English word each; your provider's bill is the final word on cost.",
       "actual_tokens": "Actual Tokens",
       "calculated_cost": "Incurred Calculated Cost",
       "remaining_estimated_cost": "Remaining Estimated Cost",
-      "actual_usage_tooltip": "Token counts come from each model API response's usage fields and accumulate as requests return.",
-      "partial_usage_tooltip": "Some model responses omitted complete usage. This total includes only provider-reported tokens and may be lower than actual usage.",
+      "actual_usage_tooltip": "These token counts are what the AI service reported with each answer, added up over the requests that finished.",
+      "partial_usage_tooltip": "Some answers did not report their full usage, so this only adds up what was reported and may be lower than what was used.",
       "calculated_cost_tooltip": "Calculated from API-reported tokens and the model prices frozen when the task was created. It is not a provider invoice; DeepSeek cache hits and time-based rates can differ.",
       "unpriced_cost_tooltip": "Some actual usage belongs to legacy tasks without frozen model prices, so a reliable total cost cannot be calculated.",
       "remaining_cost_tooltip": "Unstarted tasks use their full estimate. Running tasks subtract incurred calculated cost. Failed and completed tasks are excluded."
@@ -105,7 +107,7 @@
       "slice_mode": "Slice Mode",
       "api_model": "API Model",
       "thinking_mode": "Thinking Mode",
-      "api_endpoint": "API Endpoint",
+      "api_endpoint": "API address",
       "source_file": "Source File",
       "output_path": "Output Path",
       "conflict_policy": "Conflict Policy",
@@ -117,9 +119,9 @@
       "actual_usage": "Actual Usage",
       "estimated_usage": "Task Estimate",
       "calculated_cost": "Calculated Cost",
-      "request_coverage": "Requests With Usage",
+      "request_coverage": "Requests with reported usage",
       "cached_input": "Cached Input",
-      "reasoning_output": "Reasoning Tokens",
+      "reasoning_output": "Thinking tokens",
       "actual_short": "Actual",
       "input": "Input",
       "output": "Output",
@@ -262,7 +264,7 @@
       "title": "Transcription settings",
       "model": "Local model",
       "no_model": "No model available",
-      "model_details": "{{format}} · {{quantization}} · {{size}}",
+      "model_details": "Model size: {{size}}",
       "device": "Compute device",
       "device_option": {
         "auto": "Automatic (recommended)",
@@ -284,23 +286,23 @@
       "task_mode": "Task mode",
       "task_transcribe": "Transcribe",
       "task_translate_english": "Translate to English",
-      "vad": "Voice activity detection",
-      "vad_hint": "Reduces false transcription during silence.",
+      "vad": "Voice detection",
+      "vad_hint": "Skips the parts where nobody speaks, so silence is not misheard as words.",
       "window_strategy": "Audio chunking",
       "window_fixed": "Fixed windows",
       "window_pause": "Prefer pauses (recommended)",
       "window_strategy_hint": "Applies to new tasks only. Retries keep the original task's selection.",
-      "window_pause_note": "Splits at clear pauses to reduce seam duplicates, with overlapping windows as a fallback. VAD is enabled automatically; switch to fixed windows to turn it off. Audio up to 30 seconds or over 24 hours uses fixed windows.",
-      "window_pause_vad_required": "Pause-based chunking requires VAD, which is enabled automatically. Switch to fixed windows before turning VAD off.",
-      "vad_ready": "The VAD resource is ready",
-      "vad_not_ready": "Install the VAD resource before using this setting",
-      "initial_prompt": "Initial prompt",
+      "window_pause_note": "Splits at clear pauses to reduce seam duplicates, with overlapping windows as a fallback. Voice detection turns on automatically; switch to fixed windows to turn it off. Audio up to 30 seconds or over 24 hours uses fixed windows.",
+      "window_pause_vad_required": "Splitting at pauses needs voice detection, so it is turned on. Switch to fixed windows before turning it off.",
+      "vad_ready": "Voice detection is ready",
+      "vad_not_ready": "Install voice detection before turning this on",
+      "initial_prompt": "Context hint",
       "initial_prompt_hint": "Used only in this page session and never persisted.",
       "initial_prompt_placeholder": "Names, terminology, or context",
       "advanced": "Advanced settings",
-      "beam_size": "Beam size",
+      "beam_size": "Search width",
       "temperature": "Temperature",
-      "vad_silence": "VAD silence (ms)",
+      "vad_silence": "Shortest silence (ms)",
       "max_cue_duration": "Suggested cue duration (ms)",
       "max_cue_chars": "Suggested characters per cue",
       "max_line_chars": "Suggested characters per line",
@@ -327,15 +329,15 @@
       "status_summary": "{{status}} · Resources {{ready}} / {{total}}",
       "unavailable_short": "Unavailable",
       "platform": "Platform",
-      "contract": "Server contract",
-      "runner": "Whisper runner",
+      "contract": "Service version",
+      "runner": "Transcription program",
       "ffmpeg": "FFmpeg",
       "not_ready": "Not ready",
-      "runtime_details": "Runtime details",
-      "backends": "Backend probe",
+      "runtime_details": "Details",
+      "backends": "Available processors",
       "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
-      "resolving_backend": "Resolving execution backend",
-      "no_backend_data": "No backend probe data",
+      "resolving_backend": "Finding out which processor to use",
+      "no_backend_data": "Processors have not been checked yet",
       "backend": {
         "cpu": "CPU",
         "cuda": "CUDA",
@@ -344,19 +346,20 @@
       "backend_status": {
         "available": "Available",
         "unavailable": "Unavailable",
-        "unverified": "Unverified",
-        "not_reported": "Not reported"
+        "unverified": "Not confirmed yet",
+        "not_reported": "Not checked"
       },
       "error": {
-        "unsupported_platform": "This platform is not supported by the local subtitle runtime.",
-        "unsupported_architecture": "This device architecture does not match the local subtitle runtime.",
-        "runtime_missing": "The Whisper runner bundled with the application is missing.",
-        "runtime_protocol_mismatch": "The bundled Whisper runner is damaged or has an incompatible version.",
-        "media_runtime_missing": "The FFmpeg/ffprobe runtime bundled with the application is missing.",
-        "media_runtime_invalid": "The bundled FFmpeg/ffprobe runtime is damaged or has an incompatible version.",
-        "media_runtime_launch_failed": "The bundled FFmpeg/ffprobe runtime could not be started.",
+        "unsupported_platform": "Local transcription does not support this computer's operating system yet.",
+        "unsupported_architecture": "Local transcription does not support this computer's processor type yet.",
+        "runtime_missing": "The transcription program that comes with FusionKit is missing.",
+        "runtime_protocol_mismatch": "The transcription program that comes with FusionKit is damaged or the wrong version.",
+        "media_runtime_missing": "The audio and video component that comes with FusionKit is missing.",
+        "media_runtime_invalid": "The audio and video component that comes with FusionKit is damaged or the wrong version.",
+        "media_runtime_launch_failed": "The audio and video component that comes with FusionKit could not start.",
         "unknown": "The local runtime check could not be completed.",
-        "recovery": "These components are included with FusionKit; you do not need to install FFmpeg or Whisper separately. Check again first. If the problem persists, rebuild the repository's local runtime when running from source, or update or reinstall FusionKit when using an installed build. Downloaded models and exported subtitles are preserved."
+        "recovery": "These components are installed with FusionKit; you do not need to install FFmpeg or Whisper yourself. Click \"Check environment again\" first. If it still fails, update or reinstall FusionKit. Downloaded models and exported subtitles are kept.",
+        "recovery_dev": "Developer note: when running from source, rebuild the repository's local runtime."
       }
     },
     "file": {
@@ -442,19 +445,19 @@
       "error": {
         "configuration_not_ready": "Translation settings are still loading. Try again after the subtitle translator is ready.",
         "directory_authorization_required": "Select or reauthorize the subtitle translator output folder before using this mode.",
-        "profile_required": "A valid translation profile and API key are required for automatic start."
+        "profile_required": "Starting the translation automatically needs a working translation profile with an API key."
       }
     },
     "resources": {
-      "title": "Managed resources",
-      "managed_only": "Resources from the built-in manifest",
+      "title": "Local resources",
+      "managed_only": "Only the resources in this list can be installed",
       "disk_usage": "Installed: {{size}}",
-      "loading": "Reading the managed resource manifest...",
-      "empty": "No managed resources are available for this platform.",
+      "loading": "Reading the resource list…",
+      "empty": "There are no resources to install on this computer yet.",
       "type": {
         "model": "Model",
-        "vad": "Voice activity detection",
-        "accelerator": "GPU accelerator"
+        "vad": "Voice detection",
+        "accelerator": "Graphics acceleration"
       },
       "status": {
         "not_installed": "Not installed",
@@ -465,18 +468,18 @@
       "job": {
         "queued": "Waiting to start",
         "acquiring": "Acquiring files",
-        "verifying": "Verifying integrity",
-        "load_smoke": "Checking runtime compatibility",
-        "signature_check": "Checking signature",
-        "committing": "Committing resource",
+        "verifying": "Checking that the file is complete",
+        "load_smoke": "Trying it out to make sure it works",
+        "signature_check": "Checking where the file comes from",
+        "committing": "Finishing the installation",
         "completed": "Installed",
         "cancelling": "Cancelling",
         "cancelled": "Cancelled",
         "failed": "Installation failed"
       },
       "import": {
-        "title": "Import compatible model",
-        "description": "Select the GGML model file matching the built-in manifest. FusionKit verifies its size, hash, and CPU load before committing it.",
+        "title": "Import model",
+        "description": "Select a file that is exactly one of the models in the built-in list (same size and content). Importing checks that the file is complete and loads correctly.",
         "estimated_usage": "Estimated additional usage: {{size}}",
         "matched_model": "Matched model: {{name}}",
         "unrecognized_model": "This file size does not match an uninstalled built-in model.",
@@ -484,13 +487,13 @@
         "copy": "Copy",
         "move": "Move",
         "copy_hint": "The selected file is kept after a verified copy is installed.",
-        "move_hint": "The selected file is removed only after the verified model is committed safely."
+        "move_hint": "The original file is removed only after the model is checked and installed."
       },
       "delete": {
-        "title": "Delete managed resource?",
-        "description": "{{name}} will be removed from FusionKit's managed storage. You can install it again later."
+        "title": "Delete this resource?",
+        "description": "{{name}} will be removed from FusionKit. You can install it again later."
       },
-      "shared_hint": "Models, speech detection and CUDA resources are stored in the app’s shared directory. Both subtitle tools use one installation.",
+      "shared_hint": "Models, voice detection and graphics acceleration are kept in one place that local subtitle transcription and Subtitle Studio share, so you install them once.",
       "migration_issues": "Some older resources could not be migrated safely. Their original files were kept. Restart the app to retry, then check resource status if needed.",
       "shared_cleanup_pending": "Shared resources are still being cleaned up. Wait before installing or deleting resources.",
       "shared_busy": "A subtitle task or resource operation is using this resource.",
@@ -500,12 +503,12 @@
     "readiness": {
       "environment_loading": "Checking the local runtime.",
       "environment_unavailable": "The local runtime status could not be read.",
-      "runtime_unavailable": "The local transcription runtime or CPU backend is unavailable.",
+      "runtime_unavailable": "The local transcription program cannot be used right now. Click \"Check environment again\".",
       "session_unavailable": "The task session is not ready. Check the environment again.",
       "model_required": "An installed, ready local model is required.",
-      "vad_required": "Voice activity detection is enabled. Install and verify the VAD resource first.",
-      "backend_preview_loading": "Resolving the execution backend for the selected model.",
-      "backend_preview_unavailable": "The execution backend for the selected model could not be verified. Check the local environment again.",
+      "vad_required": "Voice detection is on. Install voice detection first, or turn it off.",
+      "backend_preview_loading": "Finding out which processor this model will use.",
+      "backend_preview_unavailable": "FusionKit could not confirm which processor this model can use. Click \"Check environment again\".",
       "file_required": "Select at least one audio or video file.",
       "media_probe_loading": "Reading media details for the selected files.",
       "media_probe_failed": "Media details could not be read for some files. Retry or remove them.",
@@ -654,11 +657,11 @@
     },
     "tour": {
       "model_setup_title": "Prepare a local model first",
-      "model_setup_content": "A model is required before transcription can start. Download a managed model in Local environment, or click Import model to add a compatible GGML model file.",
+      "model_setup_content": "A model is needed before the first transcription. Download one of the listed models in Local environment. If you already have a model file, you can click Import model, but it must be exactly one of the listed models.",
       "config_title": "Transcription settings",
       "config_content": "Configure the local model, compute device, output formats, and post-transcription actions in the left panel. Settings are saved automatically.",
       "model_title": "Choose a local model",
-      "model_content": "Select an installed, ready local Whisper model. Larger models are usually more accurate but need more storage and compute.",
+      "model_content": "Choose an installed recognition model. Larger models are usually more accurate but take more disk space and transcribe more slowly.",
       "language_title": "Set the source language",
       "language_content": "Choose the language in the media, or leave automatic detection enabled so the model can infer it from the audio.",
       "upload_title": "Add audio or video",
@@ -668,6 +671,127 @@
       "start_title": "Start transcription",
       "start_content": "Once the environment, model, and media are ready, click here to start all pending tasks.",
       "trigger": "Show guide"
+    },
+    "error_guide": {
+      "details": "Diagnostic information",
+      "copy": "Copy diagnostic information",
+      "copied": "Diagnostic information copied",
+      "open_network_settings": "Open network settings",
+      "open_translator": "Open subtitle translation",
+      "runtime_crashed": {
+        "cause": "The transcription program quit unexpectedly or stopped responding.",
+        "next": "Try again. On Windows, if the page says the Microsoft runtime is missing, click \"Fix it\" first. If it still fails, restart the computer and try again.",
+        "next_cpu": "Try \"Retry on CPU\". On Windows, if the page says the Microsoft runtime is missing, click \"Fix it\" first."
+      },
+      "accelerator": {
+        "cause": "Graphics acceleration cannot be used right now.",
+        "next": "Reinstall graphics acceleration in Local environment or update the graphics driver, or set \"Compute device\" to CPU and transcribe again.",
+        "next_cpu": "Try \"Retry on CPU\", reinstall graphics acceleration in Local environment, or update the graphics driver."
+      },
+      "model_missing": {
+        "cause": "The selected model is not installed yet.",
+        "next": "Download the model in Local environment first."
+      },
+      "model_incompatible": {
+        "cause": "The model file could not be loaded.",
+        "next": "On Windows, make sure the Microsoft runtime is installed first (the page says so at the top when it is missing), then download the model again."
+      },
+      "verify": {
+        "cause": "The downloaded file did not pass its integrity check.",
+        "next": "Download it again. If it still fails, change the download source under Setting → Network."
+      },
+      "download": {
+        "cause": "The download did not finish, usually because the address could not be reached or the network blocked it.",
+        "next": "Change the download source or turn on a proxy under Setting → Network, then download again."
+      },
+      "disk": {
+        "cause": "There is not enough disk space.",
+        "next": "Free up enough space and try again."
+      },
+      "not_allowed": {
+        "cause": "This resource is not on the list of resources that can be downloaded.",
+        "next": "Update FusionKit and try again."
+      },
+      "authorization": {
+        "cause": "Permission to use this file has expired.",
+        "next": "Select the file again and retry."
+      },
+      "media": {
+        "cause": "No audio that can be transcribed could be read from this file.",
+        "next": "Make sure the file plays normally, or convert it to a common format such as MP4 or MP3 and try again."
+      },
+      "no_audio": {
+        "cause": "This file has no audio track.",
+        "next": "Choose a file with sound."
+      },
+      "media_changed": {
+        "cause": "The file was changed or moved during transcription.",
+        "next": "Add the file again and transcribe it."
+      },
+      "transcription": {
+        "cause": "The transcription did not finish.",
+        "next": "Try again. If it still fails, try another model.",
+        "next_cpu": "Try again, or use \"Retry on CPU\"."
+      },
+      "memory": {
+        "cause": "The computer ran out of memory.",
+        "next": "Close other programs that use a lot of memory, or switch to a smaller model, and try again."
+      },
+      "output_conflict": {
+        "cause": "A file with the same name already exists where it would be saved.",
+        "next": "Choose \"Add a number\" under \"File conflicts\", or pick another output folder."
+      },
+      "output_write": {
+        "cause": "The subtitle file could not be saved.",
+        "next": "Make sure the output folder exists, can be written to and has enough space."
+      },
+      "cleanup": {
+        "cause": "Temporary files could not be cleaned up.",
+        "next": "Restart FusionKit and try again."
+      },
+      "artifact": {
+        "cause": "This subtitle file was changed, moved or deleted.",
+        "next": "Look for it in its folder, or transcribe again."
+      },
+      "preview": {
+        "cause": "This subtitle file is too large, or its content is not in the expected format.",
+        "next": "Open it from its folder instead."
+      },
+      "limit": {
+        "cause": "Too many files, or too much content, at once.",
+        "next": "Add fewer at a time and try again."
+      },
+      "partial": {
+        "cause": "The task was cancelled; subtitles exported before the cancel were kept."
+      },
+      "page_stale": {
+        "cause": "The page lost its connection to local transcription.",
+        "next": "Restart FusionKit and try again."
+      },
+      "translation_setup": {
+        "cause": "Subtitle translation has no usable model profile yet.",
+        "next": "Add a profile with its key under Setting → AI Model, then choose it under \"Execution profile\"."
+      },
+      "duplicate": {
+        "cause": "This subtitle is already in the subtitle translation list, so it was not added again.",
+        "next": "Open subtitle translation to see it."
+      },
+      "unsupported_format": {
+        "cause": "Subtitle translation does not support this subtitle format.",
+        "next": "Choose another format under \"Translation format\" and try again."
+      },
+      "import_failed": {
+        "cause": "The subtitle could not be added to subtitle translation.",
+        "next": "Try again. If it still fails, open subtitle translation and import the subtitle file there yourself."
+      },
+      "not_started": {
+        "cause": "The subtitle was added to subtitle translation, but the translation did not start by itself.",
+        "next": "Open subtitle translation, check the task and start it yourself."
+      },
+      "unknown": {
+        "cause": "The operation did not finish.",
+        "next": "Try again. If it keeps failing, copy the diagnostic information below and send it to the developer."
+      }
     }
   },
   "extractor": {

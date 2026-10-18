@@ -74,7 +74,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('translation record rem
         const rename = (await page.getByTestId('studio-rename-translation').boundingBox())!;
         expect(Math.abs(record.y + record.height / 2 - rename.y - rename.height / 2)).toBeLessThan(2);
         await page.locator('.studio-translation-usage').hover();
-        await uiExpect(page.getByRole('tooltip', { name: /实际 tokens/ })).toContainText('14,450');
+        await uiExpect(page.getByRole('tooltip', { name: /实际用量/ })).toContainText('14,450');
         await page.mouse.move(1, 1);
         await page.screenshot({ path: path.join(artifacts, `toolbar-${name}.png`), animations: 'disabled' });
       };

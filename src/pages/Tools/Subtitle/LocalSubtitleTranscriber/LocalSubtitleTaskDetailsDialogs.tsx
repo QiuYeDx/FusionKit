@@ -40,7 +40,7 @@ export function LocalSubtitleErrorDetailsDialog({
       >
         {error ? (
           <div className="w-full min-w-0 max-w-full space-y-4 overflow-hidden">
-            <LocalSubtitleErrorNotice error={error} />
+            <LocalSubtitleErrorNotice error={error} cpuRetry={task?.cpuRetryAvailable === true} />
             <dl className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] border-y text-xs">
               <DiagnosticField
                 label={t("subtitle:local_transcriber.error_details.stage")}

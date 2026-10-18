@@ -3,6 +3,7 @@ import { showSystemNotification } from "@/utils/notification";
 import i18n from "@/i18n";
 import type { SubtitleTranslationRecovery } from "@/type/subtitle";
 import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
+import type { ModelErrorCategory } from "@/lib/model-error-category";
 
 window.ipcRenderer.on(
   "update-progress",
@@ -48,6 +49,8 @@ window.ipcRenderer.on(
       stackTrace?: string;
       recovery?: SubtitleTranslationRecovery;
       actualUsage?: SubtitleTranslationUsage;
+      /** Why the model request failed, when known. */
+      errorCategory?: ModelErrorCategory;
     },
   ) => {
     const store = useSubtitleTranslatorStore.getState();

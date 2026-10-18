@@ -110,8 +110,8 @@
     },
     "budget": {
       "title": "Context budget",
-      "within": "The current configuration fits within the default model context window.",
-      "exceeded": "The current configuration exceeds the default model context window. Lower slice or memory tokens.",
+      "within": "The current settings fit in what the model reads at once.",
+      "exceeded": "The current settings are more than the model reads at once. Lower the slice or memory tokens.",
       "model_context": "Model context",
       "required": "Required",
       "output_reserve": "Output reserve"
@@ -125,7 +125,7 @@
       "reset_placeholder": "e.g. 1, 3",
       "glossary_placeholder": "One per line: source => target # note",
       "serial_cost_title": "Serial cost note",
-      "serial_cost_desc": "Continuity serial can add up to {{tokens}} semantic-memory input tokens per segment, so input cost is usually higher than parallel mode."
+      "serial_cost_desc": "Continuity serial adds up to {{tokens}} memory tokens to every segment, so input cost is usually higher than in parallel mode."
     },
     "languages": {
       "AUTO": "Auto"
@@ -158,7 +158,7 @@
       "file_path_unavailable": "Unable to read the selected file path.",
       "unsupported_file": "Only .txt, .md, and .markdown files are supported.",
       "output_dir_required": "Select an output folder or use the source folder.",
-      "budget_exceeded": "The token budget exceeds the model context window.",
+      "budget_exceeded": "The token settings are more than the model reads at once.",
       "output_not_ready": "Output is not ready yet.",
       "view_details": "View failure reason",
       "detail_title": "Translation failure reason",

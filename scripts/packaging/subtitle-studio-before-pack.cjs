@@ -8,7 +8,15 @@ function createBeforePackHook(dependencies = {}) {
     const projectRoot = context?.packager?.info?.projectDir;
     // This is electron-builder's actual complete resolved configuration.
     contract.assertPackagingConfig(context?.packager?.config);
-    return contract.verifyPackagingContributions({ projectRoot, target }, dependencies);
+    const report = await contract.verifyPackagingContributions({ projectRoot, target }, dependencies);
+    if (target.platform !== 'win32') return report;
+    // Windows ships Microsoft's VC++ redistributable; an unverifiable one refuses the build.
+    const prepareVcRedist = dependencies.prepareVcRedist
+      ?? (await import(pathToFileURL(path.join(__dirname, 'vc-redist.mjs')).href)).prepareVcRedist;
+    let vcRedist;
+    try { vcRedist = await prepareVcRedist({ projectRoot, log: message => console.log(`  - vc-redist: ${message}`) }); }
+    catch (cause) { throw contract.packagingError('The VC++ redistributable failed verification.', 'vc-redist', cause); }
+    return { ...report, vcRedist };
   };
 }
 

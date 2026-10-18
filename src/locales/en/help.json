@@ -1,0 +1,102 @@
+{
+  "title": "Help",
+  "description": "From the first launch to fixing common problems. \"View help\" in a notice brings you to the matching entry. To pass the steps on to a friend, send them fusionkit.vercel.app: its download section has \"If FusionKit won't open\" and the system requirements too.",
+  "toc": "Contents",
+  "copy_command": "Copy command",
+  "command_copied": "Copied. Paste it into Terminal and press Return",
+  "sections": {
+    "quick_start": {
+      "title": "Get started in three steps",
+      "intro": "New to FusionKit? These three steps get you going.",
+      "step1_title": "Choose DeepSeek and add your key",
+      "step1_body": "In the setup guide, choose \"Use an AI service such as DeepSeek\", click \"Get key\" to create a key (API key) on the DeepSeek platform, paste it back and click \"Test and save\". You can change it later under Setting → AI Model.",
+      "step1_action": "Open model settings",
+      "step2_title": "Prepare local transcription in one click",
+      "step2_body": "To turn audio and video into subtitles, open \"Manage resources\" in Subtitle Studio and click \"Prepare in one click (recommended)\". It downloads the recommended model (about 1 GB) and voice detection while you keep working.",
+      "step2_action": "Open local resources",
+      "step3_title": "Tell the Agent on the home page what you need",
+      "step3_body": "Go back to the home page and say what you want, for example \"Transcribe the video on my desktop and translate the subtitles into English\". The Agent lists what it will do first and only acts once you confirm.",
+      "step3_action": "Back to home",
+      "reopen": "Reopen the setup guide"
+    },
+    "cannot_open": {
+      "title": "If FusionKit won't open",
+      "intro": "FusionKit is not signed with paid Apple or Microsoft certificates, so the system may stop it the first time. Nothing is wrong with the file; allow it once as described below.",
+      "mac_unverified_title": "macOS says the developer cannot be verified, or the app cannot be opened",
+      "mac_unverified_body": "Close the message, then open System Settings → Privacy & Security, find the note about FusionKit near the bottom, click \"Open Anyway\" and enter your password if asked. On macOS 12, open System Preferences → Security & Privacy → General.",
+      "mac_damaged_title": "macOS says \"FusionKit is damaged and can't be opened\"",
+      "mac_damaged_body": "The file is not broken: macOS marks apps downloaded from the internet. Drag FusionKit into the Applications folder first, then open Terminal (search for \"Terminal\" with Spotlight), paste the command below, press Return and open FusionKit again.",
+      "mac_damaged_note": "The command only removes FusionKit's download mark. It does not change the app and does not ask for a password.",
+      "windows_title": "Windows says \"Windows protected your PC\"",
+      "windows_body": "This is Windows SmartScreen. Click \"More info\" in the message, then \"Run anyway\" to continue the installation.",
+      "after_update_title": "FusionKit won’t open on macOS after you update it",
+      "after_update_body": "After replacing it with a new version, you may have to allow it once more the first time you open it, in the same way. The Windows version updates inside the app and needs nothing more."
+    },
+    "models_and_cost": {
+      "title": "Models and cost",
+      "key_title": "What a key (API key) is",
+      "key_body": "AI translation, revision and the Agent use an online AI service. A key works like your account credential with that service: FusionKit sends requests with it and the cost goes to your account. The key stays on this computer and is never written to task records or error messages.",
+      "deepseek_title": "DeepSeek is recommended",
+      "deepseek_body": "It is reachable from mainland China and inexpensive. Sign up on the DeepSeek platform, create a key and top up a small balance to start; you pay for what you use.",
+      "deepseek_keys": "Get key",
+      "deepseek_topup": "Top up",
+      "token_title": "Tokens and cost",
+      "token_body": "AI services charge by tokens, the unit they measure text in. Roughly one Chinese character or one English word is one token (services differ a little), and both what is sent and the answer count. FusionKit shows the expected usage before a translation starts and the actual usage when it ends; the provider's bill is the final word on cost.",
+      "privacy_title": "What is sent out",
+      "privacy_body": "Local transcription runs on this computer; audio and video are never uploaded. AI translation, revision and the Agent send subtitles or text to the AI service you set up, so check that service's privacy policy first.",
+      "other_title": "Other services",
+      "other_body": "You can also use OpenAI or another OpenAI-compatible service: add a profile under Setting → AI Model with the API address, key and model name the provider gives you, then click \"Test connection\".",
+      "open_model_settings": "Open model settings"
+    },
+    "download_failed": {
+      "title": "Downloads fail",
+      "intro": "Transcription models, voice detection, graphics acceleration and app updates are all downloaded. If a download does not get through, go through these steps.",
+      "source_title": "Change the download source",
+      "source_body": "Setting → Network → Source is \"Auto (Recommended)\" by default: it tests which address works and switches to mirrors in mainland China when the official one cannot be reached. In mainland China you can also choose \"Mirror First\".",
+      "safe_title": "Are mirrors safe?",
+      "safe_body": "Every file's size and checksum are compared with the official record after it downloads; a file that does not match is deleted and downloaded again, so a mirror cannot change what ends up on your computer. App updates install in the app only when GitHub or two mirrors agree on them.",
+      "check_title": "Still not downloading",
+      "check_body": "Make sure the computer is online. If you use a proxy app, see \"Proxy settings\" below. If it says the disk is full, free up enough space and try again.",
+      "open_network_settings": "Open network settings"
+    },
+    "transcription_failed": {
+      "title": "Transcription fails",
+      "vc_title": "Windows says the Microsoft runtime is missing",
+      "vc_body": "The transcription program needs the Microsoft Visual C++ runtime. The FusionKit installer sets it up; if a notice says it is missing or too old, click \"Fix it\" in the notice and choose \"Yes\" when Windows asks. FusionKit checks again when it is done.",
+      "disk_title": "Disk space",
+      "disk_body": "The recommended model is about 1 GB and transcription needs some temporary space as well. Keep at least 2 GB free.",
+      "gpu_title": "Graphics acceleration",
+      "gpu_body": "On a Windows computer with an NVIDIA graphics card, install \"NVIDIA graphics acceleration\" (about 680 MB to download) under \"Manage resources\"; it needs graphics driver 551.61 or later. Macs use their built-in graphics automatically.",
+      "cpu_title": "The CPU works too",
+      "cpu_body": "Without an NVIDIA card, or when acceleration does not work, \"Automatic\" under \"Processor\" uses the CPU: the result is the same, only slower. When a transcription fails, read the reason and buttons in the notice first; to report a problem, copy the diagnostic information from the notice and send it to the developer.",
+      "open_resources": "Open local resources"
+    },
+    "proxy": {
+      "title": "Proxy settings",
+      "system_title": "What \"system proxy\" means",
+      "system_body": "When a proxy app such as Clash turns on its \"system proxy\", it writes the proxy address into the computer's network settings. FusionKit's default \"System Proxy\" follows those settings for AI requests, resource downloads and update checks, so there is no port to fill in.",
+      "clash_title": "With Clash and similar apps",
+      "clash_body": "Turn on \"system proxy\" in the proxy app and you are done. If you no longer use a proxy but old proxy settings are left on the computer, choose \"No Proxy\" under Setting → Network.",
+      "custom_title": "Custom proxy",
+      "custom_body": "Choose \"Custom Proxy\" under Setting → Network: the address is 127.0.0.1 and the port is the one your proxy app shows (for example 7890); write a SOCKS5 proxy as socks5://127.0.0.1. Proxies that need a user name and password are not supported yet.",
+      "test_body": "Then click \"Test\" to see whether the model service, model downloads and GitHub can be reached, and what to do next.",
+      "open_network_settings": "Open network settings"
+    },
+    "external_agent": {
+      "title": "Using Claude Code, Codex or Cursor",
+      "body": "If you already use one of these AI tools, it can work in FusionKit directly: read subtitles, write the translations itself and save them in Subtitle Studio, with no key to set up in FusionKit. Turn on \"Allow external agents to connect\" under Setting → External agents and follow the steps there; by default it asks you before changing anything.",
+      "open_settings": "Open external agent settings"
+    },
+    "system_requirements": {
+      "title": "System requirements",
+      "windows_label": "Windows",
+      "windows": "Windows 10 or 11, 64-bit (x64)",
+      "mac_label": "macOS",
+      "mac": "macOS 12 or later, Apple silicon only (M1 or newer)",
+      "disk_label": "Disk space",
+      "disk": "About 850 MB after installing on Windows, plus about 1 GB for the recommended transcription model",
+      "network_label": "Network",
+      "network": "AI features need to reach the AI service you choose; local transcription works offline once the model is downloaded"
+    }
+  }
+}

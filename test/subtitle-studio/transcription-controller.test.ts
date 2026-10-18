@@ -518,6 +518,19 @@ it('does not let a stale resource snapshot erase a resource job just admitted by
   expect(f.controller.getState().resourceJobs.map(item => item.jobId)).toEqual(['job-fresh']);
 });
 
+it('remembers which resource jobs import a model file, so their failures are not described as downloads', async () => {
+  const f = fixture(); await f.controller.start();
+  const id = LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id;
+  const at = new Date().toISOString();
+  f.api.installTranscriptionResource.mockResolvedValueOnce(ok({ jobId: 'job-download', resourceId: id, resourceType: 'model' as const, status: 'acquiring' as const, progress: 1, createdAt: at, updatedAt: at }));
+  f.api.importTranscriptionModel.mockResolvedValueOnce(ok({ jobId: 'job-import', resourceId: id, resourceType: 'model' as const, status: 'acquiring' as const, progress: 1, createdAt: at, updatedAt: at }));
+  await f.controller.installResource(id); await f.controller.importModel(id);
+  expect(f.controller.getState().importJobIds).toEqual(['job-import']);
+  // A cancelled file picker starts no job.
+  await f.controller.importModel(id);
+  expect(f.controller.getState().importJobIds).toEqual(['job-import']);
+});
+
 it('does not reset an in-flight cleanup attempt when a view reattaches', async () => {
   const f = fixture(), pending = deferred<Awaited<ReturnType<SubtitleStudioApi['revokeTranscriptionMedia']>>>();
   f.api.revokeTranscriptionMedia.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(ok({ revoked: false }));

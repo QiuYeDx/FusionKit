@@ -17,7 +17,8 @@
     },
     "text": {
       "translator": "Long Text Translator"
-    }
+    },
+    "help": "Help"
   },
   "start": "Start",
   "retry": "Retry",
@@ -31,7 +32,9 @@
     "save": "Save",
     "open_file_location": "Open file location",
     "edit_task_config": "Edit task configuration",
-    "info": "Details"
+    "info": "Details",
+    "view_help": "View help",
+    "token_help": "About tokens and cost"
   },
   "confirm": {
     "delete_running_task_title": "Confirm Deletion",
@@ -45,25 +48,75 @@
     "available_title": "New version available v{{version}}",
     "available_desc": "Current v{{current}} → Latest v{{latest}}",
     "ready_to_download": "Click Update to start downloading.",
-    "downloading": "Downloading update...",
+    "downloading": "Downloading the new version…",
     "downloaded": "Download completed. Ready to install.",
     "progress": "Update progress",
     "up_to_date_title": "You're up to date",
     "up_to_date_desc": "Current version v{{version}}",
     "latest_version": "Latest version v{{version}}",
     "error_title": "Update failed",
-    "open_releases": "Open release page",
+    "open_releases": "Open download page",
     "download_package": "Download installer",
     "downloading_package": "Downloading installer...",
     "manual_download_saved": "Saved to {{path}}",
     "manual_download_failed": "Failed to download installer.",
     "select_directory_title": "Select download folder",
     "select_directory_button": "Select folder",
-    "start_download": "Update",
-    "install_now": "Install now",
+    "start_download": "Download and install",
+    "install_now": "Restart and install",
     "later": "Later",
     "changelog_title": "What's New",
-    "changelog_loading": "Loading changelog…"
+    "changelog_loading": "Loading changelog…",
+    "installer_size": "Installer about {{size}}",
+    "transferred": "{{done}} of {{total}}",
+    "speed": "{{speed}}/s",
+    "source_official": "Downloading from GitHub",
+    "source_mirror": "Downloading from a mirror for mainland China ({{host}})",
+    "cancel_download": "Cancel download",
+    "downloaded_title": "The new version is ready",
+    "downloaded_desc": "It passed the integrity check. Click “Restart and install”: FusionKit closes (a transcription or translation in progress is stopped), installs the new version and opens again. Or click “Later” and it installs the next time you quit FusionKit.",
+    "installing": "Starting the installer. FusionKit closes in a moment. The installer shows no window and may take a minute or two; FusionKit opens again by itself afterwards, so please don’t open it yourself in the meantime.",
+    "dev_title": "Development builds don’t check for updates",
+    "dev_desc": "This is a development build run from source. Install a release build to check for and install updates in the app.",
+    "mac_download": "Download DMG",
+    "mac_download_mirror": "Download from mirror (China)",
+    "mac_note": "To update: first quit FusionKit (right-click its icon in the Dock and choose Quit). Then open the downloaded DMG, drag FusionKit into the Applications folder and choose “Replace” when asked. The app isn’t signed: if macOS says it can’t verify the developer the first time you open the new version, go to System Settings → Privacy & Security (System Preferences → Security & Privacy on macOS 12) and click “Open Anyway”. If it says the app is damaged, open Terminal, paste the command below, press Return, then open FusionKit again.",
+    "retry": "Retry",
+    "open_network_settings": "Open network settings",
+    "details": "Technical details",
+    "copy_details": "Copy details",
+    "details_copied": "Details copied",
+    "error": {
+      "check_title": "Couldn’t check for updates",
+      "download_title": "Couldn’t download the update",
+      "install_title": "Couldn’t start the installer",
+      "network_cause": "No connection: GitHub can’t be reached, and the mirrors for mainland China didn’t answer either.",
+      "network_cause_official": "No connection: GitHub can’t be reached (only the official download source is in use).",
+      "network_next_check": "Try again later, or switch the download source or turn on a proxy in the Network settings.",
+      "network_next_download": "Click “Retry”, or switch the download source or turn on a proxy in the Network settings. You can also download the installer from the download page.",
+      "not_found_cause": "The new version’s installer wasn’t found. It may still be being published.",
+      "not_found_next": "Try again in a while, or open the download page and download it yourself.",
+      "checksum_cause": "The downloaded file failed the integrity check (incomplete or altered). It was deleted and won’t be installed.",
+      "checksum_next": "Click “Retry” to download it again. If it still fails, switch the download source in the Network settings, or download it from the download page.",
+      "disk_cause": "The update couldn’t be saved: the disk is full, or FusionKit can’t write there.",
+      "disk_next": "Free up some disk space, then click “Retry”. If there is enough space, antivirus software may be blocking the file or another program may be using it: restart the computer and try again, or download the installer from the download page.",
+      "unknown_cause": "Something went wrong while updating.",
+      "unknown_next": "Click “Retry”, or download the installer from the download page.",
+      "install_cause": "The installer didn’t start.",
+      "install_next": "Local transcription and some other features have already stopped. Click “Restart FusionKit”; it offers the new version again after the restart. You can also download the installer from the download page.",
+      "install_prepare_cause": "FusionKit couldn’t stop its running features (such as local transcription) first, so the installation didn’t start.",
+      "install_prepare_next": "Some features may already have stopped. Click “Restart FusionKit”; it offers the new version again after the restart. Or click “Retry”."
+    },
+    "mac_copy_command": "Copy command",
+    "mac_command_copied": "Command copied",
+    "restart_app": "Restart FusionKit",
+    "open_mirror_download": "Download installer from mirror (China)",
+    "changelog_failed": "The list of changes couldn’t be loaded right now. You can read it on the download page.",
+    "unverified_title": "This update can't be installed in the app this time",
+    "unverified_cause": "For safety, FusionKit only installs automatically when its download sources confirm each other. GitHub could not be reached this time and only one mirror offered the new version; the other mirror did not answer or disagreed, so FusionKit cannot be sure the installer was not changed.",
+    "unverified_next": "Try \"Check again\" later, so FusionKit can confirm the update and install it in the app, or open the download page and get the installer yourself. An installer from \"Download installer from mirror (China)\" has not been checked either, so download it from GitHub if GitHub opens for you.",
+    "check_again": "Check again",
+    "open_help": "View help"
   },
   "info": {
     "copy_success": "Copied error info to clipboard"
@@ -88,5 +141,178 @@
     "message": "Processing finished, but no usable speech was recognized. No subtitles were created.",
     "help": "If you expected speech, listen to the source and check the audio track, recognition language, or model. Adjust the settings and add the file again. Repeating the same settings is unlikely to help.",
     "no_output": "No subtitles created"
+  },
+  "model_error": {
+    "auth": {
+      "cause": "The API key is wrong or no longer valid.",
+      "next": "Paste the correct key again. If unsure, create a new one on the provider's website."
+    },
+    "balance": {
+      "cause": "The account balance is too low, so the AI service refused the request.",
+      "next": "Top up on the provider's website and try again."
+    },
+    "model_not_found": {
+      "cause": "The model name was not found.",
+      "next": "Pick another model name in AI Model settings. For DeepSeek, use deepseek-v4-flash.",
+      "next_test": "Check the model name above. For DeepSeek, use deepseek-v4-flash.",
+      "next_wizard": "DeepSeek cannot find the preset model right now. Click Use another service below and enter the model name yourself."
+    },
+    "rate_limited": {
+      "cause": "Too many requests. The AI service is limiting access for now.",
+      "next": "Wait a minute or two and try again. Running fewer tasks at once helps."
+    },
+    "network": {
+      "cause": "Can't reach the AI service: no connection, or it took too long.",
+      "next": "Check your network. If you need a proxy to reach it, turn it on in Network settings."
+    },
+    "proxy": {
+      "cause": "The proxy connection failed.",
+      "next": "Make sure the proxy app is running, or switch to no proxy in Network settings."
+    },
+    "server": {
+      "cause": "The AI service is having trouble right now.",
+      "next": "Try again in a while. If it keeps happening, use another model or service."
+    },
+    "bad_url": {
+      "cause": "The API address is wrong; it does not lead to an AI service.",
+      "next": "Check the API address in AI Model settings. For DeepSeek it is https://api.deepseek.com/v1.",
+      "cause_wizard": "The answer did not come from DeepSeek. Something on your network or proxy may have intercepted it.",
+      "next_test": "Check the API address above. For DeepSeek it is https://api.deepseek.com/v1.",
+      "next_wizard": "Check your network settings. If you use a proxy, make sure the proxy app is running."
+    },
+    "unknown": {
+      "cause": "The AI request failed for a reason that was not recognized.",
+      "next": "Use Test connection in AI Model settings to check the profile.",
+      "next_test": "Try again in a moment. If it still fails, check the profile against what the service said below."
+    },
+    "actions": {
+      "open_model_settings": "Open model settings",
+      "open_network_settings": "Open network settings",
+      "open_deepseek_keys": "Get a new key",
+      "open_deepseek_topup": "Top up",
+      "open_help": "View help"
+    },
+    "detail": "Service said: {{detail}}",
+    "connection_detail": "Connection said: {{detail}}",
+    "reason": {
+      "missing_key": {
+        "cause": "No API key has been entered yet.",
+        "next": "Paste the key your provider gave you above, then test again."
+      },
+      "key_characters": {
+        "cause": "The key contains Chinese or full-width characters or spaces; something extra may have been copied with it.",
+        "next": "Paste only the key itself (DeepSeek keys start with sk-) and try again."
+      },
+      "missing_url": {
+        "cause": "No API address has been entered yet.",
+        "next": "Enter the address your provider gives, such as https://api.deepseek.com/v1."
+      },
+      "invalid_url": {
+        "cause": "The API address is not in the right form; it must start with http:// or https://.",
+        "next": "Correct it using your provider's instructions, for example https://api.deepseek.com/v1."
+      },
+      "missing_model": {
+        "cause": "No model name has been entered yet.",
+        "next": "Enter the model name your provider gives, such as deepseek-v4-flash."
+      },
+      "timeout": {
+        "cause": "The AI service did not answer within {{seconds}} seconds."
+      }
+    }
+  },
+  "onboarding": {
+    "step": "Step {{current}} of {{total}}",
+    "recommended": "Recommended",
+    "back": "Back",
+    "skip": "Skip for now",
+    "choose": {
+      "title": "Welcome to FusionKit",
+      "description": "How would you like to use FusionKit? You can change this in Settings at any time.",
+      "ai_title": "Use an AI service such as DeepSeek",
+      "ai_description": "Translating and revising subtitles and chatting with the assistant need an AI service. All it takes is one key.",
+      "external_title": "I use Claude Code, Codex or Cursor",
+      "external_description": "Let the AI tool you already have connect to FusionKit and do the work. No key needed here.",
+      "local_title": "Only local features for now",
+      "local_description": "Local transcription, format conversion and language extraction work without an AI service."
+    },
+    "deepseek": {
+      "title": "Connect DeepSeek",
+      "description": "Once the test passes, the assistant and translation tasks use it right away.",
+      "intro": "Reachable from mainland China and inexpensive. You pay for what you use; translating subtitles costs very little.",
+      "step_key": "Click Get key, sign in to the DeepSeek platform and create an API key.",
+      "step_top_up": "A new account needs a small top-up first.",
+      "step_paste": "Paste the key below and click Test and save.",
+      "get_key": "Get key",
+      "top_up": "Top up",
+      "key_placeholder": "Paste the key that starts with sk-",
+      "test_and_save": "Test and save",
+      "other_service": "Use another service",
+      "saved": "Saved. The assistant and translation tasks now use DeepSeek.",
+      "saved_tasks_only": "Saved. Translation tasks now use DeepSeek. The assistant is in a conversation and keeps its current model; you can change it in AI Model settings."
+    },
+    "local": {
+      "title": "Use local transcription?",
+      "description": "Turn what is said in a video or audio file into subtitles, entirely on this computer. Nothing is uploaded.",
+      "model": "Recommended recognition model",
+      "model_value": "Standard, about 1.0 GB",
+      "vad": "Voice detection (skips silence)",
+      "vad_value": "About 0.9 MB",
+      "free_space": "Free disk space",
+      "free_space_value": "{{size}} GB",
+      "low_space": "There may not be enough free space. Free up at least {{size}} GB first.",
+      "note": "Prepare downloads the recommended model and voice detection in the background. You can keep working, and you will be told when it is done.",
+      "later": "Not now",
+      "prepare": "Prepare",
+      "external_note": "Claude Code, Codex or Cursor need these resources too when they transcribe through FusionKit."
+    },
+    "done": {
+      "title": "All set",
+      "description": "Try one of these examples, or just tell the assistant on the home page what you want to do.",
+      "open_tool": "Open this tool",
+      "no_model": "No AI service is connected yet, so the examples open the matching tools. You can reopen the setup guide any time in AI Model settings.",
+      "start": "Get started",
+      "description_no_model": "Pick an example to open the matching tool.",
+      "resources_title": "Download the local transcription model",
+      "resources_description": "Open the local resources to download the recommended model and voice detection (about 1.0 GB). You can keep working while they download.",
+      "examples_label": "Example tasks",
+      "prepare_running": "Preparing local transcription ({{percent}}%)",
+      "prepare_running_description": "The recommended model and voice detection are downloading in the background. Click here to see the progress.",
+      "prepare_done": "Local transcription is ready",
+      "prepare_done_description": "The recommended model and voice detection are installed. Click here to start transcribing.",
+      "prepare_failed": "Some resources were not installed",
+      "prepare_failed_description": "Click here to open the local resources and see why, then click Prepare again.",
+      "prepare_runtime": "Once it is installed, the recommended model and voice detection start downloading by themselves.",
+      "open_resources": "Open local resources",
+      "external_title": "Connect Claude Code, Codex or Cursor",
+      "external_description": "Open the External agents settings and follow the steps there to add FusionKit to your AI tool. No key is needed here.",
+      "open_external": "Open External agents settings"
+    },
+    "left_notice": "The key you pasted is kept. After fixing the network settings, click Back to the guide to continue, or reopen it in AI Model settings.",
+    "resume": "Back to the guide"
+  },
+  "system_setup": {
+    "vc_runtime": {
+      "title": "Microsoft runtime needed",
+      "missing": "Local transcription needs the Microsoft Visual C++ runtime, which is not installed on this computer.",
+      "outdated": "The Microsoft Visual C++ runtime on this computer is too old ({{installed}}). Local transcription needs {{required}} or later.",
+      "next": "Click \"Fix it\" and choose \"Yes\" when Windows asks for confirmation. It takes about a minute.",
+      "next_download": "\"Fix it\" opens Microsoft's download page in your browser. Download and run vc_redist.x64.exe to install it.",
+      "repair": "Fix it",
+      "repairing": "Installing…",
+      "repairing_hint": "Choose \"Yes\" when Windows asks for confirmation, then wait for the installation to finish.",
+      "cancelled": "The confirmation was declined, so the runtime was not installed. Click \"Fix it\" again when you are ready.",
+      "failed": "The runtime was not installed. Try again, or download it from Microsoft and install it yourself, then click \"Check again\".",
+      "manual_download": "Download manually",
+      "opened_download": "Microsoft's download page is open in your browser. Download and run vc_redist.x64.exe, then click \"Check again\".",
+      "check_again": "Check again",
+      "restart_required": "The Microsoft runtime is installed. Restart your computer to finish."
+    }
+  },
+  "local_preparation": {
+    "done_toast": "Local transcription is ready",
+    "done_toast_description": "The recommended model and voice detection are installed.",
+    "failed_toast": "Local transcription resources were not installed",
+    "failed_toast_description": "Open the local resources to see why.",
+    "open": "View"
   }
 }

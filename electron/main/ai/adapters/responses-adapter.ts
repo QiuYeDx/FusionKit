@@ -1,6 +1,8 @@
 import axios, { type AxiosError } from "axios";
 import { normalizeModelEndpoint } from "@/lib/model-endpoint";
-import { getAxiosProxyConfig } from "../../proxy";
+import { getAxiosProxyConfig } from "../../network/runtime";
+import { classifyNetworkError } from "../../network/errors";
+import { providerErrorFromBody, responseBodySignals } from "@/lib/model-error-category";
 import { cleanThinkTags } from "./chat-completions-adapter";
 import type {
   ModelRuntimeMessage,
@@ -11,6 +13,7 @@ import type {
 import {
   DEFAULT_MODEL_RUNTIME_RETRY_OPTIONS,
   ModelRuntimeClientError,
+  apiKeyHeaderError,
   type ModelRuntimeErrorDetails,
   type ModelRuntimeRetryOptions,
 } from "../model-runtime-errors";
@@ -149,10 +152,22 @@ function parseResponsesResponse(
       "invalid_response",
       "Model response is not an object.",
       true,
-      { attempt },
+      { attempt, ...responseBodySignals(data) },
     );
   }
   const usage = parseUsage(data.usage);
+  if (data.status !== "failed" && !Array.isArray(data.output) && isRecord(data.error)) {
+    throw errorFromSuccessBody(data, attempt, apiKey, usage);
+  }
+  // Anything else without a Responses output (`{}`, `{"status":"ok"}`) did not come from a Responses API.
+  if (!Array.isArray(data.output) && typeof data.output_text !== "string" && data.object !== "response") {
+    throw new ModelRuntimeClientError(
+      "invalid_response",
+      "Model response does not contain a Responses API output.",
+      true,
+      { attempt, usage },
+    );
+  }
 
   const status = typeof data.status === "string" ? data.status : undefined;
   if (status === "incomplete") {
@@ -172,14 +187,19 @@ function parseResponsesResponse(
   if (status === "failed") {
     const providerError = extractProviderErrorMetadata(data);
     const retryable = classifyProviderErrorRetryability(providerError) !== false;
+    const providerMessage = providerError.message
+      ? sanitizeErrorMessage(providerError.message, apiKey)
+      : undefined;
     throw new ModelRuntimeClientError(
       retryable ? "provider_retryable" : "invalid_response",
-      sanitizeErrorMessage(
-        providerError.message ?? "Model response failed.",
-        apiKey,
-      ),
+      providerMessage ?? "Model response failed.",
       retryable,
-      { attempt, usage, ...toProviderErrorDetails(providerError) },
+      {
+        attempt,
+        usage,
+        ...toProviderErrorDetails(providerError),
+        ...(providerMessage ? { providerMessage } : {}),
+      },
     );
   }
 
@@ -256,8 +276,14 @@ function httpErrorFromResponse(
   attempt: number,
   apiKey: string,
 ): ModelRuntimeClientError {
-  const providerError = extractProviderErrorMetadata(body);
-  const providerDetails = toProviderErrorDetails(providerError);
+  const providerError = providerErrorMetadata(body);
+  const providerDetails = {
+    ...toProviderErrorDetails(providerError),
+    ...responseBodySignals(body),
+    ...(providerError.message
+      ? { providerMessage: sanitizeErrorMessage(providerError.message, apiKey) }
+      : {}),
+  };
   const providerRetryability =
     classifyProviderErrorRetryability(providerError);
   const message = sanitizeErrorMessage(
@@ -314,6 +340,8 @@ function toRuntimeError(
   attempt: number,
 ): ModelRuntimeClientError {
   if (error instanceof ModelRuntimeClientError) return error;
+  const keyError = apiKeyHeaderError(error, attempt);
+  if (keyError) return keyError;
 
   if (isAxiosError(error)) {
     if (error.code === "ERR_CANCELED") {
@@ -329,14 +357,14 @@ function toRuntimeError(
         "request_timeout",
         "Model request timed out.",
         true,
-        { attempt },
+        { attempt, networkCategory: "timeout" },
       );
     }
     return new ModelRuntimeClientError(
       "network_error",
       sanitizeErrorMessage(error.message, apiKey),
       true,
-      { attempt },
+      { attempt, networkCategory: classifyNetworkError(error) },
     );
   }
 
@@ -345,7 +373,7 @@ function toRuntimeError(
       "network_error",
       sanitizeErrorMessage(error.message, apiKey),
       true,
-      { attempt },
+      { attempt, networkCategory: classifyNetworkError(error) },
     );
   }
 
@@ -389,6 +417,39 @@ function parseRetryAfter(value: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+/** The provider's error code, type and message; the message also from bodies that are not OpenAI-shaped. */
+function providerErrorMetadata(body: unknown): ProviderErrorMetadata {
+  const metadata = extractProviderErrorMetadata(body);
+  if (metadata.message) return metadata;
+  const message = providerErrorFromBody(body).message;
+  return message ? { ...metadata, message } : metadata;
+}
+
+/** Some OpenAI-compatible gateways answer an error with HTTP 200 and an OpenAI-style error body. */
+function errorFromSuccessBody(
+  data: Record<string, unknown>,
+  attempt: number,
+  apiKey: string,
+  usage: ModelRuntimeUsage | undefined,
+): ModelRuntimeClientError {
+  const providerError = providerErrorMetadata(data);
+  const retryable = classifyProviderErrorRetryability(providerError) !== false;
+  const providerMessage = providerError.message
+    ? sanitizeErrorMessage(providerError.message, apiKey)
+    : undefined;
+  return new ModelRuntimeClientError(
+    retryable ? "provider_retryable" : "invalid_response",
+    providerMessage ?? "Model response is an error.",
+    retryable,
+    {
+      attempt,
+      usage,
+      ...toProviderErrorDetails(providerError),
+      ...(providerMessage ? { providerMessage } : {}),
+    },
+  );
 }
 
 function extractHttpErrorMessage(

@@ -19,6 +19,8 @@ interface ErrorDetailModalProps {
   errorDetails: string;
   errorLogs?: string[];
   timestamp?: string;
+  /** Advice shown above the details, such as why a model request failed and what to do next. */
+  guide?: React.ReactNode;
 }
 
 const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
@@ -29,6 +31,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
   errorDetails,
   errorLogs = [],
   timestamp,
+  guide,
 }) => {
   const { t } = useTranslation();
 
@@ -68,6 +71,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({
 
       <ScrollableDialogContent fadeMasks={true} fadeMaskHeight={40}>
         <div className="space-y-4">
+          {guide}
           {timestamp && (
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">

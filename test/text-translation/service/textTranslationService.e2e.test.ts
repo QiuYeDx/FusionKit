@@ -500,6 +500,10 @@ describe("TextTranslationService BE-007 vertical slice", () => {
         phase: "translating",
       },
     });
+    // The window learns why the requests failed, to show the next step.
+    expect(failedEvent).toMatchObject({
+      task: { failureSummary: { firstFailure: { errorCode: "http_retryable", category: "server" } } },
+    });
   });
 
   it("runs sequential-context segments in order and resumes with the latest memory", async () => {

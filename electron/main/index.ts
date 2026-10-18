@@ -18,7 +18,9 @@ import {
 import { setupPowerIPC } from "./power";
 import { setupConversionIPC } from "./conversion/ipc";
 import { setupExtractionIPC } from "./extraction/ipc";
-import { setupProxyIPC } from "./proxy";
+import { setupNetwork } from "./network";
+import { setupModelSetupIPC } from "./model-setup";
+import { setupSystemSetupIPC } from "./system";
 import { setupFsIPC } from "./fs/ipc";
 import { setupNativeFileSelectionIPC } from "./fs/native-file-selection-ipc";
 import { setupNameTranslationIPC } from "./name-translation/ipc";
@@ -268,6 +270,9 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Saved proxy and download-source settings apply before anything connects.
+  const network = setupNetwork({ userDataPath: app.getPath("userData") });
+  await network.ready;
   const localSubtitleManagedResourceRoot = path.join(
     app.getPath("userData"),
     "local-subtitle",
@@ -284,7 +289,7 @@ app.whenReady().then(async () => {
     environment: localSubtitleResourceEnvironment,
   });
   const speechResources = new SpeechResourceService({ userDataRoot: app.getPath("userData"),
-    smokeModel: speechResourceSmoke.smokeModel, smokeVad: speechResourceSmoke.smokeVad });
+    smokeModel: speechResourceSmoke.smokeModel, smokeVad: speechResourceSmoke.smokeVad, ...network.speechDownloads });
   // A failed migration remains visible through status; consumers cannot use uninitialized resources.
   const speechResourcesInitialized = await speechResources.initialize().then(() => true, () => {
     console.error("Shared speech resource initialization failed."); return false;
@@ -512,12 +517,14 @@ app.whenReady().then(async () => {
   setupPowerIPC(win);
   setupConversionIPC();
   setupExtractionIPC();
-  setupProxyIPC();
   setupFsIPC();
   setupNameTranslationIPC();
   setupWebLookupIPC();
   setupAgentSessionsIPC();
   setupExternalAgent({ getWindow: () => win });
+  setupModelSetupIPC({ resourceDirectory: () => app.getPath("userData") });
+  // The Windows build ships the VC++ redistributable in resources/vc-redist; from source there is none.
+  setupSystemSetupIPC({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined });
   setupTextTranslationIPC(textTranslationService);
 
   app.on("activate", () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ModelErrorCategory } from '../lib/model-error-category';
 import { agentTrackOwnerSchema, encodingSchema, idSchema, LIMITS, SUBTITLE_TEXT_FORMATS, translationTrackNameSchema, type ErrorCode, type SubtitleDocument } from './domain';
 import { translationConfigSchema, translationModelSchema, translationScopeSchema, type TranslationPlanSummary } from './translation-contract';
 import { cueEditOperationSchema, type CueEditResult } from './cue-edit-contract';
@@ -211,7 +212,7 @@ export type TranslationTasksSnapshot = {
 };
 export type DocumentTask = Omit<StoredTask, 'translation'> & { translation?: Omit<NonNullable<StoredTask['translation']>, 'checkpoint'> & { checkpoint?: { version: 1 | 2 } } };
 export type DocumentPage = { automaticKnowledgeReportTrackIds?: string[]; summary: DocumentSummary; offset: number; cues: SubtitleDocument['cues']; translationTracks: SubtitleDocument['translationTracks']; tasks: DocumentTask[] };
-export type StudioResult<T> = { ok: true; value: T } | { ok: false; error: ErrorCode };
+export type StudioResult<T> = { ok: true; value: T } | { ok: false; error: ErrorCode; category?: ModelErrorCategory };
 export type TranscriptionMediaSelection = { items: Array<
   { displayName: string; ok: true; media: LocalSubtitleAuthorizedMedia; probe: LocalSubtitleMediaProbeSummary }
   | { displayName: string; ok: false; error: ErrorCode; media?: LocalSubtitleAuthorizedMedia }

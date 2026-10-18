@@ -26,6 +26,11 @@ const language = z.string().trim().min(2).max(32).regex(/^(?:auto|[a-z]{2,3}(?:-
 export const safeText = (value: string, length = 255) => value.slice(0, length);
 export class ToolFailure extends Error {}
 export const failed = (error: string, data?: unknown): PreparedActionResult => ({ success: false, error, ...(data !== undefined ? { data } : {}) });
+/** Transcription that cannot start because local resources are missing: the user can prepare them in one click. */
+const LOCAL_RESOURCE_REASONS = new Set(["runtime_not_ready", "model_not_ready", "vad_not_ready", "accelerator_not_ready"]);
+const LOCAL_RESOURCES_HINT = "Local transcription is not ready on this computer. For a missing model or voice detection, tell the user that one-click prepare in Subtitle Studio's resource manager installs both, "
+  + "and offer to open it (open_app_page with page subtitle_studio and studioView resources). For the NVIDIA pack, suggest the CPU or installing the pack there. "
+  + "If the transcription program itself is not ready, suggest restarting FusionKit or the help page (open_app_page help). Do not retry until the user says it is ready.";
 export const succeeded = (data: unknown): PreparedActionResult => ({ success: true, data });
 function receipt(phase: PreparedActionReceipt["phase"], items: PreparedActionReceipt["items"]): PreparedActionReceipt {
   const bounded = items.slice(0, 50).map(item => ({ ...item, name: safeText(item.name) }));
@@ -298,7 +303,8 @@ export const modernAgentTools = {
           name: draft.displayName, status: draft.status === "ready" && !readiness.reason ? "ready" : "failed",
           ...(draft.status !== "ready" || readiness.reason ? { error: draft.error ?? readiness.reason ?? "studio_transcription_media_not_ready" } : {}) })));
         if (!readiness.canEnqueue || readiness.readyCount !== ownedIds.length) {
-          release(); return failed(readiness.reason ?? "studio_transcription_media_not_ready", { receipt: preparationReceipt });
+          release(); return failed(readiness.reason ?? "studio_transcription_media_not_ready", { receipt: preparationReceipt,
+            ...(readiness.reason && LOCAL_RESOURCE_REASONS.has(readiness.reason) ? { nextAction: LOCAL_RESOURCES_HINT } : {}) });
         }
         const signature = JSON.stringify({ config: selected.config, automatic: selected.autoTranslation, drafts: selected.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) });
         const sessionId = ctx.sessionId;

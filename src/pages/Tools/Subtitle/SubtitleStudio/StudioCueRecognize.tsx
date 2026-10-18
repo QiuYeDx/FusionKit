@@ -14,6 +14,7 @@ import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences'
 import { CueAudioButton, useStopCueAudioOnClose } from './StudioCueAudio';
 import { Diff } from './StudioCueRevision';
 import { TRANSCRIPTION_LANGUAGES } from './StudioTranscription';
+import { resourceDisplayName } from './resource-names';
 import './StudioCueRevision.css';
 import './StudioCueRecognize.css';
 
@@ -28,7 +29,7 @@ const errorKeys = {
 const errorKey = (code: ErrorCode) => code in errorKeys ? errorKeys[code as keyof typeof errorKeys] : errorKeys.failed;
 
 type Item = { cueId: string; number: number; before: string; state: 'waiting' | 'running' | 'done' | 'error'; text?: string; error?: ErrorCode };
-type Model = { id: string; name: string };
+type Model = { id: string; resource: Parameters<typeof resourceDisplayName>[1] };
 /** Kept for the session, so recognizing more cues starts with the last choices. */
 const memory: { modelId?: string; language?: string; prompt?: string } = {};
 
@@ -76,7 +77,7 @@ export function StudioCueRecognize({ page, request, editBlocked, onClose, onAppl
     void window.subtitleStudio.listTranscriptionResources({}).then(result => {
       if (!live) return;
       const ready = result.ok ? result.value.resources.filter(item => item.resourceType === 'model' && item.status === 'ready')
-        .map(item => ({ id: item.resourceId, name: item.displayName })) : [];
+        .map(item => ({ id: item.resourceId, resource: item })) : [];
       setModels(ready);
       const preferred = [memory.modelId, transcription.modelId].find(value => value && ready.some(model => model.id === value));
       setModelId(preferred ?? ready[0]?.id ?? '');
@@ -175,7 +176,7 @@ export function StudioCueRecognize({ page, request, editBlocked, onClose, onAppl
               <SelectTrigger aria-label={t('studio:cue_recognize.model')} data-testid="studio-cue-recognize-model" size="sm" className="w-full min-w-0 text-xs">
                 <SelectValue placeholder={models ? t('studio:cue_recognize.no_model') : t('studio:loading')} />
               </SelectTrigger>
-              <SelectContent>{(models ?? []).map(model => <SelectItem key={model.id} value={model.id}>{model.name}</SelectItem>)}</SelectContent>
+              <SelectContent>{(models ?? []).map(model => <SelectItem key={model.id} value={model.id}>{resourceDisplayName(key => t(key), model.resource)}</SelectItem>)}</SelectContent>
             </Select>
             <Select value={language} disabled={running} onValueChange={setLanguage}>
               <SelectTrigger aria-label={t('studio:cue_recognize.language')} data-testid="studio-cue-recognize-language" size="sm" className="w-full min-w-0 text-xs"><SelectValue /></SelectTrigger>

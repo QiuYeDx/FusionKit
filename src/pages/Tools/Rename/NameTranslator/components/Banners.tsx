@@ -7,6 +7,9 @@ import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { cn } from "@/lib/utils";
 import type { NameUnrecoveredEntry } from "@/name-translation/contract";
 import useNameTranslatorStore from "@/store/tools/rename/useNameTranslatorStore";
+import useModelStore from "@/store/useModelStore";
+import { ModelErrorGuide } from "@/components/model-error/ModelErrorGuide";
+import type { ModelErrorCategory } from "@/lib/model-error-category";
 
 function UnrecoveredList({ items }: { items: readonly NameUnrecoveredEntry[] }) {
   const { t } = useTranslation("rename");
@@ -171,6 +174,9 @@ export function NameTranslatorBanners({ modelReady }: { modelReady: boolean }) {
           <AlertDescription className="[overflow-wrap:anywhere]">{translationError.message}</AlertDescription>
         </Alert>
       ) : null}
+      {translationError?.category && translationError.message !== "missing_task_model" ? (
+        <NameTranslatorErrorGuide category={translationError.category} />
+      ) : null}
 
       {notice?.kind === "truncated" ? (
         <Alert>
@@ -191,4 +197,10 @@ export function NameTranslatorBanners({ modelReady }: { modelReady: boolean }) {
       ) : null}
     </>
   );
+}
+
+/** Why the model request failed and the next step, below the translation error. */
+function NameTranslatorErrorGuide({ category }: { category: ModelErrorCategory }) {
+  const profile = useModelStore((state) => state.getTaskProfile());
+  return <ModelErrorGuide category={category} profile={profile} testId="name-translator-error-guide" />;
 }

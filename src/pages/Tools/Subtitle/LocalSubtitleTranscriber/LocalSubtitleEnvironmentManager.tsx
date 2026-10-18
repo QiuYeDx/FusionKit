@@ -52,6 +52,7 @@ import {
   LocalSubtitleErrorNotice,
   type LocalSubtitleDisplayError,
 } from "./LocalSubtitleErrorNotice";
+import { resourceDetailName, resourceDisplayName } from "../SubtitleStudio/resource-names";
 
 const RESOURCE_TYPE_KEYS = {
   model: "subtitle:local_transcriber.resources.type.model",
@@ -414,7 +415,7 @@ export function LocalSubtitleEnvironmentManager({
                 <div className="mt-1 text-xs text-muted-foreground">
                   {importTarget
                     ? t("subtitle:local_transcriber.resources.import.matched_model", {
-                        name: importTarget.displayName,
+                        name: resourceDisplayName((key) => t(key), importTarget),
                       })
                     : t("subtitle:local_transcriber.resources.import.unrecognized_model")}
                 </div>
@@ -487,7 +488,7 @@ export function LocalSubtitleEnvironmentManager({
             </DialogTitle>
             <DialogDescription className="break-words [overflow-wrap:anywhere]">
               {t(sharedResources ? "subtitle:local_transcriber.resources.shared_delete_confirmation" : "subtitle:local_transcriber.resources.delete.description", {
-                name: deleteTarget?.displayName ?? "",
+                name: deleteTarget ? resourceDisplayName((key) => t(key), deleteTarget) : "",
               })}
             </DialogDescription>
           </DialogHeader>
@@ -532,11 +533,15 @@ function EnvironmentErrorNotice({
   return (
     <div className="border-t p-3">
       <LocalSubtitleErrorNotice
-        error={{
-          code: error.code,
-          message: t(messageKey),
-        }}
-        guidance={t("subtitle:local_transcriber.environment.error.recovery")}
+        // The original message stays in the diagnostics; the cause is the environment check's own.
+        error={error}
+        cause={t(messageKey)}
+        guidance={
+          // Running from source has its own fix; installed builds only see the user-facing step.
+          import.meta.env.DEV
+            ? `${t("subtitle:local_transcriber.environment.error.recovery")}\n${t("subtitle:local_transcriber.environment.error.recovery_dev")}`
+            : t("subtitle:local_transcriber.environment.error.recovery")
+        }
       />
     </div>
   );
@@ -726,6 +731,9 @@ function ResourceRow({
   const canDelete =
     !activeJob &&
     (resource.status === "ready" || resource.status === "invalid");
+  // The same plain names as Subtitle Studio; the catalog's own name stays as a detail.
+  const name = resourceDisplayName((key) => t(key), resource);
+  const detail = resourceDetailName(resource);
 
   return (
     <div
@@ -736,13 +744,19 @@ function ResourceRow({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="min-w-0 break-words text-sm font-medium [overflow-wrap:anywhere]">
-              {resource.displayName}
+              {name}
             </span>
             <ResourceStatusBadge resource={resource} />
             {busy && <span className="text-[11px] text-muted-foreground">{t('subtitle:local_transcriber.resources.shared_busy')}</span>}
           </div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
             <span>{t(RESOURCE_TYPE_KEYS[resource.resourceType])}</span>
+            {detail ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span data-testid="local-subtitle-catalog-name" className="min-w-0 break-words [overflow-wrap:anywhere]">{detail}</span>
+              </>
+            ) : null}
             <span aria-hidden="true">·</span>
             <span>{formatLocalSubtitleBytes(resource.byteSize)}</span>
             {resource.version ? (
@@ -768,10 +782,10 @@ function ResourceRow({
               disabled={cancelPending || job.status === "cancelling"}
               onClick={() => void onCancel(job.jobId)}
               aria-label={t("subtitle:local_transcriber.actions.cancel_resource", {
-                name: resource.displayName,
+                name,
               })}
               title={t("subtitle:local_transcriber.actions.cancel_resource", {
-                name: resource.displayName,
+                name,
               })}
             >
               {cancelPending ? (
@@ -789,10 +803,10 @@ function ResourceRow({
               disabled={installPending || busy}
               onClick={() => void onInstall(resource.resourceId)}
               aria-label={t("subtitle:local_transcriber.actions.install_resource", {
-                name: resource.displayName,
+                name,
               })}
               title={t("subtitle:local_transcriber.actions.install_resource", {
-                name: resource.displayName,
+                name,
               })}
             >
               {installPending ? (
@@ -811,11 +825,11 @@ function ResourceRow({
               disabled={busy}
               aria-label={t(
                 "subtitle:local_transcriber.actions.delete_named_resource",
-                { name: resource.displayName },
+                { name },
               )}
               title={t(
                 "subtitle:local_transcriber.actions.delete_named_resource",
-                { name: resource.displayName },
+                { name },
               )}
             >
               <Trash2 className="h-3.5 w-3.5" />

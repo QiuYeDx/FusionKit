@@ -34,6 +34,7 @@ import {
 import { ipcMain, BrowserWindow } from "electron";
 import {
   ModelRuntimeClientError,
+  modelErrorCategory,
 } from "../../ai/model-runtime-errors";
 import {
   sendModelRuntimeText,
@@ -410,11 +411,14 @@ export abstract class BaseTranslator {
         }
       }
 
+      // Why the model request failed (wrong key, no balance...), for the next-step advice.
+      const errorCategory = modelErrorCategory(error);
       this.emit(runtimeAuthorization, "task-failed", {
         taskId: task.taskId,
         fileName: task.fileName,
         error: errorDetails,
         message: "请求接口失败",
+        ...(errorCategory !== "unknown" ? { errorCategory } : {}),
         errorLogs: errorLogs,
         timestamp: startTime,
         stackTrace: stackTrace,

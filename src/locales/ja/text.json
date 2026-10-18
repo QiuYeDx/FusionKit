@@ -24,8 +24,8 @@
       "desc": "TXT と Markdown、並列または連続コンテキスト、訳文のみまたは対訳出力に対応します。",
       "source_lang": "元言語",
       "target_lang": "訳文言語",
-      "slice_tokens": "分割token",
-      "memory_tokens": "記憶token",
+      "slice_tokens": "分割トークン",
+      "memory_tokens": "記憶トークン",
       "concurrency": "並列数",
       "execution_mode": "実行モード",
       "project_mode": "プロジェクトモード",
@@ -110,8 +110,8 @@
     },
     "budget": {
       "title": "コンテキスト予算",
-      "within": "現在の設定は既定のモデルコンテキスト枠に収まります。",
-      "exceeded": "現在の設定は既定のモデルコンテキスト枠を超えています。分割または記憶 token を下げてください。",
+      "within": "現在の設定は、モデルが一度に読める長さに収まっています。",
+      "exceeded": "現在の設定は、モデルが一度に読める長さを超えています。「分割トークン」か「記憶トークン」を減らしてください。",
       "model_context": "モデル文脈",
       "required": "推定必要量",
       "output_reserve": "出力予約"
@@ -125,7 +125,7 @@
       "reset_placeholder": "例: 1, 3",
       "glossary_placeholder": "1 行に 1 件: 原文 => 訳語 # メモ",
       "serial_cost_title": "逐次コストの注意",
-      "serial_cost_desc": "連続コンテキストでは各セグメントに最大 {{tokens}} の記憶 token が追加されるため、入力コストは通常並列モードより高くなります。"
+      "serial_cost_desc": "連続コンテキストでは各セグメントに最大 {{tokens}} の「記憶トークン」が追加されるため、入力コストは通常並列モードより高くなります。"
     },
     "languages": {
       "AUTO": "自動"
@@ -158,7 +158,7 @@
       "file_path_unavailable": "選択したファイルパスを取得できません。",
       "unsupported_file": ".txt、.md、.markdown ファイルのみ対応しています。",
       "output_dir_required": "出力フォルダを選択するか、元ファイルのフォルダを使用してください。",
-      "budget_exceeded": "現在の token 予算はモデルコンテキスト枠を超えています。",
+      "budget_exceeded": "設定したトークン数が、モデルが一度に読める長さを超えています。",
       "output_not_ready": "出力はまだ準備できていません。",
       "view_details": "失敗理由を表示",
       "detail_title": "翻訳失敗の理由",

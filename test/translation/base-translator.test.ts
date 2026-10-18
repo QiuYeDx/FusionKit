@@ -550,3 +550,67 @@ describe("BaseTranslator empty result retry", () => {
     }
   });
 });
+
+describe("BaseTranslator failure reasons", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it.each([
+    [new ModelRuntimeClientError("http_non_retryable", "Model request failed with HTTP 402: Insufficient Balance", false, { status: 402 }), "balance"],
+    [new ModelRuntimeClientError("http_unauthorized", "Model request failed with HTTP 401.", false, { status: 401 }), "auth"],
+    [new ModelRuntimeClientError("network_error", "connect ECONNREFUSED", true, { networkCategory: "refused" }), "network"],
+  ] as const)("tells the window why the model request failed (%s)", async (error, category) => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { sendModelRuntimeText } = await import("../../electron/main/ai/model-runtime-client");
+    const { BaseTranslator } = await import("../../electron/main/translation/class/base-translator");
+    class FailingTranslator extends BaseTranslator {
+      constructor() {
+        super();
+        this.retryPolicy = { ...this.retryPolicy, maxAttempts: 1, baseDelayMs: 0, maxDelayMs: 0, jitterRatio: 0 };
+      }
+      protected splitContent(content: string): string[] { return [content]; }
+      protected formatPrompt(content: string): string { return content; }
+      protected async parseResponse(response: any): Promise<string> { return response.content; }
+      protected normalizeError(failure: unknown): Error { return failure instanceof Error ? failure : new Error(String(failure)); }
+    }
+    vi.mocked(sendModelRuntimeText).mockRejectedValue(error);
+    const outputDir = await mkdtemp(path.join(os.tmpdir(), "fusionkit-reason-"));
+    const emitted: Array<{ channel: string; payload: unknown }> = [];
+    const task: SubtitleTranslatorTask = {
+      taskId: `subtitle-task-reason-${category}`,
+      fileName: "reason.srt",
+      fileContent: "1\n00:00:00,000 --> 00:00:01,000\nSource\n",
+      sliceType: SubtitleSliceType.NORMAL,
+      originFileURL: "/private/source/reason.srt",
+      targetFileURL: outputDir,
+      status: TaskStatus.PENDING,
+      executionBinding: {
+        status: "ready" as const,
+        profileId: "profile-test",
+        profileLabel: "Test profile",
+        apiKey: "test-key",
+        apiModel: "test-model",
+        endPoint: "https://example.test/chat/completions",
+        tokenPricing: { inputTokensPerMillion: 1, outputTokensPerMillion: 2 },
+      },
+    };
+    try {
+      await expect(new FailingTranslator().translate(task, undefined, {
+        revalidateTarget: async () => undefined,
+        validateOutputPath: async () => undefined,
+        authorizeCheckpoint: vi.fn().mockResolvedValue("checkpoint-ref"),
+        releaseCheckpoint: vi.fn(),
+        recordFinalOutput: async () => undefined,
+        emit: (channel, payload) => emitted.push({ channel, payload }),
+      })).rejects.toBe(error);
+      expect(emitted.find((event) => event.channel === "task-failed")?.payload)
+        .toMatchObject({ message: "请求接口失败", errorCategory: category });
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      await rm(outputDir, { recursive: true, force: true });
+    }
+  });
+});

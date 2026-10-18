@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({ controller: {} as Record<string, any>, trackSt
 vi.mock("./pipeline-watch", () => ({ watchStudioPipeline: mocks.watch }));
 vi.mock("@/services/subtitle-studio/transcription-controller", () => ({
   getStudioTranscriptionController: () => mocks.controller,
-  getTranscriptionReadiness: (state: any) => ({ canEnqueue: state.drafts.length > 0 && state.drafts.every((draft: any) => draft.status === "ready"), readyCount: state.drafts.filter((draft: any) => draft.status === "ready").length, reason: null }),
+  getTranscriptionReadiness: (state: any) => ({ canEnqueue: !state.readinessReason && state.drafts.length > 0 && state.drafts.every((draft: any) => draft.status === "ready"), readyCount: state.drafts.filter((draft: any) => draft.status === "ready").length, reason: state.readinessReason ?? null }),
 }));
 vi.mock("@/services/subtitle-studio/translation-overview-controller", () => ({ getStudioTranslationOverviewController: () => ({ trackStarted: mocks.trackStarted }) }));
 const api = { listDocuments: vi.fn(), importSubtitles: vi.fn(), importSubtitlePaths: vi.fn(), listTranslationTasks: vi.fn(), listTranscriptionTasks: vi.fn(), planTranslationBatch: vi.fn(), createTranslationBatch: vi.fn() };
@@ -236,6 +236,17 @@ describe("transcription preparation ownership", () => {
     expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared", mediaMatched: 23, nextOffset: 20 } });
     expect(mocks.controller.selectMediaFromPaths).toHaveBeenCalledWith({ paths: [`${folder}\\Disc 2`], recursive: true });
     expect(mocks.controller.selectMedia).not.toHaveBeenCalled();
+  });
+  it("says one-click prepare can install what local transcription is missing, and releases the media", async () => {
+    mocks.state.readinessReason = "model_not_ready";
+    const result = await call("prepare_studio_transcription");
+    expect(result).toMatchObject({ success: false, error: "model_not_ready", data: { nextAction: expect.stringContaining("studioView resources") } });
+    expect(result.data.nextAction).toContain("one-click prepare");
+    expect(mocks.controller.removeDraft).toHaveBeenCalledWith("picked-draft");
+    expect(usePreparedActionsStore.getState().actions).toHaveLength(0);
+    // Media that is not ready is not a resource problem: no such hint.
+    mocks.state.readinessReason = "no_media";
+    expect((await call("prepare_studio_transcription")).data.nextAction).toBeUndefined();
   });
   it("reports a typed folder without media instead of preparing nothing", async () => {
     mocks.controller.selectMediaFromPaths = vi.fn(async () => ({ matched: 0 }));

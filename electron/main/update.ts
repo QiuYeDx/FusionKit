@@ -1,163 +1,115 @@
-import { app, dialog, ipcMain } from 'electron'
-import { createRequire } from 'node:module'
-import fs from 'node:fs'
-import https from 'node:https'
+import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import path from 'node:path'
-import type {
-  ProgressInfo,
-  UpdateDownloadedEvent,
-  UpdateInfo,
-} from 'electron-updater'
+import { APP_UPDATE_CHANNELS } from '../../src/app-update/contract'
+import { AppUpdateService, type UpdaterLike } from './app-update/service'
+import { createTestUpdater, recordTestRestart, resolveTestUpdateSetup } from './app-update/test-updater'
+import { loadElectronUpdater } from './app-update/updater-runtime'
+import { currentNetworkSettings } from './network/runtime'
 
-const { autoUpdater } = createRequire(import.meta.url)('electron-updater');
-const RELEASES_DOWNLOAD_BASE = 'https://github.com/QiuYeDx/FusionKit/releases/latest/download/'
-let latestUpdateInfo: UpdateInfo | null = null
 let activeWindow: Electron.BrowserWindow | null = null
 let prepareQuitAndInstall: (() => Promise<void>) | undefined
-let updateInitialized = false
-let quitAndInstallOperation: Promise<void> | undefined
-let quitAndInstallSucceeded = false
-const downloadSubscribers = new Set<{
-  readonly progress: (error: Error | null, info: ProgressInfo | null) => void
-  readonly complete: (event: UpdateDownloadedEvent) => void
-}>()
-let downloadInFlight = false
+let service: AppUpdateService | undefined
 
 export interface UpdateOptions {
   readonly prepareQuitAndInstall?: () => Promise<void>
 }
 
+/**
+ * Serves the update dialog (window.appUpdate). The installed app checks GitHub and the download
+ * mirrors (see app-update/service.ts); a development build never checks, and a test build only
+ * talks to the local servers a UI test names.
+ */
 export function update(win: Electron.BrowserWindow, options: UpdateOptions = {}) {
   activeWindow = win
   if (options.prepareQuitAndInstall) {
     prepareQuitAndInstall = options.prepareQuitAndInstall
   }
-  if (updateInitialized) return
-  updateInitialized = true
+  if (service) return
 
-  // When set to false, the update download will be triggered through the API
-  autoUpdater.autoDownload = false
-  autoUpdater.disableWebInstaller = false
-  autoUpdater.allowDowngrade = false
+  const runtime = loadElectronUpdater()
+  const testSetup = resolveTestUpdateSetup(process.env, { packaged: app.isPackaged })
+  // A development build has no app-update.yml and must not reach the network.
+  const active = app.isPackaged || !!testSetup
+  let updater: UpdaterLike
+  let relaunch: (() => void) | undefined
+  if (!active) {
+    updater = INACTIVE_UPDATER
+  } else if (testSetup) {
+    updater = createTestUpdater({
+      runtime,
+      userDataPath: path.join(app.getPath('userData'), 'update-test'),
+      version: app.getVersion(),
+      name: app.getName(),
+      whenReady: () => app.whenReady(),
+    })
+    // A test run records the restart instead of quitting.
+    relaunch = recordTestRestart
+  } else {
+    const autoUpdater = runtime.autoUpdater
+    // Downloads start only when the user clicks "download and install".
+    autoUpdater.autoDownload = false
+    autoUpdater.disableWebInstaller = true
+    autoUpdater.allowDowngrade = false
+    updater = autoUpdater
+    relaunch = () => {
+      // Not "install on quit" this time: the installer would race the new FusionKit. The
+      // downloaded update stays in the cache and is offered again after the restart.
+      autoUpdater.autoInstallOnAppQuit = false
+      app.relaunch()
+      app.quit()
+    }
+  }
 
-  // start check
-  autoUpdater.on('checking-for-update', function () { })
-  // update available
-  autoUpdater.on('update-available', (arg: UpdateInfo) => {
-    latestUpdateInfo = arg
-    sendToActiveWindow('update-can-available', { update: true, version: app.getVersion(), newVersion: arg?.version })
+  service = new AppUpdateService({
+    updater,
+    classes: runtime,
+    currentVersion: app.getVersion(),
+    platform: testSetup?.platform ?? process.platform,
+    arch: process.platform === 'darwin' ? process.arch : undefined,
+    active,
+    getDownloadSourceMode: () => currentNetworkSettings().downloadSource,
+    sources: testSetup ? () => testSetup.sources : undefined,
+    prepareInstall: () => prepareQuitAndInstall?.() ?? Promise.resolve(),
+    relaunch,
+    onState: state => sendToActiveWindow(APP_UPDATE_CHANNELS.state, state),
+    // A test run records the install instead of quitting, so it stays in "installing" unless the test asks otherwise.
+    installTimeoutMs: testSetup ? testSetup.installTimeoutMs : undefined,
   })
-  // update not available
-  autoUpdater.on('update-not-available', (arg: UpdateInfo) => {
-    latestUpdateInfo = null
-    sendToActiveWindow('update-can-available', { update: false, version: app.getVersion(), newVersion: arg?.version })
+  const updates = service
+
+  ipcMain.handle(APP_UPDATE_CHANNELS.getState, event => {
+    assertTrusted(event)
+    return updates.state()
   })
-  autoUpdater.on('download-progress', (info: ProgressInfo) => {
-    for (const subscriber of downloadSubscribers) {
-      subscriber.progress(null, info)
-    }
+  ipcMain.handle(APP_UPDATE_CHANNELS.check, event => {
+    assertTrusted(event)
+    return updates.check()
   })
-  autoUpdater.on('error', (error: Error) => settleDownload(error))
-  autoUpdater.on('update-downloaded', (event: UpdateDownloadedEvent) => {
-    const subscribers = [...downloadSubscribers]
-    downloadSubscribers.clear()
-    downloadInFlight = false
-    for (const subscriber of subscribers) subscriber.complete(event)
+  ipcMain.handle(APP_UPDATE_CHANNELS.download, event => {
+    assertTrusted(event)
+    return updates.download()
   })
-
-  // Checking for updates
-  ipcMain.handle('check-update', async () => {
-    if (!app.isPackaged) {
-      const error = new Error('The update feature is only available after the package.')
-      return { message: error.message, error }
-    }
-
-    try {
-      return await autoUpdater.checkForUpdates()
-    } catch (error) {
-      return { message: 'Network error', error }
-    }
+  ipcMain.handle(APP_UPDATE_CHANNELS.cancel, event => {
+    assertTrusted(event)
+    return updates.cancel()
   })
-
-  // Start downloading and feedback on progress
-  ipcMain.handle('start-download', (event: Electron.IpcMainInvokeEvent) => {
-    startDownload(
-      (error, progressInfo) => {
-        if (event.sender.isDestroyed()) return
-        if (error) {
-          // feedback download error message
-          event.sender.send('update-error', { message: error.message, error })
-        } else {
-          // feedback update progress message
-          event.sender.send('download-progress', progressInfo)
-        }
-      },
-      () => {
-        if (event.sender.isDestroyed()) return
-        // feedback update downloaded message
-        event.sender.send('update-downloaded')
-      }
-    )
+  ipcMain.handle(APP_UPDATE_CHANNELS.install, event => {
+    assertTrusted(event)
+    return updates.install()
   })
-
-  // Manually download installer to a directory
-  ipcMain.handle('download-installer', async (_event, payload?: { directory?: string }) => {
-    if (!app.isPackaged) {
-      const error = new Error('The update feature is only available after the package.')
-      return { message: error.message, error }
-    }
-
-    if (!payload?.directory) {
-      const error = new Error('No target directory selected.')
-      return { message: error.message, error }
-    }
-
-    const fileUrl = latestUpdateInfo ? pickUpdateFileUrl(latestUpdateInfo) : null
-    if (!fileUrl) {
-      const error = new Error('No update file found.')
-      return { message: error.message, error }
-    }
-
-    const fileName = getFileName(fileUrl)
-    if (!fileName) {
-      const error = new Error('Unable to resolve update file name.')
-      return { message: error.message, error }
-    }
-
-    const downloadUrl = /^https?:\/\//i.test(fileUrl)
-      ? fileUrl
-      : `${RELEASES_DOWNLOAD_BASE}${fileName}`
-    const targetPath = path.join(payload.directory, fileName)
-
-    try {
-      await downloadFile(downloadUrl, targetPath)
-      return { filePath: targetPath }
-    } catch (error) {
-      return { message: 'Download failed', error }
-    }
+  ipcMain.handle(APP_UPDATE_CHANNELS.restart, event => {
+    assertTrusted(event)
+    return updates.restart()
   })
-
-  // Install now
-  ipcMain.handle('quit-and-install', runQuitAndInstall)
 }
 
-function runQuitAndInstall(): Promise<void> {
-  if (quitAndInstallSucceeded) return Promise.resolve()
-  if (quitAndInstallOperation) return quitAndInstallOperation
-
-  const operation = (async () => {
-    await prepareQuitAndInstall?.()
-    autoUpdater.quitAndInstall(false, true)
-    quitAndInstallSucceeded = true
-  })()
-  const observed = operation.catch((error: unknown) => {
-    if (quitAndInstallOperation === observed) {
-      quitAndInstallOperation = undefined
-    }
-    throw error
-  })
-  quitAndInstallOperation = observed
-  return observed
+/** A development build's updater: the service never calls it, and electron-updater is never created. */
+const INACTIVE_UPDATER: UpdaterLike = {
+  setFeedURL: () => undefined,
+  checkForUpdates: async () => null,
+  downloadUpdate: async () => [],
+  quitAndInstall: () => undefined,
+  on: () => undefined,
 }
 
 function sendToActiveWindow(channel: string, payload: unknown) {
@@ -165,97 +117,9 @@ function sendToActiveWindow(channel: string, payload: unknown) {
   activeWindow.webContents.send(channel, payload)
 }
 
-function startDownload(
-  callback: (error: Error | null, info: ProgressInfo | null) => void,
-  complete: (event: UpdateDownloadedEvent) => void,
-) {
-  downloadSubscribers.add({ progress: callback, complete })
-  if (downloadInFlight) return
-  downloadInFlight = true
-  try {
-    void Promise.resolve(autoUpdater.downloadUpdate()).catch((error: unknown) => {
-      settleDownload(
-        error instanceof Error ? error : new Error('Update download failed'),
-      )
-    })
-  } catch (error) {
-    settleDownload(
-      error instanceof Error ? error : new Error('Update download failed'),
-    )
+/** Only the application's own windows, from their main frame, may download or start an installer. */
+function assertTrusted(event: IpcMainInvokeEvent): void {
+  if (!BrowserWindow.fromWebContents(event.sender) || event.senderFrame !== event.sender.mainFrame) {
+    throw new Error('Updates are only available to the application window.')
   }
-}
-
-function settleDownload(error: Error) {
-  const subscribers = [...downloadSubscribers]
-  downloadSubscribers.clear()
-  downloadInFlight = false
-  for (const subscriber of subscribers) subscriber.progress(error, null)
-}
-
-function pickUpdateFileUrl(info: UpdateInfo) {
-  const files = info.files ?? []
-  if (!files.length) return null
-  const fileUrls = files.map(file => file.url).filter(Boolean)
-  if (!fileUrls.length) return null
-
-  const fileNameMap = fileUrls.map(url => ({ url, name: getFileName(url) }))
-  const extensions = getPlatformExtensions()
-  for (const ext of extensions) {
-    const match = fileNameMap.find(item => item.name.toLowerCase().endsWith(ext))
-    if (match) return match.url
-  }
-
-  return fileUrls[0] ?? null
-}
-
-function getPlatformExtensions() {
-  if (process.platform === 'darwin') return ['.zip']
-  if (process.platform === 'win32') return ['.exe', '.msi', '.nsis', '.zip']
-  return ['.appimage', '.deb', '.rpm', '.zip']
-}
-
-function getFileName(fileUrl: string) {
-  if (!fileUrl) return ''
-  try {
-    if (/^https?:\/\//i.test(fileUrl)) {
-      return path.basename(new URL(fileUrl).pathname)
-    }
-  } catch {
-    // ignore URL parse errors
-  }
-  return path.basename(fileUrl)
-}
-
-function downloadFile(url: string, targetPath: string, redirectCount = 0): Promise<void> {
-  if (redirectCount > 5) {
-    return Promise.reject(new Error('Too many redirects'))
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = https.get(url, response => {
-      const statusCode = response.statusCode ?? 0
-      const redirectUrl = response.headers.location
-
-      if (statusCode >= 300 && statusCode < 400 && redirectUrl) {
-        response.resume()
-        return resolve(downloadFile(redirectUrl, targetPath, redirectCount + 1))
-      }
-
-      if (statusCode !== 200) {
-        response.resume()
-        return reject(new Error(`Download failed with status ${statusCode}`))
-      }
-
-      const fileStream = fs.createWriteStream(targetPath)
-      response.pipe(fileStream)
-      fileStream.on('finish', () => fileStream.close(() => resolve()))
-      fileStream.on('error', error => {
-        fileStream.close(() => {
-          fs.promises.unlink(targetPath).catch(() => undefined).finally(() => reject(error))
-        })
-      })
-    })
-
-    request.on('error', error => reject(error))
-  })
 }

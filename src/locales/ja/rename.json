@@ -234,7 +234,7 @@
   },
   "errors": {
     "invalid_request": "無効なリクエストです",
-    "model_auth": "モデルの認証に失敗しました。API キーを確認してください",
+    "model_auth": "キー（API Key）が正しくないか無効になっています。モデル設定で確認してください",
     "model_quota": "モデルの利用枠が不足しています",
     "model_not_found": "設定されたモデルが見つかりません",
     "model_failed": "モデルへのリクエストに失敗しました",

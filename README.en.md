@@ -31,6 +31,9 @@
 - **Reviewable and reversible**: every AI change is shown as a diff first, written only after you confirm, and can be undone.
 - **Bring your own API key**: FusionKit does not provide a model API. AI features use your own key for DeepSeek, OpenAI or any OpenAI-compatible service, with live token usage and estimated cost.
 
+> [!NOTE]
+> This branch is the **0.5.1 development version**. The setup guide, the help page, download mirrors, in-app updates and other changes here are not in a stable release yet. See [Releases](https://github.com/QiuYeDx/FusionKit/releases/latest) for the latest stable version and the [CHANGELOG](CHANGELOG.md) for what changed (the changelog is written in Chinese).
+
 ## Features
 
 ### Subtitle Studio
@@ -117,25 +120,51 @@ Get the installer for your platform from [Releases](https://github.com/QiuYeDx/F
 | macOS | Apple Silicon (arm64) | `.dmg` / `.zip` |
 | Windows | x64 | `.exe` (NSIS installer) |
 
-Getting started:
+### System requirements
 
-1. Open **Setting → AI Model**, add a model profile (API endpoint, key and model name), and choose the models for the Agent and for tasks under **Model Assignment**. DeepSeek and OpenAI presets are built in.
-2. Before transcribing locally, download the recommended Whisper model from the resource manager on the transcription page (or import a compatible GGML model). Models and VAD are downloaded on demand and are not part of the installer.
+- **Windows**: Windows 10 or 11, 64-bit (x64). About 850 MB after installing; the Microsoft VC++ runtime it needs comes with the installer and is installed when missing.
+- **macOS**: macOS 12 or later, Apple silicon only (M1 or newer).
+- **Local transcription**: the recommended transcription model needs about 1 GB more, downloaded in the app with one click; no Python, FFmpeg or CUDA to install.
+
+### If FusionKit won't open
+
+The installers are not signed with paid Apple or Microsoft certificates, so the system may stop FusionKit the first time. Nothing is wrong with the file; allow it once as described below (Help in the app has the same steps):
+
+- **macOS says the developer cannot be verified, or the app cannot be opened**: close the message, open System Settings → Privacy & Security, find the note about FusionKit near the bottom, click "Open Anyway" and enter your password. On macOS 12 it is System Preferences → Security & Privacy → General.
+- **macOS says "FusionKit is damaged and can't be opened"**: the file is not broken; macOS marks apps downloaded from the internet. Drag FusionKit into the Applications folder first, open Terminal, paste this command, press Return and open FusionKit again. It only removes the download mark and does not change the app:
+
+  ```sh
+  xattr -dr com.apple.quarantine /Applications/FusionKit.app
+  ```
+
+- **Windows says "Windows protected your PC"** (SmartScreen): click "More info", then "Run anyway".
+- **FusionKit won't open on macOS after you update it**: the first launch of a new version may need to be allowed once more, in the same way.
+
+The DMG also contains a help page with these steps, "打不开请看这里 Can't open".
+
+### Getting started
+
+1. The first launch opens a setup guide. Choose **DeepSeek** (reachable from mainland China and inexpensive), click "Get key" to create a key, paste it and click "Test and save": the Agent and translation tasks can use it right away. You can also choose another service (OpenAI or any OpenAI-compatible API), or external agents if you use Claude Code, Codex or Cursor, which need no key. Change it later under **Setting → AI Model**, or reopen the guide from the Help page.
+2. For local transcription, click **Prepare in one click (recommended)** in the setup guide or under "Manage resources" on Subtitle Studio's transcription page. It installs the recommended model (about 1.0 GB) and voice detection, in the background. When the official download addresses cannot be reached, mirrors in mainland China are used automatically, or choose the download source under **Setting → Network**; every file is checked against the official record after it downloads. On Windows the installer sets up the Microsoft runtime, and the app can repair it with one click.
 3. Go back to the home page and tell the Agent what you need, or open a tool from the **Tools** page and work with it directly.
+
+With Clash or a similar proxy app, turning on its "system proxy" is enough: FusionKit follows the system proxy by default. The Windows version downloads and installs new versions in the app; the macOS version links to the new DMG. If something goes wrong, start with **Help** in the bottom navigation.
 
 Local transcription runs on Windows x64 (CPU / CUDA) and macOS arm64 (Metal / CPU); its speed depends on your hardware, the model size and the media. Resource sizes, disk space and platform support are covered in the [local subtitle transcription notes](docs/v0.2.11/local-subtitle-transcriber/local-subtitle-transcriber_release_notes.md) (in Chinese).
 
 ## Privacy and data
 
-FusionKit has no server of its own and collects no usage data. Apart from update checks, data only goes to the services you configure:
+FusionKit has no server of its own and collects no usage data. Apart from resource downloads, update checks and network tests you start yourself, data only goes to the services you configure:
 
 | When | What is sent, and where |
 | --- | --- |
-| Local transcription | Nothing by default: media and subtitles stay on your device. Only model downloads reach fixed download addresses |
+| Local transcription | Nothing by default: media and subtitles stay on your device |
+| Transcription resources and the changelog | The model, voice detection and NVIDIA pack come from their official addresses; with the download source set to "Auto" or "Mirror First", third-party mirrors are used too (ModelScope, hf-mirror.com, jsDelivr, ghfast.top, ghproxy.net). Only the files are requested and none of your content is sent; every resource is checked against its fixed size and SHA-256 after download. The changelog may also come through jsDelivr or ghfast.top |
+| Network test (manual) | When you click Test in Settings → Network: the configured model service addresses (no key is sent), the current download source and GitHub, only to see whether they can be reached |
 | AI translation, revision and the Agent | Subtitle or text content goes to the model service in your settings |
 | Web lookup (off by default) | Only search terms and page links; never subtitles or translation materials |
 | External agents (off by default) | Listens on 127.0.0.1 only and requires a token; subtitles an external agent reads are handled by that agent's own model service |
-| Update checks | GitHub Releases, for new version information |
+| Update checks | GitHub Releases, for new version information; the mirrors ghfast.top and ghproxy.net when GitHub cannot be reached (installed in the app only when GitHub or two mirrors agree; when a mirror answers first, GitHub is asked once more to confirm) |
 
 API keys are kept in the app's local settings and used only to call the services you configured. They are never written to subtitle recovery files, long text workspaces or error details. Before using a third-party model service, check its privacy and data retention policy. Some features, such as the sequential long text mode, use more tokens; your provider's bill is the source of truth for cost.
 

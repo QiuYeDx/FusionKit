@@ -15,6 +15,7 @@ import type { SpeechResourcesStatus } from '../../../src/speech-resources/events
 import type { LocalSubtitleOwnerKey } from '../../../electron/main/subtitle-studio/transcription/native/authorizations';
 import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '../../../src/subtitle-studio/transcription/task-contract';
 import { localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
+import { LOCAL_SUBTITLE_ERROR_MANIFEST } from '../../../src/subtitle-studio/transcription/domain';
 
 type Owner = LocalSubtitleOwnerKey;
 const AUDIO_TRACKS = [{ streamId: 'audio-0', ordinal: 1, isDefault: true, language: 'en', title: 'Original interview', codec: 'pcm_s16le', channels: 2, sampleRateHz: 48000 },
@@ -25,7 +26,7 @@ type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { 
   | { operation: 'recognitions'; recognitions?: Array<{ text: string } | { error: string }>; delayMs?: number }
   | { operation: 'revoke-failures'; count: number }
   | { operation: 'resource-complete'; resourceId: string }
-  | { operation: 'resource-failed'; resourceId: string }
+  | { operation: 'resource-failed'; resourceId: string; code?: string }
   | { operation: 'resource-busy'; resourceId: string; busy: boolean }
   | { operation: 'resource-name'; resourceId: string; displayName: string }
   | { operation: 'task-state'; taskId: string; status: 'preparing_media' | 'loading_model' | 'transcribing' | 'post_processing' | 'failed'; progress?: number; cleanupPending?: true }
@@ -60,8 +61,16 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
   const startResource = (owner: Owner, resourceId: string) => {
     const resource = resources.find(item => item.resourceId === resourceId);
     if (!resource) throw Object.assign(new Error('Unknown resource'), { code: 'resource_not_allowed' });
-    resource.status = 'installing';
     const now = new Date().toISOString();
+    // As in the shared engine, voice detection's load check needs the recommended model, so it fails before downloading without it.
+    if (resource.resourceType === 'vad' && resources.find(item => item.resourceType === 'model' && item.isDefault)?.status !== 'ready') {
+      const value = localSubtitleResourceJobSummarySchema.parse({ jobId: randomUUID(), resourceId, resourceType: resource.resourceType,
+        status: 'failed', progress: 1, bytesCompleted: 0, bytesTotal: 100, createdAt: now, updatedAt: now,
+        error: { code: 'model_missing', stage: 'resource', retryable: LOCAL_SUBTITLE_ERROR_MANIFEST.model_missing.retryable, message: 'A ready managed model is required for VAD load smoke.' } });
+      jobs.push({ owner: check(owner), value });
+      return structuredClone(value);
+    }
+    resource.status = 'installing';
     const value = localSubtitleResourceJobSummarySchema.parse({ jobId: randomUUID(), resourceId, resourceType: resource.resourceType,
       status: 'acquiring', progress: 24, bytesCompleted: 24, bytesTotal: 100, createdAt: now, updatedAt: now });
     jobs.push({ owner: check(owner), value });
@@ -87,9 +96,10 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
       const resource = resources.find(item => item.resourceId === command.resourceId);
       if (!resource) throw new Error('Unknown fixture resource');
       resource.status = 'not_installed';
+      const code = (command.code ?? 'model_download_failed') as keyof typeof LOCAL_SUBTITLE_ERROR_MANIFEST;
       for (const job of jobs.filter(job => job.value.resourceId === command.resourceId && active(job.value.status))) {
         job.value = localSubtitleResourceJobSummarySchema.parse({ ...job.value, status: 'failed', updatedAt: new Date().toISOString(),
-          error: { code: 'model_download_failed', stage: 'resource', retryable: true, message: 'Controlled resource download failure' } });
+          error: { code, stage: 'resource', retryable: LOCAL_SUBTITLE_ERROR_MANIFEST[code].retryable, message: 'Controlled resource download failure' } });
       }
     }
     if (command.operation === 'resource-complete') {

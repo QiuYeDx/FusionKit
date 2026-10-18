@@ -234,7 +234,7 @@
   },
   "errors": {
     "invalid_request": "请求无效",
-    "model_auth": "模型鉴权失败，请检查 API Key",
+    "model_auth": "密钥（API Key）不对或已经失效，请到模型设置里检查",
     "model_quota": "模型额度不足",
     "model_not_found": "找不到所配置的模型",
     "model_failed": "模型请求失败",

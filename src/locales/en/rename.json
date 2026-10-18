@@ -234,7 +234,7 @@
   },
   "errors": {
     "invalid_request": "Invalid request",
-    "model_auth": "Model authentication failed. Check the API key",
+    "model_auth": "The API key is wrong or no longer valid. Check it in the model settings",
     "model_quota": "The model quota is exhausted",
     "model_not_found": "The configured model was not found",
     "model_failed": "The model request failed",

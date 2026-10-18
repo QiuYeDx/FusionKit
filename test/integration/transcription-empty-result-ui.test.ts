@@ -93,7 +93,7 @@ describe.runIf(enabled)('no usable transcription is a distinct result in both ac
         await uiExpect(emptyStudio.getByRole('button', { name: locale.transcription.remove_task, exact: true })).toBeEnabled();
         await uiExpect(failureStudio).toHaveAttribute('data-state', 'failed');
         await uiExpect(failureStudio.locator('svg.text-destructive')).toHaveCount(1);
-        await uiExpect(failureStudio).toContainText(locale.transcription.task_failed);
+        await uiExpect(failureStudio).toContainText(locale.transcription.task_error.runtime.cause);
         snapshot = await studioControl(app, { operation: 'snapshot' });
         expect(snapshot.tasks[1]).toMatchObject({ status: 'no_content' });
         expect(snapshot.tasks[1].documentId).toBeUndefined(); expect(snapshot.tasks[1].error).toBeUndefined(); expect(snapshot.tasks[1].automaticTranslation).toBeUndefined();

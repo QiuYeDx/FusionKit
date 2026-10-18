@@ -40,8 +40,9 @@ describe("segmented control consumers", () => {
 
   it("uses SegmentedControl for settings-page radio groups", () => {
     const expectedConsumers = [
+      "components/ExternalAgentPermissions.tsx",
       "components/GeneralConfig.tsx",
-      "components/ModelConfig.tsx",
+      "components/ModelProfileDialog.tsx",
       "components/ProxyConfig.tsx",
     ];
 

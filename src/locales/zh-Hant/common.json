@@ -17,7 +17,8 @@
     },
     "text": {
       "translator": "長文本翻譯"
-    }
+    },
+    "help": "說明"
   },
   "start": "開始",
   "retry": "重試",
@@ -31,7 +32,9 @@
     "save": "儲存",
     "open_file_location": "開啟檔案位置",
     "edit_task_config": "編輯任務設定",
-    "info": "詳情"
+    "info": "詳情",
+    "view_help": "查看說明",
+    "token_help": "了解 Token 與費用"
   },
   "confirm": {
     "delete_running_task_title": "確認刪除",
@@ -45,25 +48,75 @@
     "available_title": "發現新版本 v{{version}}",
     "available_desc": "目前 v{{current}} → 最新 v{{latest}}",
     "ready_to_download": "點擊「更新」開始下載。",
-    "downloading": "正在下載更新...",
+    "downloading": "正在下載新版本…",
     "downloaded": "下載完成，準備安裝。",
     "progress": "更新進度",
     "up_to_date_title": "已是最新版本",
     "up_to_date_desc": "目前版本 v{{version}}",
     "latest_version": "最新版本 v{{version}}",
     "error_title": "更新失敗",
-    "open_releases": "開啟發佈頁",
+    "open_releases": "開啟下載頁面",
     "download_package": "下載安裝包",
     "downloading_package": "正在下載安裝包...",
     "manual_download_saved": "已儲存至 {{path}}",
     "manual_download_failed": "下載安裝包失敗",
     "select_directory_title": "選擇下載目錄",
     "select_directory_button": "選擇此目錄",
-    "start_download": "更新",
-    "install_now": "立即安裝",
+    "start_download": "下載並安裝",
+    "install_now": "立即重新啟動並安裝",
     "later": "稍後",
     "changelog_title": "更新內容",
-    "changelog_loading": "正在取得更新日誌…"
+    "changelog_loading": "正在取得更新日誌…",
+    "installer_size": "安裝檔約 {{size}}",
+    "transferred": "{{done}} / {{total}}",
+    "speed": "{{speed}}/秒",
+    "source_official": "下載來源：GitHub",
+    "source_mirror": "下載來源：中國大陸鏡像（{{host}}）",
+    "cancel_download": "取消下載",
+    "downloaded_title": "新版本已下載完成",
+    "downloaded_desc": "已通過完整性檢查。點「立即重新啟動並安裝」後 FusionKit 會先關閉（進行中的轉寫或翻譯會被中斷），裝好新版本後自動重新開啟；也可以點「稍後」，下次結束 FusionKit 時會自動安裝。",
+    "installing": "正在啟動安裝程式，FusionKit 即將關閉。安裝時不會出現視窗，可能需要一兩分鐘，裝好後會自動重新開啟，這段期間請不要手動開啟 FusionKit。",
+    "dev_title": "開發版本不檢查更新",
+    "dev_desc": "目前是從原始碼執行的開發版本。安裝正式版本後，才能在應用程式內檢查並安裝更新。",
+    "mac_download": "下載 DMG",
+    "mac_download_mirror": "中國大陸鏡像下載",
+    "mac_note": "更新方法：先在 Dock 裡用右鍵點 FusionKit 圖示，選「結束」；再打開下載好的 DMG，把 FusionKit 拖到「應用程式」資料夾，提示已有同名項目時選「取代」。應用程式沒有簽署，第一次開啟新版本時如果提示「無法驗證開發者」，請到「系統設定 → 隱私權與安全性」（macOS 12 為「系統偏好設定 → 安全性與隱私權」）點「強制打開」；如果提示「已損毀」，請打開「終端機」，貼上下面這行指令並按 Return，然後再開啟 FusionKit。",
+    "retry": "重試",
+    "open_network_settings": "開啟網路設定",
+    "details": "技術資訊",
+    "copy_details": "複製技術資訊",
+    "details_copied": "已複製技術資訊",
+    "error": {
+      "check_title": "檢查更新失敗",
+      "download_title": "下載更新失敗",
+      "install_title": "無法開始安裝",
+      "network_cause": "網路不通：連不上 GitHub，中國大陸鏡像也沒有回應。",
+      "network_cause_official": "網路不通：連不上 GitHub（目前只使用官方下載來源）。",
+      "network_next_check": "可以稍後再試，或在「網路」設定中更換下載來源、開啟代理。",
+      "network_next_download": "可以點「重試」，或在「網路」設定中更換下載來源、開啟代理；也可以開啟下載頁面手動下載安裝檔。",
+      "not_found_cause": "找不到新版本的安裝檔，可能還在發佈中。",
+      "not_found_next": "過一陣子再試，或開啟下載頁面手動下載。",
+      "checksum_cause": "下載的檔案沒有通過完整性檢查（可能不完整或被改動過），已經刪除，不會安裝。",
+      "checksum_next": "點「重試」重新下載；仍然不行的話，可以在「網路」設定中更換下載來源，或開啟下載頁面手動下載。",
+      "disk_cause": "無法儲存更新檔案：磁碟空間不足，或沒有寫入權限。",
+      "disk_next": "清出一些磁碟空間後點「重試」。如果空間足夠，可能是防毒軟體擋住了或檔案正被占用：可以重新啟動電腦後再試，或開啟下載頁面手動下載安裝檔。",
+      "unknown_cause": "更新時發生了問題。",
+      "unknown_next": "可以點「重試」，或開啟下載頁面手動下載安裝檔。",
+      "install_cause": "安裝程式沒有啟動。",
+      "install_next": "本機轉寫等功能已經停止，請點「重新啟動 FusionKit」，重新啟動後會再次提示新版本；也可以開啟下載頁面手動下載安裝檔。",
+      "install_prepare_cause": "FusionKit 沒能先停止執行中的功能（例如本機轉寫），安裝沒有開始。",
+      "install_prepare_next": "有些功能可能已經停止，建議點「重新啟動 FusionKit」，重新啟動後會再次提示新版本；也可以點「重試」。"
+    },
+    "mac_copy_command": "複製指令",
+    "mac_command_copied": "已複製指令",
+    "restart_app": "重新啟動 FusionKit",
+    "open_mirror_download": "中國大陸鏡像下載安裝檔",
+    "changelog_failed": "暫時無法取得更新內容，可以到下載頁面查看。",
+    "unverified_title": "這次不能在應用程式內安裝",
+    "unverified_cause": "為了安全，鏡像來源無法互相印證時不會自動安裝。這次連不上 GitHub，只有一個中國大陸鏡像給出了新版本，另一個鏡像沒有回應或說法不一致，FusionKit 無法確認安裝檔沒有被改過。",
+    "unverified_next": "可以稍後點「重新檢查」，等 FusionKit 能印證後在應用程式內安裝；也可以開啟下載頁面手動下載。「中國大陸鏡像下載安裝檔」取得的檔案同樣沒有經過核對，能開啟 GitHub 時請優先從 GitHub 下載。",
+    "check_again": "重新檢查",
+    "open_help": "查看說明"
   },
   "info": {
     "copy_success": "錯誤資訊已複製到剪貼簿"
@@ -88,5 +141,178 @@
     "message": "本次處理已結束，但未辨識到可用的語音內容，未產生字幕。",
     "help": "如果預期有人聲，請先試聽並檢查音軌、辨識語言或模型，調整後重新加入檔案。使用相同設定重複轉寫通常不會改善結果。",
     "no_output": "未產生字幕"
+  },
+  "model_error": {
+    "auth": {
+      "cause": "金鑰（API Key）不對，或者已經失效。",
+      "next": "請重新貼上正確的金鑰；如果不確定，可以在服務商網站新建一個。"
+    },
+    "balance": {
+      "cause": "帳戶餘額不足，AI 服務拒絕了這次請求。",
+      "next": "到服務商網站儲值後再試一次。"
+    },
+    "model_not_found": {
+      "cause": "找不到填寫的模型名稱。",
+      "next": "到「AI 模型」設定裡換一個模型名稱，DeepSeek 可以用 deepseek-v4-flash。",
+      "next_test": "檢查上面填寫的模型名稱，DeepSeek 可以用 deepseek-v4-flash。",
+      "next_wizard": "DeepSeek 暫時找不到預設的模型。可以點下面的「使用其他服務」，手動填寫模型名稱。"
+    },
+    "rate_limited": {
+      "cause": "請求太頻繁，AI 服務暫時限制了存取。",
+      "next": "等一兩分鐘再試；同時進行的任務少一些會更穩定。"
+    },
+    "network": {
+      "cause": "連不上 AI 服務：網路不通或者等待太久。",
+      "next": "請檢查網路。如果需要代理才能存取，可以在「網路」設定裡開啟代理。"
+    },
+    "proxy": {
+      "cause": "代理連線失敗。",
+      "next": "請確認代理軟體已經開啟，或者在「網路」設定裡改為不使用代理。"
+    },
+    "server": {
+      "cause": "AI 服務那邊暫時出錯了。",
+      "next": "過一會兒再試；一直這樣的話，可以換一個模型或服務。"
+    },
+    "bad_url": {
+      "cause": "介面位址不對，那裡不是 AI 服務的介面。",
+      "next": "到「AI 模型」設定裡檢查「介面位址」，DeepSeek 應為 https://api.deepseek.com/v1。",
+      "cause_wizard": "收到的回應不是來自 DeepSeek，可能被網路或代理攔截了。",
+      "next_test": "檢查上面填寫的「介面位址」，DeepSeek 應為 https://api.deepseek.com/v1。",
+      "next_wizard": "請檢查網路設定；使用代理的話，確認代理軟體已經開啟。"
+    },
+    "unknown": {
+      "cause": "AI 請求失敗，原因沒能識別。",
+      "next": "可以在「AI 模型」設定裡點「測試連線」檢查設定。",
+      "next_test": "稍後再試一次；仍然失敗的話，可以對照下面服務回傳的資訊檢查設定。"
+    },
+    "actions": {
+      "open_model_settings": "開啟模型設定",
+      "open_network_settings": "開啟網路設定",
+      "open_deepseek_keys": "取得新的 Key",
+      "open_deepseek_topup": "去儲值",
+      "open_help": "查看說明"
+    },
+    "detail": "服務回傳：{{detail}}",
+    "connection_detail": "連線情況：{{detail}}",
+    "reason": {
+      "missing_key": {
+        "cause": "還沒有填寫金鑰（API Key）。",
+        "next": "把服務商給你的金鑰貼到上面，再測試。"
+      },
+      "key_characters": {
+        "cause": "金鑰裡有中文、全形符號或空格，可能多複製了別的文字。",
+        "next": "只貼上金鑰本身（DeepSeek 的金鑰以 sk- 開頭），再試一次。"
+      },
+      "missing_url": {
+        "cause": "還沒有填寫介面位址。",
+        "next": "填寫服務商提供的介面位址，例如 https://api.deepseek.com/v1。"
+      },
+      "invalid_url": {
+        "cause": "介面位址的格式不對，要以 http:// 或 https:// 開頭。",
+        "next": "對照服務商的說明修改，例如 https://api.deepseek.com/v1。"
+      },
+      "missing_model": {
+        "cause": "還沒有填寫模型名稱。",
+        "next": "填寫服務商提供的模型名稱，例如 deepseek-v4-flash。"
+      },
+      "timeout": {
+        "cause": "等了 {{seconds}} 秒，AI 服務沒有回應。"
+      }
+    }
+  },
+  "onboarding": {
+    "step": "第 {{current}} 步，共 {{total}} 步",
+    "recommended": "推薦",
+    "back": "返回",
+    "skip": "略過，以後再說",
+    "choose": {
+      "title": "歡迎使用 FusionKit",
+      "description": "你想怎麼使用 FusionKit？之後隨時可以在設定裡變更。",
+      "ai_title": "使用 DeepSeek 等 AI 服務",
+      "ai_description": "翻譯字幕、修訂字幕、和助手對話都需要一個 AI 服務。只要貼上一個金鑰。",
+      "external_title": "我用 Claude Code、Codex 或 Cursor",
+      "external_description": "讓你已有的 AI 工具連接 FusionKit 來完成任務，不需要在這裡填寫金鑰。",
+      "local_title": "先只用本機功能",
+      "local_description": "本機轉寫、格式轉換、擷取語言等功能不需要 AI 服務。"
+    },
+    "deepseek": {
+      "title": "連接 DeepSeek",
+      "description": "測試通過後，助手和翻譯任務都會直接使用它。",
+      "intro": "中國大陸可直接存取、價格低。按用量付費，翻譯字幕花費很少。",
+      "step_key": "點「取得 Key」，登入 DeepSeek 開放平台，建立一個 API Key。",
+      "step_top_up": "新帳戶需要先儲值一點餘額。",
+      "step_paste": "把 Key 貼到下面，點「測試並儲存」。",
+      "get_key": "取得 Key",
+      "top_up": "儲值",
+      "key_placeholder": "貼上以 sk- 開頭的 Key",
+      "test_and_save": "測試並儲存",
+      "other_service": "使用其他服務",
+      "saved": "已儲存，助手和翻譯任務都會使用 DeepSeek。",
+      "saved_tasks_only": "已儲存，翻譯任務會使用 DeepSeek。助手正在對話中，暫時還用原來的模型，可以在設定的「AI 模型」頁更換。"
+    },
+    "local": {
+      "title": "要用本機轉寫嗎？",
+      "description": "把影片或音訊裡說的話變成字幕，全部在這台電腦上完成，不用上傳。",
+      "model": "推薦的辨識模型",
+      "model_value": "標準，約 1.0 GB",
+      "vad": "語音偵測（自動略過靜音）",
+      "vad_value": "約 0.9 MB",
+      "free_space": "電腦剩餘空間",
+      "free_space_value": "{{size}} GB",
+      "low_space": "剩餘空間可能不夠，建議先清出至少 {{size}} GB。",
+      "note": "點「一鍵準備」後會在背景下載推薦模型和語音偵測，下載時可以繼續做別的事，完成後會提醒你。",
+      "later": "暫時不用",
+      "prepare": "一鍵準備",
+      "external_note": "Claude Code、Codex 或 Cursor 透過 FusionKit 進行本機轉寫時，也會用到這些資源。"
+    },
+    "done": {
+      "title": "準備好了",
+      "description": "點一個例子試試看，也可以直接在首頁告訴助手你想做什麼。",
+      "open_tool": "開啟這個工具",
+      "no_model": "還沒有連接 AI 服務，所以例子會開啟對應的工具。需要時可以在設定的「AI 模型」頁點「重新開啟新手引導」。",
+      "start": "開始使用",
+      "description_no_model": "點一個例子，開啟對應的工具試試看。",
+      "resources_title": "下載本機轉寫模型",
+      "resources_description": "開啟本機資源，下載推薦模型和語音偵測（約 1.0 GB），下載時可以繼續做別的事。",
+      "examples_label": "範例任務",
+      "prepare_running": "正在準備本機轉寫（{{percent}}%）",
+      "prepare_running_description": "推薦模型和語音偵測正在背景下載，可以繼續做別的事。點這裡查看進度。",
+      "prepare_done": "本機轉寫已準備好",
+      "prepare_done_description": "推薦模型和語音偵測都裝好了。點這裡開始轉寫。",
+      "prepare_failed": "有資源沒有裝好",
+      "prepare_failed_description": "點這裡開啟本機資源查看原因，處理後再點一次「一鍵準備」。",
+      "prepare_runtime": "裝好後會自動開始下載推薦模型和語音偵測。",
+      "open_resources": "開啟本機資源",
+      "external_title": "連線 Claude Code、Codex 或 Cursor",
+      "external_description": "開啟「外部 Agent」設定，依頁面上的說明把 FusionKit 加到你的 AI 工具裡，不需要在這裡填寫金鑰。",
+      "open_external": "開啟外部 Agent 設定"
+    },
+    "left_notice": "剛才貼上的金鑰已保留。改好網路設定後，點「回到新手引導」繼續；也可以在設定的「AI 模型」頁重新開啟。",
+    "resume": "回到新手引導"
+  },
+  "system_setup": {
+    "vc_runtime": {
+      "title": "需要安裝微軟執行庫",
+      "missing": "本機轉寫需要用到微軟 VC++ 執行庫，這台電腦還沒有安裝。",
+      "outdated": "這台電腦的微軟 VC++ 執行庫版本太舊（{{installed}}），本機轉寫需要 {{required}} 或更新的版本。",
+      "next": "點「一鍵修復」後，Windows 會跳出確認視窗，選「是」即可，大約需要 1 分鐘。",
+      "next_download": "點「一鍵修復」會在瀏覽器中開啟微軟的下載頁，下載後執行 vc_redist.x64.exe 安裝。",
+      "repair": "一鍵修復",
+      "repairing": "正在安裝…",
+      "repairing_hint": "請在 Windows 跳出的確認視窗中選「是」，然後等待安裝完成。",
+      "cancelled": "剛才在確認視窗中選了「否」，執行庫沒有安裝。準備好後再點一次「一鍵修復」。",
+      "failed": "執行庫沒有裝好。可以再試一次，或到微軟官網手動下載安裝，裝好後點「重新檢查」。",
+      "manual_download": "手動下載",
+      "opened_download": "已在瀏覽器中開啟微軟的下載頁。下載並執行 vc_redist.x64.exe，裝好後點「重新檢查」。",
+      "check_again": "重新檢查",
+      "restart_required": "微軟執行庫已安裝，重新開機後生效。"
+    }
+  },
+  "local_preparation": {
+    "done_toast": "本機轉寫已準備好",
+    "done_toast_description": "推薦模型和語音偵測都裝好了。",
+    "failed_toast": "本機轉寫資源沒有裝好",
+    "failed_toast_description": "開啟本機資源可以看到原因。",
+    "open": "查看"
   }
 }

@@ -18,6 +18,7 @@ import { shouldFollowUpUiEvent, UI_EVENT_PREFIX, uiEventModelText } from "./ui-e
 import useWebLookupStore from "@/store/useWebLookupStore";
 import { bindTurnSession } from "./turn-context";
 import { generateSessionTitle } from "./session-title-generator";
+import { classifyModelError } from "@/services/ai-error-guide";
 
 // ---------------------------------------------------------------------------
 // Orchestrator — 驱动 Chat Completions / Responses 对话 + 工具循环
@@ -526,8 +527,11 @@ async function runTurn(sessionId: string, userMsg: AgentMessage): Promise<void> 
       } else {
         const raw = error instanceof Error ? error.message : String(error);
         const detail = agentProfile?.apiKey ? raw.split(agentProfile.apiKey).join("[redacted]") : raw;
-        store().addMessage({ id: generateId(), role: "assistant", content: i18n.t("home:agent_call_error", { error: detail }), timestamp: Date.now() });
-        store().appendLog("error", detail, { turnId: turn.id });
+        // Known causes (wrong key, no balance, no network...) get a card with the next step.
+        const category = classifyModelError(error);
+        store().addMessage({ id: generateId(), role: "assistant", content: i18n.t("home:agent_call_error", { error: detail }), timestamp: Date.now(),
+          ...(category !== "unknown" ? { failure: { category } } : {}) });
+        store().appendLog("error", detail, { turnId: turn.id, category });
         store().setStatus("error");
       }
     }

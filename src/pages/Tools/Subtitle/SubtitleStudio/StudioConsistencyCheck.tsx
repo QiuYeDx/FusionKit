@@ -14,6 +14,8 @@ import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
 import { CONSISTENCY_CUE_LIMIT, CONSISTENCY_DOCUMENT_LIMIT, type ConsistencyGroup, type ConsistencyResult } from '@/subtitle-studio/consistency-contract';
 import { translationModelSchema } from '@/subtitle-studio/translation-contract';
 import { unwrapStudio } from '@/services/subtitle-studio/client';
+import { ModelErrorGuide } from '@/components/model-error/ModelErrorGuide';
+import type { ModelErrorCategory } from '@/lib/model-error-category';
 import { hasMaterials, translationDraftMemory } from '@/services/subtitle-studio/translation-draft';
 import type { LibrarySnapshot } from '@/translation-knowledge/ipc-contract';
 import { cueKey, defaultChoice, groupChanges, hasSpellings, hasTranslations, planConsistencyEdits, unfixablePlaces, wordingsToKeep, type CueTexts, type GroupChoice } from './consistency-apply';
@@ -89,6 +91,8 @@ export function StudioConsistencyCheck({ request, currentDocumentId, editBlocked
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [error, setError] = useState<ErrorCode | null>(null);
+  /** Why the model request behind `error` failed, when known. */
+  const [modelFailure, setModelFailure] = useState<{ error: ErrorCode; category: ModelErrorCategory } | null>(null);
   const [library, setLibrary] = useState<LibrarySnapshot | null>(null);
   const running = useRef<string | null>(null);
   const generation = useRef(0);
@@ -142,7 +146,7 @@ export function StudioConsistencyCheck({ request, currentDocumentId, editBlocked
     const run = ++generation.current;
     const requestId = crypto.randomUUID();
     running.current = requestId;
-    setPending('check'); setError(null); setResult(null); setReceipt(null);
+    setPending('check'); setError(null); setModelFailure(null); setResult(null); setReceipt(null);
     try {
       const value = await unwrapStudio(window.subtitleStudio.checkConsistency({ requestId, documents: documents.map(item => ({ documentId: item.documentId, revision: item.revision, ...(item.trackId ? { trackId: item.trackId } : {}) })),
         ...(focus.trim() ? { focus: focus.trim() } : {}), ...(materials ? { knowledge: materials } : {}), model: model.data!, maxOutputTokens: maxOutputTokens(), apiKey: profile!.apiKey }));
@@ -154,6 +158,7 @@ export function StudioConsistencyCheck({ request, currentDocumentId, editBlocked
       if (generation.current !== run) return;
       const code = failure instanceof StudioError ? failure.code : 'translation_failed';
       if (code !== 'interrupted') setError(code);
+      setModelFailure(failure instanceof StudioError && failure.category ? { error: code, category: failure.category } : null);
       settle(code === 'interrupted' ? { status: 'cancelled' } : { status: 'failed', error: code });
     } finally {
       if (running.current === requestId) running.current = null;
@@ -351,6 +356,7 @@ export function StudioConsistencyCheck({ request, currentDocumentId, editBlocked
           {!configured && <div className="studio-translation-configuration"><p><AlertCircle className="size-4 shrink-0" />{t('studio:translation.model_required')}</p><Button variant="outline" size="sm" onClick={() => { close(); navigate('/setting?tab=model'); }}><Settings />{t('studio:translation.model_settings')}</Button></div>}
         </div>}
         {error && <p role="alert" className="studio-cue-revision-error"><AlertCircle />{t(`studio:cue_revision.errors.${error === 'translation_protocol_invalid' ? 'protocol_invalid' : error === 'translation_output_limit' ? 'output_limit' : 'failed'}`)}</p>}
+        {error && modelFailure?.error === error && <ModelErrorGuide category={modelFailure.category} profile={profile} onBeforeAction={close} testId="studio-consistency-error-guide" />}
         {pending === 'check' && <div className="studio-cue-revision-progress" role="status" data-testid="studio-consistency-progress"><span><LoaderCircle className="animate-spin" />{t('studio:consistency.checking', { count: cueCount })}</span></div>}
         {receipt && <section className="studio-cue-revision-result studio-consistency-receipt" data-testid="studio-consistency-receipt">
           {receipt.applied.length > 0 ? <p className="studio-cue-revision-summary"><span>{t('studio:consistency.applied', { groups: chosenGroups.length, count: receipt.applied.reduce((sum, item) => sum + item.count, 0), documents: receipt.applied.length })}</span></p>

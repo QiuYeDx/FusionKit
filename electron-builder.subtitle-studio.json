@@ -66,9 +66,20 @@
       }
     ],
     "icon": "build/FusionKit.ico",
-    "artifactName": "${productName}_${version}_${arch}.${ext}"
+    "artifactName": "${productName}_${version}_${arch}.${ext}",
+    "extraResources": [
+      {
+        "from": "build/vc-redist",
+        "to": "vc-redist",
+        "filter": [
+          "vc_redist.x64.exe",
+          "vc-redist.json"
+        ]
+      }
+    ]
   },
   "nsis": {
+    "include": "build/installer.nsh",
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
@@ -81,7 +92,30 @@
     "shortcutName": "FusionKit"
   },
   "dmg": {
-    "icon": "build/FusionKit.icns"
+    "icon": "build/FusionKit.icns",
+    "window": {
+      "width": 540,
+      "height": 380
+    },
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      },
+      {
+        "x": 270,
+        "y": 80,
+        "type": "file",
+        "path": "build/dmg/打不开请看这里.html",
+        "name": "打不开请看这里 Can't open.html"
+      }
+    ]
   },
   "publish": {
     "provider": "github",

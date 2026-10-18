@@ -79,7 +79,9 @@
       "path_selection_failed": "路徑選擇失敗，請重試",
       "please_select_output_url": "請先選擇輸出路徑",
       "source_path_missing": "無法讀取來源檔案路徑，請改用自訂輸出目錄",
-      "read_file_failed": "讀取檔案 {file} 失敗"
+      "read_file_failed": "讀取檔案 {file} 失敗",
+      "request_failed": "翻譯請求失敗",
+      "request_failed_cause": "翻譯請求失敗：{{cause}}"
     },
     "upload_section": "檔案上傳",
     "task_management": "任務佇列",
@@ -90,12 +92,12 @@
       "total_cost": "預估總費用",
       "pending_tokens": "待處理Token",
       "pending_cost": "待處理費用",
-      "cost_tooltip": "目前僅為翻譯前預估，最終以模型服務商回傳的 usage 與帳單為準。",
+      "cost_tooltip": "這是翻譯開始前的預估。Token 是 AI 計算文字長度和費用的單位，大約一個漢字或一個英文單字算 1 個；實際費用以服務商的帳單為準。",
       "actual_tokens": "實際 Token",
       "calculated_cost": "已發生計算費用",
       "remaining_estimated_cost": "剩餘預估費用",
-      "actual_usage_tooltip": "Token 數來自模型 API 回應中的 usage 欄位，並依每次已回傳的請求累計。",
-      "partial_usage_tooltip": "部分模型回應沒有完整 usage；目前數字只累計服務商已回報的 Token，可能低於實際消耗。",
+      "actual_usage_tooltip": "這裡的 Token 數是 AI 服務每次回答時回報的用量，依已經完成的請求累計。",
+      "partial_usage_tooltip": "有的回答沒有回報完整的用量，這裡只累計了已回報的部分，可能比實際用得少。",
       "calculated_cost_tooltip": "依 API 回報的實際 Token 與任務建立時凍結的模型單價計算，不等同服務商帳單。DeepSeek 的快取命中與分時價格可能造成差異。",
       "unpriced_cost_tooltip": "部分實際用量來自沒有凍結模型單價的舊任務，無法可靠計算彙總費用。",
       "remaining_cost_tooltip": "未開始任務使用完整預估；執行中任務扣除已發生的計算費用。失敗與已完成任務不列入剩餘。"
@@ -105,7 +107,7 @@
       "slice_mode": "分片模式",
       "api_model": "API 模型",
       "thinking_mode": "Thinking 模式",
-      "api_endpoint": "API 位址",
+      "api_endpoint": "介面位址",
       "source_file": "來源檔案",
       "output_path": "輸出路徑",
       "conflict_policy": "重名策略",
@@ -117,9 +119,9 @@
       "actual_usage": "實際用量",
       "estimated_usage": "任務預估",
       "calculated_cost": "計算費用",
-      "request_coverage": "Usage 覆蓋請求",
+      "request_coverage": "回報了用量的請求",
       "cached_input": "快取輸入",
-      "reasoning_output": "推理 Token",
+      "reasoning_output": "思考用的 Token",
       "actual_short": "實際",
       "input": "輸入",
       "output": "輸出",
@@ -262,7 +264,7 @@
       "title": "轉寫設定",
       "model": "本機模型",
       "no_model": "沒有可用模型",
-      "model_details": "{{format}} · {{quantization}} · {{size}}",
+      "model_details": "模型檔案大小：{{size}}",
       "device": "運算裝置",
       "device_option": {
         "auto": "自動選擇（建議）",
@@ -284,23 +286,23 @@
       "task_mode": "任務模式",
       "task_transcribe": "原文轉寫",
       "task_translate_english": "轉為英文",
-      "vad": "語音活動偵測",
-      "vad_hint": "減少靜音片段中的錯誤轉寫。",
+      "vad": "語音偵測",
+      "vad_hint": "自動略過沒有人說話的部分，減少誤識別。",
       "window_strategy": "音訊分塊",
       "window_fixed": "固定視窗",
       "window_pause": "優先依停頓分塊（推薦）",
       "window_strategy_hint": "僅影響新任務；重試沿用原任務的選擇。",
-      "window_pause_note": "優先在明顯停頓處分塊，減少接縫重複；無合適停頓時使用重疊視窗。自動開啟 VAD，如需關閉請先切換為固定視窗。30 秒以內或超過 24 小時的音訊沿用固定視窗。",
-      "window_pause_vad_required": "停頓分塊需要 VAD，已自動開啟。如需關閉，請先將音訊分塊切換為固定視窗。",
-      "vad_ready": "VAD 資源已就緒",
-      "vad_not_ready": "啟用前需要先安裝 VAD 資源",
-      "initial_prompt": "初始提示詞",
+      "window_pause_note": "優先在明顯停頓處分塊，減少接縫重複；沒有合適停頓時使用重疊視窗。會自動開啟語音偵測，如需關閉請先切換為固定視窗。30 秒以內或超過 24 小時的音訊沿用固定視窗。",
+      "window_pause_vad_required": "依停頓分塊需要語音偵測，已自動開啟。如需關閉，請先將音訊分塊切換為固定視窗。",
+      "vad_ready": "語音偵測已就緒",
+      "vad_not_ready": "開啟前需要先安裝語音偵測",
+      "initial_prompt": "上下文提示",
       "initial_prompt_hint": "僅用於目前頁面工作階段，不會儲存。",
       "initial_prompt_placeholder": "人名、術語或上下文",
       "advanced": "進階設定",
-      "beam_size": "Beam 數量",
+      "beam_size": "搜尋寬度",
       "temperature": "溫度",
-      "vad_silence": "VAD 靜音 (ms)",
+      "vad_silence": "最短靜音（毫秒）",
       "max_cue_duration": "建議單條時長 (ms)",
       "max_cue_chars": "建議單條字數",
       "max_line_chars": "建議每行字數",
@@ -327,15 +329,15 @@
       "status_summary": "{{status}} · 資源 {{ready}} / {{total}}",
       "unavailable_short": "不可用",
       "platform": "平台",
-      "contract": "服務合約",
-      "runner": "Whisper 執行器",
+      "contract": "服務版本",
+      "runner": "轉寫程式",
       "ffmpeg": "FFmpeg",
       "not_ready": "尚未就緒",
-      "runtime_details": "執行環境詳情",
-      "backends": "後端探測",
+      "runtime_details": "詳細資訊",
+      "backends": "可用的處理裝置",
       "execution_profile": "{{preference}} -> {{backend}} · {{version}}",
-      "resolving_backend": "正在解析執行後端",
-      "no_backend_data": "暫無後端探測資料",
+      "resolving_backend": "正在確認用哪種裝置處理",
+      "no_backend_data": "還沒有檢查處理裝置",
       "backend": {
         "cpu": "CPU",
         "cuda": "CUDA",
@@ -344,19 +346,20 @@
       "backend_status": {
         "available": "可用",
         "unavailable": "不可用",
-        "unverified": "未驗證",
-        "not_reported": "未回報"
+        "unverified": "還沒確認能用",
+        "not_reported": "沒有檢查"
       },
       "error": {
-        "unsupported_platform": "目前平台不受本機字幕執行環境支援。",
-        "unsupported_architecture": "目前裝置架構與本機字幕執行環境不相容。",
-        "runtime_missing": "應用程式內建的 Whisper 執行器遺失。",
-        "runtime_protocol_mismatch": "應用程式內建的 Whisper 執行器損壞或版本不相容。",
-        "media_runtime_missing": "應用程式內建的 FFmpeg/ffprobe 執行環境遺失。",
-        "media_runtime_invalid": "應用程式內建的 FFmpeg/ffprobe 執行環境損壞或版本不相容。",
-        "media_runtime_launch_failed": "應用程式內建的 FFmpeg/ffprobe 無法啟動。",
+        "unsupported_platform": "這台電腦的系統暫不支援本機轉寫。",
+        "unsupported_architecture": "這台電腦的處理器類型暫不支援本機轉寫。",
+        "runtime_missing": "應用程式內建的轉寫程式不見了。",
+        "runtime_protocol_mismatch": "應用程式內建的轉寫程式損壞，或者版本對不上。",
+        "media_runtime_missing": "應用程式內建的影音處理元件不見了。",
+        "media_runtime_invalid": "應用程式內建的影音處理元件損壞，或者版本對不上。",
+        "media_runtime_launch_failed": "應用程式內建的影音處理元件無法啟動。",
         "unknown": "無法完成本機執行環境檢查。",
-        "recovery": "這些元件應隨 FusionKit 一起提供，無需另外安裝 FFmpeg 或 Whisper。請先重新檢查；若仍失敗，從原始碼執行時請重新組裝專案內的本機執行環境，安裝版請更新或重新安裝 FusionKit。已下載模型與已匯出字幕不會因此刪除。"
+        "recovery": "這些元件隨 FusionKit 一起安裝，不需要另外安裝 FFmpeg 或 Whisper。請先點「重新檢查環境」；仍然失敗的話，請更新或重新安裝 FusionKit。已下載的模型和匯出的字幕不會被刪除。",
+        "recovery_dev": "開發提示：從原始碼執行時，請重新組裝專案內的本機執行環境。"
       }
     },
     "file": {
@@ -442,19 +445,19 @@
       "error": {
         "configuration_not_ready": "字幕翻譯設定仍在載入，請等待翻譯器就緒後重試。",
         "directory_authorization_required": "使用此模式前，請在字幕翻譯器中選擇或重新授權輸出目錄。",
-        "profile_required": "自動開始翻譯需要有效的翻譯設定和 API Key。"
+        "profile_required": "自動開始翻譯需要可用的翻譯設定和金鑰（API Key）。"
       }
     },
     "resources": {
-      "title": "託管資源",
-      "managed_only": "來自內建清單的受控資源",
+      "title": "本機資源",
+      "managed_only": "只能安裝清單裡的資源",
       "disk_usage": "已佔用：{{size}}",
-      "loading": "正在讀取託管資源清單...",
-      "empty": "目前平台沒有可用的託管資源。",
+      "loading": "正在讀取資源清單…",
+      "empty": "這台電腦暫時沒有可安裝的資源。",
       "type": {
         "model": "模型",
-        "vad": "語音活動偵測",
-        "accelerator": "GPU 加速元件"
+        "vad": "語音偵測",
+        "accelerator": "顯示卡加速"
       },
       "status": {
         "not_installed": "未安裝",
@@ -465,18 +468,18 @@
       "job": {
         "queued": "等待開始",
         "acquiring": "正在取得檔案",
-        "verifying": "正在驗證完整性",
-        "load_smoke": "正在檢查執行相容性",
-        "signature_check": "正在檢查簽章",
-        "committing": "正在提交資源",
+        "verifying": "正在檢查檔案是否完整",
+        "load_smoke": "正在試執行，確認能用",
+        "signature_check": "正在檢查檔案來源",
+        "committing": "正在完成安裝",
         "completed": "安裝完成",
         "cancelling": "正在取消",
         "cancelled": "已取消",
         "failed": "安裝失敗"
       },
       "import": {
-        "title": "匯入相容模型",
-        "description": "選擇與內建清單相符的 GGML 模型檔案。FusionKit 會在提交前驗證檔案大小、雜湊與 CPU 載入能力。",
+        "title": "匯入模型",
+        "description": "選擇與內建清單中某個模型完全一致的檔案（大小和內容都相同）。匯入時會檢查檔案是否完整、能否正常載入。",
         "estimated_usage": "預計新增佔用：{{size}}",
         "matched_model": "相符模型：{{name}}",
         "unrecognized_model": "此檔案大小與尚未安裝的內建模型不符。",
@@ -484,13 +487,13 @@
         "copy": "複製",
         "move": "移動",
         "copy_hint": "驗證並安裝副本後，所選來源檔案會繼續保留。",
-        "move_hint": "僅在模型完成驗證並安全提交後移除所選來源檔案。"
+        "move_hint": "確認模型可以使用並裝好之後，才會刪除原來的檔案。"
       },
       "delete": {
-        "title": "刪除託管資源？",
-        "description": "將從 FusionKit 的託管儲存空間中刪除 {{name}}，之後仍可重新安裝。"
+        "title": "刪除這個資源？",
+        "description": "將從 FusionKit 中刪除 {{name}}，之後可以重新安裝。"
       },
-      "shared_hint": "模型、語音偵測與 CUDA 資源儲存在應用程式共用目錄，兩個字幕工具共用一份，安裝一次即可使用。",
+      "shared_hint": "模型、語音偵測和顯示卡加速儲存在同一個地方，「本機字幕轉寫」和「字幕工作台」共用一份，安裝一次即可。",
       "migration_issues": "部分舊資源無法安全移轉，原始檔案已保留。可重新開啟應用程式重試；若仍未就緒，請檢查資源狀態。",
       "shared_cleanup_pending": "共用資源仍在清理，請等待清理完成後再安裝或刪除。",
       "shared_busy": "字幕工作或資源操作正在使用此資源。",
@@ -500,12 +503,12 @@
     "readiness": {
       "environment_loading": "正在檢查本機執行環境。",
       "environment_unavailable": "無法讀取本機執行環境狀態。",
-      "runtime_unavailable": "本機轉寫執行環境或 CPU 後端目前不可用。",
+      "runtime_unavailable": "本機轉寫程式暫時無法使用，請點「重新檢查環境」。",
       "session_unavailable": "任務工作階段尚未就緒，請重新檢查環境。",
       "model_required": "需要一個已安裝且可用的本機模型。",
-      "vad_required": "已啟用語音活動偵測，請先安裝並驗證 VAD 資源。",
-      "backend_preview_loading": "正在解析目前模型的執行後端。",
-      "backend_preview_unavailable": "無法驗證目前模型的執行後端，請重新檢查本機環境。",
+      "vad_required": "已開啟語音偵測，請先安裝語音偵測，或者把它關掉。",
+      "backend_preview_loading": "正在確認這個模型用哪種裝置處理。",
+      "backend_preview_unavailable": "還不能確認這個模型能用哪種裝置處理，請點「重新檢查環境」。",
       "file_required": "請至少選擇一個音訊或影片檔案。",
       "media_probe_loading": "正在讀取所選檔案的媒體資訊。",
       "media_probe_failed": "部分檔案的媒體資訊讀取失敗，請重試或移除檔案。",
@@ -654,11 +657,11 @@
     },
     "tour": {
       "model_setup_title": "先準備本機模型",
-      "model_setup_content": "首次使用前必須先準備模型，否則無法開始轉寫。可在本機環境中下載託管模型，或點擊「匯入模型」加入相容的 GGML 模型檔案。",
+      "model_setup_content": "第一次轉寫前要先準備模型，否則無法開始。可以在本機環境裡下載清單中的模型；已有模型檔案的話，也可以點「匯入模型」，但檔案必須和清單中的模型完全一致。",
       "config_title": "轉寫設定",
       "config_content": "在左側面板設定本機模型、運算裝置、輸出格式，以及轉寫完成後的處理方式。設定會自動儲存。",
       "model_title": "選擇本機模型",
-      "model_content": "選擇已安裝且可用的本機 Whisper 模型。模型越大通常越準確，但需要更多儲存空間和運算資源。",
+      "model_content": "選擇一個已經裝好的辨識模型。模型越大通常越準確，但會佔用更多磁碟空間，轉寫也更慢。",
       "language_title": "設定來源語言",
       "language_content": "選擇媒體中的語言，或保留自動偵測，讓模型根據音訊內容判斷。",
       "upload_title": "加入音訊或影片",
@@ -668,6 +671,127 @@
       "start_title": "開始轉寫",
       "start_content": "確認環境、模型和媒體都準備好後，點擊這裡開始全部待處理任務。",
       "trigger": "使用引導"
+    },
+    "error_guide": {
+      "details": "診斷資訊",
+      "copy": "複製診斷資訊",
+      "copied": "已複製診斷資訊",
+      "open_network_settings": "開啟網路設定",
+      "open_translator": "開啟字幕翻譯",
+      "runtime_crashed": {
+        "cause": "轉寫程式意外結束了，或者長時間沒有回應。",
+        "next": "請再試一次。Windows 上如果頁面上方提示缺少微軟執行階段程式庫，請先點「一鍵修復」；仍然失敗的話，重新啟動電腦後再試。",
+        "next_cpu": "可以點「改用 CPU 重試」。Windows 上如果頁面上方提示缺少微軟執行階段程式庫，請先點「一鍵修復」。"
+      },
+      "accelerator": {
+        "cause": "顯示卡加速現在無法使用。",
+        "next": "可以在本機環境裡重新安裝顯示卡加速，或者更新顯示卡驅動程式；也可以把「運算裝置」改成 CPU 後再轉寫。",
+        "next_cpu": "可以點「改用 CPU 重試」；也可以在本機環境裡重新安裝顯示卡加速，或者更新顯示卡驅動程式。"
+      },
+      "model_missing": {
+        "cause": "選中的模型還沒有裝好。",
+        "next": "請先在本機環境裡下載這個模型。"
+      },
+      "model_incompatible": {
+        "cause": "模型檔案沒能正常載入。",
+        "next": "Windows 上請先確認微軟執行階段程式庫已經裝好（缺少時頁面上方會提示），然後重新下載模型。"
+      },
+      "verify": {
+        "cause": "下載的檔案沒有通過完整性檢查。",
+        "next": "請再下載一次；還是失敗的話，可以在「設定 → 網路」裡換個下載來源。"
+      },
+      "download": {
+        "cause": "下載沒有完成，通常是連不上下載位址或被網路攔截。",
+        "next": "可以在「設定 → 網路」裡換個下載來源或開啟代理，再重新下載。"
+      },
+      "disk": {
+        "cause": "磁碟空間不夠。",
+        "next": "請清出足夠的空間後再試一次。"
+      },
+      "not_allowed": {
+        "cause": "這個資源不在可以下載的清單裡。",
+        "next": "請更新 FusionKit 後再試。"
+      },
+      "authorization": {
+        "cause": "存取這個檔案的授權已經過期。",
+        "next": "請重新選擇檔案後再試。"
+      },
+      "media": {
+        "cause": "這個檔案裡讀不出可以轉寫的聲音。",
+        "next": "請確認檔案能正常播放，或者轉換成常見格式（如 MP4、MP3）後再試。"
+      },
+      "no_audio": {
+        "cause": "這個檔案裡沒有音軌。",
+        "next": "請換一個有聲音的檔案。"
+      },
+      "media_changed": {
+        "cause": "轉寫過程中，原檔案被修改或移動了。",
+        "next": "請重新加入檔案後再轉寫。"
+      },
+      "transcription": {
+        "cause": "轉寫沒能完成。",
+        "next": "請再試一次；仍然失敗的話，可以換一個模型再轉寫。",
+        "next_cpu": "可以再試一次，或者點「改用 CPU 重試」。"
+      },
+      "memory": {
+        "cause": "電腦記憶體不夠用了。",
+        "next": "請關掉其他佔用記憶體的程式，或者換一個檔案較小的模型後再試。"
+      },
+      "output_conflict": {
+        "cause": "儲存位置已經有同名檔案。",
+        "next": "可以在「檔案衝突」裡選「自動編號」，或者換一個輸出目錄。"
+      },
+      "output_write": {
+        "cause": "字幕檔案沒能儲存。",
+        "next": "請確認輸出目錄存在、可以寫入，並且空間足夠。"
+      },
+      "cleanup": {
+        "cause": "暫存檔案沒能清理乾淨。",
+        "next": "可以重新啟動 FusionKit 後再試。"
+      },
+      "artifact": {
+        "cause": "這個字幕檔案已經被修改、移動或刪除了。",
+        "next": "可以在資料夾中查看，或者重新轉寫。"
+      },
+      "preview": {
+        "cause": "這個字幕檔案太大，或者格式不對。",
+        "next": "可以在資料夾中直接開啟它。"
+      },
+      "limit": {
+        "cause": "一次加入的檔案或內容超出了上限。",
+        "next": "請減少數量後再試。"
+      },
+      "partial": {
+        "cause": "任務已取消，取消前已經匯出的字幕保留了下來。"
+      },
+      "page_stale": {
+        "cause": "頁面和本機轉寫服務之間的連線已經失效。",
+        "next": "請重新啟動 FusionKit 後再試。"
+      },
+      "translation_setup": {
+        "cause": "字幕翻譯還沒有可用的模型設定。",
+        "next": "請在「設定 → AI 模型」裡新增設定並填好金鑰，再在「執行設定」裡選擇它。"
+      },
+      "duplicate": {
+        "cause": "這個字幕已經在字幕翻譯的清單裡了，沒有重複加入。",
+        "next": "可以開啟字幕翻譯查看。"
+      },
+      "unsupported_format": {
+        "cause": "字幕翻譯不支援這種字幕格式。",
+        "next": "請在「翻譯交接格式」裡換一種格式後再試。"
+      },
+      "import_failed": {
+        "cause": "字幕沒能加入字幕翻譯。",
+        "next": "請再試一次；仍然失敗的話，可以開啟字幕翻譯，手動匯入這個字幕檔案。"
+      },
+      "not_started": {
+        "cause": "字幕已經加入字幕翻譯，但翻譯沒有自動開始。",
+        "next": "請開啟字幕翻譯，確認任務後手動開始。"
+      },
+      "unknown": {
+        "cause": "操作沒有完成。",
+        "next": "請再試一次；仍然失敗的話，可以複製下面的診斷資訊回報給開發者。"
+      }
     }
   },
   "extractor": {

@@ -8,6 +8,7 @@ import {
   DEFAULT_TOKEN_PRICING_MAP,
 } from "@/constants/model";
 import type { Model, ModelProfile, ModelAssignment } from "@/type/model";
+import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 
@@ -19,7 +20,12 @@ interface ModelStore {
   profiles: ModelProfile[];
   assignment: ModelAssignment;
 
-  addProfile: (profile: ModelProfileInput) => string;
+  /**
+   * Adds a profile and gives it the roles nobody has yet (the Agent only when it can use the
+   * profile's API format), so a first profile works everywhere without a separate assignment.
+   * `assignRoles: "all"` makes it the profile for every role it supports.
+   */
+  addProfile: (profile: ModelProfileInput, options?: AddProfileOptions) => string;
   updateProfile: (id: string, updates: Partial<ModelProfileInput>) => void;
   removeProfile: (id: string) => boolean;
   getProfileById: (id: string) => ModelProfile | undefined;
@@ -30,7 +36,26 @@ interface ModelStore {
   getTaskProfile: () => ModelProfile | null;
 }
 
-type ModelProfileInput = Omit<
+export interface AddProfileOptions {
+  assignRoles?: "empty" | "all";
+}
+
+/** The assignment after adding `profile`: empty roles (or all, when asked) go to it. */
+export function assignNewProfile(
+  assignment: ModelAssignment,
+  profile: ModelProfile,
+  existing: readonly ModelProfile[],
+  mode: "empty" | "all" = "empty",
+): ModelAssignment {
+  const known = (id: string | null) => !!id && existing.some((candidate) => candidate.id === id);
+  const take = (current: string | null) => mode === "all" || !known(current);
+  return {
+    agent: take(assignment.agent) && isAgentProfileApiFormatSupported(profile) ? profile.id : assignment.agent,
+    taskExecution: take(assignment.taskExecution) ? profile.id : assignment.taskExecution,
+  };
+}
+
+export type ModelProfileInput = Omit<
   ModelProfile,
   "id" | "apiFormat" | "outputTokenParameter"
 > &
@@ -188,7 +213,7 @@ const useModelStore = create<ModelStore>()(
       profiles: [],
       assignment: { agent: null, taskExecution: null },
 
-      addProfile: (profile) => {
+      addProfile: (profile, options) => {
         const id = generateId();
         const newProfile = normalizeModelProfileForRuntime({
           ...profile,
@@ -196,6 +221,7 @@ const useModelStore = create<ModelStore>()(
         }) as ModelProfile;
         set((s) => ({
           profiles: [...s.profiles, newProfile],
+          assignment: assignNewProfile(s.assignment, newProfile, s.profiles, options?.assignRoles),
         }));
         return id;
       },

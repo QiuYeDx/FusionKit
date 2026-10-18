@@ -10,7 +10,8 @@
     "proxy_config": "Proxy Settings",
     "model_assignment": "Model Assignment",
     "model_profiles": "Model Profiles",
-    "agent_config": "Agent settings"
+    "agent_config": "Agent settings",
+    "download_source": "Download Source"
   },
   "nav": {
     "general": {
@@ -18,8 +19,8 @@
       "hint": "Appearance, language, notifications"
     },
     "proxy": {
-      "label": "Network Proxy",
-      "hint": "None / System / Custom"
+      "label": "Network",
+      "hint": "Proxy and download source"
     },
     "model": {
       "label": "AI Model",
@@ -49,20 +50,20 @@
       "default": "Arrow"
     },
     "other": "Other",
-    "apikey": "API Key",
-    "model_url": "Base URL",
-    "model_key": "Model Key",
+    "apikey": "API key",
+    "model_url": "API address",
+    "model_key": "Model name",
     "model_fetch": {
-      "no_key": "Please set the API Key first",
+      "no_key": "Enter the API key first",
       "success": "Fetched {{count}} available models",
       "error": "Failed to fetch model list",
       "preset_group": "Preset Models",
       "remote_group": "Remote Models",
-      "refresh_tooltip": "Fetch latest models from API",
-      "manual_key_label": "Manual Model Key",
-      "manual_key_hint": "Used as the request model parameter",
+      "refresh_tooltip": "Get the latest model list from the provider",
+      "manual_key_label": "Enter a model name",
+      "manual_key_hint": "The model name from your provider's documentation",
       "apply_custom_key": "Use",
-      "empty_custom_key": "Please enter a model key",
+      "empty_custom_key": "Please enter a model name",
       "deepseek_legacy_warning": "This model will be deprecated after July 24, 2026. It is recommended to switch to V4 series.",
       "badge_recommended": "Recommended",
       "badge_flagship": "Flagship",
@@ -74,12 +75,13 @@
       "chat_completions": "Chat Completions",
       "responses_hint": "Use this for the newer OpenAI Responses endpoint.",
       "chat_hint": "Use this for DeepSeek and most OpenAI-compatible providers.",
-      "base_url_hint_responses": "Recommended: a base URL such as https://api.openai.com/v1. Historical /responses endpoints are also supported.",
-      "base_url_hint_chat": "Recommended: a base URL such as https://api.example.com/v1. Historical /chat/completions endpoints are also supported.",
+      "base_url_hint_responses": "Usually left as is. For another service, enter the address its documentation gives, such as https://api.openai.com/v1.",
+      "base_url_hint_chat": "Usually left as is. For another service, enter the address its documentation gives, such as https://api.example.com/v1.",
       "output_token_parameter": "Output Token Parameter",
-      "output_token_parameter_hint": "Newer OpenAI models usually use max_completion_tokens; third-party compatible services usually use max_tokens.",
+      "output_token_parameter_hint": "Usually no need to change this. Newer OpenAI models usually use max_completion_tokens; other compatible services usually use max_tokens.",
       "max_tokens": "max_tokens",
-      "max_completion_tokens": "max_completion_tokens"
+      "max_completion_tokens": "max_completion_tokens",
+      "base_url_hint_other": "Enter the address your provider gives, such as https://api.example.com/v1."
     },
     "notification": {
       "label": "Notification",
@@ -97,15 +99,47 @@
       "host": "Proxy Host",
       "port": "Port",
       "none_desc": "Connect directly without any proxy server.",
-      "system_desc": "Use the proxy settings configured in your operating system.",
-      "custom_desc": "Route network requests through the specified proxy server.",
+      "system_desc": "Follows your computer's proxy settings, including the \"system proxy\" turned on by tools such as Clash. AI requests, resource downloads and update checks all use it; no port to fill in.",
+      "custom_desc": "Connect through the proxy server you enter. Write the address like 127.0.0.1; for a SOCKS5 proxy write socks5://127.0.0.1.",
       "test_btn": "Test",
-      "test_tooltip": "Test current network connection",
-      "test_success": "Connection successful",
-      "test_fail": "Connection failed",
-      "test_latency": "Latency",
-      "test_proxy_addr": "Proxy address",
-      "test_error": "Error"
+      "custom_incomplete": "Enter the proxy address and port. Until both are filled in, connections go direct.",
+      "save_failed": "The setting was not saved. Please choose it again.",
+      "test_running": "Testing connections…",
+      "test_failed": "The test did not finish. Please try again later.",
+      "test_target_model_api": "Model service ({{host}})",
+      "test_target_download_official": "Model download · Official ({{host}})",
+      "test_target_download_mirror": "Model download · Mirror in China ({{host}})",
+      "test_target_github": "Update check · GitHub ({{host}})",
+      "test_latency_value": "{{ms}} ms",
+      "test_via_direct": "Direct connection",
+      "test_via_proxy": "Through proxy {{proxy}}",
+      "test_hint_ok": "All connections work.",
+      "test_hint_proxy": "The proxy could not be reached. Check that your proxy app is running and that the address and port are correct.",
+      "custom_credentials": "Proxies with a user name and password are not supported yet, so connections go direct. Turn off password authentication in your proxy app and enter only the address, such as 127.0.0.1.",
+      "custom_invalid": "The proxy address is not in a usable format, so connections go direct. Enter the address as 127.0.0.1 and the port as 7890; for a SOCKS5 proxy, enter socks5://127.0.0.1.",
+      "test_hint_proxy_system": "This computer has a proxy set, but it cannot be reached. Start your proxy app; if you do not use a proxy, choose \"No Proxy\".",
+      "test_hint_proxy_auth": "The proxy asks for a user name and password, which FusionKit does not support yet. Turn off password authentication in your proxy app and test again.",
+      "test_hint_ai_ok": "The model service is reachable, so AI features work.",
+      "test_hint_ai_failed": "The model service cannot be reached, so AI features will not work yet. Check the API address in AI Model settings; if this service needs a proxy, start your proxy app and test again.",
+      "test_hint_download_ok": "Models can be downloaded.",
+      "test_hint_download_mirror": "Models can be downloaded: the official address is unreachable, so the mirror in China is used automatically.",
+      "test_hint_download_switch": "The official download address is unreachable. Set the download source to \"Auto\" to use the mirror in China instead.",
+      "test_hint_download_failed": "None of the model download addresses can be reached. Check your network or proxy app and test again.",
+      "test_hint_github_failed": "GitHub can’t be reached. Update checks and downloads switch to the mirror in China automatically; AI features and model downloads aren’t affected.",
+      "test_hint_try_system": "If you use a proxy app such as Clash, choose \"System Proxy\" and test again.",
+      "error": {
+        "dns": "Server address not found; the network may be blocking it",
+        "timeout": "Connection timed out",
+        "refused": "The server refused the connection",
+        "reset": "The connection was interrupted",
+        "network_unreachable": "This computer is not connected to a network",
+        "proxy_failed": "Could not connect through the proxy",
+        "proxy_auth": "The proxy needs a user name and password, which is not supported yet",
+        "tls": "Secure connection failed; the network may be intercepting it",
+        "aborted": "Test cancelled",
+        "unknown": "Connection failed"
+      },
+      "test_hint_github_failed_official": "GitHub can’t be reached, so update checks will fail. Set the download source to \"Auto\" to use the mirror in China instead."
     },
     "token_price": {
       "intro_title": "Token Pricing",
@@ -122,23 +156,22 @@
       "custom_note": "Tip: Please set the token prices based on your custom model's actual pricing for an accurate cost estimate."
     },
     "assignment": {
-      "description": "Assign model profiles to different modules. The Agent model is used for AI conversations, and the Task model is used for subtitle translation and other tasks.",
+      "description": "Your first profile is used for both automatically. With several profiles, choose one for each here.",
       "agent_model": "Agent Model (AI Chat)",
       "task_model": "Task Execution Model (Translation, etc.)",
       "select_placeholder": "Select a model profile…",
       "not_configured": "Not configured",
       "locked": "In session",
       "locked_tooltip": "A conversation is in progress. Please start a new conversation before changing the Agent model.",
-      "agent_unsupported_badge": "Agent unsupported",
-      "agent_unsupported_desc": "The Agent does not support Responses API yet. Choose a Chat Completions profile; Responses API profiles can still be used for task execution.",
-      "agent_unsupported_select": "The Agent does not support Responses API yet. Choose a Chat Completions profile."
+      "agent_role": "The AI that chats with you and works the tools for you on the home page and in the floating assistant.",
+      "task_role": "The AI used for tasks such as translating and revising subtitles, file names and long texts."
     },
     "profile": {
       "add": "Add Profile",
       "empty": "No model profiles yet. Please add one.",
       "add_first": "Add your first model profile",
       "in_use": "In use",
-      "no_key": "No API Key",
+      "no_key": "No API key",
       "dialog_title_add": "Add Model Profile",
       "dialog_title_edit": "Edit Model Profile",
       "dialog_description": "Configure the connection details and parameters for this model.",
@@ -146,13 +179,46 @@
       "name_placeholder": "e.g., DeepSeek V3, GPT-5, etc.",
       "cancel": "Cancel",
       "create": "Create",
-      "save": "Save"
-    }
+      "save": "Save",
+      "key_preview": "Key: {{preview}}",
+      "auto_assigned": "Saved. Features without a model now use this profile.",
+      "edit": "Edit profile",
+      "delete": "Delete profile (click again to confirm)"
+    },
+    "download_source": {
+      "label": "Source",
+      "auto": "Auto (Recommended)",
+      "official": "Official",
+      "mirror": "Mirror First",
+      "description": "Used for speech models and other resources, and for app updates: Auto picks an address that answers quickly and moves to the next one if it fails; every downloaded file is checked against its checksum and is not used if it doesn’t match."
+    },
+    "apikey_show": "Show key",
+    "apikey_hide": "Hide key",
+    "deepseek_intro": "Reachable from mainland China and inexpensive. No key yet?",
+    "deepseek_get_key": "Get key",
+    "deepseek_top_up": "Top up",
+    "advanced": {
+      "title": "Advanced settings",
+      "description": "API format, output token parameter and prices; a preset sets them for you"
+    },
+    "connection_test": {
+      "button": "Test connection",
+      "testing": "Testing the connection…",
+      "success": "Connected in {{ms}} ms.",
+      "need_key": "Enter the API key first",
+      "draft_kept": "What you entered is kept. After fixing the network settings, click Continue to return to the form.",
+      "draft_continue": "Continue"
+    },
+    "onboarding": {
+      "reopen": "Reopen the setup guide"
+    },
+    "apikey_characters_hint": "The key contains Chinese or full-width characters or spaces; something extra may have been copied with it. Paste only the key itself.",
+    "deepseek_recommended_aria": "DeepSeek (recommended)"
   },
   "placeholder": {
-    "apikey": "Please enter your API Key",
-    "model_url": "Please enter the Base URL",
-    "model_key": "Please enter the Model Key",
+    "apikey": "Paste the key from your provider",
+    "model_url": "e.g. https://api.example.com/v1",
+    "model_key": "e.g. deepseek-v4-flash",
     "proxy_host": "127.0.0.1",
     "proxy_port": "7890"
   },

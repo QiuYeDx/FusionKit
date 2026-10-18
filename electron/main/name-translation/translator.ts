@@ -10,7 +10,7 @@ import {
   type ModelRuntimeTextRequest,
   type ModelRuntimeTextResult,
 } from "../ai/model-runtime-client";
-import { ModelRuntimeClientError } from "../ai/model-runtime-errors";
+import { ModelRuntimeClientError, modelErrorCategory } from "../ai/model-runtime-errors";
 
 const LANGUAGE_LABELS: Record<NameSourceLanguage, string> = {
   auto: "auto-detected language",
@@ -249,20 +249,23 @@ export function parseTranslationOutput(
 
 export function classifyTranslationError(error: unknown): NameTranslationError {
   if (error instanceof ModelRuntimeClientError) {
+    if (error.code === "aborted") return { code: "cancelled", message: "Translation was cancelled." };
+    // The shared classification decides; the codes stay what this tool has always reported.
+    const category = modelErrorCategory(error);
+    const withCategory = category === "unknown" ? {} : { category };
+    // An empty account stops the run; a request that may succeed on retry (a rate limit) does not.
+    if (category === "balance" && !error.retryable) return { code: "model_quota", message: error.message, ...withCategory };
     switch (error.code) {
-      case "aborted":
-        return { code: "cancelled", message: "Translation was cancelled." };
       case "http_unauthorized":
       case "http_forbidden":
-        return { code: "model_auth", message: error.message };
+        return { code: "model_auth", message: error.message, ...withCategory };
       case "http_non_retryable":
-        if (error.details.status === 404) return { code: "model_not_found", message: error.message };
-        if (error.details.status === 402 || /quota|balance|billing/i.test(error.message)) {
-          return { code: "model_quota", message: error.message };
+        if (error.details.status === 404 || category === "model_not_found") {
+          return { code: "model_not_found", message: error.message, ...withCategory };
         }
-        return { code: "model_failed", message: error.message };
+        return { code: "model_failed", message: error.message, ...withCategory };
       default:
-        return { code: "model_failed", message: error.message };
+        return { code: "model_failed", message: error.message, ...withCategory };
     }
   }
   if ((error as Error)?.name === "AbortError") {

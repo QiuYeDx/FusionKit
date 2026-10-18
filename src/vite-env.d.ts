@@ -17,6 +17,10 @@ interface Window {
   webLookup: import('./web-lookup/contract').WebLookupApi;
   agentSessions?: import('./agent/session-store-contract').AgentSessionsApi;
   externalAgent?: import('./agent/external/contract').ExternalAgentApi;
+  network?: import('./network/contract').NetworkApi;
+  modelSetup?: import('./model-setup/contract').ModelSetupApi;
+  systemSetup?: import('./system-setup/contract').SystemSetupApi;
+  appUpdate?: import('./app-update/contract').AppUpdateApi;
   // expose in the `electron/preload/index.ts`
   ipcRenderer: import('../electron/preload/legacy-ipc-bridge').SafeLegacyIpcBridge
   localSubtitleApi: import('@/type/localSubtitleIpc').LocalSubtitleRendererApi

@@ -36,4 +36,33 @@ describe("open_app_page", () => {
     expect(navigate).toHaveBeenCalledTimes(1);
     expect(again).toMatchObject({ data: { alreadyOpen: true } });
   });
+
+  it("opens the resource manager, the network settings and the help page for local transcription that is not ready", async () => {
+    const navigate = vi.fn((to: string) => usePageContextStore.getState().setPathname(to.split("?")[0]));
+    setAgentNavigator(navigate);
+    await executeOpenAppPage({ page: "subtitle_studio", studioView: "resources" }, undefined, 10);
+    expect(navigate).toHaveBeenLastCalledWith("/tools/subtitle/studio?view=transcription&resources=open");
+    await executeOpenAppPage({ page: "help" }, undefined, 10);
+    expect(navigate).toHaveBeenLastCalledWith("/help");
+    await executeOpenAppPage({ page: "network_settings" }, undefined, 10);
+    expect(navigate).toHaveBeenLastCalledWith("/setting?tab=proxy");
+    expect(await executeOpenAppPage({ page: "subtitle_studio", studioView: "elsewhere" })).toEqual({ success: false, error: "invalid_tool_arguments" });
+  });
+
+  it("switches between settings tabs, which share one route", async () => {
+    const originalWindow = globalThis.window;
+    const location = { hash: "#/setting?tab=model" };
+    Object.defineProperty(globalThis, "window", { configurable: true, value: { location } });
+    try {
+      const navigate = vi.fn((to: string) => { usePageContextStore.getState().setPathname(to.split("?")[0]); location.hash = `#${to}`; });
+      usePageContextStore.getState().setPathname("/setting");
+      setAgentNavigator(navigate);
+      expect(await executeOpenAppPage({ page: "model_settings" }, undefined, 10)).toMatchObject({ data: { alreadyOpen: true } });
+      expect(navigate).not.toHaveBeenCalled();
+      expect(await executeOpenAppPage({ page: "network_settings" }, undefined, 10)).not.toMatchObject({ data: { alreadyOpen: true } });
+      expect(navigate).toHaveBeenCalledWith("/setting?tab=proxy");
+    } finally {
+      Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
+    }
+  });
 });

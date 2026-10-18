@@ -17,6 +17,7 @@ release
 /build/local-subtitle-accelerators/
 /build/subtitle-studio-resources/
 /build/subtitle-studio-accelerators/
+/build/vc-redist/
 
 # Editor directories and files
 .vscode/.debug.env

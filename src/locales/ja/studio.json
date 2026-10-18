@@ -95,18 +95,18 @@
     "language": "翻訳先の言語",
     "custom_language": "その他の言語",
     "custom_language_name": "言語名",
-    "model_required": "API キーを設定したモデルを選択してください。",
+    "model_required": "キー（API Key）を設定したモデルを選んでください。",
     "model_settings": "モデル設定",
     "instructions": "翻訳の要望（任意）",
     "advanced": "詳細設定",
-    "context_window": "コンテキスト枠（tokens）",
-    "max_output": "各バッチの出力上限（tokens）",
+    "context_window": "モデルが一度に読める長さ（トークン）",
+    "max_output": "1 バッチの回答の最大長（トークン）",
     "batch_cues": "各バッチの字幕数上限",
-    "invalid_options": "翻訳先の言語と詳細設定を確認してください。出力上限はコンテキスト枠より小さくしてください。",
+    "invalid_options": "翻訳先の言語を入力し、詳細設定を確認してください。1 バッチの回答の最大長は、モデルが一度に読める長さより小さくする必要があります。",
     "estimate": "推定使用量",
-    "estimated_input": "推定入力 tokens",
+    "estimated_input": "送信する見込みトークン",
     "batch_count": "バッチ数",
-    "output_reserve": "出力予約 tokens",
+    "output_reserve": "回答用に確保するトークン",
     "prepare": "使用量を見積もる",
     "start": "翻訳を開始",
     "queued": "翻訳待ち",
@@ -122,13 +122,13 @@
     "resume_description": "元のモデルと翻訳設定を使い、未完了のバッチのみ続行します。",
     "original_model": "元のモデル",
     "completed_batches": "完了したバッチ",
-    "repair_model": "元のモデル設定がないか、変更されているか、API キーを利用できません。モデル設定で元の構成を修復してください。",
+    "repair_model": "元のモデル設定が見つからないか、変更されたか、キー（API Key）が使えなくなっています。モデル設定で元の設定を直してください。",
     "legacy_restart": "この旧タスクは再開できません。新しい翻訳を作成してください。",
     "uncertain_usage": "{{count}} 回のリクエストの使用量が不明",
     "uncertain_resume": "{{count}} 回のリクエストの課金結果が不明です。未完了バッチを続行すると重複して課金される場合があります。",
     "provider_wait": "プロバイダーの待機指定により、{{seconds}} 秒後に続行できます",
     "batch_progress": "{{completed}} / {{total}} バッチ",
-    "actual_usage": "実際の tokens：入力 {{input}} · 出力 {{output}}",
+    "actual_usage": "実際の使用量：送信 {{input}} · 回答 {{output}} トークン",
     "unknown_usage": "不明",
     "languages": {
       "zh": "簡体字中国語",
@@ -136,7 +136,8 @@
       "ja": "日本語",
       "zh-Hant": "繁体字中国語"
     },
-    "usage_total": "{{value}} tokens"
+    "usage_total": "{{value}} トークン",
+    "advanced_hint": "通常は変更不要です。トークンは AI が文章の長さを数える単位で、おおよそ漢字 1 文字や英単語 1 語が 1 トークンです。"
   },
   "export": {
     "action": "字幕を書き出す",
@@ -262,9 +263,9 @@
     "access_denied": "アクセス権限が失効しました。更新するかアプリを開き直してください。",
     "document_unavailable": "ドキュメントの読み込みまたは保存に失敗しました。",
     "output_write_failed": "ダウンロードに失敗しました。保存先を確認してください。",
-    "needs_configuration": "モデル設定を利用できません。モデルと API キーを確認してください。",
+    "needs_configuration": "モデル設定を使えません。モデル名とキー（API Key）を確認してください。",
     "translation_protocol_invalid": "モデルが返した字幕に欠落または形式の誤りがあります。このバッチは保存されませんでした。",
-    "translation_output_limit": "バッチの出力上限に達したため、このバッチは保存されませんでした。各バッチの字幕数を減らすか、出力上限を増やしてください。",
+    "translation_output_limit": "回答が「1 バッチの回答の最大長」を超えたため、このバッチは保存されませんでした。「各バッチの字幕数上限」を減らすか、詳細設定で「1 バッチの回答の最大長」を増やしてください。",
     "translation_failed": "翻訳リクエストに失敗しました。モデルサービスを確認して再試行してください。",
     "transcription_failed": "文字起こしに失敗しました。メディアとローカルリソースを確認して再試行してください。",
     "interrupted": "翻訳が中断されました。完了した訳文は保持されています。",
@@ -467,9 +468,9 @@
     "mode_transcribe": "元の言語を保持",
     "mode_english": "英語に翻訳",
     "vad": "音声検出",
-    "vad_hint": "音声区間検出を使って発話部分を識別します。",
+    "vad_hint": "人が話していない部分を自動でスキップし、誤認識を減らします。",
     "advanced": "詳細設定",
-    "beam_size": "ビーム幅",
+    "beam_size": "探索の幅",
     "temperature": "温度",
     "vad_silence": "最小無音時間（ミリ秒）",
     "cue_duration": "字幕の最大表示時間（ミリ秒）",
@@ -482,11 +483,11 @@
     "window_quiet": "発話の区切り",
     "resources": "ローカルリソース",
     "manage_resources": "リソースを管理",
-    "resource_description": "一覧からリソースをダウンロードするか、対応するモデルファイルをインポートします。インポート時は元のファイルを保持してコピーを作成します。",
+    "resource_description": "一覧から必要なリソースをダウンロードします。モデルファイルをお持ちの場合は「モデルをインポート」も使えますが、一覧のいずれかのモデルと完全に同じファイル（サイズと内容が同一）である必要があります。インポート時はコピーを作成し、元のファイルは残ります。",
     "resource_empty": "ローカルリソースの一覧がありません。",
     "resource_model": "モデル",
     "resource_vad": "音声検出",
-    "resource_accelerator": "GPU サポート",
+    "resource_accelerator": "GPU アクセラレーション",
     "resource_ready": "準備完了",
     "resource_not_installed": "未インストール",
     "resource_installing": "インストール中…",
@@ -494,7 +495,14 @@
     "download": "ダウンロード",
     "import_model": "モデルをインポート",
     "cancel_download": "インストールをキャンセル",
-    "resource_failed": "リソースの操作に失敗しました。もう一度お試しください。",
+    "resource_failed": "リソースの操作を完了できませんでした。もう一度お試しください。それでも失敗する場合は、「診断情報をコピー」を押して、内容を開発者に送ってください。",
+    "resource_failed_vad_needs_model": "音声検出には先に「標準」モデルが必要です。「標準」モデルをダウンロードしてから、音声検出をダウンロードしてください。",
+    "resource_failed_network": "ダウンロードが完了しませんでした。多くの場合、ダウンロード先に接続できないか、ネットワークで遮断されています。ネットワーク設定でダウンロード元を変えるかプロキシを有効にしてから、もう一度「ダウンロード」を押してください。",
+    "resource_failed_disk": "ディスクの空き容量が足りません。空き容量を確保してから、もう一度お試しください。",
+    "resource_failed_verify": "ダウンロードしたファイルが整合性チェックに通りませんでした。もう一度「ダウンロード」を押してください。それでも失敗する場合は、ネットワーク設定でダウンロード元を変えてください。",
+    "resource_import_mismatch": "選んだファイルは一覧のこのモデルと一致しません（サイズまたは内容が異なります）。同じモデル名のファイルを選んで、もう一度インポートしてください。",
+    "resource_import_failed": "インポートが完了しませんでした。ファイルを読み取れないか、別のプログラムが使用している可能性があります。ファイルを確認して、もう一度インポートしてください。",
+    "open_network_settings": "ネットワーク設定",
     "runtime_checking": "ローカル実行環境を確認中…",
     "runtime_ready": "ローカル実行環境は準備完了",
     "runtime_unavailable": "ローカル実行環境を利用できません",
@@ -506,7 +514,7 @@
     "readiness_runtime": "利用可能なローカル実行環境が必要です。",
     "readiness_model": "選択したモデルを先にインストールしてください。",
     "readiness_vad": "音声検出リソースをインストールするか、音声検出をオフにしてください。",
-    "readiness_accelerator": "GPU サポートをインストールするか、CPU を選択してください。",
+    "readiness_accelerator": "先に「NVIDIA GPU アクセラレーション」をインストールするか、CPU に切り替えてください。",
     "readiness_media": "メディアを追加して開始します。",
     "status_queued": "待機中",
     "status_preparing_media": "メディアを準備中",
@@ -519,7 +527,7 @@
     "active_count": "処理中 {{active}} 件 · 字幕作成 {{completed}} 件 · 利用可能な字幕なし {{empty}} 件",
     "task_failed": "文字起こしに失敗しました。メディアとローカルリソースを確認してください。",
     "close": "閉じる",
-    "shared_hint": "モデル、音声検出、CUDA リソースはアプリの共有フォルダーに保存され、両方の字幕ツールが同じインストールを使用します。",
+    "shared_hint": "モデル、音声検出、NVIDIA GPU アクセラレーションはアプリの共有フォルダーに保存され、両方の字幕ツールが同じインストールを使用します。",
     "migration_issues": "一部の旧リソースを安全に移行できなかったため、元のファイルを保持しました。アプリを再起動して再試行し、必要に応じてリソースの状態を確認してください。",
     "shared_cleanup_pending": "共有リソースのクリーンアップ中です。完了するまでインストールや削除をお待ちください。",
     "shared_busy": "字幕タスクまたはリソース操作がこのリソースを使用中です。",
@@ -545,7 +553,138 @@
     "auto_export_format_auto": "ソースに合わせる（音声は LRC / 動画は SRT）",
     "auto_export_remove": "書き出しに成功したらワークスペースから字幕文書を削除",
     "auto_export_remove_hint": "書き出しに失敗した文書は確認や再書き出しのために残します。",
-    "auto_export_source_only": "自動翻訳がオフの場合は原文のみ書き出します。"
+    "auto_export_source_only": "自動翻訳がオフの場合は原文のみ書き出します。",
+    "resource_name_standard": "標準（おすすめ、約 1.0 GB）",
+    "resource_name_standard_short": "標準",
+    "resource_name_best": "最高精度（約 2.9 GB、低速）",
+    "resource_name_best_short": "最高精度",
+    "resource_name_vad": "音声検出（無音を自動でスキップ）",
+    "resource_name_vad_short": "音声検出",
+    "resource_name_cuda": "NVIDIA GPU アクセラレーション",
+    "prepare_title": "ワンクリック準備（おすすめ）",
+    "prepare_description": "標準モデルと音声検出をまとめてインストールし、すぐにローカル文字起こしを始められるようにします。",
+    "prepare_size": "ダウンロード {{size}}",
+    "prepare_free_space": "空き容量 {{size}}",
+    "prepare_low_space": "空き容量が足りません。約 {{size}} 必要ですが、空きは {{free}} しかありません。先にディスクの空きを増やしてください。",
+    "prepare_action": "ワンクリック準備",
+    "prepare_ready": "準備完了",
+    "prepare_ready_hint": "標準モデルと音声検出の準備ができています。文字起こしを始められます。",
+    "prepare_checking": "確認中…",
+    "prepare_running": "準備中：{{name}}（{{current}}/{{total}}）",
+    "prepare_done": "ローカル文字起こしの準備ができました。文字起こしを始められます。",
+    "prepare_failed": "インストールできなかったリソースがあります。原因は下の一覧に表示されています。対処してからもう一度「ワンクリック準備」を押してください。",
+    "prepare_cancelled": "準備をキャンセルしました。必要なときにもう一度「ワンクリック準備」を押してください。",
+    "prepare_runtime_needed": "先に Microsoft ランタイムが必要です。上の「ワンクリック修復」を押すと、インストール後に自動でダウンロードを始めます。",
+    "prepare_cancel": "キャンセル",
+    "prepare_download_anyway": "それでもダウンロード",
+    "recommended": "おすすめ",
+    "not_applicable": "このコンピューターでは使えません",
+    "cuda_not_applicable_hint": "NVIDIA のグラフィックカードが見つからないため、このパックはこのコンピューターでは使えません。",
+    "cuda_confirm_title": "このコンピューターでは GPU アクセラレーションを使えません",
+    "cuda_confirm_description": "NVIDIA のグラフィックカードが見つかりません。NVIDIA GPU アクセラレーションのパックは約 {{size}} で、NVIDIA のカードを搭載したコンピューターでのみ使えます。それでもダウンロードしますか？",
+    "cuda_driver_old": "先に NVIDIA のグラフィックドライバーを更新してください。現在のバージョンは {{version}} で、GPU アクセラレーションには {{minimum}} 以降が必要です。",
+    "cuda_driver_update": "ドライバーを更新",
+    "device_hint_no_nvidia": "NVIDIA のグラフィックカードが見つからないため、CPU で文字起こしします。",
+    "device_hint_cuda_no_nvidia": "このコンピューターでは NVIDIA のグラフィックカードが見つからないため、「NVIDIA GPU」では文字起こしできません。「自動」か「CPU」を選んでください。",
+    "device_hint_install_cuda": "「NVIDIA GPU アクセラレーション」をインストールすると、GPU で高速に文字起こしできます。",
+    "device_hint_driver_old": "NVIDIA のグラフィックドライバーが古いため、先に更新してください。更新しないと GPU アクセラレーションを使えない場合があります。",
+    "cpu_reason_no_nvidia": "NVIDIA のグラフィックカードなし",
+    "cpu_reason_not_installed": "GPU アクセラレーション未インストール",
+    "cpu_reason_unavailable": "GPU アクセラレーションを使用できません",
+    "vc_runtime_failure": "このコンピューターの Microsoft Visual C++ ランタイムがないか古いため、文字起こしプログラムを起動できません。先に上の「ワンクリック修復」を押してください。",
+    "vc_runtime_download_title": "先に Microsoft ランタイムをインストール",
+    "vc_runtime_download_description": "このままではダウンロードしても使えません。修復が終わると自動でダウンロードを始めます。",
+    "vc_runtime_download_anyway": "それでもダウンロード",
+    "advanced_hint": "通常は既定値のままで大丈夫です。探索の幅が大きいほど正確ですが遅くなり、温度が低いほど結果が安定します。最短の無音は、どれだけの間を文と文の区切りとみなすかを決めます。",
+    "task_error": {
+      "runtime": {
+        "cause": "FusionKit に付属の文字起こしプログラムが不完全か、バージョンが合っていません。",
+        "next": "FusionKit を再起動してから、もう一度お試しください。それでも失敗する場合は、FusionKit を再インストールしてください。"
+      },
+      "unsupported": {
+        "cause": "このコンピューターのシステムまたはプロセッサーは、ローカル文字起こしに対応していません。",
+        "next": "ローカル文字起こしには、Windows 10 / 11（64 ビット）または Apple シリコン搭載の macOS 12 以降が必要です。"
+      },
+      "crashed": {
+        "cause": "文字起こしプログラムが予期せず終了したか、長い間応答しませんでした。",
+        "next": "もう一度お試しください。それでも失敗する場合は、「処理デバイス」を CPU に変えるか、コンピューターを再起動してから試してください。"
+      },
+      "accelerator": {
+        "cause": "GPU アクセラレーションを現在使用できません。",
+        "next": "「処理デバイス」を CPU に変えて文字起こしし直すか、「リソースを管理」で GPU アクセラレーションをダウンロードし直すか、グラフィックドライバーを更新してください。"
+      },
+      "model_missing": {
+        "cause": "選択したモデルがまだインストールされていません。",
+        "next": "「リソースを管理」でこのモデルをダウンロードするか、「ワンクリック準備」を押してください。"
+      },
+      "model_broken": {
+        "cause": "モデルファイルを正しく読み込めませんでした。",
+        "next": "「リソースを管理」でこのモデルを削除してから、もう一度ダウンロードしてください。"
+      },
+      "not_allowed": {
+        "cause": "選択したリソースは、使用できるリストにありません。",
+        "next": "FusionKit を更新してから、もう一度お試しください。"
+      },
+      "busy": {
+        "cause": "ローカル文字起こしのリソースが、別のタスクやダウンロードで使用中です。",
+        "next": "終わるのを待ってから、もう一度お試しください。"
+      },
+      "disk": {
+        "cause": "ディスクの空き容量が足りません。",
+        "next": "空き容量を確保してから、もう一度お試しください。"
+      },
+      "memory": {
+        "cause": "コンピューターのメモリーが足りなくなりました。",
+        "next": "メモリーを多く使っているほかのプログラムを閉じるか、より小さいモデルを選んでから、もう一度お試しください。"
+      },
+      "authorization": {
+        "cause": "FusionKit はこのファイルを読み取れなくなりました。",
+        "next": "ファイルをもう一度追加してから、文字起こししてください。"
+      },
+      "media": {
+        "cause": "このファイルから、文字起こしできる音声を読み取れませんでした。",
+        "next": "ファイルが正常に再生できるか確認するか、MP4 や MP3 などの一般的な形式に変換してから、もう一度お試しください。"
+      },
+      "no_audio": {
+        "cause": "このファイルには音声トラックがありません。",
+        "next": "音声のあるファイルを選んでください。"
+      },
+      "media_changed": {
+        "cause": "文字起こしの途中で、元のファイルが変更または移動されました。",
+        "next": "ファイルをもう一度追加してから、文字起こししてください。"
+      },
+      "transcription": {
+        "cause": "文字起こしを完了できませんでした。",
+        "next": "もう一度お試しください。それでも失敗する場合は、別のモデルを選ぶか、「処理デバイス」を CPU に変えてください。"
+      },
+      "limit": {
+        "cause": "メディアが長すぎるか、1 回で処理できる上限を超えています。",
+        "next": "メディアをいくつかに分けてから、文字起こししてください。"
+      },
+      "save": {
+        "cause": "文字起こしの結果を保存できませんでした。",
+        "next": "ディスクの空き容量が十分にあるか確認してから、もう一度お試しください。"
+      },
+      "interrupted": {
+        "cause": "文字起こしが中断されました。FusionKit が閉じられたか、ページが再読み込みされた可能性があります。",
+        "next": "ファイルをもう一度追加してから、文字起こししてください。"
+      },
+      "page_stale": {
+        "cause": "このページとローカル文字起こしサービスとの接続が無効になりました。",
+        "next": "FusionKit を再起動してから、もう一度お試しください。"
+      },
+      "unknown": {
+        "next": "もう一度お試しください。それでも失敗する場合は、「診断情報をコピー」を押して、内容を開発者に送ってください。"
+      }
+    },
+    "copy_diagnostics": "診断情報をコピー",
+    "diagnostics_copied": "診断情報をコピーしました",
+    "resource_failed_accelerator": "GPU アクセラレーションが読み込みチェックに通らなかったため、このコンピューターでは現在使用できません。NVIDIA のグラフィックドライバーを更新してから、もう一度ダウンロードしてください。入れなくても CPU で文字起こしできます。",
+    "resource_failed_load": "ファイルはダウンロードされましたが、読み込みチェックに通りませんでした。もう一度「ダウンロード」を押してください。それでも失敗する場合は、コンピューターを再起動してから試してください。",
+    "resource_failed_runtime": "FusionKit に付属の文字起こしプログラムが不完全か、バージョンが合っていないため、このリソースを確認できません。FusionKit を再起動してください。それでも失敗する場合は、FusionKit を再インストールしてください。",
+    "resource_failed_not_allowed": "このリソースは、ダウンロードできるリストにありません。FusionKit を更新してから、もう一度お試しください。",
+    "resource_failed_memory": "リソースの確認中にメモリーが足りなくなりました。メモリーを多く使っているほかのプログラムを閉じてから、もう一度お試しください。",
+    "resource_failed_stale": "このページとローカル文字起こしサービスとの接続が無効になりました。FusionKit を再起動してから、もう一度お試しください。"
   },
   "overview": {
     "title": "翻訳タスク",
@@ -562,10 +701,10 @@
     "open_document": "文書を開く",
     "can_resume": "文書で確認して再開できます",
     "view_progress": "翻訳の進捗を表示",
-    "actual_tokens": "実測 tokens",
+    "actual_tokens": "実際のトークン",
     "input_tokens": "入力",
     "output_tokens": "出力",
-    "task_tokens": "{{value}} tokens",
+    "task_tokens": "{{value}} トークン",
     "usage_unknown": "未提供",
     "usage_scope": "全 {{count}} 件のタスク",
     "usage_partial": "使用量は一部のみ",
@@ -900,10 +1039,10 @@
     "target_stale": "訳文は「原文変更済み」になります",
     "source_only_hint": "原文だけを修正すると、対応する訳文は「原文変更済み」になります。訳文も更新するには「原文と訳文」を選んでください。",
     "rejected": "保存できない文字（< > など）を含む修正 {{count}} 件をスキップしました。",
-    "usage": "使用量 {{count}} tokens",
+    "usage": "使用量 {{count}} トークン",
     "errors": {
       "revision_conflict": "修正案の作成後に字幕が変更されました。もう一度作成してください。",
-      "output_limit": "モデルの出力上限に達しました。選択する字幕を減らすか、翻訳設定で出力上限を上げてください。",
+      "output_limit": "回答が「1 バッチの回答の最大長」を超えました。選択する字幕を減らすか、翻訳の詳細設定で「1 バッチの回答の最大長」を増やしてください。",
       "protocol_invalid": "モデルの応答を読み取れませんでした。再試行するか別のモデルを使ってください。",
       "failed": "修正リクエストに失敗しました。モデルサービスを確認して再試行してください。",
       "apply_failed": "修正を適用できませんでした。ページ上部のメッセージを確認して再試行してください。",

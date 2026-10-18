@@ -18,6 +18,34 @@ export const APPLICATION_RESOURCES = Object.freeze([
   Object.freeze({ from: 'resources/external-agent', to: 'external-agent' }),
 ]);
 
+/**
+ * Windows only: Microsoft's signed VC++ redistributable and its version record, staged and verified
+ * in build/vc-redist by the before-pack hook (vc-redist.mjs). The NSIS include installs it when the
+ * runtime is missing or older; the app reads the record and offers the same installer as a repair.
+ */
+export const WINDOWS_RESOURCES = Object.freeze([
+  Object.freeze({ from: 'build/vc-redist', to: 'vc-redist', filter: Object.freeze(['vc_redist.x64.exe', 'vc-redist.json']) }),
+]);
+export const NSIS_INCLUDE = 'build/installer.nsh';
+
+/**
+ * macOS: the DMG shows the app, the Applications link and a self-contained help page on opening an
+ * unsigned app (zh + en, no external resources), each at a fixed place; electron-builder needs
+ * explicit positions once the window holds more than the app and the link. No background is set,
+ * so dmg-builder's own 540×380 picture is used: the window keeps its size, the app and the link stay
+ * at electron-builder's default places on both ends of its arrow (icon centres), and the help page
+ * sits in the empty band above them.
+ */
+export const DMG_HELP_FILE = 'build/dmg/打不开请看这里.html';
+/** Its name inside the DMG, in Chinese and English, so either reader knows what it is. */
+export const DMG_HELP_NAME = "打不开请看这里 Can't open.html";
+export const DMG_WINDOW = Object.freeze({ width: 540, height: 380 });
+export const DMG_CONTENTS = Object.freeze([
+  Object.freeze({ x: 130, y: 220 }),
+  Object.freeze({ x: 410, y: 220, type: 'link', path: '/Applications' }),
+  Object.freeze({ x: 270, y: 80, type: 'file', path: DMG_HELP_FILE, name: DMG_HELP_NAME }),
+]);
+
 export function packagingError(message, contribution, cause) {
   const error = new Error(message, cause === undefined ? undefined : { cause });
   error.code = typeof cause?.code === 'string' ? cause.code : 'runtime_staging_invalid';
@@ -27,6 +55,22 @@ export function packagingError(message, contribution, cause) {
 
 function exactObject(value, keys) {
   return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
+}
+
+function sameMappings(actual, expected) {
+  return Array.isArray(actual) && actual.length === expected.length && actual.every((item, index) => exactObject(item, ['from', 'to', 'filter'])
+    && item.from === expected[index].from && item.to === expected[index].to && Array.isArray(item.filter)
+    && item.filter.length === expected[index].filter.length && item.filter.every((value, position) => value === expected[index].filter[position]));
+}
+
+function sameEntry(actual, expected) {
+  return exactObject(actual, Object.keys(expected)) && Object.keys(expected).every(key => actual[key] === expected[key]);
+}
+
+function sameDmgLayout(dmg) {
+  return dmg !== null && typeof dmg === 'object' && sameEntry(dmg.window, DMG_WINDOW)
+    && Array.isArray(dmg.contents) && dmg.contents.length === DMG_CONTENTS.length
+    && dmg.contents.every((entry, index) => sameEntry(entry, DMG_CONTENTS[index]));
 }
 
 function selectedContributions(ids) {
@@ -42,9 +86,12 @@ export function assertPackagingConfig(config, { contributionIds = ['legacy', 'st
   for (const [platform, targets, arch] of [['mac', ['dmg', 'zip'], 'arm64'], ['win', ['nsis'], 'x64']]) {
     const value = config[platform];
     if (!value || value.artifactName !== ARTIFACT_NAME_PATTERN || !Array.isArray(value.target) || value.target.length !== targets.length || value.target.some((entry, index) => !exactObject(entry, ['target', 'arch']) || entry.target !== targets[index] || !Array.isArray(entry.arch) || entry.arch.length !== 1 || entry.arch[0] !== arch)) throw packagingError('The builder artifact name or target matrix is invalid.');
-    // Per-platform overrides can silently bypass the common resource contribution.
-    for (const key of ['extraResources', 'extraFiles', 'beforePack', 'sign']) if (Object.hasOwn(value, key)) throw packagingError(`Unsupported platform override: ${platform}.${key}`);
+    // Per-platform overrides can silently bypass the common resource contribution; Windows adds exactly the VC++ redistributable.
+    for (const key of ['extraFiles', 'beforePack', 'sign']) if (Object.hasOwn(value, key)) throw packagingError(`Unsupported platform override: ${platform}.${key}`);
+    if (platform === 'mac' ? Object.hasOwn(value, 'extraResources') : !sameMappings(value.extraResources, WINDOWS_RESOURCES)) throw packagingError(`Unsupported platform override: ${platform}.extraResources`);
   }
+  if (!config.nsis || config.nsis.include !== NSIS_INCLUDE || config.nsis.perMachine !== false || Object.hasOwn(config.nsis, 'script')) throw packagingError('The NSIS installer must use the reviewed include and stay per-user.');
+  if (!sameDmgLayout(config.dmg)) throw packagingError('The DMG must hold exactly the app, the Applications link and the help page.');
   const ignores = selected.map(([, item]) => `Contents/Resources/${item.to}/`);
   if (!Array.isArray(config.mac.signIgnore) || config.mac.signIgnore.length !== ignores.length || config.mac.signIgnore.some((value, index) => value !== ignores[index])) throw packagingError('Both frozen resource roots must be excluded from outer signing.');
   for (const key of ['extraFiles', 'afterPack', 'afterSign']) if (Object.hasOwn(config, key)) throw packagingError(`Unaudited packaging hook or resource override: ${key}`);

@@ -95,18 +95,18 @@
     "language": "Target language",
     "custom_language": "Other language",
     "custom_language_name": "Language name",
-    "model_required": "Select a model with an API key configured.",
+    "model_required": "Select a model that has an API key.",
     "model_settings": "Model settings",
     "instructions": "Translation requirements (optional)",
     "advanced": "Advanced settings",
-    "context_window": "Context window (tokens)",
-    "max_output": "Output limit per batch (tokens)",
+    "context_window": "How much the model reads at once (tokens)",
+    "max_output": "Longest answer per batch (tokens)",
     "batch_cues": "Cue limit per batch",
-    "invalid_options": "Enter a target language and check the advanced settings. The output limit must be smaller than the context window.",
+    "invalid_options": "Enter a target language and check the advanced settings: the longest answer per batch must be less than what the model reads at once.",
     "estimate": "Estimated usage",
-    "estimated_input": "Estimated input tokens",
+    "estimated_input": "Tokens to send (estimate)",
     "batch_count": "Batches",
-    "output_reserve": "Reserved output tokens",
+    "output_reserve": "Tokens kept for answers",
     "prepare": "Estimate usage",
     "start": "Start translation",
     "queued": "Translation queued",
@@ -122,13 +122,13 @@
     "resume_description": "Keep the original model and translation settings, and continue only unfinished batches.",
     "original_model": "Original model",
     "completed_batches": "Completed batches",
-    "repair_model": "The original model configuration is missing, changed, or has an unavailable API key. Repair the original configuration in model settings.",
+    "repair_model": "The original model profile is missing, was changed, or its API key no longer works. Fix that profile in the model settings.",
     "legacy_restart": "This older task cannot be resumed. Create a new translation.",
     "uncertain_usage": "Usage unknown for {{count}} requests",
     "uncertain_resume": "Billing is unknown for {{count}} requests. Resuming unfinished batches may incur duplicate charges.",
     "provider_wait": "The provider requires a wait. Continue in {{seconds}} seconds",
     "batch_progress": "{{completed}} / {{total}} batches",
-    "actual_usage": "Actual tokens: input {{input}} · output {{output}}",
+    "actual_usage": "Actual usage: sent {{input}} · answers {{output}} tokens",
     "unknown_usage": "Unknown",
     "languages": {
       "zh": "Simplified Chinese",
@@ -136,7 +136,8 @@
       "ja": "Japanese",
       "zh-Hant": "Traditional Chinese"
     },
-    "usage_total": "{{value}} tokens"
+    "usage_total": "{{value}} tokens",
+    "advanced_hint": "Usually no need to change these. Tokens are the unit AI services measure text in, roughly one Chinese character or one English word each."
   },
   "export": {
     "action": "Export subtitles",
@@ -262,9 +263,9 @@
     "access_denied": "Document authorization expired. Refresh or reopen the application.",
     "document_unavailable": "The document could not be read or saved.",
     "output_write_failed": "Download failed. Check the destination and try again.",
-    "needs_configuration": "Model configuration is unavailable. Check the model and API key.",
+    "needs_configuration": "The model profile cannot be used. Check the model name and API key.",
     "translation_protocol_invalid": "The model returned incomplete or invalid subtitles. This batch was not saved.",
-    "translation_output_limit": "The batch output limit was reached. This batch was not saved. Reduce cues per batch or raise the output limit.",
+    "translation_output_limit": "The answer went over \"Longest answer per batch\", so this batch was not saved. Lower \"Cue limit per batch\", or raise \"Longest answer per batch\" in the advanced settings.",
     "translation_failed": "The translation request failed. Check the model service and try again.",
     "transcription_failed": "Transcription failed. Check the media and local resources, then try again.",
     "interrupted": "Translation was interrupted. Completed translations have been kept.",
@@ -467,9 +468,9 @@
     "mode_transcribe": "Original language",
     "mode_english": "Translate to English",
     "vad": "Detect speech",
-    "vad_hint": "Use voice activity detection to identify speech segments.",
+    "vad_hint": "Skips the parts where nobody speaks, so silence is not misheard as words.",
     "advanced": "Advanced settings",
-    "beam_size": "Beam size",
+    "beam_size": "Search width",
     "temperature": "Temperature",
     "vad_silence": "Minimum silence (ms)",
     "cue_duration": "Maximum cue duration (ms)",
@@ -482,11 +483,11 @@
     "window_quiet": "Speech pauses",
     "resources": "Local resources",
     "manage_resources": "Manage resources",
-    "resource_description": "Download resources from the catalog or import a matching model file. Imported models are copied.",
+    "resource_description": "Download what you need from the list. If you already have a model file, you can click Import model, but it must be exactly one of the listed models (the same file, with the same size and content). Importing copies it and keeps the original.",
     "resource_empty": "No local resources are listed.",
     "resource_model": "Model",
     "resource_vad": "Speech detection",
-    "resource_accelerator": "GPU support",
+    "resource_accelerator": "Graphics acceleration",
     "resource_ready": "Ready",
     "resource_not_installed": "Not installed",
     "resource_installing": "Installing…",
@@ -494,7 +495,14 @@
     "download": "Download",
     "import_model": "Import model",
     "cancel_download": "Cancel installation",
-    "resource_failed": "The resource operation failed. Try again.",
+    "resource_failed": "The resource operation did not finish. Try again. If it still fails, click \"Copy diagnostics\" and send the text to the developers.",
+    "resource_failed_vad_needs_model": "Voice detection needs the Standard model first: download the Standard model, then voice detection.",
+    "resource_failed_network": "The download did not finish. Usually the download address could not be reached or the network blocked it. Change the download source or turn on a proxy in network settings, then click Download again.",
+    "resource_failed_disk": "Not enough disk space. Free up some space, then try again.",
+    "resource_failed_verify": "The downloaded file failed its integrity check. Click Download again; if it still fails, change the download source in network settings.",
+    "resource_import_mismatch": "The selected file does not match this model in the list (its size or content differs). Choose the file with the same model name and import again.",
+    "resource_import_failed": "The import did not finish. The file may be unreadable or in use by another program. Check the file and import again.",
+    "open_network_settings": "Network settings",
     "runtime_checking": "Checking local runtime…",
     "runtime_ready": "Local runtime is ready",
     "runtime_unavailable": "Local runtime is unavailable",
@@ -506,7 +514,7 @@
     "readiness_runtime": "A working local runtime is required.",
     "readiness_model": "Install the selected model to continue.",
     "readiness_vad": "Install speech detection resources or turn off speech detection.",
-    "readiness_accelerator": "Install GPU support or choose CPU.",
+    "readiness_accelerator": "Install NVIDIA graphics acceleration first, or switch to CPU.",
     "readiness_media": "Add media to begin.",
     "status_queued": "Queued",
     "status_preparing_media": "Preparing media",
@@ -519,7 +527,7 @@
     "active_count": "{{active}} active · {{completed}} with subtitles · {{empty}} with no usable subtitles",
     "task_failed": "Transcription failed. Check the media and local resources.",
     "close": "Close",
-    "shared_hint": "Models, speech detection and CUDA resources are stored in the app’s shared directory. Both subtitle tools use one installation.",
+    "shared_hint": "Models, voice detection and NVIDIA graphics acceleration are stored in the app’s shared directory. Both subtitle tools use one installation.",
     "migration_issues": "Some older resources could not be migrated safely. Their original files were kept. Restart the app to retry, then check resource status if needed.",
     "shared_cleanup_pending": "Shared resources are still being cleaned up. Wait before installing or deleting resources.",
     "shared_busy": "A subtitle task or resource operation is using this resource.",
@@ -545,7 +553,138 @@
     "auto_export_format_auto": "By source (LRC for audio / SRT for video)",
     "auto_export_remove": "Delete the subtitle document from Studio after a successful export",
     "auto_export_remove_hint": "Documents whose export fails are kept so you can check or export them again.",
-    "auto_export_source_only": "Without automatic translation, only the original is exported."
+    "auto_export_source_only": "Without automatic translation, only the original is exported.",
+    "resource_name_standard": "Standard (recommended, about 1.0 GB)",
+    "resource_name_standard_short": "Standard",
+    "resource_name_best": "Highest accuracy (about 2.9 GB, slower)",
+    "resource_name_best_short": "Highest accuracy",
+    "resource_name_vad": "Voice detection (skips silence)",
+    "resource_name_vad_short": "Voice detection",
+    "resource_name_cuda": "NVIDIA graphics acceleration",
+    "prepare_title": "Prepare in one click (recommended)",
+    "prepare_description": "Installs the standard model and voice detection together, so local transcription is ready to go.",
+    "prepare_size": "Downloads {{size}}",
+    "prepare_free_space": "{{size}} free",
+    "prepare_low_space": "Not enough free space: about {{size}} is needed, and only {{free}} is free. Free up some disk space first.",
+    "prepare_action": "Prepare",
+    "prepare_ready": "Ready",
+    "prepare_ready_hint": "The standard model and voice detection are ready. You can start transcribing.",
+    "prepare_checking": "Checking…",
+    "prepare_running": "Preparing {{name}} ({{current}} of {{total}})",
+    "prepare_done": "Local transcription is ready. You can start transcribing.",
+    "prepare_failed": "Some resources were not installed; the list below says why. Click Prepare again once that is sorted out.",
+    "prepare_cancelled": "Preparation cancelled. Click Prepare again whenever you like.",
+    "prepare_runtime_needed": "The Microsoft runtime is needed first: click \"Fix it\" above, and the download starts by itself once it is installed.",
+    "prepare_cancel": "Cancel",
+    "prepare_download_anyway": "Download anyway",
+    "recommended": "Recommended",
+    "not_applicable": "Not for this computer",
+    "cuda_not_applicable_hint": "No NVIDIA graphics card was found, so this pack cannot be used on this computer.",
+    "cuda_confirm_title": "This computer cannot use graphics acceleration",
+    "cuda_confirm_description": "No NVIDIA graphics card was found. The NVIDIA acceleration pack is about {{size}} and only works on computers with an NVIDIA card. Download it anyway?",
+    "cuda_driver_old": "Update the NVIDIA graphics driver first: this computer has {{version}}, and acceleration needs {{minimum}} or later.",
+    "cuda_driver_update": "Update driver",
+    "device_hint_no_nvidia": "No NVIDIA graphics card was found, so transcription uses the CPU.",
+    "device_hint_cuda_no_nvidia": "No NVIDIA graphics card was found on this computer, so “NVIDIA GPU” cannot transcribe. Choose “Automatic” or “CPU” instead.",
+    "device_hint_install_cuda": "Install NVIDIA graphics acceleration to transcribe on the graphics card, which is faster.",
+    "device_hint_driver_old": "The NVIDIA graphics driver is old. Update it first, or graphics acceleration may not work.",
+    "cpu_reason_no_nvidia": "No NVIDIA graphics card",
+    "cpu_reason_not_installed": "Graphics acceleration not installed",
+    "cpu_reason_unavailable": "Graphics acceleration unavailable",
+    "vc_runtime_failure": "The Microsoft Visual C++ runtime is missing or too old on this computer, so the transcription program could not start. Click \"Fix it\" above first.",
+    "vc_runtime_download_title": "Install the Microsoft runtime first",
+    "vc_runtime_download_description": "Without it, the download could not be used once it finishes. The download starts by itself after the fix.",
+    "vc_runtime_download_anyway": "Download anyway",
+    "advanced_hint": "The defaults usually work: a larger search width is more accurate but slower, a lower temperature gives steadier results, and the shortest silence sets how long a pause counts as a gap between sentences.",
+    "task_error": {
+      "runtime": {
+        "cause": "The transcription program that comes with FusionKit is incomplete or does not match this version.",
+        "next": "Restart FusionKit and try again. If it still fails, reinstall FusionKit."
+      },
+      "unsupported": {
+        "cause": "This computer's system or processor does not support local transcription.",
+        "next": "Local transcription needs Windows 10 / 11 (64-bit), or macOS 12 or later on Apple silicon."
+      },
+      "crashed": {
+        "cause": "The transcription program quit unexpectedly or stopped responding.",
+        "next": "Try again. If it still fails, set Processor to CPU, or restart the computer and try again."
+      },
+      "accelerator": {
+        "cause": "Graphics acceleration cannot be used right now.",
+        "next": "Set Processor to CPU and transcribe again, or download graphics acceleration again in Manage resources, or update the graphics driver."
+      },
+      "model_missing": {
+        "cause": "The selected model is not installed yet.",
+        "next": "Download it in Manage resources, or click \"Prepare in one click\" there."
+      },
+      "model_broken": {
+        "cause": "The model file could not be loaded.",
+        "next": "Delete the model in Manage resources and download it again."
+      },
+      "not_allowed": {
+        "cause": "The selected resource is not on the list this version can use.",
+        "next": "Update FusionKit and try again."
+      },
+      "busy": {
+        "cause": "The local transcription resources are in use by another task or download.",
+        "next": "Wait for it to finish, then try again."
+      },
+      "disk": {
+        "cause": "There is not enough disk space.",
+        "next": "Free up some space, then try again."
+      },
+      "memory": {
+        "cause": "The computer ran out of memory.",
+        "next": "Close other programs that use a lot of memory, or choose a smaller model, then try again."
+      },
+      "authorization": {
+        "cause": "FusionKit can no longer read this file.",
+        "next": "Add the file again, then transcribe it."
+      },
+      "media": {
+        "cause": "No sound that can be transcribed could be read from this file.",
+        "next": "Check that the file plays normally, or convert it to a common format such as MP4 or MP3, then try again."
+      },
+      "no_audio": {
+        "cause": "This file has no audio track.",
+        "next": "Choose a file with sound."
+      },
+      "media_changed": {
+        "cause": "The original file was changed or moved during transcription.",
+        "next": "Add the file again, then transcribe it."
+      },
+      "transcription": {
+        "cause": "The transcription did not finish.",
+        "next": "Try again. If it still fails, choose another model or set Processor to CPU."
+      },
+      "limit": {
+        "cause": "The media is too long, or its content is more than one task can handle.",
+        "next": "Split the media into parts, then transcribe them."
+      },
+      "save": {
+        "cause": "The transcription result could not be saved.",
+        "next": "Make sure there is enough disk space, then try again."
+      },
+      "interrupted": {
+        "cause": "The transcription was interrupted, perhaps because FusionKit was closed or the page reloaded.",
+        "next": "Add the file again, then transcribe it."
+      },
+      "page_stale": {
+        "cause": "The connection between this page and the local transcription service is no longer valid.",
+        "next": "Restart FusionKit and try again."
+      },
+      "unknown": {
+        "next": "Try again. If it still fails, click \"Copy diagnostics\" and send the text to the developers."
+      }
+    },
+    "copy_diagnostics": "Copy diagnostics",
+    "diagnostics_copied": "Diagnostics copied",
+    "resource_failed_accelerator": "Graphics acceleration failed its load check, so this computer cannot use it right now. Update the NVIDIA graphics driver, then download it again; without it you can still transcribe on the CPU.",
+    "resource_failed_load": "The file was downloaded but failed its load check. Click Download again; if it still fails, restart the computer and try again.",
+    "resource_failed_runtime": "The transcription program that comes with FusionKit is incomplete or does not match this version, so this resource cannot be checked. Restart FusionKit; if it still fails, reinstall FusionKit.",
+    "resource_failed_not_allowed": "This resource is not on the list this version can download. Update FusionKit and try again.",
+    "resource_failed_memory": "The computer ran out of memory while checking the resource. Close other programs that use a lot of memory, then try again.",
+    "resource_failed_stale": "The connection between this page and the local transcription service is no longer valid. Restart FusionKit and try again."
   },
   "overview": {
     "title": "Translation tasks",
@@ -903,7 +1042,7 @@
     "usage": "Used {{count}} tokens",
     "errors": {
       "revision_conflict": "The subtitles changed after the revisions were proposed. Please propose again.",
-      "output_limit": "The model reached its output limit. Select fewer subtitles or raise the output limit in the translation settings.",
+      "output_limit": "The answer went over \"Longest answer per batch\". Select fewer subtitles, or raise \"Longest answer per batch\" in the translation's advanced settings.",
       "protocol_invalid": "The model response could not be read. Try again or use another model.",
       "failed": "The revision request failed. Check the model service and try again.",
       "apply_failed": "The revisions could not be applied. See the message at the top of the page and try again.",

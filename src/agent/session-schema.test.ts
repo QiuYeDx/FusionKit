@@ -33,4 +33,14 @@ describe("Agent session import validation", () => {
     expect(parsed.sessionLog.map((entry) => entry.type)).toEqual([...AGENT_LOG_ENTRY_TYPES]);
     expect(parsed.session).toMatchObject({ title: "字幕翻译", titleSource: "manual", pinned: true });
   });
+  it("keeps why a model request failed on the assistant message that reports it", () => {
+    const data = session();
+    const failed = { id: "failed", role: "assistant", content: "调用出错：HTTP 402", timestamp: 2, failure: { category: "balance" } };
+    const parsed = parseSessionJson(JSON.stringify({ ...data, session: { ...data.session, messages: [...data.session.messages, failed] } }));
+    expect(parsed.session.messages[1].failure).toEqual({ category: "balance" });
+    expect(parsed.session.messages[0]).not.toHaveProperty("failure");
+    for (const bad of [{ ...failed, role: "user" }, { ...failed, failure: { category: "ok" } }, { ...failed, failure: { category: "auth", detail: "x" } }]) {
+      expect(() => parseSessionJson(JSON.stringify({ ...data, session: { ...data.session, messages: [bad] } }))).toThrow();
+    }
+  });
 });

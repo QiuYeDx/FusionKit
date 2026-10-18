@@ -1,5 +1,6 @@
 import type { TranslationLanguage } from "@/type/subtitle";
 import type { ModelApiFormat, OutputTokenParameter } from "@/type/model";
+import type { ModelErrorCategory } from "@/lib/model-error-category";
 
 export type TextFileFormat = "txt" | "markdown";
 
@@ -143,6 +144,8 @@ export interface TextTranslationSegmentFailureSummary {
   errorCode: string;
   message?: string;
   occurredAt?: string;
+  /** Why the model request failed (wrong key, no balance...), when known. */
+  category?: ModelErrorCategory;
 }
 
 export interface TextTranslationTaskFailureSummary {

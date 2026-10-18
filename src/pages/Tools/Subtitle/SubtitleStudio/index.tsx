@@ -4,7 +4,7 @@ import { AnimatePresence } from 'motion/react';
 import { StudioDisclosure } from './StudioDisclosure';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
-import { readStudioNavigationDocument, readStudioNavigationView } from './navigation';
+import { readStudioNavigationDocument, readStudioNavigationResources, readStudioNavigationView } from './navigation';
 import { AlertCircle, AudioLines, BookOpen, CheckCheck, Ellipsis, FilePlus2, Library, LoaderCircle, RefreshCw, Subtitles, Trash2, X, Play, Square, Undo2, ScanText, Columns2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -98,12 +98,18 @@ export default function SubtitleStudio() {
     lastWorkspaceView = value; setWorkspaceView(value);
   };
   useLayoutEffect(resetWorkspaceScroll, [workspaceView]);
+  /** A link asked for the transcription resource manager (the welcome wizard's "prepare"). */
+  const [resourcesRequested, setResourcesRequested] = useState(false);
   useEffect(() => {
     const hint = readStudioNavigationView(searchParams.toString());
-    if (!hint) return;
-    changeWorkspaceView(hint);
-    lastWorkspaceView = hint;
-    const next = new URLSearchParams(searchParams); next.delete('view');
+    const resources = readStudioNavigationResources(searchParams.toString());
+    if (!hint && !resources) return;
+    const view = resources ? 'transcription' : hint!;
+    changeWorkspaceView(view);
+    lastWorkspaceView = view;
+    if (resources) setResourcesRequested(true);
+    // Both hints are read in one place and removed together, so they cannot restore each other.
+    const next = new URLSearchParams(searchParams); next.delete('view'); next.delete('resources');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
   const { encoding, setEncoding, dismissedRecoveryKey, dismissRecovery } = useStudioPreferences();
@@ -846,7 +852,8 @@ export default function SubtitleStudio() {
     </ToolDetailLayout>
     </ClipPathTabsContent>
     <ClipPathTabsContent value="transcription" className="studio-workspace-content">
-      {workspaceView === 'transcription' && <StudioTranscription header={null} onOpenDocument={openTranscriptionDocument} />}
+      {workspaceView === 'transcription' && <StudioTranscription header={null} onOpenDocument={openTranscriptionDocument}
+        openResources={resourcesRequested} onResourcesOpened={() => setResourcesRequested(false)} />}
     </ClipPathTabsContent>
     </ClipPathTabs>
     {page && <StudioCueRevision page={page} track={track} request={cueRevision} editBlocked={page.tasks.some(task => task.status === 'queued' || task.status === 'running') ? t('studio:cue_edit.blocked_translation') : undefined}

@@ -10,7 +10,8 @@
     "proxy_config": "代理设置",
     "model_assignment": "模型分配",
     "model_profiles": "模型配置",
-    "agent_config": "Agent 设置"
+    "agent_config": "Agent 设置",
+    "download_source": "下载源"
   },
   "nav": {
     "general": {
@@ -18,8 +19,8 @@
       "hint": "外观、语言、通知"
     },
     "proxy": {
-      "label": "网络代理",
-      "hint": "无代理 / 系统 / 自定义"
+      "label": "网络",
+      "hint": "代理与下载源"
     },
     "model": {
       "label": "AI 模型",
@@ -49,20 +50,20 @@
       "default": "默认指针"
     },
     "other": "其他",
-    "apikey": "API Key",
-    "model_url": "Base URL",
-    "model_key": "Model Key",
+    "apikey": "密钥（API Key）",
+    "model_url": "接口地址",
+    "model_key": "模型名",
     "model_fetch": {
-      "no_key": "请先设置 API Key",
+      "no_key": "请先填写密钥（API Key）",
       "success": "已获取 {{count}} 个可用模型",
       "error": "获取模型列表失败",
       "preset_group": "预设模型",
       "remote_group": "远程模型",
-      "refresh_tooltip": "从 API 获取最新模型列表",
-      "manual_key_label": "手动输入 Model Key",
-      "manual_key_hint": "将作为接口请求的 model 参数",
+      "refresh_tooltip": "从服务商获取最新的模型列表",
+      "manual_key_label": "手动输入模型名",
+      "manual_key_hint": "填写服务商文档里写的模型名",
       "apply_custom_key": "使用",
-      "empty_custom_key": "请输入模型 Key",
+      "empty_custom_key": "请输入模型名",
       "deepseek_legacy_warning": "该模型将于 2026 年 7 月 24 日后停用，建议切换至 V4 系列模型。",
       "badge_recommended": "推荐",
       "badge_flagship": "旗舰",
@@ -74,12 +75,13 @@
       "chat_completions": "Chat Completions",
       "responses_hint": "适合新版 OpenAI Responses 接口。",
       "chat_hint": "适合 DeepSeek 和多数 OpenAI 兼容服务。",
-      "base_url_hint_responses": "建议填写 Base URL，例如 https://api.openai.com/v1；历史 /responses endpoint 也兼容。",
-      "base_url_hint_chat": "建议填写 Base URL，例如 https://api.example.com/v1；历史 /chat/completions endpoint 也兼容。",
+      "base_url_hint_responses": "一般不用改。使用其他服务时，填写服务商提供的接口地址，例如 https://api.openai.com/v1。",
+      "base_url_hint_chat": "一般不用改。使用其他服务时，填写服务商提供的接口地址，例如 https://api.example.com/v1。",
       "output_token_parameter": "输出 Token 参数",
-      "output_token_parameter_hint": "OpenAI 新模型通常使用 max_completion_tokens，第三方兼容服务通常使用 max_tokens。",
+      "output_token_parameter_hint": "一般不用改。OpenAI 新模型通常用 max_completion_tokens，其他兼容服务通常用 max_tokens。",
       "max_tokens": "max_tokens",
-      "max_completion_tokens": "max_completion_tokens"
+      "max_completion_tokens": "max_completion_tokens",
+      "base_url_hint_other": "填写服务商提供的接口地址，例如 https://api.example.com/v1。"
     },
     "notification": {
       "label": "系统通知",
@@ -97,15 +99,47 @@
       "host": "代理地址",
       "port": "端口",
       "none_desc": "直接连接网络，不使用任何代理服务器。",
-      "system_desc": "使用操作系统配置的代理设置。",
-      "custom_desc": "通过指定的代理服务器转发网络请求。",
+      "system_desc": "跟随电脑的代理设置（包括 Clash 等软件开启的“系统代理”）。AI 调用、资源下载和检查更新都会使用它，不用手动填写端口。",
+      "custom_desc": "通过你填写的代理服务器连接网络。地址可写成 127.0.0.1，SOCKS5 代理请写成 socks5://127.0.0.1。",
       "test_btn": "测试",
-      "test_tooltip": "点击测试当前网络连接",
-      "test_success": "连接成功",
-      "test_fail": "连接失败",
-      "test_latency": "延迟",
-      "test_proxy_addr": "代理地址",
-      "test_error": "错误"
+      "custom_incomplete": "请填写代理地址和端口；填写完整之前会直接连接网络。",
+      "save_failed": "设置没有保存成功，请重新选择一次。",
+      "test_running": "正在测试连接…",
+      "test_failed": "测试没有完成，请稍后重试。",
+      "test_target_model_api": "模型服务（{{host}}）",
+      "test_target_download_official": "模型下载 · 官方源（{{host}}）",
+      "test_target_download_mirror": "模型下载 · 国内镜像（{{host}}）",
+      "test_target_github": "检查更新 · GitHub（{{host}}）",
+      "test_latency_value": "{{ms}} 毫秒",
+      "test_via_direct": "直接连接",
+      "test_via_proxy": "经过代理 {{proxy}}",
+      "test_hint_ok": "全部连接正常。",
+      "test_hint_proxy": "代理连接失败：请确认代理软件已经打开，代理地址和端口填写正确。",
+      "custom_credentials": "暂不支持带用户名和密码的代理，现在会直接连接网络。请在代理软件里关闭密码验证，地址只填 127.0.0.1 这样的部分。",
+      "custom_invalid": "代理地址格式不对，现在会直接连接网络。地址写成 127.0.0.1，端口写成 7890；SOCKS5 代理写成 socks5://127.0.0.1。",
+      "test_hint_proxy_system": "电脑设置了代理，但连不上它：请打开代理软件；如果没有在用代理，可以选择“不使用代理”。",
+      "test_hint_proxy_auth": "代理要求输入用户名和密码，FusionKit 暂不支持。请在代理软件里关闭密码验证后再测试。",
+      "test_hint_ai_ok": "模型服务连接正常，AI 功能可以使用。",
+      "test_hint_ai_failed": "模型服务连不上，AI 功能暂时用不了：请到“AI 模型”设置里检查“接口地址”是否填对；如果这个服务需要代理才能访问，请打开代理软件后再测试。",
+      "test_hint_download_ok": "模型可以正常下载。",
+      "test_hint_download_mirror": "模型可以正常下载：官方地址连不上，会自动改用国内镜像。",
+      "test_hint_download_switch": "官方下载地址连不上：把下载源换成“自动”，就会改用国内镜像。",
+      "test_hint_download_failed": "模型的下载地址都连不上，请检查网络或代理软件后再测试。",
+      "test_hint_github_failed": "GitHub 连不上：检查和下载更新会自动改用国内镜像，不影响 AI 和模型下载。",
+      "test_hint_try_system": "如果你在用 Clash 等代理软件，可以选择“系统代理”后再测试一次。",
+      "error": {
+        "dns": "找不到服务器地址，网络可能被拦截",
+        "timeout": "连接超时",
+        "refused": "服务器拒绝连接",
+        "reset": "连接被中断",
+        "network_unreachable": "电脑没有连上网络",
+        "proxy_failed": "代理连接失败",
+        "proxy_auth": "代理需要用户名和密码，暂不支持",
+        "tls": "安全连接失败，网络可能被拦截",
+        "aborted": "测试已取消",
+        "unknown": "连接失败"
+      },
+      "test_hint_github_failed_official": "GitHub 连不上，检查更新会失败：把下载源换成“自动”，就会改用国内镜像。"
     },
     "token_price": {
       "intro_title": "Token 价格配置",
@@ -122,23 +156,22 @@
       "custom_note": "提示：请根据您使用的自定义模型的实际定价设置 Token 价格，以获得准确的费用预估。"
     },
     "assignment": {
-      "description": "为不同功能模块指定使用的模型配置。Agent 模型用于 AI 对话，任务执行模型用于字幕翻译等具体任务。",
+      "description": "第一个模型配置会自动用于这两项；有多个配置时，可以在这里分别指定。",
       "agent_model": "Agent 模型（AI 对话）",
       "task_model": "任务执行模型（字幕翻译等）",
       "select_placeholder": "选择模型配置…",
       "not_configured": "未配置",
       "locked": "会话中",
       "locked_tooltip": "当前有会话进行中，无法修改 Agent 所用的模型。请新建对话后再修改。",
-      "agent_unsupported_badge": "Agent 暂不支持",
-      "agent_unsupported_desc": "当前 Agent 暂不支持 Responses API。请选择 Chat Completions 配置；Responses API 配置仍可用于任务执行模型。",
-      "agent_unsupported_select": "当前 Agent 暂不支持 Responses API，请选择 Chat Completions 配置。"
+      "agent_role": "在首页和悬浮助手里和你对话、替你操作工具的 AI。",
+      "task_role": "字幕翻译、修订、文件名翻译和长文本翻译等具体任务使用的 AI。"
     },
     "profile": {
       "add": "添加配置",
       "empty": "暂无模型配置，请添加一个。",
       "add_first": "添加第一个模型配置",
       "in_use": "使用中",
-      "no_key": "未配置 API Key",
+      "no_key": "未填写密钥",
       "dialog_title_add": "添加模型配置",
       "dialog_title_edit": "编辑模型配置",
       "dialog_description": "配置模型的连接信息和参数。",
@@ -146,13 +179,46 @@
       "name_placeholder": "例如：DeepSeek V3、GPT-5 等",
       "cancel": "取消",
       "create": "创建",
-      "save": "保存"
-    }
+      "save": "保存",
+      "key_preview": "密钥：{{preview}}",
+      "auto_assigned": "已保存，还没有指定模型的功能会自动使用它。",
+      "edit": "编辑配置",
+      "delete": "删除配置（再点一次确认）"
+    },
+    "download_source": {
+      "label": "下载源",
+      "auto": "自动（推荐）",
+      "official": "官方源",
+      "mirror": "国内镜像优先",
+      "description": "下载语音模型等资源和应用更新时使用：“自动”会挑选能连上、速度快的地址，失败时自动换下一个；所有文件下载后都会核对校验值，对不上就不会使用。"
+    },
+    "apikey_show": "显示密钥",
+    "apikey_hide": "隐藏密钥",
+    "deepseek_intro": "国内可直接访问、价格低。还没有密钥？",
+    "deepseek_get_key": "获取 Key",
+    "deepseek_top_up": "充值",
+    "advanced": {
+      "title": "高级设置",
+      "description": "API 格式、输出 Token 参数和价格，选了预设一般不用改"
+    },
+    "connection_test": {
+      "button": "测试连接",
+      "testing": "正在测试连接…",
+      "success": "连接成功，用时 {{ms}} 毫秒。",
+      "need_key": "先填写密钥再测试",
+      "draft_kept": "刚才填写的内容已保留。改好网络设置后，点“继续填写”回到表单。",
+      "draft_continue": "继续填写"
+    },
+    "onboarding": {
+      "reopen": "重新打开新手引导"
+    },
+    "apikey_characters_hint": "密钥里有中文、全角符号或空格，可能多复制了别的文字。只粘贴密钥本身。",
+    "deepseek_recommended_aria": "DeepSeek（推荐）"
   },
   "placeholder": {
-    "apikey": "请输入 API Key",
-    "model_url": "请输入 Base URL",
-    "model_key": "请输入 Model Key",
+    "apikey": "粘贴服务商给你的密钥",
+    "model_url": "例如 https://api.example.com/v1",
+    "model_key": "例如 deepseek-v4-flash",
     "proxy_host": "127.0.0.1",
     "proxy_port": "7890"
   },
@@ -212,7 +278,7 @@
     "titlebar": "{{count}} 个外部 Agent 已连接",
     "enable": {
       "label": "允许外部 Agent 连接",
-      "description": "让 Claude Code、Codex 等通过 MCP 读取与操作 FusionKit，由它们完成翻译，无需在这里配置 API Key。只监听本机（127.0.0.1），并且需要令牌。"
+      "description": "让 Claude Code、Codex 等通过 MCP 读取与操作 FusionKit，由它们完成翻译，不需要在这里填写密钥。只监听本机（127.0.0.1），并且需要令牌。"
     },
     "status": {
       "running": "运行中",

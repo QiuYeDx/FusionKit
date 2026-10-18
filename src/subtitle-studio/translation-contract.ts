@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { executionRefSchema, idSchema, LIMITS, StudioError, translationTrackNameSchema } from './domain';
+import { MODEL_ERROR_CATEGORIES } from '../lib/model-error-category';
 
 const tokenCount = z.number().int().nonnegative().safe();
 export const translationModelSchema = z.object({
@@ -74,6 +75,8 @@ export const translationProgressSchema = z.object({
   uncertainAttempts: tokenCount.optional(),
   notBefore: tokenCount.optional(),
   error: z.enum(['knowledge_check_failed', 'needs_configuration', 'translation_protocol_invalid', 'translation_output_limit', 'translation_record_unavailable', 'translation_failed', 'limit_exceeded', 'revision_conflict', 'interrupted']).optional(),
+  /** Why the model request behind `error` failed, when that is known. */
+  errorCategory: z.enum(MODEL_ERROR_CATEGORIES).optional(),
 }).strict();
 export type TranslationConfig = z.infer<typeof translationConfigSchema>;
 export type TranslationUsage = z.infer<typeof translationUsageSchema>;

@@ -10,7 +10,8 @@
     "proxy_config": "プロキシ設定",
     "model_assignment": "モデル割り当て",
     "model_profiles": "モデル構成",
-    "agent_config": "Agent 設定"
+    "agent_config": "Agent 設定",
+    "download_source": "ダウンロード元"
   },
   "nav": {
     "general": {
@@ -19,7 +20,7 @@
     },
     "proxy": {
       "label": "ネットワーク",
-      "hint": "なし / システム / カスタム"
+      "hint": "プロキシとダウンロード元"
     },
     "model": {
       "label": "AI モデル",
@@ -49,20 +50,20 @@
       "default": "標準の矢印"
     },
     "other": "その他",
-    "apikey": "APIキー",
-    "model_url": "ベースURL",
-    "model_key": "Model Key",
+    "apikey": "キー（API Key）",
+    "model_url": "接続先アドレス",
+    "model_key": "モデル名",
     "model_fetch": {
-      "no_key": "先にAPIキーを設定してください",
+      "no_key": "先にキー（API Key）を入力してください",
       "success": "{{count}} 件の利用可能なモデルを取得しました",
       "error": "モデルリストの取得に失敗しました",
       "preset_group": "プリセットモデル",
       "remote_group": "リモートモデル",
-      "refresh_tooltip": "APIから最新のモデルリストを取得",
-      "manual_key_label": "Model Key を手動入力",
-      "manual_key_hint": "API リクエストの model パラメータとして使用",
+      "refresh_tooltip": "提供元から最新のモデル一覧を取得",
+      "manual_key_label": "モデル名を手動入力",
+      "manual_key_hint": "提供元のドキュメントに書かれているモデル名を入力します",
       "apply_custom_key": "使用",
-      "empty_custom_key": "モデルキーを入力してください",
+      "empty_custom_key": "モデル名を入力してください",
       "deepseek_legacy_warning": "このモデルは 2026 年 7 月 24 日以降に廃止予定です。V4 シリーズへの切り替えをお勧めします。",
       "badge_recommended": "おすすめ",
       "badge_flagship": "フラッグシップ",
@@ -74,12 +75,13 @@
       "chat_completions": "Chat Completions",
       "responses_hint": "新しい OpenAI Responses エンドポイント向けです。",
       "chat_hint": "DeepSeek や多くの OpenAI 互換サービス向けです。",
-      "base_url_hint_responses": "https://api.openai.com/v1 のようなベース URL を推奨します。従来の /responses エンドポイントも利用できます。",
-      "base_url_hint_chat": "https://api.example.com/v1 のようなベース URL を推奨します。従来の /chat/completions エンドポイントも利用できます。",
+      "base_url_hint_responses": "通常は変更不要です。他のサービスを使う場合は、そのサービスが案内するアドレス（例：https://api.openai.com/v1）を入力します。",
+      "base_url_hint_chat": "通常は変更不要です。他のサービスを使う場合は、そのサービスが案内するアドレス（例：https://api.example.com/v1）を入力します。",
       "output_token_parameter": "出力 Token パラメータ",
-      "output_token_parameter_hint": "新しい OpenAI モデルは通常 max_completion_tokens を使い、互換サービスは通常 max_tokens を使います。",
+      "output_token_parameter_hint": "通常は変更不要です。新しい OpenAI モデルは通常 max_completion_tokens、ほかの互換サービスは通常 max_tokens を使います。",
       "max_tokens": "max_tokens",
-      "max_completion_tokens": "max_completion_tokens"
+      "max_completion_tokens": "max_completion_tokens",
+      "base_url_hint_other": "サービスが案内するアドレス（例：https://api.example.com/v1）を入力します。"
     },
     "notification": {
       "label": "システム通知",
@@ -97,15 +99,47 @@
       "host": "プロキシアドレス",
       "port": "ポート",
       "none_desc": "プロキシサーバーを使用せず、直接接続します。",
-      "system_desc": "OSに設定されたプロキシ設定を使用します。",
-      "custom_desc": "指定したプロキシサーバー経由でネットワーク要求を転送します。",
+      "system_desc": "パソコンのプロキシ設定（Clash などのツールで有効にした「システムプロキシ」を含む）に従います。AI の呼び出し、リソースのダウンロード、更新の確認すべてに使われ、ポートを入力する必要はありません。",
+      "custom_desc": "入力したプロキシサーバー経由で接続します。アドレスは 127.0.0.1 のように、SOCKS5 プロキシは socks5://127.0.0.1 のように入力します。",
       "test_btn": "テスト",
-      "test_tooltip": "現在のネットワーク接続をテスト",
-      "test_success": "接続成功",
-      "test_fail": "接続失敗",
-      "test_latency": "遅延",
-      "test_proxy_addr": "プロキシアドレス",
-      "test_error": "エラー"
+      "custom_incomplete": "プロキシのアドレスとポートを入力してください。入力が終わるまでは直接接続します。",
+      "save_failed": "設定を保存できませんでした。もう一度選択してください。",
+      "test_running": "接続をテストしています…",
+      "test_failed": "テストが完了しませんでした。しばらくしてからもう一度お試しください。",
+      "test_target_model_api": "モデルサービス（{{host}}）",
+      "test_target_download_official": "モデルのダウンロード · 公式（{{host}}）",
+      "test_target_download_mirror": "モデルのダウンロード · 中国国内ミラー（{{host}}）",
+      "test_target_github": "更新の確認 · GitHub（{{host}}）",
+      "test_latency_value": "{{ms}} ミリ秒",
+      "test_via_direct": "直接接続",
+      "test_via_proxy": "プロキシ {{proxy}} 経由",
+      "test_hint_ok": "すべての接続が正常です。",
+      "test_hint_proxy": "プロキシに接続できません。プロキシツールが起動していて、アドレスとポートが正しいか確認してください。",
+      "custom_credentials": "ユーザー名とパスワード付きのプロキシにはまだ対応していないため、直接接続します。プロキシツールでパスワード認証をオフにし、アドレスには 127.0.0.1 のような部分だけを入力してください。",
+      "custom_invalid": "プロキシのアドレスの形式が正しくないため、直接接続します。アドレスは 127.0.0.1、ポートは 7890 のように入力してください。SOCKS5 プロキシは socks5://127.0.0.1 と入力します。",
+      "test_hint_proxy_system": "このパソコンにはプロキシが設定されていますが、接続できません。プロキシツールを起動してください。プロキシを使っていない場合は「プロキシなし」を選んでください。",
+      "test_hint_proxy_auth": "プロキシがユーザー名とパスワードを求めていますが、FusionKit はまだ対応していません。プロキシツールでパスワード認証をオフにしてから再テストしてください。",
+      "test_hint_ai_ok": "モデルサービスに接続できるので、AI 機能を使えます。",
+      "test_hint_ai_failed": "モデルサービスに接続できないため、AI 機能はまだ使えません。「AI モデル」設定の接続先アドレスを確認してください。このサービスにプロキシが必要な場合は、プロキシツールを起動してから再テストしてください。",
+      "test_hint_download_ok": "モデルをダウンロードできます。",
+      "test_hint_download_mirror": "モデルをダウンロードできます。公式のアドレスには接続できないため、自動で中国国内ミラーを使います。",
+      "test_hint_download_switch": "公式のダウンロード先に接続できません。ダウンロード元を「自動」にすると中国国内ミラーを使います。",
+      "test_hint_download_failed": "どのモデルのダウンロード先にも接続できません。ネットワークやプロキシツールを確認してから再テストしてください。",
+      "test_hint_github_failed": "GitHub に接続できません。更新の確認とダウンロードは自動で中国国内ミラーに切り替わります。AI 機能やモデルのダウンロードには影響しません。",
+      "test_hint_try_system": "Clash などのプロキシツールを使っている場合は「システムプロキシ」を選んで再テストしてください。",
+      "error": {
+        "dns": "サーバーのアドレスが見つかりません。ネットワークで遮断されている可能性があります",
+        "timeout": "接続がタイムアウトしました",
+        "refused": "サーバーに接続を拒否されました",
+        "reset": "接続が中断されました",
+        "network_unreachable": "パソコンがネットワークに接続されていません",
+        "proxy_failed": "プロキシ経由で接続できません",
+        "proxy_auth": "プロキシにユーザー名とパスワードが必要です（未対応）",
+        "tls": "安全な接続に失敗しました。ネットワークで傍受されている可能性があります",
+        "aborted": "テストを中止しました",
+        "unknown": "接続に失敗しました"
+      },
+      "test_hint_github_failed_official": "GitHub に接続できないため、更新の確認に失敗します。ダウンロード元を「自動」にすると中国国内ミラーを使います。"
     },
     "token_price": {
       "intro_title": "Token 価格設定",
@@ -122,23 +156,22 @@
       "custom_note": "ヒント：ご利用のカスタムモデルの実際の価格に基づいてトークン価格を設定してください。正確な費用見積りに役立ちます。"
     },
     "assignment": {
-      "description": "異なる機能モジュールに使用するモデル構成を指定します。Agentモデルは AI 会話に、タスク実行モデルは字幕翻訳などの具体的なタスクに使用されます。",
+      "description": "最初のモデル構成は自動で両方に使われます。複数ある場合はここで個別に指定できます。",
       "agent_model": "Agent モデル（AI 会話）",
       "task_model": "タスク実行モデル（字幕翻訳など）",
       "select_placeholder": "モデル構成を選択…",
       "not_configured": "未設定",
       "locked": "セッション中",
       "locked_tooltip": "会話が進行中です。Agent モデルを変更するには、新しい会話を開始してください。",
-      "agent_unsupported_badge": "Agent 未対応",
-      "agent_unsupported_desc": "Agent はまだ Responses API に対応していません。Chat Completions 構成を選択してください。Responses API 構成はタスク実行モデルには引き続き使用できます。",
-      "agent_unsupported_select": "Agent はまだ Responses API に対応していません。Chat Completions 構成を選択してください。"
+      "agent_role": "ホームとフローティングアシスタントで会話し、代わりにツールを操作する AI です。",
+      "task_role": "字幕の翻訳・修正、ファイル名や長文の翻訳など、個別のタスクに使う AI です。"
     },
     "profile": {
       "add": "構成を追加",
       "empty": "モデル構成がありません。追加してください。",
       "add_first": "最初のモデル構成を追加",
       "in_use": "使用中",
-      "no_key": "APIキー未設定",
+      "no_key": "キー未入力",
       "dialog_title_add": "モデル構成を追加",
       "dialog_title_edit": "モデル構成を編集",
       "dialog_description": "モデルの接続情報とパラメータを設定します。",
@@ -146,13 +179,46 @@
       "name_placeholder": "例：DeepSeek V3、GPT-5 など",
       "cancel": "キャンセル",
       "create": "作成",
-      "save": "保存"
-    }
+      "save": "保存",
+      "key_preview": "キー：{{preview}}",
+      "auto_assigned": "保存しました。モデル未指定の機能でこの構成が使われます。",
+      "edit": "構成を編集",
+      "delete": "構成を削除（もう一度押して確定）"
+    },
+    "download_source": {
+      "label": "ダウンロード元",
+      "auto": "自動（おすすめ）",
+      "official": "公式",
+      "mirror": "ミラー優先",
+      "description": "音声モデルなどのリソースとアプリの更新のダウンロードに使います。「自動」は応答が速いアドレスを選び、失敗したら次に切り替えます。ダウンロードしたファイルはすべてチェックサムで確認され、一致しないものは使われません。"
+    },
+    "apikey_show": "キーを表示",
+    "apikey_hide": "キーを隠す",
+    "deepseek_intro": "中国本土から直接アクセスでき、料金も安価です。キーがまだない場合は",
+    "deepseek_get_key": "キーを取得",
+    "deepseek_top_up": "チャージ",
+    "advanced": {
+      "title": "詳細設定",
+      "description": "API 形式、出力トークンのパラメーター、料金。プリセットを選べば通常は変更不要です"
+    },
+    "connection_test": {
+      "button": "接続テスト",
+      "testing": "接続をテストしています…",
+      "success": "接続しました（{{ms}} ミリ秒）。",
+      "need_key": "先にキーを入力してください",
+      "draft_kept": "入力した内容は保持しています。ネットワーク設定を直したら「入力を続ける」でフォームに戻れます。",
+      "draft_continue": "入力を続ける"
+    },
+    "onboarding": {
+      "reopen": "初期設定ガイドを開き直す"
+    },
+    "apikey_characters_hint": "キーに中国語・全角文字・空白が含まれています。余分な文字まで一緒にコピーした可能性があります。キーだけを貼り付けてください。",
+    "deepseek_recommended_aria": "DeepSeek（おすすめ）"
   },
   "placeholder": {
-    "apikey": "APIキーを入力してください",
-    "model_url": "ベースURLを入力してください",
-    "model_key": "Model Key を入力してください",
+    "apikey": "サービスから発行されたキーを貼り付け",
+    "model_url": "例：https://api.example.com/v1",
+    "model_key": "例：deepseek-v4-flash",
     "proxy_host": "127.0.0.1",
     "proxy_port": "7890"
   },
@@ -212,7 +278,7 @@
     "titlebar": "外部エージェントが {{count}} 件接続中",
     "enable": {
       "label": "外部エージェントの接続を許可",
-      "description": "Claude Code や Codex などが MCP で FusionKit を読み取り・操作し、翻訳も自分で行います。ここで API キーを設定する必要はありません。このコンピューター（127.0.0.1）でのみ待ち受け、トークンが必要です。"
+      "description": "Claude Code や Codex などが MCP で FusionKit を読み取り・操作し、翻訳も自分で行います。ここでキーを入力する必要はありません。このコンピューター（127.0.0.1）でのみ待ち受け、トークンが必要です。"
     },
     "status": {
       "running": "実行中",

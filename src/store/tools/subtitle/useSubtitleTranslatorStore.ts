@@ -25,6 +25,7 @@ import {
   bootstrapLegacySubtitleTranslatorConfig,
 } from "./useSubtitleTranslatorConfigStore";
 import type { SubtitleTranslationUsage } from "@/type/subtitleUsage";
+import type { ModelErrorCategory } from "@/lib/model-error-category";
 import {
   SubtitleTranslatorImportLedger,
   type AddGeneratedSubtitleTasksRequest,
@@ -76,6 +77,7 @@ interface SubtitleTranslatorStore {
     stackTrace?: string;
     recovery?: SubtitleTranslationRecovery;
     actualUsage?: SubtitleTranslationUsage;
+    errorCategory?: ModelErrorCategory;
   }) => void;
   updateTaskCostEstimate: (
     taskId: string,
@@ -346,7 +348,13 @@ const useSubtitleTranslatorStore = create<SubtitleTranslatorStore>()(
 
         set(result.state);
         executeEffects(result.effects);
-        showToast(`${errorData.message}`, "error");
+        // Worded in the user's language (the main process sends a fixed Chinese message); a known
+        // cause says what went wrong instead of only "the request failed".
+        showToast(errorData.errorCategory
+          ? i18n.t("subtitle:translator.errors.request_failed_cause", {
+            cause: i18n.t(`common:model_error.${errorData.errorCategory}.cause`),
+          })
+          : i18n.t("subtitle:translator.errors.request_failed"), "error");
       },
 
       cancelTask: (taskId) => {

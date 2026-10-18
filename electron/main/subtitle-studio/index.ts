@@ -533,7 +533,8 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           return publishSource(doc, usingDefault ? path.join(path.dirname(defaultPath), doc.origin.displayName) : selection.filePath!, alive, usingDefault ? 'indexed' : 'replace');
         });
         return { ok: true, value: { fileName: path.basename(output) } };
-      } catch (error) { return { ok: false, error: Object.hasOwn(transcriptionRequestSchemas, method) ? transcriptionIpcError(error) : error instanceof StudioError ? error.code : 'document_unavailable' }; }
+      } catch (error) { return { ok: false, error: Object.hasOwn(transcriptionRequestSchemas, method) ? transcriptionIpcError(error) : error instanceof StudioError ? error.code : 'document_unavailable',
+        ...(error instanceof StudioError && error.category ? { category: error.category } : {}) }; }
     });
   }
   return {

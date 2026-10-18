@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import i18n from "@/i18n";
 import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
+import { studioResourcesPath } from "@/pages/Tools/Subtitle/SubtitleStudio/navigation";
 import { buildPageContextSection, resolvePageContext, usePageContextStore } from "./page-context";
 
 /** Pages the agent may open, by key; never an arbitrary path. */
@@ -18,6 +19,8 @@ export const AGENT_PAGES = {
   text_translator: "/tools/text/translator",
   model_settings: "/setting",
   agent_settings: "/setting",
+  network_settings: "/setting",
+  help: "/help",
 } as const satisfies Record<string, string>;
 export type AgentPageKey = keyof typeof AGENT_PAGES;
 
@@ -30,14 +33,17 @@ export function setAgentNavigator(next: ((to: string) => void) | null): void { n
 
 export const openAppPageSchema = z.object({
   page: z.enum(Object.keys(AGENT_PAGES) as [AgentPageKey, ...AgentPageKey[]]),
-  studioView: z.enum(["documents", "transcription"]).optional().describe("Only for subtitle_studio: the documents or transcription workspace."),
+  studioView: z.enum(["documents", "transcription", "resources"]).optional()
+    .describe("Only for subtitle_studio: the documents or transcription workspace, or resources (the transcription workspace with its resource manager open, where one-click prepare installs the model and voice detection)."),
 }).strict();
 
 function target(input: z.output<typeof openAppPageSchema>): { route: string; to: string } {
   const route = AGENT_PAGES[input.page];
+  if (input.page === "subtitle_studio" && input.studioView === "resources") return { route, to: studioResourcesPath() };
   if (input.page === "subtitle_studio" && input.studioView) return { route, to: `${route}?view=${input.studioView}` };
   if (input.page === "model_settings") return { route, to: `${route}?tab=model` };
   if (input.page === "agent_settings") return { route, to: `${route}?tab=agent` };
+  if (input.page === "network_settings") return { route, to: `${route}?tab=proxy` };
   return { route, to: route };
 }
 
@@ -53,13 +59,20 @@ function pageReady(route: string, timeout: number, signal?: AbortSignal): Promis
   });
 }
 
+/** The window's current location with its query ("/setting?tab=model"), when there is one to read (hash routing). */
+function currentLocation(): string | undefined {
+  try { return typeof window !== "undefined" && window.location?.hash ? window.location.hash.slice(1) : undefined; } catch { return undefined; }
+}
+
 export async function executeOpenAppPage(input: unknown, signal?: AbortSignal, timeout = PAGE_READY_TIMEOUT) {
   const parsed = openAppPageSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: "invalid_tool_arguments" };
   if (!navigator) return { success: false, error: "navigation_unavailable" };
   const { route, to } = target(parsed.data);
   const current = usePageContextStore.getState().pathname;
-  const alreadyThere = current === route && !parsed.data.studioView;
+  // The settings pages share one route: another tab (network after model) is a page to open.
+  const here = to === route ? undefined : currentLocation();
+  const alreadyThere = current === route && !parsed.data.studioView && (here === undefined || here === to);
   if (!alreadyThere) navigator(to);
   await pageReady(route, timeout, signal);
   if (signal?.aborted) return { success: false, error: "agent_cancelled" };

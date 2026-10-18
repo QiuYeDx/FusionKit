@@ -283,11 +283,18 @@ if (shouldSkipElectronE2E) {
       await page.getByRole('radiogroup', { name: 'Proxy Mode' }).waitFor({
         state: 'visible',
       })
-      await assertVisibleSegmentedControls(1)
+      // Proxy mode and download source.
+      await assertVisibleSegmentedControls(2)
 
       await page.getByTestId('setting-tab-model').click()
       await page.getByRole('button', { name: 'Add Profile' }).click()
       await page.getByRole('dialog').waitFor({ state: 'visible' })
+      // Provider, and the API format kept under the collapsed advanced settings.
+      const advanced = page.getByRole('button', { name: /Advanced settings/ })
+      await expect.poll(() => advanced.getAttribute('aria-expanded')).toBe('false')
+      await advanced.click()
+      await expect.poll(() => advanced.getAttribute('aria-expanded')).toBe('true')
+      await page.getByRole('radiogroup', { name: 'API Format' }).waitFor({ state: 'visible' })
       await assertVisibleSegmentedControls(2)
       await page.screenshot({
         path: path.join(testResultsDir, 'segmented-control-settings-786x540.png'),

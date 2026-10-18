@@ -17,7 +17,8 @@
     },
     "text": {
       "translator": "长文本翻译"
-    }
+    },
+    "help": "帮助"
   },
   "start": "开始",
   "retry": "重试",
@@ -31,7 +32,9 @@
     "save": "保存",
     "open_file_location": "打开文件位置",
     "edit_task_config": "编辑任务配置",
-    "info": "详情"
+    "info": "详情",
+    "view_help": "查看帮助",
+    "token_help": "了解 Token 与费用"
   },
   "confirm": {
     "delete_running_task_title": "确认删除",
@@ -45,25 +48,75 @@
     "available_title": "发现新版本 v{{version}}",
     "available_desc": "当前 v{{current}} → 最新 v{{latest}}",
     "ready_to_download": "点击“更新”开始下载。",
-    "downloading": "正在下载更新...",
+    "downloading": "正在下载新版本…",
     "downloaded": "下载完成，准备安装。",
     "progress": "更新进度",
     "up_to_date_title": "已是最新版本",
     "up_to_date_desc": "当前版本 v{{version}}",
     "latest_version": "最新版本 v{{version}}",
     "error_title": "更新失败",
-    "open_releases": "打开发布页",
+    "open_releases": "打开下载页面",
     "download_package": "下载安装包",
     "downloading_package": "正在下载安装包...",
     "manual_download_saved": "已保存到 {{path}}",
     "manual_download_failed": "下载安装包失败",
     "select_directory_title": "选择下载目录",
     "select_directory_button": "选择此目录",
-    "start_download": "更新",
-    "install_now": "立即安装",
+    "start_download": "下载并安装",
+    "install_now": "立即重启安装",
     "later": "稍后",
     "changelog_title": "更新内容",
-    "changelog_loading": "正在获取更新日志…"
+    "changelog_loading": "正在获取更新日志…",
+    "installer_size": "安装包约 {{size}}",
+    "transferred": "{{done}} / {{total}}",
+    "speed": "{{speed}}/秒",
+    "source_official": "下载来源：GitHub",
+    "source_mirror": "下载来源：国内镜像（{{host}}）",
+    "cancel_download": "取消下载",
+    "downloaded_title": "新版本已下载好",
+    "downloaded_desc": "已通过完整性检查。点“立即重启安装”后 FusionKit 会先关闭（正在进行的转写或翻译会被中断），装好新版本后自动重新打开；也可以点“稍后”，下次退出 FusionKit 时会自动安装。",
+    "installing": "正在启动安装程序，FusionKit 马上会关闭。安装时不会出现窗口，可能要一两分钟，装好后会自动重新打开，这期间请不要手动打开 FusionKit。",
+    "dev_title": "开发版本不检查更新",
+    "dev_desc": "当前是从源码运行的开发版本。安装正式版本后，才能在应用内检查和安装更新。",
+    "mac_download": "下载 DMG",
+    "mac_download_mirror": "国内镜像下载",
+    "mac_note": "更新方法：先在程序坞（Dock）里右键点 FusionKit 图标，选“退出”；再打开下载好的 DMG，把 FusionKit 拖到“应用程序”文件夹，提示已有同名项目时选“替换”。应用没有签名，第一次打开新版本时如果提示“无法验证开发者”，请到“系统设置 → 隐私与安全性”（macOS 12 是“系统偏好设置 → 安全性与隐私”）点“仍要打开”；如果提示“已损坏”，请打开“终端”，粘贴下面这条命令并按回车，然后再打开 FusionKit。",
+    "retry": "重试",
+    "open_network_settings": "打开网络设置",
+    "details": "技术信息",
+    "copy_details": "复制技术信息",
+    "details_copied": "技术信息已复制",
+    "error": {
+      "check_title": "检查更新失败",
+      "download_title": "下载更新失败",
+      "install_title": "没能开始安装",
+      "network_cause": "网络不通：连不上 GitHub，国内镜像也没有回应。",
+      "network_cause_official": "网络不通：连不上 GitHub（现在只用官方下载源）。",
+      "network_next_check": "可以稍后再试，或在“网络”设置中换下载源、开代理。",
+      "network_next_download": "可以点“重试”，或在“网络”设置中换下载源、开代理；也可以打开下载页面手动下载安装包。",
+      "not_found_cause": "没有找到新版本的安装文件，可能还在发布中。",
+      "not_found_next": "过一会儿再试，或打开下载页面手动下载。",
+      "checksum_cause": "下载的文件没有通过完整性检查（可能不完整或被改动过），已经删掉，不会安装。",
+      "checksum_next": "点“重试”重新下载；还是不行的话，可以在“网络”设置中换下载源，或打开下载页面手动下载。",
+      "disk_cause": "更新文件保存不了：磁盘空间不够，或者没有写入权限。",
+      "disk_next": "清理出一些磁盘空间后点“重试”。如果空间够用，可能是杀毒软件拦住了或文件正被占用：可以重启电脑后再试，或打开下载页面手动下载安装包。",
+      "unknown_cause": "更新时出了点问题。",
+      "unknown_next": "可以点“重试”，或打开下载页面手动下载安装包。",
+      "install_cause": "安装程序没有启动。",
+      "install_next": "本地转写等功能已经停下了，请点“重启 FusionKit”，重启后会再次提示新版本；也可以打开下载页面手动下载安装包。",
+      "install_prepare_cause": "FusionKit 没能先停下正在运行的功能（如本地转写），安装没有开始。",
+      "install_prepare_next": "有些功能可能已经停下了，建议点“重启 FusionKit”，重启后会再次提示新版本；也可以点“重试”。"
+    },
+    "mac_copy_command": "复制命令",
+    "mac_command_copied": "命令已复制",
+    "restart_app": "重启 FusionKit",
+    "open_mirror_download": "国内镜像下载安装包",
+    "changelog_failed": "更新内容暂时获取不到，可以到下载页面查看。",
+    "unverified_title": "这次不能在应用内安装",
+    "unverified_cause": "为了安全，镜像来源无法互相印证时不会自动安装。这次连不上 GitHub，只有一个国内镜像给出了新版本，另一个镜像没有回应或说法不一致，FusionKit 没法确认安装包没有被改过。",
+    "unverified_next": "可以稍后点“重新检查”，等 FusionKit 能印证后在应用内安装；也可以打开下载页面手动下载。“国内镜像下载安装包”拿到的文件同样没有经过核对，能打开 GitHub 时请优先从 GitHub 下载。",
+    "check_again": "重新检查",
+    "open_help": "查看帮助"
   },
   "info": {
     "copy_success": "错误信息已复制到剪贴板"
@@ -88,5 +141,178 @@
     "message": "本次处理已结束，但未识别到可用的语音内容，未生成字幕。",
     "help": "如果预期有人声，请先试听并检查音轨、识别语言或模型，调整后重新添加文件。使用相同设置重复转写通常不会改善结果。",
     "no_output": "未生成字幕"
+  },
+  "model_error": {
+    "auth": {
+      "cause": "密钥（API Key）不对，或者已经失效。",
+      "next": "请重新粘贴正确的密钥；如果不确定，可以在服务商网站新建一个。"
+    },
+    "balance": {
+      "cause": "账户余额不足，AI 服务拒绝了这次请求。",
+      "next": "到服务商网站充值后再试一次。"
+    },
+    "model_not_found": {
+      "cause": "找不到填写的模型名。",
+      "next": "到“AI 模型”设置里换一个模型名，DeepSeek 可以用 deepseek-v4-flash。",
+      "next_test": "检查上面填写的模型名，DeepSeek 可以用 deepseek-v4-flash。",
+      "next_wizard": "DeepSeek 暂时找不到预设的模型。可以点下面的“使用其他服务”，手动填写模型名。"
+    },
+    "rate_limited": {
+      "cause": "请求太频繁，AI 服务暂时限制了访问。",
+      "next": "等一两分钟再试；同时进行的任务少一些会更稳。"
+    },
+    "network": {
+      "cause": "连不上 AI 服务：网络不通或者等待太久。",
+      "next": "请检查网络。如果需要代理才能访问，可以在“网络”设置里打开代理。"
+    },
+    "proxy": {
+      "cause": "代理连接失败。",
+      "next": "请确认代理软件已经打开，或者在“网络”设置里改为不使用代理。"
+    },
+    "server": {
+      "cause": "AI 服务那边暂时出错了。",
+      "next": "过一会儿再试；一直这样的话，可以换一个模型或服务。"
+    },
+    "bad_url": {
+      "cause": "接口地址不对，那里不是 AI 服务的接口。",
+      "next": "到“AI 模型”设置里检查“接口地址”，DeepSeek 应为 https://api.deepseek.com/v1。",
+      "cause_wizard": "收到的回答不是来自 DeepSeek，可能被网络或代理拦截了。",
+      "next_test": "检查上面填写的“接口地址”，DeepSeek 应为 https://api.deepseek.com/v1。",
+      "next_wizard": "请检查网络设置；用代理的话，确认代理软件已经打开。"
+    },
+    "unknown": {
+      "cause": "AI 请求失败，原因没能识别。",
+      "next": "可以在“AI 模型”设置里点“测试连接”检查配置。",
+      "next_test": "稍后再试一次；仍然失败的话，可以对照下面服务返回的信息检查配置。"
+    },
+    "actions": {
+      "open_model_settings": "打开模型设置",
+      "open_network_settings": "打开网络设置",
+      "open_deepseek_keys": "获取新的 Key",
+      "open_deepseek_topup": "去充值",
+      "open_help": "查看帮助"
+    },
+    "detail": "服务返回：{{detail}}",
+    "connection_detail": "连接情况：{{detail}}",
+    "reason": {
+      "missing_key": {
+        "cause": "还没有填写密钥（API Key）。",
+        "next": "把服务商给你的密钥粘贴到上面，再测试。"
+      },
+      "key_characters": {
+        "cause": "密钥里有中文、全角符号或空格，可能多复制了别的文字。",
+        "next": "只粘贴密钥本身（DeepSeek 的密钥以 sk- 开头），再试一次。"
+      },
+      "missing_url": {
+        "cause": "还没有填写接口地址。",
+        "next": "填写服务商提供的接口地址，例如 https://api.deepseek.com/v1。"
+      },
+      "invalid_url": {
+        "cause": "接口地址的格式不对，要以 http:// 或 https:// 开头。",
+        "next": "对照服务商的说明改一下，例如 https://api.deepseek.com/v1。"
+      },
+      "missing_model": {
+        "cause": "还没有填写模型名。",
+        "next": "填写服务商提供的模型名，例如 deepseek-v4-flash。"
+      },
+      "timeout": {
+        "cause": "等了 {{seconds}} 秒，AI 服务没有回应。"
+      }
+    }
+  },
+  "onboarding": {
+    "step": "第 {{current}} 步，共 {{total}} 步",
+    "recommended": "推荐",
+    "back": "返回",
+    "skip": "跳过，以后再说",
+    "choose": {
+      "title": "欢迎使用 FusionKit",
+      "description": "你想怎么用 FusionKit？之后随时可以在设置里更改。",
+      "ai_title": "用 DeepSeek 等 AI 服务",
+      "ai_description": "翻译字幕、修订字幕、和助手对话都需要一个 AI 服务。只要粘贴一个密钥。",
+      "external_title": "我用 Claude Code、Codex 或 Cursor",
+      "external_description": "让你已有的 AI 工具连接 FusionKit 来完成任务，不需要在这里填写密钥。",
+      "local_title": "先只用本地功能",
+      "local_description": "本地转写、格式转换、提取语言等功能不需要 AI 服务。"
+    },
+    "deepseek": {
+      "title": "连接 DeepSeek",
+      "description": "测试通过后，助手和翻译任务都会直接使用它。",
+      "intro": "国内可直接访问、价格低。按用量付费，翻译字幕花费很少。",
+      "step_key": "点“获取 Key”，登录 DeepSeek 开放平台，创建一个 API Key。",
+      "step_top_up": "新账户需要先充值一点余额。",
+      "step_paste": "把 Key 粘贴到下面，点“测试并保存”。",
+      "get_key": "获取 Key",
+      "top_up": "充值",
+      "key_placeholder": "粘贴以 sk- 开头的 Key",
+      "test_and_save": "测试并保存",
+      "other_service": "使用其他服务",
+      "saved": "已保存，助手和翻译任务都会使用 DeepSeek。",
+      "saved_tasks_only": "已保存，翻译任务会使用 DeepSeek。助手正在对话中，暂时还用原来的模型，可以在设置的“AI 模型”页更换。"
+    },
+    "local": {
+      "title": "要用本地转写吗？",
+      "description": "把视频或音频里说的话变成字幕，全部在这台电脑上完成，不用上传。",
+      "model": "推荐的识别模型",
+      "model_value": "标准，约 1.0 GB",
+      "vad": "语音检测（自动跳过静音）",
+      "vad_value": "约 0.9 MB",
+      "free_space": "电脑剩余空间",
+      "free_space_value": "{{size}} GB",
+      "low_space": "剩余空间可能不够，建议先清理出至少 {{size}} GB。",
+      "note": "点“一键准备”后会在后台下载推荐模型和语音检测，下载时可以继续做别的事，完成后会提醒你。",
+      "later": "暂时不用",
+      "prepare": "一键准备",
+      "external_note": "Claude Code、Codex 或 Cursor 通过 FusionKit 做本地转写时，也要用到这些资源。"
+    },
+    "done": {
+      "title": "准备好了",
+      "description": "点一个例子试试看，也可以直接在首页告诉助手你想做什么。",
+      "open_tool": "打开这个工具",
+      "no_model": "还没有连接 AI 服务，所以例子会打开对应的工具。需要时可以在设置的“AI 模型”页点“重新打开新手引导”。",
+      "start": "开始使用",
+      "description_no_model": "点一个例子，打开对应的工具试试看。",
+      "resources_title": "下载本地转写模型",
+      "resources_description": "打开本地资源，下载推荐模型和语音检测（约 1.0 GB），下载时可以继续做别的事。",
+      "examples_label": "示例任务",
+      "prepare_running": "正在准备本地转写（{{percent}}%）",
+      "prepare_running_description": "推荐模型和语音检测正在后台下载，可以继续做别的事。点这里查看进度。",
+      "prepare_done": "本地转写已准备好",
+      "prepare_done_description": "推荐模型和语音检测都装好了。点这里开始转写。",
+      "prepare_failed": "有资源没有装好",
+      "prepare_failed_description": "点这里打开本地资源查看原因，处理后再点一次“一键准备”。",
+      "prepare_runtime": "装好后会自动开始下载推荐模型和语音检测。",
+      "open_resources": "打开本地资源",
+      "external_title": "连接 Claude Code、Codex 或 Cursor",
+      "external_description": "打开“外部 Agent”设置，按页面上的说明把 FusionKit 加到你的 AI 工具里，不需要在这里填写密钥。",
+      "open_external": "打开外部 Agent 设置"
+    },
+    "left_notice": "刚才粘贴的密钥已保留。改好网络设置后，点“回到新手引导”继续；也可以在设置的“AI 模型”页重新打开。",
+    "resume": "回到新手引导"
+  },
+  "system_setup": {
+    "vc_runtime": {
+      "title": "需要安装微软运行库",
+      "missing": "本地转写要用到微软 VC++ 运行库，这台电脑还没有安装。",
+      "outdated": "这台电脑的微软 VC++ 运行库版本太旧（{{installed}}），本地转写需要 {{required}} 或更新的版本。",
+      "next": "点“一键修复”后，Windows 会弹出确认框，选“是”即可，大约需要 1 分钟。",
+      "next_download": "点“一键修复”会在浏览器中打开微软的下载页，下载后运行 vc_redist.x64.exe 安装。",
+      "repair": "一键修复",
+      "repairing": "正在安装…",
+      "repairing_hint": "请在 Windows 弹出的确认框中选“是”，然后等待安装完成。",
+      "cancelled": "刚才在确认框中选了“否”，运行库没有安装。准备好后再点一次“一键修复”。",
+      "failed": "运行库没有装好。可以再试一次，或打开微软官网手动下载安装，装好后点“重新检查”。",
+      "manual_download": "手动下载",
+      "opened_download": "已在浏览器中打开微软的下载页。下载并运行 vc_redist.x64.exe，装好后点“重新检查”。",
+      "check_again": "重新检查",
+      "restart_required": "微软运行库已安装，重启电脑后生效。"
+    }
+  },
+  "local_preparation": {
+    "done_toast": "本地转写已准备好",
+    "done_toast_description": "推荐模型和语音检测都装好了。",
+    "failed_toast": "本地转写资源没有装好",
+    "failed_toast_description": "打开本地资源可以看到原因。",
+    "open": "查看"
   }
 }

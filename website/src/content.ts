@@ -102,6 +102,9 @@ export type Content = {
     stepsTitle: string
     steps: Item[]
     note: string
+    requirements: { title: string; items: [label: string, value: string][] }
+    /** The same steps as the app's Help page, the README and the help page in the DMG. */
+    cannotOpen: { title: string; intro: string; items: Item[]; command: string; copy: string; copied: string; commandNote: string }
   }
   footer: {
     tagline: string
@@ -267,11 +270,32 @@ export const content: Record<Lang, Content> = {
       button: '下载',
       stepsTitle: '三步上手',
       steps: [
-        { title: '添加模型', body: '设置 → AI 模型，填入地址、Key 与模型名。只用外部 Agent 可跳过。' },
-        { title: '下载转写模型', body: '首次本地转写前，下载推荐的 Whisper 模型。' },
-        { title: '开始对话', body: '回到首页，告诉 Agent 要做什么。' },
+        { title: '选 DeepSeek，配好密钥', body: '第一次打开时跟着新手引导选 DeepSeek，点“获取 Key”，粘贴后“测试并保存”。用 Claude Code、Codex 或 Cursor 可以跳过。' },
+        { title: '一键准备本地转写', body: '点“一键准备”，自动下载约 1 GB 的推荐模型和语音检测；连不上官方地址时自动改用国内镜像。' },
+        { title: '告诉 Agent 要做什么', body: '回到首页，用一句话说明要做的事，确认后自动完成。' },
       ],
-      note: '本地转写支持 Windows x64（CPU / CUDA）与 macOS arm64（Metal / CPU）。',
+      note: '本地转写支持 Windows x64（CPU / CUDA）与 macOS arm64（Metal / CPU）。Windows 版可在应用内更新。',
+      requirements: {
+        title: '系统要求',
+        items: [
+          ['Windows', 'Windows 10 / 11，64 位（x64）；安装后约 850 MB，所需的微软运行库随安装包附带'],
+          ['macOS', 'macOS 12 及以上，仅支持 Apple 芯片（M1 及更新）'],
+          ['本地转写', '推荐模型另需约 1 GB，在应用内一键下载'],
+        ],
+      },
+      cannotOpen: {
+        title: '打不开怎么办',
+        intro: '安装包没有购买苹果和微软的签名证书，第一次打开时系统可能会拦一下，放行一次即可。',
+        items: [
+          { title: 'macOS“无法验证开发者”', body: '打开“系统设置 → 隐私与安全性”，在下方点“仍要打开”；macOS 12 是“系统偏好设置 → 安全性与隐私 → 通用”。' },
+          { title: 'macOS“已损坏，无法打开”', body: '文件没有坏。先把 FusionKit 拖进“应用程序”，再在“终端”运行下面这行命令，然后重新打开。' },
+          { title: 'Windows“已保护你的电脑”', body: '点“更多信息”，再点“仍要运行”。' },
+        ],
+        command: 'xattr -dr com.apple.quarantine /Applications/FusionKit.app',
+        copy: '复制命令',
+        copied: '已复制',
+        commandNote: '这条命令只去掉下载标记，不会改动应用本身。在 macOS 上换成新版 FusionKit 后如果又打不开，按同样的方法再放行一次。',
+      },
     },
     footer: {
       tagline: 'AI 驱动的字幕与翻译桌面工具集',
@@ -435,11 +459,32 @@ export const content: Record<Lang, Content> = {
       button: 'Download',
       stepsTitle: 'Three steps to start',
       steps: [
-        { title: 'Add a model', body: 'Setting → AI Model: endpoint, key and model name. Skip it if you only use an external agent.' },
-        { title: 'Get a transcription model', body: 'Download the recommended Whisper model before your first local transcription.' },
-        { title: 'Start talking', body: 'Tell the Agent what you need on the home page.' },
+        { title: 'Choose DeepSeek and add a key', body: 'The setup guide opens on first launch: choose DeepSeek, click "Get key", paste it and click "Test and save". Skip it if you use Claude Code, Codex or Cursor.' },
+        { title: 'Prepare transcription in one click', body: 'One click downloads the recommended model (about 1 GB) and voice detection, through mirrors when the official addresses cannot be reached.' },
+        { title: 'Tell the Agent what you need', body: 'Say it in one sentence on the home page; the Agent does the rest once you confirm.' },
       ],
-      note: 'Local transcription runs on Windows x64 (CPU / CUDA) and macOS arm64 (Metal / CPU).',
+      note: 'Local transcription runs on Windows x64 (CPU / CUDA) and macOS arm64 (Metal / CPU). The Windows version updates inside the app.',
+      requirements: {
+        title: 'System requirements',
+        items: [
+          ['Windows', 'Windows 10 / 11, 64-bit (x64); about 850 MB installed, with the Microsoft runtime it needs included'],
+          ['macOS', 'macOS 12 or later, Apple silicon only (M1 or newer)'],
+          ['Local transcription', 'About 1 GB more for the recommended model, downloaded in the app with one click'],
+        ],
+      },
+      cannotOpen: {
+        title: "If FusionKit won't open",
+        intro: 'The installers are not signed with paid Apple or Microsoft certificates, so the system may stop FusionKit the first time. Allow it once.',
+        items: [
+          { title: 'macOS: developer cannot be verified', body: 'Open System Settings → Privacy & Security and click "Open Anyway" near the bottom. On macOS 12 it is System Preferences → Security & Privacy → General.' },
+          { title: 'macOS: "FusionKit is damaged"', body: 'The file is fine. Drag FusionKit into Applications, run the command below in Terminal, then open it again.' },
+          { title: 'Windows: "Windows protected your PC"', body: 'Click "More info", then "Run anyway".' },
+        ],
+        command: 'xattr -dr com.apple.quarantine /Applications/FusionKit.app',
+        copy: 'Copy command',
+        copied: 'Copied',
+        commandNote: 'The command only removes the download mark and does not change the app. If FusionKit will not open after you update it on macOS, allow it once more the same way.',
+      },
     },
     footer: {
       tagline: 'The AI-powered desktop toolkit for subtitles and translation',

@@ -1,0 +1,102 @@
+{
+  "title": "帮助",
+  "description": "从第一次打开到常见问题的处理方法。提示里的“查看帮助”也会带你来到对应的条目。想把步骤发给朋友，可以发官网 fusionkit.vercel.app，下载区里也有“打不开怎么办”和系统要求。",
+  "toc": "目录",
+  "copy_command": "复制命令",
+  "command_copied": "已复制，粘贴到“终端”里按回车",
+  "sections": {
+    "quick_start": {
+      "title": "三步上手",
+      "intro": "第一次用 FusionKit，按下面三步走就能开始。",
+      "step1_title": "选 DeepSeek，配好密钥",
+      "step1_body": "在新手引导里选“用 DeepSeek 等 AI 服务”，点“获取 Key”到 DeepSeek 开放平台创建一个密钥（API Key），粘贴回来后点“测试并保存”。以后也可以在“设置 → AI 模型”里修改。",
+      "step1_action": "打开模型设置",
+      "step2_title": "一键准备本地转写",
+      "step2_body": "要把音频、视频变成字幕，先在“字幕工作台”的“管理资源”里点“一键准备（推荐）”。它会下载约 1 GB 的推荐模型和语音检测，下载时可以继续做别的事。",
+      "step2_action": "打开本地资源",
+      "step3_title": "在首页对 Agent 说要做什么",
+      "step3_body": "回到首页，直接说你想做的事，例如“把桌面上的视频转成字幕，再翻译成中文”。Agent 会先列出要做的事，你确认后才会执行。",
+      "step3_action": "回到首页",
+      "reopen": "重新打开新手引导"
+    },
+    "cannot_open": {
+      "title": "打不开怎么办",
+      "intro": "FusionKit 没有购买苹果和微软的签名证书，第一次打开时系统可能会拦一下。这不代表文件有问题，按下面的方法放行一次就好。",
+      "mac_unverified_title": "macOS 提示“无法验证开发者”或“无法打开”",
+      "mac_unverified_body": "先关掉提示，再打开“系统设置 → 隐私与安全性”，在页面下方找到关于 FusionKit 的提示，点“仍要打开”，按要求输入电脑密码。macOS 12 请打开“系统偏好设置 → 安全性与隐私 → 通用”。",
+      "mac_damaged_title": "macOS 提示“已损坏，无法打开”",
+      "mac_damaged_body": "文件并没有坏，是 macOS 给从网上下载的应用加了“下载标记”。先把 FusionKit 拖进“应用程序”文件夹，再打开“终端”（可以用聚焦搜索“终端”），粘贴下面这行命令并按回车，然后重新打开 FusionKit。",
+      "mac_damaged_note": "这条命令只去掉 FusionKit 的下载标记，不会改动应用本身，也不需要输入密码。",
+      "windows_title": "Windows 提示“Windows 已保护你的电脑”",
+      "windows_body": "这是 Windows 的 SmartScreen 提示。点提示里的“更多信息”，再点“仍要运行”即可继续安装。",
+      "after_update_title": "在 macOS 上换成新版 FusionKit 后又打不开",
+      "after_update_body": "换成新版本后，第一次打开时可能还要再放行一次，方法和上面相同。Windows 版在应用内更新，不需要再操作。"
+    },
+    "models_and_cost": {
+      "title": "模型与费用",
+      "key_title": "什么是密钥（API Key）",
+      "key_body": "AI 翻译、修订和 Agent 要用到在线的 AI 服务。密钥相当于你在这家服务的账号凭证：FusionKit 用它替你发送请求，费用记在你的账户上。密钥只保存在这台电脑上，不会写进任务记录或错误信息。",
+      "deepseek_title": "推荐使用 DeepSeek",
+      "deepseek_body": "国内可以直接访问，价格低。在 DeepSeek 开放平台注册后创建密钥，并充值少量余额即可开始使用，按实际用量付费。",
+      "deepseek_keys": "获取 Key",
+      "deepseek_topup": "去充值",
+      "token_title": "Token 和费用",
+      "token_body": "AI 服务按 Token 计费。Token 是 AI 计算文字长度的单位，大约一个汉字或一个英文单词算 1 个（不同服务略有差别），发出去的内容和收到的回答都要计算。翻译开始前会显示预计用量，完成后显示实际用量，具体费用以服务商的账单为准。",
+      "privacy_title": "哪些内容会发出去",
+      "privacy_body": "本地转写在这台电脑上完成，音频和视频不会上传。AI 翻译、修订和 Agent 会把字幕或文本发送到你配置的 AI 服务，使用前请了解这家服务的隐私政策。",
+      "other_title": "用其他服务",
+      "other_body": "也可以用 OpenAI 或其他兼容 OpenAI 的服务：在“设置 → AI 模型”里新建配置，填写服务商提供的接口地址、密钥和模型名，再点“测试连接”。",
+      "open_model_settings": "打开模型设置"
+    },
+    "download_failed": {
+      "title": "下载失败",
+      "intro": "转写模型、语音检测、显卡加速和应用更新都需要下载。下载不动时，按下面几步排查。",
+      "source_title": "换个下载源",
+      "source_body": "“设置 → 网络 → 下载源”默认是“自动（推荐）”：会先测哪个地址能用，连不上官方地址时自动改用国内镜像。在中国大陆也可以选“国内镜像优先”。",
+      "safe_title": "镜像下载安全吗",
+      "safe_body": "每个文件下载完都会核对大小和校验值，和官方记录对不上就会删掉重新下载，所以镜像改不了装到电脑上的内容。应用更新只在 GitHub 或两个镜像说法一致时才会在应用内安装。",
+      "check_title": "还是下不动",
+      "check_body": "确认电脑已经联网；如果在用代理软件，看看下面的“代理设置”。提示磁盘空间不足时，请先清理出足够的空间再试。",
+      "open_network_settings": "打开网络设置"
+    },
+    "transcription_failed": {
+      "title": "转写失败",
+      "vc_title": "Windows 提示缺少微软运行库",
+      "vc_body": "转写程序需要“Microsoft Visual C++ 运行库”。安装 FusionKit 时会自动装好；如果提示缺少或版本太旧，点提示里的“一键修复”，在系统弹出的确认框中选“是”，装好后会自动重新检查。",
+      "disk_title": "磁盘空间",
+      "disk_body": "推荐模型约 1 GB，转写时还要用一些临时空间，请至少留出 2 GB 可用空间。",
+      "gpu_title": "显卡加速",
+      "gpu_body": "有 NVIDIA 显卡的 Windows 电脑，可以在“管理资源”里安装“NVIDIA 显卡加速”（下载约 680 MB），显卡驱动需要 551.61 或更新。Mac 会自动使用芯片自带的显卡。",
+      "cpu_title": "用 CPU 也能转写",
+      "cpu_body": "没有 NVIDIA 显卡或显卡加速用不了时，“处理设备”选“自动”会改用 CPU，结果一样，只是慢一些。转写出错时，先看提示里的原因和按钮；需要反馈问题时，可以复制提示里的诊断信息发给开发者。",
+      "open_resources": "打开本地资源"
+    },
+    "proxy": {
+      "title": "代理设置",
+      "system_title": "什么是“系统代理”",
+      "system_body": "Clash 等代理软件开启“系统代理”后，会把代理地址写进电脑的网络设置。FusionKit 默认的“系统代理”会跟着这个设置走，AI 调用、资源下载和检查更新都会用它，不用手动填写端口。",
+      "clash_title": "用 Clash 等代理软件",
+      "clash_body": "在代理软件里打开“系统代理”就行。如果没有在用代理，但电脑里还留着旧的代理设置，可以在“设置 → 网络”里选“不使用代理”。",
+      "custom_title": "自定义代理",
+      "custom_body": "在“设置 → 网络”选“自定义代理”：地址写 127.0.0.1，端口写代理软件里显示的端口（例如 7890）；SOCKS5 代理写成 socks5://127.0.0.1。暂不支持需要用户名和密码的代理。",
+      "test_body": "设置好后点“测试”，可以看到模型服务、模型下载和 GitHub 能不能连上，以及下一步该怎么做。",
+      "open_network_settings": "打开网络设置"
+    },
+    "external_agent": {
+      "title": "用 Claude Code、Codex 或 Cursor",
+      "body": "已经在用这些 AI 工具的话，可以让它们直接操作 FusionKit：读取字幕、自己撰写译文并写回字幕工作台，不需要在 FusionKit 里配置密钥。在“设置 → 外部 Agent”打开“允许外部 Agent 连接”，按页面上的步骤接入即可；默认在修改内容前会先问你。",
+      "open_settings": "打开外部 Agent 设置"
+    },
+    "system_requirements": {
+      "title": "系统要求",
+      "windows_label": "Windows",
+      "windows": "Windows 10 或 11，64 位（x64）",
+      "mac_label": "macOS",
+      "mac": "macOS 12 或更新版本，仅支持 Apple 芯片（M1 及更新）",
+      "disk_label": "磁盘空间",
+      "disk": "Windows 版安装后约占 850 MB；推荐的转写模型另需约 1 GB",
+      "network_label": "网络",
+      "network": "AI 功能需要能连上你选择的 AI 服务；本地转写在模型下载好后不需要联网"
+    }
+  }
+}

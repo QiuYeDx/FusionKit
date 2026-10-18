@@ -62,8 +62,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await uiExpect(page.locator('.studio-cue-table tbody tr')).toHaveCount(6);
     await page.getByRole('button', { name: '翻译', exact: true }).click();
     await page.getByTestId('studio-translation-advanced').click();
-    await page.getByRole('spinbutton', { name: '上下文窗口（tokens）' }).fill('2048');
-    await page.getByRole('spinbutton', { name: '每批输出上限（tokens）' }).fill('256');
+    await page.getByRole('spinbutton', { name: '模型一次能读的长度（Token）' }).fill('2048');
+    await page.getByRole('spinbutton', { name: '每批回答的最大长度（Token）' }).fill('256');
     await page.getByRole('textbox', { name: '翻译要求（可选）' }).fill('预算'.repeat(1900));
     await page.getByTestId('studio-translation-check').click();
     await uiExpect(page.getByTestId('studio-translation-review-error')).toBeVisible();
@@ -75,8 +75,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await page.getByRole('button', { name: '翻译', exact: true }).click();
     await page.getByRole('textbox', { name: '翻译要求（可选）' }).fill('');
     await page.getByTestId('studio-translation-advanced').click();
-    await page.getByRole('spinbutton', { name: '上下文窗口（tokens）' }).fill('32768');
-    await page.getByRole('spinbutton', { name: '每批输出上限（tokens）' }).fill('4096');
+    await page.getByRole('spinbutton', { name: '模型一次能读的长度（Token）' }).fill('32768');
+    await page.getByRole('spinbutton', { name: '每批回答的最大长度（Token）' }).fill('4096');
     await page.getByRole('spinbutton', { name: '每批字幕上限' }).fill('2');
     await page.getByTestId('studio-translation-check').click();
     await uiExpect(page.locator('.studio-translation-plan')).toBeVisible();
@@ -123,11 +123,11 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('Subtitle Studio transl
     await page.getByTestId('studio-translation-review-start').click();
     const failedStatus = page.locator('.studio-translation-status');
     await uiExpect(failedStatus).toHaveAttribute('data-state', 'failed', { timeout: 15000 });
-    await uiExpect(failedStatus).toContainText('已达每批输出上限，本批译文未保存。请减少每批字幕或提高输出上限。');
+    await uiExpect(failedStatus).toContainText('回答超过了“每批回答的最大长度”，这一批译文没有保存。请减少“每批字幕上限”，或在高级设置里调大“每批回答的最大长度”。');
     await uiExpect(failedStatus).toContainText('0 / 2 批');
-    await uiExpect(failedStatus).toContainText('4,217 tokens');
+    await uiExpect(failedStatus).toContainText('4,217 Token');
     await failedStatus.locator('.studio-translation-usage').hover();
-    await uiExpect(page.getByRole('tooltip', { name: /实际 tokens/ })).toContainText('实际 tokens：输入 121 · 输出 4,096');
+    await uiExpect(page.getByRole('tooltip', { name: /实际用量/ })).toContainText('实际用量：发送 121 · 回答 4,096 Token');
     await page.mouse.move(1, 1);
     await uiExpect(page.locator('.studio-target-text').filter({ hasText: '未翻译' })).toHaveCount(52);
     await uiExpect(page.getByRole('button', { name: '重试', exact: true })).toHaveCount(0);

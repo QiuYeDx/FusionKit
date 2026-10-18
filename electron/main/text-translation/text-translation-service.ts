@@ -39,6 +39,8 @@ import {
   sendModelRuntimeText,
   type ModelRuntimeUsage,
 } from "../ai/model-runtime-client";
+import { modelErrorCategory } from "../ai/model-runtime-errors";
+import type { ModelErrorCategory } from "@/lib/model-error-category";
 import {
   readAndDecodeTextTranslationInputFile,
   type TextTranslationDecodedInputFile,
@@ -170,6 +172,8 @@ interface TranslationSegmentFailure {
   segmentId: string;
   errorCode: string;
   message: string;
+  /** Why the model request failed, when known. */
+  category?: ModelErrorCategory;
 }
 
 interface TranslateSegmentsResult {
@@ -2841,6 +2845,7 @@ function toSegmentFailure(
   error: unknown,
 ): TranslationSegmentFailure {
   const errorWithCode = error as { code?: unknown };
+  const category = modelErrorCategory(error);
   return {
     segmentId,
     errorCode:
@@ -2848,6 +2853,7 @@ function toSegmentFailure(
         ? errorWithCode.code
         : "segment_failed",
     message: error instanceof Error ? error.message : "Segment failed.",
+    ...(category !== "unknown" ? { category } : {}),
   };
 }
 
@@ -2864,6 +2870,7 @@ function createSegmentFailureSummary(input: {
       errorCode: failure.errorCode,
       message: truncateDiagnostic(failure.message),
       occurredAt: updatedAt,
+      ...(failure.category ? { category: failure.category } : {}),
     }),
   );
 

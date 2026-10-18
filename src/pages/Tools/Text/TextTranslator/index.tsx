@@ -63,6 +63,7 @@ import {
 import { resolveSelectedNativeFiles } from "@/utils/filePath";
 import { showToast } from "@/utils/toast";
 import { cn } from "@/lib/utils";
+import { settingPath } from "@/pages/Setting/settingNavigation";
 import ConfigPanel from "./components/ConfigPanel";
 import TaskPanel from "./components/TaskPanel";
 
@@ -949,7 +950,7 @@ function TextTranslator() {
         onOpenRecovery={handleOpenRecovery}
         onRevealWorkspace={handleRevealWorkspace}
         onClear={handleClear}
-        onNavigateSettings={() => navigate("/setting")}
+        onNavigateSettings={() => navigate(settingPath("model"))}
       />
       <RecoveryDialog
         open={recoveryOpen}

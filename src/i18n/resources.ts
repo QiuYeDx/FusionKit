@@ -11,6 +11,10 @@ import enStudio from "@/locales/en/studio.json";
 import jaStudio from "@/locales/ja/studio.json";
 import zhStudio from "@/locales/zh/studio.json";
 import zhHantStudio from "@/locales/zh-Hant/studio.json";
+import enHelp from "@/locales/en/help.json";
+import jaHelp from "@/locales/ja/help.json";
+import zhHelp from "@/locales/zh/help.json";
+import zhHantHelp from "@/locales/zh-Hant/help.json";
 import { LangEnum } from "@/type/lang";
 
 import enAbout from "@/locales/en/about.json";
@@ -52,6 +56,7 @@ import zhHantText from "@/locales/zh-Hant/text.json";
 export const resources: Resource = {
   [LangEnum.EN]: {
     materials: enMaterials,
+    help: enHelp,
     knowledge: enKnowledge,
     studio: enStudio,
     common: enCommon,
@@ -65,6 +70,7 @@ export const resources: Resource = {
   },
   [LangEnum.JA]: {
     materials: jaMaterials,
+    help: jaHelp,
     knowledge: jaKnowledge,
     studio: jaStudio,
     common: jaCommon,
@@ -78,6 +84,7 @@ export const resources: Resource = {
   },
   [LangEnum.ZH]: {
     materials: zhMaterials,
+    help: zhHelp,
     knowledge: zhKnowledge,
     studio: zhStudio,
     common: zhCommon,
@@ -91,6 +98,7 @@ export const resources: Resource = {
   },
   [LangEnum.ZH_HANT]: {
     materials: zhHantMaterials,
+    help: zhHantHelp,
     knowledge: zhHantKnowledge,
     studio: zhHantStudio,
     common: zhHantCommon,

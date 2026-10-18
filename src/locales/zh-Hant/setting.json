@@ -10,7 +10,8 @@
     "proxy_config": "代理設定",
     "model_assignment": "模型分配",
     "model_profiles": "模型設定檔",
-    "agent_config": "Agent 設定"
+    "agent_config": "Agent 設定",
+    "download_source": "下載來源"
   },
   "nav": {
     "general": {
@@ -18,8 +19,8 @@
       "hint": "外觀、語言、通知"
     },
     "proxy": {
-      "label": "網路代理",
-      "hint": "無代理 / 系統 / 自訂"
+      "label": "網路",
+      "hint": "代理與下載來源"
     },
     "model": {
       "label": "AI 模型",
@@ -49,20 +50,20 @@
       "default": "預設指標"
     },
     "other": "其他",
-    "apikey": "API Key",
-    "model_url": "Base URL",
-    "model_key": "Model Key",
+    "apikey": "金鑰（API Key）",
+    "model_url": "介面位址",
+    "model_key": "模型名稱",
     "model_fetch": {
-      "no_key": "請先設定 API Key",
+      "no_key": "請先填寫金鑰（API Key）",
       "success": "已取得 {{count}} 個可用模型",
       "error": "取得模型列表失敗",
       "preset_group": "預設模型",
       "remote_group": "遠端模型",
-      "refresh_tooltip": "從 API 取得最新模型列表",
-      "manual_key_label": "手動輸入 Model Key",
-      "manual_key_hint": "將作為介面請求的 model 參數",
+      "refresh_tooltip": "從服務商取得最新的模型清單",
+      "manual_key_label": "手動輸入模型名稱",
+      "manual_key_hint": "填寫服務商文件裡寫的模型名稱",
       "apply_custom_key": "使用",
-      "empty_custom_key": "請輸入模型 Key",
+      "empty_custom_key": "請輸入模型名稱",
       "deepseek_legacy_warning": "該模型將於 2026 年 7 月 24 日後停用，建議切換至 V4 系列模型。",
       "badge_recommended": "推薦",
       "badge_flagship": "旗艦",
@@ -74,12 +75,13 @@
       "chat_completions": "Chat Completions",
       "responses_hint": "適合新版 OpenAI Responses 介面。",
       "chat_hint": "適合 DeepSeek 和多數 OpenAI 相容服務。",
-      "base_url_hint_responses": "建議填寫 Base URL，例如 https://api.openai.com/v1；歷史 /responses endpoint 也相容。",
-      "base_url_hint_chat": "建議填寫 Base URL，例如 https://api.example.com/v1；歷史 /chat/completions endpoint 也相容。",
+      "base_url_hint_responses": "一般不用改。使用其他服務時，填寫服務商提供的介面位址，例如 https://api.openai.com/v1。",
+      "base_url_hint_chat": "一般不用改。使用其他服務時，填寫服務商提供的介面位址，例如 https://api.example.com/v1。",
       "output_token_parameter": "輸出 Token 參數",
-      "output_token_parameter_hint": "OpenAI 新模型通常使用 max_completion_tokens，第三方相容服務通常使用 max_tokens。",
+      "output_token_parameter_hint": "一般不用改。OpenAI 新模型通常用 max_completion_tokens，其他相容服務通常用 max_tokens。",
       "max_tokens": "max_tokens",
-      "max_completion_tokens": "max_completion_tokens"
+      "max_completion_tokens": "max_completion_tokens",
+      "base_url_hint_other": "填寫服務商提供的介面位址，例如 https://api.example.com/v1。"
     },
     "notification": {
       "label": "系統通知",
@@ -97,15 +99,47 @@
       "host": "代理位址",
       "port": "連接埠",
       "none_desc": "直接連線網路，不使用任何代理伺服器。",
-      "system_desc": "使用作業系統設定的代理設定。",
-      "custom_desc": "透過指定的代理伺服器轉發網路請求。",
+      "system_desc": "跟隨電腦的代理設定（包括 Clash 等軟體開啟的「系統代理」）。AI 呼叫、資源下載和檢查更新都會使用它，不用手動填寫連接埠。",
+      "custom_desc": "透過你填寫的代理伺服器連線網路。位址可寫成 127.0.0.1，SOCKS5 代理請寫成 socks5://127.0.0.1。",
       "test_btn": "測試",
-      "test_tooltip": "點擊測試目前網路連線",
-      "test_success": "連線成功",
-      "test_fail": "連線失敗",
-      "test_latency": "延遲",
-      "test_proxy_addr": "代理位址",
-      "test_error": "錯誤"
+      "custom_incomplete": "請填寫代理位址和連接埠；填寫完整之前會直接連線網路。",
+      "save_failed": "設定沒有儲存成功，請重新選擇一次。",
+      "test_running": "正在測試連線…",
+      "test_failed": "測試沒有完成，請稍後再試。",
+      "test_target_model_api": "模型服務（{{host}}）",
+      "test_target_download_official": "模型下載 · 官方來源（{{host}}）",
+      "test_target_download_mirror": "模型下載 · 中國大陸鏡像（{{host}}）",
+      "test_target_github": "檢查更新 · GitHub（{{host}}）",
+      "test_latency_value": "{{ms}} 毫秒",
+      "test_via_direct": "直接連線",
+      "test_via_proxy": "經過代理 {{proxy}}",
+      "test_hint_ok": "全部連線正常。",
+      "test_hint_proxy": "代理連線失敗：請確認代理軟體已經開啟，代理位址和連接埠填寫正確。",
+      "custom_credentials": "暫不支援帶使用者名稱和密碼的代理，現在會直接連線網路。請在代理軟體裡關閉密碼驗證，位址只填 127.0.0.1 這樣的部分。",
+      "custom_invalid": "代理位址格式不對，現在會直接連線網路。位址寫成 127.0.0.1，連接埠寫成 7890；SOCKS5 代理寫成 socks5://127.0.0.1。",
+      "test_hint_proxy_system": "電腦設定了代理，但連不上它：請開啟代理軟體；如果沒有在用代理，可以選擇「不使用代理」。",
+      "test_hint_proxy_auth": "代理要求輸入使用者名稱和密碼，FusionKit 暫不支援。請在代理軟體裡關閉密碼驗證後再測試。",
+      "test_hint_ai_ok": "模型服務連線正常，AI 功能可以使用。",
+      "test_hint_ai_failed": "模型服務連不上，AI 功能暫時無法使用：請到「AI 模型」設定裡檢查「介面位址」是否填對；如果這個服務需要代理才能存取，請開啟代理軟體後再測試。",
+      "test_hint_download_ok": "模型可以正常下載。",
+      "test_hint_download_mirror": "模型可以正常下載：官方位址連不上，會自動改用中國大陸鏡像。",
+      "test_hint_download_switch": "官方下載位址連不上：把下載來源換成「自動」，就會改用中國大陸鏡像。",
+      "test_hint_download_failed": "模型的下載位址都連不上，請檢查網路或代理軟體後再測試。",
+      "test_hint_github_failed": "GitHub 連不上：檢查和下載更新會自動改用中國大陸鏡像，不影響 AI 和模型下載。",
+      "test_hint_try_system": "如果你在用 Clash 等代理軟體，可以選擇「系統代理」後再測試一次。",
+      "error": {
+        "dns": "找不到伺服器位址，網路可能被攔截",
+        "timeout": "連線逾時",
+        "refused": "伺服器拒絕連線",
+        "reset": "連線被中斷",
+        "network_unreachable": "電腦沒有連上網路",
+        "proxy_failed": "代理連線失敗",
+        "proxy_auth": "代理需要使用者名稱和密碼，暫不支援",
+        "tls": "安全連線失敗，網路可能被攔截",
+        "aborted": "測試已取消",
+        "unknown": "連線失敗"
+      },
+      "test_hint_github_failed_official": "GitHub 連不上，檢查更新會失敗：把下載來源換成「自動」，就會改用中國大陸鏡像。"
     },
     "token_price": {
       "intro_title": "Token 價格設定",
@@ -122,23 +156,22 @@
       "custom_note": "提示：請根據您使用的自訂模型的實際定價設定 Token 價格，以獲得準確的費用預估。"
     },
     "assignment": {
-      "description": "為不同功能模組指定使用的模型設定。Agent 模型用於 AI 對話，任務執行模型用於字幕翻譯等具體任務。",
+      "description": "第一個模型設定會自動用於這兩項；有多個設定時，可以在這裡分別指定。",
       "agent_model": "Agent 模型（AI 對話）",
       "task_model": "任務執行模型（字幕翻譯等）",
       "select_placeholder": "選擇模型設定…",
       "not_configured": "未設定",
       "locked": "對話中",
       "locked_tooltip": "目前有對話進行中，無法修改 Agent 所用的模型。請新建對話後再修改。",
-      "agent_unsupported_badge": "Agent 暫不支援",
-      "agent_unsupported_desc": "目前 Agent 暫不支援 Responses API。請選擇 Chat Completions 設定；Responses API 設定仍可用於任務執行模型。",
-      "agent_unsupported_select": "目前 Agent 暫不支援 Responses API，請選擇 Chat Completions 設定。"
+      "agent_role": "在首頁和浮動助手裡和你對話、替你操作工具的 AI。",
+      "task_role": "字幕翻譯、修訂、檔名翻譯和長文字翻譯等具體任務使用的 AI。"
     },
     "profile": {
       "add": "新增設定",
       "empty": "暫無模型設定，請新增一個。",
       "add_first": "新增第一個模型設定",
       "in_use": "使用中",
-      "no_key": "未設定 API Key",
+      "no_key": "未填寫金鑰",
       "dialog_title_add": "新增模型設定",
       "dialog_title_edit": "編輯模型設定",
       "dialog_description": "設定模型的連線資訊和參數。",
@@ -146,13 +179,46 @@
       "name_placeholder": "例如：DeepSeek V3、GPT-5 等",
       "cancel": "取消",
       "create": "建立",
-      "save": "儲存"
-    }
+      "save": "儲存",
+      "key_preview": "金鑰：{{preview}}",
+      "auto_assigned": "已儲存，還沒有指定模型的功能會自動使用它。",
+      "edit": "編輯設定",
+      "delete": "刪除設定（再點一次確認）"
+    },
+    "download_source": {
+      "label": "下載來源",
+      "auto": "自動（推薦）",
+      "official": "官方來源",
+      "mirror": "中國大陸鏡像優先",
+      "description": "下載語音模型等資源和應用程式更新時使用：「自動」會挑選能連上、速度快的位址，失敗時自動換下一個；所有檔案下載後都會核對檢查碼，對不上就不會使用。"
+    },
+    "apikey_show": "顯示金鑰",
+    "apikey_hide": "隱藏金鑰",
+    "deepseek_intro": "中國大陸可直接存取、價格低。還沒有金鑰？",
+    "deepseek_get_key": "取得 Key",
+    "deepseek_top_up": "儲值",
+    "advanced": {
+      "title": "進階設定",
+      "description": "API 格式、輸出 Token 參數和價格，選了預設一般不用改"
+    },
+    "connection_test": {
+      "button": "測試連線",
+      "testing": "正在測試連線…",
+      "success": "連線成功，用時 {{ms}} 毫秒。",
+      "need_key": "先填寫金鑰再測試",
+      "draft_kept": "剛才填寫的內容已保留。改好網路設定後，點「繼續填寫」回到表單。",
+      "draft_continue": "繼續填寫"
+    },
+    "onboarding": {
+      "reopen": "重新開啟新手引導"
+    },
+    "apikey_characters_hint": "金鑰裡有中文、全形符號或空格，可能多複製了別的文字。只貼上金鑰本身。",
+    "deepseek_recommended_aria": "DeepSeek（推薦）"
   },
   "placeholder": {
-    "apikey": "請輸入 API Key",
-    "model_url": "請輸入 Base URL",
-    "model_key": "請輸入 Model Key",
+    "apikey": "貼上服務商給你的金鑰",
+    "model_url": "例如 https://api.example.com/v1",
+    "model_key": "例如 deepseek-v4-flash",
     "proxy_host": "127.0.0.1",
     "proxy_port": "7890"
   },
@@ -212,7 +278,7 @@
     "titlebar": "{{count}} 個外部 Agent 已連線",
     "enable": {
       "label": "允許外部 Agent 連線",
-      "description": "讓 Claude Code、Codex 等透過 MCP 讀取與操作 FusionKit，由它們完成翻譯，無需在這裡設定 API Key。只監聽本機（127.0.0.1），並且需要權杖。"
+      "description": "讓 Claude Code、Codex 等透過 MCP 讀取與操作 FusionKit，由它們完成翻譯，不需要在這裡填寫金鑰。只監聽本機（127.0.0.1），並且需要權杖。"
     },
     "status": {
       "running": "執行中",

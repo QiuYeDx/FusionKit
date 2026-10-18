@@ -92,7 +92,7 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('subtitle AI revision',
       await uiExpect(items.nth(0)).toContainText('译文沿用');
       await uiExpect(items.nth(1).locator('[data-field=target] ins').first()).toBeVisible();
       await uiExpect(dialog.getByTestId('studio-cue-revision-note')).toContainText('DeepSeek');
-      await uiExpect(dialog).toContainText('本次用量 120 tokens');
+      await uiExpect(dialog).toContainText('本次用量 120 Token');
       await page.waitForTimeout(400); await page.screenshot({ path: path.join(artifacts, '02-preview.png') });
 
       // Leave the second proposal out, then apply.

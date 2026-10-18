@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FusionKit 打不开请看这里 · If FusionKit won't open</title>
+<style>
+  :root { color-scheme: light dark; --bg: #ffffff; --fg: #1d1d1f; --muted: #6e6e73; --card: #f5f5f7; --line: #d2d2d7; --accent: #0071e3; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1c1c1e; --fg: #f5f5f7; --muted: #a1a1a6; --card: #2c2c2e; --line: #3a3a3c; --accent: #2997ff; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.65 -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 40px 20px 56px; }
+  h1 { font-size: 26px; line-height: 1.3; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 36px 0 10px; padding-top: 24px; border-top: 1px solid var(--line); }
+  h3 { font-size: 15px; margin: 22px 0 6px; }
+  p, li { margin: 6px 0; }
+  ol { padding-left: 22px; }
+  .lead { color: var(--muted); margin: 0 0 12px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .lang { display: flex; gap: 12px; font-size: 14px; margin-bottom: 20px; }
+  .lang a { color: var(--accent); text-decoration: none; }
+  .command { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 10px 0; }
+  .command code { flex: 1 1 320px; min-width: 0; font: 13px/1.5 ui-monospace, Menlo, monospace; user-select: all; -webkit-user-select: all; overflow-wrap: anywhere; }
+  .command button { font: inherit; font-size: 13px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; cursor: pointer; }
+  .copied { color: var(--muted); font-size: 13px; }
+  section + section { margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <section id="zh" lang="zh-CN">
+    <h1>FusionKit 打不开？请看这里</h1>
+    <p class="lead">FusionKit 没有购买苹果的签名证书，第一次打开时 macOS 可能会拦一下。这不代表文件有问题，按下面的方法放行一次就好。</p>
+    <p class="lang"><a href="#en">English below ↓</a></p>
+
+    <h3>先安装</h3>
+    <ol>
+      <li>把左边的 FusionKit 图标拖到右边的“应用程序”文件夹。</li>
+      <li>打开“应用程序”文件夹，双击 FusionKit。</li>
+    </ol>
+
+    <h3>提示“无法验证开发者”或“无法打开”</h3>
+    <ol>
+      <li>先点“好”或“完成”关掉提示。</li>
+      <li>打开“系统设置 → 隐私与安全性”，在页面下方找到关于 FusionKit 的提示，点“仍要打开”。</li>
+      <li>按要求输入电脑密码，再点“打开”。</li>
+    </ol>
+    <p class="note">macOS 12 请打开“系统偏好设置 → 安全性与隐私 → 通用”。</p>
+
+    <h3>提示“已损坏，无法打开”</h3>
+    <p>文件并没有坏，是 macOS 给从网上下载的应用加了“下载标记”。先确认 FusionKit 已经在“应用程序”文件夹里，然后打开“终端”（可以用聚焦搜索“终端”），粘贴下面这行命令并按回车，再重新打开 FusionKit。</p>
+    <div class="command">
+      <code>xattr -dr com.apple.quarantine /Applications/FusionKit.app</code>
+      <button type="button" data-copy>复制命令</button>
+      <span class="copied" hidden>已复制</span>
+    </div>
+    <p class="note">这条命令只去掉 FusionKit 的下载标记，不会改动应用本身，也不需要输入密码。复制按钮不起作用时，点一下命令即可全选，再按 ⌘C 复制。</p>
+
+    <h3>换成新版 FusionKit 后又打不开</h3>
+    <p>换成新版本后，第一次打开时可能还要再放行一次，方法和上面相同。</p>
+
+    <h3>系统要求</h3>
+    <p>macOS 12 或更新版本，仅支持 Apple 芯片（M1 及更新）。推荐的转写模型另需约 1 GB 磁盘空间。</p>
+    <p class="note">打开 FusionKit 后，底部导航的“帮助”里有同样的说明和更多常见问题。</p>
+  </section>
+
+  <section id="en" lang="en">
+    <h2>If FusionKit won't open</h2>
+    <p class="lead">FusionKit is not signed with a paid Apple certificate, so macOS may stop it the first time you open it. Nothing is wrong with the file; allow it once as described below.</p>
+
+    <h3>Install first</h3>
+    <ol>
+      <li>Drag the FusionKit icon on the left onto the Applications folder on the right.</li>
+      <li>Open the Applications folder and double-click FusionKit.</li>
+    </ol>
+
+    <h3>"The developer cannot be verified" or "cannot be opened"</h3>
+    <ol>
+      <li>Close the message with "OK" or "Done".</li>
+      <li>Open System Settings → Privacy &amp; Security, find the note about FusionKit near the bottom and click "Open Anyway".</li>
+      <li>Enter your password if asked, then click "Open".</li>
+    </ol>
+    <p class="note">On macOS 12, open System Preferences → Security &amp; Privacy → General.</p>
+
+    <h3>"FusionKit is damaged and can't be opened"</h3>
+    <p>The file is not broken: macOS marks apps downloaded from the internet. Make sure FusionKit is in the Applications folder, open Terminal (search for "Terminal" with Spotlight), paste the command below, press Return and open FusionKit again.</p>
+    <div class="command">
+      <code>xattr -dr com.apple.quarantine /Applications/FusionKit.app</code>
+      <button type="button" data-copy>Copy command</button>
+      <span class="copied" hidden>Copied</span>
+    </div>
+    <p class="note">The command only removes FusionKit's download mark. It does not change the app and does not ask for a password. If the copy button does nothing, click the command to select it all and press ⌘C.</p>
+
+    <h3>It won't open after you update FusionKit</h3>
+    <p>After replacing it with a new version, you may have to allow it once more the first time you open it, in the same way.</p>
+
+    <h3>System requirements</h3>
+    <p>macOS 12 or later, Apple silicon only (M1 or newer). The recommended transcription model needs about 1 GB of extra disk space.</p>
+    <p class="note">Once FusionKit is open, Help in the bottom navigation has the same steps and more common questions.</p>
+  </section>
+</main>
+<script>
+  // Copies the command next to the button; selecting it by hand works without this too.
+  for (const button of document.querySelectorAll('[data-copy]')) {
+    button.addEventListener('click', () => {
+      const box = button.closest('.command');
+      const text = box.querySelector('code').textContent;
+      const done = () => { const note = box.querySelector('.copied'); note.hidden = false; setTimeout(() => { note.hidden = true; }, 2000); };
+      const fallback = () => {
+        const range = document.createRange();
+        range.selectNodeContents(box.querySelector('code'));
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        if (document.execCommand('copy')) done();
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+      else fallback();
+    });
+  }
+</script>
+</body>
+</html>

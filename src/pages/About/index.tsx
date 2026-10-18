@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { UPDATE_CHECK_EVENT, UPDATE_STATUS_EVENT } from "@/components/update";
+import { UPDATE_CHECK_EVENT, UPDATE_OPEN_EVENT, UPDATE_STATUS_EVENT, useAppUpdateState } from "@/components/update";
+import type { AppUpdateState } from "@/app-update/contract";
 import FusionKitLogo from "@/assets/FusionKit.svg";
 import {
   RefreshCw,
@@ -25,6 +26,50 @@ const openExternal = (url: string) => {
   window.open(url, "_blank", "noopener,noreferrer");
 };
 
+/** "Latest" only after a check said so; a found, downloading or downloaded version opens the update dialog. */
+function UpdateBadge({ state }: { state: AppUpdateState | undefined }) {
+  const { t } = useTranslation();
+  if (state?.phase === "up_to_date") {
+    return (
+      <Badge
+        variant="outline"
+        data-testid="about-update-badge"
+        data-phase={state.phase}
+        className="text-[11px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+      >
+        {t("about:badge.latest")}
+      </Badge>
+    );
+  }
+  // A failed download or install still has a new version waiting; the dialog says what to do.
+  const found = state?.phase === "available" || (state?.phase === "error" && state.error?.during !== "check" && !!state.latestVersion);
+  const label =
+    found
+      ? t("about:badge.available", { version: state?.latestVersion ?? "-" })
+      : state?.phase === "downloading"
+        ? t("about:badge.downloading", { percent: Math.round(state.progress?.percent ?? 0) })
+        : state?.phase === "downloaded" || state?.phase === "installing"
+          ? t("about:badge.downloaded")
+          : null;
+  if (!label) return null;
+  return (
+    <Badge
+      asChild
+      variant="outline"
+      className="cursor-pointer text-[11px] bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/20"
+    >
+      <button
+        type="button"
+        data-testid="about-update-badge"
+        data-phase={state?.phase}
+        onClick={() => window.dispatchEvent(new Event(UPDATE_OPEN_EVENT))}
+      >
+        {label}
+      </button>
+    </Badge>
+  );
+}
+
 const About: React.FC = () => {
   const { t } = useTranslation();
   const appVersion = import.meta.env.VITE_APP_VERSION || "-";
@@ -36,6 +81,7 @@ const About: React.FC = () => {
     ? `Electron · React ${reactMajorVersion}`
     : "Electron · React";
   const [updateChecking, setUpdateChecking] = useState(false);
+  const updateState = useAppUpdateState();
 
   const handleManualCheck = () => {
     setUpdateChecking(true);
@@ -96,12 +142,7 @@ const About: React.FC = () => {
                 <Badge variant="outline" className="font-mono text-[11px]">
                   v{appVersion}
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className="text-[11px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                >
-                  {t("about:badge.latest")}
-                </Badge>
+                <UpdateBadge state={updateState} />
               </div>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed max-w-prose">
                 {t("about:tagline")}

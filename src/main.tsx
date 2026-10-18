@@ -16,6 +16,7 @@ import { getLocalSubtitleEnvironmentService } from "@/services/local-subtitle/lo
 import { getLocalSubtitleRuntimeService } from "@/services/local-subtitle/localSubtitleRuntimeService";
 import { initAgentSessions } from "@/agent/session-persistence";
 import { removeRemovedToolSettings } from "@/lib/legacy-storage-cleanup";
+import useNetworkStore from "@/store/useNetworkStore";
 
 // Settings left behind by removed tools (they could hold an API key).
 removeRemovedToolSettings();
@@ -25,6 +26,8 @@ void getLocalSubtitleRuntimeService().start();
 void getLocalSubtitleEnvironmentService().ensureInitialized();
 // Saved Agent conversations: the list is read once, changes are saved as they happen.
 void initAgentSessions();
+// Network settings live in the main process; this also moves a proxy saved by older versions there.
+void useNetworkStore.getState().init();
 
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement

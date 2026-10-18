@@ -95,18 +95,18 @@
     "language": "目标语言",
     "custom_language": "其他语言",
     "custom_language_name": "语言名称",
-    "model_required": "请选择已配置 API 密钥的模型。",
+    "model_required": "请选择已填写密钥（API Key）的模型。",
     "model_settings": "模型设置",
     "instructions": "翻译要求（可选）",
     "advanced": "高级设置",
-    "context_window": "上下文窗口（tokens）",
-    "max_output": "每批输出上限（tokens）",
+    "context_window": "模型一次能读的长度（Token）",
+    "max_output": "每批回答的最大长度（Token）",
     "batch_cues": "每批字幕上限",
-    "invalid_options": "请填写目标语言并检查高级设置。输出上限须小于上下文窗口。",
+    "invalid_options": "请填写目标语言并检查高级设置：每批回答的最大长度要小于模型一次能读的长度。",
     "estimate": "预计用量",
-    "estimated_input": "预计输入 tokens",
+    "estimated_input": "预计发送 Token",
     "batch_count": "批次",
-    "output_reserve": "输出预留 tokens",
+    "output_reserve": "为回答预留 Token",
     "prepare": "计算用量",
     "start": "开始翻译",
     "queued": "等待翻译",
@@ -122,13 +122,13 @@
     "resume_description": "沿用原任务的模型与翻译设置，只继续未完成的批次。",
     "original_model": "原任务模型",
     "completed_batches": "已完成批次",
-    "repair_model": "原模型配置缺失、已变更或 API 密钥不可用。请在模型设置中修复原配置。",
+    "repair_model": "原来的模型配置不见了、改过了，或者密钥（API Key）不能用了。请在模型设置中修好原来的配置。",
     "legacy_restart": "此旧任务不支持继续，请重新创建翻译。",
     "uncertain_usage": "{{count}} 次请求用量未知",
     "uncertain_resume": "有 {{count}} 次请求的计费结果未知。继续未完成批次可能重复计费。",
     "provider_wait": "供应商要求等待，{{seconds}} 秒后可继续",
     "batch_progress": "{{completed}} / {{total}} 批",
-    "actual_usage": "实际 tokens：输入 {{input}} · 输出 {{output}}",
+    "actual_usage": "实际用量：发送 {{input}} · 回答 {{output}} Token",
     "unknown_usage": "未知",
     "languages": {
       "zh": "简体中文",
@@ -136,7 +136,8 @@
       "ja": "日语",
       "zh-Hant": "繁体中文"
     },
-    "usage_total": "{{value}} tokens"
+    "usage_total": "{{value}} Token",
+    "advanced_hint": "一般不用改。Token 是 AI 计算文字长度的单位，大约一个汉字或一个英文单词算 1 个。"
   },
   "export": {
     "action": "导出字幕",
@@ -262,9 +263,9 @@
     "access_denied": "文档访问授权已失效，请刷新或重新打开应用。",
     "document_unavailable": "文档读取或保存失败。",
     "output_write_failed": "下载失败，请检查目标位置后重试。",
-    "needs_configuration": "模型配置不可用，请检查模型和 API 密钥。",
+    "needs_configuration": "模型配置用不了，请检查模型名和密钥（API Key）。",
     "translation_protocol_invalid": "模型返回的字幕不完整或格式有误，本批译文未保存。",
-    "translation_output_limit": "已达每批输出上限，本批译文未保存。请减少每批字幕或提高输出上限。",
+    "translation_output_limit": "回答超过了“每批回答的最大长度”，这一批译文没有保存。请减少“每批字幕上限”，或在高级设置里调大“每批回答的最大长度”。",
     "translation_failed": "翻译请求失败，请检查模型服务后重试。",
     "transcription_failed": "转写失败，请检查媒体和本地资源后重试。",
     "interrupted": "翻译已中断，已完成的译文已保留。",
@@ -467,7 +468,7 @@
     "mode_transcribe": "保留原语言",
     "mode_english": "翻译为英语",
     "vad": "语音检测",
-    "vad_hint": "通过语音活动检测识别语音片段。",
+    "vad_hint": "自动跳过没有人说话的部分，减少误识别。",
     "advanced": "高级设置",
     "beam_size": "搜索宽度",
     "temperature": "温度",
@@ -482,11 +483,11 @@
     "window_quiet": "按语音停顿",
     "resources": "本地资源",
     "manage_resources": "管理资源",
-    "resource_description": "从目录下载资源，或导入匹配的模型文件。导入时会保留原文件并创建副本。",
+    "resource_description": "从列表下载需要的资源。已有模型文件的话，也可以点“导入模型”，但文件必须和列表中的某个模型完全一致（同一个文件，大小和内容都相同）。导入时会复制一份，原文件保留。",
     "resource_empty": "暂无本地资源目录。",
     "resource_model": "模型",
     "resource_vad": "语音检测",
-    "resource_accelerator": "GPU 支持",
+    "resource_accelerator": "显卡加速",
     "resource_ready": "已就绪",
     "resource_not_installed": "未安装",
     "resource_installing": "正在安装…",
@@ -494,7 +495,14 @@
     "download": "下载",
     "import_model": "导入模型",
     "cancel_download": "取消安装",
-    "resource_failed": "资源操作失败，请重试。",
+    "resource_failed": "资源操作没有完成。请再试一次；仍然失败的话，可以点“复制诊断信息”，把内容反馈给开发者。",
+    "resource_failed_vad_needs_model": "语音检测需要先装好“标准”模型：请先下载“标准”模型，再下载语音检测。",
+    "resource_failed_network": "下载没有完成，通常是连不上下载地址或被网络拦截。可以在网络设置里换个下载源或开启代理，再点“下载”重试。",
+    "resource_failed_disk": "磁盘空间不足，请清理出足够的空间后再试一次。",
+    "resource_failed_verify": "下载的文件没有通过完整性检查。请再点一次“下载”；如果还是失败，可以在网络设置里换个下载源。",
+    "resource_import_mismatch": "所选文件和列表里的这个模型对不上（大小或内容不同）。请选择与模型名称一致的文件后重新导入。",
+    "resource_import_failed": "导入没有完成，可能是文件无法读取或正被别的程序占用。请确认文件后重新导入。",
+    "open_network_settings": "网络设置",
     "runtime_checking": "正在检查本地运行环境…",
     "runtime_ready": "本地运行环境已就绪",
     "runtime_unavailable": "本地运行环境不可用",
@@ -506,7 +514,7 @@
     "readiness_runtime": "需要可用的本地运行环境。",
     "readiness_model": "请先安装选中的模型。",
     "readiness_vad": "请安装语音检测资源，或关闭语音检测。",
-    "readiness_accelerator": "请安装 GPU 支持资源，或选择 CPU。",
+    "readiness_accelerator": "请先安装“NVIDIA 显卡加速”，或改用 CPU。",
     "readiness_media": "添加媒体后即可开始。",
     "status_queued": "排队中",
     "status_preparing_media": "准备媒体",
@@ -519,7 +527,7 @@
     "active_count": "{{active}} 个进行中 · {{completed}} 个已生成字幕 · {{empty}} 个无可用字幕",
     "task_failed": "转写失败，请检查媒体和本地资源。",
     "close": "关闭",
-    "shared_hint": "模型、语音检测与 CUDA 资源保存在应用共享目录，两个字幕工具共用一份，安装一次即可使用。",
+    "shared_hint": "模型、语音检测和 NVIDIA 显卡加速保存在应用共享目录，两个字幕工具共用一份，安装一次即可使用。",
     "migration_issues": "部分旧资源未能安全迁移，原文件已保留。可重新打开应用重试；若仍未就绪，请检查资源状态。",
     "shared_cleanup_pending": "共享资源仍在清理，请等待清理完成后再安装或删除。",
     "shared_busy": "资源正被字幕任务或资源操作占用。",
@@ -545,7 +553,138 @@
     "auto_export_format_auto": "按来源（音频 LRC / 视频 SRT）",
     "auto_export_remove": "导出成功后从工作台删除字幕文档",
     "auto_export_remove_hint": "导出失败的文档会保留，以便检查或重新导出。",
-    "auto_export_source_only": "未开启自动翻译时只导出原文。"
+    "auto_export_source_only": "未开启自动翻译时只导出原文。",
+    "resource_name_standard": "标准（推荐，约 1.0 GB）",
+    "resource_name_standard_short": "标准",
+    "resource_name_best": "最高精度（约 2.9 GB，较慢）",
+    "resource_name_best_short": "最高精度",
+    "resource_name_vad": "语音检测（自动跳过静音）",
+    "resource_name_vad_short": "语音检测",
+    "resource_name_cuda": "NVIDIA 显卡加速",
+    "prepare_title": "一键准备（推荐）",
+    "prepare_description": "一次装好标准模型和语音检测，装好就能开始本地转写。",
+    "prepare_size": "需要下载 {{size}}",
+    "prepare_free_space": "剩余空间 {{size}}",
+    "prepare_low_space": "空间不够：需要约 {{size}}，现在只剩 {{free}}。请先清理磁盘再下载。",
+    "prepare_action": "一键准备",
+    "prepare_ready": "已准备好",
+    "prepare_ready_hint": "标准模型和语音检测都已就绪，可以开始转写了。",
+    "prepare_checking": "正在检查…",
+    "prepare_running": "正在准备：{{name}}（{{current}}/{{total}}）",
+    "prepare_done": "本地转写已准备好，可以开始转写了。",
+    "prepare_failed": "有资源没有装好，原因见下方列表。处理后可以再点一次“一键准备”。",
+    "prepare_cancelled": "已取消准备。需要时再点一次“一键准备”。",
+    "prepare_runtime_needed": "需要先安装微软运行库：点上方的“一键修复”，装好后会自动开始下载。",
+    "prepare_cancel": "取消",
+    "prepare_download_anyway": "仍要下载",
+    "recommended": "推荐",
+    "not_applicable": "此电脑不适用",
+    "cuda_not_applicable_hint": "没有检测到 NVIDIA 显卡，这个加速包在这台电脑上用不上。",
+    "cuda_confirm_title": "这台电脑用不上显卡加速",
+    "cuda_confirm_description": "没有检测到 NVIDIA 显卡。NVIDIA 显卡加速包约 {{size}}，只有装了 NVIDIA 显卡的电脑才能使用。仍要下载吗？",
+    "cuda_driver_old": "建议先更新 NVIDIA 显卡驱动：当前版本 {{version}}，显卡加速需要 {{minimum}} 或更新的版本。",
+    "cuda_driver_update": "更新驱动",
+    "device_hint_no_nvidia": "没有检测到 NVIDIA 显卡，转写会使用 CPU。",
+    "device_hint_cuda_no_nvidia": "这台电脑没有检测到 NVIDIA 显卡，选“NVIDIA GPU”无法转写。请改选“自动”或“CPU”。",
+    "device_hint_install_cuda": "安装“NVIDIA 显卡加速”后可以用显卡转写，速度更快。",
+    "device_hint_driver_old": "NVIDIA 显卡驱动版本较旧，建议先更新，否则显卡加速可能用不了。",
+    "cpu_reason_no_nvidia": "没有检测到 NVIDIA 显卡",
+    "cpu_reason_not_installed": "未安装显卡加速",
+    "cpu_reason_unavailable": "显卡加速不可用",
+    "vc_runtime_failure": "这台电脑缺少微软 VC++ 运行库或版本太旧，转写程序无法启动。请先点上方的“一键修复”。",
+    "vc_runtime_download_title": "先安装微软运行库",
+    "vc_runtime_download_description": "缺少它的话，下载完也用不了。修复好后会自动开始下载。",
+    "vc_runtime_download_anyway": "仍要下载",
+    "advanced_hint": "一般保持默认即可：搜索宽度越大越准确，也越慢；温度越低结果越稳定；最短静音决定多长的停顿算作句子之间的间隔。",
+    "task_error": {
+      "runtime": {
+        "cause": "FusionKit 自带的转写程序不完整，或者版本对不上。",
+        "next": "请重启 FusionKit 后再试；仍然失败的话，请重新安装 FusionKit。"
+      },
+      "unsupported": {
+        "cause": "这台电脑的系统或处理器不支持本地转写。",
+        "next": "本地转写需要 Windows 10 / 11（64 位），或使用 Apple 芯片的 macOS 12 及以上。"
+      },
+      "crashed": {
+        "cause": "转写程序意外退出了，或者长时间没有响应。",
+        "next": "请再试一次；仍然失败的话，可以把“处理设备”改成 CPU，或者重启电脑后再试。"
+      },
+      "accelerator": {
+        "cause": "显卡加速现在用不了。",
+        "next": "可以把“处理设备”改成 CPU 后重新转写；也可以在“管理资源”里重新下载显卡加速，或者更新显卡驱动。"
+      },
+      "model_missing": {
+        "cause": "选中的模型还没有装好。",
+        "next": "请在“管理资源”里下载这个模型，或者点“一键准备”。"
+      },
+      "model_broken": {
+        "cause": "模型文件没能正常加载。",
+        "next": "请在“管理资源”里删除这个模型，再重新下载。"
+      },
+      "not_allowed": {
+        "cause": "选中的资源不在可以使用的列表里。",
+        "next": "请更新 FusionKit 后再试。"
+      },
+      "busy": {
+        "cause": "本地转写资源正被别的任务或下载使用。",
+        "next": "请等它们结束后再试。"
+      },
+      "disk": {
+        "cause": "磁盘空间不够。",
+        "next": "请清理出足够的空间后再试一次。"
+      },
+      "memory": {
+        "cause": "电脑内存不够用了。",
+        "next": "请关掉其他占用内存的程序，或者换一个体积较小的模型后再试。"
+      },
+      "authorization": {
+        "cause": "FusionKit 已经不能再读取这个文件。",
+        "next": "请重新添加这个文件后再转写。"
+      },
+      "media": {
+        "cause": "这个文件里读不出可以转写的声音。",
+        "next": "请确认文件能正常播放，或者转换成常见格式（如 MP4、MP3）后再试。"
+      },
+      "no_audio": {
+        "cause": "这个文件里没有音轨。",
+        "next": "请换一个有声音的文件。"
+      },
+      "media_changed": {
+        "cause": "转写过程中，原文件被修改或移动了。",
+        "next": "请重新添加文件后再转写。"
+      },
+      "transcription": {
+        "cause": "转写没能完成。",
+        "next": "请再试一次；仍然失败的话，可以换一个模型，或者把“处理设备”改成 CPU。"
+      },
+      "limit": {
+        "cause": "媒体太长，或者内容超出了一次能处理的上限。",
+        "next": "请把媒体分成几段后再转写。"
+      },
+      "save": {
+        "cause": "转写结果没能保存。",
+        "next": "请确认磁盘空间足够，然后再试一次。"
+      },
+      "interrupted": {
+        "cause": "转写被中断了，可能是 FusionKit 关闭过，或者页面重新加载过。",
+        "next": "请重新添加文件后再转写。"
+      },
+      "page_stale": {
+        "cause": "页面和本地转写服务之间的连接已经失效。",
+        "next": "请重启 FusionKit 后再试。"
+      },
+      "unknown": {
+        "next": "请再试一次；仍然失败的话，可以点“复制诊断信息”，把内容反馈给开发者。"
+      }
+    },
+    "copy_diagnostics": "复制诊断信息",
+    "diagnostics_copied": "已复制诊断信息",
+    "resource_failed_accelerator": "显卡加速没能通过加载检查，这台电脑现在用不了它。请先更新 NVIDIA 显卡驱动再下载；不装它也可以用 CPU 转写。",
+    "resource_failed_load": "文件已经下载，但没能通过加载检查。请再点一次“下载”；仍然失败的话，重启电脑后再试。",
+    "resource_failed_runtime": "FusionKit 自带的转写程序不完整或版本对不上，没法检查这个资源。请重启 FusionKit；仍然失败的话，请重新安装 FusionKit。",
+    "resource_failed_not_allowed": "这个资源不在可以下载的列表里，请更新 FusionKit 后再试。",
+    "resource_failed_memory": "检查资源时电脑内存不够。请关掉其他占用内存的程序后再试。",
+    "resource_failed_stale": "页面和本地转写服务之间的连接已经失效，请重启 FusionKit 后再试。"
   },
   "overview": {
     "title": "翻译任务",
@@ -562,10 +701,10 @@
     "open_document": "打开文档",
     "can_resume": "可在文档中检查并继续",
     "view_progress": "查看翻译进度",
-    "actual_tokens": "实际 tokens",
+    "actual_tokens": "实际 Token",
     "input_tokens": "输入",
     "output_tokens": "输出",
-    "task_tokens": "{{value}} tokens",
+    "task_tokens": "{{value}} Token",
     "usage_unknown": "未提供",
     "usage_scope": "共 {{count}} 项任务",
     "usage_partial": "用量统计不完整",
@@ -900,10 +1039,10 @@
     "target_stale": "译文将标为原文已变更",
     "source_only_hint": "只修订原文时，对应译文会标为“原文已变更”；如需同时更新译文，可选择“原文和译文”。",
     "rejected": "有 {{count}} 处修订含 < > 等无法保存的字符，已忽略。",
-    "usage": "本次用量 {{count}} tokens",
+    "usage": "本次用量 {{count}} Token",
     "errors": {
       "revision_conflict": "字幕在生成修订后有改动，请重新生成。",
-      "output_limit": "模型输出达到上限。请减少所选字幕，或在翻译设置中提高输出上限。",
+      "output_limit": "回答超过了“每批回答的最大长度”。请减少所选字幕，或在翻译的“高级设置”里调大“每批回答的最大长度”。",
       "protocol_invalid": "模型返回的内容无法识别，请重试或换用其他模型。",
       "failed": "修订请求失败，请检查模型服务后重试。",
       "apply_failed": "修订未能应用，请查看页面上方的提示后重试。",

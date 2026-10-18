@@ -3,7 +3,7 @@ import { StudioError, type SubtitleDocument } from '../../../src/subtitle-studio
 import { normalizeTranslationModel, translationConfigSchema, type TranslationConfig, type TranslationUsage } from '../../../src/subtitle-studio/translation-contract';
 import { projectTranslationUnits, validateTranslationResponse, type TranslationUnit } from '../../../src/subtitle-studio/translation-protocol';
 import { sendModelRuntimeText, type ModelRuntimeTextRequest, type ModelRuntimeTextResult, type ModelRuntimeUsage } from '../ai/model-runtime-client';
-import { ModelRuntimeClientError } from '../ai/model-runtime-errors';
+import { ModelRuntimeClientError, modelErrorCategory } from '../ai/model-runtime-errors';
 import type { DocumentRepository } from './document-repository';
 import { requestTokenEstimate, sourceDigest } from './translation-planner';
 import { documentSourceDigest, translationScheduler, type TranslationScheduler } from './translation-recovery';
@@ -49,10 +49,14 @@ function mergeUsage(total: TranslationUsage, next: TranslationUsage): void {
 export function providerError(error: unknown): StudioError {
   if (error instanceof StudioError) return error;
   if (error instanceof ModelRuntimeClientError) {
-    if (['http_unauthorized', 'http_forbidden', 'http_non_retryable'].includes(error.code)) return new StudioError('needs_configuration');
+    // Why the request failed (wrong key, no balance, no network...) travels with the code.
+    const category = modelErrorCategory(error);
+    const known = category === 'unknown' ? undefined : category;
+    if (['http_unauthorized', 'http_forbidden', 'http_non_retryable'].includes(error.code)) return new StudioError('needs_configuration', known);
     if (error.code === 'length_truncated') return new StudioError('translation_output_limit');
-    if (['empty_response', 'invalid_response'].includes(error.code)) return new StudioError('translation_protocol_invalid');
+    if (['empty_response', 'invalid_response'].includes(error.code)) return new StudioError('translation_protocol_invalid', known === 'bad_url' ? known : undefined);
     if (error.code === 'aborted') return new StudioError('interrupted');
+    return new StudioError('translation_failed', known);
   }
   return new StudioError('translation_failed');
 }

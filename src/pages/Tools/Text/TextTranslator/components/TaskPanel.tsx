@@ -38,6 +38,8 @@ import {
   type TextTranslationTaskStatus,
 } from "@/type/textTranslation";
 import { formatCost, formatTokens } from "@/utils/tokenEstimate";
+import { ModelErrorGuide } from "@/components/model-error/ModelErrorGuide";
+import useModelStore from "@/store/useModelStore";
 
 type SelectedTextFile = {
   fileName: string;
@@ -448,6 +450,9 @@ export default function TaskPanel({
               ) : null}
             </AlertDescription>
           </Alert>
+        ) : null}
+        {visibleLastError && task?.failureSummary ? (
+          <TaskFailureGuide summary={task.failureSummary} />
         ) : null}
 
         {!hasUsableTaskModel ? (
@@ -892,4 +897,12 @@ function formatBytes(bytes: number, locale: string): string {
   return `${new Intl.NumberFormat(locale, {
     maximumFractionDigits: unitIndex === 0 ? 0 : 1,
   }).format(value)} ${units[unitIndex]}`;
+}
+
+/** Why the model requests failed and what to do next, when the failures share a known cause. */
+function TaskFailureGuide({ summary }: { summary: TextTranslationTaskFailureSummary }) {
+  const profile = useModelStore((state) => state.getTaskProfile());
+  const category = summary.firstFailure?.category ?? summary.failures.find((failure) => failure.category)?.category;
+  if (!category) return null;
+  return <ModelErrorGuide category={category} profile={profile} testId="text-translator-error-guide" />;
 }
