@@ -8,7 +8,10 @@
     "github": "GitHub",
     "author": "Author",
     "contact": "Contact",
-    "tech_stack": "Tech Stack & Build Info"
+    "tech_stack": "Tech Stack & Build Info",
+    "links": "Links",
+    "links_hint": "Source code, the author and where to send feedback.",
+    "tech_hint": "How this version was built."
   },
   "badge": {
     "latest": "Latest",
@@ -52,7 +55,9 @@
     "state": "State Management",
     "ai": "AI SDK",
     "i18n": "i18n",
-    "pkg": "Package Manager"
+    "pkg": "Package Manager",
+    "ui": "Interface"
   },
-  "license_note": "Released under PolyForm Noncommercial License 1.0.0. Non-commercial use only."
+  "license_note": "Released under PolyForm Noncommercial License 1.0.0. Non-commercial use only.",
+  "eyebrow": "Version & info"
 }

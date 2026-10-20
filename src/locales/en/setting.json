@@ -16,23 +16,28 @@
   "nav": {
     "general": {
       "label": "General",
-      "hint": "Appearance, language, notifications"
+      "hint": "Appearance, language, notifications",
+      "about": "Language, theme, pointer and system notifications."
     },
     "proxy": {
       "label": "Network",
-      "hint": "Proxy and download source"
+      "hint": "Proxy and download source",
+      "about": "Proxy, connection test and download source: how FusionKit reaches the internet."
     },
     "model": {
       "label": "AI Model",
-      "hint": "Text · Agent · Assignment"
+      "hint": "Text · Agent · Assignment",
+      "about": "The AI services you connect, and which one the agent and translation tasks use."
     },
     "agent": {
       "label": "Agent",
-      "hint": "Web lookups, conversation history"
+      "hint": "Web lookups, conversation history",
+      "about": "Whether the agent may look names up online, and the conversations kept on this computer."
     },
     "external": {
       "label": "External agents",
-      "hint": "Let Claude Code and others use FusionKit"
+      "hint": "Let Claude Code and others use FusionKit",
+      "about": "Let Claude Code, Codex, Cursor and others use FusionKit over MCP."
     }
   },
   "fields": {
@@ -89,7 +94,8 @@
       "test_title": "FusionKit",
       "test_body": "System notification is working!",
       "task_resolved": "{{file}} completed",
-      "task_failed": "{{file}} failed"
+      "task_failed": "{{file}} failed",
+      "hint": "Turning it on sends a test notification."
     },
     "proxy": {
       "mode": "Proxy Mode",
@@ -139,7 +145,9 @@
         "aborted": "Test cancelled",
         "unknown": "Connection failed"
       },
-      "test_hint_github_failed_official": "GitHub can’t be reached, so update checks will fail. Set the download source to \"Auto\" to use the mirror in China instead."
+      "test_hint_github_failed_official": "GitHub can’t be reached, so update checks will fail. Set the download source to \"Auto\" to use the mirror in China instead.",
+      "test_title": "Connection test",
+      "test_hint": "Checks the model services, model downloads and GitHub one by one."
     },
     "token_price": {
       "intro_title": "Token Pricing",
@@ -183,7 +191,8 @@
       "key_preview": "Key: {{preview}}",
       "auto_assigned": "Saved. Features without a model now use this profile.",
       "edit": "Edit profile",
-      "delete": "Delete profile (click again to confirm)"
+      "delete": "Delete profile (click again to confirm)",
+      "delete_again": "Click again to delete"
     },
     "download_source": {
       "label": "Source",
@@ -213,7 +222,9 @@
       "reopen": "Reopen the setup guide"
     },
     "apikey_characters_hint": "The key contains Chinese or full-width characters or spaces; something extra may have been copied with it. Paste only the key itself.",
-    "deepseek_recommended_aria": "DeepSeek (recommended)"
+    "deepseek_recommended_aria": "DeepSeek (recommended)",
+    "language_hint": "The language of the interface.",
+    "theme_hint": "Following the system switches with your computer's light and dark mode."
   },
   "placeholder": {
     "apikey": "Paste the key from your provider",
@@ -225,7 +236,9 @@
   "agent": {
     "web": {
       "label": "Let the Agent look things up online",
-      "description": "When on, the Agent can search the sites turned on below to check how names, places and terms are translated. Only search words and page links are sent; your subtitles and translation materials never are."
+      "description": "When on, the Agent can search the sites turned on below to check how names, places and terms are translated. Only search words and page links are sent; your subtitles and translation materials never are.",
+      "title": "Online lookup",
+      "section_hint": "For official names, places and terms."
     },
     "sources": {
       "title": "Sources",
@@ -267,7 +280,9 @@
       "clear_confirm": "Delete all",
       "cancel": "Cancel",
       "cleared": "All conversations deleted",
-      "clear_failed": "Couldn't delete everything; some conversation files may remain on disk"
+      "clear_failed": "Couldn't delete everything; some conversation files may remain on disk",
+      "title": "Conversations",
+      "section_hint": "Conversations are kept only on this computer."
     }
   },
   "external_agent": {
@@ -409,7 +424,10 @@
       "installed": "Installed: {{path}}",
       "outdated": "An older version is installed; install again to update: {{path}}",
       "install_done": "Skill installed",
-      "install_failed": "Could not install"
+      "install_failed": "Could not install",
+      "target_claude": "Claude Code",
+      "target_agents": "Shared folder (Codex, Cursor and others)",
+      "not_installed": "Not installed"
     },
     "confirm": {
       "title": "{{client}} wants to {{action}}",
@@ -687,6 +705,26 @@
     "templates": {
       "title": "Workflow prompts",
       "description": "Pick a workflow, fill in the folder and options, then copy the prompt and paste it into your connected agent. It writes the translations itself."
+    },
+    "sections": {
+      "access": "Access",
+      "access_hint": "When on, FusionKit serves MCP on this computer and accepts local connections only.",
+      "trust_hint": "Whether an external agent asks you before it changes files or data.",
+      "connection_hint": "External agents connect to FusionKit with this port and token.",
+      "port_hint": "1024–65535; update your client's configuration after changing it.",
+      "token_hint": "Works like a password: keep it private. Resetting it invalidates old configurations.",
+      "clients_hint": "Pick your client and follow the steps to add the configuration.",
+      "sessions_hint": "External agents connected to FusionKit right now."
     }
+  },
+  "eyebrow": "Preferences",
+  "groups": {
+    "appearance": "Appearance and language",
+    "appearance_hint": "Changes apply at once and are remembered on this computer.",
+    "notifications": "Notifications",
+    "notifications_hint": "A system notification when a background task finishes or fails.",
+    "proxy_hint": "Used for AI requests, downloads and update checks.",
+    "download_hint": "Where transcription models, GPU packs and app updates come from.",
+    "profiles_hint": "Each profile is an AI service's address, key and model."
   }
 }

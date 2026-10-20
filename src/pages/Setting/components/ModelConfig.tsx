@@ -6,201 +6,94 @@ import useModelProfileDraftStore from "@/store/useModelProfileDraftStore";
 import { Model } from "@/type/model";
 import type { ModelProfile } from "@/type/model";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  KeyRound,
-  Bot,
-  Wrench,
-  AlertTriangle,
-  Compass,
-} from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Pencil, Trash2, KeyRound, Bot, Wrench, AlertTriangle, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
+import { Panel, PanelRow, PageSection, ToneIcon, toneStyle, type Tone } from "@/pages/components/page-kit";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { ModelProfileDialog } from "./ModelProfileDialog";
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const PROVIDER_COLORS: Record<Model, string> = {
-  [Model.DeepSeek]: "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/20",
-  [Model.OpenAI]: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
-  [Model.Other]: "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/20",
+  [Model.DeepSeek]: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/25",
+  [Model.OpenAI]: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/25",
+  [Model.Other]: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/25",
 };
+const PROVIDER_TONES: Record<Model, Tone> = { [Model.DeepSeek]: "blue", [Model.OpenAI]: "green", [Model.Other]: "orange" };
 
 const NONE_VALUE = "__none__";
 
-// ---------------------------------------------------------------------------
-// Main Component
-// ---------------------------------------------------------------------------
-
 function ModelConfig() {
-  return (
-    <div className="space-y-4">
-      <ModelAssignmentCard />
-      <ModelProfilesCard />
-    </div>
-  );
+  return <>
+    <ModelAssignmentCard />
+    <ModelProfilesCard />
+  </>;
 }
 
-// ---------------------------------------------------------------------------
-// Model Assignment Card
-// ---------------------------------------------------------------------------
+/** A model choice: the profile's name with its model in mono, or "not set". */
+function ProfileSelect({ value, onChange, disabled, labelledBy }: { value: string | null; onChange: (value: string | null) => void; disabled?: boolean; labelledBy: string }) {
+  const { t } = useTranslation();
+  const profiles = useModelStore((state) => state.profiles);
+  const selected = profiles.find((profile) => profile.id === value);
+  const notSet = <span className="text-muted-foreground">{t("setting:fields.assignment.not_configured")}</span>;
+  const option = (profile: ModelProfile) => <span className="flex min-w-0 items-center gap-2">
+    <span className="truncate">{profile.name}</span>
+    <span className="truncate font-mono text-xs text-muted-foreground">{profile.modelKey}</span>
+  </span>;
+  return <Select value={value ?? NONE_VALUE} onValueChange={(next) => onChange(next === NONE_VALUE ? null : next)} disabled={disabled}>
+    <SelectTrigger className="h-9 w-full min-w-0 sm:w-72" aria-labelledby={labelledBy}>
+      <SelectValue placeholder={t("setting:fields.assignment.select_placeholder")}>{selected ? option(selected) : notSet}</SelectValue>
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value={NONE_VALUE}>{notSet}</SelectItem>
+      {profiles.map((profile) => <SelectItem key={profile.id} value={profile.id}>{option(profile)}</SelectItem>)}
+    </SelectContent>
+  </Select>;
+}
 
 function ModelAssignmentCard() {
   const { t } = useTranslation();
-  const { profiles, assignment, setAssignment } = useModelStore();
+  const { assignment, setAssignment } = useModelStore();
   const { isStreaming, session } = useAgentStore();
   const hasActiveConversation = isStreaming || session.messages.length > 0;
-
-  const agentProfile = profiles.find((p) => p.id === assignment.agent);
-  const taskProfile = profiles.find((p) => p.id === assignment.taskExecution);
-
   // The Agent works with both API formats (Chat Completions and Responses), so every profile can be chosen.
-  const handleAgentAssignmentChange = useCallback(
-    (value: string) => setAssignment("agent", value === NONE_VALUE ? null : value),
-    [setAssignment],
-  );
+  const setAgent = useCallback((value: string | null) => setAssignment("agent", value), [setAssignment]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-xl">
-          {t("setting:subtitle.model_assignment")}
-        </CardTitle>
-        <CardDescription>
-          {t("setting:fields.assignment.description")}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Agent Model Assignment */}
-        <div className="space-y-2 max-w-2xl">
-          <div className="flex items-center gap-2">
-            <Bot className="h-4 w-4 text-muted-foreground" />
-            <Label id="model-assignment-agent">{t("setting:fields.assignment.agent_model")}</Label>
+    <PageSection title={t("setting:subtitle.model_assignment")} description={t("setting:fields.assignment.description")}>
+      <Panel>
+        <PanelRow icon={Bot} tone="teal" labelId="model-assignment-agent"
+          label={<span className="flex flex-wrap items-center gap-2">
+            {t("setting:fields.assignment.agent_model")}
             {hasActiveConversation && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge variant="outline" className="text-xs gap-1 text-amber-600 dark:text-amber-400 border-amber-500/30">
-                    <AlertTriangle className="h-3 w-3" />
-                    {t("setting:fields.assignment.locked")}
+                  <Badge variant="outline" className="gap-1 border-amber-500/30 text-[11px] font-normal text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-3 w-3" />{t("setting:fields.assignment.locked")}
                   </Badge>
                 </TooltipTrigger>
-                <TooltipContent>
-                  {t("setting:fields.assignment.locked_tooltip")}
-                </TooltipContent>
+                <TooltipContent>{t("setting:fields.assignment.locked_tooltip")}</TooltipContent>
               </Tooltip>
             )}
-          </div>
-          <p className="text-xs text-muted-foreground" data-testid="model-assignment-agent-role">
-            {t("setting:fields.assignment.agent_role")}
-          </p>
-          <Select
-            value={assignment.agent ?? NONE_VALUE}
-            onValueChange={handleAgentAssignmentChange}
-            disabled={hasActiveConversation}
-          >
-            <SelectTrigger className="w-full" aria-labelledby="model-assignment-agent">
-              <SelectValue placeholder={t("setting:fields.assignment.select_placeholder")}>
-                {agentProfile ? (
-                  <span className="flex items-center gap-2">
-                    <span>{agentProfile.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono">{agentProfile.modelKey}</span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">{t("setting:fields.assignment.not_configured")}</span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE_VALUE}>
-                <span className="text-muted-foreground">{t("setting:fields.assignment.not_configured")}</span>
-              </SelectItem>
-              {profiles.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span>{p.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono">{p.modelKey}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Task Execution Model Assignment */}
-        <div className="space-y-2 max-w-2xl">
-          <div className="flex items-center gap-2">
-            <Wrench className="h-4 w-4 text-muted-foreground" />
-            <Label id="model-assignment-task">{t("setting:fields.assignment.task_model")}</Label>
-          </div>
-          <p className="text-xs text-muted-foreground" data-testid="model-assignment-task-role">
-            {t("setting:fields.assignment.task_role")}
-          </p>
-          <Select
-            value={assignment.taskExecution ?? NONE_VALUE}
-            onValueChange={(v) => setAssignment("taskExecution", v === NONE_VALUE ? null : v)}
-          >
-            <SelectTrigger className="w-full" aria-labelledby="model-assignment-task">
-              <SelectValue placeholder={t("setting:fields.assignment.select_placeholder")}>
-                {taskProfile ? (
-                  <span className="flex items-center gap-2">
-                    <span>{taskProfile.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono">{taskProfile.modelKey}</span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">{t("setting:fields.assignment.not_configured")}</span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE_VALUE}>
-                <span className="text-muted-foreground">{t("setting:fields.assignment.not_configured")}</span>
-              </SelectItem>
-              {profiles.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  <span className="flex items-center gap-2">
-                    <span>{p.name}</span>
-                    <span className="text-xs text-muted-foreground font-mono">{p.modelKey}</span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardContent>
-    </Card>
+          </span>}
+          description={<span data-testid="model-assignment-agent-role">{t("setting:fields.assignment.agent_role")}</span>}
+          control={<ProfileSelect value={assignment.agent} onChange={setAgent} disabled={hasActiveConversation} labelledBy="model-assignment-agent" />} />
+        <PanelRow icon={Wrench} tone="orange" labelId="model-assignment-task" label={t("setting:fields.assignment.task_model")}
+          description={<span data-testid="model-assignment-task-role">{t("setting:fields.assignment.task_role")}</span>}
+          control={<ProfileSelect value={assignment.taskExecution} onChange={(value) => setAssignment("taskExecution", value)} labelledBy="model-assignment-task" />} />
+      </Panel>
+    </PageSection>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Model Profiles Card
-// ---------------------------------------------------------------------------
-
 function ModelProfilesCard() {
   const { t } = useTranslation();
-  const {
-    profiles,
-    removeProfile,
-    assignment,
-  } = useModelStore();
+  const reduceMotion = useReducedMotionPreference();
+  const { profiles, removeProfile, assignment } = useModelStore();
   const [editingProfile, setEditingProfile] = useState<ModelProfile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -220,16 +113,9 @@ function ModelProfilesCard() {
     setIsDialogOpen(true);
   }, [reopenRequested]);
 
-  const handleAdd = () => {
-    setEditingProfile(null);
-    setIsDialogOpen(true);
-  };
-
-  const handleEdit = (profile: ModelProfile) => {
-    setEditingProfile(profile);
-    setIsDialogOpen(true);
-  };
-
+  const handleAdd = () => { setEditingProfile(null); setIsDialogOpen(true); };
+  const handleEdit = (profile: ModelProfile) => { setEditingProfile(profile); setIsDialogOpen(true); };
+  // Deleting asks twice: the first click arms the button for three seconds.
   const handleDelete = (id: string) => {
     if (confirmDeleteId === id) {
       removeProfile(id);
@@ -239,139 +125,91 @@ function ModelProfilesCard() {
       setTimeout(() => setConfirmDeleteId(null), 3000);
     }
   };
+  const roles = (id: string) => [
+    assignment.agent === id && t("setting:fields.assignment.agent_model"),
+    assignment.taskExecution === id && t("setting:fields.assignment.task_model"),
+  ].filter(Boolean) as string[];
 
-  const isInUse = (id: string) =>
-    assignment.agent === id ||
-    assignment.taskExecution === id;
-
-  return (
-    <>
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-xl">
-            {t("setting:subtitle.model_profiles")}
-          </CardTitle>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={openWizard}
-              className="gap-1.5 text-muted-foreground"
-              data-testid="reopen-onboarding"
-            >
-              <Compass className="h-3.5 w-3.5" />
-              {t("setting:fields.onboarding.reopen")}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAdd}
-              className="gap-1.5"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t("setting:fields.profile.add")}
-            </Button>
+  return <>
+    <PageSection title={t("setting:subtitle.model_profiles")} description={t("setting:groups.profiles_hint")}
+      action={<>
+        <Button variant="ghost" size="sm" onClick={openWizard} className="gap-1.5 text-muted-foreground" data-testid="reopen-onboarding">
+          <Compass className="h-3.5 w-3.5" />{t("setting:fields.onboarding.reopen")}
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleAdd} className="gap-1.5">
+          <Plus className="h-3.5 w-3.5" />{t("setting:fields.profile.add")}
+        </Button>
+      </>}>
+      <Panel>
+        {profiles.length === 0 ? (
+          <div className="flex flex-col items-center px-6 py-10 text-center">
+            <ToneIcon icon={KeyRound} tone="violet" size={44} />
+            <p className="mt-3 text-sm text-muted-foreground">{t("setting:fields.profile.empty")}</p>
+            <Button size="sm" className="mt-4 gap-1.5" onClick={handleAdd}><Plus className="h-3.5 w-3.5" />{t("setting:fields.profile.add_first")}</Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {profiles.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              <KeyRound className="h-8 w-8 mx-auto mb-3 opacity-40" />
-              <p>{t("setting:fields.profile.empty")}</p>
-              <Button
-                variant="link"
-                className="mt-2 text-sm"
-                onClick={handleAdd}
-              >
-                {t("setting:fields.profile.add_first")}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {profiles.map((profile) => (
-                <div
-                  key={profile.id}
-                  className={cn(
-                    "flex items-center justify-between rounded-smooth-lg border px-4 py-3",
-                    "bg-background hover:bg-accent/30 transition-colors"
-                  )}
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm truncate">
-                          {profile.name}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={cn("text-[10px] px-1.5 py-0", PROVIDER_COLORS[profile.provider])}
-                        >
-                          {profile.provider === Model.Other
-                            ? t("setting:fields.other")
-                            : profile.provider}
-                        </Badge>
-                        {isInUse(profile.id) && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            {t("setting:fields.profile.in_use")}
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          {profile.apiFormat === "responses"
-                            ? t("setting:fields.api_format.responses")
-                            : t("setting:fields.api_format.chat_completions")}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <span className="text-xs text-muted-foreground font-mono truncate">
-                          {profile.modelKey}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {profile.apiKey
-                            ? t("setting:fields.profile.key_preview", { preview: `${profile.apiKey.slice(0, 4)}…${profile.apiKey.slice(-4)}` })
-                            : t("setting:fields.profile.no_key")}
-                        </span>
-                      </div>
+        ) : (
+          <AnimatePresence initial={false}>
+            {profiles.map((profile) => {
+              const used = roles(profile.id);
+              return <motion.div key={profile.id} layout={!reduceMotion} initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.32, bounce: 0 }} className="kit-row !p-0 overflow-hidden" data-testid="model-profile-row">
+                <div className="flex w-full items-center gap-3 px-4 py-3.5">
+                  <ProfileInitial name={profile.name} tone={PROVIDER_TONES[profile.provider]} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="truncate text-[13.5px] font-medium">{profile.name}</span>
+                      <Badge variant="outline" className={cn("px-1.5 py-0 text-[10px] font-normal", PROVIDER_COLORS[profile.provider])}>
+                        {profile.provider === Model.Other ? t("setting:fields.other") : profile.provider}
+                      </Badge>
+                      <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal text-muted-foreground">
+                        {profile.apiFormat === "responses" ? t("setting:fields.api_format.responses") : t("setting:fields.api_format.chat_completions")}
+                      </Badge>
+                      {used.length > 0 && <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-normal" title={used.join(" · ")}>
+                        {t("setting:fields.profile.in_use")} · {used.join(" · ")}
+                      </Badge>}
+                    </div>
+                    <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                      <span className="truncate font-mono">{profile.modelKey}</span>
+                      <span aria-hidden className="text-muted-foreground/40">·</span>
+                      <span className="shrink-0">
+                        {profile.apiKey
+                          ? t("setting:fields.profile.key_preview", { preview: `${profile.apiKey.slice(0, 4)}…${profile.apiKey.slice(-4)}` })
+                          : t("setting:fields.profile.no_key")}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0 ml-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      aria-label={t("setting:fields.profile.edit")}
-                      onClick={() => handleEdit(profile)}
-                    >
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" aria-label={t("setting:fields.profile.edit")} onClick={() => handleEdit(profile)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label={t("setting:fields.profile.delete")}
-                      className={cn(
-                        "h-8 w-8",
-                        confirmDeleteId === profile.id
-                          ? "text-destructive hover:text-destructive"
-                          : "text-muted-foreground"
-                      )}
-                      onClick={() => handleDelete(profile.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <Tooltip open={confirmDeleteId === profile.id || undefined}>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label={t("setting:fields.profile.delete")} onClick={() => handleDelete(profile.id)}
+                          className={cn("h-8 w-8", confirmDeleteId === profile.id ? "bg-destructive/10 text-destructive hover:text-destructive" : "text-muted-foreground hover:text-foreground")}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6}>{confirmDeleteId === profile.id ? t("setting:fields.profile.delete_again") : t("setting:fields.profile.delete")}</TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </motion.div>;
+            })}
+          </AnimatePresence>
+        )}
+      </Panel>
+    </PageSection>
 
-      <ModelProfileDialog
-        open={isDialogOpen}
-        onOpenChange={setIsDialogOpen}
-        profile={editingProfile}
-      />
-    </>
-  );
+    <ModelProfileDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} profile={editingProfile} />
+  </>;
+}
+
+/** The profile's initial on its provider's tone, so the list reads at a glance. */
+function ProfileInitial({ name, tone }: { name: string; tone: Tone }) {
+  const initial = Array.from(name.trim())[0]?.toUpperCase() ?? "?";
+  return <SmoothCorners radius={11} smoothing={0.72} className="kit-tone-icon size-9 shrink-0 text-[14px] font-semibold" style={toneStyle(tone)} aria-hidden>
+    {initial}
+  </SmoothCorners>;
 }
 
 export default ModelConfig;

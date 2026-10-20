@@ -8,7 +8,10 @@
     "github": "GitHub",
     "author": "作者",
     "contact": "聯絡方式",
-    "tech_stack": "技術棧與建構資訊"
+    "tech_stack": "技術棧與建構資訊",
+    "links": "連結",
+    "links_hint": "原始碼、作者和意見回饋管道。",
+    "tech_hint": "這個版本的建置資訊。"
   },
   "badge": {
     "latest": "最新",
@@ -52,7 +55,9 @@
     "state": "狀態管理",
     "ai": "AI 整合",
     "i18n": "國際化",
-    "pkg": "套件管理器"
+    "pkg": "套件管理器",
+    "ui": "介面"
   },
-  "license_note": "本專案採用 PolyForm Noncommercial License 1.0.0 發佈，僅允許非商業使用。"
+  "license_note": "本專案採用 PolyForm Noncommercial License 1.0.0 發佈，僅允許非商業使用。",
+  "eyebrow": "版本與資訊"
 }

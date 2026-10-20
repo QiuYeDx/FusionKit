@@ -17,7 +17,8 @@
       "step3_title": "在首頁對 Agent 說要做什麼",
       "step3_body": "回到首頁，直接說你想做的事，例如「把桌面上的影片轉成字幕，再翻譯成中文」。Agent 會先列出要做的事，你確認後才會執行。",
       "step3_action": "回到首頁",
-      "reopen": "重新開啟新手引導"
+      "reopen": "重新開啟新手引導",
+      "reopen_hint": "隨時可以再走一遍，現有的設定不會遺失。"
     },
     "cannot_open": {
       "title": "打不開怎麼辦",
@@ -98,5 +99,9 @@
       "network_label": "網路",
       "network": "AI 功能需要能連上你選擇的 AI 服務；本機轉寫在模型下載好後不需要連網"
     }
-  }
+  },
+  "eyebrow": "說明中心",
+  "search_placeholder": "搜尋問題，如「代理」「打不開」",
+  "search_clear": "清除搜尋",
+  "search_empty": "沒有找到和「{{query}}」有關的內容"
 }

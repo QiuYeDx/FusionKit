@@ -5,13 +5,22 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import useAgentStore from "@/store/agent/useAgentStore";
 import { clearAllSessions } from "@/agent/session-persistence";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import useWebLookupStore, { BILIGAME_WIKI_LIMIT, parseBiligameWikis } from "@/store/useWebLookupStore";
 import { WEB_SOURCES, type WebSource } from "@/web-lookup/contract";
+import { BookOpen, Gamepad2, Globe2, History, Search, Sparkle } from "lucide-react";
+import { Panel, PanelRow, PageSection, type Tone } from "@/pages/components/page-kit";
+import type { LucideIcon } from "lucide-react";
+
+const SOURCE_ICONS: Record<WebSource, { icon: LucideIcon; tone: Tone }> = {
+  wikipedia: { icon: BookOpen, tone: "neutral" },
+  moegirl: { icon: Sparkle, tone: "violet" },
+  baidu_baike: { icon: BookOpen, tone: "blue" },
+  biligame: { icon: Gamepad2, tone: "cyan" },
+  bing: { icon: Search, tone: "teal" },
+};
 
 const SOURCE_SITES: Record<WebSource, string> = {
   wikipedia: "zh / ja / en.wikipedia.org",
@@ -39,7 +48,7 @@ function BiligameWikis({ disabled }: { disabled: boolean }) {
   };
 
   return (
-    <div className="mt-2 space-y-1">
+    <div className="space-y-1">
       <Input
         value={text}
         disabled={disabled}
@@ -70,20 +79,18 @@ function SessionHistory() {
     else toast.error(t("setting:agent.sessions.clear_failed"));
   };
   return (
-    <div className="flex items-start justify-between gap-6">
-      <div className="min-w-0 space-y-1">
-        <div className="text-sm font-medium">{t("setting:agent.sessions.label")}</div>
-        <p className="text-xs leading-relaxed text-muted-foreground" data-testid="setting-agent-sessions-count">{t("setting:agent.sessions.description", { count })}</p>
-      </div>
-      <Button type="button" variant="outline" size="sm" className="shrink-0 text-destructive hover:text-destructive" disabled={!count}
-        data-testid="setting-agent-sessions-clear" onClick={() => setConfirming(true)}>
-        {t("setting:agent.sessions.clear")}
-      </Button>
+    <Panel>
+      <PanelRow icon={History} tone="amber" label={t("setting:agent.sessions.label")}
+        description={<span data-testid="setting-agent-sessions-count">{t("setting:agent.sessions.description", { count })}</span>}
+        control={<Button type="button" variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={!count}
+          data-testid="setting-agent-sessions-clear" onClick={() => setConfirming(true)}>
+          {t("setting:agent.sessions.clear")}
+        </Button>} />
       <ConfirmDialog open={confirming} onOpenChange={setConfirming}
         title={t("setting:agent.sessions.clear_title")} description={t("setting:agent.sessions.clear_description")}
         confirmText={t("setting:agent.sessions.clear_confirm")} cancelText={t("setting:agent.sessions.cancel")}
         onConfirm={() => void clear()} />
-    </div>
+    </Panel>
   );
 }
 
@@ -91,49 +98,35 @@ function AgentConfig() {
   const { t } = useTranslation();
   const { enabled, sources, setEnabled, setSource } = useWebLookupStore();
 
-  return (
-    <Card className="overflow-auto">
-      <CardHeader className="sticky left-0">
-        <CardTitle className="text-xl">{t("setting:subtitle.agent_config")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex items-start justify-between gap-6">
-          <div className="min-w-0 space-y-1">
-            <Label htmlFor="setting-agent-web" className="text-sm font-medium">{t("setting:agent.web.label")}</Label>
-            <p className="text-xs leading-relaxed text-muted-foreground">{t("setting:agent.web.description")}</p>
-          </div>
-          <Switch id="setting-agent-web" checked={enabled} onCheckedChange={setEnabled} />
-        </div>
+  return <>
+    <PageSection title={t("setting:agent.web.title")} description={t("setting:agent.web.section_hint")}>
+      <Panel>
+        <PanelRow icon={Globe2} tone="teal" htmlFor="setting-agent-web" label={t("setting:agent.web.label")} description={t("setting:agent.web.description")}
+          control={<Switch id="setting-agent-web" checked={enabled} onCheckedChange={setEnabled} />} />
+      </Panel>
+      <div className={cn("mt-2.5 transition-opacity duration-200", !enabled && "opacity-55")}>
+        <div className="mb-2 mt-4 px-0.5 text-xs font-medium text-muted-foreground">{t("setting:agent.sources.title")}</div>
+        <Panel>
+          {WEB_SOURCES.map((source) => (
+            <PanelRow key={source} icon={SOURCE_ICONS[source].icon} tone={SOURCE_ICONS[source].tone}
+              label={<span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <label htmlFor={`setting-agent-source-${source}`} className="cursor-pointer">{t(`setting:agent.sources.${source}.name`)}</label>
+                <span className="font-mono text-[11px] font-normal text-muted-foreground">{SOURCE_SITES[source]}</span>
+              </span>}
+              description={t(`setting:agent.sources.${source}.description`)}
+              control={<Switch id={`setting-agent-source-${source}`} checked={sources[source]} disabled={!enabled} onCheckedChange={(checked) => setSource(source, checked)} />}>
+              {source === "biligame" ? <BiligameWikis disabled={!enabled || !sources.biligame} /> : undefined}
+            </PanelRow>
+          ))}
+        </Panel>
+        <p className="mt-2 px-0.5 text-[11.5px] leading-relaxed text-muted-foreground">{t("setting:agent.sources.note")}</p>
+      </div>
+    </PageSection>
 
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{t("setting:agent.sources.title")}</div>
-          <div className={cn("divide-y rounded-smooth-lg border", !enabled && "opacity-60")}>
-            {WEB_SOURCES.map((source) => (
-              <div key={source} className="flex items-start justify-between gap-6 px-3.5 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <Label htmlFor={`setting-agent-source-${source}`} className="text-[13px] font-medium">{t(`setting:agent.sources.${source}.name`)}</Label>
-                    <span className="text-[11px] text-muted-foreground">{SOURCE_SITES[source]}</span>
-                  </div>
-                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{t(`setting:agent.sources.${source}.description`)}</p>
-                  {source === "biligame" && <BiligameWikis disabled={!enabled || !sources.biligame} />}
-                </div>
-                <Switch
-                  id={`setting-agent-source-${source}`}
-                  checked={sources[source]}
-                  disabled={!enabled}
-                  onCheckedChange={(checked) => setSource(source, checked)}
-                />
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] leading-relaxed text-muted-foreground">{t("setting:agent.sources.note")}</p>
-        </div>
-
-        <SessionHistory />
-      </CardContent>
-    </Card>
-  );
+    <PageSection title={t("setting:agent.sessions.title")} description={t("setting:agent.sessions.section_hint")}>
+      <SessionHistory />
+    </PageSection>
+  </>;
 }
 
 export default AgentConfig;

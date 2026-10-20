@@ -8,7 +8,10 @@
     "github": "GitHub",
     "author": "作者",
     "contact": "联系方式",
-    "tech_stack": "技术栈与构建信息"
+    "tech_stack": "技术栈与构建信息",
+    "links": "链接",
+    "links_hint": "源码、作者和反馈渠道。",
+    "tech_hint": "这个版本的构建信息。"
   },
   "badge": {
     "latest": "最新",
@@ -52,7 +55,9 @@
     "state": "状态管理",
     "ai": "AI 集成",
     "i18n": "国际化",
-    "pkg": "包管理器"
+    "pkg": "包管理器",
+    "ui": "界面"
   },
-  "license_note": "本项目采用 PolyForm Noncommercial License 1.0.0 发布，仅允许非商业使用。"
+  "license_note": "本项目采用 PolyForm Noncommercial License 1.0.0 发布，仅允许非商业使用。",
+  "eyebrow": "版本与信息"
 }

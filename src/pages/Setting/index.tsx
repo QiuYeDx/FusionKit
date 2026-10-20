@@ -1,65 +1,54 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  Bot,
-  Settings as SettingsIcon,
-  Globe,
-  Cpu,
-  LucideIcon,
-  Plug,
-} from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { Bot, Globe, Cpu, LucideIcon, Plug, SlidersHorizontal } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
+import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
+import { PageHeader, PAGE_EASE, ToneIcon, type Tone } from "@/pages/components/page-kit";
 import GeneralConfig from "./components/GeneralConfig";
 import ModelConfig from "./components/ModelConfig";
 import ProxyConfig from "./components/ProxyConfig";
 import AgentConfig from "./components/AgentConfig";
 import ExternalAgentConfig from "./components/ExternalAgentConfig";
-import {
-  createSettingSearchParams,
-  resolveSettingTab,
-  type SettingTabKey,
-} from "./settingNavigation";
+import { createSettingSearchParams, resolveSettingTab, type SettingTabKey } from "./settingNavigation";
 
 interface NavItem {
   key: SettingTabKey;
   labelKey: string;
   hintKey: string;
   icon: LucideIcon;
+  tone: Tone;
 }
 
 const NAV: NavItem[] = [
-  { key: "general", labelKey: "setting:nav.general.label", hintKey: "setting:nav.general.hint", icon: SettingsIcon },
-  { key: "proxy",   labelKey: "setting:nav.proxy.label",   hintKey: "setting:nav.proxy.hint",   icon: Globe },
-  { key: "model",   labelKey: "setting:nav.model.label",   hintKey: "setting:nav.model.hint",   icon: Cpu },
-  { key: "agent",   labelKey: "setting:nav.agent.label",   hintKey: "setting:nav.agent.hint",   icon: Bot },
-  { key: "external", labelKey: "setting:nav.external.label", hintKey: "setting:nav.external.hint", icon: Plug },
+  { key: "general", labelKey: "setting:nav.general.label", hintKey: "setting:nav.general.hint", icon: SlidersHorizontal, tone: "neutral" },
+  { key: "proxy", labelKey: "setting:nav.proxy.label", hintKey: "setting:nav.proxy.hint", icon: Globe, tone: "blue" },
+  { key: "model", labelKey: "setting:nav.model.label", hintKey: "setting:nav.model.hint", icon: Cpu, tone: "violet" },
+  { key: "agent", labelKey: "setting:nav.agent.label", hintKey: "setting:nav.agent.hint", icon: Bot, tone: "teal" },
+  { key: "external", labelKey: "setting:nav.external.label", hintKey: "setting:nav.external.hint", icon: Plug, tone: "green" },
 ];
 
-const EASE_OUT_QUAD = [0.25, 0.46, 0.45, 0.94] as const;
-
 const contentVariants = {
-  initial: (dir: number) => ({ opacity: 0, y: dir * 8 }),
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.15, ease: EASE_OUT_QUAD },
-  },
-  exit: (dir: number) => ({
-    opacity: 0,
-    y: dir * -4,
-    transition: { duration: 0.1, ease: EASE_OUT_QUAD },
-  }),
+  initial: (dir: number) => ({ opacity: 0, y: dir * 10, filter: "blur(2px)" }),
+  animate: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.28, ease: PAGE_EASE } },
+  exit: (dir: number) => ({ opacity: 0, y: dir * -6, filter: "blur(2px)", transition: { duration: 0.12, ease: PAGE_EASE } }),
 };
 
+/**
+ * Settings: the sections in a rail at the left (a row of tabs on a narrow window), the open one at the right,
+ * scrolling on its own under its heading so the rail stays in place.
+ */
 const Setting: React.FC = () => {
   const { t } = useTranslation();
+  const reduceMotion = useReducedMotionPreference();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = resolveSettingTab(searchParams.get("tab"));
   const previousTabRef = useRef<SettingTabKey>(tab);
   const directionRef = useRef(0);
+  const current = NAV.find((item) => item.key === tab)!;
 
   if (previousTabRef.current !== tab) {
     const oldIdx = NAV.findIndex((item) => item.key === previousTabRef.current);
@@ -69,10 +58,7 @@ const Setting: React.FC = () => {
   }
 
   const handleTabChange = useCallback((newTab: SettingTabKey) => {
-    setSearchParams(
-      createSettingSearchParams(searchParams, newTab),
-      { replace: true },
-    );
+    setSearchParams(createSettingSearchParams(searchParams, newTab), { replace: true });
   }, [searchParams, setSearchParams]);
 
   const scrollRootRef = useRef<HTMLDivElement>(null);
@@ -92,14 +78,13 @@ const Setting: React.FC = () => {
   useEffect(() => {
     const root = scrollRootRef.current;
     if (!root) return;
-    const vp = root.querySelector<HTMLDivElement>(
-      '[data-slot="scroll-area-viewport"]'
-    );
+    const vp = root.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]');
     if (!vp) return;
     viewportRef.current = vp;
     vp.addEventListener("scroll", checkScroll, { passive: true });
     const ro = new ResizeObserver(checkScroll);
     ro.observe(vp);
+    if (vp.firstElementChild) ro.observe(vp.firstElementChild);
     checkScroll();
     return () => {
       vp.removeEventListener("scroll", checkScroll);
@@ -107,7 +92,7 @@ const Setting: React.FC = () => {
     };
   }, [checkScroll]);
 
-  // Reset scroll to top when switching tabs and re-evaluate fades.
+  // Each section starts at its top.
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -115,80 +100,58 @@ const Setting: React.FC = () => {
     checkScroll();
   }, [tab, checkScroll]);
 
-  return (
-    // Constrain the page to the visible area so the outer ScrollArea doesn't
-    // scroll the header + sidebar with the content.
-    // 120px = AppTitleBar (40) + spacer (40) + outer wrapper pt-10 (40).
-    // 40px bottom padding clears the floating BottomNavigation.
-    <div className="h-[calc(100dvh-120px)] flex flex-col px-4 sm:px-8 pb-[40px] max-w-5xl mx-auto">
-      {/* Page header (fixed, does not scroll) */}
-      <div className="mb-5 shrink-0">
-        <div className="text-2xl font-semibold tracking-tight">
-          {t("setting:title")}
-        </div>
-        <div className="text-sm text-muted-foreground mt-1">
-          {t("setting:description")}
-        </div>
-      </div>
+  const appVersion = import.meta.env.VITE_APP_VERSION || "-";
 
-      {/* Body: SubNav rail (fixed) + scrollable panel */}
-      <div className="grid grid-cols-[200px_1fr] gap-5 flex-1 min-h-0 max-md:grid-cols-1 max-md:gap-3">
-        {/* SubNav rail */}
-        <nav className="flex flex-col gap-1 max-md:flex-row max-md:overflow-x-auto max-md:shrink-0 isolate">
-          {NAV.map((item) => {
+  return (
+    // The page fits the window, so the rail stays while the section scrolls.
+    // 120px = AppTitleBar (40) + spacer (40) + outer wrapper pt-10 (40); 40px at the bottom clears the navigation.
+    <div className="mx-auto flex h-[calc(100dvh-120px)] max-w-6xl flex-col px-4 pb-[40px] sm:px-8" data-testid="settings-page">
+      <PageHeader className="mb-6 shrink-0" eyebrow={t("setting:eyebrow")} title={t("setting:title")} description={t("setting:description")} />
+
+      <div className="grid min-h-0 flex-1 grid-cols-[232px_minmax(0,1fr)] gap-8 max-md:grid-cols-1 max-md:gap-4">
+        <nav aria-label={t("setting:title")} className="isolate flex flex-col gap-0.5 max-md:-mx-1 max-md:flex-row max-md:overflow-x-auto max-md:px-1 max-md:pb-1">
+          {NAV.map((item, index) => {
             const active = item.key === tab;
-            const Icon = item.icon;
             return (
-              <button
+              <motion.button
                 key={item.key}
                 type="button"
                 onClick={() => handleTabChange(item.key)}
                 aria-current={active ? "page" : undefined}
                 data-testid={`setting-tab-${item.key}`}
+                initial={reduceMotion ? false : { opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.45, delay: 0.06 + index * 0.04, ease: PAGE_EASE }}
                 className={cn(
-                  "group relative flex items-center gap-2.5 px-3 py-2.5 rounded-smooth-lg text-left transition-colors cursor-pointer",
-                  "max-md:shrink-0 max-md:min-w-[160px]",
-                  active
-                    ? "z-0 text-foreground"
-                    : "z-[1] text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  "group relative flex items-center gap-3 rounded-smooth-xl px-2.5 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                  "max-md:min-w-[168px] max-md:shrink-0",
+                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {active && (
-                  <motion.div
-                    layoutId="setting-nav-indicator"
-                    className="absolute inset-0 rounded-smooth-lg bg-accent border border-foreground/15"
-                    transition={{ type: "spring", duration: 0.35, bounce: 0.15 }}
-                  />
+                  <SmoothCorners asChild radius={14} smoothing={0.72}>
+                    <motion.span layoutId="setting-nav-indicator" aria-hidden
+                      className="absolute inset-0 border border-border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_6px_16px_-10px_rgb(0_0_0/0.18)] dark:shadow-none"
+                      transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.38, bounce: 0.12 }} />
+                  </SmoothCorners>
                 )}
-                <Icon className="relative h-[15px] w-[15px] shrink-0" />
-                <div className="relative flex-1 min-w-0">
-                  <div className="text-[13px] font-medium leading-tight">
-                    {t(item.labelKey)}
-                  </div>
-                  <div
-                    className={cn(
-                      "text-[11px] mt-0.5 truncate",
-                      active ? "text-foreground/60" : "text-muted-foreground/80"
-                    )}
-                  >
-                    {t(item.hintKey)}
-                  </div>
+                {!active && <span aria-hidden className="absolute inset-0 rounded-smooth-xl bg-foreground/[0.04] opacity-0 transition-opacity group-hover:opacity-100" />}
+                <ToneIcon icon={item.icon} tone={item.tone} size={30} solid={active} className="relative transition-[background,color,box-shadow] duration-300" />
+                <div className="relative min-w-0 flex-1">
+                  <div className="text-[13.5px] font-medium leading-5">{t(item.labelKey)}</div>
+                  <div className={cn("truncate text-[11.5px] leading-4", active ? "text-muted-foreground" : "text-muted-foreground/80")}>{t(item.hintKey)}</div>
                 </div>
-              </button>
+              </motion.button>
             );
           })}
+          <div className="mt-auto hidden px-2.5 pt-6 text-[11px] text-muted-foreground md:block">
+            <Link to="/about" className="font-mono transition-colors hover:text-foreground" data-testid="settings-version">FusionKit v{appVersion}</Link>
+          </div>
         </nav>
 
-        {/* Scrollable content panel with scroll-aware edge fade masks.
-            Use shadcn ScrollArea so we get a single consistent custom scrollbar
-            (Radix hides the native one inside its viewport, avoiding the double
-            bar caused by the global ::-webkit-scrollbar rules in index.css). */}
-        <div
-          ref={scrollRootRef}
-          className="relative min-w-0 min-h-0"
-        >
-          <ScrollArea className="h-full">
-            <AnimatePresence mode="wait" custom={directionRef.current}>
+        <div ref={scrollRootRef} className="relative min-h-0 min-w-0">
+          <ScrollArea className="h-full" viewportProps={{ className: "[&>div]:!block" }}>
+            <AnimatePresence mode="wait" custom={directionRef.current} initial={false}>
               <motion.div
                 key={tab}
                 custom={directionRef.current}
@@ -196,12 +159,16 @@ const Setting: React.FC = () => {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                onAnimationStart={(def) => {
-                  if (def === "animate") checkScroll();
-                }}
-                // pl-px：nova Card 的描边是外侧 ring，紧贴 ScrollArea 左缘会被裁掉
-                className="flex flex-col gap-4 py-1 pl-px pr-3"
+                onAnimationStart={(def) => { if (def === "animate") checkScroll(); }}
+                className="pb-6 pr-3 pl-px"
               >
+                <div className="mb-6 flex items-center gap-3.5" data-testid="settings-section-header">
+                  <ToneIcon icon={current.icon} tone={current.tone} size={44} solid />
+                  <div className="min-w-0">
+                    <h2 className="text-[20px] font-semibold leading-7 tracking-tight">{t(current.labelKey)}</h2>
+                    <p className="text-[13px] leading-5 text-muted-foreground">{t(`setting:nav.${current.key}.about`)}</p>
+                  </div>
+                </div>
                 {tab === "general" && <GeneralConfig />}
                 {tab === "proxy" && <ProxyConfig />}
                 {tab === "model" && <ModelConfig />}
@@ -213,29 +180,14 @@ const Setting: React.FC = () => {
 
           <AnimatePresence>
             {showTopFade && (
-              <motion.div
-                key="top-fade"
-                aria-hidden="true"
-                className="pointer-events-none absolute left-0 right-0 top-0 z-[5] h-8 bg-gradient-to-b from-background to-transparent"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-              />
+              <motion.div key="top-fade" aria-hidden className="pointer-events-none absolute inset-x-0 top-0 z-[5] h-8 bg-gradient-to-b from-background to-transparent"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} />
             )}
           </AnimatePresence>
-
           <AnimatePresence>
             {showBottomFade && (
-              <motion.div
-                key="bottom-fade"
-                aria-hidden="true"
-                className="pointer-events-none absolute left-0 right-0 bottom-0 z-[5] h-8 bg-gradient-to-t from-background to-transparent"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-              />
+              <motion.div key="bottom-fade" aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-10 bg-gradient-to-t from-background to-transparent"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} />
             )}
           </AnimatePresence>
         </div>

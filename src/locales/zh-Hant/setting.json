@@ -16,23 +16,28 @@
   "nav": {
     "general": {
       "label": "常規",
-      "hint": "外觀、語言、通知"
+      "hint": "外觀、語言、通知",
+      "about": "語言、主題、指標與系統通知。"
     },
     "proxy": {
       "label": "網路",
-      "hint": "代理與下載來源"
+      "hint": "代理與下載來源",
+      "about": "代理方式、連線測試和下載來源，決定 FusionKit 怎樣連網。"
     },
     "model": {
       "label": "AI 模型",
-      "hint": "文字 · Agent · 分配"
+      "hint": "文字 · Agent · 分配",
+      "about": "接入的 AI 服務，以及 Agent 和翻譯任務各用哪一個。"
     },
     "agent": {
       "label": "Agent",
-      "hint": "連網查詢、會話記錄"
+      "hint": "連網查詢、會話記錄",
+      "about": "Agent 能否連網查詢譯名，以及儲存在本機的對話。"
     },
     "external": {
       "label": "外部 Agent",
-      "hint": "讓 Claude Code 等連線 FusionKit"
+      "hint": "讓 Claude Code 等連線 FusionKit",
+      "about": "讓 Claude Code、Codex、Cursor 等透過 MCP 使用 FusionKit。"
     }
   },
   "fields": {
@@ -89,7 +94,8 @@
       "test_title": "FusionKit",
       "test_body": "系統通知功能正常！",
       "task_resolved": "{{file}} 任務已完成",
-      "task_failed": "{{file}} 任務失敗"
+      "task_failed": "{{file}} 任務失敗",
+      "hint": "開啟時會先傳送一則測試通知。"
     },
     "proxy": {
       "mode": "代理模式",
@@ -139,7 +145,9 @@
         "aborted": "測試已取消",
         "unknown": "連線失敗"
       },
-      "test_hint_github_failed_official": "GitHub 連不上，檢查更新會失敗：把下載來源換成「自動」，就會改用中國大陸鏡像。"
+      "test_hint_github_failed_official": "GitHub 連不上，檢查更新會失敗：把下載來源換成「自動」，就會改用中國大陸鏡像。",
+      "test_title": "連線測試",
+      "test_hint": "逐項檢查模型服務、模型下載和 GitHub 是否連得上。"
     },
     "token_price": {
       "intro_title": "Token 價格設定",
@@ -183,7 +191,8 @@
       "key_preview": "金鑰：{{preview}}",
       "auto_assigned": "已儲存，還沒有指定模型的功能會自動使用它。",
       "edit": "編輯設定",
-      "delete": "刪除設定（再點一次確認）"
+      "delete": "刪除設定（再點一次確認）",
+      "delete_again": "再按一次刪除"
     },
     "download_source": {
       "label": "下載來源",
@@ -213,7 +222,9 @@
       "reopen": "重新開啟新手引導"
     },
     "apikey_characters_hint": "金鑰裡有中文、全形符號或空格，可能多複製了別的文字。只貼上金鑰本身。",
-    "deepseek_recommended_aria": "DeepSeek（推薦）"
+    "deepseek_recommended_aria": "DeepSeek（推薦）",
+    "language_hint": "介面文字使用的語言。",
+    "theme_hint": "跟隨系統時，會隨電腦的深淺色自動切換。"
   },
   "placeholder": {
     "apikey": "貼上服務商給你的金鑰",
@@ -225,7 +236,9 @@
   "agent": {
     "web": {
       "label": "允許 Agent 連網查詢資料",
-      "description": "開啟後，Agent 可以檢索下面開啟的網站，核對人名、地名和術語的譯法。只傳送檢索詞和網頁連結，不會傳送你的字幕或翻譯資料。"
+      "description": "開啟後，Agent 可以檢索下面開啟的網站，核對人名、地名和術語的譯法。只傳送檢索詞和網頁連結，不會傳送你的字幕或翻譯資料。",
+      "title": "連網查詢",
+      "section_hint": "查官方譯名、地名和專有名詞時使用。"
     },
     "sources": {
       "title": "檢索來源",
@@ -267,7 +280,9 @@
       "clear_confirm": "清除",
       "cancel": "取消",
       "cleared": "已清除全部會話",
-      "clear_failed": "清除失敗，部分會話檔案可能仍在磁碟上"
+      "clear_failed": "清除失敗，部分會話檔案可能仍在磁碟上",
+      "title": "對話",
+      "section_hint": "對話只儲存在這台電腦上。"
     }
   },
   "external_agent": {
@@ -409,7 +424,10 @@
       "installed": "已安裝：{{path}}",
       "outdated": "已安裝舊版本，可重新安裝：{{path}}",
       "install_done": "Skill 已安裝",
-      "install_failed": "安裝失敗"
+      "install_failed": "安裝失敗",
+      "target_claude": "Claude Code",
+      "target_agents": "通用目錄（Codex、Cursor 等）",
+      "not_installed": "尚未安裝"
     },
     "confirm": {
       "title": "{{client}} 請求{{action}}",
@@ -687,6 +705,26 @@
     "templates": {
       "title": "常用工作流程提示詞",
       "description": "選一個工作流程，填好資料夾等參數後複製提示詞，貼給已連接的外部 Agent 即可。翻譯由它自己來寫。"
+    },
+    "sections": {
+      "access": "接入",
+      "access_hint": "開啟後，FusionKit 在本機提供 MCP 服務，只接受本機連線。",
+      "trust_hint": "外部 Agent 修改檔案或資料前要不要先問你。",
+      "connection_hint": "外部 Agent 用這裡的連接埠和權杖連接 FusionKit。",
+      "port_hint": "1024–65535，變更後需要在用戶端裡更新設定。",
+      "token_hint": "相當於密碼，不要傳給別人；重設後舊設定會失效。",
+      "clients_hint": "選擇你用的用戶端，按步驟把設定加進去。",
+      "sessions_hint": "目前連著 FusionKit 的外部 Agent。"
     }
+  },
+  "eyebrow": "偏好設定",
+  "groups": {
+    "appearance": "外觀與語言",
+    "appearance_hint": "變更立即生效，並記住在本機。",
+    "notifications": "通知",
+    "notifications_hint": "任務在背景完成或失敗時，用系統通知告訴你。",
+    "proxy_hint": "AI 呼叫、資源下載和檢查更新都會使用這裡的設定。",
+    "download_hint": "轉寫模型、顯示卡加速套件和應用程式更新從哪裡下載。",
+    "profiles_hint": "每個設定是一個 AI 服務的介面位址、金鑰和模型名稱。"
   }
 }

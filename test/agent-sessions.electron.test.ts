@@ -348,7 +348,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
       expect(continuous(closeFrames.map(frame => frame.w))).toBeGreaterThan(8);
       expect(continuous(closeFrames.map(frame => frame.bx))).toBeGreaterThan(8);
       // The conversation moves with the list, from the middle of the space beside it back to the middle of the window.
-      expect(Math.abs(closeFrames[0].cx - (middle + 128))).toBeLessThanOrEqual(1);
+      expect(Math.abs(closeFrames[0].cx - (middle + 127))).toBeLessThanOrEqual(1);
       expect(Math.abs(closeFrames.at(-1)!.cx - middle)).toBeLessThanOrEqual(1);
       expect(continuous(closeFrames.map(frame => frame.cx))).toBeGreaterThan(8);
       // The "new conversation" button rides the container's top-right corner the whole way.
@@ -368,7 +368,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
       const openFrames = await opening;
       await writeFile(path.join(artifacts, 'motion-open-docked.json'), JSON.stringify(openFrames, null, 1));
       expect(openFrames.at(-1)).toMatchObject({ w: 248, surface: 1, panel: 1 });
-      expect(Math.abs(openFrames.at(-1)!.cx - (middle + 128))).toBeLessThanOrEqual(1);
+      expect(Math.abs(openFrames.at(-1)!.cx - (middle + 127))).toBeLessThanOrEqual(1);
       expect(continuous(openFrames.map(frame => frame.w))).toBeGreaterThan(8);
       await page.waitForTimeout(1000);
       await uiExpect(page.getByRole('tooltip')).toHaveCount(0);

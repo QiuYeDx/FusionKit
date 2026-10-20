@@ -22,6 +22,10 @@ describe("help navigation", () => {
   });
 
   it("renders every section on the page", () => {
-    for (const id of HELP_SECTION_IDS) expect(pageSource).toContain(`sectionProps("${id}")`);
+    for (const id of HELP_SECTION_IDS) {
+      // Listed in the contents, and rendered either on its own or from the page's topics.
+      expect(pageSource).toContain(`{ id: "${id}",`);
+      expect(pageSource).toMatch(new RegExp(`sectionProps\\("${id}"\\)|"?${id}"?: \\{`));
+    }
   });
 });

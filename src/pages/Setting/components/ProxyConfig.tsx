@@ -1,11 +1,13 @@
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Loader2, Wifi, XCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnimatePresence, motion } from "motion/react";
+import { CheckCircle2, CloudDownload, Loader2, Route, Wifi, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/qiuye-ui/segmented-control";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
+import { Panel, PanelRow, PageSection } from "@/pages/components/page-kit";
 import useNetworkStore from "@/store/useNetworkStore";
 import useModelStore from "@/store/useModelStore";
 import {
@@ -79,10 +81,10 @@ function targetLabelKey(target: NetworkTestTarget) {
 function NetworkTestResults({ result }: { result: NetworkTestResult }) {
   const { t } = useTranslation();
   return (
-    <div className="max-w-2xl space-y-2" data-testid="network-test-results">
-      <ul className="divide-y rounded-smooth-lg border text-xs">
+    <div className="space-y-2.5" data-testid="network-test-results">
+      <ul className="divide-y overflow-hidden rounded-smooth-lg border bg-background text-xs">
         {result.targets.map((target, index) => (
-          <li key={`${target.kind}-${target.host}-${index}`} className="flex items-start gap-2.5 px-3 py-2">
+          <li key={`${target.kind}-${target.host}-${index}`} className="flex items-start gap-2.5 px-3 py-2.5">
             {target.ok ? (
               <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-green-600 dark:text-green-400" />
             ) : (
@@ -91,15 +93,11 @@ function NetworkTestResults({ result }: { result: NetworkTestResult }) {
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{t(targetLabelKey(target), { host: target.host })}</div>
               <div className="mt-0.5 text-muted-foreground">
-                {target.via
-                  ? t("setting:fields.proxy.test_via_proxy", { proxy: target.via })
-                  : t("setting:fields.proxy.test_via_direct")}
+                {target.via ? t("setting:fields.proxy.test_via_proxy", { proxy: target.via }) : t("setting:fields.proxy.test_via_direct")}
               </div>
             </div>
-            <div className={target.ok ? "shrink-0 text-muted-foreground" : "shrink-0 text-right text-red-600 dark:text-red-400"}>
-              {target.ok
-                ? t("setting:fields.proxy.test_latency_value", { ms: target.latencyMs })
-                : t(ERROR_KEYS[target.category ?? "unknown"])}
+            <div className={target.ok ? "shrink-0 font-mono tabular-nums text-muted-foreground" : "shrink-0 text-right text-red-600 dark:text-red-400"}>
+              {target.ok ? t("setting:fields.proxy.test_latency_value", { ms: target.latencyMs }) : t(ERROR_KEYS[target.category ?? "unknown"])}
             </div>
           </li>
         ))}
@@ -113,6 +111,7 @@ function NetworkTestResults({ result }: { result: NetworkTestResult }) {
 
 function ProxyConfig() {
   const { t } = useTranslation();
+  const reduceMotion = useReducedMotionPreference();
   const { settings, setProxyMode, setProxyHost, setProxyPort, setDownloadSource, flush, saveFailed } = useNetworkStore();
   const profiles = useModelStore((state) => state.profiles);
   const [testing, setTesting] = useState(false);
@@ -139,100 +138,66 @@ function ProxyConfig() {
     }
   }, [flush, profiles]);
 
-  return (
-    <>
-      <Card className="overflow-auto">
-        <CardHeader className="sticky left-0">
-          <CardTitle className="text-xl">{t("setting:subtitle.proxy_config")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-4">
-            <Label className="text-sm font-medium min-w-[80px]">{t("setting:fields.proxy.mode")}</Label>
-            <SegmentedControl
-              size="sm"
-              fullWidth
-              className="min-w-0 flex-1"
-              value={proxy.mode}
-              aria-label={t("setting:fields.proxy.mode")}
-              items={PROXY_MODES.map((mode) => ({ value: mode, label: t(MODE_LABEL_KEYS[mode]) }))}
-              onValueChange={(mode) => setProxyMode(mode as NetworkProxyMode)}
-            />
-            <Button type="button" variant="outline" size="sm" onClick={() => void runTest()} disabled={testing} data-testid="network-test-button">
-              {testing ? <Loader2 className="animate-spin" /> : <Wifi />}
-              {t("setting:fields.proxy.test_btn")}
-            </Button>
-          </div>
+  const testFailed = !!current && !current.result && !testing;
+  const showResult = !!current?.result && !testing;
 
-          {proxy.mode === "custom" && (
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-4 max-w-2xl">
-              <div className="space-y-2">
-                <Label htmlFor="proxy-host">{t("setting:fields.proxy.host")}</Label>
-                <Input
-                  id="proxy-host"
-                  type="text"
-                  placeholder={t("setting:placeholder.proxy_host")}
-                  value={proxy.host}
-                  onChange={(event) => setProxyHost(event.target.value)}
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="proxy-port">{t("setting:fields.proxy.port")}</Label>
-                <Input
-                  id="proxy-port"
-                  type="text"
-                  inputMode="numeric"
-                  placeholder={t("setting:placeholder.proxy_port")}
-                  value={proxy.port}
-                  onChange={(event) => setProxyPort(event.target.value)}
-                  className="w-full"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="text-xs leading-relaxed text-muted-foreground max-w-2xl">
+  return <>
+    <PageSection title={t("setting:subtitle.proxy_config")} description={t("setting:groups.proxy_hint")}>
+      <Panel>
+        <PanelRow icon={Route} tone="blue" label={t("setting:fields.proxy.mode")} wide
+          description={<>
             {t(MODE_DESCRIPTION_KEYS[proxy.mode])}
             {proxyCheck && !proxyCheck.ok && (
-              <span role="status" className="block mt-1 text-amber-600 dark:text-amber-400">{t(PROXY_PROBLEM_KEYS[proxyCheck.problem])}</span>
+              <span role="status" className="mt-1 block text-amber-600 dark:text-amber-400">{t(PROXY_PROBLEM_KEYS[proxyCheck.problem])}</span>
             )}
-          </div>
+          </>}
+          control={<SegmentedControl size="sm" fullWidth className="min-w-0 flex-1" value={proxy.mode} aria-label={t("setting:fields.proxy.mode")}
+            items={PROXY_MODES.map((mode) => ({ value: mode, label: t(MODE_LABEL_KEYS[mode]) }))}
+            onValueChange={(mode) => setProxyMode(mode as NetworkProxyMode)} />}>
+          <AnimatePresence initial={false}>
+            {proxy.mode === "custom" && (
+              <motion.div key="custom" className="overflow-hidden" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.32, bounce: 0 }}>
+                <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-[minmax(0,1fr)_128px]">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="proxy-host" className="text-xs text-muted-foreground">{t("setting:fields.proxy.host")}</Label>
+                    <Input id="proxy-host" type="text" placeholder={t("setting:placeholder.proxy_host")} value={proxy.host}
+                      onChange={(event) => setProxyHost(event.target.value)} className="h-9 w-full font-mono text-[13px]" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="proxy-port" className="text-xs text-muted-foreground">{t("setting:fields.proxy.port")}</Label>
+                    <Input id="proxy-port" type="text" inputMode="numeric" placeholder={t("setting:placeholder.proxy_port")} value={proxy.port}
+                      onChange={(event) => setProxyPort(event.target.value)} className="h-9 w-full font-mono text-[13px]" />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </PanelRow>
+        <PanelRow icon={Wifi} tone="green" label={t("setting:fields.proxy.test_title")} description={t("setting:fields.proxy.test_hint")}
+          control={<Button type="button" variant="outline" size="sm" onClick={() => void runTest()} disabled={testing} data-testid="network-test-button">
+            {testing ? <Loader2 className="animate-spin" /> : <Wifi />}
+            {t("setting:fields.proxy.test_btn")}
+          </Button>}>
+          {(saveFailed || testFailed || showResult || testing) && <div className="space-y-2">
+            {saveFailed && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{t("setting:fields.proxy.save_failed")}</p>}
+            {testFailed && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{t("setting:fields.proxy.test_failed")}</p>}
+            {showResult && <NetworkTestResults result={current!.result!} />}
+            {testing && <p className="text-xs text-muted-foreground">{t("setting:fields.proxy.test_running")}</p>}
+          </div>}
+        </PanelRow>
+      </Panel>
+    </PageSection>
 
-          {saveFailed && (
-            <p role="alert" className="text-xs text-red-600 dark:text-red-400">{t("setting:fields.proxy.save_failed")}</p>
-          )}
-          {current && !current.result && !testing && (
-            <p role="alert" className="text-xs text-red-600 dark:text-red-400">{t("setting:fields.proxy.test_failed")}</p>
-          )}
-          {current?.result && !testing && <NetworkTestResults result={current.result} />}
-          {testing && <p className="text-xs text-muted-foreground">{t("setting:fields.proxy.test_running")}</p>}
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-auto">
-        <CardHeader className="sticky left-0">
-          <CardTitle className="text-xl">{t("setting:subtitle.download_source")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
-            <Label className="text-sm font-medium min-w-[80px]">{t("setting:fields.download_source.label")}</Label>
-            <SegmentedControl
-              size="sm"
-              fullWidth
-              className="min-w-0 flex-1"
-              value={settings.downloadSource}
-              aria-label={t("setting:fields.download_source.label")}
-              items={DOWNLOAD_SOURCE_MODES.map((source) => ({ value: source, label: t(SOURCE_LABEL_KEYS[source]) }))}
-              onValueChange={(source) => setDownloadSource(source as (typeof DOWNLOAD_SOURCE_MODES)[number])}
-            />
-          </div>
-          <p className="text-xs leading-relaxed text-muted-foreground max-w-2xl">
-            {t("setting:fields.download_source.description")}
-          </p>
-        </CardContent>
-      </Card>
-    </>
-  );
+    <PageSection title={t("setting:subtitle.download_source")} description={t("setting:groups.download_hint")}>
+      <Panel>
+        <PanelRow icon={CloudDownload} tone="teal" label={t("setting:fields.download_source.label")} description={t("setting:fields.download_source.description")} wide
+          control={<SegmentedControl size="sm" fullWidth className="min-w-0 flex-1" value={settings.downloadSource} aria-label={t("setting:fields.download_source.label")}
+            items={DOWNLOAD_SOURCE_MODES.map((source) => ({ value: source, label: t(SOURCE_LABEL_KEYS[source]) }))}
+            onValueChange={(source) => setDownloadSource(source as (typeof DOWNLOAD_SOURCE_MODES)[number])} />} />
+      </Panel>
+    </PageSection>
+  </>;
 }
 
 export default ProxyConfig;

@@ -16,23 +16,28 @@
   "nav": {
     "general": {
       "label": "常规",
-      "hint": "外观、语言、通知"
+      "hint": "外观、语言、通知",
+      "about": "语言、主题、指针与系统通知。"
     },
     "proxy": {
       "label": "网络",
-      "hint": "代理与下载源"
+      "hint": "代理与下载源",
+      "about": "代理方式、连接测试和下载源，决定 FusionKit 怎样联网。"
     },
     "model": {
       "label": "AI 模型",
-      "hint": "文本 · Agent · 分配"
+      "hint": "文本 · Agent · 分配",
+      "about": "接入的 AI 服务，以及 Agent 和翻译任务各用哪一个。"
     },
     "agent": {
       "label": "Agent",
-      "hint": "联网查询、会话记录"
+      "hint": "联网查询、会话记录",
+      "about": "Agent 能否联网查询译名，以及保存在本机的会话。"
     },
     "external": {
       "label": "外部 Agent",
-      "hint": "让 Claude Code 等连接 FusionKit"
+      "hint": "让 Claude Code 等连接 FusionKit",
+      "about": "让 Claude Code、Codex、Cursor 等通过 MCP 使用 FusionKit。"
     }
   },
   "fields": {
@@ -89,7 +94,8 @@
       "test_title": "FusionKit",
       "test_body": "系统通知功能正常！",
       "task_resolved": "{{file}} 任务已完成",
-      "task_failed": "{{file}} 任务失败"
+      "task_failed": "{{file}} 任务失败",
+      "hint": "打开时会先发送一条测试通知。"
     },
     "proxy": {
       "mode": "代理模式",
@@ -139,7 +145,9 @@
         "aborted": "测试已取消",
         "unknown": "连接失败"
       },
-      "test_hint_github_failed_official": "GitHub 连不上，检查更新会失败：把下载源换成“自动”，就会改用国内镜像。"
+      "test_hint_github_failed_official": "GitHub 连不上，检查更新会失败：把下载源换成“自动”，就会改用国内镜像。",
+      "test_title": "连接测试",
+      "test_hint": "逐项检查模型服务、模型下载和 GitHub 是否连得上。"
     },
     "token_price": {
       "intro_title": "Token 价格配置",
@@ -183,7 +191,8 @@
       "key_preview": "密钥：{{preview}}",
       "auto_assigned": "已保存，还没有指定模型的功能会自动使用它。",
       "edit": "编辑配置",
-      "delete": "删除配置（再点一次确认）"
+      "delete": "删除配置（再点一次确认）",
+      "delete_again": "再点一次删除"
     },
     "download_source": {
       "label": "下载源",
@@ -213,7 +222,9 @@
       "reopen": "重新打开新手引导"
     },
     "apikey_characters_hint": "密钥里有中文、全角符号或空格，可能多复制了别的文字。只粘贴密钥本身。",
-    "deepseek_recommended_aria": "DeepSeek（推荐）"
+    "deepseek_recommended_aria": "DeepSeek（推荐）",
+    "language_hint": "界面文字使用的语言。",
+    "theme_hint": "跟随系统时，会随电脑的深浅色自动切换。"
   },
   "placeholder": {
     "apikey": "粘贴服务商给你的密钥",
@@ -225,7 +236,9 @@
   "agent": {
     "web": {
       "label": "允许 Agent 联网查询资料",
-      "description": "开启后，Agent 可以检索下面开启的网站，核对人名、地名和术语的译法。只发送检索词和网页链接，不会发送你的字幕或翻译资料。"
+      "description": "开启后，Agent 可以检索下面开启的网站，核对人名、地名和术语的译法。只发送检索词和网页链接，不会发送你的字幕或翻译资料。",
+      "title": "联网查询",
+      "section_hint": "查官方译名、地名和专有名词时使用。"
     },
     "sources": {
       "title": "检索来源",
@@ -267,7 +280,9 @@
       "clear_confirm": "清空",
       "cancel": "取消",
       "cleared": "已清空全部会话",
-      "clear_failed": "清空失败，部分会话文件可能仍在磁盘上"
+      "clear_failed": "清空失败，部分会话文件可能仍在磁盘上",
+      "title": "会话",
+      "section_hint": "会话只保存在这台电脑上。"
     }
   },
   "external_agent": {
@@ -409,7 +424,10 @@
       "installed": "已安装：{{path}}",
       "outdated": "已安装旧版本，可重新安装：{{path}}",
       "install_done": "Skill 已安装",
-      "install_failed": "安装失败"
+      "install_failed": "安装失败",
+      "target_claude": "Claude Code",
+      "target_agents": "通用目录（Codex、Cursor 等）",
+      "not_installed": "还没有安装"
     },
     "confirm": {
       "title": "{{client}} 请求{{action}}",
@@ -687,6 +705,26 @@
     "templates": {
       "title": "常用工作流提示词",
       "description": "选一个工作流，填好文件夹等参数后复制提示词，粘贴给已连接的外部 Agent 即可。翻译由它自己来写。"
+    },
+    "sections": {
+      "access": "接入",
+      "access_hint": "打开后，FusionKit 在本机提供 MCP 服务，只接受本机连接。",
+      "trust_hint": "外部 Agent 修改文件或数据前要不要先问你。",
+      "connection_hint": "外部 Agent 用这里的端口和令牌连接 FusionKit。",
+      "port_hint": "1024–65535，改动后需要在客户端里更新配置。",
+      "token_hint": "相当于密码，不要发给别人；重置后旧配置会失效。",
+      "clients_hint": "选择你用的客户端，按步骤把配置加进去。",
+      "sessions_hint": "现在连着 FusionKit 的外部 Agent。"
     }
+  },
+  "eyebrow": "偏好设置",
+  "groups": {
+    "appearance": "外观与语言",
+    "appearance_hint": "改动立即生效，并记住在本机。",
+    "notifications": "通知",
+    "notifications_hint": "任务在后台完成或失败时，用系统通知告诉你。",
+    "proxy_hint": "AI 调用、资源下载和检查更新都会走这里的设置。",
+    "download_hint": "转写模型、显卡加速包和应用更新从哪里下载。",
+    "profiles_hint": "每个配置是一个 AI 服务的接口地址、密钥和模型名。"
   }
 }

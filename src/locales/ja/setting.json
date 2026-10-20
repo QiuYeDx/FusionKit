@@ -16,23 +16,28 @@
   "nav": {
     "general": {
       "label": "一般",
-      "hint": "外観・言語・通知"
+      "hint": "外観・言語・通知",
+      "about": "言語、テーマ、ポインター、システム通知。"
     },
     "proxy": {
       "label": "ネットワーク",
-      "hint": "プロキシとダウンロード元"
+      "hint": "プロキシとダウンロード元",
+      "about": "プロキシ、接続テスト、ダウンロード元。FusionKit の通信方法を決めます。"
     },
     "model": {
       "label": "AI モデル",
-      "hint": "テキスト · Agent · 割り当て"
+      "hint": "テキスト · Agent · 割り当て",
+      "about": "接続する AI サービスと、Agent と翻訳タスクがそれぞれ使うもの。"
     },
     "agent": {
       "label": "Agent",
-      "hint": "Web 検索・会話履歴"
+      "hint": "Web 検索・会話履歴",
+      "about": "Agent のオンライン検索と、このパソコンに保存される会話。"
     },
     "external": {
       "label": "外部エージェント",
-      "hint": "Claude Code などから FusionKit を使う"
+      "hint": "Claude Code などから FusionKit を使う",
+      "about": "Claude Code・Codex・Cursor などが MCP で FusionKit を使えるようにします。"
     }
   },
   "fields": {
@@ -89,7 +94,8 @@
       "test_title": "FusionKit",
       "test_body": "システム通知は正常に動作しています！",
       "task_resolved": "{{file}} が完了しました",
-      "task_failed": "{{file}} が失敗しました"
+      "task_failed": "{{file}} が失敗しました",
+      "hint": "オンにするとテスト通知を送ります。"
     },
     "proxy": {
       "mode": "プロキシモード",
@@ -139,7 +145,9 @@
         "aborted": "テストを中止しました",
         "unknown": "接続に失敗しました"
       },
-      "test_hint_github_failed_official": "GitHub に接続できないため、更新の確認に失敗します。ダウンロード元を「自動」にすると中国国内ミラーを使います。"
+      "test_hint_github_failed_official": "GitHub に接続できないため、更新の確認に失敗します。ダウンロード元を「自動」にすると中国国内ミラーを使います。",
+      "test_title": "接続テスト",
+      "test_hint": "モデルサービス、モデルのダウンロード、GitHub に順に接続を確認します。"
     },
     "token_price": {
       "intro_title": "Token 価格設定",
@@ -183,7 +191,8 @@
       "key_preview": "キー：{{preview}}",
       "auto_assigned": "保存しました。モデル未指定の機能でこの構成が使われます。",
       "edit": "構成を編集",
-      "delete": "構成を削除（もう一度押して確定）"
+      "delete": "構成を削除（もう一度押して確定）",
+      "delete_again": "もう一度クリックで削除"
     },
     "download_source": {
       "label": "ダウンロード元",
@@ -213,7 +222,9 @@
       "reopen": "初期設定ガイドを開き直す"
     },
     "apikey_characters_hint": "キーに中国語・全角文字・空白が含まれています。余分な文字まで一緒にコピーした可能性があります。キーだけを貼り付けてください。",
-    "deepseek_recommended_aria": "DeepSeek（おすすめ）"
+    "deepseek_recommended_aria": "DeepSeek（おすすめ）",
+    "language_hint": "画面の表示言語。",
+    "theme_hint": "システムに合わせると、パソコンのライト・ダークに連動します。"
   },
   "placeholder": {
     "apikey": "サービスから発行されたキーを貼り付け",
@@ -225,7 +236,9 @@
   "agent": {
     "web": {
       "label": "Agent に Web 検索を許可",
-      "description": "オンにすると、Agent は下で有効にしたサイトを検索し、人名・地名・用語の訳し方を確かめます。送信するのは検索語とページのリンクだけで、字幕や翻訳資料は送信しません。"
+      "description": "オンにすると、Agent は下で有効にしたサイトを検索し、人名・地名・用語の訳し方を確かめます。送信するのは検索語とページのリンクだけで、字幕や翻訳資料は送信しません。",
+      "title": "オンライン検索",
+      "section_hint": "公式の訳名、地名、固有名詞を調べるときに使います。"
     },
     "sources": {
       "title": "検索先",
@@ -267,7 +280,9 @@
       "clear_confirm": "すべて削除",
       "cancel": "キャンセル",
       "cleared": "すべての会話を削除しました",
-      "clear_failed": "一部の会話ファイルを削除できなかった可能性があります"
+      "clear_failed": "一部の会話ファイルを削除できなかった可能性があります",
+      "title": "会話",
+      "section_hint": "会話はこのパソコンにだけ保存されます。"
     }
   },
   "external_agent": {
@@ -409,7 +424,10 @@
       "installed": "インストール済み：{{path}}",
       "outdated": "古いバージョンがインストールされています。再インストールで更新できます：{{path}}",
       "install_done": "スキルをインストールしました",
-      "install_failed": "インストールできませんでした"
+      "install_failed": "インストールできませんでした",
+      "target_claude": "Claude Code",
+      "target_agents": "共通フォルダー（Codex、Cursor など）",
+      "not_installed": "未インストール"
     },
     "confirm": {
       "title": "{{client}} が{{action}}を求めています",
@@ -687,6 +705,26 @@
     "templates": {
       "title": "ワークフローのプロンプト",
       "description": "ワークフローを選び、フォルダーなどを入力してプロンプトをコピーし、接続済みの外部エージェントに貼り付けます。翻訳はエージェント自身が書きます。"
+    },
+    "sections": {
+      "access": "接続の受け付け",
+      "access_hint": "オンにすると、FusionKit はこのパソコン上で MCP を提供し、ローカル接続だけを受け付けます。",
+      "trust_hint": "外部エージェントがファイルやデータを変更する前に確認するかどうか。",
+      "connection_hint": "外部エージェントはこのポートとトークンで FusionKit に接続します。",
+      "port_hint": "1024–65535。変更したらクライアント側の設定も更新してください。",
+      "token_hint": "パスワードと同じです。他人に渡さないでください。リセットすると古い設定は使えなくなります。",
+      "clients_hint": "使うクライアントを選び、手順に沿って設定を追加します。",
+      "sessions_hint": "いま FusionKit に接続している外部エージェント。"
     }
+  },
+  "eyebrow": "環境設定",
+  "groups": {
+    "appearance": "外観と言語",
+    "appearance_hint": "変更はすぐに反映され、このパソコンに保存されます。",
+    "notifications": "通知",
+    "notifications_hint": "バックグラウンドのタスクが完了・失敗したときにシステム通知でお知らせします。",
+    "proxy_hint": "AI の呼び出し、ダウンロード、アップデートの確認に使われます。",
+    "download_hint": "文字起こしモデル、GPU パック、アプリの更新のダウンロード元。",
+    "profiles_hint": "各設定は AI サービスのアドレス、キー、モデル名です。"
   }
 }

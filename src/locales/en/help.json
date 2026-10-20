@@ -17,7 +17,8 @@
       "step3_title": "Tell the Agent on the home page what you need",
       "step3_body": "Go back to the home page and say what you want, for example \"Transcribe the video on my desktop and translate the subtitles into English\". The Agent lists what it will do first and only acts once you confirm.",
       "step3_action": "Back to home",
-      "reopen": "Reopen the setup guide"
+      "reopen": "Reopen the setup guide",
+      "reopen_hint": "Run it again any time; your settings stay."
     },
     "cannot_open": {
       "title": "If FusionKit won't open",
@@ -98,5 +99,9 @@
       "network_label": "Network",
       "network": "AI features need to reach the AI service you choose; local transcription works offline once the model is downloaded"
     }
-  }
+  },
+  "eyebrow": "Help center",
+  "search_placeholder": "Search, e.g. “proxy”, “won't open”",
+  "search_clear": "Clear search",
+  "search_empty": "Nothing about “{{query}}”"
 }

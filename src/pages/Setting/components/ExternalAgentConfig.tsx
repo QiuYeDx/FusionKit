@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Check, Copy, ExternalLink, Eye, EyeOff, FilePen, FolderOpen, RotateCcw } from "lucide-react";
+import { ArrowRight, BellRing, Bot, Boxes, Check, Copy, Eye, EyeOff, ExternalLink, FilePen, FolderOpen, KeySquare, Network, Plug, RotateCcw, ShieldAlert, ShieldCheck, SlidersHorizontal, Sparkles, Zap, type LucideIcon } from "lucide-react";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PROMPT_TEMPLATES } from "@/agent/prompt-templates";
 import { openPromptTemplate, TemplateRow } from "@/pages/HomeAgent/components/PromptTemplates";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,8 +21,16 @@ import { externalActivityPath } from "@/pages/ExternalAgentActivity/route";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ExternalAgentPermissions } from "./ExternalAgentPermissions";
+import { Panel, PanelRow, PageSection, type Tone } from "@/pages/components/page-kit";
 
 const TRUST_LEVELS: ExternalTrust[] = ["read_only", "confirm_writes", "auto", "full", "custom"];
+const TRUST_ICONS: Record<ExternalTrust, { icon: LucideIcon; tone: Tone }> = {
+  read_only: { icon: Eye, tone: "neutral" },
+  confirm_writes: { icon: ShieldCheck, tone: "green" },
+  auto: { icon: Zap, tone: "blue" },
+  full: { icon: ShieldAlert, tone: "amber" },
+  custom: { icon: SlidersHorizontal, tone: "violet" },
+};
 
 /** Clipboard writes from an unfocused window can fail; a hidden textarea still works there. */
 async function copyText(text: string): Promise<boolean> {
@@ -145,97 +151,89 @@ export default function ExternalAgentConfig() {
   const sessions = status?.sessions ?? [];
 
   return (
-    <Card className="overflow-auto" data-testid="setting-external-agent">
-      <CardHeader className="sticky left-0">
-        <CardTitle className="text-xl">{t("setting:external_agent.title")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Access and its state */}
-        <div className="flex items-start justify-between gap-6">
-          <div className="min-w-0 space-y-1">
-            <Label htmlFor="setting-external-enable" className="text-sm font-medium">{t("setting:external_agent.enable.label")}</Label>
-            <p className="text-xs leading-relaxed text-muted-foreground">{t("setting:external_agent.enable.description")}</p>
-            <div className="flex min-w-0 items-center gap-1.5 pt-1 text-xs" data-testid="setting-external-status">
-              {running ? <>
-                <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
-                <span className="shrink-0 text-foreground">{t("setting:external_agent.status.running")}</span>
-                <span className="min-w-0 truncate font-mono text-muted-foreground">{url}</span>
-              </> : status?.state === "error" ? (
-                <span className="text-destructive">{t(status.error === "port_in_use" ? "setting:external_agent.status.port_in_use" : "setting:external_agent.status.listen_failed", { port: status.port })}</span>
-              ) : <span className="text-muted-foreground">{t("setting:external_agent.status.stopped")}</span>}
-            </div>
-          </div>
-          <Switch id="setting-external-enable" checked={enabled} disabled={!settings || saving} onCheckedChange={(checked) => void save(() => api.updateSettings({ enabled: checked }))} />
-        </div>
+    <div data-testid="setting-external-agent">
+      {/* Access and its state */}
+      <PageSection title={t("setting:external_agent.sections.access")} description={t("setting:external_agent.sections.access_hint")}>
+        <Panel>
+          <PanelRow icon={Plug} tone="green" htmlFor="setting-external-enable" label={t("setting:external_agent.enable.label")}
+            description={<>
+              {t("setting:external_agent.enable.description")}
+              <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs" data-testid="setting-external-status">
+                {running ? <>
+                  <span className="relative flex size-1.5 shrink-0" aria-hidden="true">
+                    <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500 opacity-60 motion-reduce:animate-none" />
+                    <span className="relative size-1.5 rounded-full bg-emerald-500" />
+                  </span>
+                  <span className="shrink-0 text-foreground">{t("setting:external_agent.status.running")}</span>
+                  <span className="min-w-0 truncate font-mono text-muted-foreground">{url}</span>
+                </> : status?.state === "error" ? (
+                  <span className="text-destructive">{t(status.error === "port_in_use" ? "setting:external_agent.status.port_in_use" : "setting:external_agent.status.listen_failed", { port: status.port })}</span>
+                ) : <span className="text-muted-foreground">{t("setting:external_agent.status.stopped")}</span>}
+              </span>
+            </>}
+            control={<Switch id="setting-external-enable" checked={enabled} disabled={!settings || saving} onCheckedChange={(checked) => void save(() => api.updateSettings({ enabled: checked }))} />} />
+        </Panel>
+      </PageSection>
 
-        {/* Permissions */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{t("setting:external_agent.trust.title")}</div>
-          <RadioGroup value={settings?.trust ?? "confirm_writes"} disabled={!settings || saving} className="gap-0 divide-y rounded-smooth-lg border"
+      {/* Permissions */}
+      <PageSection title={t("setting:external_agent.trust.title")} description={t("setting:external_agent.sections.trust_hint")}>
+        <Panel>
+          <RadioGroup value={settings?.trust ?? "confirm_writes"} disabled={!settings || saving} className="gap-0"
             onValueChange={(value) => {
               // Full access asks once, here, instead of in every call.
               if (value === "full") setConfirmFull(true);
               else void save(() => api.updateSettings({ trust: value as ExternalTrust }));
             }}>
             {TRUST_LEVELS.map((level) => (
-              <label key={level} htmlFor={`setting-external-trust-${level}`} className="flex cursor-pointer items-start justify-between gap-6 px-3.5 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="text-[13px] font-medium">{t(`setting:external_agent.trust.${level}.name`)}</span>
-                    {level === "confirm_writes" && <span className="text-[11px] text-muted-foreground">{t("setting:external_agent.trust.recommended")}</span>}
-                    {level === "full" && <span className="text-[11px] text-amber-600 dark:text-amber-400">{t("setting:external_agent.trust.full.badge")}</span>}
-                  </div>
-                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{t(`setting:external_agent.trust.${level}.description`)}</p>
-                </div>
-                <RadioGroupItem id={`setting-external-trust-${level}`} value={level} className="mt-0.5" />
-              </label>
+              <PanelRow key={level} icon={TRUST_ICONS[level].icon} tone={TRUST_ICONS[level].tone} htmlFor={`setting-external-trust-${level}`}
+                label={<span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  {t(`setting:external_agent.trust.${level}.name`)}
+                  {level === "confirm_writes" && <span className="rounded-full bg-primary/8 px-1.5 text-[10.5px] font-normal text-muted-foreground ring-1 ring-border">{t("setting:external_agent.trust.recommended")}</span>}
+                  {level === "full" && <span className="text-[11px] font-normal text-amber-600 dark:text-amber-400">{t("setting:external_agent.trust.full.badge")}</span>}
+                </span>}
+                description={t(`setting:external_agent.trust.${level}.description`)}
+                control={<RadioGroupItem id={`setting-external-trust-${level}`} value={level} />} />
             ))}
           </RadioGroup>
-          <AnimatePresence initial={false}>
-            {settings?.trust === "custom" && (
-              <motion.div key="permissions" className="!mt-0 overflow-hidden"
-                initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.32, bounce: 0 }}>
-                {/* The gap lives inside, so it opens and closes with the panel. */}
-                <div className="pt-2">
-                  <ExternalAgentPermissions permissions={settings.permissions} disabled={saving}
-                    onChange={(change) => void save(() => api.updateSettings({ permissions: change }))} />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-          <ConfirmDialog open={confirmFull} onOpenChange={setConfirmFull}
-            title={t("setting:external_agent.trust.full.confirm_title")} description={t("setting:external_agent.trust.full.confirm_body")}
-            confirmText={t("setting:external_agent.trust.full.confirm_action")}
-            onConfirm={() => { setConfirmFull(false); void save(() => api.updateSettings({ trust: "full" })); }} />
-          <label htmlFor="setting-external-notices" className="flex cursor-pointer items-start justify-between gap-6 rounded-smooth-lg border px-3.5 py-3">
-            <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-medium">{t("setting:external_agent.activity.settings.notices_title")}</div>
-              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{t("setting:external_agent.activity.settings.notices_description")}</p>
-            </div>
-            <Switch id="setting-external-notices" checked={settings?.notices ?? true} disabled={!settings || saving} data-testid="setting-external-notices"
-              onCheckedChange={(checked) => void save(() => api.updateSettings({ notices: checked })).then((saved) => { if (saved) setActivityNotices(checked); })} />
-          </label>
-        </div>
+        </Panel>
+        <AnimatePresence initial={false}>
+          {settings?.trust === "custom" && (
+            <motion.div key="permissions" className="overflow-hidden"
+              initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+              transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.32, bounce: 0 }}>
+              {/* The gap lives inside, so it opens and closes with the panel. */}
+              <div className="pt-2.5">
+                <ExternalAgentPermissions permissions={settings.permissions} disabled={saving}
+                  onChange={(change) => void save(() => api.updateSettings({ permissions: change }))} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <ConfirmDialog open={confirmFull} onOpenChange={setConfirmFull}
+          title={t("setting:external_agent.trust.full.confirm_title")} description={t("setting:external_agent.trust.full.confirm_body")}
+          confirmText={t("setting:external_agent.trust.full.confirm_action")}
+          onConfirm={() => { setConfirmFull(false); void save(() => api.updateSettings({ trust: "full" })); }} />
+        <Panel className="mt-2.5">
+          <PanelRow icon={BellRing} tone="amber" htmlFor="setting-external-notices" label={t("setting:external_agent.activity.settings.notices_title")}
+            description={t("setting:external_agent.activity.settings.notices_description")}
+            control={<Switch id="setting-external-notices" checked={settings?.notices ?? true} disabled={!settings || saving} data-testid="setting-external-notices"
+              onCheckedChange={(checked) => void save(() => api.updateSettings({ notices: checked })).then((saved) => { if (saved) setActivityNotices(checked); })} />} />
+        </Panel>
+      </PageSection>
 
-        {/* Port and token */}
-        <div className="space-y-3">
-          <div className="text-sm font-medium">{t("setting:external_agent.connection.title")}</div>
-          <div className="flex items-start gap-3">
-            <Label htmlFor="setting-external-port" className="w-12 shrink-0 pt-2 text-[13px] font-normal text-muted-foreground">{t("setting:external_agent.connection.port")}</Label>
-            <div className="space-y-1">
-              <Input id="setting-external-port" inputMode="numeric" value={port} disabled={!settings || saving} aria-invalid={portError || undefined}
-                className="h-8 w-28 font-mono text-[13px]" data-testid="setting-external-port"
-                onChange={(event) => { setPort(event.target.value); if (portError) setPortError(false); }}
-                onBlur={commitPort} onKeyDown={(event) => { if (event.key === "Enter") commitPort(); }} />
-              {portError && <div className="text-[11px] text-destructive" role="alert">{t("setting:external_agent.connection.port_invalid")}</div>}
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="w-12 shrink-0 text-[13px] text-muted-foreground">{t("setting:external_agent.connection.token")}</span>
-            {token ? <div className="flex min-w-0 flex-1 items-center gap-1">
-              <code className="min-w-0 truncate rounded-smooth-md border bg-muted/40 px-2 py-1 font-mono text-[12px]" data-testid="setting-external-token">
-                {showToken ? token : "•".repeat(24)}
+      {/* Port and token */}
+      <PageSection title={t("setting:external_agent.connection.title")} description={t("setting:external_agent.sections.connection_hint")}>
+        <Panel>
+          <PanelRow icon={Network} tone="blue" label={<label htmlFor="setting-external-port" className="cursor-pointer">{t("setting:external_agent.connection.port")}</label>}
+            description={portError ? <span className="text-destructive" role="alert">{t("setting:external_agent.connection.port_invalid")}</span> : t("setting:external_agent.sections.port_hint")}
+            control={<Input id="setting-external-port" inputMode="numeric" value={port} disabled={!settings || saving} aria-invalid={portError || undefined}
+              className="h-8 w-28 text-right font-mono text-[13px]" data-testid="setting-external-port"
+              onChange={(event) => { setPort(event.target.value); if (portError) setPortError(false); }}
+              onBlur={commitPort} onKeyDown={(event) => { if (event.key === "Enter") commitPort(); }} />} />
+          <PanelRow icon={KeySquare} tone="violet" label={t("setting:external_agent.connection.token")} description={t("setting:external_agent.sections.token_hint")}
+            control={token ? <div className="flex min-w-0 items-center gap-1">
+              <code className="kit-code min-w-0 truncate rounded-smooth-md px-2 py-0.5 text-[12px]" data-testid="setting-external-token">
+                {showToken ? token : "•".repeat(20)}
               </code>
               <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground" data-testid="setting-external-token-toggle"
                 aria-label={t(showToken ? "setting:external_agent.connection.hide" : "setting:external_agent.connection.show")} onClick={() => setShowToken((value) => !value)}>
@@ -246,18 +244,18 @@ export default function ExternalAgentConfig() {
                 aria-label={t("setting:external_agent.connection.reset")} onClick={() => setResetting(true)}>
                 <RotateCcw />
               </Button>
-            </div> : <span className="text-xs text-muted-foreground">{t("setting:external_agent.connection.no_token")}</span>}
-          </div>
-          <ConfirmDialog open={resetting} onOpenChange={setResetting}
-            title={t("setting:external_agent.connection.reset_title")} description={t("setting:external_agent.connection.reset_description")}
-            confirmText={t("setting:external_agent.connection.reset_confirm")} cancelText={t("setting:external_agent.connection.cancel")}
-            onConfirm={() => void save(() => api.regenerateToken())} />
-        </div>
+            </div> : <span className="text-xs text-muted-foreground">{t("setting:external_agent.connection.no_token")}</span>} />
+        </Panel>
+        <ConfirmDialog open={resetting} onOpenChange={setResetting}
+          title={t("setting:external_agent.connection.reset_title")} description={t("setting:external_agent.connection.reset_description")}
+          confirmText={t("setting:external_agent.connection.reset_confirm")} cancelText={t("setting:external_agent.connection.cancel")}
+          onConfirm={() => void save(() => api.regenerateToken())} />
+      </PageSection>
 
-        {/* Client setup */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{t("setting:external_agent.clients.title")}</div>
-          {config ? <>
+      {/* Client setup */}
+      <PageSection title={t("setting:external_agent.clients.title")} description={t("setting:external_agent.sections.clients_hint")}>
+        <Panel className="p-4">
+          {config ? <div className="space-y-3">
             <div className="flex w-full flex-col items-start gap-2">
               <ClipPathTabs value={client} onValueChange={(value) => { setClient(value as ExternalClient); setWritten(null); setWriteError(null); }} ariaLabel={t("setting:external_agent.clients.title")}
                 shape="rounded" smoothCorners size="sm" fullWidth transitionDuration={200} transitionEasing="ease-out"
@@ -268,15 +266,19 @@ export default function ExternalAgentConfig() {
                   items={[{ value: "http", label: t("setting:external_agent.clients.http") }, { value: "stdio", label: t("setting:external_agent.clients.stdio") }]} />
               ) : <span className="text-[11px] text-muted-foreground">{t("setting:external_agent.clients.stdio_only")}</span>}
             </div>
-            <ol className="list-decimal space-y-1 pl-4 text-xs leading-relaxed text-muted-foreground marker:text-muted-foreground/70" data-testid="setting-external-guide">
-              <li>{t(`setting:external_agent.clients.guide.${client}.step1`)}</li>
-              <li>{t(`setting:external_agent.clients.guide.${client}.step2`)}</li>
-              <li>{t(`setting:external_agent.clients.guide.${client}.step3`)}</li>
-              {transport === "stdio" && <li>{t("setting:external_agent.clients.guide.stdio")}</li>}
+            <ol className="space-y-1.5 text-xs leading-relaxed text-muted-foreground" data-testid="setting-external-guide">
+              {[1, 2, 3].map((step) => <li key={step} className="flex gap-2.5">
+                <span aria-hidden className="mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[10px] tabular-nums text-foreground/70">{step}</span>
+                <span className="min-w-0">{t(`setting:external_agent.clients.guide.${client}.step${step}`)}</span>
+              </li>)}
+              {transport === "stdio" && <li className="flex gap-2.5">
+                <span aria-hidden className="mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[10px] tabular-nums text-foreground/70">4</span>
+                <span className="min-w-0">{t("setting:external_agent.clients.guide.stdio")}</span>
+              </li>}
             </ol>
-            {/* w-0 min-w-full: the settings scroll area sizes like a table, so a long line must not widen the page; it scrolls in the block. */}
+            {/* w-0 min-w-full: a long line must not widen the page; it scrolls in the block. */}
             <div className="relative w-0 min-w-full">
-              <pre className="overflow-x-auto whitespace-pre rounded-smooth-md border bg-muted/50 p-3 pr-11 font-mono text-[12px] leading-relaxed" data-testid="setting-external-config">{config.text}</pre>
+              <pre className="kit-code overflow-x-auto whitespace-pre rounded-smooth-lg p-3 pr-11" data-testid="setting-external-config">{config.text}</pre>
               <div className="absolute right-1.5 top-1.5 rounded-smooth-md border bg-background/90 shadow-xs backdrop-blur-sm">
                 <CopyButton text={config.text} label={t("setting:external_agent.clients.copy")} testId="setting-external-config-copy" />
               </div>
@@ -317,83 +319,79 @@ export default function ExternalAgentConfig() {
                 ))}
               </div>
             )}
-          </> : <p className="text-xs leading-relaxed text-muted-foreground" data-testid="setting-external-config-disabled">{t("setting:external_agent.clients.disabled")}</p>}
-        </div>
+          </div> : <p className="text-xs leading-relaxed text-muted-foreground" data-testid="setting-external-config-disabled">{t("setting:external_agent.clients.disabled")}</p>}
+        </Panel>
+      </PageSection>
 
-        {/* Live connections */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-medium">{t("setting:external_agent.sessions.title")}</div>
-            <Button asChild variant="link" size="sm" className="h-auto px-0 text-xs" data-testid="setting-external-activity">
-              <Link to={externalActivityPath()}>{t("setting:external_agent.activity.settings.view_all")}</Link>
-            </Button>
-          </div>
+      {/* Live connections */}
+      <PageSection title={t("setting:external_agent.sessions.title")} description={t("setting:external_agent.sections.sessions_hint")}
+        action={<Button asChild variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs text-muted-foreground" data-testid="setting-external-activity">
+          <Link to={externalActivityPath()}>{t("setting:external_agent.activity.settings.view_all")}<ArrowRight className="size-3.5" /></Link>
+        </Button>}>
+        <Panel>
           {sessions.length ? (
-            <div className="divide-y rounded-smooth-lg border" data-testid="setting-external-sessions">
+            <div data-testid="setting-external-sessions">
               {sessions.map((session) => {
                 const last = activity[session.id]?.at(-1);
                 const minutes = minutesSince(session.connectedAt, now);
                 return (
-                  <div key={session.id} className="flex items-center justify-between gap-4 px-3.5 py-2.5" data-testid="setting-external-session">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="text-[13px] font-medium">{session.client.name}</span>
-                        {session.client.version && <span className="text-[11px] text-muted-foreground">{session.client.version}</span>}
-                      </div>
-                      <div className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {minutes ? t("setting:external_agent.sessions.connected_minutes", { count: minutes }) : t("setting:external_agent.sessions.connected_now")}
-                        {last && <> · {t("setting:external_agent.sessions.last", { tool: toolLabel(t, last.tool) })} <span className={last.ok ? "" : "text-destructive"}>
-                          {last.ok ? t("setting:external_agent.sessions.ok") : t("setting:external_agent.sessions.failed", { error: last.error ?? "" })}</span></>}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1.5">
+                  <PanelRow key={session.id} icon={Bot} tone="green" testId="setting-external-session"
+                    label={<span className="flex flex-wrap items-baseline gap-x-2">
+                      <span>{session.client.name}</span>
+                      {session.client.version && <span className="font-mono text-[11px] font-normal text-muted-foreground">{session.client.version}</span>}
+                    </span>}
+                    description={<span className="block truncate">
+                      {minutes ? t("setting:external_agent.sessions.connected_minutes", { count: minutes }) : t("setting:external_agent.sessions.connected_now")}
+                      {last && <> · {t("setting:external_agent.sessions.last", { tool: toolLabel(t, last.tool) })} <span className={last.ok ? "" : "text-destructive"}>
+                        {last.ok ? t("setting:external_agent.sessions.ok") : t("setting:external_agent.sessions.failed", { error: last.error ?? "" })}</span></>}
+                    </span>}
+                    control={<>
                       <Button asChild variant="ghost" size="sm" data-testid="setting-external-session-activity">
                         <Link to={externalActivityPath(session.id)}>{t("setting:external_agent.activity.settings.view_session")}</Link>
                       </Button>
                       <Button type="button" variant="outline" size="sm" data-testid="setting-external-disconnect"
                         onClick={() => void api.closeSession(session.id)}>{t("setting:external_agent.sessions.disconnect")}</Button>
-                    </div>
-                  </div>
+                    </>} />
                 );
               })}
             </div>
-          ) : <p className="text-xs text-muted-foreground" data-testid="setting-external-sessions-empty">{t("setting:external_agent.sessions.empty")}</p>}
-        </div>
+          ) : <div className="flex items-center gap-3 px-4 py-4 text-xs text-muted-foreground" data-testid="setting-external-sessions-empty">
+            <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
+            {t("setting:external_agent.sessions.empty")}
+          </div>}
+        </Panel>
+      </PageSection>
 
-        {/* Workflow prompts for the connected agent */}
-        <div className="space-y-2" data-testid="setting-external-templates">
-          <div className="text-sm font-medium">{t("setting:external_agent.templates.title")}</div>
-          <p className="text-xs leading-relaxed text-muted-foreground">{t("setting:external_agent.templates.description")}</p>
-          <div className="grid gap-0.5 rounded-smooth-lg border p-1 sm:grid-cols-2">
-            {PROMPT_TEMPLATES.filter((template) => template.targets.includes("external")).map((template) => (
-              <TemplateRow key={template.id} template={template} testId="setting-external-template" onPick={() => openPromptTemplate(template.id, "external")} />
-            ))}
-          </div>
-        </div>
+      {/* Workflow prompts for the connected agent */}
+      <PageSection title={t("setting:external_agent.templates.title")} description={t("setting:external_agent.templates.description")} testId="setting-external-templates">
+        <Panel className="grid gap-0.5 p-1.5 sm:grid-cols-2">
+          {PROMPT_TEMPLATES.filter((template) => template.targets.includes("external")).map((template) => (
+            <TemplateRow key={template.id} template={template} testId="setting-external-template" onPick={() => openPromptTemplate(template.id, "external")} />
+          ))}
+        </Panel>
+      </PageSection>
 
-        {/* Bundled skill */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium">{t("setting:external_agent.skill.title")}</div>
-          <p className="text-xs leading-relaxed text-muted-foreground">{t("setting:external_agent.skill.description")}</p>
-          <div className="flex flex-wrap gap-2">
-            {(["claude", "agents"] as ExternalSkillTarget[]).map((target) => (
-              <Button key={target} type="button" variant="outline" size="sm" data-testid={`setting-external-skill-${target}`}
+      {/* Bundled skill */}
+      <PageSection title={t("setting:external_agent.skill.title")} description={t("setting:external_agent.skill.description")}>
+        <Panel>
+          {(["claude", "agents"] as ExternalSkillTarget[]).map((target) => {
+            const item = skills.find((entry) => entry.target === target && entry.installed);
+            return <PanelRow key={target} icon={target === "claude" ? Sparkles : Boxes} tone={target === "claude" ? "orange" : "neutral"}
+              label={t(target === "claude" ? "setting:external_agent.skill.target_claude" : "setting:external_agent.skill.target_agents")}
+              description={item ? <span className={cn("break-all", !item.current && "text-amber-600 dark:text-amber-400")} data-testid={`setting-external-skill-status-${item.target}`}>
+                {t(item.current ? "setting:external_agent.skill.installed" : "setting:external_agent.skill.outdated", { path: item.path })}
+              </span> : t("setting:external_agent.skill.not_installed")}
+              control={<Button type="button" variant="outline" size="sm" data-testid={`setting-external-skill-${target}`}
                 onClick={() => void api.installSkill(target).then((result) => {
                   if (!result.ok) { toast.error(t("setting:external_agent.skill.install_failed")); return; }
-                  setSkills((items) => [...items.filter((item) => item.target !== target), result.value]);
+                  setSkills((items) => [...items.filter((entry) => entry.target !== target), result.value]);
                   toast.success(t("setting:external_agent.skill.install_done"));
                 })}>
                 {t(target === "claude" ? "setting:external_agent.skill.install_claude" : "setting:external_agent.skill.install_agents")}
-              </Button>
-            ))}
-          </div>
-          {skills.filter((item) => item.installed).map((item) => (
-            <p key={item.target} className={cn("break-all text-[11px]", item.current ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400")} data-testid={`setting-external-skill-status-${item.target}`}>
-              {t(item.current ? "setting:external_agent.skill.installed" : "setting:external_agent.skill.outdated", { path: item.path })}
-            </p>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+              </Button>} />;
+          })}
+        </Panel>
+      </PageSection>
+    </div>
   );
 }
