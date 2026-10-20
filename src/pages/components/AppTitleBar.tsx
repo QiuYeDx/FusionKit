@@ -33,8 +33,9 @@ function AppTitleBar() {
       {isMac && (
         <div className="absolute left-1.5 top-1/2 -translate-y-1/2 h-7 w-[72px] rounded-full bg-background/60 backdrop-blur-md border border-border/40 pointer-events-none" />
       )}
-      {/* Top right, away from the centred name and its Windows hover buttons; it grows downwards into a panel. */}
-      <div className="absolute right-2 top-1.5">
+      {/* Top right, away from the centred name and its Windows hover buttons; it grows downwards into a panel.
+          The 28px capsule is centred in the 40px bar (6px above and below), so the right inset is 6px too. */}
+      <div className="absolute right-1.5 top-1.5">
         <ExternalAgentIndicator />
       </div>
       <div
