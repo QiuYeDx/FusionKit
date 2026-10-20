@@ -351,17 +351,6 @@
   animation: stream-fade-in 500ms ease-out forwards;
 }
 
-@keyframes ring-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.04);
-    opacity: 0.45;
-  }
-}
 
 @theme inline {
   --radius-sm: calc(var(--radius) * 0.6);

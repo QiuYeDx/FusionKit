@@ -305,7 +305,71 @@ export function isSessionRunning(sessionId: string): boolean {
 
 export async function handleUserMessage(userContent: string, sessionId = useAgentStore.getState().activeSessionId): Promise<void> {
   if (!userContent.trim()) return;
-  await runTurn(sessionId, { id: generateId(), role: "user", content: userContent, timestamp: Date.now() });
+  await runTurn(sessionId, userMessage(userContent));
+}
+
+function userMessage(content: string): AgentMessage {
+  return { id: generateId(), role: "user", content, timestamp: Date.now() };
+}
+
+/** Sessions whose reply was stopped so that the first queued message goes out right away. */
+const interruptedForQueue = new Set<string>();
+
+function interruptForQueue(sessionId: string): void {
+  interruptedForQueue.add(sessionId);
+  abortSessionTurn(sessionId);
+}
+
+function runNextQueued(sessionId: string): void {
+  const next = useAgentStore.getState().forSession(sessionId).takeQueuedMessage();
+  if (next) void runTurn(sessionId, userMessage(next.content));
+}
+
+/**
+ * Sends what the user wrote. A free session answers at once. While it is replying, the message waits in the
+ * session's queue and goes out when the reply ends; with now, the reply is stopped and the message goes out next.
+ */
+export function submitUserMessage(content: string, options: { now?: boolean; sessionId?: string } = {}): "sent" | "queued" | "ignored" {
+  const sessionId = options.sessionId ?? useAgentStore.getState().activeSessionId;
+  if (!content.trim() || !useAgentStore.getState().hasSession(sessionId)) return "ignored";
+  if (!turns.has(sessionId)) { void runTurn(sessionId, userMessage(content)); return "sent"; }
+  useAgentStore.getState().forSession(sessionId).enqueueMessage(content, { front: options.now });
+  if (options.now) interruptForQueue(sessionId);
+  return "queued";
+}
+
+/** A queued message goes out now: the running reply is stopped first. */
+export function sendQueuedMessageNow(messageId: string, sessionId = useAgentStore.getState().activeSessionId): void {
+  const store = useAgentStore.getState().forSession(sessionId);
+  const message = store.takeQueuedMessage(messageId);
+  if (!message) return;
+  if (turns.has(sessionId)) {
+    store.enqueueMessage(message.content, { front: true });
+    interruptForQueue(sessionId);
+    return;
+  }
+  void runTurn(sessionId, userMessage(message.content));
+}
+
+/** The user lets a paused queue go on. */
+export function resumeMessageQueue(sessionId = useAgentStore.getState().activeSessionId): void {
+  useAgentStore.getState().forSession(sessionId).setQueuePaused(false);
+  if (!turns.has(sessionId)) runNextQueued(sessionId);
+}
+
+/**
+ * What a session does once a turn has ended: a message the user asked to send now goes first, then the
+ * interface events the agent follows up on, then the queue. A queue behind a stopped or failed reply waits
+ * for the user, who may no longer want those messages.
+ */
+function continueSession(sessionId: string, outcome: TurnOutcome, interrupted: boolean): void {
+  const slot = useAgentStore.getState().slots[sessionId];
+  if (!slot || turns.has(sessionId)) return;
+  if (interrupted && slot.queuedMessages.length) { runNextQueued(sessionId); return; }
+  if (queuedEvents.get(sessionId)?.length) { runQueuedEvent(sessionId); return; }
+  if (!slot.queuedMessages.length) return;
+  if (outcome === "completed" && !slot.queuePaused) runNextQueued(sessionId);
+  else useAgentStore.getState().forSession(sessionId).setQueuePaused(true);
 }
 
 /** Events reported while a session's turn runs; each starts its own turn once that session is free. */
@@ -558,7 +622,8 @@ async function runTurn(sessionId: string, userMsg: AgentMessage): Promise<void> 
         try { listener(sessionId, outcome); } catch { /* A listener never breaks the turn's cleanup. */ }
       }
       if (outcome === "completed") void generateSessionTitle(sessionId);
-      if (queuedEvents.get(sessionId)?.length) setTimeout(() => runQueuedEvent(sessionId), 0);
-    }
+      const interrupted = interruptedForQueue.delete(sessionId);
+      setTimeout(() => continueSession(sessionId, outcome, interrupted), 0);
+    } else interruptedForQueue.delete(sessionId);
   }
 }

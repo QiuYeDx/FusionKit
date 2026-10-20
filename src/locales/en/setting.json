@@ -683,6 +683,10 @@
         "undo_name_changes": "Undo a rename and put the old names back.",
         "overwrite_files": "Any call that replaces existing files (export, convert or extract with overwrite) must also pass this; the stricter of the two applies."
       }
+    },
+    "templates": {
+      "title": "Workflow prompts",
+      "description": "Pick a workflow, fill in the folder and options, then copy the prompt and paste it into your connected agent. It writes the translations itself."
     }
   }
 }

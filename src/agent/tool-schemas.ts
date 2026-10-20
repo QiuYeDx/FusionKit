@@ -216,6 +216,10 @@ export const createNameTranslationPlanSchema = z.object({
     .enum(["translated", "translated_original", "original_translated"])
     .optional()
     .describe("translated replaces the name; translated_original gives 'Translated (Original)'; original_translated gives 'Original (Translated)'. Omit unless the user asked for a format: the name translator page's format (including its bracket style or custom template) is used."),
+  nameSeparator: z
+    .enum(["paren", "bracket", "dash", "underscore", "space"])
+    .optional()
+    .describe("With translated_original or original_translated: how the two names are joined. paren 'A (B)', bracket 'A [B]', dash 'A - B', underscore 'A_B', space 'A B'. Omit unless the user asked for a separator; paren is used then."),
   instructions: z
     .string()
     .max(1000)

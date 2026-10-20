@@ -6,11 +6,12 @@ import { motionValue } from "motion/react";
 // session list and the floating panel's flight back home.
 // ---------------------------------------------------------------------------
 
-export const SIDEBAR_LEFT = 16;
+/** The list hugs the window's left edge, like the title bar's capsules hug their corners. */
+export const SIDEBAR_LEFT = 8;
 export const SIDEBAR_WIDTH = 248;
 /**
  * From this window width on the list stays beside the conversation: the 672px column, centered in the space right
- * of the list (16 + 248), keeps 32px on both sides: 264 + 32 + 672 + 32 = 1000.
+ * of the list (8 + 248), keeps at least 32px on both sides: 256 + 36 + 672 + 36 = 1000.
  */
 export const SIDEBAR_DOCK_MIN_WIDTH = 1000;
 /** While the list is docked, the centered content moves right by half the list's footprint: centered beside it. */

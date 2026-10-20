@@ -166,7 +166,9 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
       await uiExpect(page.getByRole('tooltip')).toContainText('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA.srt');
       await shot('02-long-title-tooltip');
       // A short title has no tooltip.
-      await sidebar.locator('[data-session-id=seed-0]').hover();
+      // Moved there the way a pointer moves (one jump would leave it inside the open tooltip's grace area).
+      const shortRow = (await sidebar.locator('[data-session-id=seed-0]').boundingBox())!;
+      await page.mouse.move(shortRow.x + shortRow.width / 2, shortRow.y + shortRow.height / 2, { steps: 6 });
       await page.waitForTimeout(700);
       await uiExpect(page.getByRole('tooltip')).toHaveCount(0);
 
@@ -306,7 +308,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
     } finally { await run?.close(); }
   }, 240_000);
 
-  it('grows the list out of its two buttons and shrinks it back into them', async () => {
+  it('grows the list out of its title-bar capsule and shrinks it back into it', async () => {
     const artifacts = path.resolve('test-results/agent-sessions'); await mkdir(artifacts, { recursive: true });
     const root = await createTestRun(artifacts, 'motion-');
     await seed(path.join(root, 'profile'));
@@ -315,18 +317,18 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
       run = await harness(root);
       const { page } = run;
       await page.getByTestId('agent-sessions-sidebar').waitFor();
-      /** Every animation frame for a while: the container, the open/close button and the layers' opacity. */
-      type Frame = { t: number; w: number; h: number; bx: number; by: number; surface: number; panel: number; cx: number };
+      /** Every animation frame for a while: the container, the "new conversation" button riding its corner and the layers' opacity. */
+      type Frame = { t: number; w: number; h: number; right: number; top: number; bx: number; by: number; surface: number; panel: number; cx: number };
       const sample = (ms: number) => page.evaluate(ms => new Promise<Frame[]>(resolve => {
         const frames: Frame[] = [];
         const start = performance.now();
         const tick = () => {
           const shell = document.querySelector('[data-testid=agent-sessions-shell]')!.getBoundingClientRect();
-          const button = document.querySelector('[data-testid=agent-sessions-expand], [data-testid=agent-sessions-collapse]')!.getBoundingClientRect();
-          const surface = Number(getComputedStyle(document.querySelector('[data-testid=agent-sessions-shell] > [aria-hidden]')!).opacity);
+          const button = document.querySelector('[data-testid=agent-sessions-new], [data-testid=agent-sessions-new-collapsed]')!.getBoundingClientRect();
+          const surface = Number(getComputedStyle(document.querySelector('[data-testid=agent-sessions-surface]')!).opacity);
           const panelNode = document.querySelector('[data-testid=agent-sessions-sidebar]');
           const column = document.querySelector('[data-testid=agent-input]')!.closest('.max-w-2xl')!.getBoundingClientRect();
-          frames.push({ cx: Math.round(column.left + column.width / 2), t: Math.round(performance.now() - start), w: Math.round(shell.width), h: Math.round(shell.height), bx: Math.round(button.left), by: Math.round(button.top),
+          frames.push({ cx: Math.round(column.left + column.width / 2), t: Math.round(performance.now() - start), w: Math.round(shell.width), h: Math.round(shell.height), right: Math.round(shell.right), top: Math.round(shell.top), bx: Math.round(button.right), by: Math.round(button.top),
             surface: Math.round(surface * 100) / 100, panel: panelNode ? Math.round(Number(getComputedStyle(panelNode).opacity) * 100) / 100 : 0 });
           if (performance.now() - start < ms) requestAnimationFrame(tick); else resolve(frames);
         };
@@ -335,21 +337,27 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
       const continuous = (values: number[]) => new Set(values).size;
 
       const middle = await page.evaluate(() => Math.round(innerWidth / 2));
-      // Docked: closing shrinks the container into the buttons at the top left, and opening grows it back.
+      // Docked: closing shrinks the container into the capsule in the title bar's row, and opening grows it back.
       const closing = sample(700);
       await page.getByTestId('agent-sessions-collapse').click();
       const closeFrames = await closing;
       await writeFile(path.join(artifacts, 'motion-close-docked.json'), JSON.stringify(closeFrames, null, 1));
       expect(closeFrames[0].w).toBe(248);
-      expect(closeFrames.at(-1)).toMatchObject({ w: 76, h: 44, surface: 0, panel: 0 });
+      expect(closeFrames.at(-1)).toMatchObject({ h: 28, top: 6, surface: 0, panel: 0 });
+      expect(closeFrames.at(-1)!.w).toBeLessThan(248);
       expect(continuous(closeFrames.map(frame => frame.w))).toBeGreaterThan(8);
       expect(continuous(closeFrames.map(frame => frame.bx))).toBeGreaterThan(8);
       // The conversation moves with the list, from the middle of the space beside it back to the middle of the window.
-      expect(Math.abs(closeFrames[0].cx - (middle + 132))).toBeLessThanOrEqual(1);
+      expect(Math.abs(closeFrames[0].cx - (middle + 128))).toBeLessThanOrEqual(1);
       expect(Math.abs(closeFrames.at(-1)!.cx - middle)).toBeLessThanOrEqual(1);
       expect(continuous(closeFrames.map(frame => frame.cx))).toBeGreaterThan(8);
-      // The button rides the container's corner the whole way.
-      for (const frame of closeFrames) expect(Math.abs(frame.bx + 28 + 8 - (16 + frame.w))).toBeLessThanOrEqual(1);
+      // The "new conversation" button rides the container's top-right corner the whole way.
+      for (const frame of closeFrames) {
+        expect(frame.right - frame.bx).toBeGreaterThanOrEqual(0);
+        expect(frame.right - frame.bx).toBeLessThanOrEqual(40);
+        expect(frame.by - frame.top).toBeGreaterThanOrEqual(0);
+        expect(frame.by - frame.top).toBeLessThanOrEqual(8);
+      }
       // No tooltip comes up by itself on the button that just moved away from the pointer.
       await page.waitForTimeout(1000);
       await uiExpect(page.getByRole('tooltip')).toHaveCount(0);
@@ -360,7 +368,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
       const openFrames = await opening;
       await writeFile(path.join(artifacts, 'motion-open-docked.json'), JSON.stringify(openFrames, null, 1));
       expect(openFrames.at(-1)).toMatchObject({ w: 248, surface: 1, panel: 1 });
-      expect(Math.abs(openFrames.at(-1)!.cx - (middle + 132))).toBeLessThanOrEqual(1);
+      expect(Math.abs(openFrames.at(-1)!.cx - (middle + 128))).toBeLessThanOrEqual(1);
       expect(continuous(openFrames.map(frame => frame.w))).toBeGreaterThan(8);
       await page.waitForTimeout(1000);
       await uiExpect(page.getByRole('tooltip')).toHaveCount(0);
@@ -375,7 +383,7 @@ describe.runIf(process.env.FUSIONKIT_AGENT_SESSIONS_E2E === '1')('agent sessions
         await page.waitForTimeout(700);
       }
 
-      // Narrow window: the list opens over the page from the same buttons, and closes with Escape.
+      // Narrow window: the list opens over the page from the same capsule, and closes with Escape.
       const win = await run.app.browserWindow(page);
       await setPageSize(run.app, page, 960, 700);
       await uiExpect(page.getByTestId('agent-sessions-expand')).toBeVisible();

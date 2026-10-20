@@ -131,6 +131,13 @@ export type AgentSessionStatus =
   | "streaming"
   | "error";
 
+/** A message the user sent while the session was replying; it is sent once the reply ends. */
+export interface QueuedMessage {
+  id: string;
+  content: string;
+  createdAt: number;
+}
+
 /** auto: cut from the first message; generated: named by the agent model; manual: set by the user. */
 export type AgentTitleSource = "auto" | "generated" | "manual";
 

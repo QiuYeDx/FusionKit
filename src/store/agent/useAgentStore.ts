@@ -14,6 +14,7 @@ import type {
   ExecutionMode,
   PendingNameTranslationPlan,
   PendingExecution,
+  QueuedMessage,
   SessionExportData,
   TaskStoreType,
   TokenStats,
@@ -45,11 +46,15 @@ export interface SessionSlot {
   pendingNameTranslationPlan: PendingNameTranslationPlan | null;
   /** A reply arrived while the user looked at another session. */
   unread: boolean;
+  /** Messages written while a reply ran; each starts its own turn, in order, once the session is free. */
+  queuedMessages: QueuedMessage[];
+  /** The queue waits for the user: the reply before it was stopped or failed. */
+  queuePaused: boolean;
 }
 
 /** The current session's slot, under the field names the interface has always read. */
 type ActiveProjection = Omit<SessionSlot, "unread">;
-const PROJECTED = ["session", "isStreaming", "streamingText", "activeToolCalls", "tokenStats", "sessionLog", "pendingExecution", "pendingNameTranslationPlan"] as const;
+const PROJECTED = ["session", "isStreaming", "streamingText", "activeToolCalls", "tokenStats", "sessionLog", "pendingExecution", "pendingNameTranslationPlan", "queuedMessages", "queuePaused"] as const;
 
 export interface UsageRecord {
   promptTokens: number;
@@ -89,6 +94,11 @@ export interface SessionActions {
   appendLog: (type: AgentLogEntryType, summary: string, data?: Record<string, unknown>) => void;
   setTitle: (title: string, source: AgentTitleSource) => void;
   getSessionExportData: () => SessionExportData;
+  /** Adds a message to the queue, at its end or (front) to be sent next. */
+  enqueueMessage: (content: string, options?: { front?: boolean }) => QueuedMessage | undefined;
+  /** Removes a queued message and returns it; without an id, the next one. */
+  takeQueuedMessage: (messageId?: string) => QueuedMessage | undefined;
+  setQueuePaused: (paused: boolean) => void;
 }
 
 interface AgentStore extends ActiveProjection, SessionActions {
@@ -160,6 +170,8 @@ export function createSessionSlot(session: AgentSession = createNewSession(), pa
     pendingExecution: null,
     pendingNameTranslationPlan: null,
     unread: false,
+    queuedMessages: [],
+    queuePaused: false,
     ...parts,
   };
 }
@@ -167,7 +179,7 @@ export function createSessionSlot(session: AgentSession = createNewSession(), pa
 /** Nothing worth keeping: no messages, no reply running, no confirmation, no plan. */
 export function isBlankSlot(slot: SessionSlot): boolean {
   return slot.session.messages.length === 0 && !slot.isStreaming && !slot.pendingExecution
-    && !slot.pendingNameTranslationPlan && !slot.session.plan;
+    && !slot.pendingNameTranslationPlan && !slot.session.plan && slot.queuedMessages.length === 0;
 }
 
 function project(slot: SessionSlot): ActiveProjection {
@@ -426,6 +438,20 @@ const useAgentStore = create<AgentStore>()(
             // Naming a session does not move it in the list; only the conversation does.
             return { session: { ...current.session, title, titleSource: source } };
           }),
+          enqueueMessage: (content, options) => {
+            if (!slot() || !content.trim()) return undefined;
+            const message: QueuedMessage = { id: generateId(), content, createdAt: Date.now() };
+            patch(id, (current) => ({ queuedMessages: options?.front ? [message, ...current.queuedMessages] : [...current.queuedMessages, message] }));
+            return message;
+          },
+          takeQueuedMessage: (messageId) => {
+            const queue = slot()?.queuedMessages ?? [];
+            const message = messageId ? queue.find((item) => item.id === messageId) : queue[0];
+            if (!message) return undefined;
+            patch(id, (current) => ({ queuedMessages: current.queuedMessages.filter((item) => item.id !== message.id) }));
+            return message;
+          },
+          setQueuePaused: (paused) => patch(id, (current) => current.queuePaused === paused ? null : { queuePaused: paused }),
           getSessionExportData: (): SessionExportData => {
             const current = slot();
             if (!current) throw new Error("agent_session_missing");
@@ -493,6 +519,9 @@ const useAgentStore = create<AgentStore>()(
         appendLog: (type, summary, data) => active().appendLog(type, summary, data),
         setTitle: (title, source) => active().setTitle(title, source),
         getSessionExportData: () => active().getSessionExportData(),
+        enqueueMessage: (content, options) => active().enqueueMessage(content, options),
+        takeQueuedMessage: (messageId) => active().takeQueuedMessage(messageId),
+        setQueuePaused: (paused) => active().setQueuePaused(paused),
 
         createSession: () => {
           const state = get();

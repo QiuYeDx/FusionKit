@@ -27,8 +27,6 @@
   "execution_mode_auto_execute": "自动执行",
   "new_conversation": "新对话",
   "agent_input_placeholder": "输入任务或随意聊天…",
-  "suggestion_translate_srt": "翻译 SRT 字幕",
-  "suggestion_translate_srt_prompt": "翻译 ~/Downloads 目录下所有 SRT 字幕文件",
   "suggestion_lrc_to_srt": "LRC 转 SRT",
   "suggestion_lrc_to_srt_prompt": "把 ~/Downloads 目录下的 LRC 字幕文件转换成 SRT 格式",
   "suggestion_extract_chinese": "提取中文字幕",
@@ -443,5 +441,162 @@
   "knowledge_kind_enable": "启用",
   "knowledge_ai_inferred": "AI 推断，请核对",
   "token_explanation": "Token 是 AI 计算文字长度和费用的单位，大约一个汉字或一个英文单词算 1 个。“上下文占用”是这次对话已经交给模型的内容，占满后请开始新对话。",
-  "token_help": "了解 Token 与费用"
+  "token_help": "了解 Token 与费用",
+  "agent_input_placeholder_busy": "正在回复…可以继续输入，发送后会排队",
+  "queue_waiting": "{{count}} 条消息排队中，当前回复结束后依次发送",
+  "queue_next": "{{count}} 条消息即将发送",
+  "queue_paused": "回复已中断，{{count}} 条排队消息暂停发送",
+  "queue_resume": "继续发送",
+  "queue_send_now": "立即发送（中断当前回复）",
+  "queue_edit": "取回编辑",
+  "queue_remove": "移出队列",
+  "queue_add": "排队发送",
+  "queue_add_hint": "加入队列，当前回复结束后发送（Enter）",
+  "queue_now_hint": "立即发送并中断当前回复（{{shortcut}}）",
+  "templates": {
+    "gallery_title": "常用工作流",
+    "gallery_hint": "填几个参数，一次交给 Agent",
+    "menu_label": "工作流模板",
+    "menu_short": "模板",
+    "target_label": "交给谁来做",
+    "target_fusionkit": "FusionKit Agent",
+    "target_external": "外部 Agent",
+    "external_note": "复制后粘贴给已连接 FusionKit 的 Claude Code、Codex、Cursor 等外部 Agent。它通过 FusionKit 的 MCP 工具完成任务，翻译由它自己来写，FusionKit 里不需要配置模型。",
+    "external_setup": "连接外部 Agent",
+    "preview": "将要发送的提示词",
+    "copy": "复制",
+    "copy_external": "复制提示词",
+    "copied": "提示词已复制",
+    "copy_failed": "复制失败，请手动选择文字复制",
+    "fill": "填入输入框",
+    "send": "发送给 Agent",
+    "queue": "加入队列",
+    "missing_folder": "请先填写文件夹路径",
+    "agent_not_ready": "Agent 还没有配置模型，可以先填入输入框或复制",
+    "pick_folder": "选择…",
+    "pick_folder_title": "选择文件夹",
+    "pick_folder_button": "选择此文件夹",
+    "field": {
+      "folder": "文件夹",
+      "folder_hint": "可以输入、粘贴，或把文件夹拖到这里",
+      "folder_placeholder": "例如 D:\\Music\\Live",
+      "recursive": "包括所有子文件夹",
+      "spoken": "说话语言",
+      "target": "翻译成",
+      "subtitle_layout": "字幕内容",
+      "format": "字幕格式",
+      "rename_after": "最后把文件名也翻译成双语",
+      "rename_after_hint": "媒体文件和导出的字幕都改成「译名 - 原名」，改名前会先给你看预览",
+      "to_format": "转换为",
+      "overwrite": "覆盖同名文件",
+      "overwrite_hint": "关闭时，已有同名文件会自动编号另存",
+      "name_kind": "要改名的",
+      "name_layout": "命名格式",
+      "separator": "两个名字怎么连接",
+      "keep": "保留的语言"
+    },
+    "lang": {
+      "auto": "自动识别",
+      "auto_spoken": "自动识别",
+      "ZH": "简体中文",
+      "ZH_HANT": "繁体中文",
+      "JA": "日语",
+      "EN": "英语",
+      "KO": "韩语"
+    },
+    "layout": {
+      "target_first": "双语，译文在前",
+      "source_first": "双语，原文在前",
+      "target_only": "仅译文"
+    },
+    "format": {
+      "auto": "自动（音频 LRC，视频 SRT）",
+      "lrc": "LRC",
+      "srt": "SRT",
+      "vtt": "VTT",
+      "ass": "ASS"
+    },
+    "kind": {
+      "files": "文件",
+      "directories": "文件夹",
+      "both": "文件和文件夹"
+    },
+    "name_layout": {
+      "target_first": "译名在前，原名在后",
+      "source_first": "原名在前，译名在后",
+      "target_only": "只保留译名"
+    },
+    "separator": {
+      "dash": "中间用 “ - ” 分隔",
+      "paren": "后一个名字放在括号里",
+      "bracket": "后一个名字放在方括号里",
+      "underscore": "中间用下划线连接",
+      "space": "中间用空格连接"
+    },
+    "text": {
+      "recursive_yes": "（包括所有子文件夹）",
+      "recursive_no": "（不包括子文件夹）",
+      "overwrite_yes": "已有同名文件时直接覆盖",
+      "overwrite_no": "已有同名文件时不要覆盖，自动编号",
+      "children_all": "includeChildren=true，包括所有子文件夹里的条目",
+      "children_top": "includeChildren=true，但只处理文件夹第一层的条目",
+      "name_target_first": "{{target}}译名在前、原名在后，{{separator}}",
+      "name_source_first": "原名在前、{{target}}译名在后，{{separator}}",
+      "name_target_only": "只保留{{target}}译名",
+      "finish_rule": "开始前如果有必须由我决定的事，请一次问清楚；之后一直做到最后，不要中途停下。",
+      "folder_missing": "〈文件夹路径〉"
+    },
+    "media_bilingual": {
+      "title": "音视频转双语字幕",
+      "summary": "本地转写 → 翻译 → 导出字幕 → 文件名改双语",
+      "description": "用本地模型转写文件夹里的音频或视频，翻译后导出字幕放在原文件旁边，最后还可以把文件名一并翻译成双语。",
+      "fusionkit": {
+        "intro": "请帮我完成下面这个工作流：",
+        "step_transcribe": "1. 用本地语音识别转写 `{{path}}` 里{{recursive}}的所有音频和视频文件，说话语言：{{spoken}}。",
+        "step_translate": "2. 每个文件转写完就翻译成{{target}}，导出为字幕文件（{{layout}}，格式：{{format}}），保存在原媒体文件旁边；已有同名文件时自动编号，不要覆盖。转写、翻译和导出作为一次批量任务提交。",
+        "step_rename": "3. 全部字幕导出后，把这些媒体文件和导出的字幕文件的文件名翻译成双语：{{name}}；扩展名不变，只改这些文件，先给我看重命名预览。"
+      },
+      "external": {
+        "intro": "请使用 FusionKit 的 MCP 工具（fusionkit 服务器）完成下面这个工作流，翻译由你自己来写：",
+        "step_transcribe": "1. 用 start_studio_transcription 转写 `{{path}}` 里{{recursive}}的音频和视频（recursive={{recursiveBool}}，language={{spokenCode}}），再用 get_studio_tasks（kind=transcription）跟进，直到全部完成。",
+        "step_translate": "2. 对每个转写出来的字幕工作台文档：用 read_studio_document 读取原文，你自己把每一句翻译成{{target}}，用 create_studio_translation_track 建立译文轨，再用 write_studio_translations 分批写入。",
+        "step_export": "3. 用 export_studio_document 导出每个文档：content={{content}}，order={{order}}，format={{formatCode}}，destination=source_directory，conflict=indexed。",
+        "step_rename": "4. 最后用 inspect_name_paths 列出这些媒体文件和导出的字幕文件，你自己把文件名翻译成双语：{{name}}；扩展名不变。再用 rename_paths 提交，我会在 FusionKit 里确认。"
+      }
+    },
+    "convert_subtitles": {
+      "title": "批量转换字幕格式",
+      "summary": "把文件夹里的字幕统一转成 LRC、SRT 等格式",
+      "description": "扫描文件夹里的字幕文件并转换格式，输出放在原文件旁边，已经是目标格式的文件会跳过。",
+      "fusionkit": "把 `{{path}}` 里{{recursive}}的所有字幕文件转换成 {{to}} 格式，输出保存在各自原文件旁边，{{overwrite}}。已经是 {{to}} 的文件跳过；文件很多就分批处理，全部完成后告诉我成功和失败的数量。",
+      "external": "请使用 FusionKit 的 MCP 工具 convert_subtitle_files，把 `{{path}}` 里{{recursive}}的所有字幕文件转换成 {{to}}：paths=[\"{{path}}\"]，to={{toCode}}，recursive={{recursiveBool}}，conflict={{conflict}}，输出放在原文件旁边。文件超过 200 个时分批调用，完成后告诉我成功和失败的数量。"
+    },
+    "bilingual_names": {
+      "title": "文件名翻译为双语",
+      "summary": "批量把文件或文件夹名改成「译名 - 原名」",
+      "description": "翻译文件夹里的文件名或文件夹名。先生成重命名预览，确认后才会真正改名，改完也可以撤销。",
+      "fusionkit": "把 `{{path}}` 里{{recursive}}的{{kind}}名翻译成{{target}}，命名格式：{{name}}；扩展名不变。先生成重命名预览给我确认。",
+      "external": "请使用 FusionKit 的 MCP 工具批量改名：先用 inspect_name_paths（paths=[\"{{path}}\"]，{{includeChildren}}）列出要改名的{{kind}}；你自己把名字翻译成{{target}}，命名格式：{{name}}，扩展名不变；再用 rename_paths 提交（每次最多 500 个），我会在 FusionKit 里确认。完成后告诉我 journalId，需要时可以用 undo_name_changes 撤销。"
+    },
+    "translate_subtitles": {
+      "title": "批量翻译字幕文件",
+      "summary": "翻译文件夹里的字幕，保存在原文件旁边",
+      "description": "把文件夹里的字幕文件翻译成另一种语言，可以输出双语或仅译文。",
+      "fusionkit": "把 `{{path}}` 里{{recursive}}的字幕文件翻译成{{target}}，输出{{layout}}，保存在原文件旁边；已有同名文件时不要覆盖。",
+      "external": "请使用 FusionKit 的 MCP 工具翻译字幕，翻译由你自己来写：用 import_studio_subtitles 导入 `{{path}}` 里{{recursive}}的字幕文件（recursive={{recursiveBool}}）；对每个文档用 read_studio_document 读取，你自己翻译成{{target}}，用 create_studio_translation_track 和 write_studio_translations 写入；再用 export_studio_document 导出（content={{content}}，order={{order}}，format=auto，destination=source_directory，conflict=indexed）。"
+    },
+    "extract_language": {
+      "title": "从双语字幕提取单语",
+      "summary": "只保留中文、日文等其中一种语言",
+      "description": "把双语字幕里的一种语言单独提取出来，生成新的字幕文件放在原文件旁边。",
+      "fusionkit": "从 `{{path}}` 里{{recursive}}的双语字幕中只保留{{keep}}，生成新的字幕文件放在原文件旁边。",
+      "external": "请使用 FusionKit 的 MCP 工具 extract_subtitle_language：paths=[\"{{path}}\"]，keep={{keepCode}}，recursive={{recursiveBool}}，conflict=indexed，从双语字幕中只保留{{keep}}，输出放在原文件旁边。完成后告诉我成功和失败的数量。"
+    },
+    "resume_translation": {
+      "title": "继续未完成的字幕翻译",
+      "summary": "扫描恢复记录，从断点接着翻译",
+      "description": "字幕翻译中断时 FusionKit 会留下恢复记录。扫描文件夹后，可以从中断的位置继续翻译。",
+      "fusionkit": "扫描 `{{path}}` 里的字幕翻译恢复记录，把还没完成的翻译任务继续做完。"
+    }
+  }
 }

@@ -12,6 +12,7 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import AgentDock from "@/pages/AgentDock";
 import ClassicPageContexts from "@/pages/AgentDock/ClassicPageContexts";
 import ExternalAgentHost from "@/pages/AgentDock/ExternalAgentHost";
+import { PromptTemplateHost } from "@/pages/HomeAgent/components/PromptTemplates";
 import Tools from "@/pages/Tools";
 import BottomNavigation from "@/pages/components/BottomNavigation";
 import AppTitleBar from "@/pages/components/AppTitleBar";
@@ -178,6 +179,7 @@ function App() {
       <ClassicPageContexts />
       {/* 外部 Agent（MCP）的工具调用在此窗口执行 */}
       <ExternalAgentHost />
+      <PromptTemplateHost />
 
       {/* 全局 Toast */}
       {/* Below the title bar's top-right capsule; its panel pushes them further down while open. */}

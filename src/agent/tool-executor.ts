@@ -234,6 +234,11 @@ export async function executeCreateNameTranslationPlan(
       bilingualStyle: page.bilingualStyle ?? "paren", customTemplate: page.customTemplate ?? "{translated} ({original})" } : undefined;
     const nameFormat = args.nameFormat ? settings.note("nameFormat", args.nameFormat, "user")
       : pageFormat ? (settings.note("nameFormat", pageFormat, "tool_page"), "translated" as const) : settings.note("nameFormat", "translated" as const, "default");
+    // A bilingual name with the separator the user asked for, for example "Translated - Original".
+    const bilingualFormat = args.nameFormat && args.nameFormat !== "translated" && args.nameSeparator ? {
+      nameMode: "bilingual" as const, bilingualOrder: args.nameFormat === "translated_original" ? "translated_first" as const : "original_first" as const,
+      bilingualStyle: settings.note("nameSeparator", args.nameSeparator, "user"), customTemplate: "{translated} ({original})",
+    } : undefined;
     const instructions = args.instructions ?? (page.instructions?.trim() ? page.instructions : undefined);
     if (instructions !== undefined) settings.note("instructions", instructions, args.instructions !== undefined ? "user" : "tool_page");
     const summary = await createAgentNamePlan(
@@ -246,7 +251,7 @@ export async function executeCreateNameTranslationPlan(
         sourceLang: settings.pick("sourceLang", args.sourceLang, page.sourceLang, "auto"),
         targetLang: settings.pick("targetLang", args.targetLang, page.targetLang, "ZH"),
         nameFormat,
-        ...(!args.nameFormat && pageFormat ? { format: pageFormat } : {}),
+        ...(bilingualFormat ? { format: bilingualFormat } : !args.nameFormat && pageFormat ? { format: pageFormat } : {}),
         instructions,
       },
       signal,

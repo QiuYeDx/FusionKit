@@ -6,6 +6,8 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { ClipPathTabs } from "@/components/qiuye-ui/clip-path-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PROMPT_TEMPLATES } from "@/agent/prompt-templates";
+import { openPromptTemplate, TemplateRow } from "@/pages/HomeAgent/components/PromptTemplates";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -356,6 +358,17 @@ export default function ExternalAgentConfig() {
               })}
             </div>
           ) : <p className="text-xs text-muted-foreground" data-testid="setting-external-sessions-empty">{t("setting:external_agent.sessions.empty")}</p>}
+        </div>
+
+        {/* Workflow prompts for the connected agent */}
+        <div className="space-y-2" data-testid="setting-external-templates">
+          <div className="text-sm font-medium">{t("setting:external_agent.templates.title")}</div>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t("setting:external_agent.templates.description")}</p>
+          <div className="grid gap-0.5 rounded-smooth-lg border p-1 sm:grid-cols-2">
+            {PROMPT_TEMPLATES.filter((template) => template.targets.includes("external")).map((template) => (
+              <TemplateRow key={template.id} template={template} testId="setting-external-template" onPick={() => openPromptTemplate(template.id, "external")} />
+            ))}
+          </div>
         </div>
 
         {/* Bundled skill */}

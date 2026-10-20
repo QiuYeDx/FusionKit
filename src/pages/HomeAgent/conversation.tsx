@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next";
 import type { NavigateFunction } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
-import { Check, CheckCircle2, Copy, Loader2, ListPlus, MessageSquareMore, PauseCircle, XCircle, Zap } from "lucide-react";
+import AgentOrb from "@/components/agent-orb/AgentOrb";
+import { Check, CheckCircle2, Copy, ListPlus, MessageSquareMore, PauseCircle, XCircle, Zap } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import { usePreparedActionsStore } from "@/agent/prepared-actions";
 import { reportUiEvent } from "@/agent/orchestrator";
@@ -222,9 +223,9 @@ export function StreamingAssistant({ widgetContext }: { widgetContext: MarkdownW
   const running = useMemo(() => activeToolCalls.map(call => ({ call })), [activeToolCalls]);
   if (!streamingText && activeToolCalls.length === 0) {
     return thinking ? (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        <span>{t("home:agent_thinking")}</span>
+      <div className="flex items-center gap-2 text-muted-foreground text-sm" data-testid="agent-thinking">
+        <AgentOrb size={20} fill={0.86} halo={false} state="think" className="-my-0.5 -ml-0.5" />
+        <span className="agent-thinking-text">{t("home:agent_thinking")}</span>
       </div>
     ) : null;
   }

@@ -27,8 +27,6 @@
   "execution_mode_auto_execute": "Auto Execute",
   "new_conversation": "New Conversation",
   "agent_input_placeholder": "Type a task or just chat...",
-  "suggestion_translate_srt": "Translate SRT subtitles",
-  "suggestion_translate_srt_prompt": "Translate all SRT subtitle files in ~/Downloads",
   "suggestion_lrc_to_srt": "LRC to SRT",
   "suggestion_lrc_to_srt_prompt": "Convert LRC subtitle files in ~/Downloads to SRT format",
   "suggestion_extract_chinese": "Extract Chinese subtitles",
@@ -443,5 +441,162 @@
   "knowledge_kind_enable": "Enable",
   "knowledge_ai_inferred": "AI inferred, please check",
   "token_explanation": "Tokens are the unit AI services measure text and cost in, roughly one Chinese character or one English word each. Context usage is how much of this conversation the model is already reading; start a new conversation when it is full.",
-  "token_help": "About tokens and cost"
+  "token_help": "About tokens and cost",
+  "agent_input_placeholder_busy": "Replying… keep typing, your message will queue",
+  "queue_waiting": "{{count}} queued — sent in order when this reply ends",
+  "queue_next": "{{count}} about to be sent",
+  "queue_paused": "Reply stopped — {{count}} queued, on hold",
+  "queue_resume": "Send them",
+  "queue_send_now": "Send now (stops the reply)",
+  "queue_edit": "Edit",
+  "queue_remove": "Remove from queue",
+  "queue_add": "Queue",
+  "queue_add_hint": "Queue it, sent when this reply ends (Enter)",
+  "queue_now_hint": "Send now and stop the reply ({{shortcut}})",
+  "templates": {
+    "gallery_title": "Workflows",
+    "gallery_hint": "fill in a few details, hand over the whole job",
+    "menu_label": "Workflow templates",
+    "menu_short": "Templates",
+    "target_label": "Who does it",
+    "target_fusionkit": "FusionKit Agent",
+    "target_external": "External agent",
+    "external_note": "Paste it into Claude Code, Codex, Cursor or another agent connected to FusionKit. It does the job through FusionKit's MCP tools and writes the translations itself, so FusionKit needs no model.",
+    "external_setup": "Connect an external agent",
+    "preview": "Prompt to send",
+    "copy": "Copy",
+    "copy_external": "Copy prompt",
+    "copied": "Prompt copied",
+    "copy_failed": "Couldn't copy — select the text and copy it",
+    "fill": "Put in composer",
+    "send": "Send to Agent",
+    "queue": "Add to queue",
+    "missing_folder": "Enter a folder first",
+    "agent_not_ready": "The agent has no model yet — you can put it in the composer or copy it",
+    "pick_folder": "Choose…",
+    "pick_folder_title": "Choose a folder",
+    "pick_folder_button": "Choose this folder",
+    "field": {
+      "folder": "Folder",
+      "folder_hint": "Type, paste or drop a folder here",
+      "folder_placeholder": "e.g. D:\\Music\\Live",
+      "recursive": "Include subfolders",
+      "spoken": "Spoken language",
+      "target": "Translate into",
+      "subtitle_layout": "Subtitle content",
+      "format": "Subtitle format",
+      "rename_after": "Then give the files bilingual names",
+      "rename_after_hint": "Media and exported subtitles become \"Translated - Original\"; you see a preview before anything is renamed",
+      "to_format": "Convert to",
+      "overwrite": "Overwrite files with the same name",
+      "overwrite_hint": "Off: a number is added to the new file's name instead",
+      "name_kind": "Rename",
+      "name_layout": "Name format",
+      "separator": "Joined by",
+      "keep": "Language to keep"
+    },
+    "lang": {
+      "auto": "Detect",
+      "auto_spoken": "detect automatically",
+      "ZH": "Simplified Chinese",
+      "ZH_HANT": "Traditional Chinese",
+      "JA": "Japanese",
+      "EN": "English",
+      "KO": "Korean"
+    },
+    "layout": {
+      "target_first": "Bilingual, translation first",
+      "source_first": "Bilingual, original first",
+      "target_only": "Translation only"
+    },
+    "format": {
+      "auto": "Auto (LRC for audio, SRT for video)",
+      "lrc": "LRC",
+      "srt": "SRT",
+      "vtt": "VTT",
+      "ass": "ASS"
+    },
+    "kind": {
+      "files": "Files",
+      "directories": "Folders",
+      "both": "Files and folders"
+    },
+    "name_layout": {
+      "target_first": "Translated name first",
+      "source_first": "Original name first",
+      "target_only": "Translated name only"
+    },
+    "separator": {
+      "dash": "joined by \" - \"",
+      "paren": "the second name in parentheses",
+      "bracket": "the second name in square brackets",
+      "underscore": "joined by an underscore",
+      "space": "joined by a space"
+    },
+    "text": {
+      "recursive_yes": " (including all subfolders)",
+      "recursive_no": " (not including subfolders)",
+      "overwrite_yes": "overwrite files that already have the name",
+      "overwrite_no": "never overwrite an existing file, add a number instead",
+      "children_all": "includeChildren=true, everything in all subfolders",
+      "children_top": "includeChildren=true, but only the folder's top level",
+      "name_target_first": "the {{target}} name first, then the original, {{separator}}",
+      "name_source_first": "the original name first, then the {{target}} one, {{separator}}",
+      "name_target_only": "only the {{target}} name",
+      "finish_rule": "Before you start, ask me everything you need me to decide in one go; then carry it through to the end without stopping.",
+      "folder_missing": "<folder path>"
+    },
+    "media_bilingual": {
+      "title": "Media to bilingual subtitles",
+      "summary": "Transcribe → translate → export → bilingual file names",
+      "description": "Transcribe the audio or video in a folder with the local model, translate it, save the subtitles next to each file, and optionally give the files bilingual names.",
+      "fusionkit": {
+        "intro": "Please run this workflow for me:",
+        "step_transcribe": "1. Transcribe every audio and video file in `{{path}}`{{recursive}} with local speech recognition. Spoken language: {{spoken}}.",
+        "step_translate": "2. Translate each file into {{target}} as soon as it is transcribed and export a subtitle file ({{layout}}, format: {{format}}) next to the media file; if a file with that name exists, add a number instead of overwriting. Submit transcription, translation and export as one batch.",
+        "step_rename": "3. When all subtitles are exported, translate the names of these media files and exported subtitle files into bilingual names: {{name}}; keep the extensions and rename only these files. Show me the rename preview first."
+      },
+      "external": {
+        "intro": "Please run this workflow with FusionKit's MCP tools (the fusionkit server), writing the translations yourself:",
+        "step_transcribe": "1. Transcribe the audio and video in `{{path}}`{{recursive}} with start_studio_transcription (recursive={{recursiveBool}}, language={{spokenCode}}) and follow get_studio_tasks (kind=transcription) until all are done.",
+        "step_translate": "2. For each transcribed Subtitle Studio document: read the source with read_studio_document, translate every line into {{target}} yourself, create a track with create_studio_translation_track and write it in batches with write_studio_translations.",
+        "step_export": "3. Export each document with export_studio_document: content={{content}}, order={{order}}, format={{formatCode}}, destination=source_directory, conflict=indexed.",
+        "step_rename": "4. Finally list these media files and exported subtitles with inspect_name_paths, translate their names into bilingual names yourself: {{name}}, keeping the extensions, and submit them with rename_paths; I'll confirm in FusionKit."
+      }
+    },
+    "convert_subtitles": {
+      "title": "Convert subtitle formats",
+      "summary": "Turn a folder of subtitles into LRC, SRT and more",
+      "description": "Finds the subtitle files in a folder and converts them, saving each next to its original. Files already in the target format are skipped.",
+      "fusionkit": "Convert every subtitle file in `{{path}}`{{recursive}} to {{to}} and save each next to its original; {{overwrite}}. Skip files already in {{to}}; work in batches if there are many, and tell me how many succeeded and failed.",
+      "external": "Please use FusionKit's MCP tool convert_subtitle_files to convert every subtitle file in `{{path}}`{{recursive}} to {{to}}: paths=[\"{{path}}\"], to={{toCode}}, recursive={{recursiveBool}}, conflict={{conflict}}, output next to each file. Call it in batches above 200 files, then tell me how many succeeded and failed."
+    },
+    "bilingual_names": {
+      "title": "Bilingual file names",
+      "summary": "Rename files or folders to \"Translated - Original\"",
+      "description": "Translates the names of files or folders in a folder. You get a rename preview first, nothing changes until you confirm, and it can be undone.",
+      "fusionkit": "Translate the names of the {{kind}} in `{{path}}`{{recursive}} into {{target}}. Name format: {{name}}; keep the extensions. Make a rename preview for me to confirm first.",
+      "external": "Please rename with FusionKit's MCP tools: list the {{kind}} to rename with inspect_name_paths (paths=[\"{{path}}\"], {{includeChildren}}); translate the names into {{target}} yourself, name format: {{name}}, keeping the extensions; submit them with rename_paths (up to 500 per call) and I'll confirm in FusionKit. Then tell me the journalId so undo_name_changes can undo it if needed."
+    },
+    "translate_subtitles": {
+      "title": "Translate subtitle files",
+      "summary": "Translate a folder of subtitles, saved next to them",
+      "description": "Translates the subtitle files in a folder into another language, bilingual or translation only.",
+      "fusionkit": "Translate the subtitle files in `{{path}}`{{recursive}} into {{target}}, output: {{layout}}, saved next to the originals; don't overwrite existing files.",
+      "external": "Please translate subtitles with FusionKit's MCP tools, writing the translations yourself: import the subtitle files in `{{path}}`{{recursive}} with import_studio_subtitles (recursive={{recursiveBool}}); for each document read it with read_studio_document, translate it into {{target}} yourself and write it with create_studio_translation_track and write_studio_translations; then export with export_studio_document (content={{content}}, order={{order}}, format=auto, destination=source_directory, conflict=indexed)."
+    },
+    "extract_language": {
+      "title": "Extract one language",
+      "summary": "Keep only Chinese, Japanese… from bilingual subtitles",
+      "description": "Takes one language out of bilingual subtitles into new files saved next to the originals.",
+      "fusionkit": "From the bilingual subtitles in `{{path}}`{{recursive}}, keep only {{keep}} and save the new subtitle files next to the originals.",
+      "external": "Please use FusionKit's MCP tool extract_subtitle_language: paths=[\"{{path}}\"], keep={{keepCode}}, recursive={{recursiveBool}}, conflict=indexed, to keep only {{keep}} from the bilingual subtitles, output next to each file. Then tell me how many succeeded and failed."
+    },
+    "resume_translation": {
+      "title": "Resume unfinished translations",
+      "summary": "Scan recovery records and continue where it stopped",
+      "description": "FusionKit leaves recovery records when a subtitle translation stops. Scan a folder to continue from where they left off.",
+      "fusionkit": "Scan `{{path}}` for subtitle translation recovery records and finish the translations that are not done yet."
+    }
+  }
 }

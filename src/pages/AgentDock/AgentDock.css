@@ -24,18 +24,14 @@
 .agent-dock-input::-webkit-scrollbar-thumb:hover,
 .agent-dock-input::-webkit-scrollbar-thumb:active { background-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent); }
 
-/* Launcher states while the panel is closed: a reply is being written, or one arrived unseen. */
-.agent-dock-busy {
-  position: absolute; inset: -3px; border-radius: 999px; pointer-events: none;
-  border: 1.5px solid transparent; border-top-color: var(--primary); border-right-color: color-mix(in oklab, var(--primary) 35%, transparent);
-  animation: agent-dock-spin 1s linear infinite;
-}
+/* The launcher is the agent's orb; it gives a little under the press. A reply arriving unseen adds a dot. */
+.agent-dock-launcher { transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1); }
+.agent-dock-launcher:active { transform: scale(0.94); }
 .agent-dock-unread {
-  position: absolute; top: 1px; right: 1px; width: 8px; height: 8px; border-radius: 999px; pointer-events: none;
+  position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; border-radius: 999px; pointer-events: none;
   background: var(--primary); box-shadow: 0 0 0 2px var(--background);
 }
-@keyframes agent-dock-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .agent-dock-busy { animation-duration: 3s; }
+  .agent-dock-launcher:active { transform: none; }
   .agent-dock-scroll [data-slot="scroll-area-scrollbar"] { animation: none !important; }
 }

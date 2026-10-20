@@ -1,0 +1,41 @@
+/* Without WebGL the orb is a soft iridescent circle. */
+.agent-orb-fallback {
+  background:
+    radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.85), transparent 28%),
+    conic-gradient(from 210deg, #8f6bff, #4d8cff, #5ce8fa, #ff76d6, #8f6bff);
+  box-shadow: 0 0 18px -2px rgb(143 107 255 / 0.55);
+  filter: saturate(0.9);
+}
+.dark .agent-orb-fallback {
+  background:
+    radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.5), transparent 26%),
+    radial-gradient(circle, #0b0a14 52%, transparent 53%),
+    conic-gradient(from 210deg, #8f6bff, #4d8cff, #5ce8fa, #ff76d6, #8f6bff);
+}
+
+/* "Thinking…" beside the small orb: a light passes over the words. */
+.agent-thinking-text {
+  background: linear-gradient(90deg, currentColor 0%, currentColor 40%, var(--foreground) 50%, currentColor 60%, currentColor 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: agent-thinking-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.agent-thinking-text { color: var(--muted-foreground); }
+@keyframes agent-thinking-sweep { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .agent-thinking-text { animation: none; -webkit-text-fill-color: currentColor; background: none; }
+}
+
+/* "Thinking…" beside the small orb: a light passes over the words. */
+.agent-thinking-text {
+  color: var(--muted-foreground);
+  background: linear-gradient(90deg, var(--muted-foreground) 0%, var(--muted-foreground) 40%, var(--foreground) 50%, var(--muted-foreground) 60%, var(--muted-foreground) 100%) 0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: agent-thinking-sweep 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes agent-thinking-sweep { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .agent-thinking-text { animation: none; background: none; -webkit-text-fill-color: currentColor; }
+}

@@ -221,13 +221,14 @@ describe.runIf(process.env.FUSIONKIT_AGENT_DOCK_E2E === '1')('floating agent pan
       await uiExpect(rows.nth(4).locator('[data-field=source]')).toHaveText('法厄同驾着太阳车出发了。');
       await shot('03-applied-conversation');
 
-      // Closed while replying: the launcher shows progress, then an unread reply.
+      // Closed while replying: the launcher's orb shows the reply running, then an unread reply.
       holdNext = true;
       queue.push(text('第 5 句现在是“法厄同驾着太阳车出发了。”'));
       await page.getByTestId('agent-dock-input').fill('第 5 句现在是什么？');
       await page.getByTestId('agent-dock-input').press('Enter');
       await page.getByTestId('agent-dock-minimize').click();
-      await uiExpect(page.getByTestId('agent-dock-busy')).toBeVisible();
+      // The launcher's orb thinks or answers while the reply runs.
+      await uiExpect(page.getByTestId('agent-dock-launcher')).toHaveAttribute('data-state', /^(think|answer)$/);
       await page.screenshot({ path: path.join(artifacts, '04-launcher-busy.png'), clip: { x: 0, y: 760, width: 200, height: 100 } });
       await expect.poll(() => !!hold).toBe(true);
       hold!();

@@ -27,8 +27,6 @@
   "execution_mode_auto_execute": "自動実行",
   "new_conversation": "新しい会話",
   "agent_input_placeholder": "タスクを入力するか自由にチャット...",
-  "suggestion_translate_srt": "SRT 字幕を翻訳",
-  "suggestion_translate_srt_prompt": "~/Downloads 内のすべての SRT 字幕ファイルを翻訳",
   "suggestion_lrc_to_srt": "LRC から SRT",
   "suggestion_lrc_to_srt_prompt": "~/Downloads 内の LRC 字幕ファイルを SRT 形式に変換",
   "suggestion_extract_chinese": "中国語字幕を抽出",
@@ -443,5 +441,162 @@
   "knowledge_kind_enable": "有効化",
   "knowledge_ai_inferred": "AI の推測・要確認",
   "token_explanation": "トークンは AI が文章の長さと料金を数える単位で、おおよそ漢字 1 文字や英単語 1 語が 1 トークンです。コンテキスト使用率は、この会話でモデルに渡している量です。いっぱいになったら新しい会話を始めてください。",
-  "token_help": "トークンと料金について"
+  "token_help": "トークンと料金について",
+  "agent_input_placeholder_busy": "返信中…続けて入力できます。送信すると順番待ちに入ります",
+  "queue_waiting": "{{count}} 件が順番待ち。いまの返信が終わると順に送信します",
+  "queue_next": "まもなく {{count}} 件を送信します",
+  "queue_paused": "返信が中断されたため、順番待ちの {{count}} 件を保留中",
+  "queue_resume": "送信を再開",
+  "queue_send_now": "今すぐ送信（いまの返信を中断）",
+  "queue_edit": "戻して編集",
+  "queue_remove": "順番待ちから外す",
+  "queue_add": "順番待ちに追加",
+  "queue_add_hint": "順番待ちに追加し、返信が終わったら送信（Enter）",
+  "queue_now_hint": "今すぐ送信して返信を中断（{{shortcut}}）",
+  "templates": {
+    "gallery_title": "よく使うワークフロー",
+    "gallery_hint": "いくつか入力するだけでまとめて Agent に任せられます",
+    "menu_label": "ワークフローのテンプレート",
+    "menu_short": "テンプレート",
+    "target_label": "実行するエージェント",
+    "target_fusionkit": "FusionKit Agent",
+    "target_external": "外部エージェント",
+    "external_note": "コピーして、FusionKit に接続した Claude Code・Codex・Cursor などの外部エージェントに貼り付けてください。FusionKit の MCP ツールで作業し、翻訳はエージェント自身が書くため、FusionKit 側のモデル設定は不要です。",
+    "external_setup": "外部エージェントを接続",
+    "preview": "送信するプロンプト",
+    "copy": "コピー",
+    "copy_external": "プロンプトをコピー",
+    "copied": "プロンプトをコピーしました",
+    "copy_failed": "コピーできませんでした。テキストを選択してコピーしてください",
+    "fill": "入力欄に入れる",
+    "send": "Agent に送信",
+    "queue": "順番待ちに追加",
+    "missing_folder": "先にフォルダーを入力してください",
+    "agent_not_ready": "Agent のモデルが未設定です。入力欄に入れるかコピーできます",
+    "pick_folder": "選択…",
+    "pick_folder_title": "フォルダーを選択",
+    "pick_folder_button": "このフォルダーを選択",
+    "field": {
+      "folder": "フォルダー",
+      "folder_hint": "入力・貼り付け、またはフォルダーをここにドロップ",
+      "folder_placeholder": "例: D:\\Music\\Live",
+      "recursive": "サブフォルダーも含める",
+      "spoken": "話されている言語",
+      "target": "翻訳先",
+      "subtitle_layout": "字幕の内容",
+      "format": "字幕形式",
+      "rename_after": "最後にファイル名も 2 言語にする",
+      "rename_after_hint": "メディアと書き出した字幕の名前を「訳名 - 原名」に。変更前にプレビューを表示します",
+      "to_format": "変換先",
+      "overwrite": "同名ファイルを上書き",
+      "overwrite_hint": "オフのときは番号を付けて別名で保存します",
+      "name_kind": "名前を変える対象",
+      "name_layout": "名前の形式",
+      "separator": "2 つの名前のつなぎ方",
+      "keep": "残す言語"
+    },
+    "lang": {
+      "auto": "自動検出",
+      "auto_spoken": "自動検出",
+      "ZH": "簡体字中国語",
+      "ZH_HANT": "繁体字中国語",
+      "JA": "日本語",
+      "EN": "英語",
+      "KO": "韓国語"
+    },
+    "layout": {
+      "target_first": "2 言語・訳文が先",
+      "source_first": "2 言語・原文が先",
+      "target_only": "訳文のみ"
+    },
+    "format": {
+      "auto": "自動（音声は LRC、動画は SRT）",
+      "lrc": "LRC",
+      "srt": "SRT",
+      "vtt": "VTT",
+      "ass": "ASS"
+    },
+    "kind": {
+      "files": "ファイル",
+      "directories": "フォルダー",
+      "both": "ファイルとフォルダー"
+    },
+    "name_layout": {
+      "target_first": "訳名が先、原名が後",
+      "source_first": "原名が先、訳名が後",
+      "target_only": "訳名のみ"
+    },
+    "separator": {
+      "dash": "「 - 」で区切る",
+      "paren": "後ろの名前を丸括弧に入れる",
+      "bracket": "後ろの名前を角括弧に入れる",
+      "underscore": "アンダースコアでつなぐ",
+      "space": "スペースでつなぐ"
+    },
+    "text": {
+      "recursive_yes": "（サブフォルダーを含む）",
+      "recursive_no": "（サブフォルダーを除く）",
+      "overwrite_yes": "同名ファイルがあれば上書きしてください",
+      "overwrite_no": "同名ファイルは上書きせず、番号を付けてください",
+      "children_all": "includeChildren=true、すべてのサブフォルダーの項目を含む",
+      "children_top": "includeChildren=true、ただしフォルダー直下の項目だけ",
+      "name_target_first": "{{target}}の訳名を先、原名を後にして{{separator}}",
+      "name_source_first": "原名を先、{{target}}の訳名を後にして{{separator}}",
+      "name_target_only": "{{target}}の訳名だけ",
+      "finish_rule": "始める前に、私が決める必要のあることはまとめて一度に聞いてください。その後は途中で止めずに最後まで進めてください。",
+      "folder_missing": "〈フォルダーのパス〉"
+    },
+    "media_bilingual": {
+      "title": "音声・動画を 2 言語字幕に",
+      "summary": "文字起こし → 翻訳 → 字幕書き出し → 2 言語のファイル名",
+      "description": "フォルダー内の音声や動画をローカルモデルで文字起こしし、翻訳した字幕を元ファイルの隣に書き出します。ファイル名も 2 言語にできます。",
+      "fusionkit": {
+        "intro": "次のワークフローを実行してください：",
+        "step_transcribe": "1. `{{path}}`{{recursive}}のすべての音声・動画ファイルをローカル音声認識で文字起こししてください。話されている言語：{{spoken}}。",
+        "step_translate": "2. 各ファイルは文字起こしが終わりしだい{{target}}に翻訳し、字幕ファイル（{{layout}}、形式：{{format}}）として元のメディアファイルの隣に書き出してください。同名ファイルがあれば上書きせず番号を付けてください。文字起こし・翻訳・書き出しは 1 つのバッチとして送ってください。",
+        "step_rename": "3. すべての字幕を書き出したら、これらのメディアファイルと書き出した字幕ファイルの名前を 2 言語にしてください：{{name}}。拡張子はそのまま、これらのファイルだけを対象に、先に名前変更のプレビューを見せてください。"
+      },
+      "external": {
+        "intro": "FusionKit の MCP ツール（fusionkit サーバー）で次のワークフローを実行してください。翻訳はあなた自身が書いてください：",
+        "step_transcribe": "1. start_studio_transcription で `{{path}}`{{recursive}}の音声と動画を文字起こしし（recursive={{recursiveBool}}、language={{spokenCode}}）、get_studio_tasks（kind=transcription）ですべて完了するまで確認してください。",
+        "step_translate": "2. 文字起こしされた字幕スタジオの各ドキュメントについて：read_studio_document で原文を読み、各行をあなた自身が{{target}}に翻訳し、create_studio_translation_track で訳文トラックを作り、write_studio_translations で分けて書き込んでください。",
+        "step_export": "3. export_studio_document で各ドキュメントを書き出してください：content={{content}}、order={{order}}、format={{formatCode}}、destination=source_directory、conflict=indexed。",
+        "step_rename": "4. 最後に inspect_name_paths でこれらのメディアファイルと書き出した字幕を一覧にし、ファイル名をあなた自身が 2 言語にして（{{name}}、拡張子はそのまま）、rename_paths で送ってください。FusionKit で私が確認します。"
+      }
+    },
+    "convert_subtitles": {
+      "title": "字幕形式をまとめて変換",
+      "summary": "フォルダーの字幕を LRC や SRT などに統一",
+      "description": "フォルダー内の字幕ファイルを探して形式を変換し、元ファイルの隣に保存します。すでに変換先の形式のファイルはスキップします。",
+      "fusionkit": "`{{path}}`{{recursive}}のすべての字幕ファイルを {{to}} 形式に変換し、それぞれ元ファイルの隣に保存してください。{{overwrite}}。すでに {{to}} のファイルはスキップし、多い場合は分けて処理して、最後に成功と失敗の件数を教えてください。",
+      "external": "FusionKit の MCP ツール convert_subtitle_files で、`{{path}}`{{recursive}}のすべての字幕ファイルを {{to}} に変換してください：paths=[\"{{path}}\"]、to={{toCode}}、recursive={{recursiveBool}}、conflict={{conflict}}、出力は各ファイルの隣。200 件を超える場合は分けて呼び出し、最後に成功と失敗の件数を教えてください。"
+    },
+    "bilingual_names": {
+      "title": "ファイル名を 2 言語に",
+      "summary": "ファイルやフォルダー名を「訳名 - 原名」にまとめて変更",
+      "description": "フォルダー内のファイル名やフォルダー名を翻訳します。先に名前変更のプレビューを作り、確認するまで何も変わりません。変更後に元に戻すこともできます。",
+      "fusionkit": "`{{path}}`{{recursive}}の{{kind}}の名前を{{target}}に翻訳してください。名前の形式：{{name}}。拡張子はそのままにしてください。先に名前変更のプレビューを作って確認させてください。",
+      "external": "FusionKit の MCP ツールでまとめて名前を変更してください：inspect_name_paths（paths=[\"{{path}}\"]、{{includeChildren}}）で対象の{{kind}}を一覧にし、名前をあなた自身が{{target}}に翻訳して（名前の形式：{{name}}、拡張子はそのまま）、rename_paths で送ってください（1 回 500 件まで）。FusionKit で私が確認します。終わったら journalId を教えてください。必要なら undo_name_changes で元に戻せます。"
+    },
+    "translate_subtitles": {
+      "title": "字幕ファイルをまとめて翻訳",
+      "summary": "フォルダーの字幕を翻訳して元ファイルの隣に保存",
+      "description": "フォルダー内の字幕ファイルを別の言語に翻訳します。2 言語または訳文のみで出力できます。",
+      "fusionkit": "`{{path}}`{{recursive}}の字幕ファイルを{{target}}に翻訳し、{{layout}}で元ファイルの隣に保存してください。同名ファイルは上書きしないでください。",
+      "external": "FusionKit の MCP ツールで字幕を翻訳してください。翻訳はあなた自身が書いてください：import_studio_subtitles で `{{path}}`{{recursive}}の字幕ファイルを取り込み（recursive={{recursiveBool}}）、各ドキュメントを read_studio_document で読んで{{target}}に翻訳し、create_studio_translation_track と write_studio_translations で書き込み、export_studio_document で書き出してください（content={{content}}、order={{order}}、format=auto、destination=source_directory、conflict=indexed）。"
+    },
+    "extract_language": {
+      "title": "2 言語字幕から 1 言語を抽出",
+      "summary": "中国語や日本語など 1 つの言語だけを残す",
+      "description": "2 言語字幕から 1 つの言語だけを取り出し、新しい字幕ファイルとして元ファイルの隣に保存します。",
+      "fusionkit": "`{{path}}`{{recursive}}の 2 言語字幕から{{keep}}だけを残し、新しい字幕ファイルを元ファイルの隣に保存してください。",
+      "external": "FusionKit の MCP ツール extract_subtitle_language を使ってください：paths=[\"{{path}}\"]、keep={{keepCode}}、recursive={{recursiveBool}}、conflict=indexed で、2 言語字幕から{{keep}}だけを残し、出力は各ファイルの隣に。最後に成功と失敗の件数を教えてください。"
+    },
+    "resume_translation": {
+      "title": "途中の字幕翻訳を再開",
+      "summary": "復元記録を探して中断した位置から続ける",
+      "description": "字幕翻訳が中断すると FusionKit は復元記録を残します。フォルダーを調べて、中断した位置から翻訳を続けられます。",
+      "fusionkit": "`{{path}}` の字幕翻訳の復元記録を探して、まだ終わっていない翻訳を最後まで続けてください。"
+    }
+  }
 }

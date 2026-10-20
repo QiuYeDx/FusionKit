@@ -10,10 +10,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import {
-  Send,
   SquarePen,
-  Sparkles,
-  Square,
   Settings,
   AlertTriangle,
   Activity,
@@ -25,7 +22,7 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
-import { handleUserMessage, abortCurrentStream } from "@/agent/orchestrator";
+import { handleUserMessage, abortCurrentStream, submitUserMessage } from "@/agent/orchestrator";
 import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
 import { settingPath } from "@/pages/Setting/settingNavigation";
 import { helpPath } from "@/pages/Help/helpNavigation";
@@ -51,9 +48,11 @@ import {
 import { inferContextWindowSize } from "@/constants/model";
 import { cn } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
-import FusionKitLogo from "@/assets/FusionKit.svg";
+import AgentOrb, { type AgentOrbHandle } from "@/components/agent-orb/AgentOrb";
 import { useFileDropInput, useInputHistory } from "./composer";
 import { InputHistoryHint } from "./components/InputHistoryHint";
+import { ComposerSendControls, composerSubmitKey, MessageQueue } from "./components/MessageQueue";
+import { TemplateGallery, TemplateMenuButton } from "./components/PromptTemplates";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -132,6 +131,21 @@ function HomeAgent() {
       : t("home:api_format_chat_completions");
 
   const [isMultiline, setIsMultiline] = useState(() => input.includes("\n"));
+  // The home orb listens while the user writes: each change to the draft is a little burst.
+  const heroOrbRef = useRef<AgentOrbHandle>(null);
+  const [composerFocused, setComposerFocused] = useState(false);
+  // A short window gets a smaller orb, so the empty state still fits under the title bar.
+  const [compactHero, setCompactHero] = useState(() => window.innerHeight < 780);
+  useEffect(() => {
+    const update = () => setCompactHero(window.innerHeight < 780);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  const previousInput = useRef(input);
+  useEffect(() => {
+    if (input !== previousInput.current) heroOrbRef.current?.nudge(input.length > previousInput.current.length ? 0.32 : 0.12);
+    previousInput.current = input;
+  }, [input]);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
   const setBottomState = useCallback((nextIsAtBottom: boolean) => {
@@ -186,7 +200,7 @@ function HomeAgent() {
     writeSessionDraft(draftOwner.current, input);
   }, [input]);
 
-  // An example task (from the welcome wizard) fills this composer as a suggestion pill does.
+  // A template, or an example task from the welcome wizard, fills this composer.
   useEffect(() => onSessionDraftFilled((sessionId, text) => {
     if (sessionId !== draftOwner.current) return;
     setInput(text);
@@ -366,28 +380,41 @@ function HomeAgent() {
     void handleUserMessage(t("home:plan_check_prompt"));
   };
 
-  const handleSend = async () => {
+  // While a reply runs the message waits in the session's queue; now stops the reply and sends it next.
+  const handleSend = (now = false) => {
     const trimmed = input.trim();
-    if (!trimmed || isStreaming || !hasAgentConfig || hasUnsupportedAgentApiFormat) return;
+    if (!trimmed || !hasAgentConfig || hasUnsupportedAgentApiFormat) return;
     setSessionFeedback(null);
     rememberInput(trimmed);
     setInput("");
-    await handleUserMessage(trimmed);
+    setBottomState(true);
+    submitUserMessage(trimmed, { now });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    const submit = composerSubmitKey(e);
+    if (submit) {
       e.preventDefault();
-      handleSend();
+      handleSend(submit === "now");
       return;
     }
 
     onHistoryKey(e);
   };
 
+  // A queued message taken back to edit goes in front of whatever is being written.
+  const editQueuedMessage = (text: string) => {
+    setInput((current) => current.trim() ? `${text}\n${current}` : text);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
   const canSend =
-    input.trim().length > 0 && !isStreaming && hasAgentConfig && !hasUnsupportedAgentApiFormat;
+    input.trim().length > 0 && hasAgentConfig && !hasUnsupportedAgentApiFormat;
+  const sendControls = (
+    <ComposerSendControls busy={isStreaming} hasDraft={input.trim().length > 0} canSend={canSend}
+      onSend={handleSend} onStop={abortCurrentStream} testId="agent-send" />
+  );
   const showScrollToBottomButton = !isEmpty && !isAtBottom;
   const hasActiveResponse =
     isStreaming || status === "thinking" || status === "streaming";
@@ -426,6 +453,7 @@ function HomeAgent() {
           >
             <TokenStatsBar className="max-w-none mx-0 mb-0" />
             <div className="flex items-center gap-1 ml-auto translate-y-1">
+              <TemplateMenuButton />
               <AgentCapabilities />
               <Button
                 variant="ghost"
@@ -494,6 +522,7 @@ function HomeAgent() {
         )}
       </AnimatePresence>
       {sessionFeedback && <p className="max-w-2xl mx-auto mb-2 px-2 text-xs leading-5 text-muted-foreground" role="status" aria-live="polite" data-testid="agent-session-feedback">{sessionFeedback}</p>}
+      {!isEmpty && <MessageQueue className="max-w-2xl mx-auto" onEdit={editQueuedMessage} />}
 
       <motion.div
         {...dropHandlers}
@@ -552,12 +581,13 @@ function HomeAgent() {
               aria-label={t("home:agent_input_label")}
               ref={textareaRef}
               rows={1}
-              placeholder={t("home:agent_input_placeholder")}
+              placeholder={t(isStreaming ? "home:agent_input_placeholder_busy" : "home:agent_input_placeholder")}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={isStreaming}
-              className="bg-transparent border-0 shadow-none rounded-none min-h-0 px-1.5 py-1 text-sm placeholder:text-muted-foreground/70 disabled:opacity-50 resize-none max-h-40 overflow-y-auto focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
+              onFocus={() => setComposerFocused(true)}
+              onBlur={() => setComposerFocused(false)}
+              className="bg-transparent border-0 shadow-none rounded-none min-h-0 px-1.5 py-1 text-sm placeholder:text-muted-foreground/70 resize-none max-h-40 overflow-y-auto focus-visible:ring-0 focus-visible:border-transparent dark:bg-transparent"
             />
           </motion.div>
           {isMultiline ? (
@@ -578,29 +608,7 @@ function HomeAgent() {
                 layoutId="capsule-send"
                 className="shrink-0"
               >
-                <Button
-                  aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
-                  data-testid="agent-send"
-                  onClick={
-                    isStreaming ? () => abortCurrentStream() : handleSend
-                  }
-                  disabled={!isStreaming && !canSend}
-                  className={cn(
-                    "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
-                    "transition-all duration-200",
-                    isStreaming
-                      ? "hover:bg-destructive"
-                      : canSend
-                        ? "bg-primary text-primary-foreground hover:opacity-90"
-                        : "bg-transparent text-muted-foreground/45",
-                  )}
-                >
-                  {isStreaming ? (
-                    <Square className="h-3.5 w-3.5 fill-current" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
+                {sendControls}
               </motion.div>
             </div>
           ) : (
@@ -609,27 +617,7 @@ function HomeAgent() {
               layoutId="capsule-send"
               className="ml-auto shrink-0"
             >
-              <Button
-                aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
-                data-testid="agent-send"
-                onClick={isStreaming ? () => abortCurrentStream() : handleSend}
-                disabled={!isStreaming && !canSend}
-                className={cn(
-                  "flex items-center justify-center rounded-full w-8 h-8 shrink-0",
-                  "transition-all duration-200",
-                  isStreaming
-                    ? "hover:bg-destructive"
-                    : canSend
-                      ? "bg-primary text-primary-foreground hover:opacity-90"
-                      : "bg-transparent text-muted-foreground/45",
-                )}
-              >
-                {isStreaming ? (
-                  <Square className="h-3.5 w-3.5 fill-current" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
+              {sendControls}
             </motion.div>
           )}
         </motion.div>
@@ -686,33 +674,13 @@ function HomeAgent() {
           transition={EMPTY_STATE_LAYOUT_TRANSITION}
           className="flex flex-1 flex-col items-center justify-center px-4 pb-28 pt-8 animate-in fade-in duration-500"
         >
-          {/* Concentric Circles + Logo */}
+          {/* The agent's orb: it listens while the user writes, and follows the pointer a little. */}
           <motion.div
             layout="position"
             transition={EMPTY_STATE_LAYOUT_TRANSITION}
-            className="relative flex items-center justify-center mb-8 z-0"
+            className="relative z-0 -my-6 flex items-center justify-center"
           >
-            <div
-              className="absolute w-48 h-48 rounded-full border border-border/25"
-              style={{ animation: "ring-breathe 6s ease-in-out infinite" }}
-            />
-            <div
-              className="absolute w-36 h-36 rounded-full border border-border/45"
-              style={{
-                animation: "ring-breathe 5s ease-in-out infinite 0.8s",
-              }}
-            />
-            <div
-              className="absolute w-24 h-24 rounded-full border border-border/75"
-              style={{
-                animation: "ring-breathe 4s ease-in-out infinite 1.6s",
-              }}
-            />
-            <img
-              src={FusionKitLogo}
-              alt="FusionKit"
-              className="w-12 h-12 rounded-smooth-xl relative z-10"
-            />
+            <AgentOrb ref={heroOrbRef} size={compactHero ? 160 : 208} fill={0.5} followPointer state={composerFocused && input.trim() ? "listen" : "idle"} testId="home-agent-orb" />
           </motion.div>
 
           <motion.h1
@@ -741,36 +709,13 @@ function HomeAgent() {
             {inputCapsule}
           </motion.div>
 
-          {/* Suggestion Pills */}
+          {/* Workflows: frequent jobs as templates to fill in */}
           <motion.div
             layout="position"
             transition={EMPTY_STATE_LAYOUT_TRANSITION}
-            className="mt-6 flex flex-wrap justify-center gap-2 max-w-xl"
+            className="mt-6 flex w-full justify-center"
           >
-            <SuggestionPill
-              icon={<Sparkles className="h-3 w-3" />}
-              text={t("home:suggestion_studio")}
-              onClick={() => {
-                setInput(t("home:suggestion_studio_prompt"));
-                textareaRef.current?.focus();
-              }}
-            />
-            <SuggestionPill
-              icon={<Sparkles className="h-3 w-3" />}
-              text={t("home:suggestion_lrc_to_srt")}
-              onClick={() => {
-                setInput(t("home:suggestion_lrc_to_srt_prompt"));
-                textareaRef.current?.focus();
-              }}
-            />
-            <SuggestionPill
-              icon={<Sparkles className="h-3 w-3" />}
-              text={t("home:suggestion_extract_chinese")}
-              onClick={() => {
-                setInput(t("home:suggestion_extract_chinese_prompt"));
-                textareaRef.current?.focus();
-              }}
-            />
+            <TemplateGallery />
           </motion.div>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2"><AgentCapabilities /><Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs text-muted-foreground" data-testid="agent-import-empty" onClick={handleImport}><Download className="size-3.5" />{t("home:import_session")}</Button></div>
         </motion.div>
@@ -859,31 +804,6 @@ function HomeAgent() {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-function SuggestionPill({
-  icon,
-  text,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  text: string;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      variant="outline"
-      className={cn(
-        "flex items-center gap-1.5 rounded-full",
-        "px-3.5 py-1.5 text-sm text-foreground/60",
-        "transition-all duration-200",
-      )}
-      onClick={onClick}
-    >
-      {icon}
-      <span>{text}</span>
-    </Button>
-  );
-}
 
 function ScrollToBottomLoadingDots() {
   return (

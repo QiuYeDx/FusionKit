@@ -4,10 +4,10 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useShallow } from "zustand/react/shallow";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "motion/react";
-import { AlertTriangle, ArrowDown, ChevronDown, Maximize2, Minus, Pin, Send, Settings, Sparkles, Square, SquarePen } from "lucide-react";
+import { AlertTriangle, ArrowDown, ChevronDown, Maximize2, Minus, Pin, Settings, SquarePen } from "lucide-react";
 import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
-import { abortCurrentStream, handleUserMessage } from "@/agent/orchestrator";
+import { abortCurrentStream, handleUserMessage, submitUserMessage } from "@/agent/orchestrator";
 import { isAgentProfileApiFormatSupported } from "@/agent/api-format-capability";
 import { settingPath } from "@/pages/Setting/settingNavigation";
 import { pageTitleKey, usePageContextStore } from "@/agent/page-context";
@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 import { useFileDropInput, useInputHistory } from "../HomeAgent/composer";
 import { InputHistoryHint } from "../HomeAgent/components/InputHistoryHint";
+import { ComposerSendControls, composerSubmitKey, MessageQueue } from "../HomeAgent/components/MessageQueue";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -26,11 +27,14 @@ import { dockClipPath, hasUnreadReply, isDockRoute } from "./dock-state";
 import { travel } from "./travel";
 import { clampDockOffset, DOCK_EDGE, DOCK_PANEL_BOTTOM, dockPanelRect, homeColumnTarget, readHomeColumn, type DockOffset, type DockRect, type Viewport } from "./handoff";
 import { newSession } from "@/agent/session-persistence";
-import { readSessionDraft, writeSessionDraft } from "@/agent/session-drafts";
+import { onSessionDraftFilled, readSessionDraft, writeSessionDraft } from "@/agent/session-drafts";
+import { templatesForRoute } from "@/agent/prompt-templates";
+import { openPromptTemplate, TemplateMenuButton, TemplateRow } from "../HomeAgent/components/PromptTemplates";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SessionList, sessionDisplayTitle, useOtherSessionsActivity } from "../HomeAgent/components/SessionList";
 import { SessionSearch } from "../HomeAgent/SessionSidebar";
 import { predictHomeContentShift } from "../HomeAgent/home-layout";
+import AgentOrb, { type OrbState } from "@/components/agent-orb/AgentOrb";
 import "./AgentDock.css";
 
 const PIN_KEY = "fusionkit-agent-dock-pinned";
@@ -199,6 +203,12 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   const [input, setInput] = useState(() => readSessionDraft(useAgentStore.getState().activeSessionId));
   const draftOwner = useRef(activeSessionId);
   useEffect(() => { writeSessionDraft(draftOwner.current, input); }, [input]);
+  // A template filled in from this panel puts its prompt here.
+  useEffect(() => onSessionDraftFilled((sessionId, text) => {
+    if (sessionId !== draftOwner.current) return;
+    setInput(text);
+    requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+  }), []);
   // Pinned, the panel stays open while the user works in the page (for example selecting cues to ask about).
   const [pinned, setPinned] = useState(readPinned);
   const togglePinned = () => setPinned((current) => {
@@ -225,6 +235,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     // closePanel only uses state setters and refs.
   }, [open, arriving, pinned]);
 
+  const [launcherHover, setLauncherHover] = useState(false);
   const { session, isStreaming, executionMode, setExecutionMode, pendingExecution, pendingNameTranslationPlan } = useAgentStore(useShallow((state) => ({
     session: state.session, isStreaming: state.isStreaming, executionMode: state.executionMode, setExecutionMode: state.setExecutionMode,
     pendingExecution: state.pendingExecution, pendingNameTranslationPlan: state.pendingNameTranslationPlan,
@@ -302,18 +313,24 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
   // Up/Down recall sent messages and dropped files add their paths, as on the home page.
   const { remember: rememberInput, onHistoryKey, historyPosition } = useInputHistory(input, setInput, inputRef);
   const { isDragOver, dropHandlers } = useFileDropInput(setInput, inputRef);
-  const send = async () => {
+  // While a reply runs the message waits in the session's queue; now stops the reply and sends it next.
+  const send = (now = false) => {
     const text = input.trim();
-    if (!text || isStreaming || !configured) return;
+    if (!text || !configured) return;
     rememberInput(text);
     setInput("");
     atBottom.current = true;
-    await handleUserMessage(text);
+    submitUserMessage(text, { now });
   };
   const onInputKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.nativeEvent.isComposing) return;
-    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); return; }
+    const submit = composerSubmitKey(event);
+    if (submit) { event.preventDefault(); send(submit === "now"); return; }
     onHistoryKey(event);
+  };
+  const editQueuedMessage = (text: string) => {
+    setInput((current) => current.trim() ? `${text}\n${current}` : text);
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
   // Asks the agent right away; the draft in the composer stays as it is.
   const checkProgress = () => {
@@ -349,7 +366,10 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
     if (finished && open && !arriving && (!focus || focus === document.body || panelRef.current?.contains(focus))) inputRef.current?.focus({ preventScroll: true });
   }, [isStreaming, open, arriving]);
   const suggestions = page?.suggestions ?? [];
-  const canSend = !!input.trim() && !isStreaming && configured;
+  const pageTemplates = templatesForRoute(location.pathname);
+  // The orb shows what the agent is doing: thinking, writing a reply, or (under the pointer) listening.
+  const orbState: OrbState = session.status === "thinking" && isStreaming ? "think" : isStreaming ? "answer" : launcherHover ? "listen" : "idle";
+  const canSend = !!input.trim() && configured;
 
   return <>
     <motion.div className="agent-dock-shadow fixed z-[45]" data-hidden={hidden || undefined} data-testid="agent-dock-frame"
@@ -362,7 +382,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
       onAnimationComplete={() => {
         if (!arriving) return;
         setArriving(false);
-        // The input is disabled while a reply streams; focus follows when it finishes.
+        // The conversation has landed: the composer is ready, also while a reply streams (messages then queue).
         requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
       }}>
       <motion.div ref={panelRef} id="agent-dock-panel" data-testid="agent-dock-panel" data-open={open || undefined}
@@ -395,7 +415,7 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
           <header className="relative z-10 flex shrink-0 cursor-grab touch-none items-center gap-2 border-b bg-background px-3 py-2 select-none active:cursor-grabbing"
             data-testid="agent-dock-header" onPointerDown={onHeaderPointerDown} onPointerMove={onHeaderPointerMove}
             onPointerUp={onHeaderPointerUp} onLostPointerCapture={onHeaderPointerUp} onDoubleClick={onHeaderDoubleClick}>
-            <Sparkles className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <AgentOrb size={20} fill={0.86} halo={false} state={isStreaming ? orbState : "idle"} paused={!open} className="-my-0.5 shrink-0" testId="agent-dock-header-orb" />
             <div className="min-w-0 flex-1">
               {/* The title is the session: it opens the list of conversations to switch to. */}
               <Popover open={switcherOpen} onOpenChange={(next) => { setSwitcherOpen(next); if (!next) setSwitcherQuery(""); }}>
@@ -442,11 +462,14 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
                 {!messages.length && !isStreaming && <div className="flex flex-col items-center gap-3 px-2 pt-6 pb-2 text-center" data-testid="agent-dock-empty">
                   <div className="text-sm font-medium">{t("home:dock.empty_title")}</div>
                   <p className="text-xs leading-5 text-muted-foreground">{pageName ? t("home:dock.empty_hint_page", { page: pageName }) : t("home:dock.empty_hint")}</p>
+                  {pageTemplates.length > 0 && <div className="w-full pt-1 text-left" data-testid="agent-dock-templates">
+                    {pageTemplates.map((template) => <TemplateRow key={template.id} template={template} testId="agent-dock-template" onPick={() => openPromptTemplate(template.id)} />)}
+                  </div>}
                   {suggestions.length > 0 && <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-                    {suggestions.map((item) => <Button key={item.labelKey} type="button" variant="outline" size="sm" data-testid="agent-dock-suggestion"
-                      className="h-7 rounded-full px-3 text-xs text-foreground/70"
+                    {suggestions.map((item) => <Button key={item.labelKey} type="button" variant="ghost" size="sm" data-testid="agent-dock-suggestion"
+                      className="h-7 rounded-full bg-muted/60 px-3 text-xs text-foreground/70 hover:bg-muted hover:text-foreground"
                       onClick={() => { setInput(t(item.promptKey)); requestAnimationFrame(() => inputRef.current?.focus()); }}>
-                      <Sparkles className="size-3" />{t(item.labelKey)}
+                      {t(item.labelKey)}
                     </Button>)}
                   </div>}
                 </div>}
@@ -468,24 +491,24 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
               <span className="min-w-0 flex-1 text-xs leading-5 text-amber-700 dark:text-amber-400">{t("home:agent_not_configured")}</span>
               <Button type="button" variant="outline" size="sm" className="h-7 shrink-0 gap-1 rounded-full px-2 text-xs" onClick={() => navigate(settingPath("model"))}><Settings className="size-3" />{t("home:go_settings")}</Button>
             </div>}
+            <MessageQueue onEdit={editQueuedMessage} />
             {/* Concentric corners: the controls sit 6px inside the composer, so their radius is 16 - 6. */}
             <SmoothCorners radius={16} smoothing={0.72} {...dropHandlers} data-testid="agent-dock-composer" data-drag-over={isDragOver || undefined}
               className={cn("relative border bg-background p-1.5 transition-colors focus-within:border-ring/50",
                 isDragOver && "border-primary/40 bg-primary/5")}>
               {isDragOver && <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-xs font-medium text-primary">{t("home:drop_files_hint")}</div>}
-              <Textarea ref={inputRef} rows={1} data-testid="agent-dock-input" aria-label={t("home:agent_input_label")} placeholder={t("home:agent_input_placeholder")}
-                value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={onInputKey} disabled={isStreaming}
-                className="agent-dock-input max-h-32 min-h-0 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-2 pt-1.5 pb-1 text-sm shadow-none focus-visible:border-transparent focus-visible:ring-0 disabled:opacity-50 dark:bg-transparent" />
+              <Textarea ref={inputRef} rows={1} data-testid="agent-dock-input" aria-label={t("home:agent_input_label")} placeholder={t(isStreaming ? "home:agent_input_placeholder_busy" : "home:agent_input_placeholder")}
+                value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={onInputKey}
+                className="agent-dock-input max-h-32 min-h-0 resize-none overflow-y-auto rounded-none border-0 bg-transparent px-2 pt-1.5 pb-1 text-sm shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent" />
               <div className={cn("flex items-center justify-between gap-2 pt-1.5", isDragOver && "opacity-0")}>
-                <CapsuleModeSelector value={executionMode} onChange={setExecutionMode} disabled={isStreaming} radius={10} />
+                <div className="flex min-w-0 items-center gap-1">
+                  <CapsuleModeSelector value={executionMode} onChange={setExecutionMode} disabled={isStreaming} radius={10} />
+                  <TemplateMenuButton compact align="start" className="size-8 rounded-smooth-[10px] px-0" />
+                </div>
                 {/* In the panel the hint sits in the control row; above the composer it would cross the divider. */}
                 <InputHistoryHint position={historyPosition} className="static mb-0 ml-auto shadow-none" />
-                <SmoothCorners asChild radius={10} smoothing={0.72}><Button type="button" data-testid="agent-dock-send" aria-label={isStreaming ? t("home:stop_response") : t("home:send_message")}
-                  onClick={isStreaming ? () => abortCurrentStream() : () => void send()} disabled={!isStreaming && !canSend}
-                  className={cn("size-8 shrink-0 transition-all duration-200",
-                    isStreaming ? "hover:bg-destructive" : canSend ? "bg-primary text-primary-foreground hover:opacity-90" : "bg-transparent text-muted-foreground/45")}>
-                  {isStreaming ? <Square className="size-3.5 fill-current" /> : <Send className="size-4" />}
-                </Button></SmoothCorners>
+                <ComposerSendControls busy={isStreaming} hasDraft={!!input.trim()} canSend={canSend} onSend={send} onStop={abortCurrentStream}
+                  testId="agent-dock-send" radius={10} />
               </div>
             </SmoothCorners>
           </div>
@@ -500,15 +523,16 @@ function DockSurface({ arrival }: { arrival: DockRect | null }) {
       transition={open || reduceMotion ? { duration: open ? 0.1 : 0.16 } : { duration: 0.1, delay: 0.2 }}>
       <Tooltip delayDuration={350} open={launcherTip} onOpenChange={(next) => { if (!next || !quietLauncherFocus.current) setLauncherTip(next); }}>
         <TooltipTrigger asChild>
-          <Button ref={launcherRef} type="button" variant="outline" size="icon" data-testid="agent-dock-launcher"
+          <button ref={launcherRef} type="button" data-testid="agent-dock-launcher" data-state={orbState}
             aria-label={t("home:dock.open")} aria-expanded={open} aria-controls="agent-dock-panel"
             onClick={openPanel}
-            onPointerEnter={() => { quietLauncherFocus.current = false; }} onBlur={() => { quietLauncherFocus.current = false; }}
-            className="agent-dock-launcher relative h-9 w-9 rounded-full dark:bg-background dark:hover:bg-accent">
-            <Sparkles className="size-5" aria-hidden="true" />
-            {!open && isStreaming && <span className="agent-dock-busy" data-testid="agent-dock-busy" aria-hidden="true" />}
+            onPointerEnter={() => { quietLauncherFocus.current = false; setLauncherHover(true); }} onPointerLeave={() => setLauncherHover(false)}
+            onBlur={() => { quietLauncherFocus.current = false; }}
+            className="agent-dock-launcher relative block size-9 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+            {/* The orb's glow reaches past the button; the button keeps the theme switch's 36px footprint. */}
+            <AgentOrb size={60} fill={0.5} state={orbState} paused={open} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" testId="agent-dock-orb" />
             {unread && !isStreaming && <span className="agent-dock-unread" data-testid="agent-dock-unread" aria-hidden="true" />}
-          </Button>
+          </button>
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={8}>{t("home:dock.open")}{!open && (isStreaming ? ` · ${t("home:dock.working")}` : unread ? ` · ${t("home:dock.unread")}` : "")}</TooltipContent>
       </Tooltip>
