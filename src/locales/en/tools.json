@@ -65,6 +65,19 @@
     "classic": "Classic tools",
     "classic_description": "Established standalone tools for everyday subtitle tasks.",
     "experimental": "Experimental tools",
-    "experimental_description": "This tool is in beta, with features and usability still being refined. It is not yet recommended for production work. Prefer the tools above."
+    "experimental_description": "This tool is in beta, with features and usability still being refined. It is not yet recommended for production work. Prefer the tools above.",
+    "toolbox": "{{count}} tools",
+    "agent_hint": "Rather not do it by hand? Hand a workflow to the Agent.",
+    "features": "Features",
+    "open_studio": "Open Studio",
+    "open_knowledge": "Open library",
+    "art_studio_cues": "Subtitles · JA → ZH",
+    "art_studio_export": "Bilingual SRT exported",
+    "art_knowledge_collection": "My series",
+    "art_knowledge_meta": "JA → ZH · {{count}} entries",
+    "art_knowledge_terms": "Terms",
+    "art_knowledge_used": "Applied when translating",
+    "agent_handoff": "Ask Agent",
+    "agent_handoff_hint": "Fill in the matching workflow template and let the Agent do it"
   }
 }

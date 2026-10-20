@@ -65,6 +65,19 @@
     "classic": "經典工具",
     "classic_description": "成熟可用的獨立工具，依需求處理字幕。",
     "experimental": "實驗性工具",
-    "experimental_description": "該工具仍處於 Beta 階段，功能與體驗尚在打磨，暫不建議用於正式工作。建議優先使用上方工具。"
+    "experimental_description": "該工具仍處於 Beta 階段，功能與體驗尚在打磨，暫不建議用於正式工作。建議優先使用上方工具。",
+    "toolbox": "{{count}} 個工具",
+    "agent_hint": "不想自己操作？選一個工作流程交給 Agent。",
+    "features": "功能",
+    "open_studio": "開啟工作台",
+    "open_knowledge": "開啟資料庫",
+    "art_studio_cues": "字幕 · 日 → 中",
+    "art_studio_export": "已匯出雙語 SRT",
+    "art_knowledge_collection": "我的作品",
+    "art_knowledge_meta": "日 → 中 · {{count}} 條",
+    "art_knowledge_terms": "術語",
+    "art_knowledge_used": "翻譯時自動套用",
+    "agent_handoff": "交給 Agent",
+    "agent_handoff_hint": "填寫對應的工作流程範本，讓 Agent 替你完成這件事"
   }
 }

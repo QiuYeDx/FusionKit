@@ -65,6 +65,19 @@
     "classic": "定番ツール",
     "classic_description": "字幕の用途に合わせて使える、実績のある単機能ツール。",
     "experimental": "実験的なツール",
-    "experimental_description": "このツールはベータ版で、機能や使い勝手を調整中です。本番作業にはまだ推奨しません。上のツールを優先してご利用ください。"
+    "experimental_description": "このツールはベータ版で、機能や使い勝手を調整中です。本番作業にはまだ推奨しません。上のツールを優先してご利用ください。",
+    "toolbox": "{{count}} 個のツール",
+    "agent_hint": "手作業が面倒なら、ワークフローを Agent に任せましょう。",
+    "features": "機能",
+    "open_studio": "スタジオを開く",
+    "open_knowledge": "資料を開く",
+    "art_studio_cues": "字幕 · 日 → 中",
+    "art_studio_export": "2 言語 SRT を書き出し済み",
+    "art_knowledge_collection": "マイ作品",
+    "art_knowledge_meta": "日 → 中 · {{count}} 件",
+    "art_knowledge_terms": "用語",
+    "art_knowledge_used": "翻訳時に自動で適用",
+    "agent_handoff": "Agent に任せる",
+    "agent_handoff_hint": "対応するワークフローのテンプレートを入力して、Agent に任せます"
   }
 }

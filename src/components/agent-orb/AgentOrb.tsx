@@ -14,7 +14,7 @@ export interface AgentOrbHandle {
 
 /**
  * The agent's orb. size is the square it is drawn in; fill is how much of it the sphere takes, the rest
- * is its glow (without glow the sphere can fill more). Paused, it keeps its last frame and costs nothing.
+ * is its glow (without glow the sphere can fill more). Paused, it holds still: one frame, then nothing to draw.
  * Without WebGL it is a soft gradient circle.
  */
 const AgentOrb = forwardRef<AgentOrbHandle, {
@@ -61,7 +61,7 @@ const AgentOrb = forwardRef<AgentOrbHandle, {
   }, []);
 
   useEffect(() => {
-    if (instanceRef.current) updateOrbInstance(instanceRef.current, { state, light: !isDark, fill, halo, still: reduceMotion, visible: onScreen && !paused });
+    if (instanceRef.current) updateOrbInstance(instanceRef.current, { state, light: !isDark, fill, halo, still: reduceMotion || paused, visible: onScreen });
   }, [state, isDark, fill, halo, reduceMotion, onScreen, paused]);
 
   if (fallback) {

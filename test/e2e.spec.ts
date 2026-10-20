@@ -318,6 +318,14 @@ if (shouldSkipElectronE2E) {
         (cards) => cards.map((card) => card.getAttribute('data-tool-card')),
       )).toEqual(['textTranslator'])
       expect(await page.locator('a[href*="/tools/audio/"]').count()).toBe(0)
+      // The classic tools fill two rows (2 + 3) on a wide window, and each one the agent can run offers to hand it over.
+      const classic = await page.locator('[data-testid=tools-classic-grid] [data-tool-card]').evaluateAll(
+        (cards) => cards.map((card) => Math.round(card.getBoundingClientRect().top)),
+      )
+      expect(new Set(classic).size).toBe(2)
+      await page.locator('[data-tool-card=converter] [data-testid=tool-agent-handoff]').click()
+      await page.locator('[data-testid=agent-template-dialog][data-template=convert_subtitles]').waitFor({ state: 'visible' })
+      await page.keyboard.press('Escape')
       expect(await hasHorizontalOverflow(page)).toBe(false)
       expect(rendererErrors).toEqual([])
     }, 60_000)

@@ -65,6 +65,19 @@
     "classic": "经典工具",
     "classic_description": "成熟可用的独立工具，按需处理字幕。",
     "experimental": "实验性工具",
-    "experimental_description": "该工具仍处于 Beta 阶段，功能与体验尚在打磨，暂不推荐用于正式任务。建议优先使用上方工具。"
+    "experimental_description": "该工具仍处于 Beta 阶段，功能与体验尚在打磨，暂不推荐用于正式任务。建议优先使用上方工具。",
+    "toolbox": "{{count}} 个工具",
+    "agent_hint": "不想自己操作？选一个工作流交给 Agent。",
+    "features": "功能",
+    "open_studio": "打开工作台",
+    "open_knowledge": "打开资料库",
+    "art_studio_cues": "字幕 · 日 → 中",
+    "art_studio_export": "已导出双语 SRT",
+    "art_knowledge_collection": "我的作品",
+    "art_knowledge_meta": "日 → 中 · {{count}} 条",
+    "art_knowledge_terms": "术语",
+    "art_knowledge_used": "翻译时自动套用",
+    "agent_handoff": "交给 Agent",
+    "agent_handoff_hint": "填写对应的工作流模板，让 Agent 替你完成这件事"
   }
 }
