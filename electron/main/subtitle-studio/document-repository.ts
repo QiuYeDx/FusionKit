@@ -3,12 +3,12 @@ import { constants } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { z } from 'zod';
-import { idSchema, LIMITS, StudioError, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
+import { idSchema, LIMITS, StudioError, type ErrorCode, type SubtitleDocument } from '../../../src/subtitle-studio/domain';
 import { validateSnapshot, type DocumentSnapshot } from '../../../src/subtitle-studio/persistence-contract';
 import { assertExecutionRecordsSize, recordBaseDigest, validateExecutionRecord } from '../../../src/subtitle-studio/execution-record-contract';
 import type { AutomaticTranslationIntent } from '../../../src/subtitle-studio/automatic-translation-contract';
 import type { AutomaticExportState } from '../../../src/subtitle-studio/automatic-export-contract';
-import type { UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
+import { documentReferencesSchema, type DeleteBatchResult, type DocumentReference, type UnavailableDocument } from '../../../src/subtitle-studio/batch-contract';
 import { bindSourceLocation, validateSourceLocationRecord, SOURCE_LOCATION_FILE, type SourceLocationCapture, type SourceLocationRecord } from './source-location-service';
 import { validateCueMediaRecord, CUE_MEDIA_FILE, type CueMediaRecord } from './cue-media-service';
 import { validateAutomaticKnowledgeReport } from './automatic-knowledge-report';
@@ -16,6 +16,8 @@ import { validateAutomaticKnowledgeReport } from './automatic-knowledge-report';
 export type CommitStage = 'generation-write' | 'generation-sync' | 'generation-ready' | 'previous-ready' | 'current-write' | 'current-sync' | 'current-publish' | 'current-directory-sync' | 'create-cleanup' | 'delete-publish' | 'delete-cleanup';
 export type RepositoryEvent = { documentId: string; revision: number; sequence: number; deleted: boolean };
 export type DocumentCreationReceipt = Readonly<{ status: 'committed'; documentId: string; revision: number; durability: 'confirmed' | 'uncertain'; replayed: boolean }>;
+/** `exact` deletes only the revision asked for; `at-least` deletes the committed revision when it is no older than that. */
+export type DeletionMatch = 'exact' | 'at-least';
 type PendingCreation = { digest: string; dev: number; ino: number };
 type SharedState = { tail: Promise<unknown>; activities: Map<string, Set<AbortController>>; sequence: number; listeners: Set<(event: RepositoryEvent) => void>; pendingCreations: Map<string, PendingCreation> };
 const roots = new Map<string, SharedState>();
@@ -25,6 +27,15 @@ const pointerSchema = z.object({ generation: idSchema, digest: digestSchema.opti
 type Pointer = z.infer<typeof pointerSchema>;
 type CreationPublication = { identity: z.infer<typeof creationSchema>; published: boolean; durability: 'confirmed' | 'uncertain' };
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
+/** Runs `action` over `items` with at most `limit` at a time; results keep the input order. */
+async function eachLimited<T, R>(items: readonly T[], limit: number, action: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) { const index = next++; results[index] = await action(items[index]); }
+  }));
+  return results;
+}
 function validateRepositorySnapshot(value: unknown): DocumentSnapshot {
   const snapshot = validateSnapshot(value);
   const document = snapshot.document;
@@ -100,10 +111,11 @@ export class DocumentRepository {
       try {
         const pointer = pointerSchema.parse(JSON.parse(await this.readFile(path.join(directory, name), 1024)));
         const json = await this.readFile(path.join(directory, `${pointer.generation}.json`), LIMITS.snapshotBytes);
-        if (pointer.digest && digest(json) !== pointer.digest) throw new Error('Digest mismatch');
+        const hash = digest(json);
+        if (pointer.digest && hash !== pointer.digest) throw new Error('Digest mismatch');
         const snapshot = validateRepositorySnapshot(JSON.parse(json));
         if (snapshot.document.id !== id) throw new Error('Identity mismatch');
-        return { snapshot, pointer: { ...pointer, digest: digest(json) }, updatedAt: (await lstat(path.join(directory, name))).mtimeMs };
+        return { snapshot, pointer: { ...pointer, digest: hash }, updatedAt: (await lstat(path.join(directory, name))).mtimeMs };
       } catch { /* Try the previous published commit. */ }
     }
     throw new StudioError('document_unavailable');
@@ -296,23 +308,26 @@ export class DocumentRepository {
       return action();
     });
   }
+  /** Every id with a published tombstone, from one read of `.deleted`. */
+  private async tombstoneIds() {
+    const folder = path.join(this.root, '.deleted');
+    try {
+      await this.assertDirectory(folder);
+      return new Set((await readdir(folder)).flatMap(entry => entry.endsWith('.json') && idSchema.safeParse(entry.slice(0, -5)).success ? [entry.slice(0, -5)] : []));
+    } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return new Set<string>(); throw error; }
+  }
   listSnapshot() {
     return this.serial(async () => {
       await mkdir(this.root, { recursive: true });
-      const deletedFolder = path.join(this.root, '.deleted');
-      try {
-        await this.assertDirectory(deletedFolder);
-        for (const entry of await readdir(deletedFolder)) {
-          const id = entry.replace(/\.json$/, '');
-          if (entry.endsWith('.json') && idSchema.safeParse(id).success) await this.cleanup(id);
-        }
-      } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      const tombstones = await this.tombstoneIds();
       const entries = await readdir(this.root, { withFileTypes: true });
+      // Finish removals a crash or a locked file interrupted. Tombstones stay forever, so only leftovers cost a call.
+      for (const entry of entries) if (tombstones.has(entry.name)) await this.cleanup(entry.name);
       const documents: SubtitleDocument[] = [];
       const records: { snapshot: DocumentSnapshot; updatedAt: number }[] = [];
       const unavailable: UnavailableDocument[] = [];
       for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-        if (!entry.isDirectory() || !idSchema.safeParse(entry.name).success || await this.isDeleted(entry.name)) continue;
+        if (!entry.isDirectory() || !idSchema.safeParse(entry.name).success || tombstones.has(entry.name)) continue;
         try { const record = await this.committed(entry.name); documents.push(record.snapshot.document); records.push(record); }
         catch (error) {
           // A broken or incompatible document must not disable the whole library or import.
@@ -428,19 +443,65 @@ export class DocumentRepository {
     void this.serial(async () => { if (await this.isDeleted(id)) controller.abort(); }).catch(() => controller.abort());
     return () => { activities.delete(controller); if (!activities.size) this.state.activities.delete(id); };
   }
-  delete(id: string, expectedRevision: number, guard: () => void = () => {}) {
-    return this.serial(async () => {
-      const { snapshot } = await this.committed(id);
-      if (snapshot.document.revision !== expectedRevision) throw new StudioError('revision_conflict');
-      const folder = path.join(this.root, '.deleted');
-      await mkdir(folder, { recursive: true }); await this.assertDirectory(folder);
-      await this.publish(this.tombstone(id), JSON.stringify({ schemaVersion: 1, documentId: id, revision: expectedRevision + 1 }), 'delete-publish', guard);
-      await this.syncDirectory(folder);
-      for (const controller of this.state.activities.get(id) ?? []) controller.abort();
-      this.state.activities.delete(id);
-      this.emit(id, expectedRevision + 1, true);
-      return this.cleanup(id);
+  delete(id: string, expectedRevision: number, guard: () => void = () => {}): Promise<{ cleanupPending: boolean }> {
+    // Not async: the deletion joins the queue when called, ahead of anything queued after it.
+    return this.deleteMany([{ documentId: id, revision: expectedRevision }], 'exact', guard).then(({ items: [item], cleanupPending }) => {
+      if (!item.ok) throw new StudioError(item.error);
+      return { cleanupPending };
     });
+  }
+  /**
+   * Deletes documents in one queue slot, so listings and commits see the library before or after the whole batch.
+   * Every tombstone is durable before any activity is aborted, any event is sent or any folder is removed.
+   * A document that is gone, changed, unreadable or cannot be tombstoned fails alone. Only a revoked guard, or a `.deleted`
+   * folder that cannot be prepared before the first tombstone, stops the batch; otherwise there is one item per document.
+   */
+  deleteMany(documents: readonly DocumentReference[], match: DeletionMatch, guard: () => void = () => {}): Promise<DeleteBatchResult> {
+    if (!documentReferencesSchema.safeParse(documents).success) return Promise.reject(new StudioError('invalid_input'));
+    return this.serial(async () => {
+      const folder = path.join(this.root, '.deleted');
+      const failures = new Map<string, ErrorCode>();
+      const published: { documentId: string; revision: number }[] = [];
+      let revoked: { error: unknown } | undefined;
+      const authorized = () => { try { guard(); } catch (error) { revoked = { error }; throw error; } };
+      let prepared = false;
+      let cleanupPending = false;
+      try {
+        for (const { documentId, revision } of documents) {
+          let committed: number;
+          // Any read failure, even an unexpected I/O error, belongs to this document; it reads no guard, so it cannot be a revocation.
+          try { committed = (await this.committed(documentId)).snapshot.document.revision; }
+          catch (error) { failures.set(documentId, error instanceof StudioError ? error.code : 'document_unavailable'); continue; }
+          if (match === 'exact' ? committed !== revision : committed < revision) { failures.set(documentId, 'revision_conflict'); continue; }
+          if (!prepared) { await mkdir(folder, { recursive: true }); await this.assertDirectory(folder); prepared = true; }
+          try { await this.publish(this.tombstone(documentId), JSON.stringify({ schemaVersion: 1, documentId, revision: committed + 1 }), 'delete-publish', authorized); }
+          catch {
+            if (revoked) throw revoked.error;
+            // Not tombstoned: the document stays readable and its activities keep running.
+            failures.set(documentId, 'document_unavailable'); continue;
+          }
+          published.push({ documentId, revision: committed + 1 });
+        }
+      } finally { cleanupPending = await this.finishDeletions(folder, published); }
+      const deleted = new Set(published.map(item => item.documentId));
+      return { cleanupPending, items: documents.map(({ documentId }) => deleted.has(documentId) ? { documentId, ok: true as const }
+        : { documentId, ok: false as const, error: failures.get(documentId) ?? 'document_unavailable' }) };
+    });
+  }
+  /** Aborts, announces and removes the documents whose tombstones were published; true when any folder is left behind. */
+  private async finishDeletions(folder: string, published: readonly { documentId: string; revision: number }[]) {
+    if (!published.length) return false;
+    let durable = true;
+    try { await this.syncDirectory(folder); } catch { durable = false; }
+    for (const { documentId, revision } of published) {
+      for (const controller of this.state.activities.get(documentId) ?? []) controller.abort();
+      this.state.activities.delete(documentId);
+      this.emit(documentId, revision, true);
+    }
+    // Removing a folder before its tombstone is durable could leave a half-deleted document after a crash; the next listing removes it.
+    if (!durable) return true;
+    const results = await eachLimited(published, 4, ({ documentId }) => this.cleanup(documentId).catch(() => ({ cleanupPending: true })));
+    return results.some(result => result.cleanupPending);
   }
   private async cleanup(id: string) {
     if (!await this.isDeleted(id)) throw new StudioError('invalid_input');

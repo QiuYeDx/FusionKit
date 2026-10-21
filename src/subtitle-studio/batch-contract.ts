@@ -17,6 +17,8 @@ export const batchRequestSchemas = {
   exportBatch: z.object({ batchId: idSchema, destination: exportDestinationSchema.optional(), acceptedLosses: z.array(z.object({ documentId: idSchema, codes: z.array(exportIssueCodeSchema).max(32) }).strict()).max(STUDIO_BATCH_LIMIT)
     .refine(items => new Set(items.map(item => item.documentId)).size === items.length) }).strict(),
   exportSources: z.object({ documents: documentReferencesSchema, destination: exportDestinationSchema.optional() }).strict(),
+  /** Each `revision` is the newest one the window has seen: a document is deleted at whatever revision it has committed, as long as it is at least that one. */
+  deleteDocuments: z.object({ documents: documentReferencesSchema }).strict(),
 };
 export type DocumentReference = z.infer<typeof documentReferenceSchema>;
 export type BatchFailure = { documentId: string; displayName: string; ok: false; error: ErrorCode };
@@ -27,4 +29,7 @@ export type TranslationBatchResult = { items: BatchItem<{ taskId: string }>[] };
 export type ExportBatchPlan = { batchId: string; items: BatchItem<{ plan: ExportPlanSummary }>[] };
 export type ExportBatchResult = { items: BatchItem<{ result: ExportResult }>[] };
 export type SourceBatchResult = { items: BatchItem<{ fileName: string }>[] };
+/** One item per requested document, in request order; `cleanupPending` when any removed folder is left for the next listing. */
+export type DocumentDeletion = { documentId: string; ok: true } | { documentId: string; ok: false; error: ErrorCode };
+export type DeleteBatchResult = { items: DocumentDeletion[]; cleanupPending: boolean };
 export type UnavailableDocument = { id: string; token: string; directory: string; reason: 'document_unavailable' };

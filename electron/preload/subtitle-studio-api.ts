@@ -70,6 +70,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     planExportBatch: request => invoke(STUDIO_CHANNELS.planExportBatch, request),
     exportBatch: request => invoke(STUDIO_CHANNELS.exportBatch, request),
     exportSources: request => invoke(STUDIO_CHANNELS.exportSources, request),
+    deleteDocuments: request => invoke(STUDIO_CHANNELS.deleteDocuments, request),
     listDocuments: request => invoke(STUDIO_CHANNELS.listDocuments, request),
     readDocumentPage: request => invoke(STUDIO_CHANNELS.readDocumentPage, request),
     exportSource: request => invoke(STUDIO_CHANNELS.exportSource, request),

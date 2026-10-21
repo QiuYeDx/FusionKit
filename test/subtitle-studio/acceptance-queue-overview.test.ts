@@ -214,6 +214,22 @@ describe('translation overview observations', () => {
     expect(f.controller.getState().offset).toBe(0);
     expect(f.controller.getState().snapshot?.items[0].taskId).toBe(id(1));
   });
+  it('holds event-driven reads during a batch and reads the latest state once when the last hold is released', async () => {
+    const f = overview([translation(1, 'completed', 4)]);
+    f.controller.subscribe(vi.fn()); await tick();
+    const reads = f.api.listTranslationTasks.mock.calls.length;
+    const idle = f.controller.holdRefresh(); idle(); await tick();
+    expect(f.api.listTranslationTasks).toHaveBeenCalledTimes(reads);
+    const outer = f.controller.holdRefresh(), inner = f.controller.holdRefresh();
+    f.setItems([], 6);
+    for (let next = 2; next <= 6; next++) f.changed(next);
+    await vi.advanceTimersByTimeAsync(5000);
+    inner(); await vi.advanceTimersByTimeAsync(5000);
+    expect(f.api.listTranslationTasks).toHaveBeenCalledTimes(reads);
+    outer(); outer(); inner(); await tick();
+    expect(f.api.listTranslationTasks).toHaveBeenCalledTimes(reads + 1);
+    expect(f.controller.getState().snapshot).toMatchObject({ sequence: 6, total: 0 });
+  });
   it('bounds each cohort request and rejects oversized cohorts without replacing a valid round', async () => {
     const f = overview([translation(1, 'queued')]); f.controller.trackStarted([id(1)]); await tick();
     f.controller.trackStarted(Array.from({ length: 101 }, (_, index) => id(index + 1)));

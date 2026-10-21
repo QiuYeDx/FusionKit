@@ -751,6 +751,41 @@ describe('production Subtitle Studio IPC handler composition', () => {
     expect(owner.client.send).toHaveBeenCalledWith(STUDIO_CHANNELS.changed, expect.objectContaining({ event: expect.objectContaining({ documentId: request.documentId, deleted: true }) }));
     expect(await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { ...request, offset: 0 })).toEqual({ ok: false, error: 'access_denied' });
   });
+  it('deletes granted documents in one request at their committed revision with one change event each', async () => {
+    const { owner, request } = await setup('[00:01.00]First\n');
+    const file = path.join(adapter.directory, 'second.lrc');
+    await writeFile(file, '[00:01.00]Second\n');
+    adapter.open.mockResolvedValueOnce({ canceled: false, filePaths: [file] });
+    const imported = await owner.invoke(STUDIO_CHANNELS.importSubtitle, { encoding: 'utf-8' });
+    const second = { documentId: imported.value.id, revision: imported.value.revision };
+    const stranger = attach();
+    expect(await stranger.invoke(STUDIO_CHANNELS.deleteDocuments, { documents: [request, second] })).toEqual({ ok: true, value: { cleanupPending: false,
+      items: [{ documentId: request.documentId, ok: false, error: 'access_denied' }, { documentId: second.documentId, ok: false, error: 'access_denied' }] } });
+    for (const payload of [{ documents: [] }, { documents: Array.from({ length: 101 }, () => ({ documentId: randomUUID(), revision: 1 })) }, { documents: [request, request] },
+      { documents: [request], force: true }, { documents: [{ ...request, path: '/private' }] }])
+      expect(await owner.invoke(STUDIO_CHANNELS.deleteDocuments, payload)).toEqual({ ok: false, error: 'invalid_input' });
+    expect(await owner.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 })).toMatchObject({ ok: true, value: { total: 2 } });
+    // A commit the window has not observed yet is deleted with the rest, not reported as a conflict.
+    await new DocumentRepository(path.join(adapter.directory, 'subtitle-studio/documents')).transact(second.documentId, second.revision, snapshot => { snapshot.document.origin.displayName = 'renamed.lrc'; });
+    owner.client.send.mockClear();
+    expect(await owner.invoke(STUDIO_CHANNELS.deleteDocuments, { documents: [request, second] })).toEqual({ ok: true, value: { cleanupPending: false,
+      items: [{ documentId: request.documentId, ok: true }, { documentId: second.documentId, ok: true }] } });
+    const events = owner.client.send.mock.calls.filter(([channel]) => channel === STUDIO_CHANNELS.changed).map(([, message]) => message.event);
+    expect(events.map(({ documentId, revision, deleted }) => ({ documentId, revision, deleted }))).toEqual([
+      { documentId: request.documentId, revision: 2, deleted: true }, { documentId: second.documentId, revision: 3, deleted: true }]);
+    expect(events[1].sequence).toBeGreaterThan(events[0].sequence);
+    for (const document of [request, second]) expect(await owner.invoke(STUDIO_CHANNELS.readDocumentPage, { ...document, offset: 0 })).toEqual({ ok: false, error: 'access_denied' });
+    expect(await owner.invoke(STUDIO_CHANNELS.deleteDocuments, { documents: [request] })).toEqual({ ok: true, value: { cleanupPending: false, items: [{ documentId: request.documentId, ok: false, error: 'access_denied' }] } });
+    expect(await owner.invoke(STUDIO_CHANNELS.listDocuments, { offset: 0 })).toMatchObject({ ok: true, value: { total: 0 } });
+  });
+  it('routes batch deletion through the fixed preload channel', async () => {
+    const capability = randomUUID();
+    const ipc = { sendSync: () => capability, invoke: vi.fn(async () => ({ ok: true, value: { items: [], cleanupPending: false } })), on: vi.fn(), removeListener: vi.fn() };
+    const payload = { documents: [{ documentId: randomUUID(), revision: 1 }] };
+    expect(await createSubtitleStudioApi(ipc).deleteDocuments(payload)).toEqual({ ok: true, value: { items: [], cleanupPending: false } });
+    expect(ipc.invoke).toHaveBeenCalledWith(STUDIO_CHANNELS.deleteDocuments, { capability, payload });
+    expect(isPublicStudioChannel(STUDIO_CHANNELS.deleteDocuments)).toBe(true);
+  });
   it('rejects a delayed dialog response from a revoked owner', async () => {
     const { owner, request } = await setup();
     adapter.save.mockImplementation(async () => {

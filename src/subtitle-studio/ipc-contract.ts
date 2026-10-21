@@ -14,7 +14,7 @@ import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
 import { exportOptionsSchema, exportIssueCodeSchema, exportDestinationSchema, type SourceLocationSummary, type ExportPlanSummary, type ExportResult } from './export-contract';
-import { batchRequestSchemas, type BatchImportResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
+import { batchRequestSchemas, type BatchImportResult, type DeleteBatchResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
 import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
@@ -55,6 +55,7 @@ export const STUDIO_CHANNELS = {
   planExportBatch: 'subtitle-studio:plan-export-batch',
   exportBatch: 'subtitle-studio:export-batch',
   exportSources: 'subtitle-studio:export-sources',
+  deleteDocuments: 'subtitle-studio:delete-documents',
   listDocuments: 'subtitle-studio:list',
   readDocumentPage: 'subtitle-studio:read-page',
   exportSource: 'subtitle-studio:export-source',
@@ -265,6 +266,8 @@ export interface SubtitleStudioApi {
   planExportBatch(request: z.infer<typeof requestSchemas.planExportBatch>): Promise<StudioResult<ExportBatchPlan>>;
   exportBatch(request: z.infer<typeof requestSchemas.exportBatch>): Promise<StudioResult<ExportBatchResult | null>>;
   exportSources(request: z.infer<typeof requestSchemas.exportSources>): Promise<StudioResult<SourceBatchResult | null>>;
+  /** Deletes documents in one step: one result per document, in request order, and one change event per deleted document. */
+  deleteDocuments(request: z.infer<typeof requestSchemas.deleteDocuments>): Promise<StudioResult<DeleteBatchResult>>;
   listDocuments(request: z.infer<typeof requestSchemas.listDocuments>): Promise<StudioResult<DocumentListSnapshot>>;
   readDocumentPage(request: z.infer<typeof requestSchemas.readDocumentPage>): Promise<StudioResult<DocumentPage>>;
   exportSource(request: z.infer<typeof requestSchemas.exportSource>): Promise<StudioResult<{ fileName: string } | null>>;

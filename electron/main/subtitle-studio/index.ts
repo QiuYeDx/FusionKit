@@ -379,6 +379,16 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           if (selection.canceled || !selection.filePaths.length) return { ok: true, value: null };
           return { ok: true, value: await batches.exportSources(input.documents, selection.filePaths[0], alive) };
         }
+        if (method === 'deleteDocuments') {
+          // A document this window may not touch fails alone, like one deleted elsewhere since it was listed.
+          const { documents } = requestSchemas.deleteDocuments.parse(payload);
+          const granted = documents.filter(doc => owner.documents.has(doc.documentId));
+          const result = granted.length ? await repository.deleteMany(granted, 'at-least', alive) : { items: [], cleanupPending: false };
+          alive();
+          const items = new Map(result.items.map(item => [item.documentId, item]));
+          return { ok: true, value: { cleanupPending: result.cleanupPending,
+            items: documents.map(doc => items.get(doc.documentId) ?? { documentId: doc.documentId, ok: false as const, error: 'access_denied' as const }) } };
+        }
         if (method === 'createTranslationBatch') {
           const { batchId, apiKey } = requestSchemas.createTranslationBatch.parse(payload);
           return { ok: true, value: await batches.createTranslation(event.sender.id, batchId, apiKey, alive) };

@@ -39,6 +39,7 @@ export class StudioTranslationOverviewController {
   private minimumSequence = -1;
   private dirty = false;
   private disposed = false;
+  private holds = 0;
   constructor(options: TranslationOverviewOptions = {}) {
     this.api = options.getApi ?? (() => window.subtitleStudio);
     this.schedule = options.schedule ?? ((callback, delay) => { const timer = setTimeout(callback, delay); return () => clearTimeout(timer); });
@@ -58,9 +59,25 @@ export class StudioTranslationOverviewController {
     this.unsubscribe = this.api().subscribe((event: StudioEvent) => {
       if (event.sequence <= this.minimumSequence) return;
       this.minimumSequence = event.sequence; this.version++; this.dirty = true;
-      if (this.listeners.size || active(this.state.snapshot) || this.state.roundTaskIds.length) void this.refresh();
+      if (!this.holds && this.wanted()) void this.refresh();
     });
   }
+  private wanted() { return !!this.listeners.size || active(this.state.snapshot) || !!this.state.roundTaskIds.length; }
+  /**
+   * Holds event-driven reads while a batch changes many documents; each one reads the whole library in main.
+   * The last release reads once if anything changed. Explicit refreshes still run.
+   */
+  holdRefresh = (): (() => void) => {
+    this.holds++; this.timer?.(); this.timer = undefined;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      if (--this.holds) return;
+      if (this.dirty && this.wanted()) void this.refresh();
+      else this.armPoll();
+    };
+  };
   /** Each accepted single/batch submission starts a new, explicitly scoped round. */
   trackStarted = (taskIds: readonly string[]): void => {
     const ids = [...new Set(taskIds)];
@@ -116,7 +133,7 @@ export class StudioTranslationOverviewController {
   };
   private armPoll() {
     this.timer?.(); this.timer = undefined;
-    if (this.disposed || this.read) return;
+    if (this.disposed || this.read || this.holds) return;
     const running = active(this.state.snapshot) || active(this.state.round) || (!!this.state.roundTaskIds.length && !this.state.round);
     if (!this.listeners.size && !running && !this.dirty) return;
     this.timer = this.schedule(() => { this.timer = undefined; void this.refresh(); }, this.dirty ? 100 : running ? 1000 : 5000);

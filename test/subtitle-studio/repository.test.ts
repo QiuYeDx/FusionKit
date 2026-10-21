@@ -4,7 +4,8 @@ import { mkdtemp, readFile, readdir, rm, writeFile, mkdir, symlink } from 'node:
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { importSubtitleText } from '../../src/subtitle-studio/formats/import';
-import { DocumentRepository, type CommitStage } from '../../electron/main/subtitle-studio/document-repository';
+import { DocumentRepository, type CommitStage, type RepositoryEvent } from '../../electron/main/subtitle-studio/document-repository';
+import { StudioError } from '../../src/subtitle-studio/domain';
 import type { DocumentSnapshot } from '../../src/subtitle-studio/persistence-contract';
 import { sourceBytes } from '../../electron/main/subtitle-studio/export-service';
 
@@ -238,5 +239,125 @@ describe('document generations and lifecycle', () => {
     json.document.origin.displayName = 'tampered.lrc';
     await writeFile(generation, JSON.stringify(json));
     expect((await repo.read(doc.id)).revision).toBe(1);
+  });
+});
+
+async function library(count: number) {
+  const current = await fixture();
+  const docs = [current.doc];
+  for (let index = 1; index < count; index++) {
+    const raw = `[00:01.00]Line ${index}\n`;
+    const doc = importSubtitleText(raw, { format: 'lrc', displayName: `sample-${index}.lrc`, encoding: 'utf-8', digest: createHash('sha256').update(raw).digest('hex') }, randomUUID);
+    await current.repo.create(doc); docs.push(doc);
+  }
+  const events: RepositoryEvent[] = [];
+  current.repo.subscribe(event => { events.push(event); });
+  const activities = docs.map(doc => { const controller = new AbortController(); current.repo.registerActivity(doc.id, controller); return controller; });
+  return { ...current, docs, events, aborted: () => activities.map(controller => controller.signal.aborted) };
+}
+const reference = (doc: { id: string }, revision = 1) => ({ documentId: doc.id, revision });
+
+describe('batch deletion', () => {
+  it('deletes documents in one slot with one ordered deletion event each', async () => {
+    const { directory, repo, docs: [kept, first, second], events, aborted } = await library(3);
+    expect(await repo.deleteMany([reference(first), reference(second)], 'at-least'))
+      .toEqual({ cleanupPending: false, items: [{ documentId: first.id, ok: true }, { documentId: second.id, ok: true }] });
+    expect(events.map(({ documentId, revision, deleted }) => ({ documentId, revision, deleted }))).toEqual([
+      { documentId: first.id, revision: 2, deleted: true }, { documentId: second.id, revision: 2, deleted: true }]);
+    expect(events[1].sequence).toBe(events[0].sequence + 1);
+    expect(aborted()).toEqual([false, true, true]);
+    expect((await repo.list()).map(doc => doc.id)).toEqual([kept.id]);
+    expect((await readdir(directory)).sort()).toEqual(['.deleted', kept.id].sort());
+    expect((await readdir(path.join(directory, '.deleted'))).sort()).toEqual([`${first.id}.json`, `${second.id}.json`].sort());
+    await expect(repo.create(first)).rejects.toThrow('document_unavailable');
+    await expect(repo.transact(second.id, 1, translated)).rejects.toThrow('document_unavailable');
+  });
+  it('deletes the committed revision under at-least and only the requested one under exact', async () => {
+    const { directory, repo, docs: [doc], events } = await library(1);
+    await repo.transact(doc.id, 1, translated);
+    expect(await repo.deleteMany([reference(doc)], 'exact')).toEqual({ cleanupPending: false, items: [{ documentId: doc.id, ok: false, error: 'revision_conflict' }] });
+    expect(await repo.deleteMany([reference(doc, 5)], 'at-least')).toEqual({ cleanupPending: false, items: [{ documentId: doc.id, ok: false, error: 'revision_conflict' }] });
+    expect((await repo.read(doc.id)).revision).toBe(2);
+    expect(await repo.deleteMany([reference(doc)], 'at-least')).toEqual({ cleanupPending: false, items: [{ documentId: doc.id, ok: true }] });
+    expect(JSON.parse(await readFile(path.join(directory, '.deleted', `${doc.id}.json`), 'utf8'))).toEqual({ schemaVersion: 1, documentId: doc.id, revision: 3 });
+    expect(events.at(-1)).toMatchObject({ documentId: doc.id, revision: 3, deleted: true });
+  });
+  it('reports each document of a mixed batch on its own and removes only the deletable one', async () => {
+    const { repo, docs: [doc, gone, edited] } = await library(3);
+    await repo.delete(gone.id, 1);
+    await repo.transact(edited.id, 1, translated);
+    const unknown = randomUUID();
+    expect(await repo.deleteMany([reference(doc), { documentId: unknown, revision: 1 }, reference(gone), reference(edited)], 'exact')).toEqual({ cleanupPending: false, items: [
+      { documentId: doc.id, ok: true }, { documentId: unknown, ok: false, error: 'document_unavailable' },
+      { documentId: gone.id, ok: false, error: 'document_unavailable' }, { documentId: edited.id, ok: false, error: 'revision_conflict' }] });
+    expect((await repo.list()).map(item => item.id)).toEqual([edited.id]);
+  });
+  it('keeps a document whose tombstone cannot be published while the rest of the batch completes', async () => {
+    const { directory, repo, docs, events, aborted } = await library(3);
+    let publications = 0;
+    const failing = new DocumentRepository(directory, { fault: stage => { if (stage === 'delete-publish' && ++publications === 2) throw new Error('locked'); } });
+    expect(await failing.deleteMany(docs.map(doc => reference(doc)), 'at-least')).toEqual({ cleanupPending: false, items: [
+      { documentId: docs[0].id, ok: true }, { documentId: docs[1].id, ok: false, error: 'document_unavailable' }, { documentId: docs[2].id, ok: true }] });
+    expect((await repo.read(docs[1].id)).revision).toBe(1);
+    expect(aborted()).toEqual([true, false, true]);
+    expect(events.map(event => event.documentId)).toEqual([docs[0].id, docs[2].id]);
+    expect((await readdir(path.join(directory, '.deleted'))).sort()).toEqual([`${docs[0].id}.json`, `${docs[2].id}.json`].sort());
+  });
+  it('stops at a revoked guard and still finishes the documents already tombstoned', async () => {
+    const { directory, repo, docs, events, aborted } = await library(3);
+    let checks = 0;
+    await expect(repo.deleteMany(docs.map(doc => reference(doc)), 'at-least', () => { if (++checks === 2) throw new StudioError('access_denied'); })).rejects.toThrow('access_denied');
+    expect(events.map(({ documentId, deleted }) => ({ documentId, deleted }))).toEqual([{ documentId: docs[0].id, deleted: true }]);
+    expect(aborted()).toEqual([true, false, false]);
+    await expect(readdir(path.join(directory, docs[0].id))).rejects.toThrow();
+    expect((await repo.list()).map(doc => doc.id).sort()).toEqual([docs[1].id, docs[2].id].sort());
+  });
+  it('reports pending cleanup, hides every document and lets a later listing remove the folders', async () => {
+    const { directory, docs, events } = await library(2);
+    const failing = new DocumentRepository(directory, { fault: stage => { if (stage === 'delete-cleanup') throw new Error('locked'); } });
+    expect(await failing.deleteMany(docs.map(doc => reference(doc)), 'at-least')).toEqual({ cleanupPending: true, items: docs.map(doc => ({ documentId: doc.id, ok: true })) });
+    expect(events.map(event => event.deleted)).toEqual([true, true]);
+    expect((await readdir(directory)).sort()).toEqual(['.deleted', ...docs.map(doc => doc.id)].sort());
+    expect(await new DocumentRepository(directory).listSnapshot()).toMatchObject({ documents: [], unavailableDocuments: 0 });
+    expect(await readdir(directory)).toEqual(['.deleted']);
+  });
+  it('orders the batch with commits, activities and listings queued around it', async () => {
+    const { directory, repo, docs: [doc] } = await library(1);
+    const edit = repo.transact(doc.id, 1, translated);
+    const deletion = repo.deleteMany([reference(doc)], 'at-least');
+    const late = repo.transact(doc.id, 2, translated);
+    const listing = repo.listSnapshot();
+    expect((await edit).document.revision).toBe(2);
+    expect(await deletion).toEqual({ cleanupPending: false, items: [{ documentId: doc.id, ok: true }] });
+    await expect(late).rejects.toThrow('document_unavailable');
+    expect((await listing).documents).toEqual([]);
+    expect(JSON.parse(await readFile(path.join(directory, '.deleted', `${doc.id}.json`), 'utf8')).revision).toBe(3);
+    const controller = new AbortController(); repo.registerActivity(doc.id, controller);
+    await repo.listSnapshot();
+    expect(controller.signal.aborted).toBe(true);
+  });
+  it('rejects empty, oversized, duplicate and malformed batches before writing anything', async () => {
+    const { directory, repo, doc } = await fixture();
+    for (const documents of [[], Array.from({ length: 101 }, () => ({ documentId: randomUUID(), revision: 1 })), [reference(doc), reference(doc)], [{ documentId: '../x', revision: 1 }], [reference(doc, 0)]])
+      await expect(repo.deleteMany(documents, 'exact')).rejects.toThrow('invalid_input');
+    expect(await readdir(directory)).toEqual([doc.id]);
+    expect((await repo.read(doc.id)).revision).toBe(1);
+  });
+  it('lists without revisiting old tombstones and still removes a leftover folder', async () => {
+    const { directory, repo, docs: [kept, leftover] } = await library(2);
+    await mkdir(path.join(directory, '.deleted'));
+    for (let index = 0; index < 40; index++) {
+      const id = randomUUID();
+      await writeFile(path.join(directory, '.deleted', `${id}.json`), JSON.stringify({ schemaVersion: 1, documentId: id, revision: 2 }));
+    }
+    const locked = new DocumentRepository(directory, { fault: stage => { if (stage === 'delete-cleanup') throw new Error('locked'); } });
+    expect(await locked.delete(leftover.id, 1)).toEqual({ cleanupPending: true });
+    let cleanups = 0;
+    const counting = new DocumentRepository(directory, { fault: stage => { if (stage === 'delete-cleanup') cleanups++; } });
+    expect(await counting.listSnapshot()).toMatchObject({ documents: [kept], unavailableDocuments: 0 });
+    expect(cleanups).toBe(1);
+    expect((await readdir(directory)).sort()).toEqual(['.deleted', kept.id].sort());
+    expect(await readdir(path.join(directory, '.deleted'))).toHaveLength(41);
+    expect((await repo.list()).map(doc => doc.id)).toEqual([kept.id]);
   });
 });

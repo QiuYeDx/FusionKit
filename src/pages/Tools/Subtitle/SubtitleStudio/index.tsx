@@ -22,6 +22,7 @@ import { useStudioPreferences } from '@/store/tools/subtitle-studio/preferences'
 import { unwrapStudio } from '@/services/subtitle-studio/client';
 import { StudioObservations } from '@/services/subtitle-studio/observations';
 import { StudioRefreshCoordinator } from '@/services/subtitle-studio/refresh-coordinator';
+import { StudioDeletionDeferral, StudioLibraryInvalidation, type DeletionAnswer } from '@/services/subtitle-studio/library-refresh';
 import { ScrollableDialog, ScrollableDialogHeader, ScrollableDialogContent, ScrollableDialogFooter, DialogTitle, DialogDescription } from '@/components/qiuye-ui/scrollable-dialog';
 import { encodingSchema, LIMITS, StudioError, type Diagnostic, type ErrorCode } from '@/subtitle-studio/domain';
 import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
@@ -34,6 +35,7 @@ import { useAgentPageContext } from '@/agent/page-context';
 import { createStudioAgentTools, studioPageContext, type StudioAgentDeps } from './agent-context';
 import type { DocumentListSnapshot, DocumentPage, DocumentSummary } from '@/subtitle-studio/ipc-contract';
 import { STUDIO_BATCH_LIMIT, type UnavailableDocument, type BatchImportResult } from '@/subtitle-studio/batch-contract';
+import { getStudioTranslationOverviewController } from '@/services/subtitle-studio/translation-overview-controller';
 import { matchesLibraryQuery } from '@/subtitle-studio/library-query';
 import useModelStore from '@/store/useModelStore';
 import { translationModelSchema, normalizeTranslationModel } from '@/subtitle-studio/translation-contract';
@@ -229,11 +231,24 @@ export default function SubtitleStudio() {
   const observations = useRef(new StudioObservations());
   const currentPage = useRef<DocumentPage | null>(null);
   const currentOffset = useRef(0);
-  const dirty = useRef(false);
+  /** Whether the list must be read again; a list read that started after every change settles them. */
+  const libraryChanges = useRef(new StudioLibraryInvalidation());
+  const invalidate = () => libraryChanges.current.invalidate();
+  /** This window's own batch deletion: its events are applied once, together with the result. */
+  const deferredDeletions = useRef(new StudioDeletionDeferral());
   const coordinator = useRef<StudioRefreshCoordinator | null>(null);
   const backgroundRead = useRef<() => Promise<void>>(async () => {});
   const refreshPending = useRef<() => void>(() => {});
   const showPage = (value: DocumentPage | null) => { currentPage.current = value; setPage(value); };
+  /** Drops deleted documents from the selection, the list, the preview and the delete dialog in one update. */
+  const forgetDocuments = (ids: ReadonlySet<string>) => {
+    if (!ids.size) return;
+    updateSelection(items => items.filter(item => !ids.has(item.id)));
+    if (previewTarget.current && ids.has(previewTarget.current)) invalidatePreview();
+    setDocuments(items => items.filter(item => !ids.has(item.id)));
+    if (currentPage.current && ids.has(currentPage.current.summary.id)) showPage(null);
+    setDeleting(value => value && ids.has(value.id) ? null : value);
+  };
   const mounted = useRef(true);
   const operation = useRef(false);
   const operationSettled = useRef<Promise<void>>(Promise.resolve());
@@ -288,7 +303,7 @@ export default function SubtitleStudio() {
     retry.current = retryable ? () => void run(kind, action) : null;
     try { await owner.runForeground(action); }
     catch (failure) { if (readerIsCurrent(owner)) setError(failure instanceof StudioError ? failure.code : 'document_unavailable'); }
-    finally { settle(); if (readerIsCurrent(owner)) { operation.current = false; setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); } }
+    finally { settle(); if (readerIsCurrent(owner)) { operation.current = false; setActivity(null); if (libraryChanges.current.dirty) queueMicrotask(() => refreshPending.current()); } }
   };
   const select = async (doc: DocumentSummary, offset = 0, options: { silent?: boolean; query?: LibraryQuery; navigation?: number } = {}) => {
     const owner = coordinator.current;
@@ -296,7 +311,7 @@ export default function SubtitleStudio() {
     const previous = currentPage.current;
     const revision = Math.max(doc.revision, observedRevisions.current.get(doc.id) ?? 0);
     const result = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: doc.id, revision, offset }));
-    if (options.query && options.query !== queryRef.current) { dirty.current = true; return; }
+    if (options.query && options.query !== queryRef.current) { invalidate(); return; }
     if (generation !== previewGeneration.current || (previewTarget.current && options.navigation === undefined)) return;
     if (readerIsCurrent(owner) && observations.current.acceptsDocument(result.summary)) {
       showPage(result);
@@ -309,6 +324,7 @@ export default function SubtitleStudio() {
     const owner = coordinator.current;
     const requestedQuery = queryRef.current;
     const request = { ...requestedQuery, offset, pageSize: LIBRARY_PAGE_SIZE };
+    const covered = libraryChanges.current.beginRead();
     let result = await unwrapStudio(window.subtitleStudio.listDocuments(request));
     for (let attempt = 0; !observations.current.acceptSnapshot(result); attempt++) {
       if (!readerIsCurrent(owner)) return;
@@ -316,7 +332,7 @@ export default function SubtitleStudio() {
       result = await unwrapStudio(window.subtitleStudio.listDocuments(request));
     }
     if (!readerIsCurrent(owner)) return;
-    if (requestedQuery !== queryRef.current) { dirty.current = true; return; }
+    if (requestedQuery !== queryRef.current) { invalidate(); return; }
     if (offset > 0 && offset >= result.total) return load(Math.max(0, Math.floor((result.total - 1) / LIBRARY_PAGE_SIZE) * LIBRARY_PAGE_SIZE), openFirst, silent);
     currentOffset.current = offset;
     librarySnapshot.current = result;
@@ -337,7 +353,7 @@ export default function SubtitleStudio() {
       }
     }
     if (!readerIsCurrent(owner)) return;
-    if (requestedQuery !== queryRef.current) { dirty.current = true; return; }
+    if (requestedQuery !== queryRef.current) { invalidate(); return; }
     updateSelection(items => items.map(item => refreshedSelection.get(item.id) ?? item));
     const preview = currentPage.current;
     if (preview) {
@@ -348,14 +364,15 @@ export default function SubtitleStudio() {
     } else if (openFirst && result.documents[0]) {
       await select(result.documents[0], 0, { silent, query: requestedQuery });
     }
+    // Nothing changed since the read: the background refresh queued by those changes has nothing left to read.
+    if (readerIsCurrent(owner)) libraryChanges.current.settle(covered);
   };
   backgroundRead.current = async () => {
-    if (!mounted.current || !dirty.current) return;
-    dirty.current = false;
+    if (!mounted.current || !libraryChanges.current.take()) return;
     await load(currentOffset.current, !currentPage.current, true);
   };
   refreshPending.current = () => {
-    if (!mounted.current || !dirty.current) return;
+    if (!mounted.current || !libraryChanges.current.dirty) return;
     coordinator.current?.requestRefresh();
   };
   const deleteDocument = () => {
@@ -466,7 +483,7 @@ export default function SubtitleStudio() {
       });
     } finally {
       settle();
-      if (readerIsCurrent(owner)) { operation.current = false; setActivity(null); if (dirty.current) queueMicrotask(() => refreshPending.current()); }
+      if (readerIsCurrent(owner)) { operation.current = false; setActivity(null); if (libraryChanges.current.dirty) queueMicrotask(() => refreshPending.current()); }
     }
   };
   const copyCue = async (id: string, text: string) => {
@@ -478,7 +495,7 @@ export default function SubtitleStudio() {
     const owner = new StudioRefreshCoordinator(() => backgroundRead.current(), failure => {
       if (!readerIsCurrent(owner)) return;
       // A newer observed revision already requests another read; do not flash a stale-read error.
-      if (failure instanceof StudioError && failure.code === 'revision_conflict' && dirty.current) return;
+      if (failure instanceof StudioError && failure.code === 'revision_conflict' && libraryChanges.current.dirty) return;
       setError(failure instanceof StudioError ? failure.code : 'document_unavailable');
       retry.current = () => void run('load', () => load(currentOffset.current, !currentPage.current));
     });
@@ -487,14 +504,11 @@ export default function SubtitleStudio() {
     const unsubscribe = window.subtitleStudio.subscribe(event => {
       if (!mounted.current || !observations.current.observe(event)) return;
       observedRevisions.current.set(event.documentId, event.revision);
-      if (event.deleted) updateSelection(items => items.filter(item => item.id !== event.documentId));
       if (event.deleted) {
-        if (previewTarget.current === event.documentId) invalidatePreview();
-        setDocuments(items => items.filter(item => item.id !== event.documentId));
-        if (currentPage.current?.summary.id === event.documentId) showPage(null);
-        setDeleting(value => value?.id === event.documentId ? null : value);
+        // Rows of this window's own batch leave together when it answers; other deletions apply at once.
+        if (!deferredDeletions.current.hold(event.documentId)) forgetDocuments(new Set([event.documentId]));
       }
-      dirty.current = true;
+      invalidate();
       refreshPending.current();
     });
     void run('load', () => load(0, true));
@@ -525,7 +539,7 @@ export default function SubtitleStudio() {
     invalidateSelectionRequest();
     if (next.query !== queryRef.current.query || next.format !== queryRef.current.format || next.status !== queryRef.current.status) updateSelection(() => []);
     queryRef.current = next; setQuery(next); currentOffset.current = 0;
-    dirty.current = true;
+    invalidate();
   };
   useEffect(() => {
     const timer = window.setTimeout(() => refreshPending.current(), 180);
@@ -586,41 +600,61 @@ export default function SubtitleStudio() {
       }
     });
   };
+  /** Deletes in one request at whatever revision each document has committed since it was seen; the rows leave with the result. */
+  const deleteTargets = async (targets: DocumentSummary[]): Promise<OperationResult[]> => {
+    const batch = deferredDeletions.current.open(targets.map(target => target.id));
+    let answer: DeletionAnswer;
+    try {
+      const result = await unwrapStudio(window.subtitleStudio.deleteDocuments({ documents: targets.map(target => ({ documentId: target.id, revision: Math.max(observedRevisions.current.get(target.id) ?? 0, target.revision) })) }));
+      if (result.cleanupPending && mounted.current) setCleanupPending(true);
+      answer = result;
+    } catch (failure) { answer = { error: failure instanceof StudioError ? failure.code : 'document_unavailable' }; }
+    // A failed document stays selected unless its deletion was observed anyway.
+    const { forget, items } = deferredDeletions.current.settle(batch, answer);
+    if (!mounted.current) return [];
+    forgetDocuments(forget);
+    const outcomes = new Map(items.map(item => [item.documentId, item]));
+    return targets.map(target => {
+      const outcome = outcomes.get(target.id);
+      return { name: target.origin.displayName, documentId: target.id, ...(outcome?.ok ? {} : { error: outcome?.error ?? 'document_unavailable' }) };
+    });
+  };
+  const changeTasks = async (kind: 'cancel' | 'resume', targets: DocumentSummary[]): Promise<OperationResult[]> => {
+    const items: OperationResult[] = [];
+    for (const target of targets) {
+      if (!mounted.current) break;
+      try {
+        // Resolve the current revision and task at execution; selection itself never starts work.
+        const revision = Math.max(observedRevisions.current.get(target.id) ?? 0, target.revision);
+        const current = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: target.id, revision, offset: 0 }));
+        const task = [...current.tasks].reverse().find(item => item.translation && (kind === 'cancel' ? ['queued', 'running', 'failed', 'interrupted', 'needs_configuration'].includes(item.status) : ['failed', 'interrupted', 'needs_configuration'].includes(item.status)));
+        if (!task) { items.push({ name: target.origin.displayName, documentId: target.id, skipped: kind === 'cancel' ? 'studio:library.no_cancel_task' : 'studio:library.no_resume_task' }); continue; }
+        const request = { documentId: target.id, revision: current.summary.revision, taskId: task.id };
+        if (kind === 'cancel') await unwrapStudio(window.subtitleStudio.cancelTask(request));
+        else {
+          const profile = useModelStore.getState().profiles.find(item => item.id === task.translation!.config.model.profileId);
+          const model = translationModelSchema.safeParse(profile ? { profileId: profile.id, modelKey: profile.modelKey, endpoint: profile.baseUrl, apiFormat: profile.apiFormat, outputTokenParameter: profile.outputTokenParameter } : null);
+          if (!model.success || !profile?.apiKey.trim() || JSON.stringify(normalizeTranslationModel(model.data)) !== JSON.stringify(normalizeTranslationModel(task.translation!.config.model))) throw new StudioError('needs_configuration');
+          await unwrapStudio(window.subtitleStudio.resumeTask({ ...request, model: model.data, apiKey: profile.apiKey }));
+        }
+        items.push({ name: target.origin.displayName, documentId: target.id });
+      } catch (failure) { items.push({ name: target.origin.displayName, documentId: target.id, error: failure instanceof StudioError ? failure.code : 'document_unavailable' }); }
+    }
+    return items;
+  };
   const processSelected = (kind: 'delete' | 'cancel' | 'resume', scope = selected, restore?: () => void) => {
     const targets = [...scope];
     captureResultFocus('batch', restore);
     setBatchConfirm(null);
     void run('batch', async () => {
-      const items: OperationResult[] = [];
-      for (const target of targets) {
-        if (!mounted.current) break;
-        try {
-          // Resolve the current revision and task at execution; selection itself never starts work.
-          const revision = Math.max(observedRevisions.current.get(target.id) ?? 0, target.revision);
-          const current = await unwrapStudio(window.subtitleStudio.readDocumentPage({ documentId: target.id, revision, offset: 0 }));
-          if (kind === 'delete') {
-            const result = await unwrapStudio(window.subtitleStudio.deleteDocument({ documentId: target.id, revision: current.summary.revision }));
-            if (result.cleanupPending) setCleanupPending(true);
-            if (currentPage.current?.summary.id === target.id) showPage(null);
-          } else {
-            const task = [...current.tasks].reverse().find(item => item.translation && (kind === 'cancel' ? ['queued', 'running', 'failed', 'interrupted', 'needs_configuration'].includes(item.status) : ['failed', 'interrupted', 'needs_configuration'].includes(item.status)));
-            if (!task) { items.push({ name: target.origin.displayName, documentId: target.id, skipped: kind === 'cancel' ? 'studio:library.no_cancel_task' : 'studio:library.no_resume_task' }); continue; }
-            const request = { documentId: target.id, revision: current.summary.revision, taskId: task.id };
-            if (kind === 'cancel') await unwrapStudio(window.subtitleStudio.cancelTask(request));
-            else {
-              const profile = useModelStore.getState().profiles.find(item => item.id === task.translation!.config.model.profileId);
-              const model = translationModelSchema.safeParse(profile ? { profileId: profile.id, modelKey: profile.modelKey, endpoint: profile.baseUrl, apiFormat: profile.apiFormat, outputTokenParameter: profile.outputTokenParameter } : null);
-              if (!model.success || !profile?.apiKey.trim() || JSON.stringify(normalizeTranslationModel(model.data)) !== JSON.stringify(normalizeTranslationModel(task.translation!.config.model))) throw new StudioError('needs_configuration');
-              await unwrapStudio(window.subtitleStudio.resumeTask({ ...request, model: model.data, apiKey: profile.apiKey }));
-            }
-          }
-          items.push({ name: target.origin.displayName, documentId: target.id });
-        } catch (failure) { items.push({ name: target.origin.displayName, documentId: target.id, error: failure instanceof StudioError ? failure.code : 'document_unavailable' }); }
-      }
-      if (!mounted.current) return;
-      if (kind === 'delete') updateSelection(values => values.filter(value => !items.some(item => item.documentId === value.id && !item.error)));
-      setResults({ kind, items });
-      await load(currentOffset.current, true);
+      // Every changed document would make the overview read the whole library; it reads once when the batch is done.
+      const release = getStudioTranslationOverviewController().holdRefresh();
+      try {
+        const items = kind === 'delete' ? await deleteTargets(targets) : await changeTasks(kind, targets);
+        if (!mounted.current) return;
+        setResults({ kind, items });
+        await load(currentOffset.current, true);
+      } finally { release(); }
     });
   };
 
@@ -639,7 +673,7 @@ export default function SubtitleStudio() {
   </Select>;
   const importIcon = activity === 'import' ? <LoaderCircle className="studio-spin" /> : <FilePlus2 />;
   const refresh = <StudioIconButton label={t('studio:refresh')} disabled={busy} onClick={() => void run('load', () => load(listOffset, !page))}><RefreshCw className={activity === 'load' ? 'studio-spin' : ''} /></StudioIconButton>;
-  const onBatchChanged = () => { dirty.current = true; refreshPending.current(); };
+  const onBatchChanged = () => { invalidate(); refreshPending.current(); };
   /** Applies a cue edit, records its inverse and reloads the page; resolves whether it was applied. */
   const applyCueEdit = (operation: CueEditOperation, mode: 'do' | 'undo' | 'redo', label: CueEditLabel = 'source', count = 1) => new Promise<boolean>(resolve => {
     const current = currentPage.current;
@@ -818,7 +852,7 @@ export default function SubtitleStudio() {
               </div>
               <div className="studio-translation-progress-controls">
                 <StudioTranslationStatus page={page} trackId={track.id} busy={busy} onRecheck={requestKnowledgeRecheck} />
-                <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { dirty.current = true; refreshPending.current(); }} />
+                <StudioTranslationTask page={page} trackId={track.id} busy={busy} onError={code => { retry.current = null; setError(code); }} onChanged={() => { invalidate(); refreshPending.current(); }} />
               </div>
             </div>}
             {diagnostics.length > 0 && <StudioDisclosure className="studio-diagnostics border-t bg-muted/30" key={page.summary.id} title={<span className="flex min-w-0 items-center gap-2"><AlertCircle className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" /><span>{t('studio:document_checks')}</span><Badge variant="secondary" className="font-mono text-[10px]">{page.summary.diagnostics.length}</Badge></span>}><ScrollArea viewportProps={{ className: 'studio-diagnostics-scroll' }}><ul>{diagnostics.map(([code, count]) => <li key={code}><span>{t(diagnosticKeys[code])}</span><span className="shrink-0 font-mono text-[10px]">{count}</span></li>)}</ul></ScrollArea></StudioDisclosure>}
@@ -877,7 +911,7 @@ export default function SubtitleStudio() {
     <StudioBatchTranslation triggerContainer={translationSlot} documents={contextDialog?.kind === 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog?.kind === 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind === 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onStarted={onBatchChanged} />
     <StudioBatchExport triggerContainer={exportSlot} documents={contextDialog && contextDialog.kind !== 'translate' ? latestScope(contextDialog.documents) : selected} openRequest={contextDialog && contextDialog.kind !== 'translate' ? contextDialog.request : undefined} onRequestClosed={() => setContextDialog(current => current?.kind !== 'translate' ? null : current)} busy={busy} onError={code => { retry.current = null; setError(code); }} onExported={setExported} />
     <AnimatePresence>{!wide && <ScrollableDialog key="library" animateSize open={libraryOpen} onOpenChange={setLibraryOpen} maxWidth="sm:max-w-[540px]" contentClassName="studio-library-dialog" onOpenAutoFocus={event => { event.preventDefault(); document.querySelector<HTMLInputElement>('[data-testid=studio-library-search]')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('studio-library-trigger')?.focus(); }}><ScrollableDialogHeader><DialogTitle>{t('studio:documents')} · {allTotal}</DialogTitle><DialogDescription className="sr-only">{t('studio:library.selection_rule')}</DialogDescription></ScrollableDialogHeader><ScrollableDialogContent>{library}</ScrollableDialogContent></ScrollableDialog>}</AnimatePresence>
-    <StudioRecovery open={recoveryOpen} onOpenChange={setRecoveryOpen} documents={unavailable} onChanged={pending => { if (pending) setCleanupPending(true); dirty.current = true; refreshPending.current(); }} onError={code => { retry.current = null; setError(code); }} />
+    <StudioRecovery open={recoveryOpen} onOpenChange={setRecoveryOpen} documents={unavailable} onChanged={pending => { if (pending) setCleanupPending(true); invalidate(); refreshPending.current(); }} onError={code => { retry.current = null; setError(code); }} />
     <ScrollableDialog animateSize open={!!batchConfirm} maxWidth="sm:max-w-[560px]" contentClassName="studio-batch-confirm-dialog" onOpenChange={open => { if (!open) setBatchConfirm(null); }} onOpenAutoFocus={event => { event.preventDefault(); document.getElementById('studio-batch-cancel')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); if (operation.current || results) return; if (confirmReturnAction.current) { confirmReturnAction.current(); return; } (document.getElementById('studio-library-batch-actions') ?? document.querySelector<HTMLElement>('[data-testid=studio-library-select-all]'))?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="relative p-3 pr-12"><DialogTitle className="flex items-center gap-2 text-sm">{displayedConfirmation?.kind === 'delete' ? <Trash2 className="size-4" /> : <Play className="size-4" />}{t(displayedConfirmation?.kind === 'delete' ? 'studio:library.delete_selected' : 'studio:library.resume_selected')}</DialogTitle><DialogDescription className="text-xs leading-5">{t(displayedConfirmation?.kind === 'delete' ? 'studio:delete_description' : 'studio:library.resume_description')}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogContent className="studio-batch-confirm-content"><div className="space-y-3"><StudioSelectedDocuments documents={displayedConfirmation?.documents ?? []} collapsible={false} />{displayedConfirmation?.kind === 'resume' && <p className="text-xs leading-5 text-amber-600 dark:text-amber-400">{t('studio:library.resume_uncertain')}</p>}</div></ScrollableDialogContent>
