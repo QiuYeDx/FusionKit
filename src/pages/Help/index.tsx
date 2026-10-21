@@ -254,7 +254,7 @@ const Help: React.FC = () => {
 
       <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[208px_minmax(0,1fr)]">
         <nav aria-label={t("help:toc")} data-testid="help-toc"
-          className="flex flex-wrap gap-1.5 lg:sticky lg:top-14 lg:flex-col lg:flex-nowrap lg:gap-0.5 lg:self-start">
+          className="isolate flex flex-wrap gap-1.5 lg:sticky lg:top-14 lg:flex-col lg:flex-nowrap lg:gap-0.5 lg:self-start">
           <p className="kit-eyebrow mb-2 hidden px-2.5 lg:block">{t("help:toc")}</p>
           {SECTIONS.map(({ id, titleKey, icon: Icon, tone }) => {
             const active = reading === id && !searching;
@@ -265,8 +265,9 @@ const Help: React.FC = () => {
                 active ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>
               {active && <motion.span layoutId="help-toc-indicator" aria-hidden className="absolute inset-0 hidden rounded-smooth-lg bg-muted lg:block"
                 transition={reducedMotion ? { duration: 0 } : { type: "spring", duration: 0.35, bounce: 0.1 }} />}
-              <span className="relative inline-flex"><Icon aria-hidden className="size-3.5" style={{ color: active ? `var(--kit-tone)` : undefined, ["--kit-tone" as string]: TONES[tone] }} /></span>
-              <span className="relative min-w-0 truncate">{t(titleKey)}</span>
+              {/* Above every entry's indicator, so the one sliding down never covers the entries it passes. */}
+              <span className="relative z-[1] inline-flex"><Icon aria-hidden className="size-3.5" style={{ color: active ? `var(--kit-tone)` : undefined, ["--kit-tone" as string]: TONES[tone] }} /></span>
+              <span className="relative z-[1] min-w-0 truncate">{t(titleKey)}</span>
             </button>;
           })}
         </nav>

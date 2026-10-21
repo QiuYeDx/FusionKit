@@ -1,10 +1,9 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { ArrowUpRight } from "lucide-react";
 import AgentOrb from "@/components/agent-orb/AgentOrb";
-import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
+import { SpotlightTile, SpotlightTileLink } from "@/components/qiuye-ui/spotlight-tile";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
 import { openPromptTemplate } from "@/pages/HomeAgent/components/PromptTemplates";
@@ -25,57 +24,34 @@ export interface ToolTileItem {
 }
 
 /**
- * A tool in the grid. The title is the link and its hit area covers the whole tile; the light under the
- * border follows the pointer. A tool the agent can run through a workflow template also offers to hand
- * the job over, without opening the tool.
+ * A tool in the grid, on qiuye-ui's SpotlightTile. The title is the link and its hit area covers the whole
+ * tile. A tool the agent can run through a workflow template also offers to hand the job over, without
+ * opening the tool.
  */
 export function ToolTile({ item, index, className, beta }: { item: ToolTileItem; index: number; className?: string; beta?: boolean }) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotionPreference();
   const meta = TOOL_META[item.id];
-  const tone = toneCss(meta);
   const Icon = meta.icon;
-  const ref = useRef<HTMLDivElement>(null);
   const [agentHover, setAgentHover] = useState(false);
-  const spot = (event: React.PointerEvent) => {
-    const bounds = ref.current?.getBoundingClientRect();
-    if (!bounds) return;
-    ref.current!.style.setProperty("--spot-x", `${event.clientX - bounds.left}px`);
-    ref.current!.style.setProperty("--spot-y", `${event.clientY - bounds.top}px`);
-  };
+  const handoff = item.templateId && <Tooltip delayDuration={400}>
+    <TooltipTrigger asChild>
+      <button type="button" className="tool-agent-handoff" data-testid="tool-agent-handoff" data-template={item.templateId}
+        onClick={() => openPromptTemplate(item.templateId!)} onPointerEnter={() => setAgentHover(true)} onPointerLeave={() => setAgentHover(false)}
+        aria-label={`${t("tools:catalog.agent_handoff")} · ${t(item.titleKey)}`}>
+        <AgentOrb size={18} fill={0.88} halo={false} state={agentHover ? "think" : "idle"} paused={!agentHover} />
+        <span>{t("tools:catalog.agent_handoff")}</span>
+      </button>
+    </TooltipTrigger>
+    <TooltipContent side="top" sideOffset={6} className="max-w-64">{t("tools:catalog.agent_handoff_hint")}</TooltipContent>
+  </Tooltip>;
+  // The tiles rise with the page instead of on entering the view, so one peeking above the bottom edge is
+  // never an invisible click target, and they show at once when motion is reduced.
   return <motion.div className={cn("min-w-0", className)} initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.6, delay: 0.16 + index * 0.05, ease: EASE }}>
-    <SmoothCorners radius={20} smoothing={0.72} asChild>
-      <div ref={ref} data-tool-card={item.id} className="tool-tile group" style={{ "--tool-tone": tone } as CSSProperties} onPointerMove={spot}>
-        <span className="tool-tile-clip" aria-hidden><Icon className="tool-tile-watermark" /></span>
-        <div className="tool-tile-head">
-          <SmoothCorners radius={13} smoothing={0.72} className="tool-tile-icon">
-            <Icon aria-hidden className="size-5" />
-          </SmoothCorners>
-          {beta && <span className="tool-tile-beta">Beta</span>}
-          <ArrowUpRight aria-hidden className="tool-tile-arrow" />
-        </div>
-        <h3 className="tool-tile-title">
-          <Link to={meta.route!} id={`tool-title-${item.id}`} className="tool-tile-link">{t(item.titleKey)}</Link>
-        </h3>
-        <p className="tool-tile-description">{t(item.descKey)}</p>
-        <div className="tool-tile-foot">
-          <ul className="tool-tile-chips">
-            {item.chips.map((chip) => <li key={chip}>{item.translateChips ? t(chip) : chip}</li>)}
-          </ul>
-          {item.templateId && <Tooltip delayDuration={400}>
-            <TooltipTrigger asChild>
-              <button type="button" className="tool-tile-agent" data-testid="tool-agent-handoff" data-template={item.templateId}
-                onClick={() => openPromptTemplate(item.templateId!)} onPointerEnter={() => setAgentHover(true)} onPointerLeave={() => setAgentHover(false)}
-                aria-label={`${t("tools:catalog.agent_handoff")} · ${t(item.titleKey)}`}>
-                <AgentOrb size={18} fill={0.88} halo={false} state={agentHover ? "think" : "idle"} paused={!agentHover} />
-                <span>{t("tools:catalog.agent_handoff")}</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" sideOffset={6} className="max-w-64">{t("tools:catalog.agent_handoff_hint")}</TooltipContent>
-          </Tooltip>}
-        </div>
-      </div>
-    </SmoothCorners>
+    <SpotlightTile data-tool-card={item.id} appear={false} tone={toneCss(meta)} icon={<Icon />} badge={beta ? "Beta" : undefined} arrow
+      title={<SpotlightTileLink asChild><Link to={meta.route!} id={`tool-title-${item.id}`}>{t(item.titleKey)}</Link></SpotlightTileLink>}
+      description={t(item.descKey)} chips={item.chips.map((chip) => item.translateChips ? t(chip) : chip)} actions={handoff || undefined}
+      className="h-full min-h-[178px]" />
   </motion.div>;
 }

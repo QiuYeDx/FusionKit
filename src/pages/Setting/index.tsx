@@ -136,8 +136,9 @@ const Setting: React.FC = () => {
                   </SmoothCorners>
                 )}
                 {!active && <span aria-hidden className="absolute inset-0 rounded-smooth-xl bg-foreground/[0.04] opacity-0 transition-opacity group-hover:opacity-100" />}
-                <ToneIcon icon={item.icon} tone={item.tone} size={30} solid={active} className="relative transition-[background,color,box-shadow] duration-300" />
-                <div className="relative min-w-0 flex-1">
+                {/* Content sits above every row's indicator, so the one sliding to a later row never covers the rows it passes. */}
+                <ToneIcon icon={item.icon} tone={item.tone} size={30} solid={active} className="relative z-[1] transition-[background,color,box-shadow] duration-300" />
+                <div className="relative z-[1] min-w-0 flex-1">
                   <div className="text-[13.5px] font-medium leading-5">{t(item.labelKey)}</div>
                   <div className={cn("truncate text-[11.5px] leading-4", active ? "text-muted-foreground" : "text-muted-foreground/80")}>{t(item.hintKey)}</div>
                 </div>

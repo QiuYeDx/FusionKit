@@ -55,7 +55,7 @@ function SectionHeading({ id, testId, title, count, description, badge }: {
     <div className="flex items-center gap-2.5">
       <h2 id={id} data-testid={testId} className="text-[17px] font-semibold tracking-tight">{title}</h2>
       <span className="tools-count" aria-hidden>{String(count).padStart(2, "0")}</span>
-      {badge && <span className="tool-tile-beta">{badge}</span>}
+      {badge && <span className="tools-beta">{badge}</span>}
     </div>
     <p id={`${id}-description`} className="max-w-2xl text-xs leading-5 text-muted-foreground">{description}</p>
   </div>;

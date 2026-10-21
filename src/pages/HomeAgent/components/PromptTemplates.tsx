@@ -195,7 +195,7 @@ function FieldControl({ field, values, setValue, showMissing }: {
 function TargetSwitch({ value, onChange, targets }: { value: TemplateTarget; onChange: (target: TemplateTarget) => void; targets: readonly TemplateTarget[] }) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotionPreference();
-  return <div role="radiogroup" aria-label={t("home:templates.target_label")} className="grid grid-cols-2 rounded-full bg-muted p-0.5" data-testid="agent-template-target">
+  return <div role="radiogroup" aria-label={t("home:templates.target_label")} className="isolate grid grid-cols-2 rounded-full bg-muted p-0.5" data-testid="agent-template-target">
     {(["fusionkit", "external"] as const).map((target) => {
       const disabled = !targets.includes(target);
       const selected = value === target;
@@ -205,7 +205,7 @@ function TargetSwitch({ value, onChange, targets }: { value: TemplateTarget; onC
           selected ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>
         {selected && <motion.span layoutId="template-target-pill" className="absolute inset-0 rounded-full bg-background shadow-sm ring-1 ring-foreground/5"
           transition={reduceMotion ? { duration: 0 } : { type: "spring", duration: 0.32, bounce: 0 }} />}
-        <span className="relative flex items-center gap-1.5">
+        <span className="relative z-[1] flex items-center gap-1.5">
           {target === "fusionkit" ? <LayoutTemplate className="size-3.5" /> : <Bot className="size-3.5" />}
           {t(`home:templates.target_${target}`)}
         </span>

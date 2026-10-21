@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
    Tools catalog: two featured tools as living, tilting glass cards, then the
-   classic tools as a bento grid of spotlight tiles.
+   classic tools as a bento grid of qiuye-ui spotlight tiles.
    --------------------------------------------------------------------------- */
 
 .tools-header {
@@ -45,7 +45,8 @@
 
 .tools-featured-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 @media (min-width: 1024px) { .tools-featured-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.featured-tool-wrap { min-width: 0; perspective: 1300px; }
+/* The wrapper is the size container: a card cannot query its own width, only an ancestor's. */
+.featured-tool-wrap { min-width: 0; perspective: 1300px; container-type: inline-size; }
 
 .featured-tool {
   --feature-ink: var(--tool-local-subtitle);
@@ -55,12 +56,12 @@
   --glass-shadow: 0 18px 40px -22px color-mix(in oklab, var(--feature-ink) 55%, transparent), 0 2px 6px -2px rgb(0 0 0 / 0.08);
   --glass-muted: color-mix(in oklab, var(--foreground) 52%, transparent);
   position: relative;
-  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
   grid-template-areas: "copy art" "footer footer";
   grid-template-rows: 1fr auto;
   column-gap: 12px;
+  height: 100%;
   min-height: 352px;
   padding: 26px;
   border-radius: 24px;
@@ -155,8 +156,8 @@
 .featured-details { display: grid; grid-template-columns: repeat(3, auto); min-width: 0; }
 .featured-details > div { min-width: 0; padding-inline: 16px; border-left: 1px solid color-mix(in oklab, var(--foreground) 12%, transparent); }
 .featured-details > div:first-child { padding-left: 0; border-left: 0; }
-.featured-details dt { font-size: 10.5px; line-height: 15px; color: var(--glass-muted); white-space: nowrap; }
-.featured-details dd { margin-top: 3px; font-size: 15px; line-height: 21px; font-weight: 600; white-space: nowrap; }
+.featured-details dt { font-size: 10.5px; line-height: 15px; color: var(--glass-muted); text-wrap: balance; }
+.featured-details dd { margin-top: 3px; font-size: 15px; line-height: 21px; font-weight: 600; text-wrap: balance; }
 .featured-cta {
   display: inline-flex;
   flex-shrink: 0;
@@ -225,96 +226,20 @@
   box-shadow: 0 14px 28px -12px color-mix(in oklab, var(--feature-ink) 70%, rgb(0 0 0 / 0.5));
 }
 
-/* Narrow cards keep the copy; the artwork steps back behind it. */
-@container (max-width: 500px) {
-  .featured-tool { grid-template-columns: minmax(0, 1fr); grid-template-areas: "copy" "footer"; }
-  .featured-art { position: absolute; inset: 24px 18px auto auto; width: 46%; min-height: 200px; opacity: 0.32; }
+/* A narrow card stacks: the copy, the artwork in a band of its own at its full size, the details, then the button. */
+@container (max-width: 552px) {
+  .featured-tool { grid-template-columns: minmax(0, 1fr); grid-template-areas: "copy" "art" "footer"; grid-template-rows: auto auto auto; }
+  .featured-title { margin-top: 14px; font-size: 26px; }
+  .featured-art { justify-self: center; width: 100%; max-width: 400px; height: 252px; min-height: 0; margin-top: 18px; }
+  /* Room for the floating pill and panel, which tilt and drift towards the footer on hover. */
+  .featured-footer { flex-direction: column; align-items: stretch; margin-top: 30px; }
   .featured-details { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@container (max-width: 420px) {
-  .featured-footer { flex-direction: column; align-items: flex-start; }
+  .featured-cta { align-self: flex-start; }
 }
 
-/* --- Classic tiles ----------------------------------------------------------- */
+/* --- Classic tiles (qiuye-ui SpotlightTile) ------------------------------------ */
 
-.tool-tile {
-  --spot-x: 50%;
-  --spot-y: 0%;
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  height: 100%;
-  min-height: 178px;
-  flex-direction: column;
-  padding: 18px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-/* A light that follows the pointer: along the border, and softly inside. */
-.tool-tile::before, .tool-tile::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-  border-radius: inherit;
-  corner-shape: inherit;
-  opacity: 0;
-  transition: opacity 260ms ease;
-}
-.tool-tile::before {
-  inset: -1px;
-  z-index: 1;
-  padding: 1px;
-  background: radial-gradient(240px circle at var(--spot-x) var(--spot-y), color-mix(in oklab, var(--tool-tone) 85%, transparent), transparent 70%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-.tool-tile::after {
-  inset: 0;
-  z-index: -1;
-  background: radial-gradient(380px circle at var(--spot-x) var(--spot-y), color-mix(in oklab, var(--tool-tone) 10%, transparent), transparent 65%);
-}
-.tool-tile:hover::before, .tool-tile:hover::after { opacity: 1; }
-.tool-tile:hover { box-shadow: 0 18px 36px -26px color-mix(in oklab, var(--tool-tone) 60%, transparent); transform: translateY(-2px); }
-.tool-tile:has(.tool-tile-link:focus-visible) { outline: 2px solid var(--tool-tone); outline-offset: 3px; }
-
-.tool-tile-head { display: flex; align-items: flex-start; gap: 8px; }
-/* The tool's icon again, large and faint in the corner, drifting a little on hover; clipped to the tile. */
-.tool-tile-clip { position: absolute; inset: 0; z-index: -1; overflow: hidden; border-radius: inherit; corner-shape: inherit; pointer-events: none; }
-.tool-tile-watermark {
-  position: absolute;
-  right: -14px;
-  bottom: -22px;
-  z-index: -1;
-  width: 128px;
-  height: 128px;
-  color: var(--tool-tone);
-  opacity: 0.06;
-  stroke-width: 1.4;
-  transform: rotate(-12deg);
-  pointer-events: none;
-  transition: transform 520ms cubic-bezier(0.23, 1, 0.32, 1), opacity 320ms ease;
-}
-.tool-tile:hover .tool-tile-watermark { opacity: 0.11; transform: rotate(-4deg) translate(-6px, -6px) scale(1.04); }
-.dark .tool-tile-watermark { opacity: 0.08; }
-.dark .tool-tile:hover .tool-tile-watermark { opacity: 0.14; }
-.tool-tile-icon {
-  display: inline-flex;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in oklab, var(--tool-tone) 26%, transparent);
-  background: linear-gradient(145deg, color-mix(in oklab, var(--tool-tone) 20%, transparent), color-mix(in oklab, var(--tool-tone) 8%, transparent));
-  color: var(--tool-tone);
-  transition: transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1);
-}
-.tool-tile:hover .tool-tile-icon { transform: rotate(-6deg) scale(1.05); }
-.tool-tile-arrow { margin-left: auto; width: 16px; height: 16px; color: var(--muted-foreground); transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1), color 220ms ease; }
-.tool-tile:hover .tool-tile-arrow { color: var(--tool-tone); transform: translate(2px, -2px); }
-.tool-tile-beta {
+.tools-beta {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 1px 8px;
@@ -324,34 +249,8 @@
   line-height: 16px;
   color: var(--muted-foreground);
 }
-.tool-tile-title { margin-top: 16px; font-size: 15px; font-weight: 600; line-height: 22px; letter-spacing: -0.01em; }
-.tool-tile-link { outline: none; }
-/* The title's link covers the whole tile. */
-.tool-tile-link::after { content: ""; position: absolute; inset: 0; z-index: 2; border-radius: inherit; }
-.tool-tile-description {
-  display: -webkit-box;
-  margin-top: 4px;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  font-size: 12.5px;
-  line-height: 20px;
-  color: var(--muted-foreground);
-}
-.tool-tile-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 16px; }
-.tool-tile-chips { display: flex; min-width: 0; flex-wrap: wrap; gap: 5px; }
-.tool-tile-chips li {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--muted) 75%, transparent);
-  font-size: 10.5px;
-  line-height: 16px;
-  color: color-mix(in oklab, var(--foreground) 72%, transparent);
-  white-space: nowrap;
-}
-.tool-tile-agent {
-  position: relative;
-  z-index: 3;
+/* Hands the job to the agent; sits in the tile's actions, above the title link that covers the tile. */
+.tool-agent-handoff {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -367,17 +266,14 @@
   outline: none;
   transition: color 180ms ease, border-color 180ms ease, background-color 180ms ease, transform 160ms ease;
 }
-.tool-tile-agent:hover, .tool-tile-agent:focus-visible {
+.tool-agent-handoff:hover, .tool-agent-handoff:focus-visible {
   color: var(--foreground);
-  border-color: color-mix(in oklab, var(--tool-tone) 45%, var(--border));
-  background: color-mix(in oklab, var(--tool-tone) 7%, var(--background));
+  border-color: color-mix(in oklab, var(--qy-spotlight-tone) 45%, var(--border));
+  background: color-mix(in oklab, var(--qy-spotlight-tone) 7%, var(--background));
 }
-.tool-tile-agent:focus-visible { outline: 2px solid var(--tool-tone); outline-offset: 2px; }
-.tool-tile-agent:active { transform: scale(0.96); }
+.tool-agent-handoff:focus-visible { outline: 2px solid var(--qy-spotlight-tone); outline-offset: 2px; }
+.tool-agent-handoff:active { transform: scale(0.96); }
 
 @media (prefers-reduced-motion: reduce) {
-  .tool-tile, .tool-tile-icon, .tool-tile-arrow, .featured-cta, .featured-cta svg { transition: none; }
-  .tool-tile:hover { transform: none; }
-  .tool-tile:hover .tool-tile-icon, .tool-tile:hover .tool-tile-watermark { transform: rotate(-12deg); }
-  .tool-tile:hover .tool-tile-icon { transform: none; }
+  .featured-cta, .featured-cta svg { transition: none; }
 }
