@@ -1,7 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { _electron as electron, expect as uiExpect, type ElectronApplication, type Page } from 'playwright/test';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const scope = '[data-slot=tool-file-drop-scope]';
@@ -111,9 +110,12 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool file drop surfac
   });
 
   it('routes native Files across the tool page once, clears feedback, and follows the active Studio importer', async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'tool-file-drop-ui-'));
     const artifacts = path.resolve('test-results/tool-file-drop');
     await mkdir(artifacts, { recursive: true });
+    // Not os.tmpdir(): on Windows a dropped file inside %TEMP% looks like an
+    // Explorer drag copy, and the main process refuses it unless Explorer still
+    // shows the original selection (windows-explorer-drop-resolver.ts).
+    root = await mkdtemp(path.join(artifacts, 'run-'));
     const subtitle = (name: string) => path.join(root!, name);
     const files = ['01-page-heading.srt', '02-config-sidebar.srt', '03-original-picker.srt', '04-modal-blocked.srt', '05-studio-document.srt'].map(subtitle);
     const textFile = path.join(root, 'drop-preview.txt');
