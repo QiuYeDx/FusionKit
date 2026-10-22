@@ -28,15 +28,16 @@ import {
 import type { LocalSubtitleMainRuntimeShutdownReason, LocalSubtitleMainRuntimeTarget } from './native/main-runtime';
 import { DocumentRepository } from '../document-repository';
 import { TranscriptionExecutor } from './transcript-executor';
-import { createTranscriptionTaskService, type TranscriptionTaskService } from './task-service';
+import { createTranscriptionTaskService, type TranscriptionRetryOverrides, type TranscriptionTaskService } from './task-service';
 import type { EnqueueTranscriptionRequest } from '../../../../src/subtitle-studio/transcription/task-contract';
 import { enqueueTranscriptionRequestSchema } from '../../../../src/subtitle-studio/transcription/task-contract';
 import type { SpeechResourceService } from '../../speech-resources/service';
 import { canonicalResourceId, SPEECH_CUDA_RESOURCE_ID } from '../../speech-resources/catalog';
 import { createStudioSharedResources, type StudioSharedResources } from './shared-resources';
 import { createLocalSubtitleServerSession } from './native/server-session';
+import type { LocalSubtitleServerRawSegment } from './native/server-contract';
 import { localSubtitleFileIdentityForPath } from './native/filesystem-object-identity';
-import type { LocalSubtitleDevicePreference } from '../../../../src/subtitle-studio/transcription/domain';
+import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT, type LocalSubtitleDevicePreference } from '../../../../src/subtitle-studio/transcription/domain';
 import type { LocalSubtitleMediaProbeSummary } from '../../../../src/subtitle-studio/transcription/ipc-contract';
 import type { AudioTrack } from '../../../../src/subtitle-studio/domain';
 import { audioTrackOfProbe } from '../../../../src/subtitle-studio/cue-audio';
@@ -77,8 +78,14 @@ const importSchema = z.object({ owner: ownerSchema, filePath: z.string().min(1),
 /** One short 16 kHz mono WAV to recognize again, outside the task queue. */
 export type RecognizeClipRequest = {
   modelId: string; devicePreference: LocalSubtitleDevicePreference; language: string; initialPrompt?: string;
+  /** A gained clip is sent with voice detection and this padding, as a gained transcription window is. */
+  vadSpeechPadMs?: number;
+  /** Text only, for a model whose timestamps are unusable: its segments span the clip. */
+  noTimestamps?: true;
   filePath: string; signal?: AbortSignal;
 };
+/** What the server heard in a clip; segment times are the clip's own. */
+export type RecognizedClip = Readonly<{ text: string; language: string; segments: readonly LocalSubtitleServerRawSegment[] }>;
 /** Threads the transcription executor gives the server; a recognition reuses the same load. */
 const RECOGNIZE_CPU_THREADS = 4;
 const absolutePathSchema = z.string().min(1).refine(value => !value.includes('\0') && path.isAbsolute(value));
@@ -276,6 +283,18 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     return initialization;
   }
 
+  function enqueue(value: LocalSubtitleOwnerKey, request: EnqueueTranscriptionRequest) {
+    const { current, owner, signal } = requireOwner(value);
+    if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
+    if (!dependencies.sharedResources) return completeOwner(owner, current.tasks.enqueue(owner, request, signal));
+    const parsed = enqueueTranscriptionRequestSchema.parse(request), config = parsed.config;
+    const use = dependencies.sharedResources.reserveUse([config.modelId,
+      ...(config.vadEnabled ? ['silero-vad-v6.2.0-ggml'] : []),
+      ...((environment.platform ?? process.platform) === 'win32' && ['auto', 'cuda'].includes(config.devicePreference) ? [SPEECH_CUDA_RESOURCE_ID] : [])].map(canonicalResourceId));
+    try { return completeOwner(owner, current.tasks.enqueue(owner, parsed, signal)).finally(() => use.release()); }
+    catch (error) { use.release(); throw error; }
+  }
+
   function shutdown(reason: LocalSubtitleMainRuntimeShutdownReason = 'app_quit'): Promise<void> {
     if (shutdownOperation) return shutdownOperation;
     if (phase === 'closed') return Promise.resolve();
@@ -359,16 +378,21 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       },
     }),
     tasks: Object.freeze({
-      enqueue(value: LocalSubtitleOwnerKey, request: EnqueueTranscriptionRequest) {
+      enqueue,
+      /**
+       * Submits a failed or empty task again (task-service prepareRetry): the new authorization is probed as a chosen
+       * file is, so its audio track can be bound and the document remembers it, then enqueued as any batch is. An
+       * authorization that does not become a task is revoked.
+       */
+      async retry(value: LocalSubtitleOwnerKey, taskId: string, overrides?: TranscriptionRetryOverrides) {
         const { current, owner, signal } = requireOwner(value);
         if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
-        if (!dependencies.sharedResources) return completeOwner(owner, current.tasks.enqueue(owner, request, signal));
-        const parsed = enqueueTranscriptionRequestSchema.parse(request), config = parsed.config;
-        const use = dependencies.sharedResources.reserveUse([config.modelId,
-          ...(config.vadEnabled ? ['silero-vad-v6.2.0-ggml'] : []),
-          ...((environment.platform ?? process.platform) === 'win32' && ['auto', 'cuda'].includes(config.devicePreference) ? [SPEECH_CUDA_RESOURCE_ID] : [])].map(canonicalResourceId));
-        try { return completeOwner(owner, current.tasks.enqueue(owner, parsed, signal)).finally(() => use.release()); }
-        catch (error) { use.release(); throw error; }
+        const request = await current.tasks.prepareRetry(owner, taskId, overrides);
+        const { fileToken } = request.files[0]!;
+        try {
+          rememberProbe(owner, await current.media.probeDraft({ owner, fileToken, signal }));
+          return await enqueue(owner, request);
+        } catch (error) { current.inputs.revokeDraft(owner, fileToken); throw error; }
       },
       revealInput(value: LocalSubtitleOwnerKey, taskId: string, action: (inputPath: string) => void, guard: () => void) {
         const { current, owner } = requireOwner(value);
@@ -428,33 +452,41 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       /**
        * Recognizes a short clip with an installed model, as a transcription task would: the model,
        * server runtime and backend are resolved the same way and the server process is shared when
-       * the load matches. No VAD: the clip is already cut to the cue. A running transcription with
-       * another load makes the server busy.
+       * the load matches; another model, or voice detection on or off, reloads it. VAD only for a
+       * gained clip, as for a gained window; without an installed VAD the clip is sent without it.
+       * A running transcription with another load makes the server busy.
        */
-      async clip(value: LocalSubtitleOwnerKey, request: RecognizeClipRequest): Promise<Readonly<{ text: string; language: string }>> {
+      async clip(value: LocalSubtitleOwnerKey, request: RecognizeClipRequest): Promise<RecognizedClip> {
         const { current, owner, signal: lifetime } = requireOwner(value);
         const signal = ownerSignal(lifetime, request.signal);
         const cuda = (environment.platform ?? process.platform) === 'win32' && ['auto', 'cuda'].includes(request.devicePreference);
-        const use = dependencies.sharedResources?.reserveUse([request.modelId, ...(cuda ? [SPEECH_CUDA_RESOURCE_ID] : [])].map(canonicalResourceId));
+        const vadId = LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id, padded = request.vadSpeechPadMs !== undefined;
+        const use = dependencies.sharedResources?.reserveUse([request.modelId, ...(padded ? [vadId] : []), ...(cuda ? [SPEECH_CUDA_RESOURCE_ID] : [])].map(canonicalResourceId));
         try {
           const model = await current.models.resolveManagedModel(request.modelId, signal);
+          requireOwner(owner);
+          const vad = padded ? await current.models.resolveManagedVad(vadId, signal).then(
+            found => found.sha256 === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256 ? found : undefined,
+            () => { signal.throwIfAborted(); return undefined; }) : undefined;
           requireOwner(owner);
           const runtime = await verifyRuntime('server');
           const resolution = await current.backendResolver.resolveBackend({ model, devicePreference: request.devicePreference,
             admittedRuntimeGeneration: runtime.runtimeGeneration, signal });
           requireOwner(owner);
-          const common = { purpose: 'inference' as const, verifiedRuntime: runtime, serverArtifactId: resolution.serverArtifact.id, model, threads: RECOGNIZE_CPU_THREADS };
+          const common = { purpose: 'inference' as const, verifiedRuntime: runtime, serverArtifactId: resolution.serverArtifact.id, model,
+            ...(vad ? { vadModel: vad } : {}), threads: RECOGNIZE_CPU_THREADS };
           const lease = await current.server.acquire(owner, resolution.resolvedBackend === 'cuda'
             ? { ...common, backend: 'cuda', acceleratorPack: resolution.acceleratorPack! }
             : { ...common, backend: resolution.resolvedBackend }, signal);
           try {
             const expectedFileIdentity = await localSubtitleFileIdentityForPath(request.filePath);
             const operation = current.server.beginInference(lease, { requestGeneration: 1, filePath: request.filePath, expectedFileIdentity,
-              language: request.language, taskMode: 'transcribe', beamSize: 5, temperature: 0, vadEnabled: false, vadMinSilenceMs: 500,
+              language: request.language, taskMode: 'transcribe', beamSize: 5, temperature: 0, vadEnabled: !!vad, vadMinSilenceMs: 500,
+              ...(vad ? { vadSpeechPadMs: request.vadSpeechPadMs } : {}), ...(request.noTimestamps ? { noTimestamps: true as const } : {}),
               ...(request.initialPrompt ? { initialPrompt: request.initialPrompt } : {}), signal });
             const { result } = (await operation.result).response;
             requireOwner(owner);
-            return Object.freeze({ text: result.text.trim(), language: result.language });
+            return Object.freeze({ text: result.text.trim(), language: result.language, segments: result.segments });
           } finally { await current.server.release(lease); }
         } finally { use?.release(); }
       },

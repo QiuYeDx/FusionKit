@@ -14,6 +14,8 @@ import { knowledgeSelectionSchema, type KnowledgeSelection } from '../../transla
 import type { LibrarySnapshot } from '../../translation-knowledge/ipc-contract';
 import { automaticExportFromPreferences, automaticExportPreferencesSchema, DEFAULT_AUTOMATIC_EXPORT_PREFERENCES,
   type AutomaticExportPreferences, type AutomaticExportSpec } from '../../subtitle-studio/automatic-export-contract';
+import { transcriptionAudioTypeOf, withTranscriptionAudioType, type TranscriptionAudioType } from '../../subtitle-studio/transcription-audio-profiles';
+import { fitTranscriptionConfig, transcriptionModelMismatch } from '../../subtitle-studio/transcription-model-profiles';
 import { useStudioPreferences } from '../../store/tools/subtitle-studio/preferences';
 import useModelStore from '../../store/useModelStore';
 export { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG } from '../../subtitle-studio/transcription/preferences-contract';
@@ -21,7 +23,10 @@ export { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG } from '../../subtitle-studio/trans
 type Config = EnqueueTranscriptionRequest['config'];
 type Api = Pick<SubtitleStudioApi, 'selectTranscriptionMedia' | 'dropTranscriptionMedia' | 'authorizeTranscriptionPaths' | 'probeTranscriptionMedia' | 'revokeTranscriptionMedia'
   | 'inspectTranscriptionRuntime' | 'listTranscriptionResources' | 'importTranscriptionModel' | 'installTranscriptionResource'
-  | 'deleteTranscriptionResource' | 'cancelTranscriptionResourceJob' | 'enqueueTranscription' | 'listTranscriptionTasks' | 'cancelTranscriptionTask' | 'removeTranscriptionTask'>;
+  | 'deleteTranscriptionResource' | 'cancelTranscriptionResourceJob' | 'enqueueTranscription' | 'listTranscriptionTasks' | 'cancelTranscriptionTask' | 'removeTranscriptionTask'
+  | 'retryTranscriptionTask'>;
+/** What a one-click retry changes: the audio type or the device; anything else is the task's own settings. */
+export type TranscriptionRetryChoice = Omit<Parameters<Api['retryTranscriptionTask']>[0], 'taskId'>;
 type Timer = () => void;
 export interface StudioTranscriptionDraft {
   readonly id: string; readonly displayName: string;
@@ -42,6 +47,8 @@ export interface StudioTranscriptionState {
   readonly tasks: readonly TranscriptionTaskSummary[];
   /** Tasks this window started with the automatic device, so a CPU result can say why. */
   readonly autoDeviceTaskIds: readonly string[];
+  /** Failed or empty tasks whose file was moved or modified after they ran: a retry needs the file added again. */
+  readonly sourceChangedTaskIds: readonly string[];
   readonly config: Config;
   readonly autoTranslation: AutomaticTranslationPreferences;
   readonly autoTranslationReady: boolean;
@@ -108,7 +115,8 @@ export function getTranscriptionReadiness(state: StudioTranscriptionState): { ca
   const readyCount = state.drafts.filter(draft => draft.status === 'ready').length;
   const reason: TranscriptionReadinessReason | null = state.submitting || state.selecting ? 'busy'
     : state.drafts.some(draft => draft.status === 'submission_unknown') ? 'uncertain_submission'
-      : !enqueueTranscriptionRequestSchema.safeParse({ files: [{ fileToken: 'validation-token' }], config: state.config }).success ? 'configuration_invalid'
+      : !enqueueTranscriptionRequestSchema.safeParse({ files: [{ fileToken: 'validation-token' }], config: state.config }).success
+        || transcriptionModelMismatch(state.config) ? 'configuration_invalid'
         : state.autoTranslation.enabled && !state.autoTranslationReady ? 'automatic_translation_not_ready'
         : state.runtime?.status !== 'verified' ? 'runtime_not_ready'
           : !state.resources.some(resource => resource.resourceType === 'model' && resource.resourceId === state.config.modelId && resource.status === 'ready') ? 'model_not_ready'
@@ -135,10 +143,11 @@ export class StudioTranscriptionController {
   private readonly resourceActions = new Set<string>();
   private readonly importJobs = new Set<string>();
   private readonly autoDeviceTasks = new Set<string>();
+  private readonly sourceChanged = new Set<string>();
   private readonly taskActions = new Set<string>();
   private readonly cancelling = new Set<string>();
   private readonly probing = new Map<string, object>();
-  private state: StudioTranscriptionState = Object.freeze({ phase: 'idle', runtime: null, resources: [], resourceJobs: [], importJobIds: [], drafts: [], tasks: [], autoDeviceTaskIds: [],
+  private state: StudioTranscriptionState = Object.freeze({ phase: 'idle', runtime: null, resources: [], resourceJobs: [], importJobIds: [], drafts: [], tasks: [], autoDeviceTaskIds: [], sourceChangedTaskIds: [],
     config: DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, autoTranslation: DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, autoTranslationReady: true,
     autoExport: DEFAULT_AUTOMATIC_EXPORT_PREFERENCES,
     autoKnowledgeLibrary: null, autoKnowledgeLoading: false, autoKnowledgeStale: false,
@@ -182,7 +191,7 @@ export class StudioTranscriptionController {
       let value: unknown;
       try { value = this.preferences.read(); } catch { /* Defaults keep the tool usable. */ }
       const saved = readTranscriptionPreferences(value);
-      this.state = Object.freeze({ ...this.state, config: freezeConfig(saved.config), autoTranslation: freezeAutomatic(saved.autoTranslation),
+      this.state = Object.freeze({ ...this.state, config: freezeConfig(fitTranscriptionConfig(saved.config)), autoTranslation: freezeAutomatic(saved.autoTranslation),
         autoExport: Object.freeze({ ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, ...saved.autoExport }) });
       this.configTouched = true;
     }
@@ -214,7 +223,7 @@ export class StudioTranscriptionController {
     if (this.disposed) return;
     this.state = Object.freeze({ ...this.state, ...change,
       resourceActions: Object.freeze([...this.resourceActions]), importJobIds: Object.freeze([...this.importJobs]), taskActions: Object.freeze([...this.taskActions]),
-      autoDeviceTaskIds: Object.freeze([...this.autoDeviceTasks]),
+      autoDeviceTaskIds: Object.freeze([...this.autoDeviceTasks]), sourceChangedTaskIds: Object.freeze([...this.sourceChanged]),
       cancellingTaskIds: Object.freeze([...this.cancelling]), cleanupPendingCount: this.revocations.size });
     for (const listener of [...this.subscribers]) { try { listener(); } catch { /* View observers cannot interrupt capability bookkeeping. */ } }
   }
@@ -258,6 +267,7 @@ export class StudioTranscriptionController {
       if (version !== this.taskVersion || this.taskActions.size || this.state.submitting) { this.taskDirty = true; return; }
       for (const id of this.cancelling) if (!tasks.some(task => task.taskId === id && activeTask(task))) this.cancelling.delete(id);
       for (const id of this.autoDeviceTasks) if (!tasks.some(task => task.taskId === id)) this.autoDeviceTasks.delete(id);
+      for (const id of this.sourceChanged) if (!tasks.some(task => task.taskId === id)) this.sourceChanged.delete(id);
       this.emit({ tasks });
     }).catch(error => { this.emit({ error: asError(error) }); }).finally(() => {
       this.taskRead = undefined;
@@ -335,8 +345,23 @@ export class StudioTranscriptionController {
     const parsed = transcriptionTaskConfigSchema.safeParse(value);
     if (!parsed.success) { this.emit({ error: 'invalid_input' }); return; }
     this.configTouched = true;
-    this.emit({ config: freezeConfig(parsed.data), error: null });
+    // What the model cannot do falls back (English output to the original language, its own language, no hint).
+    this.emit({ config: freezeConfig(fitTranscriptionConfig(parsed.data)), error: null });
     this.refreshTranslationConfiguration(); this.savePreferences();
+  };
+  /** A non-standard audio type tunes voice detection, so choosing one also turns it on. */
+  setAudioType = (type: TranscriptionAudioType): void => {
+    const config = this.state.config;
+    this.setConfig({ ...config, ...(type === 'standard' ? {} : { vadEnabled: true }), advanced: withTranscriptionAudioType(config.advanced, type) });
+  };
+  /**
+   * Turning voice detection off returns pause-based chunking and the audio type to their standard choices,
+   * which need it. True when that changed the audio type, so the view can say why.
+   */
+  setVadEnabled = (enabled: boolean): boolean => {
+    const config = this.state.config, reset = !enabled && transcriptionAudioTypeOf(config.advanced) !== 'standard';
+    this.setConfig({ ...config, vadEnabled: enabled, ...(!enabled ? { windowStrategy: 'fixed_v1' as const, advanced: withTranscriptionAudioType(config.advanced, 'standard') } : {}) });
+    return reset && !this.state.config.vadEnabled;
   };
   setAutoTranslation = (value: AutomaticTranslationPreferences): void => {
     if (this.state.submitting) return;
@@ -562,6 +587,21 @@ export class StudioTranscriptionController {
   removeTask = (taskId: string): Promise<void> => this.mutateTask(taskId, async () => {
     await unwrap(this.api().removeTranscriptionTask({ taskId })); this.cancelling.delete(taskId);
     this.emit({ tasks: Object.freeze(this.state.tasks.filter(task => task.taskId !== taskId)) });
+  });
+  /**
+   * Submits a failed or empty task again from the same file, without choosing it again: its own settings, or the
+   * audio type or device given. The result is a new task; the original stays until it is removed.
+   */
+  retryTask = (taskId: string, choice: TranscriptionRetryChoice = {}): Promise<void> => this.mutateTask(taskId, async () => {
+    this.sourceChanged.delete(taskId);
+    const result = await unwrap(this.api().retryTranscriptionTask({ taskId, ...choice }));
+    if (result.status === 'source_changed') { this.sourceChanged.add(taskId); return; }
+    const tasks = result.admission.tasks.map(task => Object.freeze(transcriptionTaskSummarySchema.parse(task)));
+    const merged = new Map(this.state.tasks.map(task => [task.taskId, task]));
+    for (const task of tasks) merged.set(task.taskId, task);
+    // The same automatic device as before, so a CPU result can still say why.
+    if (!choice.devicePreference && this.autoDeviceTasks.has(taskId)) for (const task of tasks) this.autoDeviceTasks.add(task.taskId);
+    this.emit({ tasks: Object.freeze([...merged.values()]) });
   });
   clearCompleted = (): Promise<QueueActionResult> => this.mutateQueue('clear_completed');
   clearTerminal = (): Promise<QueueActionResult> => this.mutateQueue('clear_terminal');

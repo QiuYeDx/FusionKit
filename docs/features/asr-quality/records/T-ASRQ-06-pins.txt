@@ -1,0 +1,14 @@
+# T-ASRQ-06 pin verification, 2026-10-22T05:22:51Z
+## Hugging Face tree API (size, lfs.oid = SHA-256)
+GET https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/5359861c739e955e79d9a303bcbc70fb988958b1 -> ggml-large-v3-turbo-q8_0.bin size=874188075 lfs.oid=317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1 lfs.size=874188075
+GET https://huggingface.co/api/models/BELLE-2/Belle-whisper-large-v3-turbo-zh-ggml/tree/0a7f57392b773254eb60da8e49c7c683af369625 -> ggml-model.bin size=1624555275 lfs.oid=2a3bba5bfdb4d4da3d9949a83b405711727ca1941d4d5810895e077eb3cb4d99 lfs.size=1624555275
+GET https://huggingface.co/api/models/Aratako/anime-whisper-ggml/tree/35b467f144c62a3ab2d84bfbb517d6af5135444a -> ggml-anime-whisper-q8_0.bin size=818305955 lfs.oid=6a04b7460bdcf2a16aa568c96dd670070abe553936c82fbbff86fc41d02ac3f3 lfs.size=818305955
+## First 48 bytes via HTTP Range 0-47 (official resolve URL) and local copies (D:/fusionkit-asr-eval/models)
+turbo remote 48 bytes magic(le) 6c6d6767 header [51866, 1500, 1280, 20, 32, 448, 1280, 20, 4, 128, 2007] | local ggml-large-v3-turbo-q8_0.bin equal
+belle remote 48 bytes magic(le) 6c6d6767 header [51866, 1500, 1280, 20, 32, 448, 1280, 20, 4, 128, 1] | local ggml-belle-large-v3-turbo-zh.bin equal
+anime remote 48 bytes magic(le) 6c6d6767 header [51866, 1500, 1280, 20, 32, 448, 1280, 20, 2, 128, 2007] | local ggml-anime-whisper-q8_0.bin equal
+## 1-byte ranged GET through mirror candidates (curl -L -r 0-0), 2026-10-22
+modelscope cjc1887415157 turbo: 404
+modelscope viggocx turbo: 302 -> cdn-lfs-cn-1.modelscope.cn ... 206 Content-Range bytes 0-0/874188075, X-Linked-ETag 317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1
+modelscope iceCream2025 turbo: 302 -> cdn-lfs-cn-1.modelscope.cn ... 206 Content-Range bytes 0-0/874188075, X-Linked-ETag 317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1
+hf-mirror.com turbo/belle/anime (same path+query): 308 -> huggingface.co (from this network) -> 302 us.aws.cdn.hf.co -> 206 totals 874188075 / 1624555275 / 818305955, X-Linked-ETag = the lfs oids above

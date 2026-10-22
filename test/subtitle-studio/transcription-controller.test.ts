@@ -53,6 +53,7 @@ function fixture(sharedResources?: import('../../src/speech-resources/events').S
     enqueueTranscription: vi.fn<SubtitleStudioApi['enqueueTranscription']>().mockResolvedValue(ok({ batchId: task().batchId, tasks: [task()] })),
     cancelTranscriptionTask: vi.fn<SubtitleStudioApi['cancelTranscriptionTask']>().mockResolvedValue(ok(task(undefined, 'cancelled'))),
     removeTranscriptionTask: vi.fn<SubtitleStudioApi['removeTranscriptionTask']>().mockResolvedValue(ok(null)),
+    retryTranscriptionTask: vi.fn<SubtitleStudioApi['retryTranscriptionTask']>().mockResolvedValue(ok({ status: 'source_changed' })),
     importTranscriptionModel: vi.fn<SubtitleStudioApi['importTranscriptionModel']>().mockResolvedValue(ok(null)),
     deleteTranscriptionResource: vi.fn<SubtitleStudioApi['deleteTranscriptionResource']>().mockResolvedValue(ok({ deleted: true })),
     installTranscriptionResource: vi.fn<SubtitleStudioApi['installTranscriptionResource']>().mockResolvedValue(ok({ jobId: 'job-1', resourceId: 'cuda-pack', resourceType: 'accelerator',
@@ -416,6 +417,34 @@ it('rejects stale task polls across successful removal and refreshes a current s
   expect(f.controller.getState().tasks).toEqual([]); detach();
 });
 
+it('retries a failed or empty task as a new task, keeps the original, and says when the file has to be added again', async () => {
+  const failedId = '44444444-4444-4444-8444-444444444444', emptyId = '55555555-5555-4555-8555-555555555555';
+  const retried = { ...task('66666666-6666-4666-8666-666666666666'), batchId: '77777777-7777-4777-8777-777777777777', resolvedBackend: 'cpu' as const };
+  const f = fixture(); f.api.listTranscriptionTasks.mockResolvedValue(ok([{ ...task(failedId, 'failed'), resolvedBackend: 'cuda', error: { code: 'out_of_memory', stage: 'transcribing' } },
+    { ...task(emptyId, 'no_content'), progress: 100 }]));
+  await f.controller.start();
+  expect(f.controller.getState().tasks[0]!.error).toEqual({ code: 'out_of_memory', stage: 'transcribing' });
+  const pending = deferred<Awaited<ReturnType<SubtitleStudioApi['retryTranscriptionTask']>>>();
+  f.api.retryTranscriptionTask.mockReturnValueOnce(pending.promise);
+  const retry = f.controller.retryTask(failedId, { devicePreference: 'cpu' });
+  // One request at a time per task, shown as the task's action.
+  expect(f.controller.getState().taskActions).toEqual([failedId]);
+  await f.controller.retryTask(failedId); expect(f.api.retryTranscriptionTask).toHaveBeenCalledOnce();
+  pending.resolve(ok({ status: 'admitted', admission: { batchId: retried.batchId, tasks: [retried] } })); await retry;
+  expect(f.api.retryTranscriptionTask).toHaveBeenCalledWith({ taskId: failedId, devicePreference: 'cpu' });
+  expect(f.controller.getState().tasks.map(item => [item.taskId, item.status])).toEqual([[failedId, 'failed'], [emptyId, 'no_content'], [retried.taskId, 'queued']]);
+  expect(f.controller.getState().taskActions).toEqual([]);
+  // A moved or modified file: the row says so until a later retry or the task is gone.
+  await f.controller.retryTask(emptyId, { audioProfile: 'quiet_whisper_v1' });
+  expect(f.api.retryTranscriptionTask).toHaveBeenLastCalledWith({ taskId: emptyId, audioProfile: 'quiet_whisper_v1' });
+  expect(f.controller.getState().sourceChangedTaskIds).toEqual([emptyId]); expect(f.controller.getState().error).toBeNull();
+  f.api.retryTranscriptionTask.mockResolvedValueOnce({ ok: false, error: 'resource_busy' });
+  await f.controller.retryTask(emptyId);
+  expect(f.controller.getState().sourceChangedTaskIds).toEqual([]); expect(f.controller.getState().error).toBe('resource_busy');
+  f.api.listTranscriptionTasks.mockResolvedValue(ok([retried])); await f.controller.retryTask(emptyId); await f.controller.refresh();
+  expect(f.controller.getState().sourceChangedTaskIds).toEqual([]);
+});
+
 it('keeps cancelling state until a terminal poll and catches failed cancellation', async () => {
   const f = fixture(); f.api.listTranscriptionTasks.mockResolvedValue(ok([task()])); await f.controller.start();
   f.api.cancelTranscriptionTask.mockResolvedValueOnce(ok(task(undefined, 'transcribing')));
@@ -477,6 +506,61 @@ it('ignores invalid audio selection and configuration while preserving accepted 
   const config = f.controller.getState().config;
   f.controller.setConfig({ ...config, advanced: { ...config.advanced, beamSize: 99 } });
   expect(f.controller.getState().config).toBe(config); f.controller.clearError(); expect(f.controller.getState().error).toBeNull();
+});
+
+it('turns voice detection on for an audio profile, returns to standard when it is turned off, and submits the choice', async () => {
+  const write = vi.fn();
+  const f = fixture(undefined, { preferences: { read: () => ({ ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES),
+    config: { ...DEFAULT_TRANSCRIPTION_PREFERENCES.config, vadEnabled: false, windowStrategy: 'fixed_v1' } }), write } });
+  expect(f.controller.getState().config.advanced).not.toHaveProperty('audioProfile');
+  f.controller.setAudioType('quiet_whisper_v1');
+  expect(f.controller.getState().config).toMatchObject({ vadEnabled: true, advanced: { audioProfile: 'quiet_whisper_v1' } });
+  expect(write).toHaveBeenLastCalledWith(expect.objectContaining({ config: expect.objectContaining({ vadEnabled: true,
+    advanced: expect.objectContaining({ audioProfile: 'quiet_whisper_v1' }) }) }));
+  await f.choose(media()); await f.controller.enqueue();
+  expect(f.api.enqueueTranscription.mock.calls[0][0].config).toMatchObject({ vadEnabled: true, advanced: { audioProfile: 'quiet_whisper_v1' } });
+  f.controller.setConfig({ ...f.controller.getState().config, windowStrategy: 'acoustic_quiet_v1' });
+  expect(f.controller.setVadEnabled(false)).toBe(true);
+  expect(f.controller.getState().config).toMatchObject({ vadEnabled: false, windowStrategy: 'fixed_v1' });
+  expect(f.controller.getState().config.advanced).not.toHaveProperty('audioProfile');
+  // Turning it off again, or on, has no audio type to reset.
+  expect(f.controller.setVadEnabled(false)).toBe(false); expect(f.controller.setVadEnabled(true)).toBe(false);
+  expect(f.controller.getState().config.advanced).not.toHaveProperty('audioProfile');
+  f.controller.setAudioType('noisy_music_v1'); f.controller.setAudioType('standard');
+  expect(f.controller.getState().config).toMatchObject({ vadEnabled: true });
+  expect(f.controller.getState().config.advanced).not.toHaveProperty('audioProfile');
+  await f.choose(media('2')); await f.controller.enqueue();
+  expect(f.api.enqueueTranscription.mock.calls[1][0].config.advanced).not.toHaveProperty('audioProfile');
+  // A profile cannot be submitted without voice detection, even when set directly.
+  f.controller.setConfig({ ...f.controller.getState().config, vadEnabled: false, advanced: { ...f.controller.getState().config.advanced, audioProfile: 'noisy_music_v1' } });
+  expect(getTranscriptionReadiness(f.controller.getState()).reason).toBe('configuration_invalid');
+});
+
+it('falls back to what the chosen model can do, saves and sends that, and never submits a recognize-only model', async () => {
+  const write = vi.fn(), english = { ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), config: { ...DEFAULT_TRANSCRIPTION_PREFERENCES.config, taskMode: 'translate_to_english' as const } };
+  const f = fixture(undefined, { preferences: { read: () => english, write } });
+  const catalog = resources();
+  catalog.resources.push(...['large-v3-turbo-q8_0', 'anime-whisper-q8_0'].map(resourceId => ({ ...catalog.resources[0]!, resourceId, displayName: resourceId, isDefault: false })));
+  f.api.listTranscriptionResources.mockResolvedValue(ok(catalog));
+  expect(f.controller.getState().config.taskMode).toBe('translate_to_english');
+  // The fast model cannot translate: English output returns to the original language.
+  f.controller.setConfig({ ...f.controller.getState().config, modelId: 'large-v3-turbo-q8_0' });
+  expect(f.controller.getState().config).toMatchObject({ modelId: 'large-v3-turbo-q8_0', taskMode: 'transcribe' });
+  expect(write).toHaveBeenLastCalledWith(expect.objectContaining({ config: expect.objectContaining({ modelId: 'large-v3-turbo-q8_0', taskMode: 'transcribe' }) }));
+  f.controller.setConfig({ ...f.controller.getState().config, taskMode: 'translate_to_english' });
+  expect(f.controller.getState().config.taskMode).toBe('transcribe');
+  await f.choose(media()); await f.controller.enqueue();
+  expect(f.api.enqueueTranscription.mock.calls[0][0].config).toMatchObject({ modelId: 'large-v3-turbo-q8_0', taskMode: 'transcribe' });
+  // A recognize-only model set directly (as an agent could) takes its own language and loses the hint, but cannot start.
+  f.controller.setConfig({ ...f.controller.getState().config, modelId: 'anime-whisper-q8_0', advanced: { ...f.controller.getState().config.advanced, initialPrompt: 'Names' } });
+  expect(f.controller.getState().config).toMatchObject({ modelId: 'anime-whisper-q8_0', language: 'ja', taskMode: 'transcribe' });
+  expect(f.controller.getState().config.advanced).not.toHaveProperty('initialPrompt');
+  await f.choose(media('2'));
+  expect(getTranscriptionReadiness(f.controller.getState()).reason).toBe('configuration_invalid');
+  expect(await f.controller.enqueue()).toBeNull(); expect(f.api.enqueueTranscription).toHaveBeenCalledTimes(1);
+  // Saved choices that do not fit their model are fitted as they are read.
+  const saved = fixture(undefined, { preferences: { read: () => ({ ...english, config: { ...english.config, modelId: 'large-v3-turbo-q8_0' } }), write: vi.fn() } });
+  expect(saved.controller.getState().config).toMatchObject({ modelId: 'large-v3-turbo-q8_0', taskMode: 'transcribe' });
 });
 
 it('keeps all production inference defaults aligned with the inherited baseline without output settings', () => {

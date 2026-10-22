@@ -17,12 +17,27 @@ it('accepts capability-only requests and rejects paths, output settings, identit
     { ...valid, config: { ...valid.config, windowStrategy: 'acoustic_quiet_v1', vadEnabled: false } },
   ]) expect(enqueueTranscriptionRequestSchema.safeParse(value).success).toBe(false);
 });
+it('accepts the two audio profiles only with VAD and rejects unknown or empty ones', () => {
+  const valid = request();
+  for (const audioProfile of ['quiet_whisper_v1', 'noisy_music_v1'])
+    expect(enqueueTranscriptionRequestSchema.safeParse({ ...valid, config: { ...valid.config, advanced: { ...valid.config.advanced, audioProfile } } }).success).toBe(true);
+  for (const config of [
+    { ...valid.config, vadEnabled: false, advanced: { ...valid.config.advanced, audioProfile: 'quiet_whisper_v1' } },
+    { ...valid.config, advanced: { ...valid.config.advanced, audioProfile: 'standard' } },
+    { ...valid.config, advanced: { ...valid.config.advanced, audioProfile: 'quiet_whisper_v2' } },
+    { ...valid.config, advanced: { ...valid.config.advanced, audioProfile: '' } },
+    { ...valid.config, advanced: { ...valid.config.advanced, vadThreshold: 0.35 } },
+  ]) expect(enqueueTranscriptionRequestSchema.safeParse({ ...valid, config }).success).toBe(false);
+  // Standard is the field left out: the parsed request carries no key for it.
+  expect(enqueueTranscriptionRequestSchema.parse(valid).config.advanced).not.toHaveProperty('audioProfile');
+});
 it('bounds summaries and excludes capabilities and private diagnostics', () => {
   const task = { taskId: 'task-1', batchId: 'batch-1', generation: 1, displayName: 'audio.wav', status: 'failed',
     progress: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), modelId: 'large-v3-q5_0', resolvedBackend: 'cpu',
     error: { code: 'transcription_failed' } };
   expect(transcriptionTaskSummarySchema.safeParse(task).success).toBe(true);
-  for (const extra of [{ fileToken: 'ls-input-secret' }, { sourcePathDisplay: '/private' }, { progress: 101 },
+  expect(transcriptionTaskSummarySchema.safeParse({ ...task, audioProfile: 'noisy_music_v1' }).success).toBe(true);
+  for (const extra of [{ fileToken: 'ls-input-secret' }, { sourcePathDisplay: '/private' }, { progress: 101 }, { audioProfile: 'standard' },
     { error: { code: 'transcription_failed', message: '/private/native/path' } }, { generation: 2 }])
     expect(transcriptionTaskSummarySchema.safeParse({ ...task, ...extra }).success).toBe(false);
 });

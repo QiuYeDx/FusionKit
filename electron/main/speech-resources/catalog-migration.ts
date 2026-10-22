@@ -29,9 +29,12 @@ function freezeResource(resource: SpeechMigrationResource): SpeechMigrationResou
     Object.freeze({ ...source, files: Object.freeze([...source.files]) }))) });
 }
 
+// Models added to the shared catalog later were never installed by either tool, so there is nothing to move.
+const historicalModel = (id: string) => sources.some(source => source.models.models.some(candidate => candidate.id === id));
+
 /** Fixed historical data only: no imports from either tool's resource manager or runtime. */
 export const SPEECH_MIGRATION_RESOURCES: readonly SpeechMigrationResource[] = Object.freeze([
-  ...SPEECH_MODEL_MANIFEST.models.map(model => freezeResource({
+  ...SPEECH_MODEL_MANIFEST.models.filter(model => historicalModel(model.id)).map(model => freezeResource({
     id: model.id,
     relativeDirectory: `models/${model.id}`,
     // Managed model installations contain the one model file; they have no manifest sidecar.

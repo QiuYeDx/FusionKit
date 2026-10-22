@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { errorCodeSchema } from '../domain';
 import { automaticTranslationRequestSchema } from '../automatic-translation-contract';
 import { automaticExportSpecSchema } from '../automatic-export-contract';
-import { LOCAL_SUBTITLE_DEVICE_PREFERENCES, LOCAL_SUBTITLE_ERROR_CODES, LOCAL_SUBTITLE_LIMITS,
+import { TRANSCRIPTION_AUDIO_PROFILES } from '../transcription-audio-profiles';
+import { LOCAL_SUBTITLE_DEVICE_PREFERENCES, LOCAL_SUBTITLE_ERROR_CODES, LOCAL_SUBTITLE_LIMITS, LOCAL_SUBTITLE_OPERATION_STAGES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT, LOCAL_SUBTITLE_WINDOW_STRATEGIES } from './domain';
 
 /** One transcription batch takes at most this many media files (the native batch limit). */
@@ -26,6 +27,8 @@ export const transcriptionTaskConfigSchema = z.object({
     maxCueDurationMs: z.number().int().min(500).max(LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxRawSegmentDurationMs),
     maxCueChars: z.number().int().min(20).max(LOCAL_SUBTITLE_LIMITS.maxCueTextChars),
     maxLineChars: z.number().int().min(10).max(LOCAL_SUBTITLE_LIMITS.maxLineChars),
+    /** Absent is the standard audio type; a profile tunes voice detection and needs it on. */
+    audioProfile: z.enum(TRANSCRIPTION_AUDIO_PROFILES).optional(),
   }).strict(),
 }).strict();
 
@@ -42,6 +45,8 @@ export const enqueueTranscriptionRequestSchema = z.object({
     context.addIssue({ code: 'custom', path: ['files'], message: 'File tokens must be unique.' });
   if (value.config.windowStrategy === 'acoustic_quiet_v1' && !value.config.vadEnabled)
     context.addIssue({ code: 'custom', path: ['config', 'vadEnabled'], message: 'Pause-based chunking requires VAD.' });
+  if (value.config.advanced.audioProfile !== undefined && !value.config.vadEnabled)
+    context.addIssue({ code: 'custom', path: ['config', 'advanced', 'audioProfile'], message: 'An audio profile requires VAD.' });
   if (value.config.taskMode === 'translate_to_english' && value.autoTranslation?.knowledge
     && value.autoTranslation.knowledge.selection.languagePair.source !== 'en')
     context.addIssue({ code: 'custom', path: ['autoTranslation', 'knowledge', 'selection', 'languagePair', 'source'], message: 'English transcription output requires English knowledge source.' });
@@ -54,10 +59,13 @@ export const transcriptionTaskSummarySchema = z.object({
   progress: z.number().finite().min(0).max(100),
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(), modelId: opaqueId,
   resolvedBackend: z.enum(['cpu', 'metal', 'cuda']),
+  /** The task's non-standard audio type; absent for standard. */
+  audioProfile: z.enum(TRANSCRIPTION_AUDIO_PROFILES).optional(),
   durationMs: z.number().int().safe().nonnegative().max(LOCAL_SUBTITLE_LIMITS.maxDurationMs).optional(),
   documentId: z.string().uuid().optional(), documentDurability: z.enum(['confirmed', 'uncertain']).optional(),
   automaticTranslation: z.object({ status: z.enum(['pending', 'admitted', 'needs_configuration']), taskId: z.string().uuid().optional() }).strict().optional(),
-  error: z.object({ code: z.union([z.enum(LOCAL_SUBTITLE_ERROR_CODES), errorCodeSchema]) }).strict().optional(),
+  /** `stage`: where a native failure happened, so a window's failed recognition is told from a broken program. */
+  error: z.object({ code: z.union([z.enum(LOCAL_SUBTITLE_ERROR_CODES), errorCodeSchema]), stage: z.enum(LOCAL_SUBTITLE_OPERATION_STAGES).optional() }).strict().optional(),
   cleanupPending: z.literal(true).optional(),
 }).strict().superRefine((value, context) => {
   if (value.status !== 'no_content') return;

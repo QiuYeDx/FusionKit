@@ -10,12 +10,14 @@ import { cueRecognizeRequestSchemas, type CueRecognizeResult } from './cue-recog
 import { cueShiftRequestSchemas, cueStretchRequestSchemas, type CueShiftPreview, type CueStretchPreview } from './cue-shift';
 import { cueSplitRequestSchemas, type CueSplitSuggestion } from './cue-split';
 import { cueFindRequestSchemas, type CueFindResult as CueSearchResult } from './cue-find';
+import { cueReviewRequestSchemas, type CueReviewResult } from './transcription-review';
 import type { DocumentSnapshot } from './persistence-contract';
 import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contract';
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
 import { exportOptionsSchema, exportIssueCodeSchema, exportDestinationSchema, type SourceLocationSummary, type ExportPlanSummary, type ExportResult } from './export-contract';
 import { batchRequestSchemas, type BatchImportResult, type DeleteBatchResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
-import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
+import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, transcriptionTaskConfigSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
+import { TRANSCRIPTION_AUDIO_PROFILES } from './transcription-audio-profiles';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
 import type { SpeechResourcesStatus } from '../speech-resources/events';
@@ -90,6 +92,7 @@ export const STUDIO_CHANNELS = {
   previewCueStretch: 'subtitle-studio:preview-cue-stretch',
   suggestCueSplit: 'subtitle-studio:suggest-cue-split',
   searchCues: 'subtitle-studio:search-cues',
+  reviewCues: 'subtitle-studio:review-cues',
   changed: 'subtitle-studio:changed',
   selectTranscriptionMedia: 'subtitle-studio:select-transcription-media',
   authorizeTranscriptionPaths: 'subtitle-studio:authorize-transcription-paths',
@@ -105,6 +108,7 @@ export const STUDIO_CHANNELS = {
   listTranscriptionTasks: 'subtitle-studio:list-transcription-tasks',
   cancelTranscriptionTask: 'subtitle-studio:cancel-transcription-task',
   removeTranscriptionTask: 'subtitle-studio:remove-transcription-task',
+  retryTranscriptionTask: 'subtitle-studio:retry-transcription-task',
 } as const;
 const transcriptionRefSchema = z.string().min(1).max(256).regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/).refine(value => value !== '.' && value !== '..');
 export const transcriptionRequestSchemas = {
@@ -127,6 +131,9 @@ export const transcriptionRequestSchemas = {
   listTranscriptionTasks: z.object({}).strict(),
   cancelTranscriptionTask: z.object({ taskId: idSchema }).strict(),
   removeTranscriptionTask: z.object({ taskId: idSchema }).strict(),
+  // A failed or empty task again, from its own file and settings; an audio type or device instead when given.
+  retryTranscriptionTask: z.object({ taskId: idSchema, audioProfile: z.enum(TRANSCRIPTION_AUDIO_PROFILES).optional(),
+    devicePreference: transcriptionTaskConfigSchema.shape.devicePreference.optional() }).strict(),
 };
 // Paths are sent only by the dedicated preload File method, never public invoke.
 export const droppedSubtitlesRequestSchema = z.object({
@@ -181,6 +188,7 @@ export const requestSchemas = {
   ...cueStretchRequestSchemas,
   ...cueSplitRequestSchemas,
   ...cueFindRequestSchemas,
+  ...cueReviewRequestSchemas,
 };
 export const studioEventSchema = z.object({ documentId: idSchema, revision: z.number().int().positive().safe(), sequence: z.number().int().positive().safe(), deleted: z.boolean() }).strict();
 export type StudioEvent = z.infer<typeof studioEventSchema>;
@@ -193,6 +201,8 @@ export type DocumentSummary = Pick<SubtitleDocument, 'id' | 'revision' | 'origin
   translationTracks?: Pick<SubtitleDocument['translationTracks'][number], 'id' | 'language' | 'origin' | 'name'>[];
   task?: { id: string; status: DocumentSnapshot['tasks'][number]['status']; model?: z.infer<typeof translationModelSchema>; completedBatches: number; totalBatches: number } | null;
   automaticExport?: AutomaticExportSummary;
+  /** The local model a transcribed document came from (its preserved transcript), for re-recognizing with the same one. */
+  transcriptionModelId?: string;
 };
 type StoredTask = DocumentSnapshot['tasks'][number];
 export type TranslationTaskStatus = StoredTask['status'];
@@ -222,6 +232,8 @@ export type TranscriptionMediaSelection = { items: Array<
 export type TranscriptionPathSelection = TranscriptionMediaSelection & { matched: number; nextOffset?: number };
 export type TranscriptionResourceJob = Omit<LocalSubtitleResourceJobSummary, 'error'> & { error?: Pick<NonNullable<LocalSubtitleResourceJobSummary['error']>, 'code'> };
 export type TranscriptionResources = { resources: LocalSubtitleManagedResourceSummary[]; jobs: TranscriptionResourceJob[]; shared?: SpeechResourcesStatus };
+/** A retried task's new batch, or `source_changed`: its file was moved or modified since and has to be added again. */
+export type TranscriptionRetryResult = { status: 'admitted'; admission: TranscriptionBatchAdmission } | { status: 'source_changed' };
 export type TranscriptionRuntimeSummary = { status: 'verified'; runtimeGeneration: string; target: { platform: 'darwin' | 'win32'; arch: 'arm64' | 'x64' } }
   | { status: 'missing' | 'invalid'; code: string; stage: string };
 export interface SubtitleStudioApi {
@@ -256,6 +268,8 @@ export interface SubtitleStudioApi {
   listTranscriptionTasks(request: z.infer<typeof requestSchemas.listTranscriptionTasks>): Promise<StudioResult<readonly TranscriptionTaskSummary[]>>;
   cancelTranscriptionTask(request: z.infer<typeof requestSchemas.cancelTranscriptionTask>): Promise<StudioResult<TranscriptionTaskSummary>>;
   removeTranscriptionTask(request: z.infer<typeof requestSchemas.removeTranscriptionTask>): Promise<StudioResult<null>>;
+  /** Submits a failed or empty task again as a new task, without choosing the file again; the original stays until removed. */
+  retryTranscriptionTask(request: z.infer<typeof requestSchemas.retryTranscriptionTask>): Promise<StudioResult<TranscriptionRetryResult>>;
   importSubtitle(request: z.infer<typeof requestSchemas.importSubtitle>): Promise<StudioResult<DocumentSummary | null>>;
   importSubtitles(request: z.infer<typeof requestSchemas.importSubtitles>): Promise<StudioResult<BatchImportResult | null>>;
   importSubtitlePaths(request: z.infer<typeof requestSchemas.importSubtitlePaths>): Promise<StudioResult<BatchImportResult>>;
@@ -310,6 +324,8 @@ export interface SubtitleStudioApi {
   suggestCueSplit(request: z.infer<typeof requestSchemas.suggestCueSplit>): Promise<StudioResult<CueSplitSuggestion>>;
   /** Finds a literal text in every cue's source and/or translation, for the list's find bar. */
   searchCues(request: z.infer<typeof requestSchemas.searchCues>): Promise<StudioResult<CueSearchResult>>;
+  /** The cues worth listening to again (transcription quality review), in document order with per-reason counts. */
+  reviewCues(request: z.infer<typeof requestSchemas.reviewCues>): Promise<StudioResult<CueReviewResult>>;
   subscribe(listener: (event: StudioEvent) => void): () => void;
 }
 
@@ -328,6 +344,7 @@ export function summarizeDocument(doc: SubtitleDocument, tasks: DocumentSnapshot
     task: task ? { id: task.id, status: task.status, ...(task.translation ? { model: task.translation.config.model } : {}), completedBatches: task.completedBatchIds.length, totalBatches: task.translation?.totalBatches ?? 0 } : null,
     ...(doc.bilingualImport ? { bilingualImport: doc.bilingualImport } : {}),
     ...(exported ? { automaticExport: exported } : {}),
+    ...(doc.schemaVersion === 2 ? { transcriptionModelId: doc.preservation.transcript.model.modelId } : {}),
     bilingualAvailable: !doc.translationTracks.length && !doc.bilingualImport && hasBilingualCandidates(doc),
     bilingualRecommended: !doc.translationTracks.length && !doc.bilingualImport && isBilingualRecommended(doc),
     ...(canRevertBilingual(doc) && !tasks.length ? { bilingualRevertible: true } : {}) };

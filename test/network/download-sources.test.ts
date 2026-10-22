@@ -5,8 +5,10 @@ import { SPEECH_CUDA_MANIFEST, SPEECH_MODEL_MANIFEST, SPEECH_VAD_MANIFEST } from
 const urls = (match: ReturnType<typeof matchDownloadSources>) => match?.candidates.map(candidate => candidate.url);
 
 describe('download source mapping', () => {
-  it('maps every speech model to the verified ModelScope copies and hf-mirror', () => {
-    for (const model of SPEECH_MODEL_MANIFEST.models) {
+  it('maps every whisper.cpp speech model to the verified ModelScope copies and hf-mirror', () => {
+    const whisper = SPEECH_MODEL_MANIFEST.models.filter(model => new URL(model.downloadUrl).pathname.startsWith('/ggerganov/whisper.cpp/'));
+    expect(whisper.map(model => model.id)).toEqual(['large-v3-q5_0', 'large-v3', 'large-v3-turbo-q8_0']);
+    for (const model of whisper) {
       const official = new URL(model.downloadUrl);
       const file = official.pathname.split('/').pop();
       const match = matchDownloadSources(model.downloadUrl);
@@ -21,6 +23,18 @@ describe('download source mapping', () => {
       expect(match!.candidates[0]).toMatchObject({ id: 'official', official: true, domestic: false });
       expect(match!.candidates.slice(1).every(candidate => !candidate.official && candidate.domestic)).toBe(true);
     }
+  });
+
+  it('maps models from other Hugging Face repositories to hf-mirror only, after the official address', () => {
+    const others = SPEECH_MODEL_MANIFEST.models.filter(model => !new URL(model.downloadUrl).pathname.startsWith('/ggerganov/whisper.cpp/'));
+    expect(others.map(model => model.id)).toEqual(['belle-large-v3-turbo-zh', 'anime-whisper-q8_0']);
+    for (const url of [...others.map(model => model.downloadUrl), 'https://huggingface.co/other/repo/resolve/main/nested/a.bin']) {
+      const official = new URL(url), match = matchDownloadSources(url);
+      expect(match?.group).toBe('huggingface');
+      expect(urls(match)).toEqual([official.href, `https://hf-mirror.com${official.pathname}${official.search}`]);
+      expect(match!.candidates.map(candidate => [candidate.id, candidate.official, candidate.domestic])).toEqual([['official', true, false], ['hf-mirror', false, true]]);
+    }
+    expect(defaultCandidateOrder(matchDownloadSources(others[0]!.downloadUrl)!, 'mirror').map(candidate => candidate.id)).toEqual(['hf-mirror', 'official']);
   });
 
   it('maps the VAD file to jsDelivr (pinned commit) and ghfast', () => {
@@ -46,7 +60,10 @@ describe('download source mapping', () => {
 
   it('leaves other addresses alone', () => {
     for (const url of [
-      'https://huggingface.co/other/repo/resolve/main/a.bin',
+      'https://huggingface.co/other/repo',
+      'https://huggingface.co/other/repo/blob/main/a.bin',
+      'https://huggingface.co/datasets/other/repo/resolve/main/a.bin',
+      'https://hf-mirror.com/other/repo/resolve/main/a.bin',
       'https://github.com/ggml-org/whisper.cpp',
       'http://huggingface.co/ggerganov/whisper.cpp/resolve/x/a.bin',
       'https://user:pw@github.com/a/b/releases/download/v1/x.zip',

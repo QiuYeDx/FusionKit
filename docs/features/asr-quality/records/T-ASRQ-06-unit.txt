@@ -1,0 +1,68 @@
+# T-ASRQ-06 V-ASRQ-06-1 (2026-10-22, worktree on 68ffd05, uncommitted)
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/speech-resources test/network test/subtitle-studio-provenance/shared-resources.test.ts test/subtitle-studio-provenance/checkout-bytes.test.ts src/pages/Tools/Subtitle/SubtitleStudio/resource-names.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/speech-resources/engine/resourceDownload.test.ts (15 tests) 423ms
+ ✓ test/speech-resources/engine/resourceStartupCleaner.test.ts (10 tests) 292ms
+ ✓ test/speech-resources/engine/acceleratorManager.test.ts (13 tests) 697ms
+ ✓ test/speech-resources/engine/resourceJob.test.ts (9 tests) 19ms
+ ✓ test/network/download-transport.test.ts (18 tests) 1522ms
+   ✓ resuming and switching sources > keeps going on a poor connection while each attempt still makes progress 390ms
+ ✓ test/speech-resources/engine/modelManager.test.ts (43 tests | 1 skipped) 1473ms
+ ✓ test/speech-resources/engine/vadManager.test.ts (8 tests) 300ms
+ ✓ test/network/proxy-agent.test.ts (13 tests) 459ms
+ ✓ test/speech-resources/engine/acceleratorArchive.test.ts (12 tests) 361ms
+ ↓ test/speech-resources/shared-ui.test.ts (1 test | 1 skipped)
+ ✓ test/speech-resources/migration.test.ts (26 tests) 2443ms
+ ✓ test/speech-resources/service.test.ts (13 tests) 1976ms
+   ✓ application speech resource ownership > retains only bounded application job history and continues accepting work 1222ms
+ ✓ test/network/proxy-resolver.test.ts (12 tests) 18ms
+ ✓ test/speech-resources/engine/ggmlModel.test.ts (9 tests) 90ms
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/resource-names.test.ts (8 tests) 9ms
+ ✓ test/network/settings.test.ts (9 tests) 1205ms
+   ✓ network composition > applies the saved proxy to Chromium (the window and electron-updater) and to main-process requests before anything connects 1088ms
+ ✓ test/speech-resources/integration/consumer-shutdown.test.ts (1 test) 117ms
+ ✓ test/speech-resources/integration/adapters.test.ts (2 tests) 170ms
+ ✓ test/speech-resources/integration/smoke-owner-admission.test.ts (2 tests) 389ms
+ ✓ test/speech-resources/catalog-migration.test.ts (5 tests) 49ms
+ ✓ test/network/connectivity.test.ts (4 tests) 84ms
+ ✓ test/network/download-sources.test.ts (6 tests) 5ms
+ ✓ test/speech-resources/engine/catalog.test.ts (7 tests) 8ms
+ ✓ test/network/file-download.test.ts (4 tests) 312ms
+ ✓ test/speech-resources/integration/smoke-startup.test.ts (2 tests) 64ms
+ ↓ test/speech-resources/integration/new-models-real-import.test.ts (1 test | 1 skipped)
+ ✓ test/network/errors.test.ts (6 tests) 5ms
+ ✓ test/speech-resources/engine/sessionRegistry.test.ts (4 tests) 12ms
+ ✓ test/speech-resources/integration/app-shutdown.test.ts (3 tests) 7ms
+ ✓ test/speech-resources/integration/private-sessions.test.ts (1 test) 133ms
+ ✓ test/speech-resources/preload.test.ts (2 tests) 5ms
+ ✓ test/subtitle-studio-provenance/checkout-bytes.test.ts (1 test) 882ms
+   ✓ preserves frozen Studio LF and exact neutral extraction/receipt line endings under core.autocrlf 881ms
+ ✓ test/speech-resources/integration/real-shared-comparison.test.ts (3 tests | 1 skipped) 6ms
+ ✓ test/speech-resources/integration/admission.test.ts (4 tests) 3ms
+ ✓ test/subtitle-studio-provenance/shared-resources.test.ts (19 tests) 17008ms
+   ✓ neutral shared resource extraction provenance > replays the reviewed transforms from the actual pinned Git commit and checks six exact historical snapshots 2699ms
+   ✓ neutral shared resource extraction provenance > reconstructs every output in an isolated fixture using the captured authoritative source bytes 1799ms
+   ✓ neutral shared resource extraction provenance > rejects output drift 1119ms
+   ✓ neutral shared resource extraction provenance > rejects source drift 1109ms
+   ✓ neutral shared resource extraction provenance > rejects source-pin drift 1157ms
+   ✓ neutral shared resource extraction provenance > rejects extra-file drift 1566ms
+   ✓ neutral shared resource extraction provenance > rejects unsafe-output drift 1090ms
+   ✓ neutral shared resource extraction provenance > rejects duplicate-output drift 1461ms
+   ✓ neutral shared resource extraction provenance > rejects edit-digest drift 1038ms
+   ✓ neutral shared resource extraction provenance > accepts a reviewed source change only for its exact current bytes 1419ms
+   ✓ neutral shared resource extraction provenance > rejects a linked output without following or altering its target 1041ms
+ ✓ test/speech-resources/integration/window-bridge.test.ts (1 test) 4ms
+
+ Test Files  34 passed | 2 skipped (36)
+      Tests  293 passed | 4 skipped (297)
+   Start at  13:47:26
+   Duration  21.87s (transform 2.62s, setup 0ms, collect 14.13s, tests 30.55s, environment 5ms, prepare 2.74s)
+
+exit 0
+
+# Baseline of the same command before any T-ASRQ-06 edit (13:15, same worktree):
+ Test Files  34 passed | 1 skipped (35)
+      Tests  290 passed | 3 skipped (293)
+exit 0

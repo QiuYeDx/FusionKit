@@ -1,0 +1,18 @@
+# T-ASRQ-08 V-ASRQ-08-1 任务服务、控制器与 IPC 重试测试
+# 2026-10-22，工作树基于 68ffd05（未提交），Windows 11，Node v20.19.4；只列出与重试相关的用例行与总计
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription-task-service.test.ts test/subtitle-studio/transcription-retry-ipc.test.ts test/subtitle-studio/transcription-controller.test.ts --reporter=verbose
+ ✓ test/subtitle-studio/transcription-retry-ipc.test.ts > retrying a transcription task over IPC > passes the task and only the audio type or device to the runtime, and returns the new batch
+ ✓ test/subtitle-studio/transcription-retry-ipc.test.ts > retrying a transcription task over IPC > answers that the file has to be added again when it was moved or modified, and reports other failures as errors
+ ✓ test/subtitle-studio/transcription-retry-ipc.test.ts > retrying a transcription task over IPC > is a fixed public method of the Studio bridge
+ ✓ test/subtitle-studio/transcription-controller.test.ts > retains failed revoke handles across navigation and accepts revoked:false on retry
+ ✓ test/subtitle-studio/transcription-controller.test.ts > retries a failed or empty task as a new task, keeps the original, and says when the file has to be added again
+ ✓ test/subtitle-studio/transcription-controller.test.ts > blocks automatic retry when a successful enqueue response cannot account for captured files
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > surfaces publication failure without manufacturing a completed document or retaining retry authority
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > surfaces publication failure without manufacturing a completed document or retaining retry authority
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > submits a failed or empty task again as a new task from the same file, with its own settings or the change asked for
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > submits a failed or empty task again as a new task from the same file, with its own settings or the change asked for
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > refuses to retry a file moved or modified since, another owner's task, or one still running
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > refuses to retry a file moved or modified since, another owner's task, or one still running
+ Test Files  3 passed (3)
+      Tests  95 passed (95)
+exit=0

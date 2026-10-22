@@ -156,9 +156,11 @@ describe.runIf(enabled)('I6 actual Electron queue presentation', () => {
         // The fixture fails with runtime_protocol_mismatch: the row names that cause and its next step, not a generic failure.
         await uiExpect(rows[6].locator('.studio-transcription-row-warning')).toHaveText([t.task_error.runtime.cause, t.task_cleanup_pending]);
         await uiExpect(rows[6].getByTestId('studio-transcription-task-error')).toContainText(t.task_error.runtime.next);
-        // A known code: "view help" for transcription failures, no "copy diagnostics" (that is for codes this version does not know).
+        // A known code: "view help" for transcription failures; every failure can copy its diagnostics (T-ASRQ-08).
+        // Still cleaning up, so it cannot be retried yet.
         await uiExpect(rows[6].getByTestId('studio-task-error-help')).toBeVisible();
-        await uiExpect(rows[6].getByTestId('studio-copy-diagnostics')).toHaveCount(0);
+        await uiExpect(rows[6].getByTestId('studio-copy-diagnostics')).toBeVisible();
+        await uiExpect(rows[6].getByTestId('studio-transcription-retry')).toHaveCount(0);
         await uiExpect(rows[6].getByRole('button', { name: t.remove_task, exact: true })).toBeDisabled();
         const tooltips: Record<string, string> = {};
         for (const [index, description] of [[1, t.auto_translation_pending], [4, t.auto_translation_admitted], [5, t.auto_translation_recovery]] as const) {

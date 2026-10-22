@@ -1,0 +1,45 @@
+# T-ASRQ-10 spike: model provenance + download verification (2026-10-22 11:41 +0800)
+# curl: curl 8.6.0
+
+## 1. Hugging Face tree API (path size lfs.oid lfs.size)
+GET https://huggingface.co/api/models/ggerganov/whisper.cpp/tree/5359861c739e955e79d9a303bcbc70fb988958b1
+  ggml-large-v3-turbo-q8_0.bin 874188075 317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1 874188075
+GET https://huggingface.co/api/models/BELLE-2/Belle-whisper-large-v3-turbo-zh-ggml/tree/0a7f57392b773254eb60da8e49c7c683af369625
+  ggml-model.bin 1624555275 2a3bba5bfdb4d4da3d9949a83b405711727ca1941d4d5810895e077eb3cb4d99 1624555275
+GET https://huggingface.co/api/models/Aratako/anime-whisper-ggml/tree/35b467f144c62a3ab2d84bfbb517d6af5135444a
+  ggml-anime-whisper-q8_0.bin 818305955 6a04b7460bdcf2a16aa568c96dd670070abe553936c82fbbff86fc41d02ac3f3 818305955
+
+## 2. Remote ggml header via HTTP Range bytes=0-47 (magic, 11 x int32)
+  ggerganov/ggml-large-v3-turbo-q8_0.bin bytes 48 0x67676d6c [51866, 1500, 1280, 20, 32, 448, 1280, 20, 4, 128, 2007]
+  BELLE-2/ggml-model.bin bytes 48 0x67676d6c [51866, 1500, 1280, 20, 32, 448, 1280, 20, 4, 128, 1]
+  Aratako/ggml-anime-whisper-q8_0.bin bytes 48 0x67676d6c [51866, 1500, 1280, 20, 32, 448, 1280, 20, 2, 128, 2007]
+
+## 3. Download log (curl -C - resume loop; first turbo attempt hit a TLS handshake error and was retried)
+[turbo]
+  attempt 1 from 0 11:30:35
+  curl: (35) schannel: failed to receive handshake, SSL/TLS connection failed
+  curl exit 35 size  11:30:40
+  attempt 2 from 0 11:30:40
+  curl exit 0 size 874188075 11:31:57
+  final size 874188075 sha 317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1 expected 317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1 MATCH 11:31:59
+[belle]
+  attempt 1 from 0 11:30:35
+  curl exit 0 size 1624555275 11:32:04
+  final size 1624555275 sha 2a3bba5bfdb4d4da3d9949a83b405711727ca1941d4d5810895e077eb3cb4d99 expected 2a3bba5bfdb4d4da3d9949a83b405711727ca1941d4d5810895e077eb3cb4d99 MATCH 11:32:08
+[anime]
+  attempt 1 from 0 11:30:35
+  curl exit 0 size 818305955 11:31:45
+  final size 818305955 sha 6a04b7460bdcf2a16aa568c96dd670070abe553936c82fbbff86fc41d02ac3f3 expected 6a04b7460bdcf2a16aa568c96dd670070abe553936c82fbbff86fc41d02ac3f3 MATCH 11:31:47
+
+## 4. On-disk check D:/fusionkit-asr-eval/models (size, sha256, ggml header)
+  ggml-large-v3-turbo-q8_0.bin header 0x67676d6c [51866, 1500, 1280, 20, 32, 448, 1280, 20, 4, 128, 2007]
+  ggml-large-v3-turbo-q8_0.bin size 874188075 sha256 317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1
+  ggml-belle-large-v3-turbo-zh.bin header 0x67676d6c [51866, 1500, 1280, 20, 32, 448, 1280, 20, 4, 128, 1]
+  ggml-belle-large-v3-turbo-zh.bin size 1624555275 sha256 2a3bba5bfdb4d4da3d9949a83b405711727ca1941d4d5810895e077eb3cb4d99
+  ggml-anime-whisper-q8_0.bin header 0x67676d6c [51866, 1500, 1280, 20, 32, 448, 1280, 20, 2, 128, 2007]
+  ggml-anime-whisper-q8_0.bin size 818305955 sha256 6a04b7460bdcf2a16aa568c96dd670070abe553936c82fbbff86fc41d02ac3f3
+
+## 5. Expected (task / design.md model table)
+  turbo q8_0  874188075  317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1  [51866,1500,1280,20,32,448,1280,20,4,128,2007]
+  belle zh   1624555275  2a3bba5bfdb4d4da3d9949a83b405711727ca1941d4d5810895e077eb3cb4d99  [51866,1500,1280,20,32,448,1280,20,4,128,1]
+  anime q8_0  818305955  6a04b7460bdcf2a16aa568c96dd670070abe553936c82fbbff86fc41d02ac3f3  [51866,1500,1280,20,32,448,1280,20,2,128,2007]

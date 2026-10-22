@@ -248,6 +248,8 @@ export interface BindLocalSubtitleTaskMediaSelectionOptions {
 
 export interface MaterializeLocalSubtitlePcmWindowOptions {
   readonly conditionQuietAudio?: boolean;
+  /** Gated per-frame gain for a conditioned window; absent keeps the whole-window gain. */
+  readonly quietAudioMode?: "gated_v1";
   readonly normalized: LocalSubtitleNormalizedPcm;
   readonly descriptor: LocalSubtitleMediaStructuralWindow;
   readonly signal?: AbortSignal;
@@ -833,6 +835,10 @@ export class LocalSubtitleMediaNormalizer {
     if (record.state !== "active") {
       throw invalidMediaConfiguration("The normalized PCM proof is inactive.");
     }
+    if (options.quietAudioMode !== undefined &&
+        (options.quietAudioMode !== "gated_v1" || options.conditionQuietAudio !== true)) {
+      throw invalidMediaConfiguration("The PCM conditioning mode is invalid.");
+    }
     const operation = await this.#beginOwnerOperation(
       record.ownerKey,
       options.signal,
@@ -857,6 +863,7 @@ export class LocalSubtitleMediaNormalizer {
           outputPath,
           signal: operation.signal,
           conditionQuietAudio: options.conditionQuietAudio === true,
+          ...(options.quietAudioMode === undefined ? {} : { quietAudioMode: options.quietAudioMode }),
         });
         const frameCount = descriptor.endFrame - descriptor.startFrame;
         if (written.metadata.totalFrames !== frameCount) {

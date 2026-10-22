@@ -1,0 +1,145 @@
+# V-ASRQ-02-2 / V-ASRQ-02-5  HEAD=68ffd05e (working tree, uncommitted T-ASRQ-02 changes); run after the last source edit
+$ node scripts/subtitle-studio-provenance/copy.mjs --check
+{"mode":"check","files":120,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567","status":"passed"}
+exit 0
+$ node scripts/subtitle-studio-provenance/transcript-executor-copy.mjs --check
+{"status":"passed","files":1,"dependencies":26,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567"}
+exit 0
+$ node scripts/subtitle-studio-provenance/shared-resource-integration.mjs
+{
+  "entries": 11,
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit 0
+$ npx tsc --noEmit -p tsconfig.json
+exit 0
+
+# V-ASRQ-02-5 i18n
+$ node scripts/check-i18n.mjs
+╔══════════════════════════════════════════════════╗
+║          i18n Completeness Check                ║
+╚══════════════════════════════════════════════════╝
+
+  Source lang : zh
+  Languages   : zh, en, ja, zh-Hant
+  Namespaces  : about, common, help, home, knowledge, materials, rename, setting, studio, subtitle, text, tools
+
+  Namespace              zh      en      ja zh-Hant
+  ─────────────────────────────────────────────────
+  about                  41      41      41      41
+  common                240     240     240     240
+  help                   87      87      87      87
+  home                  552     552     552     552
+  knowledge             327     327     327     327
+  materials              70      70      70      70
+  rename                199     199     199     199
+  setting               574     574     574     574
+  studio               1192    1192    1192    1192
+  subtitle              765     765     765     765
+  text                  161     161     161     161
+  tools                  67      67      67      67
+  ─────────────────────────────────────────────────
+  TOTAL                4275    4275    4275    4275
+
+  ⚠  32 warning(s) (same value as source, may be fine):
+
+     [SAME AS zh]  en/home: prepared_pipeline_detail = "{{format}} · {{content}} · {{conflict}}"
+     [SAME AS zh]  en/home: result_web_read = "{{title}} · {{site}}"
+     [SAME AS zh]  ja/home: prepared_pipeline_detail = "{{format}} · {{content}} · {{conflict}}"
+     [SAME AS zh]  ja/home: result_web_read = "{{title}} · {{site}}"
+     [SAME AS zh]  ja/knowledge: export.save = "保存…"
+     [SAME AS zh]  en/materials: selection.language_pair = "{{source}} → {{target}}"
+     [SAME AS zh]  ja/materials: selection.language_pair = "{{source}} → {{target}}"
+     [SAME AS zh]  en/rename: settings.format.sample_original = "第1話.mp4"
+     [SAME AS zh]  en/rename: list.help.arrows.keys = "↑ ↓ ← →"
+     [SAME AS zh]  ja/rename: settings.format.sample_original = "第1話.mp4"
+     [SAME AS zh]  ja/rename: list.help.arrows.keys = "↑ ↓ ← →"
+     [SAME AS zh]  ja/setting: external_agent.sessions.last = "最近：{{tool}}"
+     [SAME AS zh]  ja/setting: external_agent.activity.duration_s = "{{value}} 秒"
+     [SAME AS zh]  ja/setting: external_agent.activity.titlebar.panel_title = "外部 Agent"
+     [SAME AS zh]  en/studio: operation_result.separator = " · "
+     [SAME AS zh]  en/studio: cue_help.field.keys = "← / →"
+     [SAME AS zh]  en/studio: bilingual_import.direction = "{{source}} → {{target}}"
+     [SAME AS zh]  ja/studio: bilingual.source_label = "原文 · {{language}}"
+     [SAME AS zh]  ja/studio: cue_help.field.keys = "← / →"
+     [SAME AS zh]  ja/studio: bilingual_import.direction = "{{source}} → {{target}}"
+     [SAME AS zh]  ja/studio: cue_audio.padding_short = "0.3 秒"
+     [SAME AS zh]  ja/studio: cue_audio.padding_long = "1 秒"
+     [SAME AS zh]  ja/studio: cue_listen.length = "{{seconds}} 秒"
+     [SAME AS zh]  en/subtitle: local_transcriber.environment.execution_profile = "{{preference}} -> {{backend}} · {{version}}"
+     [SAME AS zh]  en/subtitle: local_transcriber.preview.description = "{{name}} · {{format}}"
+     [SAME AS zh]  ja/subtitle: local_transcriber.config.device_option.cuda = "NVIDIA GPU（CUDA）"
+     [SAME AS zh]  ja/subtitle: local_transcriber.config.device_option.metal = "Apple GPU（Metal）"
+     [SAME AS zh]  ja/subtitle: local_transcriber.environment.execution_profile = "{{preference}} -> {{backend}} · {{version}}"
+     [SAME AS zh]  ja/subtitle: local_transcriber.preview.description = "{{name}} · {{format}}"
+     [SAME AS zh]  en/tools: chips.studio_formats = "SRT · VTT · ASS · SSA · SBV · LRC"
+     [SAME AS zh]  ja/tools: chips.studio_formats = "SRT · VTT · ASS · SSA · SBV · LRC"
+     [SAME AS zh]  ja/tools: catalog.art_studio_cues = "字幕 · 日 → 中"
+
+exit 0
+$ node scripts/check-i18n-usage.mjs
+i18n source usage check
+  Languages       : zh, en, ja, zh-Hant
+  Calls scanned   : 3483
+  Static/finite   : 3425
+  Manifest-backed : 21
+  Resolved keys   : 3868
+
+40 error(s):
+  [DYNAMIC_KEY] src/pages/About/index.tsx:156:94 link.descKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/About/index.tsx#link.descKey
+  [DYNAMIC_KEY] src/pages/About/index.tsx:161:88 link.titleKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/About/index.tsx#link.titleKey
+  [DYNAMIC_KEY] src/pages/About/index.tsx:162:87 link.descKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/About/index.tsx#link.descKey
+  [DYNAMIC_KEY] src/pages/Help/index.tsx:210:19 `help:sections.quick_start.step${index}_title` is not finite (expression has non-finite type number); add an exact manifest entry with selector src/pages/Help/index.tsx#`help:sections.quick_start.step${index}_title`
+  [DYNAMIC_KEY] src/pages/Help/index.tsx:210:76 `help:sections.quick_start.step${index}_body` is not finite (expression has non-finite type number); add an exact manifest entry with selector src/pages/Help/index.tsx#`help:sections.quick_start.step${index}_body`
+  [DYNAMIC_KEY] src/pages/Help/index.tsx:211:13 `help:sections.quick_start.step${index}_action` is not finite (expression has non-finite type number); add an exact manifest entry with selector src/pages/Help/index.tsx#`help:sections.quick_start.step${index}_action`
+  [DYNAMIC_KEY] src/pages/Help/index.tsx:226:62 item.titleKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Help/index.tsx#item.titleKey
+  [DYNAMIC_KEY] src/pages/Help/index.tsx:226:115 key is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Help/index.tsx#key
+  [DYNAMIC_KEY] src/pages/Help/index.tsx:314:181 topics[id].intro! is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Help/index.tsx#topics[id].intro!
+  [DYNAMIC_KEY] src/pages/Help/index.tsx:316:128 topic.titleKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Help/index.tsx#topic.titleKey
+  [DYNAMIC_KEY] src/pages/Help/index.tsx:317:62 key is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Help/index.tsx#key
+  [DYNAMIC_KEY] src/agent/prompt-templates.ts:58:46 K(`lang.${code}`) is not finite (expression has non-finite type string); add an exact manifest entry with selector src/agent/prompt-templates.ts#K(`lang.${code}`)
+  [DYNAMIC_KEY] src/agent/prompt-templates.ts:60:86 K("text.folder_missing") is not finite (expression has non-finite type string); add an exact manifest entry with selector src/agent/prompt-templates.ts#K("text.folder_missing")
+  [DYNAMIC_KEY] src/agent/prompt-templates.ts:61:65 K(values.recursive ? "text.recursive_yes" : "text.recursive_no") is not finite (expression has non-finite type string); add an exact manifest entry with selector src/agent/prompt-templates.ts#K(values.recursive?"text.recursive_yes":"text.recursive_no")
+  [DYNAMIC_KEY] src/agent/prompt-templates.ts:67:47 K("text.name_target_only") is not finite (expression has non-finite type string); add an exact manifest entry with selector src/agent/prompt-templates.ts#K("text.name_target_only")
+  [DYNAMIC_KEY] src/agent/prompt-templates.ts:68:10 K(`text.name_${values.layout === "source_first" ? "source_first" : "target_first"}`) is not finite (expression has non-finite type string); add an exact manifest entry with selector src/agent/prompt-templates.ts#K(`text.name_${values.layout==="source_first"?"source_first":"target_first"}`)
+  [DYNAMIC_KEY] src/agent/prompt-templates.ts:68:119 K(`separator.${text(values, "separator") || "dash"}`) is not finite (expression has non-finite type string); add an exact manifest entry with selector src/agent/prompt-templates.ts#K(`separator.${text(values,"separator")||"dash"}`)
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:77:79 `home:templates.${template.id}.title` is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#`home:templates.${template.id}.title`
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:78:88 `home:templates.${template.id}.summary` is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#`home:templates.${template.id}.summary`
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:110:65 `home:templates.${template.id}.title` is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#`home:templates.${template.id}.title`
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:111:89 `home:templates.${template.id}.summary` is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#`home:templates.${template.id}.summary`
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:174:56 field.labelKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#field.labelKey
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:175:97 field.hintKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#field.hintKey
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:181:101 field.labelKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#field.labelKey
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:187:96 option.labelKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#option.labelKey
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:190:111 field.hintKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#field.hintKey
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:280:59 `home:templates.${current.id}.title` is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#`home:templates.${current.id}.title`
+  [DYNAMIC_KEY] src/pages/HomeAgent/components/PromptTemplates.tsx:281:66 `home:templates.${current.id}.description` is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/HomeAgent/components/PromptTemplates.tsx#`home:templates.${current.id}.description`
+  [DYNAMIC_KEY] src/pages/Setting/components/ExternalAgentConfig.tsx:272:44 `setting:external_agent.clients.guide.${client}.step${step}` is not finite (expression has non-finite type number); add an exact manifest entry with selector src/pages/Setting/components/ExternalAgentConfig.tsx#`setting:external_agent.clients.guide.${client}.step${step}`
+  [DYNAMIC_KEY] src/pages/Setting/index.tsx:169:89 current.labelKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Setting/index.tsx#current.labelKey
+  [DYNAMIC_KEY] src/pages/Tools/ToolTile.tsx:41:62 item.titleKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Tools/ToolTile.tsx#item.titleKey
+  [DYNAMIC_KEY] src/pages/Tools/ToolTile.tsx:53:94 item.titleKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Tools/ToolTile.tsx#item.titleKey
+  [DYNAMIC_KEY] src/pages/Tools/ToolTile.tsx:54:20 item.descKey is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Tools/ToolTile.tsx#item.descKey
+  [DYNAMIC_KEY] src/pages/Tools/ToolTile.tsx:54:91 chip is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Tools/ToolTile.tsx#chip
+  [DYNAMIC_KEY] src/pages/Tools/index.tsx:85:100 key is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Tools/index.tsx#key
+  [DYNAMIC_KEY] src/pages/Tools/index.tsx:86:58 label is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Tools/index.tsx#label
+  [DYNAMIC_KEY] src/pages/Tools/index.tsx:86:68 value is not finite (expression has non-finite type string); add an exact manifest entry with selector src/pages/Tools/index.tsx#value
+  [STALE_MANIFEST] src/pages/Tools/index.tsx#item.titleKey no longer matches an unresolved translation call
+  [STALE_MANIFEST] src/pages/Tools/index.tsx#item.descKey no longer matches an unresolved translation call
+  [STALE_MANIFEST] src/pages/Tools/index.tsx#chip no longer matches an unresolved translation call
+exit 1
+
+# The 40 check-i18n-usage errors are all in files this task did not change (last touched by HEAD commits):
+unchanged src/agent/prompt-templates.ts last-commit=fe700226
+unchanged src/pages/About/index.tsx last-commit=4dea786c
+unchanged src/pages/Help/index.tsx last-commit=819486fd
+unchanged src/pages/HomeAgent/components/PromptTemplates.tsx last-commit=819486fd
+unchanged src/pages/Setting/components/ExternalAgentConfig.tsx last-commit=4dea786c
+unchanged src/pages/Setting/index.tsx last-commit=819486fd
+unchanged src/pages/Tools/ToolTile.tsx last-commit=819486fd
+unchanged src/pages/Tools/index.tsx last-commit=819486fd
+# Baseline comparison: `git archive HEAD src tsconfig.json tsconfig.node.json` extracted under test-results/ (removed afterwards),
+# checkI18nUsage({ projectRoot }) run on the HEAD export and on the working tree; error sets compared by code|file|line|column|message.
+HEAD export errors 40 working tree errors 40
+only in working tree []
+only at HEAD []

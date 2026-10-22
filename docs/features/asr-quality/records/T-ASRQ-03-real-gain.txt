@@ -1,0 +1,14 @@
+# T-ASRQ-03 supplemental — 2026-10-22T13:00:07+08:00 — worktree based on 68ffd05e (uncommitted); script: scratchpad realgain.ts (esbuild bundle, node v20.19.4)
+# Offline gain comparison on the read-only review samples (no model, no server). 30 s windows from 0 s, as fixed_v1 roots.
+# frame bins: measured 10*log10(out energy / in energy) per full 10 ms frame with signal; '~6' = 5.9-6.1 dB (integer rounding reads 6 dB as up to 6.02 dB)
+A @0s (30.0 s): rms -20.8 dBFS | whole-window gain 0.0 dB | gated gain 0.0 dB, peak after -2.67 dBFS | floor -54.9, threshold -44.9, active 60.8%, speech p80 -16.4 | frames <5.9 dB 100.0%, ~6 dB 0.0%, 6.1 dB..gain-0.5 0.0%, >=gain-0.5 0.0%
+B @0s (30.0 s): rms -34.8 dBFS | whole-window gain 12.0 dB | gated gain 9.7 dB, peak after -1.21 dBFS | floor -69.6, threshold -59.6, active 61.8%, speech p80 -32.7 | frames <5.9 dB 0.0%, ~6 dB 16.0%, 6.1 dB..gain-0.5 2.6%, >=gain-0.5 81.5%
+C @0s (30.0 s): rms -27.5 dBFS | whole-window gain 0.0 dB | gated gain 0.0 dB, peak after -6.30 dBFS | floor -64.8, threshold -54.8, active 69.1%, speech p80 -23.9 | frames <5.9 dB 100.0%, ~6 dB 0.0%, 6.1 dB..gain-0.5 0.0%, >=gain-0.5 0.0%
+B-noise @0s (18.0 s): rms -40.1 dBFS | whole-window gain 12.0 dB | gated gain 15.2 dB, peak after -1.21 dBFS | floor -69.2, threshold -59.2, active 58.7%, speech p80 -38.2 | frames <5.9 dB 0.0%, ~6 dB 15.8%, 6.1 dB..gain-0.5 3.4%, >=gain-0.5 80.8%
+independent @0s (30.0 s): rms -45.4 dBFS | whole-window gain 12.0 dB | gated gain 19.1 dB, peak after -3.97 dBFS | floor -84.0, threshold -74.0, active 68.1%, speech p80 -42.1 | frames <5.9 dB 0.0%, ~6 dB 6.1%, 6.1 dB..gain-0.5 1.2%, >=gain-0.5 92.6%
+independent @30s (30.0 s): rms -46.5 dBFS | whole-window gain 12.0 dB | gated gain 20.7 dB, peak after -4.86 dBFS | floor -82.9, threshold -72.9, active 61.0%, speech p80 -43.7 | frames <5.9 dB 0.0%, ~6 dB 4.5%, 6.1 dB..gain-0.5 1.7%, >=gain-0.5 93.8%
+independent @60s (30.0 s): rms -48.0 dBFS | whole-window gain 12.0 dB | gated gain 22.4 dB, peak after -4.55 dBFS | floor -80.2, threshold -70.2, active 68.4%, speech p80 -45.4 | frames <5.9 dB 0.0%, ~6 dB 5.5%, 6.1 dB..gain-0.5 1.2%, >=gain-0.5 93.3%
+independent @90s (30.0 s): rms -47.0 dBFS | whole-window gain 12.0 dB | gated gain 21.0 dB, peak after -7.96 dBFS | floor -85.2, threshold -75.2, active 63.8%, speech p80 -44.0 | frames <5.9 dB 0.0%, ~6 dB 1.9%, 6.1 dB..gain-0.5 0.7%, >=gain-0.5 97.4%
+independent @120s (30.0 s): rms -46.3 dBFS | whole-window gain 12.0 dB | gated gain 19.7 dB, peak after -4.60 dBFS | floor -83.2, threshold -73.2, active 65.4%, speech p80 -42.7 | frames <5.9 dB 0.0%, ~6 dB 2.7%, 6.1 dB..gain-0.5 0.9%, >=gain-0.5 96.4%
+independent @150s (26.0 s): rms -44.5 dBFS | whole-window gain 12.0 dB | gated gain 17.6 dB, peak after -7.70 dBFS | floor -85.8, threshold -75.8, active 64.2%, speech p80 -40.6 | frames <5.9 dB 0.0%, ~6 dB 2.5%, 6.1 dB..gain-0.5 1.3%, >=gain-0.5 96.3%
+exit 0

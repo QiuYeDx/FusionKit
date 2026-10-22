@@ -27,6 +27,26 @@ afterAll(async () => {
   }
 }, 60_000);
 
+// Reviewed divergence (2026-10-22, asr-quality T-ASRQ-04): the Studio copy of the
+// post-processor adds segments[].confidence = exp(avg_logprob) x (1 - no_speech_prob),
+// a 0-1 review hint with three decimals that frozen v1 never produced. Only that
+// field is removed for the old/new comparison; assertStudioConfidence checks it.
+function withoutReviewedConfidence(trace: any) {
+  if (!trace.transcript) return trace;
+  return { ...trace, transcript: { ...trace.transcript,
+    segments: trace.transcript.segments.map(({ confidence, ...segment }: any) => segment) } };
+}
+
+function assertStudioConfidence(legacy: any, studio: any) {
+  for (const segment of legacy.transcript?.segments ?? []) expect(segment).not.toHaveProperty('confidence');
+  for (const segment of studio.transcript?.segments ?? []) {
+    expect(typeof segment.confidence).toBe('number');
+    expect(segment.confidence).toBeGreaterThanOrEqual(0);
+    expect(segment.confidence).toBeLessThanOrEqual(1);
+    expect(Math.round(segment.confidence * 1000) / 1000).toBe(segment.confidence);
+  }
+}
+
 function assertExpected(trace: any, scenario: ReplayCase) {
   const expected = scenario.expected;
   expect(trace.config).toMatchObject({
@@ -85,7 +105,8 @@ describe('frozen v1 and independent Studio deterministic replay', () => {
     const legacy = await runReplayCase(pair!.legacy.executor, scenario);
     const studio = await runReplayCase(pair!.studio.executor, scenario);
     // Full objects: do not drop punctuation, cue/word timing evidence, raw response fields or retry plans.
-    expect(studio).toStrictEqual(legacy);
+    expect(withoutReviewedConfidence(studio)).toStrictEqual(legacy);
+    assertStudioConfidence(legacy, studio);
     assertExpected(legacy, scenario);
     assertExpected(studio, scenario);
     traces.push(studio);

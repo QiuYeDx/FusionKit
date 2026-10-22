@@ -8,6 +8,7 @@ import { getStudioTranslationOverviewController } from "@/services/subtitle-stud
 import { translationConfigSchema, normalizeTranslationModel } from "@/subtitle-studio/translation-contract";
 import { encodingSchema } from "@/subtitle-studio/domain";
 import { transcriptionTaskConfigSchema } from "@/subtitle-studio/transcription/task-contract";
+import { transcriptionModelMismatch } from "@/subtitle-studio/transcription-model-profiles";
 import type { DocumentSummary, StudioResult } from "@/subtitle-studio/ipc-contract";
 import { AGENT_CAPABILITIES } from "./capability-catalog";
 import { SettingsResolver } from "./tool-page-settings";
@@ -248,6 +249,11 @@ export const modernAgentTools = {
         advanced: { ...before.config.advanced, ...(input.initialPrompt !== undefined ? { initialPrompt: input.initialPrompt } : {}) } };
       const parsedConfig = transcriptionTaskConfigSchema.safeParse(config);
       if (!parsedConfig.success) throw new ToolFailure("studio_transcription_configuration_invalid");
+      // What was asked of a model that cannot do it is refused by name instead of changed or "not ready";
+      // the Studio settings it cannot use fall back as they do on the page.
+      const mismatch = transcriptionModelMismatch(parsedConfig.data);
+      if (mismatch === "recognize_only" || (mismatch === "translate" && input.taskMode) || (mismatch === "prompt" && input.initialPrompt !== undefined)
+        || (mismatch === "language" && input.language)) throw new ToolFailure(`studio_transcription_model_${mismatch}`);
       ctx.check(); controller.setConfig(parsedConfig.data);
       // Translation for this batch only: the user's saved Studio choice comes back once it is submitted or dropped.
       const savedAutomatic = before.autoTranslation;

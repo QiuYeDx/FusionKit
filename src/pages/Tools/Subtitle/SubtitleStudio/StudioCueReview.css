@@ -1,0 +1,53 @@
+/* The review bar takes the find bar's place and frame (StudioCueFind.css); these are its own parts. */
+.studio-cue-review { outline: none; }
+.studio-cue-review:focus-visible { box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 45%, transparent); }
+.studio-cue-review-title { display: inline-flex; flex: 1 1 auto; min-width: 0; align-items: center; gap: 6px; padding-left: 6px;
+  font-size: 12px; font-weight: 500; color: var(--foreground); white-space: nowrap; }
+.studio-cue-review-title > svg { width: 14px; height: 14px; flex: none; color: var(--muted-foreground); }
+/* The reason filter: segments when every label fits at its natural width, a select otherwise. */
+.studio-cue-review-filter { position: relative; min-width: 0; }
+.studio-cue-review-ruler { position: absolute; top: 0; left: 0; display: flex; width: max-content; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
+.studio-cue-review-ruler > span { font-size: 11px; font-weight: 500; white-space: nowrap; }
+/* The current cue: its number and reasons, then what can be done with it. */
+.studio-cue-review-current { display: flex; align-items: center; gap: 2px; min-width: 0; padding-left: 6px; }
+.studio-cue-review-reasons { flex: 1 1 auto; min-width: 0; overflow: hidden; border-radius: 4px; font-size: 12px; line-height: 20px; color: var(--foreground);
+  text-overflow: ellipsis; white-space: nowrap; outline: none; }
+.studio-cue-review-reasons:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+.studio-cue-review-number { margin-right: 8px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+/* The round play button keeps the 28px footprint of the icon buttons beside it; without media, the same
+   small filled triangle on an ordinary button opens the media panel. */
+.studio-cue-review-current > .studio-cue-review-play { margin: 4px; }
+.studio-cue-review-current .studio-cue-review-needs-media > svg { width: 11px; height: 11px; margin-left: 1px; fill: currentColor; }
+.studio-cue-review-option-count { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.studio-cue-review-note { margin: 0; padding: 0 6px 2px; font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+.studio-cue-review-restore { margin-left: 6px; border-radius: 3px; font: inherit; font-weight: 500; color: var(--foreground);
+  text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; outline: none; }
+.studio-cue-review-restore:hover { text-decoration-color: currentColor; }
+.studio-cue-review-restore:focus-visible { box-shadow: 0 0 0 2px var(--ring); }
+/* With only flagged cues listed, a page without any says so in the list's place. */
+.studio-cue-table tbody tr.studio-cue-review-empty > td { padding: 20px 12px; font-size: 12px; line-height: 18px; color: var(--muted-foreground); text-align: center; }
+.studio-cue-table tbody tr.studio-cue-review-empty:hover { background: transparent; }
+
+/* The toolbar entry: an icon, and the number of flagged cues once there are any. */
+.studio-cue-review-trigger[data-count] { width: auto; min-width: 28px; gap: 3px; padding-inline: 6px 7px; }
+.studio-cue-review-trigger > span { font-size: 11px; font-weight: 500; line-height: 1; color: #b45309; font-variant-numeric: tabular-nums; }
+.dark .studio-cue-review-trigger > span { color: #fbbf24; }
+.studio-cue-review-trigger[aria-pressed=true] { background: var(--accent); color: var(--accent-foreground); }
+
+/* A flagged row's mark sits on the line between the number and time columns, so neither column
+   gives up width and the row keeps its height; the number and time text stay clear of it. */
+.studio-cue-review-badge { position: absolute; top: 9px; right: -1px; z-index: 1; display: grid; place-items: center; width: 14px; height: 14px;
+  border-radius: 4px; color: #d97706; }
+.studio-cue-review-badge > svg { width: 11px; height: 11px; }
+.studio-cue-review-badge[data-current] { background: #d97706; color: #fff; }
+.dark .studio-cue-review-badge { color: #fbbf24; }
+.dark .studio-cue-review-badge[data-current] { background: #f59e0b; color: #1c1917; }
+.studio-cue-review-tip { max-width: min(320px, calc(100vw - 24px)); padding: 8px 10px; }
+.studio-cue-review-tip ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.studio-cue-review-tip li { display: grid; gap: 1px; font-size: 11.5px; line-height: 16px; }
+.studio-cue-review-tip strong { font-weight: 600; }
+.studio-cue-review-tip li > span { color: color-mix(in oklab, var(--background) 72%, transparent); }
+@media (max-width: 520px) {
+  .studio-cue-review-badge { top: 10px; right: -2px; width: 12px; height: 12px; }
+  .studio-cue-review-badge > svg { width: 10px; height: 10px; }
+}

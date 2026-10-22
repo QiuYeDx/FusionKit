@@ -464,6 +464,20 @@
     "language_fr": "French",
     "language_de": "German",
     "language_es": "Spanish",
+    "audio_type": "Audio type",
+    "audio_standard": "Standard",
+    "audio_standard_description": "Most videos, interviews and conversations",
+    "audio_standard_hint": "Suits most audio. For very soft voices or a noisy background, choose the matching type.",
+    "audio_quiet": "Quiet · whispers",
+    "audio_quiet_description": "Soft voices, whispering or ASMR",
+    "audio_quiet_hint": "Experimental: relaxes speech detection and lifts quiet voices, so faint speech is recognized more easily. It can also invent text over sounds with no voice, so go through the result with To check.",
+    "audio_quiet_short": "Quiet",
+    "audio_noisy": "Noisy · music & effects",
+    "audio_noisy_description": "Lots of background music, effects or ambience",
+    "audio_noisy_hint": "Experimental: slightly relaxes speech detection and leaves out symbols such as ♪ and 「」, for voices covered by music or effects. It can also invent text over effects with no voice, so go through the result with To check.",
+    "audio_noisy_short": "Noisy",
+    "audio_reset": "Back to Standard: the other audio types need speech detection.",
+    "audio_task_label": "Audio type: {{name}}",
     "task_mode": "Output",
     "mode_transcribe": "Original language",
     "mode_english": "Translate to English",
@@ -561,6 +575,22 @@
     "resource_name_vad": "Voice detection (skips silence)",
     "resource_name_vad_short": "Voice detection",
     "resource_name_cuda": "NVIDIA graphics acceleration",
+    "resource_name_fast": "Fast (about 0.8 GB)",
+    "resource_name_fast_short": "Fast",
+    "resource_name_chinese": "Mandarin Chinese (about 1.5 GB)",
+    "resource_name_chinese_short": "Mandarin Chinese",
+    "resource_name_anime": "Japanese anime · ASMR (about 0.8 GB)",
+    "resource_name_anime_short": "Japanese anime · ASMR",
+    "model_scenario_fast": "Faster, for a quick first draft; cannot translate to English.",
+    "model_scenario_chinese": "Mandarin, with punctuation. Only for recognizing the audio again: transcribe with another model first, then recognize the lines that need it.",
+    "model_scenario_anime": "Japanese anime, game voice acting and ASMR (breaths, laughter, whispers). Only for recognizing the audio again, line by line; prompts are not used.",
+    "model_license_belle": "License note: the training data includes non-commercial datasets.",
+    "model_license_anime": "License note: the training data forbids commercial use; non-commercial use only.",
+    "model_experimental": "Experimental",
+    "model_recognize_only": "Re-recognition only",
+    "model_no_translate": "The selected model cannot translate to English, so the output keeps the original language.",
+    "model_language_locked": "The selected model recognizes only {{languages}}.",
+    "model_prompt_forbidden": "The selected model does not use context hints.",
     "prepare_title": "Prepare in one click (recommended)",
     "prepare_description": "Installs the standard model and voice detection together, so local transcription is ready to go.",
     "prepare_size": "Downloads {{size}}",
@@ -635,7 +665,7 @@
       },
       "memory": {
         "cause": "The computer ran out of memory.",
-        "next": "Close other programs that use a lot of memory, or choose a smaller model, then try again."
+        "next": "Close other programs that use a lot of memory, or choose the smaller Standard or Fast model, then try again. When the graphics card ran it, you can also retry on the CPU."
       },
       "authorization": {
         "cause": "FusionKit can no longer read this file.",
@@ -656,6 +686,10 @@
       "transcription": {
         "cause": "The transcription did not finish.",
         "next": "Try again. If it still fails, choose another model or set Processor to CPU."
+      },
+      "quality": {
+        "cause": "Recognition gave no reliable result for this audio. This is a recognition quality problem, not a broken program.",
+        "next": "In the transcription settings, try another Chunking (under Advanced settings), Audio type or model, then add the file again. There is no need to reinstall FusionKit."
       },
       "limit": {
         "cause": "The media is too long, or its content is more than one task can handle.",
@@ -679,6 +713,12 @@
     },
     "copy_diagnostics": "Copy diagnostics",
     "diagnostics_copied": "Diagnostics copied",
+    "retry_cpu": "Retry on the CPU",
+    "retry_quiet": "Retry as Quiet · whispers",
+    "retry_quiet_note": "Experimental: faint speech is recognized more easily, though more lines may need review.",
+    "retry_quiet_needs_vad": "Install speech detection in Manage resources first.",
+    "retry_source_changed": "This file was moved or changed after it was transcribed. Add the file again, then transcribe it.",
+    "empty_retry_help": "If you expected speech, retry as Quiet · whispers, or check the audio track, spoken language and model, then add the file again. The same settings usually give the same result.",
     "resource_failed_accelerator": "Graphics acceleration failed its load check, so this computer cannot use it right now. Update the NVIDIA graphics driver, then download it again; without it you can still transcribe on the CPU.",
     "resource_failed_load": "The file was downloaded but failed its load check. Click Download again; if it still fails, restart the computer and try again.",
     "resource_failed_runtime": "The transcription program that comes with FusionKit is incomplete or does not match this version, so this resource cannot be checked. Restart FusionKit; if it still fails, reinstall FusionKit.",
@@ -939,7 +979,8 @@
       "insert": "insert a cue",
       "replace": "replace in {{count}} cue(s)",
       "agent": "External agent wrote {{count}} translations",
-      "stretch": "stretch {{count}} cue(s)"
+      "stretch": "stretch {{count}} cue(s)",
+      "collapse": "collapse repetition in {{count}} cue(s)"
     }
   },
   "cue_help": {
@@ -1335,15 +1376,19 @@
     "language": "Language",
     "prompt": "Prompt",
     "prompt_placeholder": "Prompt (optional): names and terms that help the model hear them right",
+    "recognize_only_hint": "Experimental, for recognizing lines again only: transcribe with another model first for the timing, then replace the text line by line.",
     "no_model_hint": "No transcription model is installed yet. Install one to recognize lines again.",
     "open_transcription": "Install a model",
     "limited": "Up to the first {{limit}} selected lines are recognized at a time.",
+    "unread": "{{count}} line(s) could not be read (the document may have changed) and are not listed. Close and open the dialog again to retry.",
     "start": "Recognize",
     "restart": "Recognize again",
     "stop": "Stop",
     "progress": "Recognizing {{done}} / {{total}}",
+    "loading_model": "Loading the model, recognizing {{done}} / {{total}}",
     "listening": "Listening",
     "summary": "{{done}} recognized, {{changed}} differ from the text",
+    "flagged": "{{count}} result(s) may be unreliable (low confidence or a review rule) and are not preselected. Listen before using them.",
     "same": "Same as the text",
     "empty": "No speech heard",
     "include": "Use the result for line {{number}}",
@@ -1357,6 +1402,50 @@
       "interrupted": "Stopped",
       "failed": "Recognition failed"
     }
+  },
+  "cue_review": {
+    "open": "Lines to check",
+    "open_count": "Lines to check ({{count}})",
+    "label": "To check",
+    "count": "{{position}} of {{total}}",
+    "count_truncated": "{{position}} of {{total}}+",
+    "only": "Show only lines to check",
+    "none": "Nothing to check",
+    "page_empty": "No lines to check on this page. Use Previous or Next to go to other pages.",
+    "loading": "Checking…",
+    "previous": "Previous (Shift+Enter)",
+    "next": "Next (Enter)",
+    "close": "Close (Esc)",
+    "filter": "Filter by reason",
+    "all": "All",
+    "separator": ", ",
+    "reasons": {
+      "low_confidence": "Low confidence",
+      "phantom_phrase": "Likely made up",
+      "repetition_loop": "Repetition",
+      "non_speech_only": "Symbols only",
+      "abnormal_rate": "Unusual pace",
+      "duplicate_neighbor": "Repeats previous"
+    },
+    "details": {
+      "low_confidence": "The model was unsure of this line (confidence {{confidence}}, not an accuracy)",
+      "phantom_phrase": "A stock phrase often made up over silence or music",
+      "repetition_loop": "The same words repeat; recognition may have looped",
+      "non_speech_only": "Only symbols, punctuation or bracketed notes; no speech was recognized",
+      "abnormal_rate": "Too much text for its length, or a long stretch with almost none",
+      "duplicate_neighbor": "Same text as the line just before it"
+    },
+    "badge": "To check: {{reasons}}",
+    "current": "#{{number}}",
+    "play": "Play this line",
+    "recognize": "Recognize this line again…",
+    "recognize_filtered": "Recognize the {{count}} filtered lines again…",
+    "collapse": "Collapse repetition to “{{text}}”",
+    "collapse_none": "Nothing to collapse",
+    "ignore": "Ignore this flag (on this computer)",
+    "no_confidence": "This document has no confidence data; only the text rules are checked.",
+    "ignored": "{{count}} flag(s) ignored",
+    "restore": "Restore all"
   },
   "document_missing": "This document no longer exists."
 }

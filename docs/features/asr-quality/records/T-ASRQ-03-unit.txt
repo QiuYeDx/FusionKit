@@ -1,0 +1,204 @@
+# T-ASRQ-03 unit — 2026-10-22T13:02:08+08:00 — worktree based on 68ffd05e (uncommitted)
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/gatedQuietAudio.test.ts test/subtitle-studio/transcription/quietAudioWindow.test.ts test/subtitle-studio/transcription/quietAudio.test.ts test/subtitle-studio/transcription/productionExecutor.test.ts --reporter=verbose
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/quietAudio.test.ts > bounded quiet PCM conditioning > leaves silence, digital noise and normal speech byte-identical
+ ✓ test/subtitle-studio/transcription/quietAudio.test.ts > bounded quiet PCM conditioning > boosts quiet input without shifting samples, filling pauses or modifying the source
+ ✓ test/subtitle-studio/transcription/quietAudio.test.ts > bounded quiet PCM conditioning > softens isolated transients below the ceiling and refuses sustained limiting
+ ✓ test/subtitle-studio/transcription/quietAudio.test.ts > bounded quiet PCM conditioning > rejects unbounded or malformed PCM
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio PCM windows with gated quiet audio > keeps standard whisper windows byte-identical to the previous implementation
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio PCM windows with gated quiet audio > keeps standard moderate windows byte-identical to the previous implementation
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio PCM windows with gated quiet audio > keeps standard transient windows byte-identical to the previous implementation
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio PCM windows with gated quiet audio > writes the gated gain into the window and reports it, or leaves a normal-level window untouched
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio PCM windows with gated quiet audio > rejects an unknown mode or a mode without conditioning before creating the window
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio media normalizer with gated quiet audio > brands gated windows with their gain while standard windows keep their previous bytes
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio media normalizer with gated quiet audio > brands gated windows with their gain while standard windows keep their previous bytes
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts > gated quiet PCM conditioning > boosts -65 dBFS speech the whole-window policy skips, keeping samples, positions and digital silence 649ms
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts > gated quiet PCM conditioning > raises noise-floor frames away from speech by at most 6 dB but holds full gain around speech
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts > gated quiet PCM conditioning > boosts a quiet window with strong transients that the whole-window policy refuses
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts > gated quiet PCM conditioning > returns silence, full scale, very short, normal-level and too little speech unchanged
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts > gated quiet PCM conditioning > rejects unbounded or malformed PCM
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio media normalizer with gated quiet audio > rejects an invalid conditioning mode without faulting the normalized media
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts > Studio media normalizer with gated quiet audio > rejects an invalid conditioning mode without faulting the normalized media
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: two_groups
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: default
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: lexical
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: budget
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: missing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: unstable
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: startup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: native_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: cancel
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > selects complete overlap groups only in the bounded pause experiment: cleanup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > executes an explicitly selected pause plan through materialization and export
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps default on the unchanged fixed route
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps short on the unchanged fixed route
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps vad_off on the unchanged fixed route
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > stops on cancel during scanning before loading or export
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > stops on changed during scanning before loading or export
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps a lone short-suffix cue without reading PCM or requesting a forward witness
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: unstable
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: missing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: silence
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: pcm_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: media_changed
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: startup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: native_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: cancel
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > bounds the final short-onset witness and preserves accepted text: cleanup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves all three earlier repairs while applying one terminal variant group: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves all three earlier repairs while applying one terminal variant group: unstable
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves all three earlier repairs while applying one terminal variant group: missing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves all three earlier repairs while applying one terminal variant group: startup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves all three earlier repairs while applying one terminal variant group: native_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves all three earlier repairs while applying one terminal variant group: cancel
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves all three earlier repairs while applying one terminal variant group: cleanup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix and multi repairs while applying one contained group: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix and multi repairs while applying one contained group: unstable
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix and multi repairs while applying one contained group: missing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix and multi repairs while applying one contained group: startup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix and multi repairs while applying one contained group: native_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix and multi repairs while applying one contained group: cancel
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix and multi repairs while applying one contained group: cleanup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: display_separator
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: quoted
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: unstable
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: missing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: startup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: native_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: cancel
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves prefix repair while applying one bounded multi-parent group: cleanup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > applies a two-observation prefix group after primary fallback: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > applies a two-observation prefix group after primary fallback: unstable
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > applies a two-observation prefix group after primary fallback: missing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > applies a two-observation prefix group after primary fallback: budget
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > applies a two-observation prefix group after primary fallback: startup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > applies a two-observation prefix group after primary fallback: native_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > applies a two-observation prefix group after primary fallback: cancel
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > applies a two-observation prefix group after primary fallback: cleanup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > uses complete witness groups within the existing seam budget: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > uses complete witness groups within the existing seam budget: changed
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > uses complete witness groups within the existing seam budget: other_words
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: shared_budget
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: ordering
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: changed
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: missing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: startup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: native_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: cancel
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reconciles a clipped cross-window variant with a bounded witness: cleanup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > does not spend a request solely on a punctuated cue: large-v3
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > does not spend a request solely on a punctuated cue: undefined
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > exports bounded DTW enhancement through the default path: valid
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > exports bounded DTW enhancement through the default path: missing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > exports bounded DTW enhancement through the default path: changed
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > exports bounded DTW enhancement through the default path: punctuated
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > handles a bounded text-only separator candidate: accept
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > handles a bounded text-only separator candidate: changed_text
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > handles a bounded text-only separator candidate: native_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > handles a bounded text-only separator candidate: startup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > handles a bounded text-only separator candidate: stale_response
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > handles a bounded text-only separator candidate: cancel
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > handles a bounded text-only separator candidate: cleanup_failure
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > stops separator decoding after two consecutive unchanged windows
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > discards a timed-out candidate (reject) and exports the primary result
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > discards a timed-out candidate (late_success) and exports the primary result
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > shares the extra request budget with quiet-audio recovery
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > retries a risky conditioned long candidate on original audio once
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > retries a risky conditioned repeat candidate on original audio once
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > does not retry an empty conditioned negative control
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio returns no_content only after valid complete empty inference and cleanup (VAD false)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio returns no_content only after valid complete empty inference and cleanup (VAD true)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio preserves cleanup over an apparent empty response
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio preserves cancel over an apparent empty response
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio preserves cancel_cleanup over an apparent empty response
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio preserves native_failure over an apparent empty response
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio preserves invalid_coverage over an apparent empty response
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio preserves malformed over an apparent empty response
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio preserves spoofed_empty over an apparent empty response
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > Studio retains recognized cues when other complete windows are empty
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > binds quiet-window padding to actual conditioning and VAD (true)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > binds quiet-window padding to actual conditioning and VAD (false)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > exports readable decoder cues separately in the default transcription path
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > exports long unpunctuated raw segments intact to both formats without extra inference
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > accepts a frozen translation post action without executing it locally
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > forwards the frozen translate mode and session prompt to inference
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reverifies and pins the exact admitted CUDA pack before inference
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > binds one branded PCM attempt and activates a readable SRT artifact
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > pins the exact managed VAD and enables segment-only VAD inference
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > uses only the task input parent resolver for source output
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > consumes a verified Metal resolution in the queue-admission runtime pin
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > exports an LRC-only artifact through the production pipeline
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > commits source output formats in request order: SRT then LRC
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > commits source output formats in request order: LRC then SRT
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps the first production artifact when the second format fails
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps a readable SRT when LRC commit and partial cleanup fail without cancellation
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps a readable SRT when LRC commit and partial cleanup fail after synchronous cancellation
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps the first artifact when the custom directory resolver fails before the second format
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps the first artifact when the source directory resolver fails before the second format
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > executes custom overwrite when the exporter has commit authority
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > executes source overwrite when the exporter has commit authority
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > preserves the first production artifact when cancellation follows its commit
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > fails source output preflight before media or runtime work
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects source parent identity drift between preflight and export
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > stabilizes a source parent failure during export
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > resolves each source task to its own parent directory
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > lets a source sibling continue after the first task parent preflight fails
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects custom overwrite contexts before resolving or executing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects source overwrite contexts before resolving or executing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > splits a degenerate root into exact retry children with unique identities
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > replays an unsplittable unstable window once with a fresh proof and temperature
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > returns actionable diagnostics when bounded quality recovery still fails
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects a post-response PCM proof change before post-processing or export
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects a branded window from another normalization
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects reuse of a branded window across retry attempts
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects a stale response generation and leaves no artifact
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > fails closed when retained raw text exceeds the file budget across roots
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > counts degenerate parents and retry children in one segment budget
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects runtime generation drift before acquiring a server lease
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects a runtime generation that changed after batch admission
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > pins lazily after media succeeds and keeps the same pin for later tasks
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects exact server artifact drift after a batch pin is established
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > releases a pin acquired after its batch runtime closes exactly once
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps a shared pending pin for a sibling when the current task is cancelled
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > rejects a task after its batch runtime slice is closed
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > sanitizes Windows device names before reserving an artifact
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps a long Windows device stem within the leaf byte limit
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > cancels the active Supervisor ticket and cleans private media
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > promotes cancellation cleanup failure above ordinary cancellation
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > blocks export when required media cleanup fails
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > continues normalized cleanup when Supervisor release fails
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > keeps request generations monotonic across execute calls
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > reports exporter cleanup failures at the cleanup stage
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > prioritizes a later cleanup failure for ["SRT","LRC"]
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > prioritizes a later cleanup failure for ["LRC","SRT"]
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > normalizes every cleanup artifact when cancellation wins
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > maps a non-cancel pipeline cleanup failure to cleanup_failed
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > local subtitle production executor > maps an aborted pipeline cleanup failure to cancel_failed
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > keeps standard requests field for field as before (quiet gain false)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > keeps standard requests field for field as before (quiet gain true)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > sends the quiet profile on every window and keeps 1000 ms padding only on conditioned audio
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > sends the noisy profile on quality replays too
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > leaves separator candidates without VAD on their verified fields
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > fails an unknown profile before preparing media
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > fails a profile without VAD before preparing media
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio gated quiet audio > conditions quiet_whisper_v1 windows with the gated gain and pads boosted windows by 1000 ms
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio gated quiet audio > keeps the profile padding and skips the fallback when the gated gain leaves a window unchanged
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio gated quiet audio > retries a risky gated long candidate once on the original audio
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio gated quiet audio > retries a risky gated repeat candidate once on the original audio
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio gated quiet audio > retries a risky gated invalid candidate once on the original audio
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio gated quiet audio > materializes the standard type windows with the previous options
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio gated quiet audio > materializes noisy_music_v1 windows with the previous options
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio gated quiet audio > never gates separator candidates
+
+ Test Files  4 passed (4)
+      Tests  190 passed (190)
+   Start at  13:02:10
+   Duration  7.20s (transform 868ms, setup 0ms, collect 2.75s, tests 6.88s, environment 1ms, prepare 431ms)
+
+exit 0

@@ -86,7 +86,9 @@ describe.runIf(enabled)('no usable transcription is a distinct result in both ac
         await uiExpect(emptyStudio).toHaveAttribute('data-state', 'no_content');
         await uiExpect(emptyStudio).toContainText(locale.transcription.status_no_content);
         await uiExpect(emptyStudio.getByTestId('transcription-empty-result')).toContainText(common.transcription_empty.message);
-        await uiExpect(emptyStudio.getByTestId('transcription-empty-result')).toContainText(common.transcription_empty.help);
+        // The Studio can retry the same file (T-ASRQ-08), so its help suggests the quiet audio type; the classic tool keeps the shared help.
+        await uiExpect(emptyStudio.getByTestId('transcription-empty-result')).toContainText(locale.transcription.empty_retry_help);
+        await uiExpect(emptyStudio.getByTestId('studio-transcription-retry-quiet')).toHaveText(locale.transcription.retry_quiet);
         await uiExpect(emptyStudio.locator('.text-destructive, [role=alert], progress')).toHaveCount(0);
         await uiExpect(emptyStudio.getByRole('button', { name: locale.transcription.open_document, exact: true })).toHaveCount(0);
         await uiExpect(emptyStudio.getByRole('button', { name: locale.transcription.cancel_task, exact: true })).toHaveCount(0);

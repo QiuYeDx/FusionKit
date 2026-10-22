@@ -1,0 +1,31 @@
+# V-ASRQ-01-1 2026-10-22T12:15:03+08:00  cwd=/c/Users/Administrator/Documents/GitHub/FusionKit  HEAD=68ffd05e
+$ env -u FUSIONKIT_ASR_AB npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/asr-quality
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/asr-quality/ab-report.test.ts > A/B selection > is gated by an explicit flag and defaults to every sample, variant, large-v3 and CUDA
+ ✓ test/asr-quality/ab-report.test.ts > A/B selection > reads trimmed, de-duplicated lists and rejects unknown names instead of skipping them
+ ✓ test/asr-quality/ab-report.test.ts > A/B selection > names a downloaded model after its file unless the model ID is given
+ ✓ test/asr-quality/ab-report.test.ts > A/B selection > budgets every selected case
+ ✓ test/asr-quality/ab-report.test.ts > A/B text and time formatting > writes the SRT layout of the app export, and an empty file for no cues
+ ✓ test/asr-quality/ab-report.test.ts > A/B text and time formatting > gives listeners whole-second ranges that cover the region
+ ✓ test/asr-quality/ab-report.test.ts > A/B text and time formatting > compares words without width, case, whitespace or punctuation
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > keeps identical runs the same and reports changed, added and removed sentences
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > treats a split, a punctuation change or a moved boundary with the same words as minor
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > does not chain neighbours through a shared edge of a few frames
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > keeps contiguous sentences apart when every edge moved by up to 1.3 s (real A, standard vs quiet_whisper_v1)
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > joins an unpaired cue to its largest real overlap instead of reporting it added and removed
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > orders unsorted input and groups one long cue against several
+ ✓ test/asr-quality/ab-report.test.ts > A/B statistics > buckets confidence at the review threshold and reports none for older transcripts
+ ✓ test/asr-quality/ab-report.test.ts > A/B statistics > counts each sent field value per request kind and names only the profile fields
+ ✓ test/asr-quality/ab-report.test.ts > A/B listening regions > pads, clamps and merges word differences across variants, ignoring minor ones
+ ✓ test/asr-quality/ab-report.test.ts > A/B reports > summarizes counts, timings, confidence, missing samples, the negative control and inactive variants
+ ✓ test/asr-quality/ab-report.test.ts > A/B reports > lists aligned differences per sample and says why a pair cannot be compared
+ ✓ test/asr-quality/ab-report.test.ts > A/B reports > gives the listener padded ranges, the sample file and an empty verdict column
+
+ Test Files  1 passed | 1 skipped (2)
+      Tests  19 passed | 1 skipped (20)
+   Start at  12:15:04
+   Duration  338ms (transform 84ms, setup 0ms, collect 162ms, tests 12ms, environment 0ms, prepare 139ms)
+
+exit=0

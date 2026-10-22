@@ -3,7 +3,9 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { errorCodeSchema } from '@/subtitle-studio/domain';
 import { LOCAL_SUBTITLE_ERROR_CODES } from '@/subtitle-studio/transcription/domain';
-import { resourceErrorGuide, studioErrorDiagnostics, transcriptionTaskErrorGuide } from './transcription-errors';
+import type { TranscriptionTaskSummary } from '@/subtitle-studio/transcription/task-contract';
+import { resourceErrorGuide, studioErrorDiagnostics, transcriptionRetrySuggestion, transcriptionTaskDiagnostics, transcriptionTaskErrorGuide,
+  transcriptionTaskRetryable } from './transcription-errors';
 
 const LANGUAGES = ['zh', 'zh-Hant', 'en', 'ja'] as const;
 const catalogs = Object.fromEntries(LANGUAGES.map(language => [language, {
@@ -71,6 +73,69 @@ describe('Studio transcription error guide', () => {
     expect(zh('studio:transcription.task_error.unknown.next')).toContain(zh('studio:transcription.copy_diagnostics'));
     expect(studioErrorDiagnostics({ code: 'something_new', model: 'large-v3-q5_0', device: 'cpu', stage: undefined, message: '' }))
       .toBe('code: something_new\nmodel: large-v3-q5_0\ndevice: cpu');
+  });
+});
+
+describe('Studio transcription failures by kind, retry and diagnostics', () => {
+  const guide = (code: string, stage?: string) => transcriptionTaskErrorGuide(code, { vcRuntimeMissing: false, ...(stage ? { stage } : {}) });
+  it('calls a window that failed to recognize a recognition quality problem, with what to change instead of a reinstall', () => {
+    for (const [code, stage] of [['runtime_protocol_mismatch', 'transcribing'], ['runtime_protocol_mismatch', 'post_processing'],
+      ['transcript_quality_failed', 'post_processing'], ['transcript_quality_failed', undefined]] as const) {
+      expect(guide(code, stage), `${code} ${stage}`).toEqual({ causeKey: 'studio:transcription.task_error.quality.cause',
+        nextKey: 'studio:transcription.task_error.quality.next', actions: [], generic: false });
+    }
+    const next = zh('studio:transcription.task_error.quality.next'), cause = zh('studio:transcription.task_error.quality.cause');
+    for (const label of ['window_strategy', 'audio_type', 'model']) expect(next).toContain(zh(`studio:transcription.${label}`));
+    expect(cause).toContain('识别质量'); expect(`${cause}${next}`).not.toContain('请重新安装');
+    for (const language of LANGUAGES) expect(lookup(language, 'studio:transcription.task_error.quality.next'), language)
+      .toContain(lookup(language, 'studio:transcription.window_strategy') as string);
+    // The same code before anything was recognized is still the program: restart, then reinstall.
+    for (const stage of ['loading_model', 'preflight', undefined]) {
+      expect(guide('runtime_protocol_mismatch', stage).causeKey, String(stage)).toBe('studio:transcription.task_error.runtime.cause');
+    }
+    expect(zh(guide('runtime_protocol_mismatch', 'loading_model').nextKey!)).toContain('重新安装');
+  });
+
+  it('suggests a smaller model or the CPU when memory ran out', () => {
+    const memory = guide('out_of_memory', 'loading_model');
+    expect(memory).toMatchObject({ causeKey: 'studio:transcription.task_error.memory.cause', actions: ['open_resources'] });
+    for (const name of ['resource_name_standard_short', 'resource_name_fast_short']) expect(zh(memory.nextKey!)).toContain(zh(`studio:transcription.${name}`));
+    expect(zh(memory.nextKey!)).toContain('CPU');
+  });
+
+  const failure = (change: Partial<TranscriptionTaskSummary>): TranscriptionTaskSummary => ({ taskId: 'task-1', batchId: 'batch-1', generation: 1,
+    displayName: 'Drama CD 03 - 第二話.flac', status: 'failed', progress: 37, createdAt: '2026-10-22T08:00:00.000Z', updatedAt: '2026-10-22T08:01:00.000Z',
+    modelId: 'large-v3', resolvedBackend: 'cuda', error: { code: 'out_of_memory', stage: 'transcribing' }, ...change });
+  const empty = (change: Partial<TranscriptionTaskSummary> = {}) => failure({ status: 'no_content', progress: 100, error: undefined, ...change });
+
+  it('offers retry on failed and empty tasks, and the one suggestion that fits', () => {
+    expect(transcriptionRetrySuggestion(empty())).toBe('quiet');
+    expect(transcriptionRetrySuggestion(empty({ audioProfile: 'noisy_music_v1' }))).toBe('quiet');
+    expect(transcriptionRetrySuggestion(empty({ audioProfile: 'quiet_whisper_v1' }))).toBeUndefined();
+    // A failure the graphics card can cause, when it did not already run on the CPU.
+    for (const code of ['out_of_memory', 'accelerator_unavailable', 'runtime_crashed', 'transcription_failed'] as const) {
+      expect(transcriptionRetrySuggestion(failure({ error: { code } })), code).toBe('cpu');
+      expect(transcriptionRetrySuggestion(failure({ error: { code }, resolvedBackend: 'cpu' })), code).toBeUndefined();
+    }
+    for (const code of ['runtime_protocol_mismatch', 'transcript_quality_failed', 'media_changed', 'model_missing'] as const) {
+      expect(transcriptionRetrySuggestion(failure({ error: { code, stage: 'transcribing' } })), code).toBeUndefined();
+    }
+    expect([failure({}), empty()].map(transcriptionTaskRetryable)).toEqual([true, true]);
+    // Nothing for a task that is still running, finished with a document, or still cleaning up.
+    for (const task of [failure({ status: 'transcribing', error: undefined }), failure({ status: 'completed', error: undefined }),
+      failure({ status: 'cancelled', error: undefined }), failure({ cleanupPending: true })]) {
+      expect(transcriptionTaskRetryable(task), task.status).toBe(false); expect(transcriptionRetrySuggestion(task), task.status).toBeUndefined();
+    }
+  });
+
+  it('copies the code, stage, model, device and audio type of every failure, and never the file', () => {
+    const text = transcriptionTaskDiagnostics(failure({ error: { code: 'runtime_protocol_mismatch', stage: 'transcribing' }, audioProfile: 'quiet_whisper_v1' }));
+    expect(text).toBe('code: runtime_protocol_mismatch\nstage: transcribing\nmodel: large-v3\ndevice: cuda\naudioType: quiet_whisper_v1');
+    expect(transcriptionTaskDiagnostics(failure({ error: { code: 'interrupted' }, resolvedBackend: 'cpu' })))
+      .toBe('code: interrupted\nmodel: large-v3\ndevice: cpu\naudioType: standard');
+    for (const value of [text, transcriptionTaskDiagnostics(failure({}))]) {
+      expect(value).not.toContain('Drama CD'); expect(value).not.toMatch(/[\\/]|\.flac|task-1|batch-1/);
+    }
   });
 });
 

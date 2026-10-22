@@ -1,0 +1,102 @@
+# V-ASRQ-01-2 2026-10-22T12:15:36+08:00  HEAD=68ffd05e (working tree, uncommitted)
+$ FUSIONKIT_ASR_AB=1 FUSIONKIT_ASR_AB_SAMPLES=A,B-noise FUSIONKIT_ASR_AB_VARIANTS=standard npx vitest run --maxWorkers=4 --minWorkers=1 test/asr-quality/ab-comparison.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+[ASR A/B] A / standard: start
+[ASR A/B] A / standard: completed, 5 cues, 1 requests
+[ASR A/B] B-noise / standard: start
+[ASR A/B] B-noise / standard: no_content, 0 cues, 1 requests
+[ASR A/B] completed: C:\Users\Administrator\Documents\GitHub\FusionKit\test-results\asr-quality-ab\run-i6Verr
+ ✓ test/asr-quality/ab-comparison.test.ts (1 test) 40109ms
+   ✓ transcribes each selected sample with each audio type and writes the A/B reports 40108ms
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  12:15:38
+   Duration  40.45s (transform 1.23s, setup 0ms, collect 77ms, tests 40.11s, environment 0ms, prepare 77ms)
+exit=0
+
+## Post-run checks 2026-10-22T12:16:31+08:00
+$ ls -la test-results/asr-quality-ab/run-i6Verr   (top-level text files only; createTestRun removes sub-directories on pass)
+drwxr-xr-x 1 Administrator 197121     0 Oct 22 12:16 .
+drwxr-xr-x 1 Administrator 197121     0 Oct 22 12:15 ..
+-rw-r--r-- 1 Administrator 197121  4300 Oct 22 12:16 A.standard.json
+-rw-r--r-- 1 Administrator 197121   509 Oct 22 12:16 A.standard.srt
+-rw-r--r-- 1 Administrator 197121  3358 Oct 22 12:16 B-noise.standard.json
+-rw-r--r-- 1 Administrator 197121     0 Oct 22 12:16 B-noise.standard.srt
+-rw-r--r-- 1 Administrator 197121  1161 Oct 22 12:16 diff.md
+-rw-r--r-- 1 Administrator 197121  1283 Oct 22 12:16 listening.md
+-rw-r--r-- 1 Administrator 197121 11045 Oct 22 12:16 report.json
+-rw-r--r-- 1 Administrator 197121  1770 Oct 22 12:16 summary.md
+$ find test-results/asr-quality-ab/run-i6Verr -mindepth 1 -type d | wc -l
+0
+$ ls "$TEMP" | grep -c '^asrab-'   (harness work roots left behind)
+0
+$ per-case evidence (status, processIds, alive after cleanup, cleanup, profileApplied, request fields)
+A/standard status=completed cues=5 requests=1 processIds=["68692:exited"] cleanup={"joined":true,"processesExited":true,"workRemoved":true} profileApplied=false backendProofs=["cuda@68692"] loads=["inference/cuda/large-v3"] timings={"normalizeMs":598,"loadMs":10684,"inferenceMs":1764,"totalMs":15409}
+  request 1 primary window={"startMs":0,"endMs":30000,"conditioning":"whole_window"} language=japanese segments=5 fields={"response_format":"verbose_json","language":"ja","translate":"false","vad":"true","token_timestamps":"false","no_language_probabilities":"true","beam_size":"5","temperature":"0","temperature_inc":"0.2","no_timestamps":"false","vad_min_silence_duration_ms":"500"}
+B-noise/standard status=no_content cues=0 requests=1 processIds=["46880:exited"] cleanup={"joined":true,"processesExited":true,"workRemoved":true} profileApplied=false backendProofs=["cuda@46880"] loads=["inference/cuda/large-v3"] timings={"normalizeMs":600,"loadMs":9627,"inferenceMs":56,"totalMs":11837}
+  request 1 primary window={"startMs":0,"endMs":18000,"quietAudioGainDb":12,"conditioning":"whole_window"} language=english segments=0 fields={"response_format":"verbose_json","language":"ja","translate":"false","vad":"true","token_timestamps":"false","no_language_probabilities":"true","beam_size":"5","temperature":"0","temperature_inc":"0.2","no_timestamps":"false","vad_min_silence_duration_ms":"500","vad_speech_pad_ms":"1000"}
+$ report.json run-level flags
+{
+ "failures": [],
+ "sourcesUnchanged": true,
+ "workRemoved": true,
+ "model": {
+  "id": "large-v3",
+  "sha256": "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2",
+  "source": "已安装（只读，C:\\Users\\Administrator\\AppData\\Roaming\\FusionKit\\speech-resources）"
+ },
+ "device": "cuda",
+ "samples": [
+  {
+   "id": "A",
+   "status": "present",
+   "durationMs": 30000,
+   "sha256": "196a524c3805cdc5cccd9711711220bc5591c04906be442c6fa00955874798c5"
+  },
+  {
+   "id": "B-noise",
+   "status": "present",
+   "durationMs": 18000,
+   "sha256": "2f979f0bbb50c3a3896cee437e9b9ea7bd7745bb55bbd4b6decf24280da0d510"
+  }
+ ]
+}
+$ wc -c test-results/asr-quality-ab/run-i6Verr/A.standard.srt test-results/asr-quality-ab/run-i6Verr/B-noise.standard.srt
+509 test-results/asr-quality-ab/run-i6Verr/A.standard.srt
+  0 test-results/asr-quality-ab/run-i6Verr/B-noise.standard.srt
+509 total
+$ cat test-results/asr-quality-ab/run-i6Verr/summary.md
+# 真实音频对照摘要
+
+- 运行：run-i6Verr（2026-10-22T04:15:43.230Z — 2026-10-22T04:16:19.030Z）
+- 模型：large-v3（SHA-256 64d182b440b9…），已安装（只读，C:\Users\Administrator\AppData\Roaming\FusionKit\speech-resources）；设备：cuda
+- 主机：Windows_NT 10.0.26200，Node v20.19.4
+- GPU：NVIDIA GeForce RTX 4070 Ti SUPER, 610.88, 16376 MiB
+- 运行时：build\subtitle-studio-resources\transcription（3a2ac09dfc9b…）
+- 任务配置：Studio 默认（VAD 开、按停顿切窗、束宽 5、温度 0、最短静音 500 ms），语言按样本固定；每个样本 × 变体一个新的运行时与服务进程
+
+本摘要只列客观统计；哪个变体更好以听审为准（见 listening.md）。
+
+## 样本
+
+| 样本 | 语言 | 说明 | 时长 | 状态 |
+| --- | --- | --- | --- | --- |
+| A | ja | 30 s 日语 ASMR | 30.0 s | 存在 |
+| B-noise | ja | 18 s 非语音负对照 | 18.0 s | 存在 |
+
+## 结果
+
+| 样本 | 变体 | 状态 | 字幕 | 字数 | 请求（识别/重放/分句） | 耗时（总/归一化/加载/识别） | 置信度 | 复核标记 | 预设字段 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A | standard | 完成 | 5 | 116 | 1（1/0/0） | 15.4 s / 0.6 s / 10.7 s / 1.8 s | 无置信度 | 未实现 | 无 |
+| B-noise | standard | 无内容 | 0 | 0 | 1（1/0/0） | 11.8 s / 0.6 s / 9.6 s / 0.1 s | 无置信度 | 未实现 | vad_speech_pad_ms=1000×1 |
+
+## 负对照 B-noise
+
+任何变体在 B-noise 上输出文字都说明该变体会产生幻觉，预设不得推荐。
+
+- standard：（无文字）
+
+## 请求明细
+
+每个变体的逐请求字段、窗口语言与耗时见同名 JSON；请求类型：primary=识别，quality_recovery=质量重放，separator=分句候选。

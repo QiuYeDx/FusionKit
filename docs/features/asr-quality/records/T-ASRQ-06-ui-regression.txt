@@ -1,0 +1,37 @@
+# T-ASRQ-06 regression run of existing transcription UI tests on the same test build (2026-10-22, worktree on 68ffd05, uncommitted)
+$ FUSIONKIT_STUDIO_AUDIO_PROFILE_UI=1 FUSIONKIT_STUDIO_RESOURCE_UI=1 FUSIONKIT_STUDIO_T06_UI=1 npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/audio-profile-ui.test.ts test/subtitle-studio/resources-dialog-ui.test.ts test/subtitle-studio/transcription-ui.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/audio-profile-ui.test.ts (1 test) 25403ms
+   ✓ T-ASRQ-02 audio type in the actual Electron transcription settings > offers the audio types, couples them with voice detection, labels tasks and keeps the choice 25402ms
+ ❯ test/subtitle-studio/transcription-ui.test.ts (2 tests | 1 failed) 25588ms
+   × Subtitle Studio transcription in the actual Electron window > uses real IPC and repository for resource actions, media choices, retained queues and opening a completed document 17879ms
+     → expected 25.28125 to be less than or equal to 5
+   ✓ Subtitle Studio transcription in the actual Electron window > shows unavailable runtime from the unmodified production native implementation in an empty isolated app 7709ms
+ ✓ test/subtitle-studio/resources-dialog-ui.test.ts (3 tests) 43234ms
+   ✓ keeps local resource information and actions compact through installation, occupancy and deletion 18537ms
+   ✓ repairs the Microsoft runtime, then prepares the recommended model and voice detection in one click 17009ms
+   ✓ recommends the NVIDIA pack but asks for a driver update first when the driver is too old 7687ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/subtitle-studio/transcription-ui.test.ts > Subtitle Studio transcription in the actual Electron window > uses real IPC and repository for resource actions, media choices, retained queues and opening a completed document
+AssertionError: expected 25.28125 to be less than or equal to 5
+ ❯ capture test/subtitle-studio/transcription-ui.test.ts:53:90
+     51|     expect(Math.abs(geometry.layout.left - geometry.header.left)).toBe…
+     52|     // Equal gutters on both sides, give or take the page scrollbar wh…
+     53|     expect(Math.abs((geometry.viewport - geometry.layout.right) - geom…
+       |                                                                                          ^
+     54|     expect(geometry.header.left).toBeLessThanOrEqual(48);
+     55|   }
+ ❯ test/subtitle-studio/transcription-ui.test.ts:148:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 5 passed (6)
+   Start at  13:44:49
+   Duration  44.32s (transform 413ms, setup 0ms, collect 3.79s, tests 94.22s, environment 0ms, prepare 224ms)
+
+exit 1

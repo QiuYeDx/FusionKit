@@ -22,7 +22,8 @@ export const automaticTranslationPreferencesSchema = z.object({
 }).strict().refine(value => value.maxOutputTokens < value.contextWindow);
 export const transcriptionPreferencesSchema = z.object({
   version: z.literal(1),
-  config: transcriptionTaskConfigSchema.refine(value => value.windowStrategy !== 'acoustic_quiet_v1' || value.vadEnabled),
+  // Pause-based chunking and a non-standard audio type both need voice detection.
+  config: transcriptionTaskConfigSchema.refine(value => (value.windowStrategy !== 'acoustic_quiet_v1' && value.advanced.audioProfile === undefined) || value.vadEnabled),
   autoTranslation: automaticTranslationPreferencesSchema,
   autoExport: automaticExportPreferencesSchema.optional(),
 }).strict();

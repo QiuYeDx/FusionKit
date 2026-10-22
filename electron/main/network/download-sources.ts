@@ -6,6 +6,8 @@ import type { DownloadSourceMode } from '../../../src/network/contract';
  * mirror can only make a download faster, never change what is installed. The ModelScope copies
  * and the other mirrors below were checked on 2026-10-17 to serve identical bytes (size and
  * SHA-256) for the speech resources; gh-proxy.com is left out because it ignores Range requests.
+ * Models from other Hugging Face repositories (added 2026-10-22) have only hf-mirror.com, which
+ * copies the whole site under the same path.
  */
 export interface DownloadCandidate {
   /** Stable id, such as "official" or "modelscope-viggocx". */
@@ -23,7 +25,7 @@ export interface DownloadSourceMatch {
   readonly candidates: readonly DownloadCandidate[];
 }
 
-export type DownloadSourceGroupId = 'huggingface-whisper' | 'github-raw' | 'github-release';
+export type DownloadSourceGroupId = 'huggingface-whisper' | 'huggingface' | 'github-raw' | 'github-release';
 
 interface DownloadSourceGroup {
   readonly id: DownloadSourceGroupId;
@@ -45,6 +47,15 @@ export const DOWNLOAD_SOURCE_GROUPS: readonly DownloadSourceGroup[] = Object.fre
         url: `https://www.modelscope.cn/models/${owner}/whisper.cpp/resolve/master/${match[2]}`,
         domestic: true,
       })),
+      (url: URL) => ({ id: 'hf-mirror', url: `https://hf-mirror.com${url.pathname}${url.search}`, domestic: true }),
+    ],
+  },
+  {
+    // https://huggingface.co/<owner>/<repo>/resolve/<revision>/<file> in any other model repository
+    id: 'huggingface',
+    match: url => url.hostname === 'huggingface.co'
+      ? /^\/[^/]+\/[^/]+\/resolve\/[^/]+\/.+$/.exec(url.pathname) : null,
+    mirrors: [
       (url: URL) => ({ id: 'hf-mirror', url: `https://hf-mirror.com${url.pathname}${url.search}`, domestic: true }),
     ],
   },

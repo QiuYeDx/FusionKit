@@ -1,0 +1,76 @@
+# V-ASRQ-05-2 main-process review query and navigation over the Studio IPC (2026-10-22T17:34:34+08:00), working tree on 68ffd05
+# transcription-review-ipc.test.ts: 250 cues over three pages; counts, order and reasons; each flagged cue read back from its page; next/previous wrap across pages; reason filter; an edit drops the confidence flag at the new revision; the same revision asked again returns the memoized answer (toBe); old transcript by text alone
+$ npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/subtitle-studio/transcription-review-ipc.test.ts test/subtitle-studio/ipc.test.ts test/subtitle-studio/drop-import.test.ts test/subtitle-studio/boundaries.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/drop-import.test.ts > subtitle File drop bridge > captures all paths synchronously through webUtils and keeps its channel internal
+ ✓ test/subtitle-studio/drop-import.test.ts > subtitle File drop bridge > rejects forged paths, synthetic Files, empty/oversized batches and malformed options before IPC
+ ✓ test/subtitle-studio/drop-import.test.ts > drop selection before document reading > isolates missing paths and directories without discarding valid files, and uses resolved original names
+ ✓ test/subtitle-studio/drop-import.test.ts > drop selection before document reading > does not authorize guessed temporary source paths when original recovery fails
+ ✓ test/subtitle-studio/boundaries.test.ts > studio boundaries > keeps the current repository within audited dependency boundaries 2993ms
+ ✓ test/subtitle-studio/boundaries.test.ts > studio boundaries > restricts a test build dependency to its exact audited source and package
+ ✓ test/subtitle-studio/boundaries.test.ts > studio boundaries > allows only fixed public methods
+ ✓ test/subtitle-studio/boundaries.test.ts > studio boundaries > rejects direct, transitive, type, dynamic, helper and resource dependencies
+ ✓ test/subtitle-studio/boundaries.test.ts > studio boundaries > audits computed native loaders by exact source, expression, hash and count
+ ✓ test/subtitle-studio/boundaries.test.ts > studio boundaries > rejects old resource paths and only exempts immutable historical evidence bytes
+ ✓ test/subtitle-studio/boundaries.test.ts > studio boundaries > limits retained historical resource values to the exact JSON pointer, value and full file bytes
+ ✓ test/subtitle-studio/boundaries.test.ts > studio boundaries > binds native sources to reviewed bytes and rejects new unaudited native files
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > keeps automatic report inspection read-only, owner-bound and fenced after a document read
+ ✓ test/subtitle-studio/transcription-review-ipc.test.ts > the review query over the Studio IPC > counts and orders flagged cues across pages, lands on each one's page and steps through them
+ ✓ test/subtitle-studio/transcription-review-ipc.test.ts > the review query over the Studio IPC > reviews an older transcript without confidence by its text alone
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > routes the fixed batch knowledge bridge and creates independent records for owner-scoped files
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > rejects removed v1 selection fields, forged document access, and stale knowledge generation before reads or model calls
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > admits whole-file knowledge plans only through the owner-bound fixed bridge
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > rejects forged formal plan data, subframes and revoked owners before knowledge reads or model calls
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > reads one frozen execution batch through the fixed preload after task cleanup, with owner and private data boundaries
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > runs the three fixed trial methods through the real preload and authorized main handlers without document writes
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > rejects unauthorized trial plans and forged DTOs and keeps cancellation isolated to its owner
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > revokes a trial plan with its owner session and rejects reusing it after re-registration
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > exposes exactly the public trial channels and rejects internal, suffixed and legacy bridge access
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > plays original audio through owner-bound fixed channels without exposing media paths
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > reveals a bound source folder without granting path or cross-owner authority
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > imports native dropped files with per-file results and rejects other frames and forged payload fields
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > imports native dropped files with per-file results and rejects other frames and forged payload fields
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > exports beside the persisted source without a picker and fences source rebinding against old plans
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > reports an unreadable historical document without blocking native import, preview or restart
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > imports a native multiple selection with ordered independent failures and a bounded selection size
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > reveals and deletes only an enumerated unreadable record using its exact owner grant and recovery token
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > uses one native directory selection for a batch, preserves cancelled plans and rejects revoked or other owners
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > validates export plans and exposes only fixed public export methods
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > keeps a cancelled export plan and publishes its original revision after a new commit during native save
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > does not publish a frozen export when delete occurs during native save
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > does not publish a frozen export when navigate occurs during native save
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > uses no-clobber index publication when the native default filename is claimed while its dialog is open
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > preserves a claimed Windows default path when native exportDocument returns different path casing
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > preserves a claimed Windows default path when native exportSource returns different path casing
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > rejects cross-owner grants, forged senders/frames/tokens, paths and revisions
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > denies remote registrations and invalidates capabilities on navigation/destruction
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > does not publish an export after deletion while its save dialog is open
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > deletes granted documents in one request at their committed revision with one change event each
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > routes batch deletion through the fixed preload channel
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > rejects a delayed dialog response from a revoked owner
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > keeps capabilities and Electron event objects private in the fixed preload API
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > previews, applies and clears bilingual content through the three authorized handlers
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > rejects forged bilingual options, paths, duplicate overrides and unauthorized documents
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > routes the public bilingual bridge through fixed channels without leaking its capability
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > guards recovery and cancellation with owner, exact DTO, task identity and document revision
+ ✓ test/subtitle-studio/ipc.test.ts > production Subtitle Studio IPC handler composition > routes resume and cancel through fixed preload channels without exposing credentials in events
+
+ Test Files  4 passed (4)
+      Tests  51 passed (51)
+   Start at  17:34:35
+   Duration  7.87s (transform 1.51s, setup 0ms, collect 12.76s, tests 5.97s, environment 0ms, prepare 261ms)
+
+exit 0
+
+# Main-process cost of a review (electron/main/subtitle-studio/cue-review.ts with its per-revision memo; scratch script bundled with esbuild, synthetic document, each cue ~30 characters so every one reaches the deflate rule; Node v20.19.4)
+2000 cues, first review: 54 ms (flagged 200)
+2000 cues, same revision again: 0 ms (flagged 200)
+2000 cues, next revision, one cue edited: 16 ms (flagged 200)
+2000 cues, next revision, unchanged texts (a translation commit): 15 ms (flagged 200)
+100000 cues, first review: 1733 ms (flagged 10000)
+100000 cues, same revision again: 0 ms (flagged 10000)
+100000 cues, next revision, one cue edited: 698 ms (flagged 10000)
+100000 cues, next revision, unchanged texts (a translation commit): 694 ms (flagged 10000)
+# before the memo (first round, same synthetic documents): 2,000 cues 54 ms, 100,000 cues 1,726 ms on every revision; deflate alone is ~1 s of that at 100,000 cues

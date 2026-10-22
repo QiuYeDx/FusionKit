@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { StudioError, errorCodeSchema, type AudioTrack } from '../../../../src/subtitle-studio/domain';
 import { LOCAL_SUBTITLE_CUE_POLICY, LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION, LOCAL_SUBTITLE_LIMITS,
-  LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION, LOCAL_SUBTITLE_PRODUCTION_CONTRACT, LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
-  createLocalSubtitleError, isLocalSubtitleErrorCode } from '../../../../src/subtitle-studio/transcription/domain';
+  LOCAL_SUBTITLE_MODEL_MANIFEST_VERSION, LOCAL_SUBTITLE_OPERATION_STAGES, LOCAL_SUBTITLE_PRODUCTION_CONTRACT, LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
+  createLocalSubtitleError, isLocalSubtitleErrorCode, type LocalSubtitleDevicePreference, type LocalSubtitleOperationStage } from '../../../../src/subtitle-studio/transcription/domain';
 import { enqueueTranscriptionRequestSchema, transcriptionTaskSummarySchema, type EnqueueTranscriptionRequest,
   type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from '../../../../src/subtitle-studio/transcription/task-contract';
+import { transcriptionModelMismatch } from '../../../../src/subtitle-studio/transcription-model-profiles';
+import type { TranscriptionAudioProfile } from '../../../../src/subtitle-studio/transcription-audio-profiles';
 import type { DocumentRepository } from '../document-repository';
 import type { AutomaticTranslationCoordinator } from '../automatic-translation';
 import type { AutomaticKnowledgeCapture } from '../automatic-knowledge';
@@ -33,6 +35,8 @@ interface Record {
   readonly sourceKey: string; readonly inputPath: string; readonly inputIdentity: LocalSubtitleFileIdentity; readonly audioStreamId?: string;
   /** The track transcribed, as the probe described it; the published document remembers it. */
   readonly audioTrack?: AudioTrack;
+  /** The settings its batch was requested with, so a failed or empty task can be submitted again. */
+  readonly requestedConfig: EnqueueTranscriptionRequest['config'];
   readonly execution: Execution; readonly controller: AbortController;
   summary: TranscriptionTaskSummary; running: boolean; leased: boolean; selectionBound: boolean; cleanupPending: boolean;
   leaseFailure?: unknown;
@@ -299,6 +303,8 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     const owner = ownerFor(value);
     const parsed = enqueueTranscriptionRequestSchema.safeParse(request);
     if (!parsed.success) return Promise.reject(new StudioError('invalid_input'));
+    // The model's profile: no recognize-only model, English output, hint or language it does not support.
+    if (transcriptionModelMismatch(parsed.data.config)) return Promise.reject(new StudioError('invalid_input'));
     if (parsed.data.autoTranslation?.knowledge && !options.automaticKnowledge) return Promise.reject(new StudioError('unsupported_feature'));
     if (parsed.data.autoTranslation && !options.automaticTranslation) return Promise.reject(new StudioError('needs_configuration'));
     if (parsed.data.autoExport && !options.automaticExport) return Promise.reject(new StudioError('unsupported_feature'));
@@ -362,10 +368,11 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       const execution: Execution = Object.freeze({ owner: owner.owner, batchId, config,
         managedModel: Object.freeze({ ...managedModel }), ...(managedVad ? { managedVad: Object.freeze({ ...managedVad }) } : {}),
         admittedRuntimeGeneration: runtime.runtimeGeneration, backendResolution });
+      const requestedConfig = Object.freeze({ ...request.config, advanced: Object.freeze({ ...request.config.advanced }) });
       for (let index = 0; index < inputs.length; index++) {
         const input = inputs[index]!, file = request.files[index]!, taskId = randomUUID(), now = timestamp();
         created.push({ owner: owner.owner, ownerKey: owner.key, taskId, fileToken: file.fileToken, sourceKey: input.sourceKey,
-          inputPath: input.filePath, inputIdentity: input.identity, ...(file.audioStreamId ? { audioStreamId: file.audioStreamId } : {}), execution,
+          inputPath: input.filePath, inputIdentity: input.identity, ...(file.audioStreamId ? { audioStreamId: file.audioStreamId } : {}), requestedConfig, execution,
           ...withAudioTrack(options.describeAudioTrack?.(owner.owner, file.fileToken, file.audioStreamId)),
           controller: new AbortController(), running: false, leased: false, selectionBound: false, cleanupPending: false,
           ...(request.autoTranslation ? { automatic: { apiKey: request.autoTranslation.apiKey,
@@ -375,6 +382,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
           ...(request.autoExport ? { autoExport: structuredClone(request.autoExport) } : {}),
           summary: publicSummary({ taskId, batchId, generation: 1, displayName: input.displayName, status: 'queued', progress: 0,
             createdAt: now, updatedAt: now, modelId: managedModel.id, resolvedBackend: backendResolution.resolvedBackend,
+            ...(request.config.advanced.audioProfile ? { audioProfile: request.config.advanced.audioProfile } : {}),
             ...(request.autoTranslation ? { automaticTranslation: { status: 'pending' as const } } : {}) }) });
       }
       transaction = await options.leases.reserveBatch({ owner: owner.owner, batchId,
@@ -469,6 +477,36 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       if (capture.origin !== 'input') throw new StudioError('access_denied');
       action(capture.inputPath);
     },
+    /**
+     * The request that submits a failed or empty task again as a new task: its own file under a new authorization
+     * (the task's token was released when it ended) and the settings its batch was requested with, an audio type or
+     * device instead when given. A file moved or modified since is refused with media_changed, to be added again.
+     * The new authorization is the caller's to probe and enqueue, or to revoke.
+     */
+    async prepareRetry(value: LocalSubtitleOwnerKey, taskId: string, overrides: TranscriptionRetryOverrides = {}): Promise<EnqueueTranscriptionRequest> {
+      const record = owned(value, taskId);
+      if (!['failed', 'no_content'].includes(record.summary.status) || record.cleanupPending) throw new StudioError('invalid_input');
+      const changed = () => createLocalSubtitleError('media_changed', 'The transcribed file was moved or modified.', { stage: 'preflight' });
+      let inputPath: string;
+      try {
+        const capture = await captureSourceInput(record.inputPath, record.inputIdentity);
+        if (capture.origin !== 'input') throw changed();
+        inputPath = capture.inputPath;
+      } catch { throw changed(); }
+      if (owned(value, taskId) !== record) throw new StudioError('access_denied');
+      const media = await options.inputs.authorize(record.owner, inputPath, ['probe', 'transcribe', 'derive_source_output']);
+      try {
+        // The authorization looked at the file again: it must still be the one transcribed.
+        const input = await options.inputs.resolveDraft(record.owner, media.fileToken, 'transcribe');
+        if (!sameLocalSubtitleInputFileIdentity(input.identity, record.inputIdentity)) throw changed();
+        if (owned(value, taskId) !== record) throw new StudioError('access_denied');
+      } catch (error) { options.inputs.revokeDraft(record.owner, media.fileToken); throw error; }
+      const requested = record.requestedConfig, { audioProfile, devicePreference } = overrides;
+      return { files: [{ fileToken: media.fileToken, ...(record.audioStreamId ? { audioStreamId: record.audioStreamId } : {}) }],
+        config: { ...requested, ...(devicePreference ? { devicePreference } : {}),
+          // An audio type tunes voice detection, so it turns it on, as choosing one in the settings does.
+          ...(audioProfile ? { vadEnabled: true, advanced: { ...requested.advanced, audioProfile } } : {}) } };
+    },
     list(value: LocalSubtitleOwnerKey): readonly TranscriptionTaskSummary[] {
       const owner = ownerFor(value); return Object.freeze([...records.values()].filter(record => record.ownerKey === owner.key).map(record => record.summary));
     },
@@ -500,12 +538,20 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
 }
 
 export type TranscriptionTaskService = ReturnType<typeof createTranscriptionTaskService>;
+/** What submitting a task again may change; everything else is what its batch was requested with. */
+export interface TranscriptionRetryOverrides {
+  readonly audioProfile?: TranscriptionAudioProfile;
+  readonly devicePreference?: LocalSubtitleDevicePreference;
+}
 
 function publicError(error: unknown): PublicError {
   if (error instanceof AggregateError) return Object.freeze({ code: 'cleanup_failed' });
   if (error && typeof error === 'object') for (const key of ['localSubtitleCode', 'code'] as const) {
     const code = (error as { code?: unknown; localSubtitleCode?: unknown })[key];
-    if (typeof code === 'string' && isLocalSubtitleErrorCode(code)) return Object.freeze({ code });
+    // A native failure keeps where it happened: a window's recognition, or the program before it ran.
+    const stage = (error as { stage?: unknown }).stage;
+    if (typeof code === 'string' && isLocalSubtitleErrorCode(code)) return Object.freeze({ code,
+      ...((LOCAL_SUBTITLE_OPERATION_STAGES as readonly unknown[]).includes(stage) ? { stage: stage as LocalSubtitleOperationStage } : {}) });
     const studio = errorCodeSchema.safeParse(code); if (studio.success) return Object.freeze({ code: studio.data });
   }
   return Object.freeze({ code: 'transcription_failed' });

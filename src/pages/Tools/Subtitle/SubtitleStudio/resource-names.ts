@@ -9,11 +9,17 @@ type Resource = Pick<LocalSubtitleManagedResourceSummary, 'resourceId' | 'resour
 
 export type ResourceNameKey = 'studio:transcription.resource_name_standard' | 'studio:transcription.resource_name_standard_short'
   | 'studio:transcription.resource_name_best' | 'studio:transcription.resource_name_best_short'
+  | 'studio:transcription.resource_name_fast' | 'studio:transcription.resource_name_fast_short'
+  | 'studio:transcription.resource_name_chinese' | 'studio:transcription.resource_name_chinese_short'
+  | 'studio:transcription.resource_name_anime' | 'studio:transcription.resource_name_anime_short'
   | 'studio:transcription.resource_name_vad' | 'studio:transcription.resource_name_vad_short' | 'studio:transcription.resource_name_cuda';
 
 const MODEL_NAMES: Readonly<Record<string, { full: ResourceNameKey; short: ResourceNameKey }>> = {
   'large-v3-q5_0': { full: 'studio:transcription.resource_name_standard', short: 'studio:transcription.resource_name_standard_short' },
   'large-v3': { full: 'studio:transcription.resource_name_best', short: 'studio:transcription.resource_name_best_short' },
+  'large-v3-turbo-q8_0': { full: 'studio:transcription.resource_name_fast', short: 'studio:transcription.resource_name_fast_short' },
+  'belle-large-v3-turbo-zh': { full: 'studio:transcription.resource_name_chinese', short: 'studio:transcription.resource_name_chinese_short' },
+  'anime-whisper-q8_0': { full: 'studio:transcription.resource_name_anime', short: 'studio:transcription.resource_name_anime_short' },
 };
 
 /** The NVIDIA acceleration pack (the only accelerator: Windows CUDA). */

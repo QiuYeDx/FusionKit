@@ -1,5 +1,7 @@
-/* The find bar is a second row of the sticky header, aligned right like the toolbar above it. */
+/* The find bar is a second row of the sticky header, aligned right like the toolbar above it; it sticks
+   below the column labels (measured in StudioCueTable), not over them. The review bar uses the same row. */
 .studio-cue-find-head > th { padding: 0 8px 6px; font-weight: normal; text-align: left; }
+.studio-cue-table .studio-cue-find-head > th { top: var(--studio-cue-head-row, 37px); }
 .studio-cue-find { display: grid; gap: 6px; width: min(480px, 100%); margin-left: auto; border: 1px solid var(--border);
   border-radius: 10px; background: var(--popover); padding: 6px; color: var(--popover-foreground); }
 .studio-cue-find-row { display: flex; gap: 2px; align-items: center; min-width: 0; }

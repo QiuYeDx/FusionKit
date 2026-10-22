@@ -1,0 +1,56 @@
+# T-ASRQ-08 V-ASRQ-08-4 provenance 全量、转写任务服务与 Studio 页面回归
+# 2026-10-22，工作树基于 68ffd05（未提交），Windows 11，Node v20.19.4；最后一次源码改动之后运行（UI 用例使用同一次 npx vite build --mode=test 的构建）
+
+## provenance 静态检查
+$ node scripts/subtitle-studio-provenance/copy.mjs --check
+{"mode":"check","files":120,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567","status":"passed"}
+exit=0
+$ node scripts/subtitle-studio-provenance/transcript-executor-copy.mjs --check
+{"status":"passed","files":1,"dependencies":26,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567"}
+exit=0
+$ node scripts/subtitle-studio-provenance/shared-resource-integration.mjs
+{
+  "entries": 11,
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit=0
+
+## provenance vitest
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio-provenance
+ Test Files  16 passed | 2 skipped (18)
+      Tests  233 passed | 3 skipped (236)
+
+## 类型检查
+$ npx tsc --noEmit -p tsconfig.json
+exit=0
+
+## i18n
+$ node scripts/check-i18n.mjs
+  studio               1259    1259    1259    1259
+  TOTAL                4342    4342    4342    4342
+exit=0
+$ node scripts/check-i18n-usage.mjs   （工作树与 HEAD 导出副本各运行一次，排序后逐条 diff）
+40 error(s):
+HEAD: 40 error(s):
+diff: 两份错误列表完全相同（无新增）
+
+## 整体回归（含 test/subtitle-studio 全部默认用例、src/pages、src/services、src/agent 与 test/integration/transcription-empty-result-ui.test.ts）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio src/pages src/services src/agent test/integration/transcription-empty-result-ui.test.ts
+ Test Files  212 passed | 61 skipped (273)
+      Tests  2809 passed | 75 skipped (2884)
+exit=0
+（61 个跳过的文件是环境变量门控的 UI/真实资源用例；路径过滤 test/subtitle-studio 同时包含 test/subtitle-studio-provenance）
+其中包括 src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts：
+ ✓ test/subtitle-studio/transcription-controller.test.ts (46 tests) 80ms
+ ✓ src/agent/modern-tools.test.ts (48 tests) 66ms
+ ✓ test/subtitle-studio/transcription-task-service.test.ts (46 tests) 19275ms
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts (11 tests) 25ms
+ ✓ test/subtitle-studio/boundaries.test.ts (8 tests) 4126ms
+ ✓ test/subtitle-studio-provenance/replay.test.ts (20 tests) 63037ms
+ ✓ test/subtitle-studio/transcription-runtime-lifecycle.test.ts (4 tests) 222ms
+ ✓ src/agent/external/tools/export-transcription.test.ts (7 tests) 73ms
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/resource-names.test.ts (8 tests) 10ms
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts (4 tests) 10ms
+ ✓ test/subtitle-studio/transcription-retry-ipc.test.ts (3 tests) 10ms
+ ✓ src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts (2 tests) 14ms

@@ -464,6 +464,20 @@
     "language_fr": "フランス語",
     "language_de": "ドイツ語",
     "language_es": "スペイン語",
+    "audio_type": "音声タイプ",
+    "audio_standard": "標準",
+    "audio_standard_description": "一般的な動画・インタビュー・会話",
+    "audio_standard_hint": "ほとんどの音声に向いています。声がとても小さいときや背景が騒がしいときは、対応するタイプに切り替えてください。",
+    "audio_quiet": "小音量・ささやき",
+    "audio_quiet_description": "声が小さい、ささやき、ASMR",
+    "audio_quiet_hint": "実験的：音声検出を緩め、小さな声を持ち上げるため、かすかな声を認識しやすくなります。声のない音から文字を作り出すこともあるので、「要確認」で一行ずつ確認してください。",
+    "audio_quiet_short": "小音量",
+    "audio_noisy": "雑音・BGM/効果音",
+    "audio_noisy_description": "BGM・効果音・環境音が多い",
+    "audio_noisy_hint": "実験的：音声検出をやや緩め、♪ や「」などの記号を出力しません。BGM や効果音に埋もれた声向けです。声のない効果音から文字を作り出すこともあるので、「要確認」で一行ずつ確認してください。",
+    "audio_noisy_short": "雑音",
+    "audio_reset": "「標準」に戻しました。ほかの音声タイプには音声検出が必要です。",
+    "audio_task_label": "音声タイプ：{{name}}",
     "task_mode": "出力言語",
     "mode_transcribe": "元の言語を保持",
     "mode_english": "英語に翻訳",
@@ -561,6 +575,22 @@
     "resource_name_vad": "音声検出（無音を自動でスキップ）",
     "resource_name_vad_short": "音声検出",
     "resource_name_cuda": "NVIDIA GPU アクセラレーション",
+    "resource_name_fast": "高速（約 0.8 GB）",
+    "resource_name_fast_short": "高速",
+    "resource_name_chinese": "中国語・普通話（約 1.5 GB）",
+    "resource_name_chinese_short": "中国語・普通話",
+    "resource_name_anime": "日本語アニメ・ASMR（約 0.8 GB）",
+    "resource_name_anime_short": "日本語アニメ・ASMR",
+    "model_scenario_fast": "高速で、まず下書きを作るのに向いています。英語には翻訳できません。",
+    "model_scenario_chinese": "普通話向けで、句読点付きで出力します。元の音声の再認識専用です。先に別のモデルで文字起こしし、必要な行を再認識してください。",
+    "model_scenario_anime": "日本語のアニメ・ゲームボイス・ASMR（息づかい、笑い声、ささやき）向け。元の音声を 1 行ずつ再認識する専用で、プロンプトは使いません。",
+    "model_license_belle": "ライセンス注意：学習データに非商用のデータセットが含まれます。",
+    "model_license_anime": "ライセンス注意：学習データは商用利用が禁止されています。非商用目的でのみ使用してください。",
+    "model_experimental": "実験的",
+    "model_recognize_only": "再認識専用",
+    "model_no_translate": "選択したモデルは英語に翻訳できないため、元の言語で出力します。",
+    "model_language_locked": "選択したモデルは{{languages}}のみ認識します。",
+    "model_prompt_forbidden": "選択したモデルは文脈のヒントを使いません。",
     "prepare_title": "ワンクリック準備（おすすめ）",
     "prepare_description": "標準モデルと音声検出をまとめてインストールし、すぐにローカル文字起こしを始められるようにします。",
     "prepare_size": "ダウンロード {{size}}",
@@ -635,7 +665,7 @@
       },
       "memory": {
         "cause": "コンピューターのメモリーが足りなくなりました。",
-        "next": "メモリーを多く使っているほかのプログラムを閉じるか、より小さいモデルを選んでから、もう一度お試しください。"
+        "next": "メモリーを多く使っているほかのプログラムを閉じるか、より小さい「標準」または「高速」モデルを選んでから、もう一度お試しください。グラフィックスカードで処理していた場合は、CPU で再試行することもできます。"
       },
       "authorization": {
         "cause": "FusionKit はこのファイルを読み取れなくなりました。",
@@ -656,6 +686,10 @@
       "transcription": {
         "cause": "文字起こしを完了できませんでした。",
         "next": "もう一度お試しください。それでも失敗する場合は、別のモデルを選ぶか、「処理デバイス」を CPU に変えてください。"
+      },
+      "quality": {
+        "cause": "この音声からは信頼できる認識結果が得られませんでした。認識品質の問題で、プログラムの故障ではありません。",
+        "next": "文字起こし設定で「分割方法」（詳細設定内）、「音声タイプ」またはモデルを変えてから、ファイルをもう一度追加してください。FusionKit を再インストールする必要はありません。"
       },
       "limit": {
         "cause": "メディアが長すぎるか、1 回で処理できる上限を超えています。",
@@ -679,6 +713,12 @@
     },
     "copy_diagnostics": "診断情報をコピー",
     "diagnostics_copied": "診断情報をコピーしました",
+    "retry_cpu": "CPU で再試行",
+    "retry_quiet": "小音量・ささやきで再試行",
+    "retry_quiet_note": "実験的：かすかな声を認識しやすくなる一方、確認が必要な行が増えることがあります。",
+    "retry_quiet_needs_vad": "先に「リソースを管理」で音声検出をインストールしてください。",
+    "retry_source_changed": "このファイルは文字起こしの後に移動または変更されました。ファイルをもう一度追加してから、文字起こししてください。",
+    "empty_retry_help": "音声があるはずの場合は「小音量・ささやき」で再試行するか、音声トラック・メディアの言語・モデルを確認してからファイルを再度追加してください。同じ設定では通常、結果は変わりません。",
     "resource_failed_accelerator": "GPU アクセラレーションが読み込みチェックに通らなかったため、このコンピューターでは現在使用できません。NVIDIA のグラフィックドライバーを更新してから、もう一度ダウンロードしてください。入れなくても CPU で文字起こしできます。",
     "resource_failed_load": "ファイルはダウンロードされましたが、読み込みチェックに通りませんでした。もう一度「ダウンロード」を押してください。それでも失敗する場合は、コンピューターを再起動してから試してください。",
     "resource_failed_runtime": "FusionKit に付属の文字起こしプログラムが不完全か、バージョンが合っていないため、このリソースを確認できません。FusionKit を再起動してください。それでも失敗する場合は、FusionKit を再インストールしてください。",
@@ -939,7 +979,8 @@
       "insert": "字幕を挿入",
       "replace": "{{count}} 件の字幕を置換",
       "agent": "外部エージェントが訳文を {{count}} 件書き込み",
-      "stretch": "{{count}} 件の字幕の時間を伸縮"
+      "stretch": "{{count}} 件の字幕の時間を伸縮",
+      "collapse": "{{count}} 行の繰り返しをまとめる"
     }
   },
   "cue_help": {
@@ -1335,15 +1376,19 @@
     "language": "言語",
     "prompt": "プロンプト",
     "prompt_placeholder": "プロンプト（任意）：人名や用語など、聞き取りの手がかり",
+    "recognize_only_hint": "実験的な再認識専用モデルです。先に別のモデルで文字起こしして時間を決め、そのあと本文を1行ずつ置き換えます。",
     "no_model_hint": "文字起こしモデルがまだインストールされていません。インストールすると再認識できます。",
     "open_transcription": "モデルをインストール",
     "limited": "一度に認識するのは選択した先頭の {{limit}} 行までです。",
+    "unread": "{{count}} 行を読み込めなかったため表示していません（文書が変更された可能性があります）。閉じて開き直すと再試行できます。",
     "start": "認識を開始",
     "restart": "もう一度認識",
     "stop": "停止",
     "progress": "認識中 {{done}} / {{total}}",
+    "loading_model": "モデルを読み込んで認識中 {{done}} / {{total}}",
     "listening": "認識中",
     "summary": "{{done}} 行を認識し、{{changed}} 行が本文と異なります",
+    "flagged": "{{count}} 行の結果は信頼できない可能性があります（低信頼度、または確認ルールに該当）。あらかじめ選択していないので、聞いて確かめてから使ってください。",
     "same": "本文と同じ",
     "empty": "音声を認識できませんでした",
     "include": "{{number}} 行目の認識結果を使う",
@@ -1357,6 +1402,50 @@
       "interrupted": "停止しました",
       "failed": "認識に失敗しました"
     }
+  },
+  "cue_review": {
+    "open": "要確認の行",
+    "open_count": "要確認の行（{{count}} 件）",
+    "label": "要確認",
+    "count": "{{total}} 件中 {{position}} 件目",
+    "count_truncated": "{{total}}+ 件中 {{position}} 件目",
+    "only": "要確認の行だけを表示",
+    "none": "確認が必要な行はありません",
+    "page_empty": "このページに要確認の行はありません。前へ・次へで他のページの行に移動できます。",
+    "loading": "確認しています…",
+    "previous": "前へ（Shift+Enter）",
+    "next": "次へ（Enter）",
+    "close": "閉じる（Esc）",
+    "filter": "理由で絞り込む",
+    "all": "すべて",
+    "separator": "、",
+    "reasons": {
+      "low_confidence": "低信頼度",
+      "phantom_phrase": "幻覚の疑い",
+      "repetition_loop": "繰り返し",
+      "non_speech_only": "記号・効果音のみ",
+      "abnormal_rate": "話速の異常",
+      "duplicate_neighbor": "前の行と重複"
+    },
+    "details": {
+      "low_confidence": "モデルの確信が低い行です（信頼度 {{confidence}}。正確さではありません）",
+      "phantom_phrase": "無音や音楽の部分でよく作り出される定型句です",
+      "repetition_loop": "同じ言葉が繰り返されています。認識がループした可能性があります",
+      "non_speech_only": "記号、句読点、括弧の注記だけで、発話が認識されていません",
+      "abnormal_rate": "長さに対して文字が多すぎるか、長い区間にほとんど文字がありません",
+      "duplicate_neighbor": "直前の行と同じ文字列が続いています"
+    },
+    "badge": "要確認：{{reasons}}",
+    "current": "{{number}} 行目",
+    "play": "この行の原音を再生",
+    "recognize": "この行をもう一度認識…",
+    "recognize_filtered": "絞り込んだ {{count}} 行を再認識…",
+    "collapse": "繰り返しを「{{text}}」にまとめる",
+    "collapse_none": "まとめられる繰り返しはありません",
+    "ignore": "このマークを無視（このコンピューターのみ）",
+    "no_confidence": "この文書には信頼度がないため、テキストの規則だけで確認します。",
+    "ignored": "{{count}} 件のマークを無視しています",
+    "restore": "すべて戻す"
   },
   "document_missing": "この文書はもう存在しません。"
 }

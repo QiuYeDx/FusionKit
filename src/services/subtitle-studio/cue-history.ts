@@ -1,7 +1,7 @@
 import type { CueEditOperation } from '@/subtitle-studio/cue-edit-contract';
 
 /** What an edit did, for undo/redo labels. */
-export type CueEditLabel = 'source' | 'target' | 'clear' | 'review' | 'unreview' | 'delete' | 'revise' | 'unify' | 'merge' | 'timing' | 'recognize' | 'shift' | 'stretch' | 'split' | 'insert' | 'replace' | 'agent';
+export type CueEditLabel = 'source' | 'target' | 'clear' | 'review' | 'unreview' | 'delete' | 'revise' | 'unify' | 'merge' | 'timing' | 'recognize' | 'shift' | 'stretch' | 'split' | 'insert' | 'replace' | 'agent' | 'collapse';
 export type CueHistoryEntry = { label: CueEditLabel; count: number; operation: CueEditOperation };
 type State = { revision: number; undo: CueHistoryEntry[]; redo: CueHistoryEntry[] };
 

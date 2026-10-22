@@ -82,6 +82,15 @@ describe("start_studio_transcription", () => {
     expect(controller.removeDraft).not.toHaveBeenCalled();
   });
 
+  it("says why a model that only recognizes cues again cannot transcribe, touching nothing", async () => {
+    controller.state = { ...controller.state, runtime: { status: "verified" }, drafts: [] };
+    for (const modelId of ["anime-whisper-q8_0", "belle-large-v3-turbo-zh"]) {
+      await expect(startStudioTranscription(transcriptionInput({ modelId }), ctx())).rejects.toMatchObject({
+        code: "transcription_model_unsupported", detail: { reason: "recognize_only", hint: expect.stringContaining("recognizes existing Studio cues") } });
+    }
+    expect(controller.setConfig).not.toHaveBeenCalled(); expect(controller.selectMediaFromPaths).not.toHaveBeenCalled();
+  });
+
   it("queues the batch without automatic translation and restores the user's settings", async () => {
     controller.selectMediaFromPaths.mockImplementation(async () => {
       controller.state = { ...controller.state, drafts: [{ id: "d1", status: "ready", displayName: "ep01.mp4" }] };

@@ -33,6 +33,8 @@ const QUALITY_COMPARISON_IGNORED_PATTERN = /[\p{P}\p{S}\s]+/gu;
 const BOUNDARY_COMPARISON_IGNORED_PATTERN = /[\p{P}\s]+/gu;
 const PUNCTUATION_ONLY_PATTERN = /^[\p{P}\s]+$/u;
 const CJK_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+// Transcript confidence keeps three decimals.
+const CONFIDENCE_SCALE = 1_000;
 
 export const LOCAL_SUBTITLE_POST_PROCESSING_POLICY = deepFreeze({
   schemaVersion: 3,
@@ -358,6 +360,9 @@ interface WorkingSegment {
   sourceWindowEndMs: number;
   rawObservationStartMs: number;
   rawObservationEndMs: number;
+  // Duration-weighted mean over every raw observation folded into this segment.
+  confidence: number;
+  confidenceWeightMs: number;
   estimatedTiming?: true;
 }
 
@@ -803,6 +808,7 @@ export function postProcessLocalSubtitleTranscript(
       endMs: segment.endMs,
       text: segment.text,
       ...(segment.estimatedTiming ? { estimatedTiming: true as const } : {}),
+      confidence: Math.round(segment.confidence * CONFIDENCE_SCALE) / CONFIDENCE_SCALE,
     })),
   };
   const validated = validateLocalSubtitleTranscript(candidate);
@@ -1302,6 +1308,9 @@ function mergeAcceptedWindows(
         sourceWindowEndMs: leaf.window.endMs,
         rawObservationStartMs: absoluteStartMs,
         rawObservationEndMs: absoluteEndMs,
+        // A clipped observation keeps its value and weighs only its owned part.
+        confidence: rawSegmentConfidence(segment),
+        confidenceWeightMs: endMs - startMs,
       });
     }
   }
@@ -1334,6 +1343,7 @@ function mergeAcceptedWindows(
       candidate.startMs <= previous.endMs + policy.boundaryToleranceMs
     ) {
       previous.endMs = Math.max(previous.endMs, candidate.endMs);
+      absorbConfidence(previous, candidate);
       adoptLatestBoundaryProvenance(previous, candidate);
       diagnostics.duplicateBoundarySegmentCount += 1;
       continue;
@@ -1360,6 +1370,7 @@ function mergeAcceptedWindows(
         diagnostics.trimmedBoundaryPrefixCount += 1;
         if (!candidate.text || isPunctuationOnlyFragment(candidate.text)) {
           previous.endMs = Math.max(previous.endMs, candidate.endMs);
+          absorbConfidence(previous, candidate);
           adoptLatestBoundaryProvenance(previous, candidate);
           diagnostics.droppedBoundaryFragmentCount += 1;
           continue;
@@ -1389,6 +1400,7 @@ function mergeAcceptedWindows(
       }
       previous.endMs = boundary;
       candidate.startMs = boundary;
+      candidate.confidenceWeightMs = candidate.endMs - candidate.startMs;
       diagnostics.timelineOverlapAdjustmentCount += 1;
     }
     merged.push(candidate);
@@ -1894,6 +1906,26 @@ function adoptLatestBoundaryProvenance(
   target.sourceWindowEndMs = source.sourceWindowEndMs;
   target.rawObservationStartMs = source.rawObservationStartMs;
   target.rawObservationEndMs = source.rawObservationEndMs;
+}
+
+/**
+ * Decoder evidence for review hints, never an accuracy claim. A positive
+ * log probability is clamped so the product stays within 0-1.
+ */
+function rawSegmentConfidence(segment: LocalSubtitleServerRawSegment): number {
+  return (
+    Math.exp(Math.min(0, segment.averageLogProbability)) *
+    (1 - segment.noSpeechProbability)
+  );
+}
+
+function absorbConfidence(target: WorkingSegment, source: WorkingSegment): void {
+  const weightMs = target.confidenceWeightMs + source.confidenceWeightMs;
+  target.confidence =
+    (target.confidence * target.confidenceWeightMs +
+      source.confidence * source.confidenceWeightMs) /
+    weightMs;
+  target.confidenceWeightMs = weightMs;
 }
 
 function validateSourceAndModel(input: LocalSubtitlePostProcessingRequest): void {

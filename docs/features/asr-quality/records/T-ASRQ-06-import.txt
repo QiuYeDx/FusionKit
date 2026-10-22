@@ -1,0 +1,60 @@
+# T-ASRQ-06 isolated import + CPU load of the three new models (2026-10-22, worktree on 68ffd05, uncommitted)
+# Production SpeechResourceService + createSpeechResourceSmoke (development runtime, CPU), isolated userData under test-results/asr-quality-models/import-RLj3CQ/user-data (removed after pass), no network; sources read only from D:/fusionkit-asr-eval/models (mode copy, sources kept).
+$ FUSIONKIT_REAL_NEW_MODELS=1 npx vitest run --maxWorkers=4 --minWorkers=1 test/speech-resources/integration/new-models-real-import.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/speech-resources/integration/new-models-real-import.test.ts (1 test) 15552ms
+   ✓ imports and loads each later catalog model through the shared service in an isolated userData 15551ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  13:46:47
+   Duration  17.16s (transform 406ms, setup 0ms, collect 1.39s, tests 15.55s, environment 0ms, prepare 63ms)
+
+exit 0
+
+## test-results/asr-quality-models/import-RLj3CQ/result.json
+{
+  "sourceDirectory": "D:/fusionkit-asr-eval/models",
+  "results": [
+    {
+      "id": "large-v3-turbo-q8_0",
+      "status": "completed",
+      "error": null,
+      "listed": "ready",
+      "quantization": "q8_0",
+      "byteSize": 874188075,
+      "sha256": "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1",
+      "insideManagedRoot": true,
+      "sourceKept": true,
+      "elapsedMs": 4601
+    },
+    {
+      "id": "belle-large-v3-turbo-zh",
+      "status": "completed",
+      "error": null,
+      "listed": "ready",
+      "quantization": "f16",
+      "byteSize": 1624555275,
+      "sha256": "2a3bba5bfdb4d4da3d9949a83b405711727ca1941d4d5810895e077eb3cb4d99",
+      "insideManagedRoot": true,
+      "sourceKept": true,
+      "elapsedMs": 6855
+    },
+    {
+      "id": "anime-whisper-q8_0",
+      "status": "completed",
+      "error": null,
+      "listed": "ready",
+      "quantization": "q8_0",
+      "byteSize": 818305955,
+      "sha256": "6a04b7460bdcf2a16aa568c96dd670070abe553936c82fbbff86fc41d02ac3f3",
+      "insideManagedRoot": true,
+      "sourceKept": true,
+      "elapsedMs": 3839
+    }
+  ]
+}
+
+## whisper-server processes after the run: 0 (Get-Process whisper-server)

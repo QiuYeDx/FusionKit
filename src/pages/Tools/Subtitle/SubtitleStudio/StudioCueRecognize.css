@@ -4,3 +4,18 @@
   .studio-cue-recognize-options { grid-template-columns: minmax(0, 1fr); }
 }
 .studio-cue-recognize-dialog .studio-cue-revision-tag > svg { width: 12px; height: 12px; }
+/* A tag is as wide as its text, so the flag's tooltip points at it and its focus ring fits it. */
+.studio-cue-recognize-dialog .studio-cue-revision-texts > .studio-cue-revision-tag { justify-self: start; }
+/* A result worth hearing before it is used: the note and the row's mark take the review bar's amber. */
+.studio-cue-recognize-flagged > svg { color: rgb(217 119 6); }
+.dark .studio-cue-recognize-flagged > svg { color: rgb(251 191 36); }
+.studio-cue-recognize-dialog .studio-cue-revision-tag[tabindex]:focus-visible { border-radius: 3px; outline: 2px solid var(--ring); outline-offset: 1px; }
+/* The list is as wide as its trigger, as the audio types' list is; what a model suits wraps inside it. */
+.studio-cue-recognize-models { width: var(--radix-select-trigger-width); max-width: var(--radix-select-content-available-width); }
+/* A flagged result left unchosen keeps its text dimmed, but not why it was flagged. */
+.studio-cue-recognize-dialog li[data-flagged]:not([data-accepted]) .studio-cue-revision-texts { opacity: 1; }
+.studio-cue-recognize-dialog li[data-flagged]:not([data-accepted]) .studio-cue-revision-text { opacity: .5; }
+.studio-cue-recognize-dialog li[data-flagged] .studio-cue-revision-text { transition: opacity 120ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .studio-cue-recognize-dialog li[data-flagged] .studio-cue-revision-text { transition: none; }
+}

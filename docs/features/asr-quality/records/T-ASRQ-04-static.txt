@@ -1,0 +1,44 @@
+# T-ASRQ-04 static — 2026-10-22T13:44:14+08:00 — worktree based on 68ffd05e (uncommitted), after the last edit
+$ node scripts/subtitle-studio-provenance/copy.mjs --check
+{"mode":"check","files":120,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567","status":"passed"}
+exit=0
+$ node scripts/subtitle-studio-provenance/transcript-executor-copy.mjs --check
+{"status":"passed","files":1,"dependencies":26,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567"}
+exit=0
+$ node scripts/subtitle-studio-provenance/shared-resource-integration.mjs
+{
+  "entries": 11,
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit=0
+$ npx tsc --noEmit -p tsconfig.json
+exit=0
+
+$ sha256sum (audited files changed by this task)
+314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb *electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts
+4e4be16a00679a93be63bf8821f30d03382c3b7fa305ce79fe1d869db3c7d82c *electron/main/subtitle-studio/transcription/native/overlap-group-splice.ts
+frozen copiedSha256 (resources/subtitle-studio/provenance/transcription-fork.json destinationSha256):
+a6cfa204c20a217dbfca0ec98b4523539006ea6852d30af79a678d95d18999da  electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts
+547c64add3a08d091f1f0599e553c23479ab920311e6fc27aa8cb803ecb629d6  electron/main/subtitle-studio/transcription/native/overlap-group-splice.ts
+current-copy-audits.json entries vs CURRENT_COPY_AUDIT_OWNERS:
+entries=10 owners=10
+electron/main/subtitle-studio/transcription/native/overlap-group-splice.ts copied=547c64add3a08d091f1f0599e553c23479ab920311e6fc27aa8cb803ecb629d6 current=4e4be16a00679a93be63bf8821f30d03382c3b7fa305ce79fe1d869db3c7d82c
+electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts copied=a6cfa204c20a217dbfca0ec98b4523539006ea6852d30af79a678d95d18999da current=314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb
+
+CR bytes per changed file (audited files must be LF):
+0  electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts
+0  electron/main/subtitle-studio/transcription/native/overlap-group-splice.ts
+0  scripts/subtitle-studio-provenance/current-copy-audits.mjs
+0  scripts/subtitle-studio-provenance/current-copy-audits.json
+0  test/subtitle-studio/transcription/transcriptConfidence.test.ts
+0  test/subtitle-studio/transcription-confidence-document.test.ts
+0  test/subtitle-studio-provenance/transcript-executor-replay.test.ts
+230  test/subtitle-studio-provenance/replay.test.ts
+(replay.test.ts is not audited; its worktree copy was already CRLF from the autocrlf checkout, index is LF: i/lf w/crlf)
+
+$ npx tsc --noEmit -p <scratchpad>/tsconfig.tests.json  (extends tsconfig.json; includes only the 4 test files changed by this task)
+test/subtitle-studio-provenance/replay.test.ts(3,69): error TS7016: Could not find a declaration file for module './replay-harness.mjs'. 'C:/Users/Administrator/Documents/GitHub/FusionKit/test/subtitle-studio-provenance/replay-harness.mjs' implicitly has an 'any' type.
+test/subtitle-studio-provenance/transcript-executor-replay.test.ts(5,48): error TS7016: Could not find a declaration file for module './transcript-executor-harness.mjs'. 'C:/Users/Administrator/Documents/GitHub/FusionKit/test/subtitle-studio-provenance/transcript-executor-harness.mjs' implicitly has an 'any' type.
+exit=2
+Both TS7016 errors are the pre-existing untyped .mjs harness imports on unchanged lines (replay.test.ts line 3, transcript-executor-replay.test.ts line 5); the two new test files report no errors.

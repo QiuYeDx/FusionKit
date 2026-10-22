@@ -2035,6 +2035,152 @@ describe("local subtitle production executor", () => {
   });
 });
 
+describe("Studio audio profiles", () => {
+  const profileKeys = ["vadThreshold", "vadMinSpeechMs", "vadSpeechPadMs", "noSpeechThreshold", "suppressNonSpeech"];
+  const requests = (harness: { supervisor: { beginInference: { mock: { calls: unknown[][] } } } }) =>
+    harness.supervisor.beginInference.mock.calls.map(call => call[1] as LocalSubtitleServerInferenceRequest);
+
+  it.each([false, true])("keeps standard requests field for field as before (quiet gain %s)", async conditioned => {
+    const harness = await createStudioProfileHarness(undefined, { vadEnabled: true, ...(conditioned ? { quietAudioGainDb: 12 } : {}) });
+    expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+    const [request] = requests(harness);
+    expect(Object.keys(request!)).toEqual(["requestGeneration", "filePath", "expectedFileIdentity", "language", "taskMode", "beamSize",
+      "temperature", "vadEnabled", "vadMinSilenceMs", ...(conditioned ? ["vadSpeechPadMs"] : []), "signal"]);
+    if (conditioned) expect(request!.vadSpeechPadMs).toBe(1000);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("sends the quiet profile on every window and keeps 1000 ms padding only on conditioned audio", async () => {
+    const harness = await createStudioProfileHarness("quiet_whisper_v1", { totalFrames: 30 * 16000, vadEnabled: true, quietAudioGainDb: 12,
+      inference: ({ request, window, index }) => ({ processEpoch: 1, response: serverResponse(request, window.endMs - window.startMs,
+        index === 0 ? [rawSegment(0, 0, 12000, "Discarded candidate")] : [rawSegment(0, 0, 3000, "Original output")]) }) });
+    expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+    expect(harness.media.materializeWindow.mock.calls.map(([r]) => r.conditionQuietAudio)).toEqual([true, false]);
+    const [conditioned, original] = requests(harness);
+    expect(conditioned).toMatchObject({ vadEnabled: true, vadThreshold: 0.35, vadMinSpeechMs: 150, vadSpeechPadMs: 1000, noSpeechThreshold: 0.7 });
+    expect(original).toMatchObject({ vadEnabled: true, vadThreshold: 0.35, vadMinSpeechMs: 150, vadSpeechPadMs: 300, noSpeechThreshold: 0.7 });
+    expect(conditioned).not.toHaveProperty("suppressNonSpeech");
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("sends the noisy profile on quality replays too", async () => {
+    const harness = await createStudioProfileHarness("noisy_music_v1", { totalFrames: 5 * 16000, vadEnabled: true,
+      inference: ({ request, window, index }) => index === 0 ? repeatedResponse(request, window) : validResponse(request, window, "recovered") });
+    expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+    expect(requests(harness).map(request => request.temperature)).toEqual([0, 0.2]);
+    for (const request of requests(harness)) {
+      expect(request).toMatchObject({ vadThreshold: 0.45, vadSpeechPadMs: 200, suppressNonSpeech: true });
+      expect(request).not.toHaveProperty("vadMinSpeechMs"); expect(request).not.toHaveProperty("noSpeechThreshold");
+    }
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("leaves separator candidates without VAD on their verified fields", async () => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const text = "今日はいい天気ですね明日は家で休みます";
+      const harness = await createStudioProfileHarness("quiet_whisper_v1", { backend: "cuda", acceleratorPack: accelerator.proof, vadEnabled: true,
+        inference: ({ request, window }) => {
+          const response = serverResponse(request, window.endMs - window.startMs, request.vadEnabled ? [rawSegment(0, 0, 10000, text)]
+            : [rawSegment(0, 0, 4000, "今日は、いい天気ですね"), rawSegment(1, 4000, 10000, "明日は家で休みます")]);
+          return { processEpoch: request.vadEnabled ? 1 : 2, response: { ...response, result: { ...response.result, language: "japanese" } } };
+        } });
+      expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+      const [primary, candidate] = requests(harness);
+      expect(primary).toMatchObject({ vadEnabled: true, vadThreshold: 0.35, vadSpeechPadMs: 300 });
+      expect(candidate?.vadEnabled).toBe(false);
+      for (const key of profileKeys) expect(candidate).not.toHaveProperty(key);
+      harness.executor.endBatchSlice(harness.context.batchRuntime);
+    } finally { await accelerator.cleanup(); }
+  });
+
+  it.each([["an unknown profile", "studio_v9", true], ["a profile without VAD", "quiet_whisper_v1", false]] as const)(
+    "fails %s before preparing media", async (_name, audioProfile, vadEnabled) => {
+      const harness = await createStudioProfileHarness(audioProfile, { vadEnabled });
+      await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({ status: "failed", error: { code: "runtime_protocol_mismatch" } });
+      expect(harness.media.normalizeTask).not.toHaveBeenCalled();
+      expect(harness.supervisor.beginInference).not.toHaveBeenCalled();
+      harness.executor.endBatchSlice(harness.context.batchRuntime);
+    });
+});
+
+describe("Studio gated quiet audio", () => {
+  type MediaCalls = { media: { materializeWindow: { mock: { calls: unknown[][] } } } };
+  type InferenceCalls = { supervisor: { beginInference: { mock: { calls: unknown[][] } } } };
+  /** The conditioning options of each window, without its proofs. */
+  const conditioning = (harness: MediaCalls) => harness.media.materializeWindow.mock.calls.map(([request]) => {
+    const { normalized: _normalized, descriptor: _descriptor, signal: _signal, ...options } = request as Record<string, unknown>;
+    return options;
+  });
+  const requests = (harness: InferenceCalls) =>
+    harness.supervisor.beginInference.mock.calls.map(call => call[1] as LocalSubtitleServerInferenceRequest);
+  const risky = (risk: "long" | "repeat" | "invalid"): HarnessOptions["inference"] => ({ request, window, index }) => ({ processEpoch: 1,
+    response: serverResponse(request, window.endMs - window.startMs, index > 0 ? [rawSegment(0, 0, 3000, "Original output")]
+      : risk === "long" ? [rawSegment(0, 0, 12000, "Discarded candidate")]
+        : risk === "invalid" ? [rawSegment(0, 0, 4000, "Discarded candidate"), rawSegment(1, 1000, 3000, "Discarded overlap")]
+          : [0, 1, 2].map(i => rawSegment(i, i * 1000, (i + 1) * 1000, "Discarded candidate"))) });
+
+  it("conditions quiet_whisper_v1 windows with the gated gain and pads boosted windows by 1000 ms", async () => {
+    const harness = await createStudioProfileHarness("quiet_whisper_v1", { vadEnabled: true, quietAudioGainDb: 24.5 });
+    expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+    expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" }]);
+    expect(requests(harness)).toHaveLength(1);
+    expect(requests(harness)[0]).toMatchObject({ vadSpeechPadMs: 1000, vadThreshold: 0.35 });
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("keeps the profile padding and skips the fallback when the gated gain leaves a window unchanged", async () => {
+    const harness = await createStudioProfileHarness("quiet_whisper_v1", { vadEnabled: true, totalFrames: 30 * 16000, inference: risky("long") });
+    await harness.executor.execute(harness.context);
+    expect(conditioning(harness)[0]).toEqual({ conditionQuietAudio: true, quietAudioMode: "gated_v1" });
+    expect(conditioning(harness).every(options => options.conditionQuietAudio === true)).toBe(true);
+    expect(requests(harness)[0]).toMatchObject({ vadSpeechPadMs: 300 });
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it.each(["long", "repeat", "invalid"] as const)("retries a risky gated %s candidate once on the original audio", async risk => {
+    const harness = await createStudioProfileHarness("quiet_whisper_v1", { vadEnabled: true, totalFrames: 30 * 16000,
+      quietAudioGainDb: 24.5, inference: risky(risk) });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready") throw new Error("Expected a transcript");
+    const text = result.transcript.segments.map(segment => segment.text).join(" ");
+    expect(text).toContain("Original output");
+    expect(text).not.toContain("Discarded");
+    expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" }, { conditionQuietAudio: false }]);
+    expect(requests(harness).map(request => request.vadSpeechPadMs)).toEqual([1000, 300]);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it.each([["the standard type", undefined], ["noisy_music_v1", "noisy_music_v1"]] as const)(
+    "materializes %s windows with the previous options", async (_name, audioProfile) => {
+      const harness = await createStudioProfileHarness(audioProfile, { vadEnabled: true, totalFrames: 30 * 16000,
+        quietAudioGainDb: 12, inference: risky("long") });
+      expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+      expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true }, { conditionQuietAudio: false }]);
+      expect(requests(harness).map(request => request.vadSpeechPadMs)).toEqual([1000, audioProfile ? 200 : undefined]);
+      harness.executor.endBatchSlice(harness.context.batchRuntime);
+    });
+
+  it("never gates separator candidates", async () => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const text = "今日はいい天気ですね明日は家で休みます";
+      // No reported gain, so the long primary cue reaches the separator path instead of the quiet fallback.
+      const harness = await createStudioProfileHarness("quiet_whisper_v1", { backend: "cuda", acceleratorPack: accelerator.proof,
+        vadEnabled: true, inference: ({ request, window }) => {
+          const response = serverResponse(request, window.endMs - window.startMs, request.vadEnabled ? [rawSegment(0, 0, 10000, text)]
+            : [rawSegment(0, 0, 4000, "今日は、いい天気ですね"), rawSegment(1, 4000, 10000, "明日は家で休みます")]);
+          return { processEpoch: request.vadEnabled ? 1 : 2, response: { ...response, result: { ...response.result, language: "japanese" } } };
+        } });
+      expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+      expect(requests(harness).map(request => request.vadEnabled)).toEqual([true, false]);
+      expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" }, { conditionQuietAudio: false }]);
+      harness.executor.endBatchSlice(harness.context.batchRuntime);
+    } finally { await accelerator.cleanup(); }
+  });
+});
+
 interface HarnessOptions {
   readonly taskWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";
   readonly rootWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";
@@ -2132,6 +2278,7 @@ async function createHarness(options: HarnessOptions = {}) {
     }),
     materializeWindow: vi.fn(async (request: {
       conditionQuietAudio?: boolean;
+      quietAudioMode?: "gated_v1";
       normalized: LocalSubtitleNormalizedPcm;
       descriptor: LocalSubtitleMediaStructuralWindow;
     }) => {
@@ -2387,6 +2534,22 @@ async function createStudioHarness(options: HarnessOptions = {}) {
   const { output: _output, postAction: _postAction, ...config } = harness.context.config;
   const executor = new TranscriptionExecutor({ media: harness.media, supervisor: harness.supervisor,
     verifyServerRuntime: async () => harness.serverRuntime, validateWindowBrand: () => true,
+    rootPlanIdFactory: () => 'root-plan-1', cpuThreads: 2 });
+  const batch = { ...harness.context, config, signal: harness.sliceController.signal };
+  const context = { ...harness.context, config, batchRuntime: executor.beginBatchSlice(batch) };
+  return { ...harness, executor, context };
+}
+
+/** The Studio executor with an audio type in its frozen snapshot, as the task service records it. */
+async function createStudioProfileHarness(audioProfile: string | undefined, options: HarnessOptions = {}) {
+  const harness = await createHarness(options);
+  harness.executor.endBatchSlice(harness.context.batchRuntime);
+  const { output: _output, postAction: _postAction, ...base } = harness.context.config;
+  const config = deepFreeze({ ...base, inference: { ...base.inference,
+    advanced: { ...base.inference.advanced, ...(audioProfile === undefined ? {} : { audioProfile }) } } });
+  const executor = new TranscriptionExecutor({ media: harness.media, supervisor: harness.supervisor,
+    verifyServerRuntime: async () => harness.serverRuntime, validateWindowBrand: () => true,
+    ...(options.backend === "cuda" ? { resolveCudaAccelerator: harness.resolveCudaAccelerator } : {}),
     rootPlanIdFactory: () => 'root-plan-1', cpuThreads: 2 });
   const batch = { ...harness.context, config, signal: harness.sliceController.signal };
   const context = { ...harness.context, config, batchRuntime: executor.beginBatchSlice(batch) };

@@ -2343,7 +2343,12 @@ function snapshotInferenceRequest(
     temperature: request.temperature,
     vadEnabled: request.vadEnabled,
     vadMinSilenceMs: request.vadMinSilenceMs,
+    ...(request.vadThreshold === undefined ? {} : { vadThreshold: request.vadThreshold }),
+    ...(request.vadMinSpeechMs === undefined ? {} : { vadMinSpeechMs: request.vadMinSpeechMs }),
     ...(request.vadSpeechPadMs === undefined ? {} : {vadSpeechPadMs: request.vadSpeechPadMs}),
+    ...(request.noSpeechThreshold === undefined ? {} : { noSpeechThreshold: request.noSpeechThreshold }),
+    ...(request.suppressNonSpeech === undefined ? {} : { suppressNonSpeech: request.suppressNonSpeech }),
+    ...(request.noTimestamps === undefined ? {} : { noTimestamps: request.noTimestamps }),
     ...(request.initialPrompt === undefined
       ? {}
       : { initialPrompt: request.initialPrompt }),

@@ -412,6 +412,17 @@ describe("settings follow the Studio", () => {
     expect(api.planTranslationBatch).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ contextWindow: 32768, maxOutputTokens: 4096, maxBatchCues: 32 }) }));
     expect(result.data.appliedSettings).toMatchObject({ model: { source: "default" }, maxBatchCues: { source: "default" } });
   });
+  it("refuses by name what the chosen model cannot do, before changing any setting", async () => {
+    for (const [args, error] of [[{ modelId: "anime-whisper-q8_0", language: "ja" }, "studio_transcription_model_recognize_only"],
+      [{ modelId: "large-v3-turbo-q8_0", taskMode: "translate_to_english" }, "studio_transcription_model_translate"]] as const) {
+      expect(await call("prepare_studio_transcription", args)).toMatchObject({ success: false, error });
+    }
+    expect(mocks.controller.setConfig).not.toHaveBeenCalled();
+    // A Studio setting the model cannot use falls back as it does on the page.
+    mocks.state.config = { ...mocks.state.config, taskMode: "translate_to_english" };
+    await call("prepare_studio_transcription", { modelId: "large-v3-turbo-q8_0" });
+    expect(mocks.controller.setConfig).toHaveBeenCalledWith(expect.objectContaining({ modelId: "large-v3-turbo-q8_0" }));
+  });
   it("keeps the Studio transcription task mode and prompt when they are omitted", async () => {
     mocks.state.config = { ...mocks.state.config, taskMode: "translate_to_english", advanced: { ...mocks.state.config.advanced, initialPrompt: "Names: Phaethon." } };
     await call("prepare_studio_transcription", { language: "ja" });

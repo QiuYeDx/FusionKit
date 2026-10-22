@@ -1,0 +1,38 @@
+T-ASRQ-07 V-ASRQ-07-1 evidence (unit). Worktree based on 68ffd05 (uncommitted), Windows 11, Node v20.19.4, vitest 2.1.9.
+Saved output of the commands below after the review fixes (last source edit 19:47:56), ANSI colours stripped and blank lines dropped.
+
+## 2026-10-22 19:56:24 npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/subtitle-studio/cue-recognize.test.ts test/subtitle-studio/transcription/noTimestampsRequest.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/subtitle-studio/transcription/noTimestampsRequest.test.ts > no-timestamps requests > send no_timestamps=true only when asked, in the same field order
+ ✓ test/subtitle-studio/transcription/noTimestampsRequest.test.ts > no-timestamps requests > refuse any other flag value and DTW timing
+ ✓ test/subtitle-studio/transcription/noTimestampsRequest.test.ts > no-timestamps responses > are refused by the default strict parsing
+ ✓ test/subtitle-studio/transcription/noTimestampsRequest.test.ts > no-timestamps responses > span the request window when the request asked for text only
+ ✓ test/subtitle-studio/transcription/noTimestampsRequest.test.ts > the HTTP client > sends the flag and parses the text-only answer as such
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > hands the model a 16 kHz clip of the cue with a second of context on each side, then removes it 378ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > keeps only the segments over the cue: the context around it, or a neighbour heard with it, does not become its text 651ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > follows the model profile: a text-only model hears the cue alone, in its language and without a prompt 360ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > gains a quiet clip and sends it with voice padding, as a gained transcription window 381ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > rates the result as the transcript is rated and names the review rules it trips 402ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > refuses long cues and missing media, and removes the clip when the model fails or is stopped 324ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > accepts known languages, device settings and short plain prompts only
+ ✓ test/subtitle-studio/cue-recognize.test.ts > the runtime recognizes a clip outside the task queue > leases the server for an installed model, sends the clip without VAD, and reuses the warm process 388ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > the runtime recognizes a clip outside the task queue > pads a gained clip with the installed VAD, reloading the server for it, and returns the segments in clip time
+ Test Files  2 passed (2)
+      Tests  14 passed | 1 skipped (15)
+   Start at  19:56:25
+   Duration  7.38s (transform 1.01s, setup 0ms, collect 4.25s, tests 3.20s, environment 0ms, prepare 119ms)
+exit=0
+
+(opt-in real whisper-server on the CPU with the installed large-v3-q5_0, copied into a temporary root; System.Speech sentence; goes through
+ the service path after the review fixes: 1 s context clamped to the 3.5 s media, segment selection, no other cue so no second pass, review)
+## 2026-10-22 19:56:33 FUSIONKIT_REAL_RECOGNIZE=1 npx vitest run --maxWorkers=1 --minWorkers=1 test/subtitle-studio/cue-recognize.test.ts -t "real local model"
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+stdout | test/subtitle-studio/cue-recognize.test.ts > recognizing a cue with a real local model > hears a spoken English sentence
+[cue-recognize] real large-v3-q5_0 on CPU heard "The quick brown fox jumps over the lazy dog." in 16815 ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts (10 tests | 9 skipped) 21379ms
+   ✓ recognizing a cue with a real local model > hears a spoken English sentence 21287ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 9 skipped (10)
+   Start at  19:56:34
+   Duration  25.64s (transform 966ms, setup 0ms, collect 4.06s, tests 21.38s, environment 0ms, prepare 58ms)
+exit=0

@@ -16,20 +16,31 @@ import type { LocalSubtitleOwnerKey } from '../../../electron/main/subtitle-stud
 import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '../../../src/subtitle-studio/transcription/task-contract';
 import { localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
 import { LOCAL_SUBTITLE_ERROR_MANIFEST } from '../../../src/subtitle-studio/transcription/domain';
+import { SPEECH_MODEL_MANIFEST } from '../../../electron/main/speech-resources/catalog';
 
 type Owner = LocalSubtitleOwnerKey;
+/**
+ * One answer of the recognition fixture: a text, heard as one segment over the whole clip unless `segments` (clip time, with
+ * the server's log probability) say otherwise, or an error code thrown as the native runtime would.
+ */
+type Recognition = { text: string; segments?: Array<{ startMs: number; endMs: number; text: string; averageLogProbability?: number }> } | { error: string };
 const AUDIO_TRACKS = [{ streamId: 'audio-0', ordinal: 1, isDefault: true, language: 'en', title: 'Original interview', codec: 'pcm_s16le', channels: 2, sampleRateHz: 48000 },
   { streamId: 'audio-1', ordinal: 2, isDefault: false, language: 'ja', title: '通訳音声 · interpretation', codec: 'aac', channels: 2, sampleRateHz: 48000 }];
-type Task = { source: SourceLocationCapture; owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string }; releaseKnowledge?: () => void };
+type Task = { source: SourceLocationCapture; owner: string; value: TranscriptionTaskSummary; sink: TranscriptionDocumentSink; automatic?: { intent: AutomaticTranslationIntent; apiKey?: string }; releaseKnowledge?: () => void;
+  /** What the task was requested with, so it can be retried as the production task service does. */
+  config: EnqueueTranscriptionRequest['config']; audioStreamId?: string };
 type Job = { owner: string; value: ReturnType<typeof localSubtitleResourceJobSummarySchema.parse> };
 type Command = { operation: 'snapshot' } | { operation: 'resources-ready' } | { operation: 'probe-recovered' }
-  | { operation: 'recognitions'; recognitions?: Array<{ text: string } | { error: string }>; delayMs?: number }
+  | { operation: 'recognitions'; recognitions?: Recognition[]; delayMs?: number }
   | { operation: 'revoke-failures'; count: number }
   | { operation: 'resource-complete'; resourceId: string }
   | { operation: 'resource-failed'; resourceId: string; code?: string }
   | { operation: 'resource-busy'; resourceId: string; busy: boolean }
   | { operation: 'resource-name'; resourceId: string; displayName: string }
-  | { operation: 'task-state'; taskId: string; status: 'preparing_media' | 'loading_model' | 'transcribing' | 'post_processing' | 'failed'; progress?: number; cleanupPending?: true }
+  | { operation: 'catalog-models' }
+  | { operation: 'task-state'; taskId: string; status: 'preparing_media' | 'loading_model' | 'transcribing' | 'post_processing' | 'failed'; progress?: number; cleanupPending?: true;
+    /** A failure's code (a protocol mismatch by default), where it happened and the device the task ran on. */
+    code?: string; stage?: string; backend?: TranscriptionTaskSummary['resolvedBackend'] }
   | { operation: 'complete'; taskId: string; cueCount?: number; texts?: string[] }
   | { operation: 'no-content'; taskId: string }
   | { operation: 'seed-newer-documents' };
@@ -77,7 +88,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
     return structuredClone(value);
   };
   /** What the next recognitions return, in order: a text, or an error code thrown as the native runtime would. Each command replaces the queue. */
-  const recognitions: Array<{ text: string } | { error: string }> = [];
+  const recognitions: Recognition[] = [];
   let recognitionDelayMs = 0;
   const control = async (command: Command) => {
     if (command.operation === 'resources-ready') resources.forEach(resource => { resource.status = 'ready'; });
@@ -90,6 +101,14 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
       const resource = resources.find(item => item.resourceId === command.resourceId);
       if (!resource) throw new Error('Unknown fixture resource');
       resource.displayName = command.displayName;
+      localSubtitleManagedResourceListSchema.parse(resources);
+    }
+    // The shared catalog's later models, after this fixture's two and listed as the shared engine lists them.
+    if (command.operation === 'catalog-models') {
+      const added = SPEECH_MODEL_MANIFEST.models.filter(model => !resources.some(item => item.resourceId === model.id)).map(model => ({
+        resourceId: model.id, resourceType: 'model' as const, displayName: model.id, status: 'not_installed' as const, modelFormat: model.format,
+        quantization: model.quantization, byteSize: model.byteSize, isDefault: model.defaultRecommended, compatibleBackends: ['cpu' as const, 'cuda' as const] }));
+      resources.splice(resources.findLastIndex(item => item.resourceType === 'model') + 1, 0, ...added);
       localSubtitleManagedResourceListSchema.parse(resources);
     }
     if (command.operation === 'resource-failed') {
@@ -113,7 +132,9 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
     if (command.operation === 'task-state') {
       const task = getTask(command.taskId);
       task.value = { ...task.value, status: command.status, progress: command.progress ?? 37, updatedAt: new Date().toISOString(),
-        ...(command.status === 'failed' ? { error: { code: 'runtime_protocol_mismatch' as const }, automaticTranslation: undefined } : {}),
+        ...(command.status === 'failed' ? { error: { code: (command.code ?? 'runtime_protocol_mismatch') as 'runtime_protocol_mismatch',
+          ...(command.stage ? { stage: command.stage as 'transcribing' } : {}) }, automaticTranslation: undefined } : {}),
+        ...(command.backend ? { resolvedBackend: command.backend } : {}),
         ...(command.cleanupPending ? { cleanupPending: true } : {}) };
       if (command.status === 'failed') { releaseKnowledge(task); task.automatic = undefined; }
     }
@@ -163,7 +184,7 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
     return structuredClone({ resources, jobs: jobs.map(job => job.value), tasks: tasks.map(task => task.value), traces, tokenCount: tokens.size, shared });
   };
   (globalThis as unknown as { __studioT06Control: typeof control }).__studioT06Control = control;
-  return {
+  const runtime = {
     async initialize() { trace('initialize'); },
     async shutdown() { trace('shutdown'); closed = true; tokens.clear(); tasks.forEach(releaseKnowledge); tasks.length = 0; await Promise.allSettled([...admissions.keys()]); },
     async releaseOwner(owner: Owner) { trace('release-owner'); released.add(key(owner));
@@ -192,18 +213,21 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
       },
     },
     recognize: {
-      async clip(owner: Owner, request: { modelId: string; language: string; initialPrompt?: string; filePath: string; signal?: AbortSignal }) {
+      async clip(owner: Owner, request: { modelId: string; language: string; initialPrompt?: string; vadSpeechPadMs?: number; noTimestamps?: true; filePath: string; signal?: AbortSignal }) {
         check(owner);
         if (resources.find(resource => resource.resourceId === request.modelId)?.status !== 'ready') throw Object.assign(new Error('Model missing'), { code: 'model_missing' });
         const bytes = await readFile(request.filePath);
-        trace('recognize', { modelId: request.modelId, language: request.language, initialPrompt: request.initialPrompt ?? null, sampleRate: bytes.readUInt32LE(24), bytes: bytes.length });
+        trace('recognize', { modelId: request.modelId, language: request.language, initialPrompt: request.initialPrompt ?? null, sampleRate: bytes.readUInt32LE(24), bytes: bytes.length,
+          vadSpeechPadMs: request.vadSpeechPadMs ?? null, noTimestamps: request.noTimestamps ?? false });
         if (recognitionDelayMs) await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(resolve, recognitionDelayMs);
           request.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(Object.assign(new Error('stopped'), { code: 'cancelled' })); }, { once: true });
         });
         const next = recognitions.shift() ?? { text: `识别文本 ${bytes.length}` };
         if ('error' in next) throw Object.assign(new Error('Fixture recognition failure'), { code: next.error });
-        return Object.freeze({ text: next.text, language: request.language === 'auto' ? 'ja' : request.language });
+        const segments = (next.segments ?? [{ startMs: 0, endMs: Math.round((bytes.length - 44) / 32), text: next.text }])
+          .map((segment, id) => ({ id, temperature: 0, averageLogProbability: -0.05, noSpeechProbability: 0, ...segment }));
+        return Object.freeze({ text: next.text, language: request.language === 'auto' ? 'ja' : request.language, segments });
       },
     },
     resources: {
@@ -253,7 +277,9 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
               const media = tokens.get(file.fileToken);
               if (!media || media.owner !== check(owner)) throw Object.assign(new Error('Unknown token'), { code: 'invalid_token' });
               let value: TranscriptionTaskSummary = { taskId: randomUUID(), batchId, generation: 1, displayName: media.displayName,
-                status: 'queued', progress: 0, createdAt: now, updatedAt: now, modelId: request.config.modelId, resolvedBackend: 'cpu', durationMs: 315000 };
+                status: 'queued', progress: 0, createdAt: now, updatedAt: now, modelId: request.config.modelId, resolvedBackend: 'cpu', durationMs: 315000,
+                // As the production task service does: the summary names a non-standard audio type.
+                ...(request.config.advanced.audioProfile ? { audioProfile: request.config.advanced.audioProfile } : {}) };
               const automatic = request.autoTranslation ? { intent: { intentId: randomUUID(), sourceTaskId: value.taskId, generation: 1 as const, state: 'pending' as const,
                 config: structuredClone(request.autoTranslation.config), ...(capture ? { knowledge: capture.snapshot } : {}) }, apiKey: request.autoTranslation.apiKey } : undefined;
               if (automatic) value = { ...value, automaticTranslation: { status: 'pending' } };
@@ -263,7 +289,8 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
               const sink = createTranscriptionDocumentSink({ repository, owner, taskId: value.taskId, generation: 1, sourceLocation: media.source, ...(audioTrack ? { audioTrack } : {}),
                 assertActive: () => { check(owner); const task = getTask(value.taskId); if (['cancelled', 'failed', 'no_content'].includes(task.value.status)) throw new StudioError('interrupted'); },
                 ...(automatic ? { automaticTranslation: automatic.intent } : {}) });
-              return { source: media.source, owner: check(owner), value, sink, automatic,
+              return { source: media.source, owner: check(owner), value, sink, automatic, config: structuredClone(request.config),
+                ...(file.audioStreamId ? { audioStreamId: file.audioStreamId } : {}),
                 ...(capture ? { releaseKnowledge: () => { if (--remaining === 0) returnCapture(); } } : {}) };
             });
             tasks.push(...created); published = true;
@@ -291,7 +318,20 @@ export function createTranscriptionRuntime(_options: unknown, dependencies: { au
         }
         trace('remove-task', { taskId });
       },
+      // As the production task service and runtime do: the same file, checked and authorized anew, with its own settings or the overrides.
+      async retry(owner: Owner, taskId: string, overrides: { audioProfile?: 'quiet_whisper_v1' | 'noisy_music_v1'; devicePreference?: EnqueueTranscriptionRequest['config']['devicePreference'] } = {}): Promise<{ batchId: string; tasks: TranscriptionTaskSummary[] }> {
+        const task = getTask(taskId);
+        if (task.owner !== check(owner) || !['failed', 'no_content'].includes(task.value.status) || task.value.cleanupPending) throw Object.assign(new Error('Not retryable'), { code: 'invalid_input' });
+        trace('retry', { taskId, overrides });
+        try { await verifySourceLocation(task.source); } catch { throw Object.assign(new Error('The fixture source changed'), { code: 'media_changed' }); }
+        const fileToken = randomUUID();
+        tokens.set(fileToken, { owner: check(owner), displayName: task.value.displayName, sourceKey: randomUUID(), source: task.source });
+        const config = { ...task.config, ...(overrides.devicePreference ? { devicePreference: overrides.devicePreference } : {}),
+          ...(overrides.audioProfile ? { vadEnabled: true, advanced: { ...task.config.advanced, audioProfile: overrides.audioProfile } } : {}) };
+        return runtime.tasks.enqueue(owner, { files: [{ fileToken, ...(task.audioStreamId ? { audioStreamId: task.audioStreamId } : {}) }], config });
+      },
       async waitForIdle() {},
     },
   };
+  return runtime;
 }

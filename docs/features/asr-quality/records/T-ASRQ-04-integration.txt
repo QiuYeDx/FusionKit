@@ -1,0 +1,359 @@
+# T-ASRQ-04 integration — run started 2026-10-22T13:31:35+08:00 — worktree based on 68ffd05e (uncommitted), after the last source/test edit
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio-provenance test/subtitle-studio/transcription test/subtitle-studio/transcription-preferences.test.ts test/subtitle-studio/transcription-document.test.ts test/subtitle-studio/transcription-document-producer.test.ts test/subtitle-studio/transcription-document-sink.test.ts test/subtitle-studio/transcription-confidence-document.test.ts test/subtitle-studio/boundaries.test.ts
+(the path filter test/subtitle-studio/transcription also matches test/subtitle-studio/transcription-*.test.ts)
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/ipc-contract.test.ts (51 tests) 363ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts (85 tests) 273ms
+ ✓ test/subtitle-studio/transcription/domain.test.ts (44 tests) 16ms
+ ✓ test/subtitle-studio/transcription-controller.test.ts (44 tests) 75ms
+ ↓ test/subtitle-studio-provenance/release-real-workflow.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/transcription-ui.test.ts (2 tests | 2 skipped)
+ ✓ test/subtitle-studio/transcription-ipc.test.ts (20 tests) 533ms
+ ✓ test/subtitle-studio/transcription-runtime.test.ts (19 tests) 2547ms
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts (174 tests) 6956ms
+ ✓ test/subtitle-studio-provenance/real-default-comparison-analysis.test.ts (37 tests) 56ms
+ ✓ test/subtitle-studio/transcription-task-service.test.ts (44 tests) 15780ms
+   ✓ reclaims clean released-owner task history so later owners do not inherit exhausted capacity 11169ms
+ ✓ test/subtitle-studio/transcription-document.test.ts (27 tests) 2621ms
+   ✓ canonical transcript document adaptation > accepts exactly 100000 cues and rejects 100001 without splitting or truncation 1175ms
+   ✓ canonical transcript document adaptation > counts cue and snapshot structure when source strings alone fit under 128 MiB 1044ms
+ ✓ test/subtitle-studio/transcription/cueSeparatorRestorer.test.ts (37 tests) 24ms
+ ✓ test/subtitle-studio/boundaries.test.ts (8 tests) 4009ms
+   ✓ studio boundaries > keeps the current repository within audited dependency boundaries 3595ms
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts (37 tests) 14ms
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts (5 tests) 78ms
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts (10 tests) 21ms
+ ✓ test/subtitle-studio-provenance/shared-resources.test.ts (19 tests) 21593ms
+   ✓ neutral shared resource extraction provenance > replays the reviewed transforms from the actual pinned Git commit and checks six exact historical snapshots 3187ms
+   ✓ neutral shared resource extraction provenance > reconstructs every output in an isolated fixture using the captured authoritative source bytes 1935ms
+   ✓ neutral shared resource extraction provenance > rejects output drift 1450ms
+   ✓ neutral shared resource extraction provenance > rejects source drift 1462ms
+   ✓ neutral shared resource extraction provenance > rejects source-pin drift 1434ms
+   ✓ neutral shared resource extraction provenance > rejects extra-file drift 1883ms
+   ✓ neutral shared resource extraction provenance > rejects unsafe-output drift 1486ms
+   ✓ neutral shared resource extraction provenance > rejects duplicate-output drift 1984ms
+   ✓ neutral shared resource extraction provenance > rejects edit-digest drift 1502ms
+   ✓ neutral shared resource extraction provenance > accepts a reviewed source change only for its exact current bytes 1867ms
+   ✓ neutral shared resource extraction provenance > rejects a linked output without following or altering its target 1475ms
+   ✓ neutral shared resource extraction provenance > rejects neutral receipt snapshot changes 380ms
+   ✓ neutral shared resource extraction provenance > rejects neutral receipt source changes 348ms
+   ✓ neutral shared resource extraction provenance > rejects neutral receipt record-path changes 301ms
+   ✓ neutral shared resource extraction provenance > rejects neutral receipt extra-receipt changes 351ms
+   ✓ neutral shared resource extraction provenance > rejects neutral receipt extra-owner changes 315ms
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts (7 tests) 633ms
+ ✓ test/subtitle-studio/transcription-document-sink.test.ts (12 tests) 480ms
+ ✓ test/subtitle-studio/transcription-runtime-lifecycle.test.ts (4 tests) 278ms
+ ✓ test/subtitle-studio-provenance/replay.test.ts (20 tests) 54662ms
+   ✓ real issuing registries reject proofs from the other module copy > PCM/window: real normalizers reject foreign active proofs before any consumer reads their files 390ms
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts (30 tests) 15ms
+ ✓ test/subtitle-studio-provenance/real-default-resource-fixture.test.ts (11 tests) 162ms
+ ✓ test/subtitle-studio/transcription-preferences.test.ts (8 tests) 16ms
+ ✓ test/subtitle-studio/transcription-document-producer.test.ts (14 tests) 134ms
+ ↓ test/subtitle-studio/transcription-document-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription/cueOverlapResolver.test.ts (22 tests) 10ms
+ ✓ test/subtitle-studio/transcription/cueDisplaySeparators.test.ts (12 tests) 16ms
+ ✓ test/subtitle-studio-provenance/generate.test.ts (17 tests) 19793ms
+   ✓ fixed Git transcription provenance > rebuilds identical canonical bytes without executing source, including alias/type/resource edges 1373ms
+   ✓ fixed Git transcription provenance > rejects baseline digest tampering without rewriting it 887ms
+   ✓ fixed Git transcription provenance > rejects baseline omission tampering without rewriting it 968ms
+   ✓ fixed Git transcription provenance > rejects baseline destination tampering without rewriting it 1028ms
+   ✓ fixed Git transcription provenance > rejects baseline commit tampering without rewriting it 681ms
+   ✓ fixed Git transcription provenance > rejects baseline policy tampering without rewriting it 830ms
+   ✓ fixed Git transcription provenance > detects worktree source change while historical validation still passes 1582ms
+   ✓ fixed Git transcription provenance > detects worktree source add while historical validation still passes 1557ms
+   ✓ fixed Git transcription provenance > detects worktree source delete while historical validation still passes 1452ms
+   ✓ fixed Git transcription provenance > uses Git clean newline rules and refuses external filters without executing them 1875ms
+   ✓ fixed Git transcription provenance > rejects unresolved relative imports and URL fixtures 584ms
+   ✓ fixed Git transcription provenance > rejects unresolved relative imports and URL fixtures 560ms
+   ✓ fixed Git transcription provenance > rejects duplicate destination paths including case-only collisions 974ms
+   ✓ fixed Git transcription provenance > requires exact audits for computed import and createRequire, and rejects stale/new loader expressions 2381ms
+   ✓ fixed Git transcription provenance > preserves exact audit targets and refuses missing target files 1001ms
+   ✓ fixed Git transcription provenance > extracts effective literal defaults and arithmetic without evaluating business code 876ms
+   ✓ fixed Git transcription provenance > fails on missing selected roots and syntactically invalid source 1183ms
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts (6 tests) 89ms
+ ✓ test/subtitle-studio/transcription/source-media-lifecycle.test.ts (3 tests) 450ms
+ ✓ test/subtitle-studio-provenance/native-copy.test.ts (10 tests) 8329ms
+   ✓ independent native source copy > rebuilds exact audited C++ changes and binds shared tools to their owner 1248ms
+   ✓ independent native source copy > rejects stale exact-text rules and undeclared dependencies 1044ms
+   ✓ independent native source copy > refuses source hash and commit mismatches 741ms
+   ✓ independent native source copy > rejects edit source drift before copying 634ms
+   ✓ independent native source copy > rejects delete source drift before copying 559ms
+   ✓ independent native source copy > rejects filter source drift before copying 634ms
+   ✓ independent native source copy > refuses shared dependency bytes tampering 787ms
+   ✓ independent native source copy > refuses shared dependency provenance tampering 812ms
+   ✓ independent native source copy > preflights conflicts and preserves both source and user destination 1074ms
+   ✓ independent native source copy > refuses symlinked shared dependencies without touching their target 796ms
+ ✓ test/subtitle-studio/transcription/cueShortOnsetEvidence.test.ts (33 tests) 452ms
+   ✓ preserves source words and separates a short phrase after prior audible events 321ms
+ ✓ test/subtitle-studio-provenance/tooling-copy.test.ts (5 tests) 4278ms
+   ✓ T03 tooling copy provenance > rebuilds fixed blobs with precise edits and verifies every actual output 1091ms
+   ✓ T03 tooling copy provenance > refuses source drift, changed baseline bytes and stale or overlapping edits 908ms
+   ✓ T03 tooling copy provenance > rejects destination collisions and user edits before writing any output 889ms
+   ✓ T03 tooling copy provenance > rejects source and destination links without writing through them 798ms
+   ✓ T03 tooling copy provenance > refuses configured clean filters before Git can execute them 590ms
+ ✓ test/subtitle-studio-provenance/current-copy-audits.test.ts (11 tests) 75ms
+ ✓ test/subtitle-studio/transcription/cueVariantOverlapEvidence.test.ts (28 tests) 22ms
+ ✓ test/subtitle-studio/transcription/overlapGroupReview.test.ts (18 tests) 8ms
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts (5 tests) 894ms
+   ✓ gated quiet PCM conditioning > boosts -65 dBFS speech the whole-window policy skips, keeping samples, positions and digital silence 595ms
+ ✓ test/subtitle-studio/transcription-model-profiles.test.ts (5 tests) 4ms
+ ✓ test/subtitle-studio/transcription/cueContainedOverlapEvidence.test.ts (23 tests) 17ms
+ ✓ test/subtitle-studio-provenance/real-default-comparison.test.ts (4 tests | 1 skipped) 6ms
+ ✓ test/subtitle-studio/transcription/cuePrefixSeparator.test.ts (9 tests) 13ms
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts (4 tests) 11ms
+ ↓ test/subtitle-studio/transcription-bridge.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/transcript-executor-copy.test.ts (6 tests) 28ms
+ ✓ test/subtitle-studio/transcription/cueBoundaryPlanner.test.ts (21 tests) 16ms
+ ✓ test/subtitle-studio/transcription/cueLocalAnchorHead.test.ts (7 tests) 14ms
+ ✓ test/subtitle-studio-provenance/checkout-bytes.test.ts (1 test) 928ms
+   ✓ preserves frozen Studio LF and exact neutral extraction/receipt line endings under core.autocrlf 927ms
+ ✓ test/subtitle-studio-provenance/runtime-windows-copy.test.ts (5 tests) 2514ms
+   ✓ T07 independent Windows runtime derivation > replays the six fixed sources without changing older recipes or destination bytes 1157ms
+ ✓ test/subtitle-studio/transcription/config.test.ts (10 tests) 4ms
+ ✓ test/subtitle-studio/transcription/cueVariantOverlapResolver.test.ts (13 tests) 8ms
+ ✓ test/subtitle-studio/transcription/cuePrefixOverlapResolver.test.ts (9 tests) 5ms
+ ✓ test/subtitle-studio/transcription/cueMultiOverlapResolver.test.ts (10 tests) 4ms
+ ✓ test/subtitle-studio/transcription/cueContainedOverlapResolver.test.ts (10 tests) 4ms
+ ✓ test/subtitle-studio/transcription/pauseWindowPlan.test.ts (5 tests) 15ms
+ ✓ test/subtitle-studio/transcription/cueSummary.test.ts (12 tests) 5ms
+ ✓ test/subtitle-studio-provenance/source-change-audits.test.ts (10 tests) 49ms
+ ✓ test/subtitle-studio-provenance/transcript-executor-replay.test.ts (23 tests) 90946ms
+ ✓ test/subtitle-studio/transcription/quietAudio.test.ts (4 tests) 128ms
+ ✓ test/subtitle-studio-provenance/copy.test.ts (48 tests) 100773ms
+   ✓ transcription source copy > recomputes relative module/type/URL paths and only changes audited tokens/JSON fields 2377ms
+   ✓ transcription source copy > rejects conflicting destinations before writing any file 591ms
+   ✓ transcription source copy > refuses current source edit drift while preserving the fixed baseline 997ms
+   ✓ transcription source copy > refuses current source delete drift while preserving the fixed baseline 899ms
+   ✓ transcription source copy > refuses current source add drift while preserving the fixed baseline 1000ms
+   ✓ transcription source copy > refuses an unrecorded relative dependency or a missing closure target 591ms
+   ✓ transcription source copy > checks Git blob size and SHA independently of supplied inventory metadata 562ms
+   ✓ transcription source copy > refuses changed or missing destinations and never overwrites user content 1148ms
+   ✓ transcription source copy > rejects stale literal counts, JSON values, and overlapping transformations 2110ms
+   ✓ transcription source copy > refuses source and output symlinks 1548ms
+   ✓ transcription source copy > hashes large source files with Git CRLF rules and refuses clean filters 1590ms
+   ✓ transcription source copy > audits exact current application wiring while preserving every frozen copy and baseline byte 3269ms
+   ✓ transcription source copy > accepts a reviewed source change for exact bytes while the copy keeps the frozen blob 2659ms
+   ✓ transcription source copy > rejects changed-current instead of treating composition as an unchecked exception 1970ms
+   ✓ transcription source copy > rejects reverted-current instead of treating composition as an unchecked exception 1983ms
+   ✓ transcription source copy > rejects missing-audit instead of treating composition as an unchecked exception 2183ms
+   ✓ transcription source copy > rejects an invalid composition audit: wrong-commit 1642ms
+   ✓ transcription source copy > rejects an invalid composition audit: wrong-source-sha 1666ms
+   ✓ transcription source copy > rejects an invalid composition audit: wrong-source-oid 1690ms
+   ✓ transcription source copy > rejects an invalid composition audit: unchanged-source 1774ms
+   ✓ transcription source copy > rejects an invalid composition audit: duplicate 1712ms
+   ✓ transcription source copy > rejects an invalid composition audit: unknown 1719ms
+   ✓ transcription source copy > rejects an invalid composition audit: wildcard 1782ms
+   ✓ transcription source copy > rejects an invalid composition audit: copied-source 1771ms
+   ✓ transcription source copy > rejects an invalid composition audit: extra-field 1659ms
+   ✓ transcription source copy > does not let an approved composition bypass source symlink or clean-filter rejection 2741ms
+   ✓ transcription source copy > permits the exact reviewed package build command while leaving frozen replay and baseline bytes unchanged 4528ms
+   ✓ transcription source copy > refuses a package audit that also changes dependencies even with the exact current blob hash 2555ms
+   ✓ transcription source copy > refuses a package audit that also changes devDependencies even with the exact current blob hash 2795ms
+   ✓ transcription source copy > refuses a package audit that also changes other-script even with the exact current blob hash 2676ms
+   ✓ transcription source copy > refuses a package audit that also changes name even with the exact current blob hash 2494ms
+   ✓ transcription source copy > refuses a package audit that also changes version even with the exact current blob hash 2687ms
+   ✓ transcription source copy > refuses a package audit that also changes added-field even with the exact current blob hash 2556ms
+   ✓ transcription source copy > refuses a package audit that also changes deleted-field even with the exact current blob hash 3025ms
+   ✓ transcription source copy > refuses a package audit that also changes unchanged-build even with the exact current blob hash 2240ms
+   ✓ transcription source copy > refuses a package audit that also changes missing-build even with the exact current blob hash 2854ms
+   ✓ transcription source copy > refuses a package audit that also changes invalid-build even with the exact current blob hash 2601ms
+   ✓ transcription source copy > accepts only the reviewed release version migration alongside the exact build change 3668ms
+   ✓ transcription source copy > rejects an unaudited version migration 0.2.11 -> 0.3.1 2693ms
+   ✓ transcription source copy > rejects an unaudited version migration 0.3.0 -> 0.3.2 2878ms
+   ✓ transcription source copy > rejects an unaudited version migration 0.3.1 -> 0.3.0 2692ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: missing-audit 2463ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: stale-current 2441ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: wrong-source-oid 1983ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: wrong-source-sha 1850ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: empty-reason 1853ms
+   ✓ transcription source copy > does not extend the build exception to electron-builder.json 1776ms
+   ✓ transcription source copy > does not extend the build exception to pnpm-lock.yaml 1829ms
+ ✓ test/subtitle-studio/transcription/input-identity.test.ts (3 tests) 3ms
+ ✓ test/subtitle-studio-provenance/windows-addon-copy.test.ts (7 tests) 134811ms
+   ✓ T07 independent Windows addon tooling provenance > reconstructs six Windows scripts from the fixed source and verifies frozen C++ dependencies 25048ms
+   ✓ T07 independent Windows addon tooling provenance > records the exact recovery-host environment repair and its reason 18949ms
+   ✓ T07 independent Windows addon tooling provenance > rejects stale exact transforms, undeclared dependencies and unused C++ edits 53129ms
+   ✓ T07 independent Windows addon tooling provenance > rejects a different source commit and modified source digest 18416ms
+   ✓ T07 independent Windows addon tooling provenance > preflights destination conflict and never overwrites user bytes or publishes partial provenance 19268ms
+ ↓ test/subtitle-studio-provenance/real-cpu-comparison.test.ts (1 test | 1 skipped)
+
+ Test Files  59 passed | 5 skipped (64)
+      Tests  1185 passed | 7 skipped (1192)
+   Start at  13:31:35
+   Duration  216.64s (transform 4.66s, setup 0ms, collect 26.83s, tests 476.06s, environment 9ms, prepare 4.65s)
+
+exit=0
+
+# Broader run, same worktree state — started after the run above
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio test/asr-quality
+ ✓ test/subtitle-studio/transcription/ipc-contract.test.ts (51 tests) 382ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts (85 tests) 318ms
+ ✓ test/subtitle-studio/transcription-controller.test.ts (45 tests) 98ms
+ ↓ test/subtitle-studio/library-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts (174 tests) 6633ms
+ ✓ test/subtitle-studio/transcription/domain.test.ts (44 tests) 16ms
+ ↓ test/subtitle-studio/resources-dialog-ui.test.ts (3 tests | 3 skipped)
+ ✓ test/subtitle-studio/ipc.test.ts (37 tests) 5881ms
+ ↓ test/subtitle-studio-provenance/release-real-workflow.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/translation-recovery.test.ts (39 tests) 9097ms
+ ✓ test/subtitle-studio/cue-revision.test.ts (23 tests) 1892ms
+ ↓ test/subtitle-studio/result-feedback-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription-ipc.test.ts (20 tests) 486ms
+ ↓ test/subtitle-studio/cue-listening-ui.test.ts (2 tests | 2 skipped)
+ ↓ test/subtitle-studio/cue-audio-ui.test.ts (2 tests | 2 skipped)
+ ✓ test/subtitle-studio/repository.test.ts (35 tests) 1890ms
+ ↓ test/subtitle-studio/bilingual-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/translation-service.test.ts (39 tests) 6003ms
+ ↓ test/subtitle-studio/translation-recovery-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription-task-service.test.ts (44 tests) 17784ms
+ ✓ test/subtitle-studio/knowledge-trial.test.ts (19 tests) 1677ms
+ ↓ test/subtitle-studio/interaction-workspace-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/knowledge-batch-translation.test.ts (26 tests) 5567ms
+ ↓ test/subtitle-studio/acceptance-live-refresh-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/acceptance-queue-overview-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/acceptance-formats.test.ts (36 tests) 312ms
+ ↓ test/subtitle-studio/transcription-ui.test.ts (2 tests | 2 skipped)
+ ↓ test/subtitle-studio/consistency-ui.test.ts (2 tests | 2 skipped)
+ ✓ test/subtitle-studio/knowledge-translation.test.ts (23 tests) 3365ms
+ ✓ test/subtitle-studio/execution-record.test.ts (25 tests) 825ms
+ ✓ test/subtitle-studio/transcription-runtime.test.ts (19 tests) 2140ms
+ ✓ test/subtitle-studio/export-planner.test.ts (41 tests) 2447ms
+ ✓ test/subtitle-studio/export-service.test.ts (23 tests) 910ms
+ ↓ test/subtitle-studio/experience-export-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/export-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/bilingual-mixed.test.ts (46 tests) 60ms
+ ↓ test/subtitle-studio/interaction-queue-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/cue-edit.test.ts (13 tests) 2472ms
+ ↓ test/subtitle-studio/cue-revision-ui.test.ts (2 tests | 2 skipped)
+ ↓ test/subtitle-studio/model-profile-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/bilingual.test.ts (23 tests) 167ms
+ ↓ test/subtitle-studio/cue-revision-knowledge-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/acceptance-queue-overview.test.ts (17 tests) 60ms
+ ↓ test/subtitle-studio/cue-shift-ui.test.ts (2 tests | 2 skipped)
+ ✓ test/subtitle-studio/bilingual-service.test.ts (24 tests) 1704ms
+ ↓ test/subtitle-studio/acceptance-files-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/cue-structure-revision-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/real-default-comparison-analysis.test.ts (37 tests) 49ms
+ ↓ test/subtitle-studio/i1-coexistence-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/cue-audio.test.ts (20 tests) 11817ms
+ ↓ test/subtitle-studio/experience-transcription-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/interaction-export-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/interaction-copy-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/workspace-ui.test.ts (1 test | 1 skipped)
+ ✓ test/asr-quality/ab-report.test.ts (19 tests) 14ms
+ ↓ test/subtitle-studio/audio-profile-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/consistency.test.ts (14 tests) 953ms
+ ↓ test/subtitle-studio/i1-independence-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/acceptance-source-output.test.ts (27 tests) 1183ms
+ ✓ test/subtitle-studio/transcription-document.test.ts (27 tests) 2770ms
+ ✓ test/subtitle-studio/transcription/cueSeparatorRestorer.test.ts (37 tests) 26ms
+ ✓ test/subtitle-studio/boundaries.test.ts (8 tests) 4407ms
+ ↓ test/subtitle-studio/cue-find-ui.test.ts (2 tests | 2 skipped)
+ ✓ test/subtitle-studio/cue-recognize.test.ts (5 tests | 1 skipped) 1073ms
+ ✓ test/subtitle-studio/cue-shift.test.ts (10 tests) 3505ms
+ ↓ test/subtitle-studio/cue-recognize-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/preview-expansion-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/remove-translation-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/cue-split-insert-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/cue-split-insert.test.ts (9 tests) 644ms
+ ✓ test/subtitle-studio/cue-structure.test.ts (6 tests) 509ms
+ ✓ test/subtitle-studio/batch-service.test.ts (7 tests) 1410ms
+ ✓ test/subtitle-studio/automatic-translation.test.ts (12 tests) 1170ms
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts (37 tests) 19ms
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts (5 tests) 93ms
+ ↓ test/subtitle-studio/translation-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/export-translation.test.ts (2 tests) 828ms
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts (10 tests) 28ms
+ ↓ test/subtitle-studio/export-conflict-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/list-insets-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/shared-resources.test.ts (19 tests) 21987ms
+ ↓ test/subtitle-studio/cue-editing-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts (7 tests) 653ms
+ ✓ test/subtitle-studio-provenance/replay.test.ts (20 tests) 57387ms
+ ✓ test/subtitle-studio/transcription-document-sink.test.ts (12 tests) 474ms
+ ✓ test/subtitle-studio/bilingual-import.test.ts (6 tests) 246ms
+ ✓ test/subtitle-studio/transcription-runtime-lifecycle.test.ts (4 tests) 272ms
+ ✓ test/subtitle-studio/cue-find.test.ts (9 tests) 1126ms
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts (30 tests) 17ms
+ ↓ test/subtitle-studio/library-navigation-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/real-default-resource-fixture.test.ts (11 tests) 132ms
+ ↓ test/subtitle-studio/bilingual-local-files.test.ts (2 tests | 2 skipped)
+ ✓ test/subtitle-studio/transcription-preferences.test.ts (8 tests) 15ms
+ ↓ test/subtitle-studio/context-menu-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription-document-producer.test.ts (14 tests) 110ms
+ ↓ test/subtitle-studio/i1-legacy-recovery-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/cue-structure-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/automatic-export.test.ts (6 tests) 579ms
+ ✓ test/subtitle-studio/translation-protocol.test.ts (40 tests) 35ms
+ ↓ test/subtitle-studio/recovery-batch-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/vertical-layout.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/lifecycle-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/transcription-document-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/formats.test.ts (17 tests) 332ms
+ ↓ test/subtitle-studio/smart-export-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/formats-ssa-sbv.test.ts (6 tests) 58ms
+ ✓ test/subtitle-studio/repository-creation.test.ts (14 tests) 430ms
+ ✓ test/subtitle-studio-provenance/generate.test.ts (17 tests) 18661ms
+ ✓ test/subtitle-studio/transcription/cueOverlapResolver.test.ts (22 tests) 9ms
+ ✓ test/subtitle-studio/automatic-knowledge-capture.test.ts (6 tests) 2590ms
+ ↓ test/subtitle-studio/bilingual-import-ui.test.ts (1 test | 1 skipped)
+ ↓ test/subtitle-studio/i1-legacy-real-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription/cueDisplaySeparators.test.ts (12 tests) 13ms
+ ↓ test/subtitle-studio/cue-audio-track-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/translation-overview.test.ts (4 tests) 20ms
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts (6 tests) 89ms
+ ↓ test/subtitle-studio/development-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription/source-media-lifecycle.test.ts (3 tests) 427ms
+ ✓ test/subtitle-studio-provenance/copy.test.ts (48 tests) 100199ms
+ ✓ test/subtitle-studio/agent-track.test.ts (3 tests) 190ms
+ ✓ test/subtitle-studio/transcription/cueShortOnsetEvidence.test.ts (33 tests) 434ms
+ ✓ test/subtitle-studio-provenance/current-copy-audits.test.ts (11 tests) 70ms
+ ✓ test/subtitle-studio-provenance/native-copy.test.ts (10 tests) 7513ms
+ ✓ test/subtitle-studio/library-refresh.test.ts (9 tests) 4ms
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts (5 tests) 916ms
+ ✓ test/subtitle-studio/drop-import.test.ts (4 tests) 21ms
+ ✓ test/subtitle-studio/transcription/cueVariantOverlapEvidence.test.ts (28 tests) 25ms
+ ✓ test/subtitle-studio/transcription/overlapGroupReview.test.ts (18 tests) 8ms
+ ✓ test/subtitle-studio/refresh-coordinator.test.ts (7 tests) 6ms
+ ✓ test/subtitle-studio/transcription-model-profiles.test.ts (5 tests) 4ms
+ ✓ test/subtitle-studio-provenance/tooling-copy.test.ts (5 tests) 3734ms
+ ✓ test/subtitle-studio/transcription/cueContainedOverlapEvidence.test.ts (23 tests) 21ms
+ ↓ test/subtitle-studio/electron.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio/transcription/cuePrefixSeparator.test.ts (9 tests) 15ms
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts (4 tests) 11ms
+ ↓ test/subtitle-studio/translation-real-api.test.ts (2 tests | 2 skipped)
+ ✓ test/subtitle-studio-provenance/real-default-comparison.test.ts (4 tests | 1 skipped) 5ms
+ ✓ test/subtitle-studio-provenance/transcript-executor-replay.test.ts (23 tests) 91588ms
+ ↓ test/subtitle-studio/transcription-bridge.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/transcript-executor-copy.test.ts (6 tests) 43ms
+ ✓ test/subtitle-studio/library-service.test.ts (3 tests) 148ms
+ ✓ test/subtitle-studio/transcription/cueBoundaryPlanner.test.ts (21 tests) 14ms
+ ✓ test/subtitle-studio/transcription/cueLocalAnchorHead.test.ts (7 tests) 15ms
+ ↓ test/subtitle-studio/cue-history-ui.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/checkout-bytes.test.ts (1 test) 894ms
+ ✓ test/subtitle-studio/translation-checkpoint.test.ts (11 tests) 30ms
+ ✓ test/subtitle-studio/transcription/config.test.ts (10 tests) 5ms
+ ✓ test/subtitle-studio/transcription/cueVariantOverlapResolver.test.ts (13 tests) 8ms
+ ✓ test/subtitle-studio/media-drop.test.ts (2 tests) 7ms
+ ✓ test/subtitle-studio/transcription/cuePrefixOverlapResolver.test.ts (9 tests) 4ms
+ ✓ test/subtitle-studio/transcription/cueMultiOverlapResolver.test.ts (10 tests) 6ms
+ ✓ test/subtitle-studio/transcription/cueContainedOverlapResolver.test.ts (10 tests) 6ms
+ ✓ test/subtitle-studio/transcription/pauseWindowPlan.test.ts (5 tests) 17ms
+ ✓ test/subtitle-studio-provenance/runtime-windows-copy.test.ts (5 tests) 2055ms
+ ✓ test/subtitle-studio/cue-copy.test.ts (5 tests) 2ms
+ ✓ test/subtitle-studio/repository-batch-io.test.ts (1 test) 97ms
+ ✓ test/subtitle-studio/transcription/cueSummary.test.ts (12 tests) 5ms
+ ↓ test/asr-quality/ab-comparison.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/source-change-audits.test.ts (10 tests) 47ms
+ ✓ test/subtitle-studio/observations.test.ts (1 test) 2ms
+ ✓ test/subtitle-studio/export-filename.test.ts (6 tests) 5ms
+ ✓ test/subtitle-studio/transcription/quietAudio.test.ts (4 tests) 120ms
+ ✓ test/subtitle-studio/transcription/input-identity.test.ts (3 tests) 4ms
+ ✓ test/subtitle-studio-provenance/windows-addon-copy.test.ts (7 tests) 134345ms
+ ↓ test/subtitle-studio-provenance/real-cpu-comparison.test.ts (1 test | 1 skipped)
+ Test Files  107 passed | 58 skipped (165)
+      Tests  1965 passed | 71 skipped (2036)
+   Duration  264.53s (transform 6.00s, setup 0ms, collect 86.86s, tests 550.99s, environment 23ms, prepare 11.98s)
+exit=0
