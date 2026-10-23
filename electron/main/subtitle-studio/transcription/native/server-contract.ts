@@ -41,6 +41,51 @@ export const LOCAL_SUBTITLE_SERVER_HTTP_POLICY = deepFreeze({
   allowMediaConversion: false,
 } as const);
 
+/**
+ * Fixed fields of each Studio audio type, sent only on VAD recognition requests; the
+ * standard type sends none of them. Windows the main process conditioned for low level
+ * keep 1000 ms padding. `quietAudioMode` names that conditioning; absent keeps whole-window gain.
+ */
+export interface LocalSubtitleAudioProfile {
+  readonly vadThreshold: number;
+  readonly vadMinSpeechMs?: number;
+  readonly vadSpeechPadMs: number;
+  readonly noSpeechThreshold?: number;
+  readonly suppressNonSpeech?: true;
+  readonly quietAudioMode?: "gated_v1";
+}
+
+export const LOCAL_SUBTITLE_AUDIO_PROFILES: Readonly<Record<
+  "quiet_whisper_v1" | "noisy_music_v1",
+  LocalSubtitleAudioProfile
+>> = deepFreeze({
+  quiet_whisper_v1: {
+    vadThreshold: 0.35,
+    vadMinSpeechMs: 150,
+    vadSpeechPadMs: 300,
+    noSpeechThreshold: 0.7,
+    quietAudioMode: "gated_v1",
+  },
+  noisy_music_v1: {
+    vadThreshold: 0.45,
+    vadSpeechPadMs: 200,
+    suppressNonSpeech: true,
+  },
+} as const);
+
+export type LocalSubtitleAudioProfileId = keyof typeof LOCAL_SUBTITLE_AUDIO_PROFILES;
+
+/** The fixed fields of a snapshot's audio profile; undefined for the standard type. */
+export function resolveLocalSubtitleAudioProfile(
+  id: unknown,
+): LocalSubtitleAudioProfile | undefined {
+  if (id === undefined) return undefined;
+  if (typeof id !== "string" || !Object.hasOwn(LOCAL_SUBTITLE_AUDIO_PROFILES, id)) {
+    throw invalidConfiguration("The audio profile is invalid.");
+  }
+  return LOCAL_SUBTITLE_AUDIO_PROFILES[id as LocalSubtitleAudioProfileId];
+}
+
 export const LOCAL_SUBTITLE_SERVER_CONTRACT_ERROR_CODES = [
   "invalid_configuration",
   "busy",
@@ -97,8 +142,16 @@ export interface LocalSubtitleServerInferenceRequest {
   readonly temperature: number;
   readonly vadEnabled: boolean;
   readonly vadMinSilenceMs: number;
-  /** Main-process conditioning only; ordinary windows retain native padding. */
-  readonly vadSpeechPadMs?: 1000;
+  /** Audio-profile voice detection; standard requests keep the server defaults. */
+  readonly vadThreshold?: number;
+  readonly vadMinSpeechMs?: number;
+  /** Profile padding, or 1000 for main-process conditioning; ordinary windows retain native padding. */
+  readonly vadSpeechPadMs?: number;
+  /** Audio-profile decoding: the no-speech threshold and non-speech token suppression. */
+  readonly noSpeechThreshold?: number;
+  readonly suppressNonSpeech?: true;
+  /** Text only, for recognizing a cue with a model whose timestamps are unusable; never with DTW timing. */
+  readonly noTimestamps?: true;
   readonly initialPrompt?: string;
   readonly signal?: AbortSignal;
 }
@@ -120,9 +173,13 @@ export interface LocalSubtitleServerInferenceFields {
   readonly beam_size: string;
   readonly temperature: string;
   readonly temperature_inc: "0.2";
-  readonly no_timestamps: "false";
+  readonly no_timestamps: "true" | "false";
   readonly vad_min_silence_duration_ms?: string;
-  readonly vad_speech_pad_ms?: "1000";
+  readonly vad_threshold?: string;
+  readonly vad_min_speech_duration_ms?: string;
+  readonly vad_speech_pad_ms?: string;
+  readonly no_speech_thold?: string;
+  readonly suppress_nst?: "true";
   readonly prompt?: string;
 }
 
@@ -196,7 +253,7 @@ const rawWordSchema = z
     }
   });
 
-const rawSegmentSchema = z
+const rawSegmentFieldsSchema = z
   .object({
     id: safeIntegerSchema.nonnegative(),
     text: z
@@ -219,10 +276,18 @@ const rawSegmentSchema = z
     no_speech_prob: probabilitySchema,
     compression_ratio: z.number().finite().nonnegative().optional(),
   })
-  .strict()
-  .refine((value) => value.end >= value.start, {
-    message: "Segment timestamps must be monotonic.",
-  });
+  .strict();
+
+const rawSegmentSchema = rawSegmentFieldsSchema.refine(
+  (value) => value.end >= value.start,
+  { message: "Segment timestamps must be monotonic." },
+);
+
+// A no-timestamps response leaves segment times out: the segments span the request window.
+const untimedRawSegmentSchema = rawSegmentFieldsSchema.partial({
+  start: true,
+  end: true,
+});
 
 const verboseJsonSchema = z
   .object({
@@ -237,6 +302,12 @@ const verboseJsonSchema = z
       .max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments),
   })
   .strict();
+
+const untimedVerboseJsonSchema = verboseJsonSchema.extend({
+  segments: z
+    .array(untimedRawSegmentSchema)
+    .max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments),
+});
 
 const healthSchema = z.object({ status: z.literal("ok") }).strict();
 
@@ -258,11 +329,23 @@ export function createLocalSubtitleServerInferenceFields(
     beam_size: String(request.beamSize),
     temperature: String(request.temperature),
     temperature_inc: "0.2",
-    no_timestamps: "false",
+    no_timestamps: request.noTimestamps ? "true" : "false",
     ...(request.vadEnabled
       ? { vad_min_silence_duration_ms: String(request.vadMinSilenceMs) }
       : {}),
-    ...(request.vadSpeechPadMs === undefined ? {} : {vad_speech_pad_ms: "1000" as const}),
+    ...(request.vadThreshold === undefined
+      ? {}
+      : { vad_threshold: String(request.vadThreshold) }),
+    ...(request.vadMinSpeechMs === undefined
+      ? {}
+      : { vad_min_speech_duration_ms: String(request.vadMinSpeechMs) }),
+    ...(request.vadSpeechPadMs === undefined ? {} : {vad_speech_pad_ms: String(request.vadSpeechPadMs)}),
+    ...(request.noSpeechThreshold === undefined
+      ? {}
+      : { no_speech_thold: String(request.noSpeechThreshold) }),
+    ...(request.suppressNonSpeech === undefined
+      ? {}
+      : { suppress_nst: "true" as const }),
     ...(request.initialPrompt === undefined
       ? {}
       : { prompt: request.initialPrompt }),
@@ -400,13 +483,19 @@ export function parseLocalSubtitleServerVerboseJson(
     readonly taskMode: LocalSubtitleTaskMode;
     readonly vadEnabled: boolean;
     readonly timingMode?: "dtw_large_v3";
+    /** The request asked for text only; only then may segments leave out their times. */
+    readonly noTimestamps?: true;
   },
 ): LocalSubtitleServerInferenceResult {
   if (options.timingMode !== undefined && (options.timingMode !== "dtw_large_v3" ||
       options.vadEnabled || options.taskMode !== "transcribe")) {
     throw invalidConfiguration("The DTW response mode is invalid.");
   }
-  const parsed = verboseJsonSchema.safeParse(input);
+  if (options.noTimestamps !== undefined &&
+      (options.noTimestamps !== true || options.timingMode !== undefined)) {
+    throw invalidConfiguration("The no-timestamps response mode is invalid.");
+  }
+  const parsed = (options.noTimestamps ? untimedVerboseJsonSchema : verboseJsonSchema).safeParse(input);
   if (!parsed.success) {
     throw invalidResponse("The local inference response does not match contract v1.");
   }
@@ -424,16 +513,18 @@ export function parseLocalSubtitleServerVerboseJson(
     }
   }
 
+  const durationMs = secondsToMilliseconds(parsed.data.duration);
   return deepFreeze({
     contractVersion: LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
     task: parsed.data.task,
     language: parsed.data.language,
-    durationMs: secondsToMilliseconds(parsed.data.duration),
+    durationMs,
     text: parsed.data.text.trim(),
     segments: parsed.data.segments.map((segment) => ({
       id: segment.id,
-      startMs: secondsToMilliseconds(segment.start),
-      endMs: secondsToMilliseconds(segment.end),
+      // Times a text-only request returns anyway are not meaningful either.
+      startMs: options.noTimestamps ? 0 : secondsToMilliseconds(segment.start!),
+      endMs: options.noTimestamps ? durationMs : secondsToMilliseconds(segment.end!),
       text: segment.text.trim(),
       temperature: segment.temperature,
       averageLogProbability: segment.avg_logprob,
@@ -526,8 +617,27 @@ function validateInferenceOptions(
     throw invalidConfiguration("The VAD silence duration is invalid.");
   }
   if (request.vadSpeechPadMs !== undefined &&
-      (!request.vadEnabled || request.vadSpeechPadMs !== 1000)) {
-    throw invalidConfiguration("The conditioned VAD padding is invalid.");
+      (!request.vadEnabled || !isIntegerInRange(request.vadSpeechPadMs, 30, 1_000))) {
+    throw invalidConfiguration("The VAD padding is invalid.");
+  }
+  if (request.vadThreshold !== undefined &&
+      (!request.vadEnabled || !isNumberInRange(request.vadThreshold, 0.1, 0.9))) {
+    throw invalidConfiguration("The VAD threshold is invalid.");
+  }
+  if (request.vadMinSpeechMs !== undefined &&
+      (!request.vadEnabled || !isIntegerInRange(request.vadMinSpeechMs, 50, 1_000))) {
+    throw invalidConfiguration("The VAD minimum speech duration is invalid.");
+  }
+  if (request.noSpeechThreshold !== undefined &&
+      !isNumberInRange(request.noSpeechThreshold, 0.3, 0.95)) {
+    throw invalidConfiguration("The no-speech threshold is invalid.");
+  }
+  if (request.suppressNonSpeech !== undefined && request.suppressNonSpeech !== true) {
+    throw invalidConfiguration("The non-speech suppression flag is invalid.");
+  }
+  if (request.noTimestamps !== undefined &&
+      (request.noTimestamps !== true || request.timingMode !== undefined)) {
+    throw invalidConfiguration("The no-timestamps flag is invalid.");
   }
   if (
     request.initialPrompt !== undefined &&
@@ -575,6 +685,14 @@ function isExactRecord(
   const keys = Reflect.ownKeys(input);
   return keys.length === expectedKeys.length &&
     expectedKeys.every((key) => keys.includes(key));
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number): boolean {
+  return Number.isSafeInteger(value) && (value as number) >= min && (value as number) <= max;
+}
+
+function isNumberInRange(value: unknown, min: number, max: number): boolean {
+  return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 }
 
 function isNonNegativeSafeNumber(value: unknown): value is number {

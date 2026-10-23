@@ -97,6 +97,17 @@ describe("local subtitle transcriber page model", () => {
     ).toEqual([LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id]);
   });
 
+  it("leaves models that only recognize cues again out of the model choice", () => {
+    expect(
+      getReadyLocalSubtitleModels([
+        model,
+        { ...model, resourceId: "large-v3-turbo-q8_0", isDefault: false },
+        { ...model, resourceId: "belle-large-v3-turbo-zh", isDefault: false },
+        { ...model, resourceId: "anime-whisper-q8_0", isDefault: false },
+      ]).map((entry) => entry.resourceId),
+    ).toEqual([LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id, "large-v3-turbo-q8_0"]);
+  });
+
   it("matches imports to an exact uninstalled model size", () => {
     const fullModel = {
       ...model,
@@ -377,6 +388,26 @@ describe("local subtitle transcriber page model", () => {
         preferredFormat: "LRC",
         translationSnapshotId: "translation-snapshot-1",
       },
+    });
+  });
+
+  it("transcribes in the original language with a model that cannot translate", () => {
+    const request = createLocalSubtitleBatchRequest({
+      files: [file],
+      modelId: "large-v3-turbo-q8_0",
+      preferences: { ...DEFAULT_LOCAL_SUBTITLE_TRANSCRIBER_PREFERENCES, language: "ja" },
+      initialPrompt: "FusionKit product names",
+      taskMode: "translate_to_english",
+      outputDirectory: null,
+      postAction: { mode: "export_only" },
+    });
+
+    expect(validateEnqueueLocalSubtitleBatchRequest(request).ok).toBe(true);
+    expect(request.config).toMatchObject({
+      modelId: "large-v3-turbo-q8_0",
+      language: "ja",
+      taskMode: "transcribe",
+      advanced: { initialPrompt: "FusionKit product names" },
     });
   });
 

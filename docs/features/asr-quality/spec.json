@@ -1,0 +1,117 @@
+{
+  "schema_version": 2,
+  "feature": "asr-quality",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "asr-quality",
+      "code": "ASRQ",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "可选复杂音频模式、质量复核与新模型",
+      "status": "verifying",
+      "approval": {
+        "state": "approved",
+        "by": "用户",
+        "basis": "2026-10-22 用户回复：“按 I1 计划开始实现；允许把 3 个测试模型（turbo q8_0、Belle 中文、anime-whisper q8_0，约 3.3 GB）下载到 D 盘做验证”",
+        "digest": "2c6b7f0562c4284f1ba9c838a67b2168c0aa440238bc1d918f19c4bc2b0df087"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "默认路径改进（语言锁定、声道、部分完成、断行）",
+      "status": "planning",
+      "approval": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": ""
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I3",
+      "title": "分离/专用 VAD/第二引擎评估",
+      "status": "planning",
+      "approval": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": ""
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "anime-whisper 训练数据（Galgame_Speech_ASR）禁止商用，是否可列入下载目录",
+      "resolution": "FusionKit 本身为 PolyForm-Noncommercial-1.0.0，模型只在用户主动下载时获取，作为实验性条目并在界面显示许可说明；非法律意见，用户可随时要求撤下。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I2",
+      "blocking": true,
+      "state": "open",
+      "text": "是否允许任务在部分窗口失败时保留其余结果并标记失败区间（改变“不导出不可靠结果”的现有立场）",
+      "resolution": ""
+    },
+    {
+      "id": "A-03",
+      "increment": "I3",
+      "blocking": true,
+      "state": "open",
+      "text": "是否引入第二个本地识别引擎（Qwen3-ASR 经 CrispASR）及其打包与签名成本",
+      "resolution": ""
+    },
+    {
+      "id": "A-04",
+      "increment": "I3",
+      "blocking": true,
+      "state": "open",
+      "text": "是否提供需上传音频的云端转写选项",
+      "resolution": ""
+    },
+    {
+      "id": "Q-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "真实验证新模型需下载约 3.3 GB（large-v3-turbo q8_0 874 MB、Belle turbo zh 1.62 GB、anime-whisper q8_0 818 MB，均来自 Hugging Face）；未获许可时 T-ASRQ-10 保持待验证",
+      "resolution": "2026-10-22 用户允许把 turbo q8_0、Belle 中文、anime-whisper q8_0 三个测试模型下载到 D 盘做验证。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}

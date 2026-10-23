@@ -58,8 +58,11 @@ import {
   type LocalSubtitleVerifiedRuntimeArtifact,
   type LocalSubtitleVerifiedRuntimeBundle,
 } from "./native/resource-path";
-import type {
-  LocalSubtitleServerInferenceRequest,
+import {
+  invalidLocalSubtitleServerConfiguration,
+  resolveLocalSubtitleAudioProfile,
+  type LocalSubtitleAudioProfile,
+  type LocalSubtitleServerInferenceRequest,
 } from "./native/server-contract";
 import type {
   LocalSubtitleServerInferenceOperation,
@@ -358,6 +361,7 @@ export class TranscriptionExecutor {
 
     try {
       throwIfCancelled(context.signal);
+      const quietAudioMode = taskAudioProfile(context)?.quietAudioMode;
       normalized = await this.#media.normalizeTask({
         owner: context.owner,
         fileToken: context.fileToken,
@@ -529,6 +533,8 @@ export class TranscriptionExecutor {
             descriptor: window,
             signal: context.signal,
             conditionQuietAudio,
+            // The profile picks how a conditioned window is boosted; fallbacks stay unconditioned.
+            ...(conditionQuietAudio && quietAudioMode ? { quietAudioMode } : {}),
           });
           assertWindowBrand(
             brand,
@@ -1558,6 +1564,12 @@ function createInferenceRequest(
                 LOCAL_SUBTITLE_PRODUCTION_EXECUTOR_POLICY.qualityRecoveryTemperatureStep,
           ),
         );
+  // Audio-profile fields apply to every VAD recognition request, quality replays included;
+  // separator candidates run without VAD and keep their verified fields.
+  const vadEnabled = !separatorCandidate && context.config.inference.vad.enabled;
+  const profile = vadEnabled ? taskAudioProfile(context) : undefined;
+  const vadSpeechPadMs = !vadEnabled ? undefined
+    : resolved.quietAudioGainDb !== undefined ? 1000 : profile?.vadSpeechPadMs;
   return Object.freeze({
     requestGeneration,
     filePath: resolved.filePath,
@@ -1574,13 +1586,32 @@ function createInferenceRequest(
     temperature,
     vadEnabled: separatorCandidate ? false : context.config.inference.vad.enabled,
     vadMinSilenceMs: context.config.inference.advanced.vadMinSilenceMs,
-    ...(!separatorCandidate && context.config.inference.vad.enabled && resolved.quietAudioGainDb !== undefined
-      ? {vadSpeechPadMs: 1000 as const} : {}),
+    ...(profile ? { vadThreshold: profile.vadThreshold } : {}),
+    ...(profile?.vadMinSpeechMs === undefined ? {} : { vadMinSpeechMs: profile.vadMinSpeechMs }),
+    ...(vadSpeechPadMs === undefined ? {} : { vadSpeechPadMs }),
+    ...(profile?.noSpeechThreshold === undefined ? {} : { noSpeechThreshold: profile.noSpeechThreshold }),
+    ...(profile?.suppressNonSpeech === undefined ? {} : { suppressNonSpeech: profile.suppressNonSpeech }),
     ...(context.config.inference.advanced.initialPrompt === undefined
       ? {}
       : { initialPrompt: context.config.inference.advanced.initialPrompt }),
     signal: context.signal,
   });
+}
+
+/** Studio snapshots may name an audio profile; the frozen domain settings type predates it. */
+type AudioProfileSettings = Readonly<{ audioProfile?: unknown }>;
+
+/** The task's audio-profile fields; undefined for the standard type and historical snapshots. */
+function taskAudioProfile(
+  context: TranscriptionTaskExecutionContext,
+): LocalSubtitleAudioProfile | undefined {
+  const profile = resolveLocalSubtitleAudioProfile(
+    (context.config.inference.advanced as AudioProfileSettings).audioProfile,
+  );
+  if (profile && !context.config.inference.vad.enabled) {
+    throw invalidLocalSubtitleServerConfiguration("An audio profile requires VAD.");
+  }
+  return profile;
 }
 
 function assertWindowBrand(

@@ -22,6 +22,10 @@ import type {
 } from "@/type/localSubtitleIpc";
 import type { LocalSubtitleRuntimeSyncStatus } from "@/services/local-subtitle/localSubtitleRuntimeService";
 import type { LocalSubtitleTranscriberPreferences } from "@/store/tools/subtitle/localSubtitleTranscriberConfig";
+import {
+  fitTranscriptionConfig,
+  transcriptionModelProfile,
+} from "@/subtitle-studio/transcription-model-profiles";
 
 type ActiveOutputDirectory = Extract<
   LocalSubtitleOutputDirectorySelection,
@@ -221,11 +225,15 @@ export function resolveLocalSubtitleConflictPolicy(
   return supported.includes(requested) ? requested : supported[0] ?? "index";
 }
 
+/** Installed models that transcribe whole files; ones only for recognizing cues again are left out. */
 export function getReadyLocalSubtitleModels(
   resources: readonly LocalSubtitleManagedResourceSummary[],
 ): LocalSubtitleManagedResourceSummary[] {
   return resources.filter(
-    (resource) => resource.resourceType === "model" && resource.status === "ready",
+    (resource) =>
+      resource.resourceType === "model" &&
+      resource.status === "ready" &&
+      transcriptionModelProfile(resource.resourceId).role === "transcribe",
   );
 }
 
@@ -406,7 +414,8 @@ export function createLocalSubtitleBatchRequest(input: {
         ...(audioStreamId === undefined ? {} : { audioStreamId }),
       };
     }),
-    config: {
+    // What the model cannot do falls back, such as English output from a model that cannot translate.
+    config: fitTranscriptionConfig({
       modelId: input.modelId,
       devicePreference: input.preferences.devicePreference,
       language: input.preferences.language,
@@ -432,7 +441,7 @@ export function createLocalSubtitleBatchRequest(input: {
             preferredFormat: input.postAction.preferredFormat,
             translationSnapshotId: input.postAction.translationSnapshotId,
           },
-    },
+    }),
   };
 }
 

@@ -23,6 +23,11 @@ afterAll(async () => {
   }, null, 2) + '\n');
 }, 60_000);
 
+const expectConfidence = (segment: any) => {
+  expect(typeof segment.confidence).toBe('number');
+  expect(segment.confidence).toBeGreaterThanOrEqual(0);
+  expect(segment.confidence).toBeLessThanOrEqual(1);
+};
 const requestProjection = (request: any) => {
   const { filePath, signal, ...data } = request;
   return { ...data, windowFile: path.basename(filePath), aborted: signal?.aborted ?? false };
@@ -94,6 +99,9 @@ describe('T02 and transcript executor paired final-output replay', () => {
     if (scenario.expected.dtw) expect(derived.requests.map((request: any) => request.timingMode)).toEqual(scenario.expected.dtw);
     if (scenario.expected.errorCode) expect((scenario.expected.derivedStatus ? original : derived).error?.code).toBe(scenario.expected.errorCode);
     if (scenario.expected.noExport) expect(derived.transcript).toBeNull();
+    // 2026-10-22 asr-quality T-ASRQ-04: both sides share the Studio post-processor, so
+    // confidence is part of the strict comparison above; it is also on every derived cue.
+    for (const segment of derived.transcript?.segments ?? []) expectConfidence(segment);
     evidence.push({ id: scenario.id, transcriptSha256: hash(derived.transcript), traceSha256: hash(derived), segments: derived.transcript?.segments.length ?? 0 });
   }, 60_000);
 });
@@ -191,6 +199,7 @@ describe('transcript readiness and resource boundaries', () => {
       if (document.schemaVersion !== 2) throw new Error('Expected a media document');
       expect(document.preservation.kind).toBe('transcription');
       expect(document.preservation.transcript).toStrictEqual(reference.transcript);
+      document.preservation.transcript.segments.forEach(expectConfidence);
       expect(document.cues.map(cue => cue.source.plain)).toEqual(reference.transcript.segments.map((cue: any) => cue.text));
       expect(document.cues.map(cue => [cue.timing.startMs, cue.timing.endMs])).toEqual(reference.transcript.segments.map((cue: any) => [cue.startMs, cue.endMs]));
       expect(harness.exporter.exportArtifacts).not.toHaveBeenCalled();

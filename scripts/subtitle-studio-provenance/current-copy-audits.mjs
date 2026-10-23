@@ -10,6 +10,13 @@ const TRANSCRIPT_EXECUTOR_PROVENANCE = 'resources/subtitle-studio/provenance/tra
 export const CURRENT_COPY_AUDIT_OWNERS = Object.freeze({
   'electron/main/subtitle-studio/transcription/native/filesystem-object-identity.ts': FORK_PATH,
   'electron/main/subtitle-studio/transcription/native/media-normalizer.ts': FORK_PATH,
+  'electron/main/subtitle-studio/transcription/native/overlap-group-splice.ts': FORK_PATH,
+  'electron/main/subtitle-studio/transcription/native/pcm-window.ts': FORK_PATH,
+  'electron/main/subtitle-studio/transcription/native/quiet-audio.ts': FORK_PATH,
+  'electron/main/subtitle-studio/transcription/native/server-contract.ts': FORK_PATH,
+  'electron/main/subtitle-studio/transcription/native/server-http-client.ts': FORK_PATH,
+  'electron/main/subtitle-studio/transcription/native/server-supervisor.ts': FORK_PATH,
+  'electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts': FORK_PATH,
   'test/subtitle-studio/transcription/productionExecutor.test.ts': FORK_PATH,
   'electron/main/subtitle-studio/transcription/transcript-executor.ts': TRANSCRIPT_EXECUTOR_PROVENANCE,
 });

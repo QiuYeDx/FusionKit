@@ -1,12 +1,17 @@
 import type { z } from "zod";
 import { getStudioTranscriptionController, getTranscriptionReadiness, type StudioTranscriptionState } from "@/services/subtitle-studio/transcription-controller";
 import { transcriptionTaskConfigSchema } from "@/subtitle-studio/transcription/task-contract";
+import { transcriptionModelMismatch } from "@/subtitle-studio/transcription-model-profiles";
 import type { EXTERNAL_TOOLS } from "../catalog";
 import { confirmed, pathItem } from "../confirmations";
 import { checkActive, ExternalToolError, type ExternalToolContext } from "../errors";
 import { bounded, studioApi } from "./studio";
 
 type TranscriptionInput = z.output<typeof EXTERNAL_TOOLS.start_studio_transcription.inputSchema>;
+const MODEL_MISMATCH_HINTS = {
+  recognize_only: "This model only recognizes existing Studio cues again. Transcribe with a whole-media model (such as large-v3-q5_0) first.",
+  language: "This model recognizes only its own language: pass that language, or choose another model.",
+} as const;
 
 /** Why the runtime or model cannot take a batch now, ignoring that no media is chosen yet. */
 function runtimeProblem(state: StudioTranscriptionState): string | null {
@@ -23,6 +28,12 @@ export async function startStudioTranscription(input: TranscriptionInput, ctx: E
   if (before.drafts.length || before.selecting || before.submitting) throw new ExternalToolError("transcription_drafts_pending", { hint: "The user has unsubmitted transcription drafts in Subtitle Studio." });
   const config = transcriptionTaskConfigSchema.safeParse({ ...before.config, ...(input.modelId ? { modelId: input.modelId } : {}), ...(input.language ? { language: input.language } : {}) });
   if (!config.success) throw new ExternalToolError("transcription_configuration_invalid");
+  // A model that only recognizes cues again, or a language the model cannot be told, is refused with the reason
+  // (it would otherwise read as "not ready"); settings from the Studio page fall back as they do there.
+  const mismatch = transcriptionModelMismatch(config.data);
+  if (mismatch === "recognize_only" || (mismatch === "language" && input.language)) {
+    throw new ExternalToolError("transcription_model_unsupported", { reason: mismatch, hint: MODEL_MISMATCH_HINTS[mismatch] });
+  }
   const problem = runtimeProblem({ ...before, config: config.data, autoTranslation: { ...before.autoTranslation, enabled: false } });
   if (problem) throw new ExternalToolError("transcription_not_ready", { reason: problem, hint: "Install the runtime and a model in Subtitle Studio's transcription view first." });
 

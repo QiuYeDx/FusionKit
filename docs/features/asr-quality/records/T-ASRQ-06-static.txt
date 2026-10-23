@@ -1,0 +1,58 @@
+# T-ASRQ-06 V-ASRQ-06-3 static checks (2026-10-22, worktree on 68ffd05, uncommitted)
+
+$ node scripts/subtitle-studio-provenance/shared-resource-extraction.mjs
+{
+  "sourceCommit": "99d064719d7ec93dea02944a9bfde31c4afec221",
+  "sources": 29,
+  "outputs": 31,
+  "edits": 197,
+  "exact": true
+}
+extraction exit 0
+
+$ npx tsc --noEmit -p tsconfig.json
+exit 0
+
+$ node scripts/check-i18n.mjs
+exit 0
+  ─────────────────────────────────────────────────
+  about                  41      41      41      41
+  common                240     240     240     240
+  help                   87      87      87      87
+  home                  552     552     552     552
+  knowledge             327     327     327     327
+  materials              70      70      70      70
+  rename                199     199     199     199
+  setting               574     574     574     574
+  studio               1208    1208    1208    1208
+  subtitle              765     765     765     765
+  text                  161     161     161     161
+  tools                  67      67      67      67
+  ─────────────────────────────────────────────────
+  TOTAL                4291    4291    4291    4291
+
+  ⚠  32 warning(s) (same value as source, may be fine):
+  (32 same-as-source warnings, none for the keys added by this task)
+
+$ node scripts/check-i18n-usage.mjs
+i18n source usage check
+  Languages       : zh, en, ja, zh-Hant
+  Calls scanned   : 3493
+  Static/finite   : 3435
+  Manifest-backed : 21
+  Resolved keys   : 3884
+
+40 error(s):
+  ... path mentions per file in the 40 errors (all outside this task's files; identical to a run saved at 11:50 before this task started):
+     12 src/agent/prompt-templates.ts
+      6 src/pages/About/index.tsx
+     16 src/pages/Help/index.tsx
+     22 src/pages/HomeAgent/components/PromptTemplates.tsx
+      2 src/pages/Setting/components/ExternalAgentConfig.tsx
+      2 src/pages/Setting/index.tsx
+      8 src/pages/Tools/ToolTile.tsx
+      9 src/pages/Tools/index.tsx
+
+$ node scripts/subtitle-studio-provenance/copy.mjs --check   (run at about 13:48; the parallel T-ASRQ-03/04 work kept changing native files afterwards)
+{"mode":"check","files":120,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567","status":"passed"}
+copy exit 0

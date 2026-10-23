@@ -1,7 +1,7 @@
 import { BrowserWindow, dialog, type WebContents } from 'electron';
 import path from 'node:path';
 import { StudioError, type ErrorCode } from '../../../src/subtitle-studio/domain';
-import { requestSchemas, type TranscriptionMediaSelection, type TranscriptionResourceJob } from '../../../src/subtitle-studio/ipc-contract';
+import { requestSchemas, type TranscriptionMediaSelection, type TranscriptionResourceJob, type TranscriptionRetryResult } from '../../../src/subtitle-studio/ipc-contract';
 import { STUDIO_TRANSCRIPTION_MAX_FILES } from '../../../src/subtitle-studio/transcription/task-contract';
 import { localSubtitleAuthorizedMediaSchema, localSubtitleMediaProbeSummarySchema, localSubtitleManagedResourceListSchema, localSubtitleResourceJobSummarySchema } from '../../../src/subtitle-studio/transcription/ipc-contract';
 import type { LocalSubtitleOwnerKey } from './transcription/native/authorizations';
@@ -9,10 +9,14 @@ import type { TranscriptionRuntime } from './transcription/runtime';
 import type { NativeInputSelection } from './drop-input-service';
 import { collectTranscriptionMediaPaths, TRANSCRIPTION_MEDIA_EXTENSIONS } from './transcription-paths';
 
+function nativeCode(error: unknown): unknown {
+  const value = error && typeof error === 'object' ? error as { code?: unknown; localSubtitleCode?: unknown } : {};
+  return value.localSubtitleCode ?? value.code;
+}
+
 export function transcriptionIpcError(error: unknown): ErrorCode {
   if (error instanceof StudioError) return error.code;
-  const value = error && typeof error === 'object' ? error as { code?: unknown; localSubtitleCode?: unknown } : {};
-  const code = value.localSubtitleCode ?? value.code;
+  const code = nativeCode(error);
   if (typeof code !== 'string') return 'transcription_failed';
   if (code === 'resource_busy') return 'resource_busy';
   if (['owner_released', 'authorization_expired', 'authorization_invalid', 'invalid_token', 'token_expired', 'runtime_closed'].includes(code)) return 'access_denied';
@@ -115,5 +119,14 @@ export async function handleTranscriptionRequest(input: {
   if (method === 'listTranscriptionTasks') return runtime.tasks.list(owner);
   if (method === 'cancelTranscriptionTask') return runtime.tasks.cancel(owner, requestSchemas.cancelTranscriptionTask.parse(payload).taskId);
   if (method === 'removeTranscriptionTask') { await runtime.tasks.remove(owner, requestSchemas.removeTranscriptionTask.parse(payload).taskId); return null; }
+  if (method === 'retryTranscriptionTask') {
+    const { taskId, ...overrides } = requestSchemas.retryTranscriptionTask.parse(payload);
+    try { return { status: 'admitted', admission: await runtime.tasks.retry(owner, taskId, overrides) } satisfies TranscriptionRetryResult; }
+    catch (error) {
+      // The file was moved or modified since (or its audio track is gone): the user adds it again.
+      if (nativeCode(error) === 'media_changed') return { status: 'source_changed' } satisfies TranscriptionRetryResult;
+      throw error;
+    }
+  }
   throw new StudioError('invalid_input');
 }

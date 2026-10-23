@@ -464,6 +464,20 @@
     "language_fr": "法語",
     "language_de": "德語",
     "language_es": "西班牙語",
+    "audio_type": "音訊類型",
+    "audio_standard": "標準",
+    "audio_standard_description": "大多數影片、訪談和對話",
+    "audio_standard_hint": "適合大多數音訊；人聲很小或背景嘈雜時換用對應類型。",
+    "audio_quiet": "低音量·耳語",
+    "audio_quiet_description": "人聲很小、耳語或 ASMR",
+    "audio_quiet_hint": "實驗性：放寬語音偵測並提升安靜人聲，更容易辨識出微弱聲音；在沒有人聲的聲音上也可能編造文字，請用「待複核」逐句檢查。",
+    "audio_quiet_short": "低音量",
+    "audio_noisy": "嘈雜·音樂音效",
+    "audio_noisy_description": "背景音樂、音效或環境聲較多",
+    "audio_noisy_hint": "實驗性：略放寬語音偵測，並不輸出 ♪、「」等符號，適合被音樂或音效蓋住的人聲；在沒有人聲的音效上也可能編造文字，請用「待複核」逐句檢查。",
+    "audio_noisy_short": "嘈雜",
+    "audio_reset": "已改回「標準」：其他音訊類型需要語音偵測。",
+    "audio_task_label": "音訊類型：{{name}}",
     "task_mode": "輸出語言",
     "mode_transcribe": "保留原語言",
     "mode_english": "翻譯為英語",
@@ -561,6 +575,22 @@
     "resource_name_vad": "語音偵測（自動略過靜音）",
     "resource_name_vad_short": "語音偵測",
     "resource_name_cuda": "NVIDIA 顯示卡加速",
+    "resource_name_fast": "快速（約 0.8 GB）",
+    "resource_name_fast_short": "快速",
+    "resource_name_chinese": "中文普通話（約 1.5 GB）",
+    "resource_name_chinese_short": "中文普通話",
+    "resource_name_anime": "日語動畫·ASMR（約 0.8 GB）",
+    "resource_name_anime_short": "日語動畫·ASMR",
+    "model_scenario_fast": "速度更快，適合先快速出稿；不能翻譯為英語。",
+    "model_scenario_chinese": "普通話，輸出附標點。只用於重新辨識原聲：先用其他模型轉寫，再對需要的句子重新辨識。",
+    "model_scenario_anime": "日語動畫、遊戲配音與 ASMR（喘息、笑聲、耳語）。只用於逐句重新辨識原聲，不使用提示詞。",
+    "model_license_belle": "授權提示：訓練資料含非商用資料集。",
+    "model_license_anime": "授權提示：訓練資料禁止商用，僅供非商業用途。",
+    "model_experimental": "實驗性",
+    "model_recognize_only": "僅重新辨識",
+    "model_no_translate": "所選模型不能翻譯為英語，輸出保留原語言。",
+    "model_language_locked": "所選模型只辨識{{languages}}。",
+    "model_prompt_forbidden": "所選模型不使用上下文提示。",
     "prepare_title": "一鍵準備（推薦）",
     "prepare_description": "一次裝好標準模型和語音偵測，裝好就能開始本機轉寫。",
     "prepare_size": "需要下載 {{size}}",
@@ -635,7 +665,7 @@
       },
       "memory": {
         "cause": "電腦記憶體不足。",
-        "next": "請關閉其他佔用記憶體的程式，或換一個較小的模型後再試。"
+        "next": "請關閉其他佔用記憶體的程式，或換用較小的「標準」或「快速」模型後再試；用顯示卡轉寫時，也可以改用 CPU 重試。"
       },
       "authorization": {
         "cause": "FusionKit 已無法再讀取這個檔案。",
@@ -656,6 +686,10 @@
       "transcription": {
         "cause": "轉寫沒能完成。",
         "next": "請再試一次；仍然失敗的話，可以換一個模型，或把「處理裝置」改成 CPU。"
+      },
+      "quality": {
+        "cause": "這段音訊沒能得到可靠的辨識結果。這是辨識品質問題，不是程式損壞。",
+        "next": "可以在轉寫設定裡換一種「分段方式」（在「進階設定」中）、「音訊類型」或模型，再重新加入檔案轉寫；不需要重新安裝 FusionKit。"
       },
       "limit": {
         "cause": "媒體太長，或內容超出一次能處理的上限。",
@@ -679,6 +713,12 @@
     },
     "copy_diagnostics": "複製診斷資訊",
     "diagnostics_copied": "已複製診斷資訊",
+    "retry_cpu": "改用 CPU 重試",
+    "retry_quiet": "改用低音量·耳語重試",
+    "retry_quiet_note": "實驗性：更容易辨識出微弱聲音，也可能多出需要複核的句子。",
+    "retry_quiet_needs_vad": "需要先在「管理資源」裡安裝語音偵測。",
+    "retry_source_changed": "這個檔案在轉寫後被移動或修改了，請重新加入檔案後再轉寫。",
+    "empty_retry_help": "如果預期有人聲，可以改用「低音量·耳語」重試，或檢查音軌、媒體語言和模型後重新加入檔案。相同設定重試，結果通常不變。",
     "resource_failed_accelerator": "顯示卡加速沒能通過載入檢查，這台電腦目前無法使用它。請先更新 NVIDIA 顯示卡驅動程式再下載；不安裝它也可以用 CPU 轉寫。",
     "resource_failed_load": "檔案已經下載，但沒能通過載入檢查。請再點一次「下載」；仍然失敗的話，重新啟動電腦後再試。",
     "resource_failed_runtime": "FusionKit 內建的轉寫程式不完整或版本不相符，無法檢查這個資源。請重新啟動 FusionKit；仍然失敗的話，請重新安裝 FusionKit。",
@@ -939,7 +979,8 @@
       "insert": "插入字幕",
       "replace": "取代 {{count}} 條字幕",
       "agent": "外部 Agent 寫入 {{count}} 條譯文",
-      "stretch": "伸縮 {{count}} 條字幕的時間"
+      "stretch": "伸縮 {{count}} 條字幕的時間",
+      "collapse": "摺疊 {{count}} 條字幕的重複"
     }
   },
   "cue_help": {
@@ -1335,15 +1376,19 @@
     "language": "語言",
     "prompt": "提示詞",
     "prompt_placeholder": "提示詞（選填）：人名、術語等，幫助模型聽準",
+    "recognize_only_hint": "實驗性，只用於重新辨識：先用其他模型轉寫出時間軸，再用它逐句取代文字。",
     "no_model_hint": "尚未安裝轉寫模型，安裝後即可重新辨識。",
     "open_transcription": "前往安裝模型",
     "limited": "一次最多辨識所選的前 {{limit}} 條。",
+    "unread": "有 {{count}} 條無法讀取（文件可能已變更），沒有列出；關閉後重新開啟可再試。",
     "start": "開始辨識",
     "restart": "重新辨識",
     "stop": "停止",
     "progress": "正在辨識 {{done}} / {{total}}",
+    "loading_model": "正在載入模型並辨識 {{done}} / {{total}}",
     "listening": "辨識中",
     "summary": "已辨識 {{done}} 條，其中 {{changed}} 條與原文不同",
+    "flagged": "{{count}} 條結果可能不可靠（低信賴度或命中複核規則），沒有預先勾選；請試聽後再決定是否採用。",
     "same": "與原文一致",
     "empty": "未辨識到語音",
     "include": "採用第 {{number}} 條的辨識結果",
@@ -1357,6 +1402,50 @@
       "interrupted": "已停止",
       "failed": "辨識失敗"
     }
+  },
+  "cue_review": {
+    "open": "待複核的句子",
+    "open_count": "待複核的句子（{{count}} 條）",
+    "label": "待複核",
+    "count": "第 {{position}} / {{total}} 條",
+    "count_truncated": "第 {{position}} / {{total}}+ 條",
+    "only": "只列出待複核的句子",
+    "none": "沒有需要複核的句子",
+    "page_empty": "這一頁沒有待複核的句子，可用上一條／下一條轉到其他頁。",
+    "loading": "正在檢查…",
+    "previous": "上一條（Shift+Enter）",
+    "next": "下一條（Enter）",
+    "close": "關閉（Esc）",
+    "filter": "依原因篩選",
+    "all": "全部",
+    "separator": "、",
+    "reasons": {
+      "low_confidence": "低信賴度",
+      "phantom_phrase": "疑似幻覺",
+      "repetition_loop": "句內重複",
+      "non_speech_only": "只有符號或音效",
+      "abnormal_rate": "語速異常",
+      "duplicate_neighbor": "與上一句重複"
+    },
+    "details": {
+      "low_confidence": "模型對這句把握較低（信賴度 {{confidence}}，並非準確率）",
+      "phantom_phrase": "像在靜音或音樂處常被憑空辨識出的套話",
+      "repetition_loop": "同一段文字反覆出現，辨識可能陷入了循環",
+      "non_speech_only": "只有符號、標點或括號標註，沒有辨識出說話內容",
+      "abnormal_rate": "字數與時長不相稱：讀得過快，或很長時間裡幾乎沒有文字",
+      "duplicate_neighbor": "與上一句文字相同且緊挨著"
+    },
+    "badge": "待複核：{{reasons}}",
+    "current": "第 {{number}} 條",
+    "play": "播放這句原聲",
+    "recognize": "重新辨識這句…",
+    "recognize_filtered": "重新辨識篩選出的 {{count}} 句…",
+    "collapse": "將重複摺疊為「{{text}}」",
+    "collapse_none": "沒有可以摺疊的重複",
+    "ignore": "忽略這個標記（僅限本機）",
+    "no_confidence": "這份文件沒有信賴度資訊，只按文字規則檢查。",
+    "ignored": "已忽略 {{count}} 個標記",
+    "restore": "全部恢復"
   },
   "document_missing": "這份文件已不存在。"
 }

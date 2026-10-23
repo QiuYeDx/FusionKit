@@ -27,10 +27,12 @@ export function draftOverlapGroupSplice(review: OverlapGroupReview, cues: readon
   const originals = indices.map(i => cues[i]), startMs = originals[0].startMs, endMs = originals.at(-1)!.endMs;
   if (endMs - startMs > 10000) return rejected("group_too_long");
   const retained = review[keep];
+  // A retained cue keeps its own text and confidence; only its timing is estimated.
   const replacements = retained.map((m, i): LocalSubtitleSegment => Object.freeze({
     id: cues[m.cueIndex].id, text: m.observed.text.trim(), estimatedTiming: true,
     startMs: i ? m.observed.startMs : startMs,
     endMs: i === retained.length - 1 ? endMs : m.observed.endMs,
+    ...(cues[m.cueIndex].confidence === undefined ? {} : { confidence: cues[m.cueIndex].confidence }),
   }));
   if (replacements.some((c, i) => c.startMs < startMs || c.endMs > endMs || c.endMs <= c.startMs ||
       i > 0 && c.startMs < replacements[i - 1].endMs)) return rejected("unsafe_retained_timeline");

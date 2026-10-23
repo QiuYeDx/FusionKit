@@ -14,12 +14,18 @@ describe('production fixed speech migration catalog', () => {
   it('includes both model generations and exactly the two authorized historical roots', () => {
     expect(SPEECH_MIGRATION_RESOURCES.map(r => r.id)).toEqual(['large-v3-q5_0', 'large-v3', 'silero-vad-v6.2.0-ggml', 'speech-windows-x64-cuda-12.4-v1']);
     for (const resource of SPEECH_MIGRATION_RESOURCES) expect(resource.sources.map(s => s.root)).toEqual(['local-subtitle', 'subtitle-studio/transcription']);
-    for (const model of SPEECH_MODEL_MANIFEST.models) {
+    for (const model of SPEECH_MODEL_MANIFEST.models.slice(0, 2)) {
       const resource = SPEECH_MIGRATION_RESOURCES.find(r => r.id === model.id)!;
       expect(resource.relativeDirectory).toBe(`models/${model.id}`);
       expect(resource.files).toEqual([{ relativePath: model.fileName, byteSize: model.byteSize, sha256: model.sha256 }]);
       for (const source of resource.sources) expect(source.files).toEqual(resource.files);
     }
+  });
+
+  it('leaves models added to the catalog later out of the migration: no tool ever installed them', () => {
+    const later = SPEECH_MODEL_MANIFEST.models.slice(2).map(model => model.id);
+    expect(later).toEqual(['large-v3-turbo-q8_0', 'belle-large-v3-turbo-zh', 'anime-whisper-q8_0']);
+    expect(SPEECH_MIGRATION_RESOURCES.filter(r => later.includes(r.id))).toEqual([]);
   });
 
   it('matches the actual whole-manifest VAD installation receipt, including terminal LF', () => {

@@ -1,0 +1,68 @@
+# V-ASRQ-05-4 static checks and Studio regression (re-run after the review fixes, 2026-10-22T17:24–17:38+08:00), working tree on 68ffd05
+
+$ npx tsc --noEmit -p tsconfig.json
+exit 0
+
+$ node scripts/check-i18n.mjs (summary; the [SAME AS zh] warnings are pre-existing)
+  Namespaces  : about, common, help, home, knowledge, materials, rename, setting, studio, subtitle, text, tools
+
+  Namespace              zh      en      ja zh-Hant
+  ─────────────────────────────────────────────────
+  about                  41      41      41      41
+  common                240     240     240     240
+  help                   87      87      87      87
+  home                  552     552     552     552
+  knowledge             327     327     327     327
+  materials              70      70      70      70
+  rename                199     199     199     199
+  setting               574     574     574     574
+  studio               1246    1246    1246    1246
+  subtitle              765     765     765     765
+  text                  161     161     161     161
+  tools                  67      67      67      67
+  ─────────────────────────────────────────────────
+  TOTAL                4329    4329    4329    4329
+
+  ⚠  32 warning(s) (same value as source, may be fine):
+exit 0
+
+$ node scripts/check-i18n-usage.mjs  (40 pre-existing errors in About/Help/PromptTemplates/Setting/ToolTile/Tools)
+error list compared with the one captured before T-ASRQ-05 started (same working tree): identical, 40 errors, no new one; only the scan counts grew
+  Calls scanned   : 3526
+  Static/finite   : 3468
+  Manifest-backed : 21
+  Resolved keys   : 3922
+
+40 error(s):
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 src/pages test/subtitle-studio   (covers src/pages/Tools/Subtitle/SubtitleStudio and the <Checkbox consumer guard src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts; Electron UI files skip without their env flags)
+ ✓ test/subtitle-studio/transcription-review.test.ts (15 tests) 30ms
+ ✓ test/subtitle-studio/transcription-review-ipc.test.ts (2 tests) 207ms
+ ✓ src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts (2 tests) 13ms
+ Test Files  142 passed | 58 skipped (200)
+      Tests  2171 passed | 71 skipped (2242)
+   Start at  17:31:12
+   Duration  232.69s (transform 5.44s, setup 0ms, collect 87.96s, tests 480.87s, environment 25ms, prepare 13.11s)
+exit 0
+
+# provenance (no audited file changed in this round; electron/main/subtitle-studio/index.ts blob is still 79d5137d1a4aa82c42e0a8b35802e10c846bd4a6, as recorded in resources/speech-resources/provenance/current-integration-audits.v1.json in the first round)
+== copy.mjs --check
+{"mode":"check","files":120,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567","status":"passed"}
+exit 0
+== transcript-executor-copy.mjs --check
+{"status":"passed","files":1,"dependencies":26,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567"}
+exit 0
+== shared-resource-integration.mjs
+{
+  "entries": 11,
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit 0
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio-provenance
+ Test Files  16 passed | 2 skipped (18)
+      Tests  233 passed | 3 skipped (236)
+   Start at  17:35:24
+   Duration  173.43s (transform 2.40s, setup 0ms, collect 12.41s, tests 386.76s, environment 2ms, prepare 1.15s)
+exit 0

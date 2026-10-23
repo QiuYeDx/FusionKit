@@ -864,7 +864,7 @@ export default function SubtitleStudio() {
                 onRevise={cueIds => setCueRevision({ cueIds, serial: ++cueRevisionSerial.current })} onCheckConsistency={() => openConsistency(page ? [page.summary] : [])}
                 onSelectionChange={cueIds => { cueSelection.current = cueIds; }}
                 onCopy={copyCue}
-                onRecognize={cueIds => setCueRecognize({ cueIds, serial: ++cueRecognizeSerial.current })}
+                onRecognize={(cueIds, positions) => setCueRecognize({ cueIds, serial: ++cueRecognizeSerial.current, ...(positions ? { positions } : {}) })}
                 onFollowPage={offset => void run('select', () => select(page.summary, offset, { silent: true }))}
                 onRemember={cue => { const current = currentPage.current; setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '',
                   // The document's direction, as the other capture dialogs use it.

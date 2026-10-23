@@ -16,6 +16,7 @@ import { recognizeCue } from './cue-recognize-service';
 import { shiftProblem, shiftStart, stretchAnchor, stretchProblem, stretchTime } from '../../../src/subtitle-studio/cue-shift';
 import { suggestCueSplit } from '../../../src/subtitle-studio/cue-split';
 import { searchCuesInDocument } from './cue-find-worker';
+import { reviewCuesInDocument } from './cue-review';
 import { CUE_MEDIA_EXTENSIONS } from '../../../src/subtitle-studio/cue-audio';
 import { ExportService, publishSource, unusedOutputPath } from './export-service';
 import { TranslationService } from './translation-service';
@@ -526,6 +527,10 @@ export function registerSubtitleStudio(sharedResources?: SpeechResourceService, 
           // Regular expressions run in a worker thread that is stopped when a pattern is too slow.
           const value = await searchCuesInDocument(doc, { query, field, matchCase, wholeWord, regex, ...(trackId ? { trackId } : {}) }); alive();
           return { ok: true, value };
+        }
+        if (method === 'reviewCues') {
+          requestSchemas.reviewCues.parse(payload);
+          return { ok: true, value: reviewCuesInDocument(doc) };
         }
         if (method !== 'exportSource') throw new StudioError('invalid_input');
         if (!doc.capabilities.preserveSource) throw new StudioError('unsupported_feature');

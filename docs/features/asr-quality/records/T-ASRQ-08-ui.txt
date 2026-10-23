@@ -1,0 +1,60 @@
+# T-ASRQ-08 V-ASRQ-08-3 Electron 渲染审查（受控转写运行时）
+# 2026-10-22，工作树基于 68ffd05（未提交）；Windows 11 Pro 10.0.26200；Node v20.19.4；Electron 41 + Playwright 1.58.2
+# 静默离屏窗口（vitest.config.ts 默认 FUSIONKIT_TEST_WINDOW=quiet），隔离的临时 userData（test-results/studio-t06-ui/<run>/profile，结束后删除）
+# 边界：只替换原生转写运行时（test/subtitle-studio/helpers/transcription-ui-runtime.ts，新增 tasks.retry 与失败码/阶段/设备控制）；渲染端、preload、Studio IPC、控制器与错误映射都是真实代码。
+# 页面剪贴板被替换为记录函数，测试不碰系统剪贴板。
+
+$ npx vite build --mode=test        （两次，每次改动后重建；exit 0）
+$ FUSIONKIT_STUDIO_RETRY_UI=1 npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription-retry-ui.test.ts
+
+## 第 1 轮（初版）：test-results/studio-t06-ui/controlled-StsjAS
+ ✓ test/subtitle-studio/transcription-retry-ui.test.ts (1 test) 30607ms
+ Test Files  1 passed (1) / Tests  1 passed (1)
+
+## 第 2 轮（修复后，最终代码）：test-results/studio-t06-ui/controlled-w6B3kC
+ ✓ test/subtitle-studio/transcription-retry-ui.test.ts (1 test) 28551ms
+   ✓ T-ASRQ-08 retry and suggestions in the actual Electron transcription queue > retries failed and empty tasks from the same file, suggests the quiet type or the CPU, explains recognition failures and copies diagnostics 28550ms
+ Test Files  1 passed (1) / Tests  1 passed (1)
+ asrq08-result.json: outcome passed, pageErrors []
+
+截图（第 2 轮，均已用 Read 查看）：
+  asrq08-light-1280-rows.png、asrq08-light-1280-copied.png、asrq08-light-1024-rows.png、asrq08-light-1280-source-changed.png、
+  asrq08-dark-1280-rows.png、asrq08-dark-1024-rows.png、asrq08-dark-1024-needs-vad.png、asrq08-dark-1024-english.png
+
+用例断言的行为：
+- 4 个任务：无内容；CUDA 上 out_of_memory（stage transcribing）；窗口级 runtime_protocol_mismatch（stage transcribing）；无内容后文件被改写。
+- 无内容行：Studio 说明（empty_retry_help）、“重试”“改用低音量·耳语重试”与“实验性……”说明，无 CPU 建议。
+- 内存不足行：memory.next（“标准”“快速”或 CPU）、“重试”“改用 CPU 重试”“管理资源”“复制诊断信息”，无低音量建议。
+- 窗口级失败行：quality.cause/next（识别质量问题，换分段方式、音频类型或模型；不显示 runtime.next 的“重新安装”），无 CPU 建议。
+- 复制诊断信息：
+    code: runtime_protocol_mismatch\nstage: transcribing\nmodel: large-v3-q5_0\ndevice: cpu\naudioType: standard
+    code: out_of_memory\nstage: transcribing\nmodel: large-v3-q5_0\ndevice: cuda\naudioType: standard
+  不含文件名（Drama/.wav）或路径分隔符。
+- 一键重试：retry 轨迹为 [{低音量覆盖}, {devicePreference: cpu}, {}]；入队配置分别等于原配置 + vadEnabled:true + audioProfile quiet_whisper_v1、原配置 + devicePreference cpu、原配置；三次都带原音轨 audio-0、同一文件名；新任务在队列末尾，原 4 个任务状态不变；新任务行显示“低音量”标签。
+- 文件被改写后点“重试”：行内出现 retry_source_changed 提示，队列仍为 7 个任务。
+- 已用低音量·耳语的任务再无内容：只显示“重试”，说明回到共享的 common:transcription_empty.help。
+- 卸下语音检测后刷新：低音量按钮禁用，说明变为 retry_quiet_needs_vad，“重试”仍可用。
+- 1280×800 / 1024×700 浅色、深色、英文 1024：layout、workspace、任务列表与各行均无横向溢出。
+
+实测几何（第 2 轮，CSS px）：
+- 无内容框：12px 内边距；说明到按钮行 6px；按钮 24px 高（重试 58px，改用低音量·耳语重试 144.9px，英文 62.4/165px），间距 6px；说明 11px/16px，中文单行 16px 高、英文 1024 两行 32px，与按钮垂直居中；框高 98（1280）/118（1024）/126（英文 1024）。
+- 失败块：无内边距，说明到按钮行 6px；按钮 24px 高、间距 6px，左缘与原因文字同为 385px（任务行 8px 内距）；块高 68px（1280），1024 下窗口级失败的下一步换行为 86px。
+- 任务行操作列 28px 图标按钮不变；无内容/失败之外的行高不受影响。
+
+## 审查记录（状态/位置 → 问题 → 原因 → 改动 → 复验）
+1. 浅色 1280，文件已改写的无内容行 → 提示写“不能直接重试”，但下方“重试”按钮仍可点，文字与可用状态矛盾 → 文案按“一定不能重试”写，而实现每次重试都会重新核对文件（恢复原文件后可以重试）→ 四种语言改为“这个文件在转写后被移动或修改了，请重新添加文件后再转写。”，按钮保留 → 第 2 轮 asrq08-light-1280-source-changed.png 复验，提示单行、琥珀色，位于无内容框下方。
+2. 英文 1024 深色，无内容框 → 说明三行，按钮行被推到框底部，框高 144px → 说明句子过长 → 四种语言缩短（保留“可改用低音量·耳语重试 / 检查音轨、语言和模型后重新添加 / 相同设置结果通常不变”三点）→ 第 2 轮英文框高 126px，说明两行。
+3. 无内容框按钮行 → 说明到按钮行只有 4px，而失败块是 6px，同类关系不一致 → 为“说明之下 4px”单独加的 margin 覆盖与 space-y-1 的 4px 外边距折叠后只剩 4px → 去掉单独覆盖，沿用 studio-task-failure-actions 的 6px（与 4px 折叠为 6px）→ 第 2 轮所有视口 help→actions = 6。
+4. 未安装语音检测的低音量按钮（第 2 轮新增状态）→ 禁用按钮旁写“需要先在‘管理资源’里安装语音检测”，“重试”可用；asrq08-dark-1024-needs-vad.png 复验无问题。
+无其他可处理问题：深色下琥珀/muted 文字对比与既有失败行一致；1024 两列布局下按钮行单行放下（英文 4 个按钮 385→849px，未换行）；底部导航遮挡只出现在截图滚动位置，不是本任务的布局。
+
+## 相关既有 UI 用例（同一测试构建）
+$ FUSIONKIT_STUDIO_I6_QUEUE_UI=1 FUSIONKIT_TRANSCRIPTION_EMPTY_UI=1 FUSIONKIT_STUDIO_I3_QUEUE_UI=1 FUSIONKIT_STUDIO_AUDIO_PROFILE_UI=1 npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/interaction-queue-ui.test.ts test/integration/transcription-empty-result-ui.test.ts test/subtitle-studio/acceptance-queue-overview-ui.test.ts test/subtitle-studio/audio-profile-ui.test.ts
+ ✓ test/integration/transcription-empty-result-ui.test.ts (2 tests)（Studio 断言按新说明更新；经典转写页仍显示共享说明，TranscriptionEmptyResult 不传参数时输出不变）
+ ✓ test/subtitle-studio/audio-profile-ui.test.ts (1 test)
+ × acceptance-queue-overview-ui：translation overview 的 getByRole('tooltip') 同时匹配 2 个 Tooltip（“最近提交 2 项”）
+ × interaction-queue-ui：停止按钮 Tooltip 期望“取消任务”，实际仍是“查看字幕”（第 208 行）；本任务修改的第 160–163 行断言（每个失败都显示复制诊断信息、清理中的任务不显示重试）在其之前，已通过
+ 两项单独重跑（--maxWorkers=1）同样失败；HEAD 基线（git archive HEAD 到 test-results/asrq08-head-baseline，修正 zod LICENSE 路径，npx vite build --mode=test，在该目录运行同两个用例）失败点与消息完全相同：
+   × I3 ... Expected substring: "最近提交 2 项" / strict mode violation: getByRole('tooltip') resolved to 2 elements
+   × I6 ... Expected: "取消任务" / unexpected value "查看字幕"
+ 结论：两项为 HEAD 既有失败，与本任务无关。

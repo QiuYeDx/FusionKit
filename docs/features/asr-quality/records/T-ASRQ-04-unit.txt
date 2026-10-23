@@ -1,0 +1,189 @@
+# T-ASRQ-04 unit — 2026-10-22T13:43:55+08:00 — worktree based on 68ffd05e (uncommitted), after the last edit
+$ npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/subtitle-studio/transcription/transcriptConfidence.test.ts test/subtitle-studio/transcription-confidence-document.test.ts test/subtitle-studio/transcription/subtitlePostProcessor.test.ts test/subtitle-studio/transcription/overlapGroupSplice.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > selects the only complete supported side and retains independent leading content
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > can select the right side when it uniquely retains all content
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > keeps left divisions deterministically when both complete sources are supported
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > does not make a choice without independent observations
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > restores a complete existing source across a seam (false)
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > restores a complete existing source across a seam (true)
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > retains the selected side's native phrase divisions
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > preserves independent throat clearing and exposes a source choice that would lose it
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects stale or conflicting draft input: text
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects stale or conflicting draft input: time
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects stale or conflicting draft input: indices
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects stale or conflicting draft input: neighbor
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects stale or conflicting draft input: ids
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > does not erase lexical differences: 今日は食べます / 今日は食べません
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > does not erase lexical differences: 今日二個食べます / 今日三個食べます
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > does not erase lexical differences: 今日はビールです / 今日はビルです
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > requires complete text and timing independently
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > supports a complete one-to-one group
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > does not carry old word timestamps into a restored cue interval
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects other words inside the group even if complete text occurs exactly once
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: same_id
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: same_window
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: other_source
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: missing_view
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: missing_token
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: null_point
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: drift
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: extra_words
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: repeated
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts > whole source-group splice > rejects unsupported evidence: wrong_words
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > scores a single raw segment as exp(avg_logprob) x (1 - no_speech_prob), rounded to 3 decimals
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > stays within 0-1 with three decimals for extreme decoder values
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > keeps a clipped observation at its own value
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > weights a deduplicated cross-window observation by each owned duration
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > folds a boundary fragment that trims to nothing into the previous cue
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > leaves a trimmed but retained boundary cue at its own value
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > weighs a cue by its adjusted span after an overlap repair when it later absorbs a duplicate
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > ignores windows without segments and keeps the empty result a no-speech outcome
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > overlap group splice confidence > keeps each retained cue confidence when its timing is re-estimated
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts > overlap group splice confidence > adds no confidence to cues of an older transcript
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > local subtitle post-processing policy > freezes named production thresholds without retaining prompt content
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > local subtitle post-processing policy > rejects a drifted raw gate or a copied mutable policy
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > local subtitle post-processing policy > maps legacy snapshots to the active cue policy and rejects an unsupported identity
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > accepts the exact segment, overlap, and window boundary limits
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > rejects 'non-positive duration' before formatting
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > rejects 'reverse order' before formatting
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > rejects '101 ms overlap' before formatting
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > rejects '101 ms outside window' before formatting
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > preserves a long raw segment and reports it for review
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > keeps sparse raw timing pending evidence instead of inventing an earlier end
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > requires both repetition thresholds after NFKC/case/punctuation folding
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > measures repeated decoder runs by PRE-004 wall-clock span including gaps
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > does not hide a degenerate run behind a later run with more short cues
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > accepts exactly 100 ms of negative head rounding and rejects 101 ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > requires full-duration, text-consistent evidence before accepting no speech
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > binds the segment-only word timeline status to the frozen VAD policy
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > keeps partial blank segments but classifies an all-blank window as no speech
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > classifies unsafe upstream text as a contract failure without echoing it
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > rejects C1 controls and unpaired surrogates as invalid upstream contracts
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > rejects C1 controls and unpaired surrogates as invalid upstream contracts
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > rejects C1 controls and unpaired surrogates as invalid upstream contracts
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > raw transcript quality gate > rejects C1 controls and unpaired surrogates as invalid upstream contracts
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > bounded window retry decisions > returns a deterministic smaller-window policy without doing I/O
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > bounded window retry decisions > fails closed when retry depth is exhausted or a window is unsplittable
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > bounded window retry decisions > preserves stable lineage and applies retry threshold boundaries
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > bounded window retry decisions > validates exact retry children when the owned midpoint falls on half a millisecond
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > window attempt lineage and exact retry replacement > accepts an exact retry graph and remains deterministic when attempts shuffle
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > window attempt lineage and exact retry replacement > accepts recursive exact replacements and rejects an exhausted depth-3 leaf
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > window attempt lineage and exact retry replacement > rejects missing, extra, or geometrically forged retry children
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > window attempt lineage and exact retry replacement > rejects duplicate attempt ids and copied Supervisor response generations
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > window attempt lineage and exact retry replacement > rejects swapped same-duration sibling responses before timeline projection
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > window attempt lineage and exact retry replacement > rejects mixed plans, orphan parents, and children attached to an accepted parent
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > window attempt lineage and exact retry replacement > binds every normalized response task to the committed task mode
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > is deterministic for unordered leaves and does not mutate input
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > deduplicates only adjacent cross-window observations
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > keeps equal adjacent text when raw observations do not overlap
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > keeps a legal adjacent prefix when raw observations do not overlap
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > does not drop both boundary observations when their midpoint ownership crosses
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > advances provenance after absorbing an 'exact duplicate'
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > advances provenance after absorbing an 'empty prefix fragment'
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > applies exact boundary gap and CJK/Latin prefix thresholds
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > trims NFKC expansions only at complete source-grapheme boundaries
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > preserves boundary symbols instead of using the raw-loop fingerprint destructively
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > rejects 'one-frame gap' before merge
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > rejects 'one-frame overlap' before merge
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > rejects 'duplicate leaf key' before merge
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > rejects a missing media tail even when every supplied window passed
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > rejects a frame/millisecond descriptor mismatch before projection
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > clamps only the 100 ms source boundary tolerance and records a warning
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > rejects a non-empty 'head' segment erased by source clamping
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > rejects a non-empty 'tail' segment erased by source clamping
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > repairs exactly 100 ms of raw overlap and retries at 101 ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > owned-core merge and coverage > uses the mapped segment after the trusted parser discards VAD words
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > drops punctuation fragments but preserves legal symbol-only Unicode cues
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > reflows mixed-language text without creating internal timestamps
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > normalizes Unicode line and paragraph separators without leaking them to canonical text
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > keeps adjacent raw cues separate when their semantic relationship is unknown
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > does not treat a 300 ms gap as proof of a continuation
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > does not split emoji ZWJ or combining grapheme sequences
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > keeps variation selectors and regional-indicator flags intact
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > maps all-blank accepted leaves to no_speech_detected
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > reports long raw spans for bounded review without replacing or duplicating their text
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > preserves readable cue boundaries instead of exposing following text early (0-3000)
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > preserves readable cue boundaries instead of exposing following text early (0-800)
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > preserves readable cue boundaries instead of exposing following text early (0-1001)
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > keeps repeated short utterances distinct without deleting real repetition
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > preserves repeated raw text and its review hint without joining it into a long repeated caption
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > keeps rich reports private and errors free of transcript text and paths
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > rejects media beyond the canonical duration limit before processing
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > accepts canonical source duration 59999 ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > accepts canonical source duration 3600001 ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > accepts canonical source duration 359999999 ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > rejects zero duration and structurally limits each planned window to 30 seconds
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > caps root planning by rounded canonical duration before allocating windows
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > canonical subtitle shaping > keeps exact PCM frame authority when the media tail is not millisecond-aligned
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > preserves complete sample ownership through mixed cuts and real post-processing
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > keeps v1 unchanged and reproduces its windows when no pause is found
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > rejects version tampering
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > rejects strategy tampering
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > rejects totalFrames tampering
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > rejects candidate tampering
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > rejects window tampering
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > rejects window_field tampering
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > rejects unknown tampering
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts > versioned pause root plans > retains retry children within a variable parent and its owned core
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts > transcript confidence in Studio documents > keeps every new segment confidence through document creation, validation and reopening
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts > transcript confidence in Studio documents > opens documents whose transcript has no confidence, or only some segments with it
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts > transcript confidence in Studio documents > rejects an out-of-contract confidence 1.2
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts > transcript confidence in Studio documents > rejects an out-of-contract confidence -0.1
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts > transcript confidence in Studio documents > rejects an out-of-contract confidence NaN
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts > transcript confidence in Studio documents > rejects an out-of-contract confidence 0.5
+
+ Test Files  4 passed (4)
+      Tests  131 passed (131)
+   Start at  13:43:57
+   Duration  1.72s (transform 570ms, setup 0ms, collect 2.33s, tests 380ms, environment 1ms, prepare 301ms)
+
+exit=0
+
+# Mutation checks (2026-10-22, scratchpad script asrq04/mutate.py): each mutation is applied to a backup-protected copy,
+# the named test file is run, and the original bytes are restored (sha256 printed after restore).
+# Unit mutations ran against test/subtitle-studio/transcription/transcriptConfidence.test.ts.
+== unweighted mean: exit=1; ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > weights a deduplicated cross-window observation by each owned duration
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > folds a boundary fragment that trims to nothing into the previous cue
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > weighs a cue by its adjusted span after an overlap repair when it later absorbs a duplicate
+   restored=yes sha256=314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb
+== no reweight after overlap repair: exit=1; ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > weighs a cue by its adjusted span after an overlap repair when it later absorbs a duplicate
+   restored=yes sha256=314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb
+== no positive log-probability clamp: exit=1; ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > stays within 0-1 with three decimals for extreme decoder values
+   restored=yes sha256=314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb
+== no absorb for trimmed fragment: exit=1; ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > folds a boundary fragment that trims to nothing into the previous cue
+   restored=yes sha256=314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb
+== no absorb for duplicate: exit=1; ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > weights a deduplicated cross-window observation by each owned duration
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > weighs a cue by its adjusted span after an overlap repair when it later absorbs a duplicate
+   restored=yes sha256=314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb
+== weight by unclipped raw duration: exit=1; ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > folds a boundary fragment that trims to nothing into the previous cue
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > transcript segment confidence > weighs a cue by its adjusted span after an overlap repair when it later absorbs a duplicate
+   restored=yes sha256=314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb
+== splice drops confidence: exit=1; ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  test/subtitle-studio/transcription/transcriptConfidence.test.ts > overlap group splice confidence > keeps each retained cue confidence when its timing is re-estimated
+   restored=yes sha256=4e4be16a00679a93be63bf8821f30d03382c3b7fa305ce79fe1d869db3c7d82c
+
+# Replay mutation: test/subtitle-studio-provenance/replay.test.ts compared without withoutReviewedConfidence().
+# 11 transcript-producing cases fail (the remaining 9 replay tests produce no transcript); with the strip all 20 pass,
+# so confidence is the only legacy/Studio difference.
+== replay compares without stripping confidence: exit=1; ⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'fixed-unknown-boundary-and-legal-repe…'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'root-plan-acoustic_quiet_v1'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'quiet-conditioned-long-response-falls…'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'degenerate-root-splits-into-two-bound…'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'unsplittable-window-has-one-fresh-tem…'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'cross-window-variant-keeps-a-bounded-…'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'cuda-f16-preserves-qualified-word-poi…'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'cuda-f16-missing-point-preserves-unsp…'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'cuda-quantized-model-cannot-claim-dtw…'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'cpu-f16-cannot-claim-cuda-dtw-timing'
+     FAIL  test/subtitle-studio-provenance/replay.test.ts > frozen v1 and independent Studio deterministic replay > 'root-plan-fixed_v1'
+   restored=yes sha256=aab6877180738fe2b2791fd1b06157d3787d78843b5b70bb64b5df6530aab51f

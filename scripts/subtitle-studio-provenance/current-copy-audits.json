@@ -11,20 +11,62 @@
     {
       "destinationPath": "electron/main/subtitle-studio/transcription/native/media-normalizer.ts",
       "copiedSha256": "ffd2586d7e589ed5f10ac809a64e2e5445b7b8b0e83dd239b795577eba2479a9",
-      "currentSha256": "d81f920a52851bdfcc95e7b970eb030b4c6f208005ab5f21d97523cbc4857b45",
-      "reason": "2026-09-22: Reviewed user-source metadata identity correction. Ignore ctime only for user inputs; distinguish source probes from private snapshots, unify stream binding and post-copy source checks. Exact file object, size, mtime and parent checks remain; strict private-file/resource integrity is unchanged."
+      "currentSha256": "9986999c66c9c92505688992338658cfa4a53f4d9a11b30f8317aebb797e8559",
+      "reason": "2026-09-22: Reviewed user-source metadata identity correction. Ignore ctime only for user inputs; distinguish source probes from private snapshots, unify stream binding and post-copy source checks. Exact file object, size, mtime and parent checks remain; strict private-file/resource integrity is unchanged. 2026-10-22 asr-quality T-ASRQ-03: materializeWindow accepts an optional quietAudioMode 'gated_v1', rejected as invalid_configuration before any window is written when unknown or without conditionQuietAudio, and passes it to the PCM window writer. Without it the writer call, window bytes, hashes and brands are unchanged."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/overlap-group-splice.ts",
+      "copiedSha256": "547c64add3a08d091f1f0599e553c23479ab920311e6fc27aa8cb803ecb629d6",
+      "currentSha256": "4e4be16a00679a93be63bf8821f30d03382c3b7fa305ce79fe1d869db3c7d82c",
+      "reason": "2026-10-22 asr-quality T-ASRQ-04: a retained cue of an overlap-group splice draft keeps its own optional confidence next to its unchanged id and text; only its timing is re-estimated. Cues without confidence (older transcripts and the copied tests) produce exactly the previous replacements; review admission, observation checks and selection are unchanged."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/pcm-window.ts",
+      "copiedSha256": "f0f9ee2d36b8fac5b2d9d2e97c82f99671c315344da5161ceeb9dbdba6848d61",
+      "currentSha256": "cabd62e163aaf9564a1c6f7a64d4b9a837f7df186f1d22e3394772c84fa3318a",
+      "reason": "2026-10-22 asr-quality T-ASRQ-03: writeLocalSubtitlePcmWindow accepts an optional quietAudioMode 'gated_v1' (invalid_configuration when unknown or without conditionQuietAudio) and then conditions the window with conditionWhisperPcm16 instead of conditionQuietPcm16, reporting its gain the same way. The header, frame range, parse-back, hash and identity checks are unchanged; without the mode the window bytes are identical to before."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/quiet-audio.ts",
+      "copiedSha256": "45404a723d35a5c890f5553313bb564b20f4e57a9035876e5c82e33c21acf615",
+      "currentSha256": "10ff51f98243589cbf36844ac1992aac35d9796c7bfe593e8c8cd13bf74e87b1",
+      "reason": "2026-10-22 asr-quality T-ASRQ-03: adds conditionWhisperPcm16 and LOCAL_SUBTITLE_WHISPER_AUDIO_POLICY, the gated per-frame gain of design R-ASRQ-02: 10 ms frames, noise floor at the 10th percentile, active frames 10 dB above it and at least -80 dBFS, target -23 dBFS from the 80th-percentile active level clamped to 0-30 dB (below 3 dB unchanged), full gain from 100 ms before to 250 ms after active frames and at most 6 dB elsewhere, a per-frame -1 dBFS peak limit with a +-2 frame minimum, a 30 ms centered average, per-sample interpolation and the same tanh knee as a backstop. Silent, full-scale and windows with under 0.5 s of signal or activity are returned unchanged. conditionQuietPcm16 and shouldRetryUnconditionedAudio are unchanged."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-contract.ts",
+      "copiedSha256": "412ff6394bb98d379be11618d0f5a294696a01005b3e906bdd9fdcef148f5fdb",
+      "currentSha256": "d1c9ee5d2548cf1e02313b07c43d189a468904a6bbbda4705d97fc865f8acc3a",
+      "reason": "2026-10-22 asr-quality T-ASRQ-02: adds the fixed audio-profile parameter table (LOCAL_SUBTITLE_AUDIO_PROFILES, quiet_whisper_v1 and noisy_music_v1) and optional request fields vadThreshold, vadMinSpeechMs, noSpeechThreshold and suppressNonSpeech; vadSpeechPadMs becomes a validated 30-1000 integer instead of the literal 1000. They map to the pinned v1.9.1 server fields vad_threshold, vad_min_speech_duration_ms, vad_speech_pad_ms, no_speech_thold and suppress_nst, validated by range (threshold 0.1-0.9, min speech 50-1000, pad 30-1000, no_speech 0.3-0.95) and vad_* rejected without VAD. Requests without these fields produce the exact previous multipart fields in the same order; response parsing is unchanged. 2026-10-22 asr-quality T-ASRQ-07: optional request flag noTimestamps (true only, refused with DTW timing) sends no_timestamps=true, for recognizing a cue with a model whose timestamps are unusable (anime-whisper, Belle; records/model-smoke.md); the field keeps its place, so every other request sends the exact previous multipart fields. parseLocalSubtitleServerVerboseJson takes the same option: only then may segments leave out start and end, and every segment spans the request window (0 to duration); all other fields stay strict, and parsing without the option still requires both times."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-http-client.ts",
+      "copiedSha256": "6df80f2770325a645ab2b166530b5a208dfa43738182fa49b5fa5939e367643a",
+      "currentSha256": "5d24e8accd7b199abe295c92963eecd131844cd0b81072a481edfddeb796fd0e",
+      "reason": "2026-10-22 asr-quality T-ASRQ-07: passes the request's optional noTimestamps flag to parseLocalSubtitleServerVerboseJson beside timingMode, taskMode and vadEnabled, so a text-only response is parsed as one. Without the flag the call is the previous one; transport, upload, deadlines and session disposition are unchanged."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/server-supervisor.ts",
+      "copiedSha256": "4630fd50d5ede1262f3edbbafc5e3a4a2ef0e85bae1cf87a041b8b2ee673ad44",
+      "currentSha256": "4f176afc2af40d22c218120178197f5087bef2ebeff95b28f71ecf30775c50eb",
+      "reason": "2026-10-22 asr-quality T-ASRQ-02: the immutable inference snapshot also copies the optional audio-profile request fields (vadThreshold, vadMinSpeechMs, noSpeechThreshold, suppressNonSpeech) next to vadSpeechPadMs, so validated fields reach the HTTP client. Requests without them produce the identical snapshot; process, lease and lifecycle behavior are unchanged. 2026-10-22 asr-quality T-ASRQ-07: the inference snapshot also copies the optional noTimestamps flag, so a validated text-only request reaches the HTTP client. Requests without it produce the identical snapshot; process, lease and lifecycle behavior are unchanged."
+    },
+    {
+      "destinationPath": "electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts",
+      "copiedSha256": "a6cfa204c20a217dbfca0ec98b4523539006ea6852d30af79a678d95d18999da",
+      "currentSha256": "314f94e0a857bc24c206a7c087d2f9d92bc247ff48a95c1e513c616255a504fb",
+      "reason": "2026-10-22 asr-quality T-ASRQ-04: canonical transcript segments carry confidence = exp(min(0, avg_logprob)) x (1 - no_speech_prob) of their raw segments, a 0-1 review hint rounded to three decimals. A projected segment keeps its raw value weighted by its owned (clipped) duration; cross-window duplicates and fully trimmed boundary fragments fold into the kept cue as a duration-weighted mean, and an overlap repair reweights the moved cue by its adjusted span. Timing, text, merge, shaping, retry and quality decisions are unchanged; the field is optional in the transcript schema, so older transcripts stay valid. The legacy-parity replay strips only this reviewed field."
     },
     {
       "destinationPath": "test/subtitle-studio/transcription/productionExecutor.test.ts",
       "copiedSha256": "816f1fbed205dd8db66b990a27a3b66550b595578aaaa7faa219f61df91d2b6b",
-      "currentSha256": "0fe4adaaa89b28c01c97c33bc4d93035e92a0999532d83cc75613d14612c7d7e",
-      "reason": "484894e (2026-09-21): adds Studio no_content coverage beside the copied production executor tests: a valid complete empty inference returns no_content only after cleanup, cleanup/cancel/native/coverage/malformed/spoofed failures still win over an apparent empty response, and recognized cues in other windows are kept. Existing copied tests and the frozen copy recipe are unchanged."
+      "currentSha256": "3485e89b512bf44454f1575e4718f2ac3a6f1c08189ecea566e0c4208d78efff",
+      "reason": "484894e (2026-09-21): adds Studio no_content coverage beside the copied production executor tests: a valid complete empty inference returns no_content only after cleanup, cleanup/cancel/native/coverage/malformed/spoofed failures still win over an apparent empty response, and recognized cues in other windows are kept. Existing copied tests and the frozen copy recipe are unchanged. 2026-10-22 asr-quality T-ASRQ-02: adds a Studio audio-profile harness and tests beside the copied tests: standard requests keep their exact keys, quiet and noisy profile fields reach every VAD window including conditioned fallbacks and quality replays, separator candidates carry none, and invalid profiles fail before media preparation. Existing copied tests are unchanged. 2026-10-22 asr-quality T-ASRQ-03: adds Studio gated quiet-audio tests beside the copied tests (quiet_whisper_v1 windows carry quietAudioMode, boosted windows keep 1000 ms padding, risky long, repeated or invalid gated candidates fall back to the original audio once, standard and noisy windows keep the previous options, separator candidates are never gated) and types quietAudioMode on the fake media request. Existing copied tests are unchanged."
     },
     {
       "destinationPath": "electron/main/subtitle-studio/transcription/transcript-executor.ts",
       "copiedSha256": "4b22722b1acfc22aff6d36ae381f362bc6f9ed39374f6631023a41f93e376c35",
-      "currentSha256": "6377bdff0eff51689b0a7188231547e18eb301dd085fc335fac766d393bb2d06",
-      "reason": "484894e (2026-09-21): the derived Studio transcript executor returns no_content only when post-processing proves a valid, complete, empty canonical transcript, after the same cleanup and cancellation precedence as a failure; inference, windowing and the frozen derivation recipe are unchanged."
+      "currentSha256": "8fc37afa8bdef341644dca3bf161d06de1e4029f7ce4d2194d3e4789172c2f41",
+      "reason": "484894e (2026-09-21): the derived Studio transcript executor returns no_content only when post-processing proves a valid, complete, empty canonical transcript, after the same cleanup and cancellation precedence as a failure; inference, windowing and the frozen derivation recipe are unchanged. 2026-10-22 asr-quality T-ASRQ-02: createInferenceRequest reads the optional advanced.audioProfile of the frozen Studio snapshot (local extension type; the frozen domain type is unchanged) and adds that profile's fixed fields from the server contract to every VAD recognition request, quality-recovery replays included; quietly conditioned windows keep 1000 ms padding, separator candidates without VAD stay unchanged, and an unknown profile or a profile without VAD fails before media preparation. Snapshots without audioProfile send exactly the previous requests. 2026-10-22 asr-quality T-ASRQ-03: a conditioned window of a task whose audio profile names quietAudioMode (quiet_whisper_v1) is materialized with that mode, so the main process applies the gated per-frame gain; its reported gain drives the same 1000 ms padding and the single unconditioned fallback, which, like separator and witness windows, never carries the mode. Other profiles and snapshots without audioProfile materialize exactly as before."
     }
   ]
 }

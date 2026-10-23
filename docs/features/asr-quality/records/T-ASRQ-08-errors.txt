@@ -1,0 +1,17 @@
+# T-ASRQ-08 V-ASRQ-08-2 错误映射与诊断文本测试
+# 2026-10-22，工作树基于 68ffd05（未提交），Windows 11，Node v20.19.4
+$ npx vitest run --maxWorkers=4 --minWorkers=1 src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts --reporter=verbose
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio transcription error guide > gives every code a task can end with its own cause and next step, in plain words in all four languages
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio transcription error guide > names the Studio controls that help: the resource manager, the device, the help page
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio transcription error guide > says the VC++ runtime first when it is missing and could explain the failure
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio transcription error guide > keeps the generic words, and the diagnostics, for a code this version does not know
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio transcription failures by kind, retry and diagnostics > calls a window that failed to recognize a recognition quality problem, with what to change instead of a reinstall
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio transcription failures by kind, retry and diagnostics > suggests a smaller model or the CPU when memory ran out
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio transcription failures by kind, retry and diagnostics > offers retry on failed and empty tasks, and the one suggestion that fits
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio transcription failures by kind, retry and diagnostics > copies the code, stage, model, device and audio type of every failure, and never the file
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio resource error guide > explains the codes that used to fall back to "try again"
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio resource error guide > keeps the existing download, import, disk and voice-detection wording
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/transcription-errors.test.ts > Studio resource error guide > has every wording in all four languages, and the generic one only for unknown codes
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+exit=0

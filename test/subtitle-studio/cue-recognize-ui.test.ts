@@ -90,7 +90,8 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('recognizing cues again
       await uiExpect(dialog.getByTestId('studio-cue-recognize-language')).toContainText('自动识别');
       await dialog.getByTestId('studio-cue-recognize-prompt').fill('先輩');
       await dialog.getByTestId('studio-cue-recognize-start').click();
-      await uiExpect(dialog.getByTestId('studio-cue-recognize-progress')).toContainText('正在识别 1 / 5');
+      // The first run of the session loads the model before its first cue.
+      await uiExpect(dialog.getByTestId('studio-cue-recognize-progress')).toContainText('正在加载模型并识别 1 / 5');
       // Each cue takes 0.4 s here, shorter than the assertion's backed-off polling: watch every frame.
       await page.waitForFunction(() => document.querySelector('[data-testid=studio-cue-recognize-progress]')?.textContent?.includes('5 / 5'), undefined, { polling: 'raf', timeout: 8000 });
       await uiExpect(dialog.getByTestId('studio-cue-recognize-summary')).toHaveText('已识别 5 条，其中 3 条与原文不同', { timeout: 8000 });
@@ -100,10 +101,10 @@ describe.runIf(process.env.FUSIONKIT_STUDIO_E2E === '1')('recognizing cues again
       await uiExpect(items.nth(4).getByTestId('studio-cue-recognize-error')).toHaveText(locale.cue_recognize.errors.limit_exceeded);
       const traces = (await control(app, { operation: 'snapshot' })).traces.filter(trace => trace.operation === 'recognize');
       expect(traces.at(-5)?.detail).toMatchObject({ modelId: 'large-v3-q5_0', language: 'auto', initialPrompt: '先輩', sampleRate: 16000 });
-      // The first cue starts at 0 s, so it is padded by 0.2 s after only: 2.2 s at 16 kHz, 16-bit mono.
-      expect(traces.at(-5)?.detail?.bytes).toBe(44 + 2.2 * 32000);
-      // Later cues are padded on both sides: 2.4 s.
-      expect(traces.at(-4)?.detail?.bytes).toBe(44 + 2.4 * 32000);
+      // The model has timestamps, so it hears a second of context. The first cue starts at 0 s, so only after it: 3 s at 16 kHz, 16-bit mono.
+      expect(traces.at(-5)?.detail?.bytes).toBe(44 + 3 * 32000);
+      // Later cues have context on both sides: 4 s.
+      expect(traces.at(-4)?.detail?.bytes).toBe(44 + 4 * 32000);
       await shot('studio-cue-recognize--01-results-1280-light');
 
       // Leaving one result out applies the other two only, and they undo as one edit.

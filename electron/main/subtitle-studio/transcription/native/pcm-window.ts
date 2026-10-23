@@ -7,7 +7,7 @@ import {
   type FileHandle,
 } from "node:fs/promises";
 import path from "node:path";
-import { conditionQuietPcm16 } from "./quiet-audio";
+import { conditionQuietPcm16, conditionWhisperPcm16 } from "./quiet-audio";
 import {
   LOCAL_SUBTITLE_LIMITS,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT,
@@ -93,6 +93,8 @@ export interface LocalSubtitlePcm16WavMetadata {
 
 export interface WriteLocalSubtitlePcmWindowOptions {
   readonly conditionQuietAudio?: boolean;
+  /** Gated per-frame gain for a conditioned window; absent keeps the whole-window gain. */
+  readonly quietAudioMode?: "gated_v1";
   readonly sourcePath: string;
   readonly sourceIdentity: LocalSubtitlePcmFileIdentity;
   readonly metadata: LocalSubtitlePcm16WavMetadata;
@@ -281,14 +283,15 @@ export async function writeLocalSubtitlePcmWindow(
     await writeExactly(outputHandle, header, 0);
 
     // The complete production window is bounded to 30 seconds (<1 MB).
-    // Use one gain throughout it, preserving pauses and sample positions.
+    // Use one gain throughout it, or the gated per-frame gain, preserving pauses and sample positions.
     const buffer = Buffer.alloc(dataBytes);
     const sourceDataStart =
       options.metadata.dataOffset + options.startFrame * PCM_BLOCK_ALIGN;
     await readIntoExactly(sourceHandle, buffer, sourceDataStart,
       "source_identity_mismatch", "The normalized PCM source ended unexpectedly.");
     throwIfAborted(options.signal);
-    const conditioned = options.conditionQuietAudio ? conditionQuietPcm16(buffer) : {pcm: buffer, gainDb: 0};
+    const conditioned = !options.conditionQuietAudio ? {pcm: buffer, gainDb: 0}
+      : options.quietAudioMode === "gated_v1" ? conditionWhisperPcm16(buffer) : conditionQuietPcm16(buffer);
     expectedHash.update(conditioned.pcm);
     await writeExactly(outputHandle, conditioned.pcm, CANONICAL_RIFF_HEADER_BYTES);
     throwIfAborted(options.signal);
@@ -690,6 +693,10 @@ function validateWriteOptions(options: WriteLocalSubtitlePcmWindowOptions): void
   }
   if (options.conditionQuietAudio !== undefined && typeof options.conditionQuietAudio !== "boolean") {
     throw failure("invalid_configuration", "The PCM conditioning option is invalid.");
+  }
+  if (options.quietAudioMode !== undefined &&
+      (options.quietAudioMode !== "gated_v1" || options.conditionQuietAudio !== true)) {
+    throw failure("invalid_configuration", "The PCM conditioning mode is invalid.");
   }
   assertAbsolutePath(options.sourcePath, "The PCM source path is invalid.");
   assertAbsolutePath(options.outputPath, "The PCM output path is invalid.");

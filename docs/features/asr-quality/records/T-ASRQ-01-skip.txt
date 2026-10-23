@@ -1,0 +1,21 @@
+# V-ASRQ-01-3 2026-10-22T12:15:15+08:00  HEAD=68ffd05e  FUSIONKIT_ASR_AB=<unset>
+$ env -u FUSIONKIT_ASR_AB npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=json test/asr-quality/ab-comparison.test.ts  (status of each test)
+exit=0
+skipped | transcribes each selected sample with each audio type and writes the A/B reports
+numTotalTests 1 numPendingTests 1 numPassedTests 0 numFailedTests 0
+
+$ env -u FUSIONKIT_ASR_AB npx vitest run --maxWorkers=4 --minWorkers=1 test/asr-quality test/subtitle-studio/boundaries.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ↓ test/asr-quality/ab-comparison.test.ts (1 test | 1 skipped)
+ ✓ test/asr-quality/ab-report.test.ts (19 tests) 15ms
+ ✓ test/subtitle-studio/boundaries.test.ts (8 tests) 4780ms
+   ✓ studio boundaries > keeps the current repository within audited dependency boundaries 4325ms
+
+ Test Files  2 passed | 1 skipped (3)
+      Tests  27 passed | 1 skipped (28)
+   Start at  12:15:20
+   Duration  6.66s (transform 392ms, setup 0ms, collect 1.76s, tests 4.80s, environment 0ms, prepare 290ms)
+
+exit=0

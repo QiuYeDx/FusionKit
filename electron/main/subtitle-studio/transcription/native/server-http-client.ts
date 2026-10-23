@@ -288,6 +288,7 @@ export class LocalSubtitleServerHttpClient {
         timingMode: request.timingMode,
         taskMode: request.taskMode,
         vadEnabled: request.vadEnabled,
+        noTimestamps: request.noTimestamps,
       });
       this.#assertSuccessfulTicket(ticket);
       response = Object.freeze({

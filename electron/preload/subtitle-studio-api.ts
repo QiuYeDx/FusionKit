@@ -60,6 +60,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     listTranscriptionTasks: request => invoke(STUDIO_CHANNELS.listTranscriptionTasks, request),
     cancelTranscriptionTask: request => invoke(STUDIO_CHANNELS.cancelTranscriptionTask, request),
     removeTranscriptionTask: request => invoke(STUDIO_CHANNELS.removeTranscriptionTask, request),
+    retryTranscriptionTask: request => invoke(STUDIO_CHANNELS.retryTranscriptionTask, request),
     importSubtitle: request => invoke(STUDIO_CHANNELS.importSubtitle, request),
     importSubtitles: request => invoke(STUDIO_CHANNELS.importSubtitles, request),
     importSubtitlePaths: request => invoke(STUDIO_CHANNELS.importSubtitlePaths, request),
@@ -105,6 +106,7 @@ export function createSubtitleStudioApi(ipc: { sendSync(channel: string, payload
     previewCueStretch: request => invoke(STUDIO_CHANNELS.previewCueStretch, request),
     suggestCueSplit: request => invoke(STUDIO_CHANNELS.suggestCueSplit, request),
     searchCues: request => invoke(STUDIO_CHANNELS.searchCues, request),
+    reviewCues: request => invoke(STUDIO_CHANNELS.reviewCues, request),
     subscribe: listener => {
       if (typeof capability !== 'string') return () => {};
       const receive = (_event: unknown, input: unknown) => {

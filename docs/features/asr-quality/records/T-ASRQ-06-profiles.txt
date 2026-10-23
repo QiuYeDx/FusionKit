@@ -1,0 +1,22 @@
+# T-ASRQ-06 V-ASRQ-06-2 (2026-10-22, worktree on 68ffd05, uncommitted)
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription-model-profiles.test.ts test/subtitle-studio/transcription-task-service.test.ts test/subtitle-studio/transcription-controller.test.ts test/subtitle-studio/transcription-preferences.test.ts test/subtitle-studio/transcription-task-contract.test.ts test/subtitle-studio/boundaries.test.ts src/pages/Tools/Subtitle/LocalSubtitleTranscriber/localSubtitleTranscriberModel.test.ts src/pages/Tools/Subtitle/SubtitleStudio/resource-names.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ src/pages/Tools/Subtitle/LocalSubtitleTranscriber/localSubtitleTranscriberModel.test.ts (30 tests) 20ms
+ ✓ test/subtitle-studio/transcription-preferences.test.ts (8 tests) 15ms
+ ✓ test/subtitle-studio/transcription-controller.test.ts (45 tests) 97ms
+ ✓ src/pages/Tools/Subtitle/SubtitleStudio/resource-names.test.ts (8 tests) 10ms
+ ✓ test/subtitle-studio/boundaries.test.ts (8 tests) 5881ms
+   ✓ studio boundaries > keeps the current repository within audited dependency boundaries 5495ms
+ ✓ test/subtitle-studio/transcription-model-profiles.test.ts (5 tests) 4ms
+ ✓ test/subtitle-studio/transcription-task-service.test.ts (44 tests) 14628ms
+   ✓ reclaims clean released-owner task history so later owners do not inherit exhausted capacity 10957ms
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts (4 tests) 10ms
+
+ Test Files  8 passed (8)
+      Tests  152 passed (152)
+   Start at  13:47:57
+   Duration  17.37s (transform 1.06s, setup 0ms, collect 5.63s, tests 20.66s, environment 1ms, prepare 572ms)
+
+exit 0

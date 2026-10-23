@@ -1,0 +1,569 @@
+# V-ASRQ-02-4  HEAD=68ffd05e (working tree, uncommitted T-ASRQ-02 changes)
+# Build: npx vite build --mode=test (exit 0, after the last renderer/locale edit); Electron in quiet off-screen mode (FUSIONKIT_TEST_WINDOW=quiet from vitest.config.ts)
+$ FUSIONKIT_STUDIO_AUDIO_PROFILE_UI=1 npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/audio-profile-ui.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/audio-profile-ui.test.ts (1 test) 30669ms
+   ✓ T-ASRQ-02 audio type in the actual Electron transcription settings > offers the audio types, couples them with voice detection, labels tasks and keeps the choice 30668ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  12:27:54
+   Duration  31.52s (transform 50ms, setup 0ms, collect 625ms, tests 30.67s, environment 0ms, prepare 65ms)
+
+
+# Artifacts: test-results/studio-t06-ui/controlled-yqRlNJ (screenshots reviewed with the image viewer; the previous run controlled-qKTKNS with identical renderer code was reviewed screenshot by screenshot)
+asrq02-dark-1024-english-options.png
+asrq02-dark-1024-english.png
+asrq02-dark-1024-reset.png
+asrq02-dark-1280-options.png
+asrq02-dark-1280-quiet.png
+asrq02-light-1024-options.png
+asrq02-light-1024-quiet.png
+asrq02-light-1280-options.png
+asrq02-light-1280-quiet.png
+asrq02-light-1280-reset.png
+asrq02-light-1280-standard.png
+asrq02-light-1280-task-label.png
+
+# test-results/studio-t06-ui/controlled-yqRlNJ/asrq02-result.json (measurements in CSS px; viewport = page innerWidth x innerHeight)
+{
+  "outcome": "passed",
+  "boundary": "Only the native transcription runtime is controlled; renderer, preload, Studio IPC and preferences are real.",
+  "light1280": {
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "dark": false,
+    "language": {
+      "top": 142.7109375,
+      "bottom": 196.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "device": {
+      "top": 212.7109375,
+      "bottom": 266.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "audio": {
+      "top": 282.7109375,
+      "bottom": 360.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 78
+    },
+    "taskMode": {
+      "top": 376.7109375,
+      "bottom": 430.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "trigger": {
+      "top": 304.7109375,
+      "bottom": 336.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "languageTrigger": {
+      "top": 164.7109375,
+      "bottom": 196.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "hint": {
+      "top": 342.7109375,
+      "bottom": 360.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 18,
+      "fontSize": "11px",
+      "lineHeight": "18px",
+      "color": "oklch(0.556 0 0)"
+    },
+    "noHorizontalOverflow": true
+  },
+  "optionsLight1280": {
+    "contentWidth": 294,
+    "triggerWidth": 294,
+    "contentLeft": 45,
+    "triggerLeft": 45,
+    "items": [
+      {
+        "text": "标准",
+        "description": "大多数视频、访谈和对话",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      },
+      {
+        "text": "低音量·耳语",
+        "description": "人声很小、耳语或 ASMR",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      },
+      {
+        "text": "嘈杂·音乐音效",
+        "description": "背景音乐、音效或环境声较多",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      }
+    ]
+  },
+  "resetLight1280": {
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "dark": false,
+    "language": {
+      "top": 142.7109375,
+      "bottom": 196.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "device": {
+      "top": 212.7109375,
+      "bottom": 266.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "audio": {
+      "top": 282.7109375,
+      "bottom": 360.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 78
+    },
+    "taskMode": {
+      "top": 376.7109375,
+      "bottom": 430.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "trigger": {
+      "top": 304.7109375,
+      "bottom": 336.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "languageTrigger": {
+      "top": 164.7109375,
+      "bottom": 196.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "hint": {
+      "top": 342.7109375,
+      "bottom": 360.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 18,
+      "fontSize": "11px",
+      "lineHeight": "18px",
+      "color": "oklch(0.555 0.163 48.998)"
+    },
+    "noHorizontalOverflow": true
+  },
+  "taskRowHeights": [
+    74,
+    74
+  ],
+  "light1024": {
+    "viewport": {
+      "width": 1024,
+      "height": 700
+    },
+    "dark": false,
+    "language": {
+      "top": 142.7109375,
+      "bottom": 196.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "device": {
+      "top": 212.7109375,
+      "bottom": 266.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "audio": {
+      "top": 282.7109375,
+      "bottom": 378.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 96
+    },
+    "taskMode": {
+      "top": 394.7109375,
+      "bottom": 448.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "trigger": {
+      "top": 304.7109375,
+      "bottom": 336.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "languageTrigger": {
+      "top": 164.7109375,
+      "bottom": 196.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "hint": {
+      "top": 342.7109375,
+      "bottom": 378.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 36,
+      "fontSize": "11px",
+      "lineHeight": "18px",
+      "color": "oklch(0.556 0 0)"
+    },
+    "noHorizontalOverflow": true
+  },
+  "optionsLight1024": {
+    "contentWidth": 294,
+    "triggerWidth": 294,
+    "contentLeft": 45,
+    "triggerLeft": 45,
+    "items": [
+      {
+        "text": "标准",
+        "description": "大多数视频、访谈和对话",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      },
+      {
+        "text": "低音量·耳语",
+        "description": "人声很小、耳语或 ASMR",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      },
+      {
+        "text": "嘈杂·音乐音效",
+        "description": "背景音乐、音效或环境声较多",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      }
+    ]
+  },
+  "dark1280": {
+    "viewport": {
+      "width": 1280,
+      "height": 800
+    },
+    "dark": true,
+    "language": {
+      "top": 124.7109375,
+      "bottom": 178.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "device": {
+      "top": 194.7109375,
+      "bottom": 248.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "audio": {
+      "top": 264.7109375,
+      "bottom": 360.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 96
+    },
+    "taskMode": {
+      "top": 376.7109375,
+      "bottom": 430.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "trigger": {
+      "top": 286.7109375,
+      "bottom": 318.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "languageTrigger": {
+      "top": 146.7109375,
+      "bottom": 178.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "hint": {
+      "top": 324.7109375,
+      "bottom": 360.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 36,
+      "fontSize": "11px",
+      "lineHeight": "18px",
+      "color": "oklch(0.708 0 0)"
+    },
+    "noHorizontalOverflow": true
+  },
+  "optionsDark1280": {
+    "contentWidth": 294,
+    "triggerWidth": 294,
+    "contentLeft": 45,
+    "triggerLeft": 45,
+    "items": [
+      {
+        "text": "标准",
+        "description": "大多数视频、访谈和对话",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      },
+      {
+        "text": "低音量·耳语",
+        "description": "人声很小、耳语或 ASMR",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      },
+      {
+        "text": "嘈杂·音乐音效",
+        "description": "背景音乐、音效或环境声较多",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      }
+    ]
+  },
+  "dark1024": {
+    "viewport": {
+      "width": 1024,
+      "height": 700
+    },
+    "dark": true,
+    "language": {
+      "top": 42.7109375,
+      "bottom": 96.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "device": {
+      "top": 112.7109375,
+      "bottom": 166.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "audio": {
+      "top": 182.7109375,
+      "bottom": 260.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 78
+    },
+    "taskMode": {
+      "top": 276.7109375,
+      "bottom": 330.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "trigger": {
+      "top": 204.7109375,
+      "bottom": 236.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "languageTrigger": {
+      "top": 64.7109375,
+      "bottom": 96.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "hint": {
+      "top": 242.7109375,
+      "bottom": 260.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 18,
+      "fontSize": "11px",
+      "lineHeight": "18px",
+      "color": "oklch(0.828 0.189 84.429)"
+    },
+    "noHorizontalOverflow": true
+  },
+  "english1024": {
+    "viewport": {
+      "width": 1024,
+      "height": 700
+    },
+    "dark": true,
+    "language": {
+      "top": -54.2890625,
+      "bottom": -0.2890625,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "device": {
+      "top": 15.7109375,
+      "bottom": 69.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "audio": {
+      "top": 85.7109375,
+      "bottom": 199.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 114
+    },
+    "taskMode": {
+      "top": 215.7109375,
+      "bottom": 269.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54
+    },
+    "trigger": {
+      "top": 107.7109375,
+      "bottom": 139.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "languageTrigger": {
+      "top": -32.2890625,
+      "bottom": -0.2890625,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 32
+    },
+    "hint": {
+      "top": 145.7109375,
+      "bottom": 199.7109375,
+      "left": 45,
+      "right": 339,
+      "width": 294,
+      "height": 54,
+      "fontSize": "11px",
+      "lineHeight": "18px",
+      "color": "oklch(0.708 0 0)"
+    },
+    "noHorizontalOverflow": true
+  },
+  "optionsEnglish1024": {
+    "contentWidth": 294,
+    "triggerWidth": 294,
+    "contentLeft": 45,
+    "triggerLeft": 45,
+    "items": [
+      {
+        "text": "Standard",
+        "description": "Most videos, interviews and conversations",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      },
+      {
+        "text": "Quiet · whispers",
+        "description": "Soft voices, whispering or ASMR",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      },
+      {
+        "text": "Noisy · music & effects",
+        "description": "Lots of background music, effects or ambience",
+        "descriptionSize": "11px",
+        "height": 49,
+        "right": 335,
+        "overflow": false
+      }
+    ]
+  },
+  "pageErrors": []
+}

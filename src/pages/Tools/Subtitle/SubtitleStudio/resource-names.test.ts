@@ -18,6 +18,11 @@ describe('plain resource names', () => {
     expect(resourceDisplayName(translate, standard, 'short')).toBe('标准');
     expect(resourceDetailName(standard)).toBe('large-v3-q5_0');
     expect(resourceDisplayName(translate, resource('large-v3', 'model', 'large-v3'))).toBe('最高精度（约 2.9 GB，较慢）');
+    for (const [id, full, short] of [['large-v3-turbo-q8_0', '快速（约 0.8 GB）', '快速'], ['belle-large-v3-turbo-zh', '中文普通话（约 1.5 GB）', '中文普通话'],
+      ['anime-whisper-q8_0', '日语动画·ASMR（约 0.8 GB）', '日语动画·ASMR']] as const) {
+      const model = resource(id, 'model', id);
+      expect([resourceDisplayName(translate, model), resourceDisplayName(translate, model, 'short'), resourceDetailName(model)]).toEqual([full, short, id]);
+    }
     expect(resourceDisplayName(translate, resource('silero-vad-v6.2.0-ggml', 'vad', 'Silero VAD v6.2.0'))).toBe('语音检测（自动跳过静音）');
     const cuda = resource('speech-windows-x64-cuda-12.4-v1', 'accelerator', 'CUDA 12.4 accelerator', ['cuda']);
     expect(isCudaAccelerator(cuda)).toBe(true);
@@ -35,7 +40,11 @@ describe('plain resource names', () => {
 
   it('has every plain name in all four languages', () => {
     const keys = ['resource_name_standard', 'resource_name_standard_short', 'resource_name_best', 'resource_name_best_short',
-      'resource_name_vad', 'resource_name_vad_short', 'resource_name_cuda'];
+      'resource_name_fast', 'resource_name_fast_short', 'resource_name_chinese', 'resource_name_chinese_short', 'resource_name_anime', 'resource_name_anime_short',
+      'resource_name_vad', 'resource_name_vad_short', 'resource_name_cuda',
+      // What the models suit and may do (transcription-model-profiles).
+      'model_scenario_fast', 'model_scenario_chinese', 'model_scenario_anime', 'model_license_belle', 'model_license_anime',
+      'model_experimental', 'model_recognize_only', 'model_no_translate', 'model_language_locked', 'model_prompt_forbidden'];
     for (const language of ['zh', 'zh-Hant', 'en', 'ja']) {
       const transcription = locale(language).transcription;
       for (const key of keys) expect(transcription[key], `${language} ${key}`).toMatch(/\S/);

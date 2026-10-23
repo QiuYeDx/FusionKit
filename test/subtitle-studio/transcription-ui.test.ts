@@ -32,7 +32,8 @@ async function theme(app: ElectronApplication, page: Page, value: 'light' | 'dar
 async function capture(page: Page, fixture: Fixture, name: string) {
   await ready(page);
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForFunction(() => !document.querySelector('.studio-workspace-tabs')?.getAnimations({ subtree: true })
+  // Every finite animation, the page's own slide-in after a route change (App.tsx) included: the gutters are measured at rest.
+  await page.waitForFunction(() => !document.getAnimations()
     .some(animation => animation.playState === 'running' && animation.effect?.getTiming().iterations !== Infinity));
   expect(await page.locator('.studio-transcription-layout, .studio-transcription-workspace, .studio-transcription-settings')
     .evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Combine, Ellipsis, Languages, MoveHorizontal, Redo2, Search, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
+import { ArrowRight, Check, CheckCheck, CircleDashed, CircleHelp, Combine, Ellipsis, Languages, ListChecks, MoveHorizontal, Redo2, Search, Sparkles, Trash2, Undo2, UserPen, X, ScanText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -22,6 +22,7 @@ import { StudioCueShift, type CueShiftRequest } from './StudioCueShift';
 import { StudioCueSplit, type CueSplitRequest } from './StudioCueSplit';
 import { StudioCueInsert, type CueInsertRequest } from './StudioCueInsert';
 import { StudioCueFind, type CueFindHighlight, type CueFindTarget } from './StudioCueFind';
+import { CueReviewBadge, StudioCueReview, reviewCountText, useCueReview } from './StudioCueReview';
 import { isolateListEvents } from './StudioListLayer';
 import { CueAudioButton, StudioCueMediaControl, useCueMedia } from './StudioCueAudio';
 import { cueAudioPlayer, useCueAudioFollow, useCueAudioRows } from '@/services/subtitle-studio/cue-audio-player';
@@ -100,8 +101,8 @@ export type StudioCueTableProps = {
   onRemember: (cue: DocumentPage['cues'][number]) => void;
   /** Shows the page at this offset, as continuous playback moves past the last cue shown. */
   onFollowPage?: (offset: number) => void;
-  /** Opens “recognize the original audio again” for the cues. */
-  onRecognize?: (cueIds: string[]) => void;
+  /** Opens “recognize the original audio again” for the cues; `positions` place cues off this page (the review bar lists them). */
+  onRecognize?: (cueIds: string[], positions?: Record<string, number>) => void;
 };
 
 /**
@@ -112,7 +113,6 @@ export type StudioCueTableProps = {
 export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onCheckConsistency, onSelectionChange, onCopy, onRemember, onFollowPage, onRecognize }: StudioCueTableProps) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
-  const order = page.cues.map(cue => cue.id);
   const [editing, setEditing] = useState<{ cueId: string; field: CueField | 'timing' } | null>(null);
   // A layer along the retimed row's text cell, where the time editor floats its waveform.
   const [waveformSlot, setWaveformSlot] = useState<HTMLDivElement | null>(null);
@@ -120,6 +120,15 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const [splitting, setSplitting] = useState<CueSplitRequest | null>(null);
   const [finding, setFinding] = useState<{ initialQuery: string; serial: number } | null>(null);
   const [highlight, setHighlight] = useState<CueFindHighlight | null>(null);
+  /** The review bar, which takes the find bar's place, and the flagged cue it shows. */
+  const [reviewing, setReviewing] = useState<{ serial: number } | null>(null);
+  const [reviewCurrent, setReviewCurrent] = useState<string | undefined>();
+  const review = useCueReview(page);
+  /** While the review bar lists flagged cues only, the rows it lets through; otherwise every row shows. */
+  const reviewRows = reviewing && review.only && review.result?.total ? new Set(review.shown.map(entry => entry.cueId)) : null;
+  /** The rows shown, which selection and the keyboard move through; neighbours (merging, playing a stretch, times) are the page's. */
+  const order = page.cues.flatMap(cue => !reviewRows || reviewRows.has(cue.id) ? [cue.id] : []);
+  const pageOrder = page.cues.map(cue => cue.id);
   /** A match on another page, selected once that page shows. */
   const pendingFind = useRef<string | null>(null);
   const [inserting, setInserting] = useState<CueInsertRequest | null>(null);
@@ -193,8 +202,8 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   const playCues = (targets: string[]) => {
     // Without media the original-audio panel explains why and offers to choose a file.
     if (!media.ready) { setMediaRequest(value => value + 1); return; }
-    const ordered = order.filter(id => targets.includes(id));
-    const cueIds = ordered.length > 1 && consecutive(ordered, order) ? ordered : [selectionApi.selectionRef.current.lead ?? ordered[0]].filter(Boolean);
+    const ordered = pageOrder.filter(id => targets.includes(id));
+    const cueIds = ordered.length > 1 && consecutive(ordered, pageOrder) ? ordered : [selectionApi.selectionRef.current.lead ?? ordered[0]].filter(Boolean);
     if (cueIds.length) cueAudioPlayer.toggle(cueAudioKey(documentId, cueIds[0]), cueAudioRequest(cueIds));
   };
 
@@ -215,7 +224,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     selectionApi.commit({ keys: new Set([cueId]), anchor: cueId, lead: cueId });
     setEditing({ cueId, field: 'timing' });
   };
-  const mergeable = (cueIds: readonly string[]) => cueIds.length >= 2 && cueIds.length <= MERGE_LIMIT && consecutive(cueIds, order);
+  const mergeable = (cueIds: readonly string[]) => cueIds.length >= 2 && cueIds.length <= MERGE_LIMIT && consecutive(cueIds, pageOrder);
   const merge = async (cueIds: string[]) => {
     if (editBlocked || !mergeable(cueIds)) return;
     const ids = new Set(cueIds);
@@ -227,7 +236,7 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
   };
   /** Checks typed times against the neighbouring cues on this page; the main process checks again. */
   const timingProblem = (cue: DocumentPage['cues'][number], startMs: number, endMs: number | null): CueTimeProblem | null => {
-    const index = order.indexOf(cue.id);
+    const index = pageOrder.indexOf(cue.id);
     const previous = page.cues[index - 1]?.timing.startMs, next = page.cues[index + 1]?.timing.startMs;
     if (endMs !== null && endMs < startMs) return 'end_before_start';
     if (previous !== undefined && startMs < previous && cue.timing.startMs >= previous) return 'before_previous';
@@ -331,10 +340,19 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     openMenu: (targets, point) => setMenu(current => ({ targets, ...point, serial: (current?.serial ?? lastMenu.current?.serial ?? 0) + 1 })),
     onKey,
   });
+  /** Closing the review bar shows every row again; the reason filter starts over next time. */
+  const closeReview = () => { setReviewing(null); review.setFilter('all'); };
   /** Opens the find bar, with the text selected in the list as its words. */
   const openFind = () => {
     const selected = window.getSelection()?.toString().trim() ?? '';
+    closeReview();
     setFinding(current => ({ initialQuery: current?.initialQuery ?? (selected.length <= 200 && !selected.includes('\n') ? selected : ''), serial: (current?.serial ?? 0) + 1 }));
+  };
+  /** Opens the review bar in the find bar's place, or closes it when it is open. */
+  const toggleReview = () => {
+    if (reviewing) { closeReview(); return; }
+    setFinding(null); setHighlight(null);
+    setReviewing({ serial: 1 });
   };
   /** Shows a match: on this page it is selected at once, on another the page turns first. */
   const goToMatch = (target: CueFindTarget) => {
@@ -353,11 +371,22 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     selectionApi.commit({ keys: new Set([cueId]), anchor: cueId, lead: cueId });
     selectionApi.scrollToRow(cueId);
   }, [page.cues, selectionApi]);
-  // Rows scrolled into view stop below the sticky header, whose height grows with the find bar.
+  // Listing only flagged cues or every row again keeps the current flagged cue in view.
+  const listingFlagged = !!reviewRows;
+  useEffect(() => {
+    if (reviewCurrent) selectionApi.scrollToRow(reviewCurrent);
+    // Only the change of listing moves the view; the bar scrolls to each cue it goes to itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listingFlagged]);
+  // Rows scrolled into view stop below the sticky header, whose height grows with the find bar;
+  // the find or review bar's own row sticks just below the column labels.
   useEffect(() => {
     const head = listRef.current?.querySelector('thead');
     if (!head) return;
-    const update = () => listRef.current?.style.setProperty('--studio-cue-head', `${head.getBoundingClientRect().height}px`);
+    const update = () => {
+      listRef.current?.style.setProperty('--studio-cue-head', `${head.getBoundingClientRect().height}px`);
+      listRef.current?.style.setProperty('--studio-cue-head-row', `${head.rows[0].getBoundingClientRect().height}px`);
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(head);
@@ -438,6 +467,10 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     <StudioCueMediaControl media={media} openRequest={mediaRequest} />
     {!selected.length && <StudioIconButton data-testid="studio-cue-toolbar-shift" label={t('studio:cue_structure.shift_document')} disabled={!!editBlocked} onClick={() => setShifting({ cueIds: [], scope: 'all' })}><MoveHorizontal /></StudioIconButton>}
     <StudioIconButton data-testid="studio-cue-toolbar-find" label={t('studio:cue_find.open')} onClick={() => openFind()}><Search /></StudioIconButton>
+    {review.enabled && <StudioIconButton data-testid="studio-cue-toolbar-review" className="studio-cue-review-trigger" aria-pressed={!!reviewing} data-count={review.result?.total ? '' : undefined}
+      label={review.result?.total ? t('studio:cue_review.open_count', { count: review.result.total }) : t('studio:cue_review.open')} onClick={toggleReview}>
+      <ListChecks />{!!review.result?.total && <span data-testid="studio-cue-toolbar-review-count">{reviewCountText(review.result.total)}</span>}
+    </StudioIconButton>}
     <StudioIconButton data-testid="studio-cue-toolbar-revise" label={t(selected.length ? 'studio:cue_menu.revise' : 'studio:cue_revision.revise_document')} disabled={!!editBlocked} onClick={() => actions.onRevise(selected)}><Sparkles /></StudioIconButton>
     {onCheckConsistency && <StudioIconButton data-testid="studio-cue-toolbar-consistency" label={t('studio:consistency.open')} onClick={onCheckConsistency}><ScanText /></StudioIconButton>}
     <StudioIconButton data-testid="studio-cue-undo" label={history.undo ? t('studio:cue_history.undo', { action: historyLabel(history.undo) }) : t('studio:cue_history.nothing_to_undo')} disabled={!history.undo || !!editBlocked} onClick={onUndo}><Undo2 /></StudioIconButton>
@@ -455,13 +488,27 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
             <StudioCueFind key={documentId} page={page} track={track} initialQuery={finding.initialQuery} focusSerial={finding.serial} busy={editBlocked}
               onClose={() => { setFinding(null); setHighlight(null); focusList(); }} onHighlight={setHighlight} onGo={goToMatch} onApply={run} />
           </th></tr>}
+          {reviewing && <tr className="studio-cue-find-head"><th colSpan={4} {...control} {...isolateListEvents}>
+            <StudioCueReview key={documentId} page={page} review={review} focusSerial={reviewing.serial} mediaReady={media.ready} editBlocked={editBlocked}
+              audio={{ key: cueId => cueAudioKey(documentId, cueId), request: cueId => cueAudioRequest([cueId]) }}
+              onClose={() => { closeReview(); focusList(); }} onGo={goToMatch} onCurrent={setReviewCurrent}
+              onNeedsMedia={() => setMediaRequest(value => value + 1)} onRecognize={(cueIds, positions) => onRecognize?.(cueIds, positions)}
+              onCollapse={(cueId, text) => {
+                // An ordinary edit of the source text: it goes into the undo history like any other.
+                const cue = page.cues.find(item => item.id === cueId);
+                if (cue) void run({ kind: 'source', cueId, text: editedText(cue.source, text) }, 'collapse', 1);
+              }} />
+          </th></tr>}
         </thead>
-        <tbody>{page.cues.map((cue, index) => {
+        <tbody>{reviewRows && !order.length && <tr className="studio-cue-review-empty" data-testid="studio-cue-review-page-empty"><td colSpan={4}>{t('studio:cue_review.page_empty')}</td></tr>}
+          {page.cues.map((cue, index) => {
+          if (reviewRows && !reviewRows.has(cue.id)) return null;
           const isSelected = selection.keys.has(cue.id);
           const findCurrent = highlight?.currentCueId === cue.id;
           const entry = track?.entries[cue.id];
           const editingField = editing?.cueId === cue.id ? editing.field : undefined;
           const lead = keyboardNav && selection.lead === cue.id;
+          const flag = reviewing ? review.byCue.get(cue.id) : undefined;
           const editor = (target: CueField) => {
             const text = target === 'source' ? cue.source : entry?.text;
             return <StudioCueEditor key={`${cue.id}:${target}`} initial={text?.plain ?? ''} label={t(target === 'source' ? 'studio:cue_menu.edit_source' : 'studio:cue_menu.edit_target')} saving={saving} error={editError}
@@ -469,12 +516,13 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
               onSave={(value, move) => void save(cue, target, value, move)} onCancel={() => { setEditing(null); setEditError(undefined); focusList(); }} />;
           };
           return <tr key={cue.id} data-cue-id={cue.id} aria-selected={isSelected} data-selected={isSelected || undefined} data-find-current={findCurrent || undefined}
-            data-selected-last={isSelected && !selection.keys.has(order[index + 1]) || undefined}
+            data-selected-last={isSelected && !selection.keys.has(order[order.indexOf(cue.id) + 1]) || undefined}
             data-lead={lead || undefined} data-editing={editingField ? true : undefined} data-warning={flaggedNodes.has('nodeId' in cue ? cue.nodeId : undefined) || undefined}
             data-playing={playing.has(cue.id) || following === cue.id || undefined} data-following={following === cue.id || undefined}>
             <td className="studio-cue-number" data-audio={media.ready || undefined}><span className="studio-cue-number-text">{page.offset + index + 1}</span>
               {media.ready && <CueAudioButton playKey={following === cue.id ? followKey : cueAudioKey(documentId, cue.id)} request={cueAudioRequest([cue.id])} tabbable={false} {...control}
-                label={t('studio:cue_audio.play_cue', { number: page.offset + index + 1 })} data-testid="studio-cue-play" />}</td>
+                label={t('studio:cue_audio.play_cue', { number: page.offset + index + 1 })} data-testid="studio-cue-play" />}
+              {flag && <CueReviewBadge entry={flag} current={reviewCurrent === cue.id} />}</td>
             {/* Editors float over what they edit, which stays in place hidden: the row keeps its height. */}
             <td className="studio-cue-time" onDoubleClick={() => startTiming(cue.id)}><div className="studio-cue-time-box" data-editing={editingField === 'timing' || undefined}>
               <div className="studio-time-range"><span>{formatStudioTime(cue.timing.startMs)}</span><ArrowRight aria-hidden="true" /><span className="text-muted-foreground/70">{cue.timing.endMs === null ? t('studio:unknown_end') : formatStudioTime(cue.timing.endMs)}</span></div>

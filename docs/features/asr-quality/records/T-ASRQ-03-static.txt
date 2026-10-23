@@ -1,0 +1,24 @@
+# T-ASRQ-03 static — 2026-10-22T13:02:17+08:00 — worktree based on 68ffd05e (uncommitted), after the last edit
+$ node scripts/subtitle-studio-provenance/copy.mjs --check
+{"mode":"check","files":120,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567","status":"passed"}
+exit 0
+$ node scripts/subtitle-studio-provenance/transcript-executor-copy.mjs --check
+{"status":"passed","files":1,"dependencies":26,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567"}
+exit 0
+$ node scripts/subtitle-studio-provenance/shared-resource-integration.mjs
+{
+  "entries": 11,
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit 0
+$ npx tsc --noEmit -p tsconfig.json
+exit 0
+$ sha256 and CR byte count of the audited files
+10ff51f98243589cbf36844ac1992aac35d9796c7bfe593e8c8cd13bf74e87b1 CR=0 electron/main/subtitle-studio/transcription/native/quiet-audio.ts
+cabd62e163aaf9564a1c6f7a64d4b9a837f7df186f1d22e3394772c84fa3318a CR=0 electron/main/subtitle-studio/transcription/native/pcm-window.ts
+9986999c66c9c92505688992338658cfa4a53f4d9a11b30f8317aebb797e8559 CR=0 electron/main/subtitle-studio/transcription/native/media-normalizer.ts
+8fc37afa8bdef341644dca3bf161d06de1e4029f7ce4d2194d3e4789172c2f41 CR=0 electron/main/subtitle-studio/transcription/transcript-executor.ts
+3485e89b512bf44454f1575e4718f2ac3a6f1c08189ecea566e0c4208d78efff CR=0 test/subtitle-studio/transcription/productionExecutor.test.ts
+caefb16f6b9d9b2101c38dd395ea4f9b3fbb2c8e453e5649f31ba3a630a9e810 CR=0 scripts/subtitle-studio-provenance/current-copy-audits.json
+3d6c00ccb6d1c577ebc2286a2356ce3777fb8f40599182d70b32d6a7011c0772 CR=0 scripts/subtitle-studio-provenance/current-copy-audits.mjs

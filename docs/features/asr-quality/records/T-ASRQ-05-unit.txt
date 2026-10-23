@@ -1,0 +1,40 @@
+# V-ASRQ-05-1 rule module unit tests (2026-10-22T17:34:32+08:00), working tree on 68ffd05
+# src/subtitle-studio/transcription-review.ts sha256 5864ee81fca1c4e6051d35604daa3f517b1422eb6c0b936e1ed52d80f4ebf678 (unchanged since the first round; the mutation check below ran on these bytes)
+# new in this round: the ignore store test (src/services/subtitle-studio/cue-review-ignores.ts: per document, session-only when storage throws, restore clears all)
+$ npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/subtitle-studio/transcription-review.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > flags the requirement samples as phantom phrase, non-speech, repetition and rate, and leaves an ordinary line alone (AC-ASRQ-03-2)
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > uses confidence only on unedited cues that have one, below the threshold
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > matches phantom phrases per language after normalizing, and not common real lines
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > finds repetition loops by repeated units and, with a compressor, by the deflate ratio
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > marks symbol-only lines and bracketed notes as non-speech, but not lines with speech beside a note
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > flags speech too fast for its script, and long cues with almost no text
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > flags a line repeating the one before it shortly after
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > collapses the longest repetition to one unit and keeps what follows
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > reads the language from the transcript, the audio track or the script
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > lists flagged cues in document order with per-reason counts and the confidence used
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > drops confidence for edited, split and inserted cues, which may share a segment
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > reviews an older document without confidence by its text alone
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > caps the listed cues but counts them all, and hides ignored flags until the text changes
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > keeps ignores per document, for the session when storage is unavailable, until they are restored
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > moves through flagged cues from where the list is, wrapping at both ends
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  17:34:33
+   Duration  492ms (transform 94ms, setup 0ms, collect 272ms, tests 24ms, environment 0ms, prepare 60ms)
+
+exit 0
+
+# Mutation check (scratch script: each mutant applied to transcription-review.ts, unit + interface tests run, file restored and hash compared)
+mutant "edited cues keep confidence": exit 1 (caught) - Tests  1 failed | 15 passed (16)
+mutant "threshold back to 0.45": exit 1 (caught) - Tests  1 failed | 15 passed (16)
+mutant "no NFKC in reviewText": exit 1 (caught) - Tests  1 failed | 15 passed (16)
+mutant "three repeats are a loop": exit 1 (caught) - Tests  1 failed | 15 passed (16)
+mutant "duplicate ignores the gap": exit 1 (caught) - Tests  1 failed | 15 passed (16)
+mutant "brackets count as speech": exit 1 (caught) - Tests  1 failed | 15 passed (16)
+mutant "ignored flags still counted": exit 1 (caught) - Tests  1 failed | 15 passed (16)
+mutant "no script language": exit 1 (caught) - Tests  1 failed | 15 passed (16)
+restored True 5864ee81fca1c4e6051d35604daa3f517b1422eb6c0b936e1ed52d80f4ebf678

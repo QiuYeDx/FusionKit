@@ -1,0 +1,183 @@
+# V-ASRQ-02-1 2026-10-22T12:24:02+08:00  HEAD=68ffd05e (working tree, uncommitted T-ASRQ-02 changes)
+$ npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/subtitle-studio/transcription/audioProfileRequest.test.ts test/subtitle-studio/transcription/serverContract.test.ts test/subtitle-studio/transcription-task-contract.test.ts test/subtitle-studio/transcription-preferences.test.ts test/subtitle-studio/transcription-controller.test.ts test/subtitle-studio/transcription-task-service.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > only forwards conditioned padding with VAD and keeps ordinary requests unchanged
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > pins the accepted upstream release and transport limits
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > maps the v1 batch settings to an exact multipart field allowlist
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > keeps token timestamps disabled when VAD is disabled in contract v1
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects invalid 'requestGeneration' without forwarding it upstream
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects invalid 'language' without forwarding it upstream
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects invalid 'taskMode' without forwarding it upstream
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects invalid 'beamSize' without forwarding it upstream
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects invalid 'temperature' without forwarding it upstream
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects invalid 'vadEnabled' without forwarding it upstream
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects invalid 'vadMinSilenceMs' without forwarding it upstream
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects invalid 'initialPrompt' without forwarding it upstream
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > requires a main-owned normalized window path
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > accepts an exact Windows file ID above the JavaScript safe integer range
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects a 'missing' expected window identity
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects a 'extra key' expected window identity
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects a 'invalid object identity' expected window identity
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects a 'variable-width Windows file ID' expected window identity
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects a 'empty file' expected window identity
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects a 'negative mtime' expected window identity
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects a 'non-finite ctime' expected window identity
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > maps BCP-47 variants and legacy aliases to pinned Whisper codes
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > accepts only the exact health contract
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > normalizes strict verbose_json timestamps to integer milliseconds
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > does not expose upstream words when token timestamps are not requested
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects 'C1 control' in verbose_json text
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects 'unpaired high surrogate' in verbose_json text
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects 'unpaired low surrogate in discarded w…' in verbose_json text
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects malformed or expanded verbose_json 0
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects malformed or expanded verbose_json 1
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects malformed or expanded verbose_json 2
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects malformed or expanded verbose_json 3
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects malformed or expanded verbose_json 4
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects malformed or expanded verbose_json 5
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > local subtitle official server contract > rejects a response task that differs from the frozen request
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > requests DTW points only for explicit Japanese non-VAD transcription
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts > preserves separate DTW points while ordinary and VAD requests discard them
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts > audio profile inference fields > keeps standard requests, with and without conditioned padding, exactly as before
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts > audio profile inference fields > pins the parameter table of each profile
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts > audio profile inference fields > sends each profile's fields after the existing VAD field
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts > audio profile inference fields > accepts the boundary values and rejects voice-detection fields without VAD or out of range
+ ✓ test/subtitle-studio/transcription-controller.test.ts > captures native dropped Files synchronously before initialization and shares selection ownership
+ ✓ test/subtitle-studio/transcription-controller.test.ts > hydrates transcription config before the first snapshot and saves no transient authority
+ ✓ test/subtitle-studio/transcription-controller.test.ts > keeps the export setting between sessions and applies it to the start button, unless a batch says otherwise
+ ✓ test/subtitle-studio/transcription-controller.test.ts > omits default-off automatic translation and freezes enabled model configuration and credentials at submission
+ ✓ test/subtitle-studio/transcription-controller.test.ts > blocks missing automatic configuration before enqueue and allows disabling it without losing drafts
+ ✓ test/subtitle-studio/transcription-controller.test.ts > requires a library and captures shared choices, language and generation without persisting runtime authority
+ ✓ test/subtitle-studio/transcription-controller.test.ts > requires review after a stale generation rejection and retains the selected media
+ ✓ test/subtitle-studio/transcription-controller.test.ts > deduplicates library reads, blocks unavailable knowledge, and only omits it after an explicit disable
+ ✓ test/subtitle-studio/transcription-controller.test.ts > uses generated English subtitles as the knowledge source and rejects collections of a different pair
+ ✓ test/subtitle-studio/transcription-controller.test.ts > makes missing or archived resources repairable while refusing unspecified source languages
+ ✓ test/subtitle-studio/transcription-controller.test.ts > keeps shared invalidation during a pending read and refreshes off-route without runtime probes
+ ✓ test/subtitle-studio/transcription-controller.test.ts > reads shared occupancy without catalog hashing and prevents busy delete/import/install
+ ✓ test/subtitle-studio/transcription-controller.test.ts > initializes once, preserves drafts and config across SPA subscriptions, and refreshes idle viewed task state
+ ✓ test/subtitle-studio/transcription-controller.test.ts > keeps active task polling without a view and skips manual runtime preflight until idle
+ ✓ test/subtitle-studio/transcription-controller.test.ts > stops polling no-content results and clears them with completed records without cancelling failures
+ ✓ test/subtitle-studio/transcription-controller.test.ts > deduplicates appended source selections while preserving existing audio choices and bounds draft count
+ ✓ test/subtitle-studio/transcription-controller.test.ts > retains failed revoke handles across navigation and accepts revoked:false on retry
+ ✓ test/subtitle-studio/transcription-controller.test.ts > bounds cleanup retries and drops authority at its expiry even after repeated transport rejection
+ ✓ test/subtitle-studio/transcription-controller.test.ts > times out a hung revoke and retries without losing its handle
+ ✓ test/subtitle-studio/transcription-controller.test.ts > retries failed probes and ignores a late probe response after its draft is removed
+ ✓ test/subtitle-studio/transcription-controller.test.ts > prevents duplicate enqueue, freezes captured choices, then revokes consumed draft capabilities
+ ✓ test/subtitle-studio/transcription-controller.test.ts > admits the complete explicitly confirmed draft set exactly once
+ ✓ test/subtitle-studio/transcription-controller.test.ts > rejects scoped enqueue with extra current draft without consuming any draft
+ ✓ test/subtitle-studio/transcription-controller.test.ts > rejects scoped enqueue with missing expected draft without consuming any draft
+ ✓ test/subtitle-studio/transcription-controller.test.ts > rejects scoped enqueue with duplicate expected draft without consuming any draft
+ ✓ test/subtitle-studio/transcription-controller.test.ts > rejects scoped enqueue with empty expected scope without consuming any draft
+ ✓ test/subtitle-studio/transcription-controller.test.ts > checks expiry at scoped admission without silently falling back to the remaining ready subset
+ ✓ test/subtitle-studio/transcription-controller.test.ts > rejects a scoped admission when a prepared media probe has failed
+ ✓ test/subtitle-studio/transcription-controller.test.ts > does not return another admission receipt to a scoped confirmation during an in-flight enqueue
+ ✓ test/subtitle-studio/transcription-controller.test.ts > restores editable drafts on definite enqueue rejection but blocks retries after uncertain transport failure
+ ✓ test/subtitle-studio/transcription-controller.test.ts > rejects stale task polls across successful removal and refreshes a current snapshot
+ ✓ test/subtitle-studio/transcription-controller.test.ts > keeps cancelling state until a terminal poll and catches failed cancellation
+ ✓ test/subtitle-studio/transcription-controller.test.ts > polls installation jobs until terminal and does not poll resources for task progress alone
+ ✓ test/subtitle-studio/transcription-controller.test.ts > uses catalog fallback only for the initial untouched default and verifies model/VAD/CUDA readiness
+ ✓ test/subtitle-studio/transcription-controller.test.ts > marks expired drafts without sending enqueue or probe requests
+ ✓ test/subtitle-studio/transcription-controller.test.ts > publishes shared startup/refresh promises before observers can synchronously reenter them
+ ✓ test/subtitle-studio/transcription-controller.test.ts > ignores invalid audio selection and configuration while preserving accepted choices
+ ✓ test/subtitle-studio/transcription-controller.test.ts > turns voice detection on for an audio profile, returns to standard when it is turned off, and submits the choice
+ ✓ test/subtitle-studio/transcription-controller.test.ts > keeps all production inference defaults aligned with the inherited baseline without output settings
+ ✓ test/subtitle-studio/transcription-controller.test.ts > retains one row without revoking its authority if a malformed duplicate changes sourceKey but reuses its token
+ ✓ test/subtitle-studio/transcription-controller.test.ts > blocks automatic retry when a successful enqueue response cannot account for captured files
+ ✓ test/subtitle-studio/transcription-controller.test.ts > does not let a stale resource snapshot erase a resource job just admitted by an install
+ ✓ test/subtitle-studio/transcription-controller.test.ts > remembers which resource jobs import a model file, so their failures are not described as downloads
+ ✓ test/subtitle-studio/transcription-controller.test.ts > does not reset an in-flight cleanup attempt when a view reattaches
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts > audio profile supervisor snapshot > hands the profile fields to the HTTP client in its immutable request
+ ✓ test/subtitle-studio/transcription-preferences.test.ts > defaults automatic translation off and rejects unknown credentials or inconsistent acoustic settings
+ ✓ test/subtitle-studio/transcription-preferences.test.ts > hydrates the existing preference key and persists only valid settings alongside existing preferences
+ ✓ test/subtitle-studio/transcription-preferences.test.ts > keeps the valid live choice when local storage is unavailable and falls back from corruption
+ ✓ test/subtitle-studio/transcription-preferences.test.ts > persists the audio type inside the transcription settings and refuses a profile without voice detection
+ ✓ test/subtitle-studio/transcription-preferences.test.ts > reads older transcription settings without resetting ASR or automatic model preferences
+ ✓ test/subtitle-studio/transcription-preferences.test.ts > persists only shared automatic knowledge choices, including explicitly cleared instructions
+ ✓ test/subtitle-studio/transcription-preferences.test.ts > falls back to defaults for earlier automatic knowledge choices instead of migrating removed recipe or topic fields
+ ✓ test/subtitle-studio/transcription-preferences.test.ts > remembers the five most recent distinct collection combinations, newest first
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > keeps queued leases, renewals and document source bindings valid after external metadata changes
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > publishes documents that remember the audio track each file is transcribed from
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > publishes documents that remember the audio track each file is transcribed from
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rejects duplicate source objects authorized on either side of a metadata update
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > admits bounded media capabilities and sequentially publishes complete documents without output authority
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > freezes the audio type into the task snapshot and names it on the task, leaving standard tasks unchanged
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > finishes an empty result, releases all references and continues the queue without creating an empty document or translating it
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > keeps batch cleanup or cancellation authoritative over an empty transcription
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > keeps binding cleanup or cancellation authoritative over an empty transcription
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > keeps cancel cleanup or cancellation authoritative over an empty transcription
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > hands two real published intents to one real translation service with one task each and no credentials in summaries
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > keeps successful ASR publication when automatic handoff fails and clears automatic plans on cancellation
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rejects enabled automatic translation without a coordinator before creating input leases
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rejects automatic knowledge without capture support before any native admission instead of dropping its selection
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rejects a forged non-English knowledge source for English ASR output before capture or native work
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rejects a failed knowledge capture before native authorities and retains reusable input drafts
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > captures once before native admission and holds the batch reference until every document has its durable intent
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > captures once before native admission and holds the batch reference until every document has its durable intent
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > releases the shared knowledge reference after queued and executing tasks cancel without publishing
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > joins an in-flight capture during shutdown and releases its late lease without starting native work
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > releases captured knowledge when later native admission fails
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > transfers knowledge before a delayed handoff and joins a late owner release without revoking the committed intent
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > transfers knowledge before a delayed handoff and joins a late owner release without revoking the committed intent
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > shows a knowledge conflict as automatic translation needing attention while retaining the successful transcription
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > shows a knowledge conflict as automatic translation needing attention while retaining the successful transcription
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > claims FIFO before await even when the later owner finishes admission first
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > skips a released pending admission without blocking another owner and joins late work
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > skips a released pending admission without blocking another owner and joins late work
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rolls back every input and selection when one file cannot be bound
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rolls back every input and selection when one file cannot be bound
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rejects unbranded backend proof before input leases or execution
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > revalidates managed identity at execution and never publishes if it changed
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > revalidates managed identity at execution and never publishes if it changed
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > fences active cancellation, cancels a queued sibling, and prevents document publication
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > keeps completed document receipts when owner release arrives after publication
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > retains native cleanup failures and resource locks until whole-runtime cleanup is confirmed
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > renews queued and active leases per owner and aborts a task whose lease fails
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > keeps a second owner renewing twice and executing while the first owner renewal is stalled
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > frees the execution slot when a released owner was waiting for its stalled renewal
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > retries a failed lease release but retains the cleanup lock until native cleanup confirmation
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > retries a failed lease release but retains the cleanup lock until native cleanup confirmation
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rejects media changed while queued before starting the second executor
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > surfaces publication failure without manufacturing a completed document or retaining retry authority
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > rejects cancellation at the final repository publication guard
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > aborts a pending enqueue from its lifetime signal and admits the next owner
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > aborts a pending enqueue from its lifetime signal and admits the next owner
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > joins a held runtime validator after a peer rejects before reporting owner idle or shutdown
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > joins a held draft validator after a peer rejects before reporting owner idle or shutdown
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > caches shutdown before synchronous abort listeners can reenter it
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > caches shutdown before synchronous abort listeners can reenter it
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > retries failed timer cancellation and attempts capability release before reporting shutdown failure
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > reclaims clean released-owner task history so later owners do not inherit exhausted capacity
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > reclaims clean released-owner task history so later owners do not inherit exhausted capacity 11265ms
+ ✓ test/subtitle-studio/transcription-task-service.test.ts > reveals only the admitted unchanged source for the live owner, including after lease release
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts > accepts capability-only requests and rejects paths, output settings, identity proofs, and oversized batches
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts > accepts the two audio profiles only with VAD and rejects unknown or empty ones
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts > bounds summaries and excludes capabilities and private diagnostics
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts > accepts only fully processed empty outcomes without a document, error or automatic translation
+
+ Test Files  6 passed (6)
+      Tests  141 passed (141)
+   Start at  12:24:04
+   Duration  16.87s (transform 862ms, setup 0ms, collect 3.92s, tests 14.83s, environment 1ms, prepare 433ms)
+
+exit 0
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/subtitle-studio/transcription/productionExecutor.test.ts -t "Studio audio profiles"
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > keeps standard requests field for field as before (quiet gain false)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > keeps standard requests field for field as before (quiet gain true)
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > sends the quiet profile on every window and keeps 1000 ms padding only on conditioned audio
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > sends the noisy profile on quality replays too
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > leaves separator candidates without VAD on their verified fields
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > fails an unknown profile before preparing media
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio audio profiles > fails a profile without VAD before preparing media
+
+ Test Files  1 passed (1)
+      Tests  7 passed | 159 skipped (166)
+   Start at  12:24:22
+   Duration  2.23s (transform 532ms, setup 0ms, collect 1.93s, tests 73ms, environment 0ms, prepare 69ms)
+
+exit 0

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { writeFile } from 'node:fs/promises';
+import { rename, writeFile } from 'node:fs/promises';
 import { touchSourceMetadata } from './helpers/source-metadata';
 import { SourceLocationService } from '../../electron/main/subtitle-studio/source-location-service';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -14,6 +14,7 @@ import type { TranscriptionTaskExecutionContext, TranscriptExecutionResult } fro
 import type { EnqueueTranscriptionRequest } from '../../src/subtitle-studio/transcription/task-contract';
 import { createRuntimeFixture } from './transcription/runtimeFixture';
 import { StudioError } from '../../src/subtitle-studio/domain';
+import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT, createLocalSubtitleError } from '../../src/subtitle-studio/transcription/domain';
 import { TranslationService } from '../../electron/main/subtitle-studio/translation-service';
 import { createAutomaticTranslationCoordinator } from '../../electron/main/subtitle-studio/automatic-translation';
 import type { AutomaticTranslationRequest } from '../../src/subtitle-studio/automatic-translation-contract';
@@ -142,6 +143,50 @@ it('admits bounded media capabilities and sequentially publishes complete docume
   expect(document.origin.format).toBe('media'); expect(document.cues[0]!.source.plain).toBe('Hello world.');
   await expect(f.inputs.resolveTaskLease(ownerA, admission.tasks[0]!.taskId, 'transcribe')).rejects.toBeDefined();
   expect(f.service.isResourceBusy(config.modelId)).toBe(false);
+});
+
+it('freezes the audio type into the task snapshot and names it on the task, leaving standard tasks unchanged', async () => {
+  const f = await fixture();
+  const vad = { storage: 'managed' as const, id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id, absolutePath: path.join(path.dirname(f.model.absolutePath), 'vad.bin'),
+    byteSize: 885_098, sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256 };
+  f.modelResolver.resolveManagedVad.mockImplementation(async () => vad);
+  const profiled = await f.request(), standard = await f.request();
+  profiled.config = { ...profiled.config, vadEnabled: true, advanced: { ...profiled.config.advanced, audioProfile: 'noisy_music_v1' } };
+  standard.config = { ...standard.config, vadEnabled: true };
+  const [first, second] = [await f.service.enqueue(ownerA, profiled), await f.service.enqueue(ownerA, standard)];
+  expect(first.tasks[0]).toMatchObject({ audioProfile: 'noisy_music_v1' }); expect(second.tasks[0]).not.toHaveProperty('audioProfile');
+  await f.service.waitForIdle();
+  const [profiledContext, standardContext] = f.executor.execute.mock.calls.map(([context]) => context);
+  expect(profiledContext!.config.inference).toMatchObject({ vad: { enabled: true }, advanced: { audioProfile: 'noisy_music_v1' } });
+  expect(Object.isFrozen(profiledContext!.config.inference.advanced)).toBe(true);
+  expect(standardContext!.config.inference.advanced).not.toHaveProperty('audioProfile');
+  expect(f.service.list(ownerA).map(task => [task.status, task.audioProfile])).toEqual([['completed', 'noisy_music_v1'], ['completed', undefined]]);
+  // The contract refuses a profile without voice detection before anything is admitted.
+  const refused = await f.request();
+  refused.config = { ...refused.config, advanced: { ...refused.config.advanced, audioProfile: 'quiet_whisper_v1' } };
+  await expect(f.service.enqueue(ownerA, refused)).rejects.toThrow('invalid_input');
+  expect(f.executor.execute).toHaveBeenCalledTimes(2);
+});
+
+it('refuses what a model cannot do before resolving anything, and admits the same model used as it can be', async () => {
+  const f = await fixture();
+  f.modelResolver.resolveManagedModel.mockImplementation(async (id: string) => ({ ...f.model, id }));
+  // Recognize-only models (even in their own language, without a hint), and English output from the fast model.
+  for (const change of [{ modelId: 'anime-whisper-q8_0', language: 'ja' }, { modelId: 'belle-large-v3-turbo-zh', language: 'zh' },
+    { modelId: 'large-v3-turbo-q8_0', taskMode: 'translate_to_english' as const }]) {
+    const request = await f.request();
+    request.config = { ...request.config, ...change };
+    await expect(f.service.enqueue(ownerA, request)).rejects.toMatchObject({ code: 'invalid_input' });
+  }
+  expect(f.modelResolver.resolveManagedModel).not.toHaveBeenCalled();
+  expect(f.service.list(ownerA)).toEqual([]);
+  const fast = await f.request();
+  fast.config = { ...fast.config, modelId: 'large-v3-turbo-q8_0', language: 'ja', advanced: { ...fast.config.advanced, initialPrompt: '人名' } };
+  const admitted = await f.service.enqueue(ownerA, fast);
+  expect(admitted.tasks.map(task => task.modelId)).toEqual(['large-v3-turbo-q8_0']);
+  await f.service.waitForIdle();
+  expect(f.executor.execute.mock.calls[0]![0].config).toMatchObject({ model: { modelId: 'large-v3-turbo-q8_0' }, taskMode: 'transcribe', language: 'ja',
+    inference: { advanced: { initialPrompt: '人名' } } });
 });
 
 it('finishes an empty result, releases all references and continues the queue without creating an empty document or translating it', async () => {
@@ -633,4 +678,71 @@ it('reveals only the admitted unchanged source for the live owner, including aft
   f.service.remove(ownerA, id);
   await expect(f.service.revealInput(ownerA, id, reveal, () => {})).rejects.toMatchObject({ code: 'access_denied' });
   expect(reveal).not.toHaveBeenCalled();
+});
+
+it('submits a failed or empty task again as a new task from the same file, with its own settings or the change asked for', async () => {
+  const f = await fixture();
+  const vad = { storage: 'managed' as const, id: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id, absolutePath: path.join(path.dirname(f.model.absolutePath), 'vad.bin'),
+    byteSize: 885_098, sha256: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256 };
+  f.modelResolver.resolveManagedVad.mockImplementation(async () => vad);
+  f.executor.execute.mockResolvedValueOnce({ status: 'no_content', durationMs: 5000 })
+    .mockResolvedValueOnce({ status: 'failed', error: createLocalSubtitleError('out_of_memory', 'Out of memory.', { stage: 'transcribing' }), durationMs: 5000 });
+  const request = await f.request(ownerA, 2, true);
+  request.config = { ...request.config, devicePreference: 'auto', language: 'ja', advanced: { ...request.config.advanced, initialPrompt: '人名', beamSize: 3 } };
+  const original = await f.service.enqueue(ownerA, request); await f.service.waitForIdle();
+  const [empty, failed] = f.service.list(ownerA);
+  expect([empty!.status, failed!.status]).toEqual(['no_content', 'failed']);
+  // A native failure keeps where it happened.
+  expect(failed!.error).toEqual({ code: 'out_of_memory', stage: 'transcribing' });
+  // The same settings and audio track, under a new authorization: the task's own token ended with it.
+  const plain = await f.service.prepareRetry(ownerA, failed!.taskId);
+  expect(plain).toEqual({ files: [{ fileToken: expect.any(String), audioStreamId: 'audio-1' }], config: request.config });
+  expect(plain.files[0]!.fileToken).not.toBe(request.files[1]!.fileToken);
+  expect((await f.inputs.resolveDraft(ownerA, plain.files[0]!.fileToken, 'transcribe')).filePath)
+    .toBe((await f.inputs.resolveDraft(ownerA, plain.files[0]!.fileToken, 'probe')).filePath);
+  // The suggested changes: the quiet audio type turns voice detection on; the device changes alone.
+  const quiet = await f.service.prepareRetry(ownerA, empty!.taskId, { audioProfile: 'quiet_whisper_v1' });
+  expect(quiet.config).toEqual({ ...request.config, vadEnabled: true, advanced: { ...request.config.advanced, audioProfile: 'quiet_whisper_v1' } });
+  const cpu = await f.service.prepareRetry(ownerA, failed!.taskId, { devicePreference: 'cpu' });
+  expect(cpu.config).toEqual({ ...request.config, devicePreference: 'cpu' });
+  expect(f.inputs.revokeDraft(ownerA, plain.files[0]!.fileToken)).toBe(true);
+  const [quietAdmission, cpuAdmission] = [await f.service.enqueue(ownerA, quiet), await f.service.enqueue(ownerA, cpu)];
+  await f.service.waitForIdle();
+  // New tasks in new batches; the originals stay until they are removed.
+  expect(quietAdmission.batchId).not.toBe(original.batchId);
+  expect(quietAdmission.tasks[0]).toMatchObject({ displayName: empty!.displayName, audioProfile: 'quiet_whisper_v1' });
+  expect(f.service.list(ownerA).map(task => [task.taskId, task.status])).toEqual([[empty!.taskId, 'no_content'], [failed!.taskId, 'failed'],
+    [quietAdmission.tasks[0]!.taskId, 'completed'], [cpuAdmission.tasks[0]!.taskId, 'completed']]);
+  const [, , quietContext, cpuContext] = f.executor.execute.mock.calls.map(([context]) => context);
+  expect(quietContext!.config).toMatchObject({ devicePreference: 'auto', language: 'ja',
+    inference: { vad: { enabled: true }, advanced: { audioProfile: 'quiet_whisper_v1', initialPrompt: '人名', beamSize: 3 } } });
+  expect(cpuContext!.config).toMatchObject({ devicePreference: 'cpu', resolvedBackend: 'cpu', inference: { vad: { enabled: false } } });
+  expect(cpuContext!.config.inference.advanced).not.toHaveProperty('audioProfile');
+  expect(f.media.bindTaskMediaSelection.mock.calls.slice(2).map(([selection]) => selection.audioStreamId)).toEqual(['audio-0', 'audio-1']);
+  // A retried task can itself be retried once it fails or comes back empty; a completed one cannot.
+  await expect(f.service.prepareRetry(ownerA, quietAdmission.tasks[0]!.taskId)).rejects.toMatchObject({ code: 'invalid_input' });
+});
+
+it('refuses to retry a file moved or modified since, another owner\'s task, or one still running', async () => {
+  const f = await fixture(), gate = deferred();
+  f.executor.execute.mockResolvedValueOnce({ status: 'no_content', durationMs: 5000 }).mockResolvedValueOnce({ status: 'no_content', durationMs: 5000 })
+    .mockImplementationOnce(async () => { await gate.promise; return { status: 'no_content', durationMs: 5000 }; });
+  const request = await f.request(ownerA, 3);
+  const paths = await Promise.all(request.files.map(file => f.inputs.resolveDraft(ownerA, file.fileToken, 'transcribe').then(input => input.filePath)));
+  await f.service.enqueue(ownerA, request);
+  await eventually(() => f.executor.execute.mock.calls.length === 3);
+  const [modified, moved, running] = f.service.list(ownerA);
+  await expect(f.service.prepareRetry(ownerA, running!.taskId)).rejects.toMatchObject({ code: 'invalid_input' });
+  gate.resolve(); await f.service.waitForIdle();
+  await expect(f.service.prepareRetry(ownerB, modified!.taskId)).rejects.toMatchObject({ code: 'access_denied' });
+  await writeFile(paths[0]!, 'replaced audio content');
+  await rename(paths[1]!, `${paths[1]}.moved`);
+  for (const task of [modified!, moved!]) await expect(f.service.prepareRetry(ownerA, task.taskId)).rejects.toMatchObject({ code: 'media_changed' });
+  // Metadata alone (permissions, access time) is not a change.
+  touchSourceMetadata(paths[2]!);
+  await expect(f.service.prepareRetry(ownerA, running!.taskId)).resolves.toMatchObject({ files: [{ fileToken: expect.any(String) }] });
+  // Nothing was retried; a removed task has nothing to retry.
+  expect(f.service.list(ownerA)).toHaveLength(3);
+  f.service.remove(ownerA, modified!.taskId);
+  await expect(f.service.prepareRetry(ownerA, modified!.taskId)).rejects.toMatchObject({ code: 'access_denied' });
 });

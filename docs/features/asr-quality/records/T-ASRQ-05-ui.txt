@@ -1,0 +1,95 @@
+# V-ASRQ-05-3 Electron render review of the review bar and the flagged-only list (2026-10-22T17:28:40+08:00), working tree on 68ffd05
+# renderer + preload: npx vite build --mode=test finished 17:28:27, after the last renderer-reachable edit (StudioCueReview.tsx 17:27:28; StudioCueTable.tsx 17:18:58; locales 17:18:50; transcription-review.ts 16:49:53); main: the fixture's esbuild of electron/main/index.ts from source at test time
+# quiet off-screen windows (vitest.config.ts sets FUSIONKIT_TEST_WINDOW=quiet); isolated temp profiles; controlled native runtime, real FFmpeg media runtime
+# fixtures (test/subtitle-studio/cue-review-ui.test.ts): Review.wav 14 cues with confidence, 8 flagged, tone media; Clean.wav no flag; Old.wav no confidence (text rules flag 2); Many.wav 1200 flagged over 12 pages; Paged.wav 230 cues flagged at 3 and 205 only (page 2 has none); drama.standard.wav = run-2512BY drama.standard.json with its own confidence and the original sample audio
+$ FUSIONKIT_STUDIO_E2E=1 npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/cue-review-ui.test.ts test/subtitle-studio/cue-find-ui.test.ts test/subtitle-studio/cue-recognize-ui.test.ts test/subtitle-studio/cue-audio-ui.test.ts test/subtitle-studio/cue-listening-ui.test.ts test/subtitle-studio/cue-shift-ui.test.ts test/subtitle-studio/cue-split-insert-ui.test.ts test/subtitle-studio/cue-editing-ui.test.ts test/subtitle-studio/cue-history-ui.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/subtitle-studio/cue-shift-ui.test.ts (2 tests) 33652ms
+   ✓ shifting the whole document > shifts every page or from one line, nudges, plays the shifted line, explains refusals and undoes 17136ms
+   ✓ shifting the whole document > stretches by frame rates or a typed ratio, plays the stretched line, explains refusals and undoes 16515ms
+ ✓ test/subtitle-studio/cue-audio-ui.test.ts (2 tests) 38812ms
+   ✓ playing the original audio of cues > plays rows, selections and menu items, finds or asks for media, and stays silent under test 21558ms
+   ✓ playing the original audio of cues > plays revision proposals and consistency occurrences without changing them, and stops when the dialogs close 17252ms
+ ✓ test/subtitle-studio/cue-listening-ui.test.ts (2 tests) 41575ms
+   ✓ listening while proofreading > follows continuous playback across pages, slows or repeats it, and sets times from what is heard 25629ms
+   ✓ listening while proofreading > shows the waveform while retiming a line and moves its start and end by dragging 15945ms
+ ✓ test/subtitle-studio/cue-review-ui.test.ts (1 test) 47899ms
+   ✓ reviewing transcribed cues > counts flagged cues, filters and moves through them, plays, recognizes, collapses, ignores and keeps the ignores 47898ms
+ ✓ test/subtitle-studio/cue-find-ui.test.ts (2 tests) 21507ms
+   ✓ finding and replacing in the list > finds across pages, moves between matches, replaces one or all and undoes 10634ms
+   ✓ finding and replacing in the list > finds with regular expressions and whole words, expands groups when replacing, and reports invalid patterns 10871ms
+ ✓ test/subtitle-studio/cue-split-insert-ui.test.ts (1 test) 12026ms
+   ✓ splitting and inserting cues > splits a cue where the text is clicked, at the word time, inserts a cue in a gap, and undoes both 12025ms
+ ✓ test/subtitle-studio/cue-recognize-ui.test.ts (1 test) 24344ms
+   ✓ recognizing cues again > recognizes selected cues with a local model, compares them, applies the chosen ones and undoes them 24343ms
+ ✓ test/subtitle-studio/cue-editing-ui.test.ts (1 test) 9840ms
+   ✓ subtitle preview editing > selects, edits, translates, deletes and undoes cues in the preview list 9839ms
+ ✓ test/subtitle-studio/cue-history-ui.test.ts (1 test) 8280ms
+   ✓ undo history per document > keeps each document its undo while others are edited and while the studio is left 8279ms
+ Test Files  9 passed (9)
+      Tests  13 passed (13)
+   Start at  17:28:41
+   Duration  82.96s (transform 488ms, setup 0ms, collect 11.56s, tests 237.93s, environment 1ms, prepare 593ms)
+exit 0
+
+# What the review test asserts (all passed above)
+- Opening the bar on Review.wav: count 第 1 / 8 条, row 2 selected, the "只列出待复核的句子" toggle pressed, the list shows exactly rows [2, 4, 5, 6, 7, 9, 12, 13] with 8 marks; each listed row keeps the height it had in the full list (33px; the table's last row is 1px lower in either list because it has no bottom border).
+- Toggle off: all 14 rows, the same 8 marks, row heights equal to before the bar opened, row 2 still selected; toggle on: 8 rows again.
+- Enter / Shift+Enter / previous move and wrap (2 -> 4 -> 2 -> 13); filter 句内重复 lists only rows [5, 12]; collapse sets the undo label 撤销：折叠 1 条字幕的重复, row 5 leaves the list (no longer flagged), the bar goes on to row 12 (第 1 / 1 条); with the toggle off row 5 reads あ; undo brings row 5 back with its text and 第 x / 2 条.
+- Play on row 7 goes non-idle then idle; re-recognize opens the existing dialog with that one line; Esc closes only the dialog.
+- Ignore row 7: 第 5 / 7 条, row 9 selected, row 7 leaves the list, toolbar 7, note 已忽略 1 条标记; editing row 6 (toggle off) drops its low-confidence flag: toolbar 6, list [2, 4, 5, 9, 12, 13]; Esc closes the bar and all 14 rows show without marks.
+- After a reload: toolbar 6, 第 1 / 6 条, row 7 not listed, note shown; 全部恢复 brings it back: toolbar 7, 第 x / 7 条, row 7 marked.
+- Clean.wav: no toolbar count, 没有需要复核的句子, previous/next and the toggle disabled and not pressed, all 4 rows listed. Old.wav: the no-confidence note, 第 1 / 2 条, rows [2, 4]. Many.wav: 999+, Shift+Enter -> 第 1200 / 1200 条 on page 12 with 100 marks.
+- Paged.wav: rows [3] on page 1; next -> 第 2 / 2 条 on page 3 (page 2 skipped), one row; the footer pager back to 101–200 shows the one-line note 这一页没有待复核的句子… and no row; next from there wraps to row 3 on page 1.
+- 1280x800 dark: Review.wav 第 1 / 7 条 (row 7 restored, row 6 edited earlier). Geometry checks below hold for 9 states; page errors: none.
+
+# screenshots and geometry: test-results/studio-cue-review/run-jyu3m3/
+cue-review--01-bar-1280-light.png
+cue-review--02-badge-tip-1280-light.png
+cue-review--03-all-rows-1280-light.png
+cue-review--04-filter-repetition-1280-light.png
+cue-review--05-ignored-note-1280-light.png
+cue-review--06-none-1280-light.png
+cue-review--07-old-1280-light.png
+cue-review--08-many-1280-light.png
+cue-review--09-page-without-flags-1280-light.png
+cue-review--10-real-drama-1280-light.png
+cue-review--11-bar-1280-dark.png
+cue-review--12-bar-1024-dark.png
+cue-review--13-filter-open-1024-dark.png
+cue-review--14-badge-tip-1024-dark.png
+cue-review--15-old-1024-dark.png
+cue-review--16-many-1024-dark.png
+cue-review--17-bar-1024-dark-en.png
+cue-review--18-bar-1024-light.png
+evidence.json
+
+# evidence.json geometry summary (CSS px; with only flagged cues listed every row has a mark, so "rows without a mark" is empty)
+light1280: viewport 1280x800, bar 480x110 padding 6px radius 10px, filter=select, list scrollTop 0, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 8: number->mark [17.3, 23.1] px, mark->time [7] px, mark top in row [9.0] px
+ignored1280: viewport 1280x800, bar 480x134 padding 6px radius 10px, filter=select, list scrollTop 0, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 6: number->mark [17.3, 23.1] px, mark->time [7] px, mark top in row [9.0] px
+old1280: viewport 1280x800, bar 480x134 padding 6px radius 10px, filter=segments, list scrollTop 0, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 2: number->mark [23.1] px, mark->time [7] px, mark top in row [9.0] px
+many1280: viewport 1280x800, bar 480x110 padding 6px radius 10px, filter=segments, list scrollTop 2950.5, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 100: number->mark [5.5] px, mark->time [7] px, mark top in row [9.0] px
+dark1280: viewport 1280x800, bar 480x110 padding 6px radius 10px, filter=select, list scrollTop 0, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 7: number->mark [17.3, 23.1] px, mark->time [7] px, mark top in row [9.0] px
+dark1024: viewport 1024x700, bar 480x110 padding 6px radius 10px, filter=select, list scrollTop 0, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 7: number->mark [17.3, 23.1] px, mark->time [7] px, mark top in row [9.0] px
+manyDark1024: viewport 1024x700, bar 480x110 padding 6px radius 10px, filter=segments, list scrollTop 0, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 100: number->mark [11.4, 17.3, 23.1] px, mark->time [7] px, mark top in row [9.0] px
+english1024: viewport 1024x700, bar 480x110 padding 6px radius 10px, filter=select, list scrollTop 0, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 7: number->mark [17.3, 23.1] px, mark->time [7] px, mark top in row [9.0] px
+light1024: viewport 1024x700, bar 480x110 padding 6px radius 10px, filter=select, list scrollTop 0, labels row bottom 220.7 / bar row top 220.7, rows without a mark [], overflow=False, marks 7: number->mark [17.3, 23.1] px, mark->time [7] px, mark top in row [9.0] px
+pagedEmpty1280: {"empty": {"top": 349.7109375, "height": 58, "width": 870}, "headBottom": 349.7109375}
+real drama.standard document (run-2512BY): {"count": "第 1 / 7 条", "toolbar": "7", "rows": [1, 66, 73, 76, 77, 78]} realDocument: True page errors: []
+
+# Render review (screenshots looked at with the Read tool; state/position -> problem -> cause -> change -> re-check)
+First round (before the reviewer's findings; runs r9yOEi, bjQwhx, uom20G):
+1. 1280x800 light, Review.wav, filter 句内重复 with the list scrolled to row 5 (run-r9yOEi/03, also 06 and 07): the column labels and the toolbar row vanished under the review bar -> the bar's header row inherits the table's `th { position: sticky; top: 0 }`, so both header rows stuck at 0 and the second covered the first (the find bar had the same fault; its tests only shot unscrolled lists) -> StudioCueTable measures the first header row into --studio-cue-head-row and `.studio-cue-table .studio-cue-find-head > th { top: var(--studio-cue-head-row) }` (a first try without `.studio-cue-table` lost to studio.css on cascade order, run-bjQwhx, caught by the geometry assertion) -> run-uom20G and now run-jyu3m3: many1280 scrollTop 2950.5, bar row top 220.7 = labels row bottom 220.7.
+2. Row marks (run-r9yOEi/01): at right -5px the mark sat 3px before the time text and read as a prefix of the time column -> right -1px -> mark->time 7px, number->mark 5.5px for 4-digit numbers, 17-23px for 1-2 digits; top 9px in 33px rows.
+3. Toolbar entry (run-r9yOEi/01): the `Ear` icon looked like a question mark beside the help (?) button -> `ListChecks` with the amber count.
+4. Old.wav without media (run-r9yOEi/05): the play fallback was a 16px outline triangle while the playable one is an 11px filled one -> the same small filled triangle, still opening the media panel.
+5. Badge tooltip (run-r9yOEi/02): the low-confidence explanation wrapped with an orphaned "议听一遍" -> shorter copy in zh/zh-Hant/en/ja -> one line.
+6. Filter labels were one string ("低置信度 3") -> name plus a muted tabular count, accessible name "name count".
+7. Esc in the re-recognize dialog opened from the bar also closed the bar -> the bar ignores an Escape already defaultPrevented (also covers closing the filter Select) -> dialog closes, bar stays.
+
+After the review findings (flagged-only list, ignore restore, 1280x800 dark; runs V2Kmiz, T378mn, jyu3m3):
+8. 1280x800 light, Review.wav, first run of the flagged-only test (run-V2Kmiz): "row 13: expected 32 to be 33" -> not a mark effect: `.studio-cue-table tr:last-child td { border-bottom: 0 }`, and with only flagged rows listed row 13 is the table's last row -> the height check compares every listed row but the last -> run-T378mn and run-jyu3m3 pass; listed rows 33px as in the full list.
+9. 1280x800 light, toggle turned off right after the badge tooltip shot (run-T378mn/03): the badge tooltip stayed open over rows 1-3 although the pointer was on the toggle -> Playwright moves the pointer in one jump and Radix Tooltip closes on the pointermove after leaving (its grace-area listener is attached after the leave); a hand sends many moves -> test helper `leave()` moves the pointer off in steps and waits for the tooltip to close, after both tooltip shots -> run-jyu3m3/03: no tooltip, 14 rows, marks on the 8 flagged ones, row 2 selected.
+10. Clean.wav, no flags (run-T378mn/06): the disabled toggle still had the pressed accent background, because `only` stays on as a preference while nothing is filtered -> the toggle shows pressed (aria-pressed, data-state=on) only while the list is actually filtered -> run-jyu3m3/06: plain disabled icon, aria-pressed=false (asserted), all 4 rows listed.
+11. Paged.wav page 2 turned to by hand (run-T378mn/09 and run-jyu3m3/09): one centered 12px muted line directly under the header (pagedEmpty1280: top 349.7 = thead bottom 349.7, 58px high, 870px wide), the bar keeps 第 2 / 2 条 · 第 205 条 for the cue on page 3 and next wraps to row 3 -> no change.
+Final run (run-jyu3m3) also looked at: 01 and 11 (1280 light/dark) 8 and 7 listed rows with marks, the selected row 2 highlighted, the pressed toggle in the same accent as the find bar's toggles and the toolbar entry; 05 the ignored line (11px muted, underlined 全部恢复, bar 134px); 12, 17 and 18 at 1024 (dark zh, dark en, light zh): row one fits title, count, toggle, previous, next and close without overflow, the filter falls back to the select; 13 open select (7 reasons with muted counts), 14 dark tooltip over the listed rows, 15 old document (2 listed rows, segments, the no-confidence line), 16 many flags (999+, every row marked); 10 the real drama.standard transcript: page 1 of 2 lists rows 1, 66, 73, 76, 77 and 78 (the seventh flagged line is on page 2), segments 全部 7 / 低置信度 5 / 句内重复 1 / 语速异常 1. No further issue found.

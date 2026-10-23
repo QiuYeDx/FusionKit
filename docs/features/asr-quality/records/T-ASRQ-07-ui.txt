@@ -1,0 +1,272 @@
+T-ASRQ-07 V-ASRQ-07-3 evidence (browser). Worktree based on 68ffd05 (uncommitted), Windows 11, Electron 41 + Playwright 1.58.2,
+quiet off-screen window (FUSIONKIT_TEST_WINDOW=quiet), isolated temporary userData, controlled transcription runtime
+(test/subtitle-studio/helpers/transcription-ui-runtime.ts) with the development FFmpeg media runtime; the main process,
+IPC, preload, repository, recognize service, gain and review are the production code.
+
+## Build: last edits of the files the app is built from (mtime) vs the build used
+19:57:40 dist/index.html
+19:57:45 dist-electron/main/index.js
+19:29:28 src/locales/zh/studio.json
+19:29:28 src/locales/en/studio.json
+19:29:28 src/locales/ja/studio.json
+19:29:28 src/locales/zh-Hant/studio.json
+19:29:44 src/pages/Tools/Subtitle/SubtitleStudio/StudioCueRecognize.tsx
+18:30:47 src/pages/Tools/Subtitle/SubtitleStudio/StudioCueRecognize.css
+18:18:43 src/pages/Tools/Subtitle/SubtitleStudio/StudioCueReview.tsx
+18:18:52 src/pages/Tools/Subtitle/SubtitleStudio/StudioCueTable.tsx
+18:18:52 src/pages/Tools/Subtitle/SubtitleStudio/index.tsx
+19:47:56 electron/main/subtitle-studio/cue-recognize-service.ts
+19:25:15 electron/main/subtitle-studio/cue-review.ts
+18:06:53 electron/main/subtitle-studio/transcription/runtime.ts
+## 2026-10-22 19:57:11 npx vite build --mode=test -> exit=0 end 19:57:46
+
+## FUSIONKIT_STUDIO_E2E=1 FUSIONKIT_TEST_WINDOW=quiet npx vitest run --maxWorkers=1 --minWorkers=1 --reporter=verbose test/subtitle-studio/cue-recognize-models-ui.test.ts test/subtitle-studio/cue-recognize-ui.test.ts test/subtitle-studio/cue-review-ui.test.ts
+## 2026-10-22 19:57:55 start
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/subtitle-studio/cue-review-ui.test.ts > reviewing transcribed cues > counts flagged cues, filters and moves through them, plays, recognizes, collapses, ignores and keeps the ignores 45036ms
+ ✓ test/subtitle-studio/cue-recognize-models-ui.test.ts > recognizing cues again with another model > chooses an installed model, follows its profile, flags doubtful results and recognizes the review bar's cues across pages 53364ms
+ ✓ test/subtitle-studio/cue-recognize-ui.test.ts > recognizing cues again > recognizes selected cues with a local model, compares them, applies the chosen ones and undoes them 23742ms
+ Test Files  3 passed (3)
+      Tests  3 passed (3)
+   Start at  19:57:56
+   Duration  126.23s (transform 325ms, setup 0ms, collect 3.53s, tests 122.15s, environment 0ms, prepare 177ms)
+exit=0
+
+## related list UI tests on the same build
+## FUSIONKIT_STUDIO_E2E=1 FUSIONKIT_TEST_WINDOW=quiet npx vitest run --maxWorkers=1 --minWorkers=1 --reporter=verbose test/subtitle-studio/cue-find-ui.test.ts test/subtitle-studio/cue-history-ui.test.ts test/subtitle-studio/cue-editing-ui.test.ts test/subtitle-studio/cue-audio-ui.test.ts
+## 2026-10-22 20:00:03 start
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/subtitle-studio/cue-audio-ui.test.ts > playing the original audio of cues > plays rows, selections and menu items, finds or asks for media, and stays silent under test
+ ✓ test/subtitle-studio/cue-audio-ui.test.ts > playing the original audio of cues > plays rows, selections and menu items, finds or asks for media, and stays silent under test 20732ms
+ ✓ test/subtitle-studio/cue-audio-ui.test.ts > playing the original audio of cues > plays revision proposals and consistency occurrences without changing them, and stops when the dialogs close
+ ✓ test/subtitle-studio/cue-audio-ui.test.ts > playing the original audio of cues > plays revision proposals and consistency occurrences without changing them, and stops when the dialogs close 17291ms
+ ✓ test/subtitle-studio/cue-find-ui.test.ts > finding and replacing in the list > finds across pages, moves between matches, replaces one or all and undoes
+ ✓ test/subtitle-studio/cue-find-ui.test.ts > finding and replacing in the list > finds across pages, moves between matches, replaces one or all and undoes 10464ms
+ ✓ test/subtitle-studio/cue-find-ui.test.ts > finding and replacing in the list > finds with regular expressions and whole words, expands groups when replacing, and reports invalid patterns
+ ✓ test/subtitle-studio/cue-find-ui.test.ts > finding and replacing in the list > finds with regular expressions and whole words, expands groups when replacing, and reports invalid patterns 10784ms
+ ✓ test/subtitle-studio/cue-editing-ui.test.ts > subtitle preview editing > selects, edits, translates, deletes and undoes cues in the preview list
+ ✓ test/subtitle-studio/cue-editing-ui.test.ts > subtitle preview editing > selects, edits, translates, deletes and undoes cues in the preview list 10432ms
+ ✓ test/subtitle-studio/cue-history-ui.test.ts > undo history per document > keeps each document its undo while others are edited and while the studio is left
+ ✓ test/subtitle-studio/cue-history-ui.test.ts > undo history per document > keeps each document its undo while others are edited and while the studio is left 8547ms
+ Test Files  4 passed (4)
+      Tests  6 passed (6)
+   Start at  20:00:04
+   Duration  83.08s (transform 347ms, setup 0ms, collect 4.08s, tests 78.25s, environment 0ms, prepare 246ms)
+exit=0
+
+## What cue-recognize-models-ui.test.ts asserts (all passed above)
+- Paged.wav (130 lines, lines 2/5/8/120 low confidence): the review bar's ListRestart button is named "重新识别筛选出的 4 句…"; it opens the dialog with lines 2, 5, 8 and 120 (120 is read from page 2).
+- Default model with no session choice and no listed task: the transcription setting's model (标准). The list has the 5 installed models only; anime-whisper shows 仅重新识别, 实验性 and its usage line.
+- Choosing anime-whisper: language shows 日语 (others disabled), the prompt input is disabled, the hint gives the recognize-only usage, the locked language and the no-prompt reason.
+- First cue of the run: progress "正在加载模型并识别 1 / 4". Results: line 2 and 120 preselected; line 5 (confidence 0.27) flagged 低置信度, line 8 flagged 疑似幻觉, both unchecked; note "2 条结果可能不可靠…"; Apply "应用 2 条"; the flag tooltip gives "模型对这句把握较低（置信度 0.27，并非准确率）".
+- The tooltip opens below line 5's flag: its top edge is below line 5's text (measurements.json 'tip': text bottom 488, flag bottom 508, tooltip top 524, tooltip and flag both start at x 410).
+- The four requests reaching the runtime: anime-whisper-q8_0, language ja, no prompt, noTimestamps true, no VAD padding, 44 + 1.9 s x 32000 bytes (1.5 s cue + 0.2 s each side).
+- Checking line 5 and applying: undo label "撤销：重新识别 3 条字幕"; the repository has the new text on lines 2, 5 and 120 (page 2) and line 8 unchanged.
+- large-v3 on line 3 (4.0-5.5 s): the clip is 3.0-6.5 s (44 + 3.5 s x 32000 bytes), noTimestamps false; of three segments (neighbour before, own, neighbour after) the result is only "第3句のせりふです！".
+- Added after the review: large-v3 answering one segment over lines 2 and 3 (0-2.5 s of the clip, 0.5 s into line 2): the dialog shows "第3句のせりふですね", the answer of a second request of 44 + 1.9 s x 32000 bytes (line 3 with 0.2 s each side); the merged text never shows, and the result is preselected.
+- Quiet.wav (tone at about -44 dBFS): the request carries vadSpeechPadMs 1000 (the main process gained the clip).
+- resource_busy on the first of three cues: the error "转写任务正在进行，稍后再试" and the run stops (the others stay waiting).
+- Many.wav (130 flagged lines): the button says 130, the dialog lists the first 100 (last number 100) with "一次最多识别所选的前 100 条。".
+- Added after the review: Spread.wav (600 lines, one flagged on each page of 100): the button says 6. The main process's read-page handler is wrapped in the test (150 ms delay, page 300 answers revision_conflict). The dialog reads pages 100, 200, 300, 400 and 500, at most 4 at once (measured 4), lists 50, 150, 250, 450 and 550 and says "有 1 条没能读取（文档可能已改动），没有列出；关闭后重新打开可再试。".
+- Screenshots and review-bar captures at 1024x700 light/dark, 1280x800 dark and 1024x700 English, each with line 5's flag tooltip open; the tooltip closes (mouse away) before Escape closes the dialog.
+
+## Screenshots (final run): test-results/studio-cue-recognize-models/run-Edg5GR
+00-review-bar-1024-dark.png
+00-review-bar-1024-light-en.png
+00-review-bar-1024-light.png
+00-review-bar-1280-dark.png
+00-review-bar-1280-light.png
+01-models-1280-light.png
+02-results-1280-light.png
+03-results-1024-dark.png
+03-results-1024-light-en.png
+03-results-1024-light.png
+03-results-1280-dark.png
+04-unread-1280-light.png
+measurements.json
+existing test screenshots: test-results/studio-cue-recognize/studio-cue-recognize--01-results-1280-light.png, studio-cue-recognize--02-results-786-dark.png
+
+## test-results/studio-cue-recognize-models/run-Edg5GR/measurements.json (rendered sizes at 1280x800 light; 'models' with the model list open,
+## 'results' after the run with line 5's flag hovered, 'tip' the tooltip against line 5's text and flag, in CSS px from the viewport top/left)
+{
+  "models": {
+    "dialog": {
+      "width": 640,
+      "height": 398,
+      "font": "14px/20px",
+      "padding": "0px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    },
+    "trigger": {
+      "width": 416,
+      "height": 28,
+      "font": "12px/16px",
+      "padding": "8px 8px 8px 10px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    },
+    "language": {
+      "width": 192,
+      "height": 28,
+      "font": "12px/16px",
+      "padding": "8px 8px 8px 10px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    },
+    "list": {
+      "width": 416,
+      "height": 251,
+      "font": "16px/24px",
+      "padding": "0px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    },
+    "option": {
+      "width": 408,
+      "height": 32,
+      "font": "14px/20px",
+      "padding": "4px 32px 4px 6px",
+      "opacity": "1",
+      "color": "oklch(0.205 0 0)"
+    },
+    "hint": null,
+    "note": null,
+    "flag": null,
+    "flaggedText": null,
+    "flaggedTexts": null,
+    "batch": {
+      "width": 28,
+      "height": 28,
+      "font": "14px/20px",
+      "padding": "0px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    }
+  },
+  "results": {
+    "dialog": {
+      "width": 640,
+      "height": 554,
+      "font": "14px/20px",
+      "padding": "0px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    },
+    "trigger": {
+      "width": 416,
+      "height": 28,
+      "font": "12px/16px",
+      "padding": "8px 8px 8px 10px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    },
+    "language": {
+      "width": 192,
+      "height": 28,
+      "font": "12px/16px",
+      "padding": "8px 8px 8px 10px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    },
+    "list": null,
+    "option": null,
+    "hint": {
+      "width": 616,
+      "height": 34,
+      "font": "11.5px/17px",
+      "padding": "0px",
+      "opacity": "1",
+      "color": "oklch(0.556 0 0)"
+    },
+    "note": {
+      "width": 616,
+      "height": 34,
+      "font": "12px/18px",
+      "padding": "8px 10px",
+      "opacity": "1",
+      "color": "oklch(0.556 0 0)"
+    },
+    "flag": {
+      "width": 57,
+      "height": 16,
+      "font": "10.5px/16px",
+      "padding": "0px",
+      "opacity": "1",
+      "color": "rgb(217, 119, 6)"
+    },
+    "flaggedText": {
+      "width": 533,
+      "height": 20,
+      "font": "12.5px/20px",
+      "padding": "0px",
+      "opacity": "0.5",
+      "color": "oklch(0.145 0 0)"
+    },
+    "flaggedTexts": {
+      "width": 533,
+      "height": 40,
+      "font": "14px/20px",
+      "padding": "0px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    },
+    "batch": {
+      "width": 28,
+      "height": 28,
+      "font": "14px/20px",
+      "padding": "0px",
+      "opacity": "1",
+      "color": "oklch(0.145 0 0)"
+    }
+  },
+  "tip": {
+    "textBottom": 488,
+    "flagLeft": 410,
+    "flagBottom": 508,
+    "tipLeft": 410,
+    "tipTop": 524
+  }
+}
+
+## Rendered review: state/position -> problem -> cause -> change -> re-check
+Earlier run folders named below (run-du1izf, run-DXlYoA, run-RVWHfn) were since pruned by createTestRun; run-dNL4mU, run-F87pf6,
+run-pAON6Z and the final run-Edg5GR remain.
+1. 1280x800 light, model list open (run-du1izf/01-models-1280-light.png): the usage line of 中文普通话 and 日语动画·ASMR was cut off at the
+   list's right edge ("…再对需"). Cause: the list reused the settings' .studio-transcription-model-options (max-width 22rem = 352 px) while
+   Radix gives the viewport min-width = trigger width (416 px), so the items were wider than the visible list. Change: own class
+   .studio-cue-recognize-models. First try (max-width only, run-DXlYoA/01) let the list grow to its longest line (521 px) and centre past the
+   trigger's left edge, so the width is now pinned to the trigger as the audio-type list is. Re-check run-RVWHfn/01 and the final
+   run-F87pf6: list 416 px = trigger 416 px, usage lines wrap to two lines inside it, nothing cut.
+2. 1280x800 light results (run-du1izf/02): the model hint read "…替换文本。 所选模型只识别日语。 所选模型…" with spaces between Chinese
+   sentences. Cause: the parts were joined with ' '. Change: no separator for zh/ja, a space for other languages. Re-check run-DXlYoA/02
+   (zh, no spaces) and 03-results-1024-light-en (English keeps spaces).
+3. Same state: the 低置信度 / 疑似幻觉 tags of unchosen flagged rows were faded to 0.5 with the text, so the warning was the faintest thing in
+   the row. Cause: the dialog dims the whole texts column of unaccepted rows. Change: for flagged rows only the text is dimmed. Re-check:
+   measurements flaggedText opacity 0.5, flaggedTexts 1, flag 1 with rgb(217,119,6); visible in all 03-results screenshots.
+4. 1280x800 light, hovering line 5's flag (run-DXlYoA/02): the tooltip arrow pointed at the middle of the row, far right of the tag. Cause:
+   the tag is a grid item of .studio-cue-revision-texts and stretched to the column width (533 px), so the trigger box was the whole row.
+   Change: justify-self: start for tags in this dialog. Re-check run-RVWHfn/02 (cropped): the arrow sits under the tag; measured flag
+   width 57 px.
+5. 1280x800 light, hovering line 5's flag after change 4 (run-dNL4mU/02): the tooltip opened above the tag and covered most of line 5's own
+   text. Cause: side="top" on a tag that sits under the text it explains. Change: side="right", as the list's row marks open. Re-check
+   run-F87pf6/02: the tooltip sits to the right of the tag, line 5's text stays readable except the tail of its deletion mark (superseded by 7).
+6. Not a UI defect: the English pass first failed because the test found the dialog by its Chinese title; the locator now finds it by its
+   result section.
+7. Review finding, 1280x800 light, hovering line 5's flag (run-pAON6Z/02): the side="right" tooltip still covered the struck-through
+   "です" of line 5, the change the user is judging. Cause: the two-line tooltip is centred on the 16 px tag, so its upper half reaches the
+   text line above, right where the short result ends. Change: side="bottom", align="start" (StudioCueRecognize.tsx). Re-check run-Edg5GR:
+   02-results-1280-light and all four 03-results screenshots (1024 light/dark, 1280 dark, 1024 English) now hover the flag; the tooltip
+   starts at the tag's left edge below it (measured: line 5 text bottom 488, flag bottom 508, tooltip top 524, both left edges 410), and
+   line 5 with its deletion mark stays fully visible. While open it covers part of the next row (line 8, and in English at 1024 the top
+   of line 120), which goes away with the pointer.
+8. Not a UI defect: with the tooltip open in the size loop, Escape closed the tooltip first and the dialog stayed open (Radix tooltips
+   take Escape before the dialog). The test now moves the pointer away and waits for the tooltip to close before pressing Escape.
+9. Review finding, page reads: 1280x800 light (run-Edg5GR/04-unread-1280-light.png), page 300 failing: the dialog lists 5 lines and the
+   note "有 1 条没能读取（文档可能已改动），没有列出；关闭后重新打开可再试。" sits under the prompt input in the same muted hint style as
+   the limit note, one line, no overflow. Not a UI defect: the test's handler wrapper first read input.offset, but the window sends
+   { capability, payload }; it now reads input.payload.offset.
+Checked without finding problems: 1024x700 light/dark and 1280x800 dark show the whole dialog without horizontal overflow; in English at
+1024x700 the dialog body scrolls inside the ScrollableDialog (fade at the bottom), the hint takes three lines and the footer stays fixed;
+the review bar's first row (title, count, list toggle, the new 28 px ListRestart, previous, next, close) stays on one line at 1024 in
+English and Chinese (00-review-bar-*.png); the existing 786x660 dark screenshot shows the 语速异常 flag on a long result, left unchecked.

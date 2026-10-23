@@ -1,0 +1,92 @@
+# T-ASRQ-06 V-ASRQ-06-4 Electron UI (2026-10-22, worktree on 68ffd05, uncommitted; quiet off-screen window)
+$ npx vite build --mode=test   (exit 0; tail of log)
+computing gzip size...
+dist-electron/preload/index.mjs  305.19 kB │ gzip: 82.87 kB
+✓ built in 880ms
+$ FUSIONKIT_STUDIO_MODEL_PROFILE_UI=1 npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/model-profile-ui.test.ts
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/model-profile-ui.test.ts (1 test) 32649ms
+   ✓ T-ASRQ-06 model profiles in the actual Electron transcription settings and resource manager > lists the new models with their use and licence, offers only whole-media models, and disables English output for the fast one 32649ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  13:43:30
+   Duration  33.51s (transform 55ms, setup 0ms, collect 633ms, tests 32.65s, environment 0ms, prepare 69ms)
+
+
+Artifacts (git-ignored): test-results/studio-t06-ui/controlled-pDpElq/asrq06-*.png, asrq06-result.json
+asrq06-dark-1024-english-fast.png
+asrq06-dark-1024-english-model-options.png
+asrq06-dark-1024-english-resources.png
+asrq06-dark-1024-fast.png
+asrq06-dark-1024-resources.png
+asrq06-dark-1280-fast.png
+asrq06-dark-1280-model-options.png
+asrq06-dark-1280-resources.png
+asrq06-electron.log
+asrq06-light-1024-fast.png
+asrq06-light-1024-model-options.png
+asrq06-light-1024-resources.png
+asrq06-light-1280-fast.png
+asrq06-light-1280-model-options.png
+asrq06-light-1280-resources-later.png
+asrq06-light-1280-resources.png
+asrq06-light-1280-task-mode-disabled.png
+asrq06-result.json
+
+## Measurements from asrq06-result.json (CSS px)
+outcome passed pageErrors []
+optionsLight1280 content 294 trigger 294 items [('标准（推荐，约 1.0 GB）', 1, 32, None, None), ('最高精度（约 2.9 GB，较慢）', 1, 32, None, None), ('快速（约 0.8 GB）', 1, 49, '速度更快，适合先快速出稿；不能翻译为英语。', '11px')]
+optionsLight1024 content 294 trigger 294 items [('标准（推荐，约 1.0 GB）', 1, 32, None, None), ('最高精度（约 2.9 GB，较慢）', 1, 32, None, None), ('快速（约 0.8 GB）', 1, 49, '速度更快，适合先快速出稿；不能翻译为英语。', '11px')]
+optionsDark1280 content 294 trigger 294 items [('标准（推荐，约 1.0 GB）', 1, 32, None, None), ('最高精度（约 2.9 GB，较慢）', 1, 32, None, None), ('快速（约 0.8 GB）', 1, 49, '速度更快，适合先快速出稿；不能翻译为英语。', '11px')]
+optionsEnglish1024 content 338.7 trigger 294 items [('Standard (recommended, about 1.0 GB)', 1, 32, None, None), ('Highest accuracy (about 2.9 GB, slower)', 1, 32, None, None), ('Fast (about 0.8 GB)', 1, 49, 'Faster, for a quick first draft; cannot translate to English.', '11px')]
+fastLight1280 viewport {'width': 1280, 'height': 800} dark False model 快速（约 0.8 GB） taskMode 保留原语言 hint 所选模型不能翻译为英语，输出保留原语言。 11px 18px marginTop 5px gapToTrigger 6 noHorizontalOverflow True
+fastLight1024 viewport {'width': 1024, 'height': 700} dark False model 快速（约 0.8 GB） taskMode 保留原语言 hint 所选模型不能翻译为英语，输出保留原语言。 11px 18px marginTop 5px gapToTrigger 6 noHorizontalOverflow True
+fastDark1280 viewport {'width': 1280, 'height': 800} dark True model 快速（约 0.8 GB） taskMode 保留原语言 hint 所选模型不能翻译为英语，输出保留原语言。 11px 18px marginTop 5px gapToTrigger 6 noHorizontalOverflow True
+fastDark1024 viewport {'width': 1024, 'height': 700} dark True model 快速（约 0.8 GB） taskMode 保留原语言 hint 所选模型不能翻译为英语，输出保留原语言。 11px 18px marginTop 5px gapToTrigger 6 noHorizontalOverflow True
+english1024 viewport {'width': 1024, 'height': 700} dark True model Fast (about 0.8 GB) taskMode Original language hint The selected model cannot translate to English, so the output keeps the original language. 11px 18px marginTop 5px gapToTrigger 6 noHorizontalOverflow True
+rowsLight1280 viewportOverflow 0
+   large-v3-q5_0 标准（推荐，约 1.0 GB） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   large-v3 最高精度（约 2.9 GB，较慢） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   large-v3-turbo-q8_0 快速（约 0.8 GB） h 78 overflow 0 badges ['已就绪'] notes [('速度更快，适合先快速出稿；不能翻译为英语。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   belle-large-v3-turbo-zh 中文普通话（约 1.5 GB） h 96 overflow 0 badges ['未安装', '仅重新识别', '实验性'] notes [('普通话，输出带标点。只用于重新识别原声：先用其他模型转写，再对需要的句子重新识别。', 18, '11px', '18px'), ('许可提示：训练数据含非商用数据集。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   anime-whisper-q8_0 日语动画·ASMR（约 0.8 GB） h 96 overflow 0 badges ['未安装', '仅重新识别', '实验性'] notes [('日语动画、游戏配音与 ASMR（喘息、笑声、耳语）。只用于逐句重新识别原声，不使用提示词。', 18, '11px', '18px'), ('许可提示：训练数据禁止商用，仅供非商业用途。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   silero-vad-v6.2.0-ggml 语音检测（自动跳过静音） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   whisper-cuda-win32-x64 NVIDIA 显卡加速 h 58 overflow 0 badges ['已就绪', '推荐'] notes [] notesInside True actionTopDelta 0
+rowsLight1024 viewportOverflow 0
+   large-v3-q5_0 标准（推荐，约 1.0 GB） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   large-v3 最高精度（约 2.9 GB，较慢） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   large-v3-turbo-q8_0 快速（约 0.8 GB） h 78 overflow 0 badges ['已就绪'] notes [('速度更快，适合先快速出稿；不能翻译为英语。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   belle-large-v3-turbo-zh 中文普通话（约 1.5 GB） h 96 overflow 0 badges ['未安装', '仅重新识别', '实验性'] notes [('普通话，输出带标点。只用于重新识别原声：先用其他模型转写，再对需要的句子重新识别。', 18, '11px', '18px'), ('许可提示：训练数据含非商用数据集。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   anime-whisper-q8_0 日语动画·ASMR（约 0.8 GB） h 96 overflow 0 badges ['未安装', '仅重新识别', '实验性'] notes [('日语动画、游戏配音与 ASMR（喘息、笑声、耳语）。只用于逐句重新识别原声，不使用提示词。', 18, '11px', '18px'), ('许可提示：训练数据禁止商用，仅供非商业用途。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   silero-vad-v6.2.0-ggml 语音检测（自动跳过静音） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   whisper-cuda-win32-x64 NVIDIA 显卡加速 h 58 overflow 0 badges ['已就绪', '推荐'] notes [] notesInside True actionTopDelta 0
+rowsDark1280 viewportOverflow 0
+   large-v3-q5_0 标准（推荐，约 1.0 GB） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   large-v3 最高精度（约 2.9 GB，较慢） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   large-v3-turbo-q8_0 快速（约 0.8 GB） h 78 overflow 0 badges ['已就绪'] notes [('速度更快，适合先快速出稿；不能翻译为英语。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   belle-large-v3-turbo-zh 中文普通话（约 1.5 GB） h 96 overflow 0 badges ['未安装', '仅重新识别', '实验性'] notes [('普通话，输出带标点。只用于重新识别原声：先用其他模型转写，再对需要的句子重新识别。', 18, '11px', '18px'), ('许可提示：训练数据含非商用数据集。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   anime-whisper-q8_0 日语动画·ASMR（约 0.8 GB） h 96 overflow 0 badges ['未安装', '仅重新识别', '实验性'] notes [('日语动画、游戏配音与 ASMR（喘息、笑声、耳语）。只用于逐句重新识别原声，不使用提示词。', 18, '11px', '18px'), ('许可提示：训练数据禁止商用，仅供非商业用途。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   silero-vad-v6.2.0-ggml 语音检测（自动跳过静音） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   whisper-cuda-win32-x64 NVIDIA 显卡加速 h 58 overflow 0 badges ['已就绪', '推荐'] notes [] notesInside True actionTopDelta 0
+rowsDark1024 viewportOverflow 0
+   large-v3-q5_0 标准（推荐，约 1.0 GB） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   large-v3 最高精度（约 2.9 GB，较慢） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   large-v3-turbo-q8_0 快速（约 0.8 GB） h 78 overflow 0 badges ['已就绪'] notes [('速度更快，适合先快速出稿；不能翻译为英语。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   belle-large-v3-turbo-zh 中文普通话（约 1.5 GB） h 96 overflow 0 badges ['未安装', '仅重新识别', '实验性'] notes [('普通话，输出带标点。只用于重新识别原声：先用其他模型转写，再对需要的句子重新识别。', 18, '11px', '18px'), ('许可提示：训练数据含非商用数据集。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   anime-whisper-q8_0 日语动画·ASMR（约 0.8 GB） h 96 overflow 0 badges ['未安装', '仅重新识别', '实验性'] notes [('日语动画、游戏配音与 ASMR（喘息、笑声、耳语）。只用于逐句重新识别原声，不使用提示词。', 18, '11px', '18px'), ('许可提示：训练数据禁止商用，仅供非商业用途。', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   silero-vad-v6.2.0-ggml 语音检测（自动跳过静音） h 58 overflow 0 badges ['已就绪'] notes [] notesInside True actionTopDelta 0
+   whisper-cuda-win32-x64 NVIDIA 显卡加速 h 58 overflow 0 badges ['已就绪', '推荐'] notes [] notesInside True actionTopDelta 0
+rowsEnglish1024 viewportOverflow 0
+   large-v3-q5_0 Standard (recommended, about 1.0 GB) h 58 overflow 0 badges ['Ready'] notes [] notesInside True actionTopDelta 0
+   large-v3 Highest accuracy (about 2.9 GB, slower) h 58 overflow 0 badges ['Ready'] notes [] notesInside True actionTopDelta 0
+   large-v3-turbo-q8_0 Fast (about 0.8 GB) h 78 overflow 0 badges ['Ready'] notes [('Faster, for a quick first draft; cannot translate to English.', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   belle-large-v3-turbo-zh Mandarin Chinese (about 1.5 GB) h 114 overflow 0 badges ['Ready', 'Re-recognition only', 'Experimental'] notes [('Mandarin, with punctuation. Only for recognizing the audio again: transcribe with another model first, then recognize the lines that need it.', 36, '11px', '18px'), ('License note: the training data includes non-commercial datasets.', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   anime-whisper-q8_0 Japanese anime · ASMR (about 0.8 GB) h 114 overflow 0 badges ['Ready', 'Re-recognition only', 'Experimental'] notes [('Japanese anime, game voice acting and ASMR (breaths, laughter, whispers). Only for recognizing the audio again, line by line; prompts are not used.', 36, '11px', '18px'), ('License note: the training data forbids commercial use; non-commercial use only.', 18, '11px', '18px')] notesInside True actionTopDelta 0
+   silero-vad-v6.2.0-ggml Voice detection (skips silence) h 58 overflow 0 badges ['Ready'] notes [] notesInside True actionTopDelta 0
+   whisper-cuda-win32-x64 NVIDIA graphics acceleration h 58 overflow 0 badges ['Ready', 'Recommended'] notes [] notesInside True actionTopDelta 0
+
+## Review notes
+First run (controlled-OXJqXq, superseded): the use line of the not-installed Chinese and anime rows wrapped beside the Download/Import buttons and left one or two characters alone on a second line; English model names wrapped in a list fixed to the trigger width. Fixed: notes moved to the row's full width under the heading; the model list is at least the trigger width and at most 22rem. Re-run above (controlled-pDpElq) passed; screenshots re-reviewed.

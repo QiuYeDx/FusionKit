@@ -35,6 +35,26 @@ it('keeps the valid live choice when local storage is unavailable and falls back
   const next = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES); next.config.language = 'en';
   expect(() => useStudioPreferences.getState().setTranscription(next)).not.toThrow(); expect(useStudioPreferences.getState().transcription).toEqual(next);
 });
+it('persists the audio type inside the transcription settings and refuses a profile without voice detection', async () => {
+  const storage = new Map<string, string>();
+  const key = 'fusionkit.subtitle-studio.preferences.v1';
+  vi.stubGlobal('localStorage', { getItem: (name: string) => storage.get(name) ?? null, setItem: (name: string, value: string) => storage.set(name, value), removeItem: (name: string) => storage.delete(name) });
+  await useStudioPreferences.persist.rehydrate();
+  expect(DEFAULT_TRANSCRIPTION_PREFERENCES.config.advanced).not.toHaveProperty('audioProfile');
+  const settings = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES);
+  settings.config = { ...settings.config, advanced: { ...settings.config.advanced, audioProfile: 'quiet_whisper_v1' } };
+  useStudioPreferences.getState().setTranscription(settings);
+  const persisted = JSON.parse(storage.get(key)!);
+  expect(Object.keys(persisted.state).sort()).toEqual(['cueAudioLoop', 'cueAudioPadMs', 'cueAudioTempo', 'dismissedRecoveryKey', 'encoding', 'recentKnowledgeSets', 'transcription']);
+  expect(persisted.state.transcription.config.advanced.audioProfile).toBe('quiet_whisper_v1');
+  useStudioPreferences.setState({ transcription: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES) });
+  storage.set(key, JSON.stringify(persisted)); await useStudioPreferences.persist.rehydrate();
+  expect(useStudioPreferences.getState().transcription).toEqual(settings);
+  expect(readTranscriptionPreferences(useStudioPreferences.getState().transcription)).toEqual(settings);
+  const offWithProfile = { ...settings, config: { ...settings.config, vadEnabled: false, windowStrategy: 'fixed_v1' as const } };
+  expect(transcriptionPreferencesSchema.safeParse(offWithProfile).success).toBe(false);
+  expect(transcriptionPreferencesSchema.safeParse({ ...settings, config: { ...settings.config, advanced: { ...settings.config.advanced, audioProfile: 'loud_v1' } } }).success).toBe(false);
+});
 it('reads older transcription settings without resetting ASR or automatic model preferences', () => {
   const saved = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES);
   saved.config.language = 'ja'; saved.config.advanced.beamSize = 7;
