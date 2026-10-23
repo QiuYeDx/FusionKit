@@ -1,0 +1,242 @@
+/* Long text reader (design §3.3–3.6, §4.9): panel, toolbar, rows, overlays and footer. */
+.lt-reader-panel { flex: 1; min-height: 0; container-type: inline-size; container-name: lt-reader; }
+/* The title is the open document: its name, then one line of facts; 12px on every side (spacing test). */
+.lt-reader-panel > [data-slot=tool-panel-header] { flex-wrap: nowrap; flex-shrink: 0; min-height: 52px; }
+.lt-reader-panel > [data-slot=tool-panel-header] > div:first-child { flex: 1 1 auto; }
+.lt-reader-panel > [data-slot=tool-panel-header] > div:first-child > .truncate { flex: 1; min-width: 0; overflow: visible; }
+.lt-reader-panel > [data-slot=tool-panel-header] > div:last-child { flex-shrink: 0; flex-wrap: nowrap; gap: 2px; }
+.lt-reader-panel > [data-slot=tool-panel-body] { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+/* Strip and status row own the footer; the strip runs edge to edge. */
+.lt-reader-panel > [data-slot=tool-panel-footer] { flex-shrink: 0; padding: 0 12px; }
+
+.lt-heading { display: grid; gap: 1px; min-width: 0; }
+.lt-heading h2 { display: flex; min-width: 0; font-size: 13px; line-height: 20px; font-weight: 600; }
+.lt-heading h2 > .studio-file-name { flex: 1 1 auto; }
+.lt-heading-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; min-width: 0; font-size: 11px; line-height: 17px; font-weight: 400; white-space: normal; color: var(--muted-foreground); }
+.lt-heading-meta > span { display: inline-flex; align-items: center; gap: 6px; }
+.lt-heading-meta > span + span::before { content: ''; width: 2px; height: 2px; border-radius: 1px; background: currentColor; opacity: .7; }
+.lt-heading-format { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: .02em; }
+
+/* The open document: toolbar, then the rows. */
+.lt-document-view { display: grid; flex: 1; min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+/* Top-aligned so a wrapped second line grows downward; the run group wraps only once the settings summary is as short as it gets. */
+.lt-toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 8px; min-width: 0; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.lt-toolbar-view { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex: 0 1 auto; min-width: 0; min-height: 28px; }
+.lt-toolbar-view > [data-slot=clip-path-tabs] { flex-shrink: 0; margin-right: 4px; }
+.lt-filter-label { display: inline-flex; align-items: baseline; gap: 4px; }
+.lt-filter-count { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .75; }
+.lt-search { position: relative; display: flex; align-items: center; flex: 0 1 192px; width: 192px; min-width: 112px; }
+.lt-search > svg { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--muted-foreground); pointer-events: none; }
+.lt-search > input { height: 28px; padding-left: 29px; padding-right: 27px; font-size: 12px; }
+.lt-search > button { position: absolute; right: 2px; }
+.lt-toolbar-run { display: flex; align-items: flex-start; justify-content: flex-end; gap: 6px; flex: 1 1 0%; min-width: min-content; margin-left: auto; }
+.lt-settings-summary { flex: 0 1 auto; min-width: 96px; max-width: 240px; }
+/* One clamped line: it shortens with an ellipsis and never forces the run group onto a new line first. */
+.lt-settings-summary > span { display: -webkit-box; flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: normal; overflow-wrap: anywhere; text-align: left; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+.lt-run-state { display: inline-flex; align-items: center; gap: 6px; height: 28px; flex-shrink: 0; font-size: 12px; white-space: nowrap; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.lt-run-state > svg { width: 14px; height: 14px; }
+.lt-run-buttons { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+@container lt-reader (max-width: 759px) { .lt-search { flex-basis: 160px; width: 160px; } }
+
+/* The rows scroll in a ScrollArea; its viewport is .lt-reader (FK-PIT-0190). */
+.lt-reader-wrap { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; }
+.lt-reader-area { min-width: 0; min-height: 0; }
+.lt-reader { overscroll-behavior-y: contain; }
+.lt-reader > div { display: block !important; padding-right: 8px; }
+.lt-reader-area > [data-slot="scroll-area-scrollbar"] { width: 8px; padding: 3px 2px; border: 0; }
+.lt-reader-area > [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"] { background: color-mix(in oklab, var(--muted-foreground) 28%, transparent); transition: background-color 150ms; }
+.lt-reader-area > [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"]:is(:hover, :active) { background: color-mix(in oklab, var(--muted-foreground) 50%, transparent); }
+.lt-reader-focus { outline: none; }
+.lt-reader-content { transition: opacity 160ms ease-out; }
+.lt-reader-wrap[data-pending] .lt-reader-content { opacity: .12; }
+
+/* Rows: ordinal gutter, source, target, action column. Equal 8px insets beside the rows. */
+.lt-columns, .lt-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) 52px; column-gap: 16px; }
+.lt-columns { position: sticky; top: 0; z-index: 4; height: 28px; align-items: center; padding: 0 4px 0 8px; background: var(--card); border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); }
+.lt-columns > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-columns > span:first-child { grid-column: 2; }
+.lt-list { display: flex; flex-direction: column; gap: 2px; padding: 4px 0 4px 8px; }
+.lt-row { position: relative; padding: 8px 4px 8px 0; border-radius: 8px; transition: background-color 150ms ease-out; content-visibility: auto; contain-intrinsic-size: auto 56px; }
+.lt-row:hover { background: color-mix(in oklch, var(--muted) 40%, transparent); }
+.lt-row:focus { outline: none; }
+.lt-row:focus-visible, .lt-row[data-focused]:focus-within { outline: 2px solid var(--ring); outline-offset: -2px; }
+.lt-row[data-kind=heading]:not(:first-child) { margin-top: 12px; }
+.lt-row[data-handled] > :not(.lt-actions) { opacity: .6; }
+.lt-row[data-flash] { animation: lt-flash 900ms ease-out; }
+@keyframes lt-flash { from { background-color: color-mix(in oklab, var(--color-amber-500) 15%, transparent); } }
+
+.lt-text { min-width: 0; font-size: 13px; line-height: 22px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.lt-row[data-kind=heading] .lt-text { font-weight: 600; }
+.lt-row[data-kind=heading][data-level="1"] .lt-text { font-size: 15px; }
+.lt-row[data-kind=heading][data-level="2"] .lt-text { font-size: 14px; }
+.lt-row[data-kind=quote]:not([data-target-only]) > .lt-source,
+.lt-row[data-kind=quote][data-target-only] > .lt-target > .lt-text { padding-left: 10px; box-shadow: inset 2px 0 var(--border); }
+.lt-marker { margin-right: 6px; color: var(--muted-foreground); }
+.lt-source { min-width: 0; }
+.lt-target { display: grid; align-content: start; gap: 2px; min-width: 0; }
+.lt-target > .lt-text.lt-fill { animation: lt-fill 220ms cubic-bezier(.22, 1, .36, 1); }
+@keyframes lt-fill { from { opacity: 0; transform: translateY(2px); } }
+.lt-pending { color: var(--muted-foreground); }
+.lt-untranslated { color: var(--muted-foreground); font-style: italic; }
+.lt-tag { display: inline-flex; align-items: center; height: 18px; margin-left: 6px; padding: 0 6px; border-radius: 4px; background: var(--muted); font-size: 10.5px; font-style: normal; line-height: 18px; color: var(--muted-foreground); vertical-align: 1px; white-space: nowrap; }
+.lt-target > .lt-tag { justify-self: start; margin-left: 0; }
+.lt-skeleton { display: grid; gap: 8px; padding: 6px 0; }
+.lt-skeleton > span { height: 10px; border-radius: 5px; background: var(--muted); }
+/* The dark muted surface is nearly the card itself; lift the bars so a translating row reads as one. */
+.dark .lt-skeleton > span { background: color-mix(in oklab, var(--muted-foreground) 22%, var(--muted)); }
+.lt-skeleton > span:last-child { width: 62%; }
+.lt-failure { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; font-size: 12px; line-height: 20px; color: var(--destructive); }
+.lt-failure > button { height: 20px; padding: 0; font-size: 12px; }
+.lt-flags { display: grid; gap: 2px; }
+.lt-row[data-locked] .lt-flag:not([data-code=markup_missing]) { opacity: .55; }
+.lt-flag { display: flex; align-items: flex-start; gap: 6px; font-size: 11px; line-height: 18px; color: var(--color-amber-600); }
+.dark .lt-flag { color: var(--color-amber-400); }
+.lt-flag > svg { width: 12px; height: 12px; margin-top: 3px; flex-shrink: 0; }
+.lt-flag > span { min-width: 0; overflow-wrap: anywhere; }
+.lt-flag > button { height: 18px; margin-top: 0; padding: 0 4px; font-size: 11px; color: var(--muted-foreground); }
+
+/* Inline styles (InlineText): raw syntax stays, markup is dimmed. */
+.lt-markup, .lt-sep { color: var(--muted-foreground); }
+.lt-sep { margin: 0 6px; }
+.lt-code { padding: 0 3px; border-radius: 4px; background: color-mix(in oklab, var(--muted) 70%, transparent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.lt-url { color: var(--muted-foreground); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+.lt-link { text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent); text-underline-offset: 3px; }
+.lt-alt, .lt-em { font-style: italic; }
+.lt-strong { font-weight: 600; }
+.lt-strike { text-decoration: line-through; }
+.lt-mark { border-radius: 2px; background: color-mix(in oklab, var(--color-amber-500) 20%, transparent); color: inherit; }
+
+/* Gutter: ordinal, status dot or icons, the page in result views. */
+.lt-gutter { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 0; font-size: 10px; line-height: 22px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.lt-ordinal { font-family: ui-monospace, monospace; }
+.lt-gutter-marks { display: flex; align-items: center; gap: 3px; height: 10px; }
+.lt-gutter-icon { display: inline-flex; }
+.lt-gutter-icon > svg { width: 10px; height: 10px; }
+.lt-dot { width: 6px; height: 6px; border-radius: 3px; }
+.lt-dot[data-state=failed] { background: var(--destructive); }
+.lt-dot[data-state=attention] { background: var(--color-amber-500); }
+.lt-dot[data-state=translating] { background: var(--muted-foreground); }
+.lt-dot[data-state=pending] { box-shadow: inset 0 0 0 1px var(--muted-foreground); opacity: .7; }
+.lt-gutter-page { line-height: 14px; white-space: nowrap; }
+.lt-verbatim-kind { line-height: 18px; white-space: nowrap; }
+
+/* Verbatim blocks span both text columns and are never focused. */
+.lt-verbatim { grid-column: 2 / 4; display: grid; justify-items: start; gap: 2px; min-width: 0; }
+.lt-verbatim > pre { position: relative; width: 100%; max-height: 54px; overflow: hidden; margin: 0; padding: 0 8px; border-radius: 8px; background: color-mix(in oklab, var(--muted) 40%, transparent); font: 12px/18px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted-foreground); user-select: text; }
+.lt-verbatim > pre[data-clipped] { mask-image: linear-gradient(to bottom, #000 60%, transparent); }
+.lt-verbatim > pre[data-expanded] { max-height: none; mask-image: none; }
+.lt-verbatim > button { height: 20px; padding: 0 6px; font-size: 11px; color: var(--muted-foreground); }
+.lt-row[data-kind=verbatim] { padding-block: 4px; }
+.lt-row[data-kind=verbatim]:hover { background: transparent; }
+
+/* Action column: shown on hover, focus inside the row, or while its menu is open; always on touch. */
+.lt-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 4px; }
+@media (hover: hover) and (pointer: fine) {
+  .lt-actions { opacity: 0; transition: opacity 120ms ease-out; }
+  .lt-row:hover .lt-actions, .lt-row:focus-within .lt-actions, .lt-actions[data-open] { opacity: 1; }
+}
+
+/* Only the target column. */
+.lt-reader-content[data-target-only] .lt-row { grid-template-columns: 44px minmax(0, 1fr) 52px; }
+.lt-reader-content[data-target-only] .lt-verbatim { grid-column: 2; }
+
+/* Narrow reader: source above target, column titles hidden. */
+@container lt-reader (max-width: 699px) {
+  .lt-columns { display: none; }
+  .lt-row { grid-template-columns: 44px minmax(0, 1fr) 52px; }
+  .lt-row > .lt-gutter { grid-row: 1 / span 2; }
+  .lt-row > .lt-source { grid-column: 2; color: var(--muted-foreground); }
+  .lt-row > .lt-target { grid-column: 2; }
+  .lt-row:not([data-target-only]) > .lt-target { margin-top: 4px; }
+  .lt-row > .lt-actions { grid-column: 3; grid-row: 1 / span 2; }
+  .lt-verbatim { grid-column: 2; }
+}
+
+/* Result views: what was found, or nothing. */
+.lt-result-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; padding: 8px 12px 4px 16px; font-size: 12px; line-height: 20px; color: var(--muted-foreground); }
+.lt-result-bar > button { height: 22px; }
+.lt-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 180px; padding: 32px 20px; text-align: center; font-size: 13px; color: var(--muted-foreground); }
+.lt-empty > svg { width: 26px; height: 26px; opacity: .6; }
+.lt-next-page { display: flex; justify-content: center; padding: 8px 12px 16px; }
+.lt-next-page > button { max-width: 100%; }
+.lt-next-page > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Reading a page: the old rows fade, a card shows after 150 ms; a failed read says so in place. */
+.lt-reader-state { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 24px; pointer-events: none; }
+.lt-reader-state > div { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: min(100%, 320px); font-size: 12px; text-align: center; color: var(--muted-foreground); pointer-events: auto; }
+.lt-reader-state svg { width: 22px; height: 22px; }
+
+/* "↓ 回到当前进度": floats over the bottom of the rows while following is off. */
+.lt-follow-pill { position: absolute; left: 50%; bottom: 12px; z-index: 6; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); box-shadow: 0 4px 14px color-mix(in oklab, var(--foreground) 12%, transparent); font-size: 12px; transform: translateX(-50%); animation: lt-pill-in 160ms ease-out; }
+.lt-follow-pill:hover { background: var(--muted); }
+.lt-follow-pill:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.lt-follow-pill > svg { width: 14px; height: 14px; }
+@keyframes lt-pill-in { from { opacity: 0; transform: translate(-50%, 4px); } }
+
+/* Editor in place of the target. */
+.lt-editor { display: grid; gap: 6px; min-width: 0; }
+.lt-editor > textarea { min-height: 44px; max-height: 60vh; padding: 3px 8px; resize: none; font-size: 13px; line-height: 22px; overflow-wrap: anywhere; }
+.lt-editor-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; }
+/* The hint wraps inside its own line first; the two buttons always stay together on the right. */
+.lt-editor-hint { flex: 1 1 12rem; min-width: 0; font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+.lt-editor-actions { display: flex; flex-shrink: 0; gap: 8px; margin-left: auto; }
+.lt-editor-hint[data-over] { color: var(--destructive); }
+
+/* Footer: 4px page strip, then one 36px status and paging row. */
+.lt-footer { display: grid; min-width: 0; }
+.lt-strip { position: relative; display: flex; height: 4px; margin: 0 -12px; cursor: var(--clickable-cursor, pointer); }
+.lt-strip-cell { flex: 1 1 0; min-width: 0; background: color-mix(in oklab, var(--primary) var(--lt-done), var(--muted)); transition: background-color 300ms ease-out; }
+.lt-strip[data-gapped] { gap: 1px; }
+.lt-strip-cell[data-attention] { box-shadow: inset 0 2px var(--color-amber-500); }
+.lt-strip-cell[data-in-flight] { animation: lt-strip-pulse 1.2s ease-in-out infinite; }
+.lt-strip-cell[data-current] { position: relative; z-index: 1; outline: 1.5px solid var(--foreground); outline-offset: 0; }
+.lt-strip-anchor { position: absolute; top: 0; width: 1px; height: 4px; pointer-events: none; }
+@keyframes lt-strip-pulse { 50% { opacity: .55; } }
+.lt-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; height: 36px; }
+.lt-status { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.lt-status > svg { width: 13px; height: 13px; flex-shrink: 0; }
+.lt-status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 2px; }
+.lt-status-text:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.lt-status-short { display: none; }
+.lt-throttled { flex-shrink: 0; white-space: nowrap; color: var(--color-amber-600); }
+.dark .lt-throttled { color: var(--color-amber-400); }
+.lt-follow { flex-shrink: 0; color: var(--muted-foreground); }
+.lt-follow[aria-pressed=true] { background: var(--accent); color: var(--accent-foreground); }
+.lt-pager { display: flex; align-items: center; gap: 2px; flex-shrink: 0; font-size: 11px; font-variant-numeric: tabular-nums; }
+.lt-pager-range { padding: 0 6px; white-space: nowrap; color: var(--muted-foreground); }
+.lt-page-trigger { max-width: 220px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.lt-page-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+@container lt-reader (max-width: 559px) {
+  .lt-status-full { display: none; }
+  .lt-status-short { display: inline; }
+  .lt-follow-label { display: none; }
+  .lt-page-trigger { max-width: 140px; }
+}
+
+/* Page picker. */
+.lt-page-picker { display: grid; gap: 8px; width: min(320px, calc(100vw - 32px)); padding: 8px; }
+.lt-page-picker > input { height: 28px; font-size: 12px; }
+.lt-page-options { --studio-scroll-gutter: 6px; --studio-scroll-fade-surface: var(--popover); }
+.lt-page-options-list { display: grid; gap: 2px; padding-right: calc(4px - var(--studio-scroll-gutter)); }
+.lt-page-option { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; min-height: 28px; padding: 4px 6px; border-radius: 6px; text-align: left; font-size: 12px; line-height: 18px; cursor: var(--clickable-cursor, pointer); }
+.lt-page-option:hover, .lt-page-option:focus-visible { background: var(--muted); outline: none; }
+.lt-page-option[aria-current=true] { background: var(--accent); }
+.lt-page-option > span:first-child { font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted-foreground); text-align: right; }
+.lt-page-option > span:nth-child(2) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-page-option > span:last-child { font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.lt-page-hint { font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+
+/* Retranslate popover. */
+.lt-retranslate { display: grid; gap: 8px; width: min(320px, calc(100vw - 32px)); padding: 12px; }
+.lt-retranslate h3 { font-size: 13px; line-height: 20px; font-weight: 600; }
+.lt-retranslate-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lt-retranslate textarea { min-height: 72px; max-height: 200px; resize: none; font-size: 12px; line-height: 18px; }
+.lt-retranslate-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.lt-retranslate-footer > p { flex: 1; min-width: 0; font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+.lt-menu-note { max-width: 240px; padding: 4px 8px 6px; font-size: 11px; line-height: 16px; color: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-row, .lt-actions, .lt-reader-content, .lt-strip-cell, .lt-follow-pill, .lt-target > .lt-text.lt-fill { transition: none !important; animation: none !important; }
+  /* The jump flash becomes a still outline for as long as it would have lasted. */
+  .lt-row[data-flash] { animation: none !important; outline: 2px solid var(--color-amber-500); outline-offset: -2px; }
+}

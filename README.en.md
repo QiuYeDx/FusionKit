@@ -104,7 +104,7 @@ Group terms, translation requirements and background into a collection per title
 | **Subtitle language extraction** | Extracts one language from bilingual subtitles, keeping the original format |
 | **Local subtitle transcription** | Batch-transcribes audio and video to SRT / LRC with local Whisper models and can hand the results to subtitle translation |
 | **File and folder name translation** | AI-translates the names you select; review and edit before renaming. Renames run deepest-first, roll back on failure and can be undone |
-| **Long text translation** (Beta) | Translates TXT novels and long documents, with a coherent sequential mode, pause and resume, and re-translation from a chosen chunk |
+| **Long text translation** (Beta) | TXT, Markdown or pasted text, read side by side segment by segment; sample runs, re-translate or lock single segments, pause and resume, re-translate from any segment, export translation only or bilingual |
 
 Also included: dark and light themes; Simplified Chinese, Traditional Chinese, English and Japanese interfaces; in-app updates; system or custom proxy; notifications when tasks finish; and sleep prevention during long tasks.
 
@@ -163,7 +163,7 @@ FusionKit has no server of its own and collects no usage data. Apart from resour
 | External agents (off by default) | Listens on 127.0.0.1 only and requires a token; subtitles an external agent reads are handled by that agent's own model service |
 | Update checks | GitHub Releases, for new version information; the mirrors ghfast.top and ghproxy.net when GitHub cannot be reached (installed in the app only when GitHub or two mirrors agree; when a mirror answers first, GitHub is asked once more to confirm) |
 
-API keys are kept in the app's local settings and used only to call the services you configured. They are never written to subtitle recovery files, long text workspaces or error details. Before using a third-party model service, check its privacy and data retention policy. Some features, such as the sequential long text mode, use more tokens; your provider's bill is the source of truth for cost.
+API keys are kept in the app's local settings and used only to call the services you configured. They are never written to subtitle recovery files or error details; long text documents and translations are stored locally in `<userData>/long-text`, and the API key stays in memory only while translating. Before using a third-party model service, check its privacy and data retention policy. Your provider's bill is the source of truth for cost.
 
 ## Development
 

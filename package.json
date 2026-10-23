@@ -33,13 +33,9 @@
   },
   "dependencies": {
     "axios": "^1.7.9",
-    "chardet": "2.2.0",
     "electron-updater": "^6.6.2",
     "iconv-lite": "0.7.2",
-    "remark-frontmatter": "5.0.0",
     "remark-gfm": "^4.0.1",
-    "remark-parse": "11.0.0",
-    "unified": "11.0.5",
     "yauzl": "2.10.0",
     "zod": "^4.3.6"
   },
@@ -64,7 +60,6 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tailwindcss/vite": "^4.1.11",
     "@types/lodash": "^4.17.15",
-    "@types/mdast": "4.0.4",
     "@types/react": "19.1.1",
     "@types/react-dom": "19.1.1",
     "@types/yauzl": "^3.4.0",

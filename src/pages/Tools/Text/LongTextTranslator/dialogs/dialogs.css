@@ -1,0 +1,95 @@
+/* Long text translator dialogs (design §3.5). They render in a portal outside `.lt`, so every rule here
+   stands on its own `lt-` class; the scrolling body's 12px inset comes from `.lt-dialog-content`. */
+
+/* Title: 16px icon, then the dialog's name and the document it is about; one line, centred on the close button. */
+.lt-dialog-title { display: flex; align-items: center; gap: 8px; min-width: 0; padding-right: 36px; font-size: 14px; line-height: 20px; }
+.lt-dialog-title > svg { width: 16px; height: 16px; flex-shrink: 0; }
+.lt-dialog-title-text { flex-shrink: 0; }
+.lt-dialog-title-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 400; color: var(--muted-foreground); }
+.lt-dialog-title-name::before { content: '·'; flex-shrink: 0; }
+
+.lt-dialog-body { display: grid; gap: 16px; min-width: 0; }
+.lt-dialog-text { font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.lt-dialog-hint { font-size: 11px; line-height: 16px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+.lt-dialog-hint[data-tone=warning] { color: var(--color-amber-600); }
+.dark .lt-dialog-hint[data-tone=warning] { color: var(--color-amber-400); }
+/* Footer text (the estimate, or an error) takes the row; on narrow dialogs the buttons wrap below it. */
+.lt-dialog-footer-text { flex: 1 1 200px; min-width: 0; margin-right: auto; font-size: 11px; line-height: 16px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+.lt-dialog-note { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.lt-dialog-note > svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+.lt-dialog-note > p { flex: 1; min-width: 0; }
+.lt-dialog-note[data-tone=info] { background: color-mix(in oklab, var(--muted) 70%, transparent); color: var(--muted-foreground); }
+.lt-dialog-note[data-tone=warning] { background: color-mix(in oklab, var(--color-amber-500) 10%, transparent); color: var(--color-amber-700, var(--color-amber-600)); }
+.dark .lt-dialog-note[data-tone=warning] { background: color-mix(in oklab, var(--color-amber-500) 14%, transparent); color: var(--color-amber-400); }
+.lt-dialog-note[data-tone=error] { background: color-mix(in oklab, var(--destructive) 7%, transparent); color: var(--destructive); }
+
+/* Export. */
+.lt-export-destination { display: grid; gap: 8px; min-width: 0; }
+.lt-export-location { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 24px; }
+.lt-export-path { display: flex; flex: 1; min-width: 0; font-size: 12px; line-height: 18px; color: var(--muted-foreground); }
+.lt-export-path > .studio-file-name { font: 11px/18px ui-monospace, monospace; color: var(--foreground); }
+.lt-export-name { margin-bottom: 2px; font: 12px/18px ui-monospace, monospace; overflow-wrap: anywhere; }
+
+/* Encoding: the first decoded lines, two visual lines each, faded while another encoding loads. */
+.lt-encoding-preview { position: relative; display: grid; gap: 2px; min-height: 58px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: color-mix(in oklab, var(--muted) 40%, transparent); font: 12px/18px ui-monospace, monospace; transition: opacity 150ms ease-out; }
+.lt-encoding-preview > p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.lt-encoding-preview[data-stale] { opacity: .55; }
+.lt-encoding-preview > .lt-encoding-preview-error { font-family: inherit; color: var(--destructive); }
+.lt-encoding-preview-spinner { position: absolute; inset: 0; width: 16px; height: 16px; margin: auto; color: var(--muted-foreground); }
+
+/* Glossary: search and "添加" stay in the header; rows are one grid with a shared hover surface. */
+.lt-ledger-toolbar { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lt-ledger-search { position: relative; display: flex; flex: 1; align-items: center; min-width: 0; }
+.lt-ledger-search > svg { position: absolute; left: 9px; width: 14px; height: 14px; color: var(--muted-foreground); pointer-events: none; }
+.lt-ledger-search > input { padding-left: 29px; }
+.lt-ledger-full { margin-bottom: 12px; }
+.lt-ledger-list { display: grid; gap: 4px; }
+.lt-ledger-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto auto; align-items: center; gap: 6px; margin: 0 -4px; padding: 4px; border-radius: 8px; transition: background-color 150ms ease-out; }
+.lt-ledger-row:hover, .lt-ledger-row:focus-within { background: color-mix(in oklch, var(--muted) 45%, transparent); }
+.lt-ledger-origin { min-width: 34px; justify-content: center; font-size: 10.5px; font-weight: 400; }
+.lt-ledger-confirm { color: var(--muted-foreground); }
+.lt-ledger-confirm[aria-pressed=true] { color: var(--color-emerald-600); }
+.dark .lt-ledger-confirm[aria-pressed=true] { color: var(--color-emerald-400); }
+.lt-ledger-message { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 12px; text-align: center; font-size: 12px; line-height: 18px; color: var(--muted-foreground); }
+p.lt-ledger-message { flex-direction: row; justify-content: center; }
+p.lt-ledger-message > svg { width: 14px; height: 14px; }
+.lt-ledger-more { width: 100%; margin-top: 8px; }
+.lt-ledger-note { margin-top: 12px; font-size: 11px; line-height: 17px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+@media (max-width: 599px) {
+  .lt-ledger-row { grid-template-columns: minmax(0, 1fr) auto auto auto; }
+  .lt-ledger-row > :nth-child(2) { grid-row: 2; grid-column: 1 / -1; }
+}
+
+/* Settings: two columns with an arrow between the languages, one column below 560px (design §3.4 N-F). */
+.lt-settings { display: grid; gap: 16px; min-width: 0; container: lt-settings / inline-size; }
+.lt-settings-full { min-width: 0; }
+.lt-settings-pair { display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); align-items: start; min-width: 0; }
+.lt-settings-pair > .lt-settings-second { grid-column: 3; }
+.lt-settings-arrow { align-self: end; justify-self: center; width: 14px; height: 14px; margin-bottom: 9px; color: var(--muted-foreground); }
+.lt-settings-style { align-items: center; row-gap: 6px; }
+.lt-settings-model-problem { display: grid; justify-items: start; gap: 6px; }
+.lt-settings-count { font-size: 11px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.lt-settings-instructions { min-height: 64px; max-height: 200px; resize: vertical; font-size: 12px; line-height: 18px; }
+/* The page owns the only source language control (U1). */
+.lt-materials { min-width: 0; }
+.lt-materials .studio-materials-source-row { display: none; }
+.lt-settings-ledger { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; min-height: 44px; padding: 6px 6px 6px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.lt-settings-label { font-size: 13px; font-weight: 600; line-height: 20px; }
+.lt-settings-ledger-summary { flex: 1; min-width: 0; font-size: 12px; line-height: 18px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.lt-settings-advanced { min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.lt-settings-advanced-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.lt-settings-unit { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lt-settings-unit > input { flex: 1; min-width: 0; }
+.lt-settings-unit > span { flex-shrink: 0; font-size: 11px; color: var(--muted-foreground); }
+@container lt-settings (max-width: 559px) {
+  .lt-settings-pair { grid-template-columns: minmax(0, 1fr); row-gap: 16px; }
+  .lt-settings-pair > .lt-settings-second { grid-column: auto; }
+  .lt-settings-arrow { align-self: auto; justify-self: start; margin: -8px 0 -8px 9px; transform: rotate(90deg); }
+  .lt-settings-style { row-gap: 6px; }
+  .lt-settings-advanced-fields { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-encoding-preview, .lt-ledger-row { transition: none; }
+}
