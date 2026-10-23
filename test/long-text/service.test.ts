@@ -336,6 +336,8 @@ describe('LongTextService', () => {
     const before = await service.read({ documentId: id });
     expect(before.structure).toMatchObject({ resolved: 'line' });
     await service.edit({ documentId: id, index: 0, rev: 0, text: '第一行' });
+    // The edit's segments event goes out on its own timer; wait for it so the slice below holds only the resegment's events.
+    await vi.waitFor(() => expect(events.some(event => event.documentId === id && event.kind === 'segments')).toBe(true));
     await expect(service.resegment({ documentId: id, txtSplit: 'unwrap', discardTranslations: false })).rejects.toMatchObject({ code: 'translations_exist' });
     await expect(service.resegment({ documentId: id, encoding: 'gb18030', discardTranslations: true })).rejects.toMatchObject({ code: 'invalid_request' });
     const count = events.length;
@@ -344,6 +346,16 @@ describe('LongTextService', () => {
     expect(after.stats.translatable).toBeLessThan(before.stats.translatable);
     expect(events.slice(count).filter(event => event.documentId === id).map(event => event.kind)).toEqual(['document', 'list']);
     expect((await service.readPage({ documentId: id, page: 0 })).revision).toBe(after.revision);
+  });
+
+  it('never sends segment ranges of the old segmentation after resegmenting', async () => {
+    const { service, events } = await createService();
+    const id = await paste(service, lines(10));
+    await service.edit({ documentId: id, index: 0, rev: 0, text: '第一行' });
+    await service.resegment({ documentId: id, txtSplit: 'unwrap', discardTranslations: true });
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const mine = events.filter(event => event.documentId === id).map(event => event.kind);
+    expect(mine.slice(mine.lastIndexOf('document'))).toEqual(['document', 'list']);
   });
 
   it('pauses idempotently and reports unknown and damaged documents', async () => {

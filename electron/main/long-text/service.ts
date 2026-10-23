@@ -241,6 +241,8 @@ export class LongTextService implements LongTextHandlers {
       if (this.active(entry)) throw new LongTextOperationError('busy');
       if (encoding && !document.manifest.encoding) throw new LongTextOperationError('invalid_request');
       if (hasTranslations(document.summary()) && !discardTranslations) throw new LongTextOperationError('translations_exist');
+      // Pending segment ranges refer to the old segmentation; the document event below makes readers start over.
+      this.dropSegments(id);
       this.loaded.delete(id);
       const replaced = this.close(entry)
         .then(() => this.importer.resegment(document, { encoding, txtSplit }))
@@ -416,9 +418,7 @@ export class LongTextService implements LongTextHandlers {
       } finally {
         this.removing.delete(id);
       }
-      const pending = this.segmentEvents.get(id);
-      if (pending) clearTimeout(pending.timer);
-      this.segmentEvents.delete(id);
+      this.dropSegments(id);
       this.summaries.delete(id);
       this.observed.delete(id);
       this.send({ kind: 'deleted', documentId: id });
@@ -700,6 +700,12 @@ export class LongTextService implements LongTextHandlers {
       pending.pages.add(page);
       if (pending.pages.size > EVENT_PAGES) pending.pages = null;
     }
+  }
+
+  private dropSegments(id: string): void {
+    const pending = this.segmentEvents.get(id);
+    if (pending) clearTimeout(pending.timer);
+    this.segmentEvents.delete(id);
   }
 
   private flushSegments(id: string): void {
