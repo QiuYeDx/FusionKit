@@ -12,7 +12,7 @@
   "sub_desc": {
     "subtitle_tools": "AI翻訳、フォーマット変換などの字幕処理機能。",
     "rename_tools": "複数のファイルを簡単に一括リネーム。",
-    "text_tools": "長文 TXT / Markdown 翻訳ワークスペース。"
+    "text_tools": "長文 TXT / Markdown の対照翻訳と見直し。"
   },
   "fields": {
     "subtitle_translator": "字幕AI翻訳",
@@ -28,7 +28,7 @@
     "subtitle_language_extractor": "バイリンガル字幕から指定言語を抽出",
     "local_subtitle_transcriber": "ローカルモデルで音声や動画を一括処理し、SRT / LRC 字幕に文字起こしします",
     "name_translator": "ファイルやフォルダー（中身を含む）を選んで AI で名前を翻訳し、確認・編集してから一括で名前を変更。元に戻すこともできます",
-    "text_translator": "タスク用モデルで長い TXT / Markdown ファイルを翻訳し、復元可能な作業領域を保持します",
+    "text_translator": "TXT・Markdown のインポートや貼り付けに対応。原文と訳文を段落ごとに対照し、試訳、一時停止と再開、見直し後の書き出しができます",
     "subtitle_studio": "音声・動画の文字起こし、AI 字幕翻訳、対訳字幕の一括出力"
   },
   "chips": {

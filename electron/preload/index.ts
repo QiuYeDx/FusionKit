@@ -14,6 +14,8 @@ import { assertLegacyStudioChannelAllowed } from './subtitle-studio-channel-poli
 import { assertLegacySpeechResourcesChannelAllowed, createSpeechResourcesApi } from './speech-resources-api'
 import { assertLegacyKnowledgeChannelAllowed, createTranslationKnowledgeApi } from './translation-knowledge-api'
 import { assertLegacyNameTranslationChannelAllowed, createNameTranslationApi } from './name-translation-api'
+import { assertLegacyLongTextChannelAllowed } from './long-text-channel-policy'
+import { createLongTextApi } from './long-text-api'
 import { assertLegacyWebLookupChannelAllowed, createWebLookupApi } from './web-lookup-api'
 import { assertLegacyAgentSessionsChannelAllowed, createAgentSessionsApi } from './agent-sessions-api'
 import { assertLegacyExternalAgentChannelAllowed, createExternalAgentApi } from './external-agent-api'
@@ -37,6 +39,7 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
   assertLegacyModelSetupChannelAllowed(channel)
   assertLegacySystemSetupChannelAllowed(channel)
   assertLegacyNameTranslationChannelAllowed(channel)
+  assertLegacyLongTextChannelAllowed(channel)
   assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyAgentSessionsChannelAllowed(channel)
   assertLegacyExternalAgentChannelAllowed(channel)
@@ -54,6 +57,7 @@ const assertLegacyListenChannelAllowed = (channel: string) => {
   assertLegacyModelSetupChannelAllowed(channel)
   assertLegacySystemSetupChannelAllowed(channel)
   assertLegacyNameTranslationChannelAllowed(channel)
+  assertLegacyLongTextChannelAllowed(channel)
   assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyAgentSessionsChannelAllowed(channel)
   assertLegacyExternalAgentChannelAllowed(channel)
@@ -69,6 +73,7 @@ contextBridge.exposeInMainWorld('subtitleStudio', createSubtitleStudioApi(ipcRen
 contextBridge.exposeInMainWorld('translationKnowledge', createTranslationKnowledgeApi(ipcRenderer, webUtils))
 contextBridge.exposeInMainWorld('speechResources', createSpeechResourcesApi(ipcRenderer))
 contextBridge.exposeInMainWorld('nameTranslation', createNameTranslationApi(ipcRenderer))
+contextBridge.exposeInMainWorld('longText', createLongTextApi(ipcRenderer))
 contextBridge.exposeInMainWorld('webLookup', createWebLookupApi(ipcRenderer))
 contextBridge.exposeInMainWorld('agentSessions', createAgentSessionsApi(ipcRenderer))
 contextBridge.exposeInMainWorld('externalAgent', createExternalAgentApi(ipcRenderer))

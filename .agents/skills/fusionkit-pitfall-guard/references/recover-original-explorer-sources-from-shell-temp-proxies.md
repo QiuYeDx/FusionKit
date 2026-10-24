@@ -105,5 +105,6 @@ the source admissible again.
 - `src/pages/Tools/Subtitle/SubtitleConverter/index.tsx`
 - `src/pages/Tools/Subtitle/SubtitleLanguageExtractor/index.tsx`
 - `src/pages/Tools/Subtitle/SubtitleTranslator/index.tsx`
-- `src/pages/Tools/Text/TextTranslator/index.tsx`
+- `src/pages/Tools/Text/LongTextTranslator/index.tsx` (the `useToolFileDropTarget` drop)
+- `src/pages/Tools/Text/LongTextTranslator/hooks/useDocuments.ts` (`importDropped`); the old TextTranslator page was removed 2026-10-22
 - `test/local-subtitle/windowsExplorerDropResolver.test.ts`

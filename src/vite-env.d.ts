@@ -14,6 +14,7 @@ interface Window {
   translationKnowledge: import('./translation-knowledge/ipc-contract').TranslationKnowledgeApi;
   speechResources: import('./speech-resources/events').SpeechResourcesNotifications;
   nameTranslation: import('./name-translation/contract').NameTranslationRendererApi;
+  longText: import('./long-text/contract').LongTextApi;
   webLookup: import('./web-lookup/contract').WebLookupApi;
   agentSessions?: import('./agent/session-store-contract').AgentSessionsApi;
   externalAgent?: import('./agent/external/contract').ExternalAgentApi;

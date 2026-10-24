@@ -9,6 +9,8 @@ export const REMOVED_TOOL_STORAGE_KEYS = [
   "fusionkit-speech-synthesizer",
   "fusionkit-realtime-captions",
   "fusionkit-realtime-voice",
+  // The first long text translator, replaced by a new tool on 2026-10-22.
+  "fusionkit-text-translator",
 ] as const;
 
 type KeyRemover = Pick<Storage, "removeItem">;

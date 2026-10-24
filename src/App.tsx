@@ -23,7 +23,7 @@ import SubtitleConverter from "./pages/Tools/Subtitle/SubtitleConverter";
 import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageExtractor";
 import LocalSubtitleTranscriber from "./pages/Tools/Subtitle/LocalSubtitleTranscriber";
 import NameTranslator from "./pages/Tools/Rename/NameTranslator";
-import TextTranslator from "./pages/Tools/Text/TextTranslator";
+import LongTextTranslator from "./pages/Tools/Text/LongTextTranslator";
 import ExternalAgentActivity from "./pages/ExternalAgentActivity";
 import { EXTERNAL_ACTIVITY_ROUTE } from "./pages/ExternalAgentActivity/route";
 import { Toaster } from "@/components/ui/sonner";
@@ -162,7 +162,7 @@ function App() {
                 />
                 <Route
                   path="/tools/text/translator"
-                  element={<TextTranslator />}
+                  element={<LongTextTranslator />}
                 />
               </Routes>
               </ToolFileDropScope>

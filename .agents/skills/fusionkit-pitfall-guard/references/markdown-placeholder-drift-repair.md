@@ -2,7 +2,9 @@
 
 ## Area
 
-Text translation / Markdown.
+Long-text translation / Markdown.
+
+Historical: the old FKP placeholders and electron/main/text-translation/** were removed 2026-10-22; the current markers are `<xN/>` atoms and `<mN>…</mN>` pairs.
 
 ## Triggers
 
@@ -10,6 +12,7 @@ Text translation / Markdown.
 - Failure details include `placeholder_mismatch`.
 - Error mentions unknown, missing, duplicated, or reordered `FKP` placeholders.
 - Real model output changes `⟦FKP:...⟧` tokens, emits an extra placeholder such as `:0031`, or uses an ASCII bracket variant.
+- `<xN/>` atom or `<mN>…</mN>` pair markers drift in the model's output: an atom is missing, duplicated or reordered, a pair loses an end, ends cross, or an unknown id appears.
 
 ## Symptoms
 
@@ -42,17 +45,13 @@ Markdown translation protects code, URLs, HTML, and similar spans by replacing t
 ## Validation
 
 ```bash
-corepack pnpm@8.7.0 exec vitest run \
-  test/text-translation/parsing/markdownParser.test.ts \
-  test/text-translation/protocol/markdownTranslationResponseProtocol.test.ts \
-  test/text-translation/output/markdownOutputAssembler.test.ts \
-  test/text-translation/service/textTranslationService.e2e.test.ts
+corepack pnpm@8.7.0 exec vitest run test/long-text/inline.test.ts test/long-text/protocol.test.ts test/long-text/runner.test.ts
 ```
 
 ## Related Files
 
-- `electron/main/text-translation/parsing/protected-placeholders.ts`
-- `electron/main/text-translation/model/translation-response-protocol.ts`
-- `electron/main/text-translation/text-translation-service.ts`
-- `test/text-translation/protocol/markdownTranslationResponseProtocol.test.ts`
-- `test/text-translation/service/textTranslationService.e2e.test.ts`
+- `src/long-text/inline.ts` (`project` / `decode`, final-attempt repair)
+- `src/long-text/protocol.ts`
+- `electron/main/long-text/runner.ts`
+- `test/long-text/inline.test.ts`
+- `test/long-text/runner.test.ts`

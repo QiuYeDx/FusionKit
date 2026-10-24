@@ -30,6 +30,7 @@ const AGENT_PAGE_TITLE_KEYS = [
   "tools:fields.subtitle_language_extractor",
   "tools:fields.local_subtitle_transcriber",
   "tools:fields.name_translator",
+  "tools:fields.text_translator",
   "common:menu.tools",
   "common:menu.setting",
 ];
@@ -142,10 +143,6 @@ export const I18N_USAGE_MANIFEST = [
   },
   {
     selector: "src/pages/Tools/Subtitle/SubtitleLanguageExtractor/index.tsx#lang.labelKey",
-    keys: SUBTITLE_LANGUAGE_KEYS,
-  },
-  {
-    selector: "src/pages/Tools/Text/TextTranslator/index.tsx#language.labelKey",
     keys: SUBTITLE_LANGUAGE_KEYS,
   },
 ];

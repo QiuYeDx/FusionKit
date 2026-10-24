@@ -2,7 +2,9 @@
 
 ## Area
 
-Text translation, Markdown assembly, Windows test validation.
+Long-text translation, Markdown rebuild, Windows test validation.
+
+Historical: the old markdown-output-assembler (electron/main/text-translation/output/) and its tests under test/text-translation/ were removed 2026-10-22; the lesson now applies to `src/long-text/rebuild.ts`.
 
 ## Triggers
 
@@ -36,13 +38,14 @@ Markdown source ranges preserve the checkout's original line endings, while gene
 ## Validation
 
 ```text
-vitest run test/text-translation/markdown/markdownAstProbe.test.ts test/text-translation/output/markdownOutputAssembler.test.ts
+vitest run test/long-text/rebuild.test.ts test/long-text/exporter.test.ts
 ```
 
-Run the full Vitest suite on Windows after the targeted tests pass.
+After the targeted tests pass on Windows, run the other affected non-Electron Vitest files by name. A bare `vitest run` / `pnpm test` also runs `*.electron.test.ts` and `test/e2e.spec.ts`, which open Electron windows, so run those only with the user's consent.
 
 ## Related files
 
-- `electron/main/text-translation/output/markdown-output-assembler.ts`
-- `test/text-translation/markdown/markdownAstProbe.test.ts`
-- `test/text-translation/output/markdownOutputAssembler.test.ts`
+- `src/long-text/rebuild.ts` (`RebuildOptions.lineEnding`)
+- `electron/main/long-text/exporter.ts`
+- `test/long-text/rebuild.test.ts`
+- `test/long-text/exporter.test.ts`

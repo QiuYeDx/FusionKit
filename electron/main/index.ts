@@ -28,10 +28,6 @@ import { setupWebLookupIPC } from "./web-lookup";
 import { setupAgentSessionsIPC } from "./agent-sessions";
 import { setupExternalAgent } from "./external-agent";
 import {
-  emitTextTranslationEvent,
-  setupTextTranslationIPC,
-} from "./text-translation/ipc";
-import {
   LocalSubtitleIpcService,
   LocalSubtitleOverwriteRecoveryAdmissionCoordinator,
   setupLocalSubtitleIPC,
@@ -75,9 +71,9 @@ import {
   LOCAL_SUBTITLE_PUBLIC_INVOKE_CHANNELS,
   localSubtitleIpcSuccess,
 } from "@/type/localSubtitleIpc";
-import { TextTranslationService } from "./text-translation/text-translation-service";
 import { registerSubtitleStudio } from "./subtitle-studio";
 import { registerTranslationKnowledge } from "./translation-knowledge";
+import { registerLongText } from "./long-text";
 import { createSharedResourceApplicationShutdown, createResourceConsumerLifecycle } from "./app-shutdown";
 import { SpeechResourceService } from "./speech-resources/service";
 import { SPEECH_CUDA_RESOURCE_ID } from "./speech-resources/catalog";
@@ -128,12 +124,6 @@ let localSubtitleServerLifecycle: LocalSubtitleServerAppLifecycle | undefined;
 let translationService: TranslationService = new TranslationService();
 const subtitleTranslationDirectoryCapabilities =
   new SubtitleTranslationDirectoryCapabilityRegistry();
-let textTranslationService = new TextTranslationService({
-  eventSink: (event) => {
-    if (!win || win.webContents.isDestroyed()) return;
-    emitTextTranslationEvent(win.webContents, event);
-  },
-});
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 const START_LOADING_PROGRESS_CHANNEL = "fusionkit-start-loading-progress";
@@ -304,6 +294,11 @@ app.whenReady().then(async () => {
   catch { console.error("Subtitle Studio initialization failed."); }
   try { translationKnowledge = registerTranslationKnowledge(); }
   catch { console.error("Translation knowledge initialization failed."); }
+  try { registerLongText({ getWindow: () => win, readKnowledge: () => {
+    if (!translationKnowledge) throw new Error('Translation knowledge unavailable');
+    return translationKnowledge.readForExecution();
+  } }); }
+  catch { console.error("Long text translator initialization failed."); }
   const localSubtitleInputAuthorizations =
     new LocalSubtitleInputAuthorizationRegistry();
   const localSubtitleOutputAuthorizations =
@@ -525,7 +520,6 @@ app.whenReady().then(async () => {
   setupModelSetupIPC({ resourceDirectory: () => app.getPath("userData") });
   // The Windows build ships the VC++ redistributable in resources/vc-redist; from source there is none.
   setupSystemSetupIPC({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined });
-  setupTextTranslationIPC(textTranslationService);
 
   app.on("activate", () => {
     const allWindows = BrowserWindow.getAllWindows();

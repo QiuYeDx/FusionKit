@@ -12,7 +12,7 @@
   "sub_desc": {
     "subtitle_tools": "AI 翻譯、格式轉換等字幕處理功能。",
     "rename_tools": "輕鬆批次重新命名多個檔案。",
-    "text_tools": "長文本 TXT / Markdown 翻譯工作區。"
+    "text_tools": "長文本 TXT / Markdown 對照翻譯與校對。"
   },
   "fields": {
     "subtitle_translator": "字幕AI翻譯",
@@ -28,7 +28,7 @@
     "subtitle_language_extractor": "從雙語字幕中擷取指定語言",
     "local_subtitle_transcriber": "使用本機模型批次將音訊或影片轉寫為 SRT / LRC 字幕",
     "name_translator": "勾選檔案和資料夾（含子項），AI 翻譯名稱，核對修改後一鍵重新命名，支援復原",
-    "text_translator": "透過任務模型翻譯長篇 TXT / Markdown 檔案，並保留可恢復工作區",
+    "text_translator": "匯入 TXT、Markdown 或貼上文字，原文譯文逐段對照，可試譯、暫停續譯、校對後匯出",
     "subtitle_studio": "本機轉寫音訊影片、AI 翻譯字幕，批次匯出雙語檔案"
   },
   "chips": {

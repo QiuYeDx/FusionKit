@@ -76,5 +76,5 @@ rg 'from "@/components/ui/dialog"' src/ --glob '!**/qiuye-ui/**' --glob '!**/Con
 - `src/components/qiuye-ui/scrollable-dialog.tsx` — ScrollableDialog 组件实现
 - `src/components/ui/dialog.tsx` — shadcn/ui 原生 Dialog（仅供 qiuye-ui 内部引用或极简确认弹窗使用）
 - `src/components/ConfirmDialog.tsx` — 极简确认弹窗（合理使用原生 Dialog 的例外场景）
-- `src/pages/Tools/Text/TextTranslator/index.tsx` — 本次修复的 RecoveryDialog
+- `src/pages/Tools/Text/LongTextTranslator/dialogs/DialogFrame.tsx` — 长文本翻译的弹窗都基于 ScrollableDialog 搭建（原 TextTranslator 的 RecoveryDialog 已于 2026-10-22 随旧工具删除）
 - `src/pages/Tools/Subtitle/SubtitleTranslator/components/RecoveryDialog.tsx` — 同样需要关注的组件
