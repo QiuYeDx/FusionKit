@@ -6,7 +6,7 @@
 | 日期 | 2026-10-24 |
 | 验证版本 | 工作树，基于 748285ec（未提交）。修改：`electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts`（sha256 6e2c648a…）、`electron/main/subtitle-studio/transcription/transcript-executor.ts`（74df118f…）、`scripts/subtitle-studio-provenance/current-copy-audits.json`（ea1030a2…，上面两项与 productionExecutor.test.ts 的 currentSha256 与原因）、`test/subtitle-studio/transcription/productionExecutor.test.ts`（1e30080a…，审计副本只追加用例）、`test/asr-quality/ab-comparison-harness.ts`（b9f2da47…，从执行器返回值把 `seamDuplicates`（含 `restoredEdge`）写进每个用例的 JSON 与 report.json）；新增：`test/subtitle-studio/transcription/seamDuplicates.test.ts`（9901194b…）；记录与证据：`records/T-ASRQ-11.md`、`records/T-ASRQ-11-unit.txt`、`records/T-ASRQ-11-provenance.txt`、`records/T-ASRQ-11-rerun.txt`。同一工作树里还有协调者对 requirements.md、design.md、tasks.md、spec.json 的规格改动，以及 T-ASRQ-12 的改动；冻结副本 `subtitlePostProcessor.test.ts` 没有改。重跑 run-Gg6ITS 开跑时这些文件的哈希与上面相同（控制台日志开头） |
 | 环境 | Windows 11 Pro 10.0.26200；Node v20.19.4；vitest 2.1.9；esbuild 0.21.5（只用于把复核规则打包给 node）；FFmpeg 2024-04-18 full_build（`C:/Program Files/ffmpeg`，只用于算 100 ms RMS）；NVIDIA GeForce RTX 4070 Ti SUPER 16 GB（驱动 610.88），开跑时用户自己的 TTS 服务占约 8–9 GB 显存；内置运行时 `build/subtitle-studio-resources/transcription`（whisper.cpp v1.9.1，运行时代 3a2ac09dfc9b…，含 FFmpeg）；模型 large-v3（SHA-256 64d182b4…）与 CUDA 包只读取自 `%APPDATA%/FusionKit/speech-resources`；设备 CUDA；没有启动 Electron 或任何窗口 |
-| 任务指纹 | 8a259c092ad1ea3548456616122f7c4634f2272309790fcfa04a51051c9718dc |
+| 任务指纹 | 775efc4775213545d5e8aeb2767656e845a141a8f320b01aee0b450084f142a7 |
 
 ## 实际结果
 
@@ -138,3 +138,4 @@
 - 没被裁到接缝的短尾巴重复不是候选：full / standard 的 142.60–143.84 与 full / noisy_music_v1 的 142.79–143.83 各有一条 2 字短句，与接缝前保留句的结尾重复，这两条留着。另有 8 句覆盖率 0.5–0.7 的部分重复保留（见上）。
 - 移回的可信度只按另外两个变体的时间和 100 ms RMS 判断，没有听音频。PV 有背景音乐，RMS 区分不了人声；pv-ja / noisy 127.50 s 与 177.50 s 两处没有独立参照。
 - 未提交。工作树里有其他会话的改动，提交时要按并行会话的做法，用临时 GIT_INDEX_FILE 只加入本任务的文件。
+- 2026-10-24 R-ASRQ-14 增加 AC-ASRQ-14-6（修剪保留长句的重复开头，由 T-ASRQ-14 负责）、并补充说明后重新评估任务指纹：本任务的验收项、检查与结论不变。

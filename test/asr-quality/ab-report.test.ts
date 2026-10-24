@@ -123,6 +123,11 @@ describe('A/B statistics', () => {
     expect(describeProfileFields(summarizeRequestFields([{ kind: 'separator', fields: { vad_threshold: '0.5' } }]))).toBe('无');
     expect(describeProfileFields(summarizeRequestFields([{ kind: 'primary', fields: { vad_threshold: '0.35', suppress_nst: 'true' } },
       { kind: 'quality_recovery', fields: { vad_threshold: '0.35' } }]))).toBe('vad_threshold=0.35×1; suppress_nst=true×1; 重放 vad_threshold=0.35×1');
+    // A timing anchor's standard fields are counted apart from the preset's recognition requests.
+    const anchored = summarizeRequestFields([{ kind: 'primary', fields: { vad_threshold: '0.35', vad_speech_pad_ms: '300' } },
+      { kind: 'anchor', fields: { vad_speech_pad_ms: '1000' } }]);
+    expect(anchored.anchor).toEqual({ count: 1, fields: { vad_speech_pad_ms: { 1000: 1 } } });
+    expect(describeProfileFields(anchored)).toBe('vad_threshold=0.35×1; vad_speech_pad_ms=300×1');
   });
 });
 
@@ -152,20 +157,40 @@ describe('A/B reports', () => {
       { id: 'B-noise', language: 'ja', description: '负对照', status: 'present', durationMs: 18_000 },
       { id: 'drama', language: 'ja', description: '广播剧', status: 'missing', reason: 'E:/workspace/fusionkit 不存在' }],
     cases: [done('A', 'standard', [cue(0, 2000, 'おはよう', 0.9), cue(3000, 5000, 'こんにちは', 0.4)]),
-      done('A', 'quiet_whisper_v1', [cue(0, 2000, 'おはよう', 0.9), cue(3000, 5000, 'こんばんは|', 0.5)]),
+      done('A', 'quiet_whisper_v1', [cue(0, 2000, 'おはよう', 0.9), cue(3000, 5000, 'こんばんは|', 0.5)], { requests: [
+        { ordinal: 1, kind: 'primary', fields: { vad: 'true', vad_threshold: '0.35' }, language: 'ja' },
+        { ordinal: 2, kind: 'anchor', fields: { vad: 'true' }, language: 'ja' }] }),
       { sampleId: 'A', variant: 'noisy_music_v1', status: 'not_implemented', cues: [], requests: [], timings: {}, error: '任务配置不接受 advanced.audioProfile' },
       done('B-noise', 'standard', []), done('B-noise', 'quiet_whisper_v1', [cue(4000, 5000, 'ご視聴ありがとうございました', 0.2)]),
       done('B-noise', 'noisy_music_v1', [], { profileApplied: false })] };
 
   it('summarizes counts, timings, confidence, missing samples, the negative control and inactive variants', () => {
     const text = renderSummary(report);
-    expect(text).toContain('| A | standard | 完成 | 2 | 9 | 1（1/0/0） | 12.3 s / 0.4 s / 3.0 s / 8.0 s | <0.30:0 0.30–0.45:1 0.45–0.60:0 0.60–0.80:0 ≥0.80:1；中位 0.65 | 未实现 | 无 |');
-    expect(text).toContain('| A | noisy_music_v1 | 未实现 | — | — | 0（0/0/0）');
+    expect(text).toContain('| A | standard | 完成 | 2 | 9 | 1（1/0/0/0） | 12.3 s / 0.4 s / 3.0 s / 8.0 s | <0.30:0 0.30–0.45:1 0.45–0.60:0 0.60–0.80:0 ≥0.80:1；中位 0.65 | 未实现 | 无 |');
+    expect(text).toContain('| A | quiet_whisper_v1 | 完成 | 2 | 10 | 2（1/0/0/1） |');
+    expect(text).toContain('| A | noisy_music_v1 | 未实现 | — | — | 0（0/0/0/0）');
+    expect(text).toContain('anchor=时间锚点');
     expect(text).toContain('vad_threshold=0.35×1'); expect(text).toContain('30 s \\| ASMR');
     expect(text).toContain('| drama | ja | 广播剧 | — | 缺失：E:/workspace/fusionkit 不存在 |');
     expect(text).toContain('- standard：（无文字）'); expect(text).toContain('- quiet_whisper_v1：00:04–00:05 ご視聴ありがとうございました');
     expect(text).toContain('- A / noisy_music_v1：未实现（任务配置不接受 advanced.audioProfile）');
     expect(text).toContain('- B-noise / noisy_music_v1：任务已接受该音频类型，但没有任何识别请求带上预设字段');
+    expect(text).not.toContain('## 时间锚点');
+  });
+  it('reports how many segment edges of each preset case took an anchor time, and which windows were not early', () => {
+    const anchorRetiming = [{ anchoredEdges: 3, totalEdges: 4, medianShiftMs: 2090, status: 'retimed' },
+      { anchoredEdges: 0, totalEdges: 6, medianShiftMs: 0, status: 'unaligned' }, { anchoredEdges: 4, totalEdges: 4, medianShiftMs: 640, status: 'retimed' },
+      { anchoredEdges: 0, totalEdges: 0, medianShiftMs: 0, status: 'skipped' }, { anchoredEdges: 5, totalEdges: 6, medianShiftMs: -1180, status: 'not_early' },
+      { anchoredEdges: 2, totalEdges: 2, medianShiftMs: 499, status: 'not_early' }];
+    const text = renderSummary({ ...report, cases: [done('A', 'quiet_whisper_v1', [cue(0, 2000, 'はい')], { anchorRetiming }),
+      done('A', 'noisy_music_v1', [cue(0, 2000, 'はい')], { anchorRetiming: [{ anchoredEdges: 4, totalEdges: 4, medianShiftMs: 0, status: 'not_early' }] }),
+      done('C', 'noisy_music_v1', [cue(0, 2000, 'はい')], { anchorRetiming: [{ anchoredEdges: 0, totalEdges: 0, medianShiftMs: 0, status: 'skipped' }] })] });
+    expect(text).toContain('## 时间锚点');
+    expect(text).toContain('达到 +500 ms 的窗口整体偏早');
+    expect(text).toContain('- A / quiet_whisper_v1：窗口 6（retimed 2，unaligned 1，skipped 1，not_early 2）；对齐的边 14/22（64%）；'
+      + '平移中位 retimed +640 ms 至 +2090 ms，not_early -1180 ms 至 +499 ms\n');
+    expect(text).toContain('- A / noisy_music_v1：窗口 1（not_early 1）；对齐的边 4/4（100%）；平移中位 not_early 0 ms\n');
+    expect(text).toContain('- C / noisy_music_v1：窗口 1（skipped 1）；对齐的边 0/0\n');
   });
   it('lists aligned differences per sample and says why a pair cannot be compared', () => {
     const text = renderDiff(report);

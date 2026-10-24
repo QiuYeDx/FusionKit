@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { createTranscriptionRuntime } from '../../electron/main/subtitle-studio/transcription/runtime';
 import { TranscriptionExecutor } from '../../electron/main/subtitle-studio/transcription/transcript-executor';
-import type { LocalSubtitleSeamDuplicate } from '../../electron/main/subtitle-studio/transcription/native/subtitle-post-processor';
+import type { LocalSubtitleAnchorRetiming, LocalSubtitleSeamDuplicate } from '../../electron/main/subtitle-studio/transcription/native/subtitle-post-processor';
 import { LocalSubtitleMediaNormalizer as StudioMedia } from '../../electron/main/subtitle-studio/transcription/native/media-normalizer';
 import { LocalSubtitleServerSupervisor as StudioServer } from '../../electron/main/subtitle-studio/transcription/native/server-supervisor';
 import { createLocalSubtitleProductionBackendAttestor } from '../../electron/main/subtitle-studio/transcription/native/backend-attestor';
@@ -43,9 +43,15 @@ export interface AsrAbCaseEvidence extends AsrAbCase {
   task?: unknown; document?: { id: string; cues: number }; transcriptModel?: unknown;
   /**
    * Cues the executor dropped at window seams, each with the kept cue edge it gave back
-   * (restoredEdge; ids and times only). The document never holds the dropped cues.
+   * (restoredEdge) and the repeated words it trimmed off a kept copy (trimmedEdge; ids,
+   * counts and times only). The document never holds the dropped cues or trimmed words.
    */
   seamDuplicates?: readonly LocalSubtitleSeamDuplicate[];
+  /**
+   * Preset cases: how each accepted window took the times of its standard-field timing
+   * anchor (counts, shifts and times only). Its requests are listed with kind 'anchor'.
+   */
+  anchorRetiming?: readonly LocalSubtitleAnchorRetiming[];
   requestSummary: ReturnType<typeof summarizeRequestFields>; processIds: number[]; serverLoads: string[];
   backendProofs: { processId: number; backend: string; acceleratorPackGeneration?: string }[]; observerErrors: string[];
   cleanup?: { joined: boolean; processesExited: boolean; workRemoved: boolean; error?: string };
@@ -151,8 +157,10 @@ function observeCase(record: AsrAbCaseEvidence) {
       let fields: Record<string, string> = {}, fieldError: string | undefined;
       try { fields = { ...createLocalSubtitleServerInferenceFields(request as never) }; } catch (error) { fieldError = message(error); }
       // As in the T08 harness: separator leases are DTW candidates; a raised temperature is the one quality replay.
+      // A preset sends its fields on every VAD recognition request, so one without them is its timing anchor.
+      const anchor = record.variant !== 'standard' && request.vadEnabled === true && request.vadThreshold === undefined;
       const entry: AsrAbRequest = { ordinal: record.requests.length + 1, fields,
-        kind: separatorLeases.has(args[0] as object) ? 'separator' : request.temperature === 0 ? 'primary' : 'quality_recovery',
+        kind: separatorLeases.has(args[0] as object) ? 'separator' : anchor ? 'anchor' : request.temperature === 0 ? 'primary' : 'quality_recovery',
         ...(windows.has(String(filePath)) ? { window: windows.get(String(filePath))! } : {}), ...(fieldError ? { error: fieldError } : {}) };
       record.requests.push(entry);
       return { resolved: value => {
@@ -163,10 +171,12 @@ function observeCase(record: AsrAbCaseEvidence) {
       }, rejected: error => { entry.elapsedMs = Date.now() - started; entry.error = message(error); } };
     }, result => object(result).result);
     // Only the executor result lists the seam duplicates it dropped, and the kept edges it
-    // restored, before the document was written; entries are kept whole.
+    // restored and trimmed, before the document was written; entries are kept whole. The
+    // same holds for each preset window's timing anchor.
     observe(TranscriptionExecutor.prototype, 'execute', () => ({ resolved: value => {
-      const { seamDuplicates } = object(value);
+      const { seamDuplicates, anchorRetiming } = object(value);
       if (Array.isArray(seamDuplicates)) record.seamDuplicates = seamDuplicates as LocalSubtitleSeamDuplicate[];
+      if (Array.isArray(anchorRetiming)) record.anchorRetiming = anchorRetiming as LocalSubtitleAnchorRetiming[];
     } }));
   } catch (error) { for (const restore of restores.reverse()) restore(); throw error; }
   return { async close() {

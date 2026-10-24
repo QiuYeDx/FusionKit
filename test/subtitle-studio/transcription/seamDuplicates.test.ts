@@ -15,7 +15,8 @@ import {
 
 // 2026-10-23 asr-quality T-ASRQ-11: the shapes follow the seam duplicates found in the
 // real-audio comparison run of T-ASRQ-09; all wording here is invented.
-// 2026-10-24: the far-end guard and edge restore shapes follow the T-ASRQ-11 rerun.
+// 2026-10-24: the far-end guard and edge restore shapes follow the T-ASRQ-11 rerun; the
+// trimmed repeat (T-ASRQ-14) follows the long copy that rerun kept at the 177.50 s seam.
 const policy = createSubtitlePostProcessPolicy({
   advanced: { beamSize: 5, temperature: 0, vadMinSilenceMs: 500, maxCueDurationMs: 7_000, maxCueChars: 84, maxLineChars: 42 },
   vad: { enabled: true, modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id, tokenTimestamps: false,
@@ -68,6 +69,24 @@ const variantBeforeSeam = (rightStartMs: number) => seam(
   [raw(23_100, 25_390, '要不要喝茶', 0), raw(25_390, 27_900, '好的呀，知道', 1)],
   [raw(rightStartMs, 3_080, '好的知道', 0), raw(3_080, 6_660, '还有水', 1)],
 );
+/** The next window's long copy is kept for its last two characters and opens with the whole cue before the fragment. */
+const longCopyAfterCue = (before = '作为守护这座城市的人', copy = '作为守护这座城市的人，我们绝不能让大家失望') => seam(
+  [raw(23_700, 27_420, before, 0), raw(27_420, 28_600, '我们绝不能让大家', 1)],
+  [raw(200, 6_000, copy, 0)],
+);
+/** The previous window's long copy is kept for its first seven characters and closes with the whole cue after the fragment. */
+const longCopyBeforeCue = (after = '晚上一起吃饭', copyStartMs = 24_000) => seam(
+  [raw(copyStartMs, 28_800, '大家先别急着走，晚上一起吃饭', 0)],
+  [raw(1_000, 2_700, '别急着走', 0), raw(3_000, 4_500, after, 1)],
+);
+const failed: readonly Raw[] = [raw(100, 100, '无效')];
+/** The retry children of a window whose attempt failed. */
+function split(window: Window, index: number) {
+  const retry = decideLocalSubtitleWindowRetry({ attempt: attempt(window, failed, index), policy,
+    assessment: assessLocalSubtitleRawWindow({ window, result: attempt(window, failed, index).response.result, policy }) });
+  if (retry.action !== 'split') throw new Error(`Expected a split, got ${retry.action}`);
+  return retry.children;
+}
 
 describe('window seam duplicates', () => {
   it("drops the next window's 0.7 s copy of the previous two cues and gives the clipped tail it repeats its raw end", () => {
@@ -121,20 +140,182 @@ describe('window seam duplicates', () => {
       .toEqual([[22_900, 25_500, '駅の前で待ってて'], [25_500, 27_460, 'すぐに行くから'], [28_000, 30_000, 'ちょっと待ってね']]);
   });
 
-  it("keeps a next-window copy whose far end the previous window's copy stops short of and drops that fragment instead", () => {
-    const { result, cues, kept, dropped } = seam(
-      [raw(23_700, 27_420, '作为守护这座城市的人', 0), raw(27_420, 28_600, '我们绝不能让大家', 1)],
-      [raw(200, 6_000, '作为守护这座城市的人，我们绝不能让大家失望', 0)],
-    );
+  it("keeps a next-window copy whose far end the previous window's copy stops short of, drops that fragment and trims the repeated opening", () => {
+    const { result, cues, kept, dropped } = longCopyAfterCue();
     expect(cues.map(cue => [cue.startMs, cue.endMs])).toEqual([[23_700, 27_420], [27_420, 27_500], [27_500, 31_000]]);
     // The next window's copy is judged first and kept: only it heard the last two characters.
     const restoredEdge = { cueId: 'cue-000003', edge: 'start', fromMs: 27_500, toMs: 27_420 };
+    // Its opening up to the comma is the whole unclipped cue before it, so that opening and the comma go.
+    const trimmedEdge = { cueId: 'cue-000003', edge: 'start', removedChars: 11, fromMs: 27_420, toMs: 27_420 };
     expect(result.report.seamDuplicates).toEqual([{ cueId: 'cue-000002', startMs: 27_420, endMs: 27_500, seamMs: 27_500,
-      clippedEdge: 'end', coverage: 1, keptCueIds: ['cue-000003'], restoredEdge }]);
-    expect(dropped.map(duplicate => duplicate.restoredEdge)).toEqual([restoredEdge]);
-    // The unclipped cue before it still repeats its start; nothing after the seam goes missing.
+      clippedEdge: 'end', coverage: 1, keptCueIds: ['cue-000003'], restoredEdge, trimmedEdge }]);
+    expect(dropped).toEqual(result.report.seamDuplicates);
+    // Each word shows once and nothing after the seam goes missing.
     expect(kept.map(cue => [cue.startMs, cue.endMs, cue.text])).toEqual([[23_700, 27_420, '作为守护这座城市的人'],
-      [27_420, 31_000, '作为守护这座城市的人，我们绝不能让大家失望']]);
+      [27_420, 31_000, '我们绝不能让大家失望']]);
+    expect(kept[0]).toBe(cues[0]);
+    expect(Object.isFrozen(kept[1])).toBe(true);
+    expect(JSON.stringify(dropped)).not.toMatch(/城市|失望/u);
+  });
+
+  it("moves a trimmed start back to the end of the cue it repeats, cutting at whitespace", () => {
+    const { result, kept, dropped } = seam(
+      [raw(23_700, 27_000, 'see you at noon', 0), raw(27_200, 28_600, 'by the park', 1)],
+      [raw(200, 6_000, 'See you at noon by the park then', 0)],
+    );
+    expect(result.report.seamDuplicates).toMatchObject([{ cueId: 'cue-000002', clippedEdge: 'end', keptCueIds: ['cue-000003'],
+      restoredEdge: { cueId: 'cue-000003', edge: 'start', fromMs: 27_500, toMs: 27_200 },
+      trimmedEdge: { cueId: 'cue-000003', edge: 'start', removedChars: 16, fromMs: 27_200, toMs: 27_000 } }]);
+    expect(dropped).toEqual(result.report.seamDuplicates);
+    expect(kept.map(cue => [cue.startMs, cue.endMs, cue.text]))
+      .toEqual([[23_700, 27_000, 'see you at noon'], [27_000, 31_000, 'by the park then']]);
+  });
+
+  it('caps a trimmed start at the longest cue (7 s)', () => {
+    const { result, kept } = seam(
+      [raw(20_000, 23_000, 'see you at noon', 0), raw(27_200, 28_600, 'by the park', 1)],
+      [raw(200, 6_000, 'See you at noon by the park then', 0)],
+    );
+    expect(result.report.seamDuplicates[0]!.trimmedEdge)
+      .toEqual({ cueId: 'cue-000003', edge: 'start', removedChars: 16, fromMs: 27_200, toMs: 24_000 });
+    expect(kept.map(cue => [cue.startMs, cue.endMs, cue.text]))
+      .toEqual([[20_000, 23_000, 'see you at noon'], [24_000, 31_000, 'by the park then']]);
+  });
+
+  it("trims a kept previous-window copy whose ending is the whole cue after the seam and moves its end to that cue", () => {
+    const { result, cues, kept, dropped } = longCopyBeforeCue();
+    expect(cues.map(cue => [cue.startMs, cue.endMs])).toEqual([[24_000, 27_500], [27_500, 27_700], [28_000, 29_500]]);
+    // The previous window's copy is kept for its first seven characters, which the next window never heard.
+    expect(result.report.seamDuplicates).toEqual([{ cueId: 'cue-000002', startMs: 27_500, endMs: 27_700, seamMs: 27_500,
+      clippedEdge: 'start', coverage: 1, keptCueIds: ['cue-000001'],
+      restoredEdge: { cueId: 'cue-000001', edge: 'end', fromMs: 27_500, toMs: 27_700 },
+      trimmedEdge: { cueId: 'cue-000001', edge: 'end', removedChars: 7, fromMs: 27_700, toMs: 28_000 } }]);
+    expect(dropped).toEqual(result.report.seamDuplicates);
+    expect(kept.map(cue => [cue.startMs, cue.endMs, cue.text]))
+      .toEqual([[24_000, 28_000, '大家先别急着走'], [28_000, 29_500, '晚上一起吃饭']]);
+  });
+
+  it('caps a trimmed end at the longest cue (7 s)', () => {
+    const { result, kept } = longCopyBeforeCue('晚上一起吃饭', 20_800);
+    expect(result.report.seamDuplicates[0]!.trimmedEdge)
+      .toEqual({ cueId: 'cue-000001', edge: 'end', removedChars: 7, fromMs: 27_700, toMs: 27_800 });
+    expect(kept.map(cue => [cue.startMs, cue.endMs, cue.text]))
+      .toEqual([[20_800, 27_800, '大家先别急着走'], [28_000, 29_500, '晚上一起吃饭']]);
+  });
+
+  it.each([
+    { label: 'is not exactly the cue before it', before: '作为守护这座城市的人们', copy: '作为守护这座城市的人，我们绝不能让大家失望' },
+    { label: 'differs in one character from the cue before it', before: '作为保护这座城市的人', copy: '作为守护这座城市的人，我们绝不能让大家失望' },
+    { label: 'runs on without punctuation or whitespace', before: '作为守护这座城市的人', copy: '作为守护这座城市的人我们绝不能让大家失望' },
+  ])("keeps the whole long copy when its opening $label", ({ before, copy }) => {
+    const { result, cues, kept, dropped } = longCopyAfterCue(before, copy);
+    const [reported] = result.report.seamDuplicates;
+    expect(result.report.seamDuplicates).toMatchObject([{ cueId: 'cue-000002', restoredEdge: { cueId: 'cue-000003', toMs: 27_420 } }]);
+    expect(reported!.trimmedEdge).toBeUndefined();
+    expect(dropped[0]!.trimmedEdge).toBeUndefined();
+    expect(kept.map(cue => [cue.startMs, cue.endMs, cue.text])).toEqual([[23_700, 27_420, before], [27_420, 31_000, copy]]);
+    // The executor checks the wording itself, so even a report planning the cut keeps the copy whole.
+    const planned = dropLocalSubtitleSeamDuplicates(cues, [{ ...reported!,
+      trimmedEdge: { cueId: 'cue-000003', edge: 'start', removedChars: 11, fromMs: 27_420, toMs: 27_420 } }], cues);
+    expect(planned.dropped[0]!.trimmedEdge).toBeUndefined();
+    expect(planned.segments).toEqual(kept);
+  });
+
+  it('keeps the whole long copy when its ending differs in one character from the cue after it', () => {
+    const { result, cues, kept, dropped } = longCopyBeforeCue('晚上一起吃面');
+    const [reported] = result.report.seamDuplicates;
+    expect(result.report.seamDuplicates).toMatchObject([{ cueId: 'cue-000002', restoredEdge: { cueId: 'cue-000001', toMs: 27_700 } }]);
+    expect(reported!.trimmedEdge).toBeUndefined();
+    expect(dropped[0]!.trimmedEdge).toBeUndefined();
+    expect(kept.map(cue => [cue.startMs, cue.endMs, cue.text]))
+      .toEqual([[24_000, 27_700, '大家先别急着走，晚上一起吃饭'], [28_000, 29_500, '晚上一起吃面']]);
+    const planned = dropLocalSubtitleSeamDuplicates(cues, [{ ...reported!,
+      trimmedEdge: { cueId: 'cue-000001', edge: 'end', removedChars: 7, fromMs: 27_700, toMs: 28_000 } }], cues);
+    expect(planned.dropped[0]!.trimmedEdge).toBeUndefined();
+    expect(planned.segments).toEqual(kept);
+  });
+
+  it.each([
+    { before: 'tell them we don', fragment: 'want to wait any', copy: "Tell them we don't want to wait any longer" },
+    { before: '油价每升涨了1', fragment: '大家都开始坐', copy: '油价每升涨了1.5元，大家都开始坐地铁' },
+  ])("never cuts a long copy's opening at a joiner inside a word ($copy)", ({ before, fragment, copy }) => {
+    const { result, kept } = seam([raw(23_700, 27_000, before, 0), raw(27_200, 28_600, fragment, 1)], [raw(200, 6_000, copy, 0)]);
+    expect(result.report.seamDuplicates).toMatchObject([{ cueId: 'cue-000002', keptCueIds: ['cue-000003'] }]);
+    expect(result.report.seamDuplicates[0]!.trimmedEdge).toBeUndefined();
+    expect(kept.map(cue => cue.text)).toEqual([before, copy]);
+  });
+
+  it('never trims a kept copy the far-end guard did not keep', () => {
+    // The copy opens with the whole cue before the seam but falls below 80% for its inserted words.
+    const copy = '我们走吧，那个就是说去公园散步';
+    const { result, kept } = seam([raw(23_000, 26_000, '我们走吧', 0), raw(26_000, 28_000, '去公园散步', 1)], [raw(0, 4_000, copy, 0)]);
+    expect(result.report.seamDuplicates).toEqual([{ cueId: 'cue-000002', startMs: 26_000, endMs: 27_500, seamMs: 27_500,
+      clippedEdge: 'end', coverage: 1, keptCueIds: ['cue-000003'],
+      restoredEdge: { cueId: 'cue-000003', edge: 'start', fromMs: 27_500, toMs: 26_000 } }]);
+    expect(kept.map(cue => [cue.startMs, cue.endMs, cue.text])).toEqual([[23_000, 26_000, '我们走吧'], [26_000, 29_000, copy]]);
+  });
+
+  it('trims only while the reported neighbour is still next to the copy, unchanged, and the rest keeps the minimum', () => {
+    const { result, cues } = longCopyAfterCue();
+    const drop = (current: readonly (typeof cues)[number][], reported = cues) =>
+      dropLocalSubtitleSeamDuplicates(reported, result.report.seamDuplicates, current);
+    const texts = (segments: readonly (typeof cues)[number][]) => segments.map(cue => [cue.startMs, cue.endMs, cue.text]);
+    const whole = [23_700, 27_420, '作为守护这座城市的人'] as const;
+
+    // Separators a later display pass restores neither stop the trim nor stay in the removed count.
+    const separated = drop(cues.map((cue, index) => index === 2 ? { ...cue, text: '作为守护 这座城市的人，我们 绝不能让大家失望' } : cue));
+    expect(texts(separated.segments)).toEqual([whole, [27_420, 31_000, '我们 绝不能让大家失望']]);
+    expect(separated.dropped[0]!.trimmedEdge).toEqual({ cueId: 'cue-000003', edge: 'start', removedChars: 12, fromMs: 27_420, toMs: 27_420 });
+
+    // A neighbour a later repair moved, rewrote, split or removed keeps the copy whole; the drop and restore stay.
+    for (const current of [
+      cues.map((cue, index) => index === 0 ? { ...cue, endMs: 27_300 } : cue),
+      cues.map((cue, index) => index === 0 ? { ...cue, text: '作为守护这座城市' } : cue),
+      cues.map((cue, index) => index === 0 ? { ...cue, id: 'cue-000001.dtw1' } : cue),
+      cues.slice(1),
+    ]) {
+      const changed = drop(current);
+      expect(changed.dropped).toEqual([{ ...result.report.seamDuplicates[0]!, trimmedEdge: undefined }]);
+      expect(changed.segments.at(-1)).toMatchObject({ startMs: 27_420, text: '作为守护这座城市的人，我们绝不能让大家失望' });
+    }
+
+    // Fewer than 2 CJK or 4 Latin comparison characters left keep the copy whole.
+    for (const copy of ['作为守护这座城市的人，好', '作为守护这座城市的人, ok']) {
+      const short = cues.map((cue, index) => index === 2 ? { ...cue, text: copy } : cue);
+      const kept = drop(short, short);
+      expect(kept.dropped[0]!.trimmedEdge).toBeUndefined();
+      expect(texts(kept.segments)).toEqual([whole, [27_420, 31_000, copy]]);
+    }
+  });
+
+  it('moves a trimmed edge only out toward the reported neighbour as it stood before this call', () => {
+    const { result, cues } = seam(
+      [raw(23_700, 27_000, 'see you at noon', 0), raw(27_200, 28_600, 'by the park', 1)],
+      [raw(200, 6_000, 'See you at noon by the park then', 0)],
+    );
+    const [reported] = result.report.seamDuplicates;
+    const drop = (...duplicates: NonNullable<typeof reported>[]) => dropLocalSubtitleSeamDuplicates(cues, duplicates, cues);
+    const texts = (segments: readonly (typeof cues)[number][]) => segments.map(cue => [cue.startMs, cue.endMs, cue.text]);
+    const before = [23_700, 27_000, 'see you at noon'] as const;
+    const whole = [27_200, 31_000, 'See you at noon by the park then'] as const;
+
+    // A planned bound over the neighbour stops at its end; one inward leaves the edge where it is.
+    for (const [toMs, startMs] of [[26_000, 27_000], [28_000, 27_200]] as const) {
+      const bounded = drop({ ...reported!, trimmedEdge: { ...reported!.trimmedEdge!, toMs } });
+      expect(texts(bounded.segments)).toEqual([before, [startMs, 31_000, 'by the park then']]);
+      expect(bounded.dropped[0]!.trimmedEdge).toEqual({ ...reported!.trimmedEdge!, toMs: startMs });
+    }
+
+    // A neighbour an earlier entry moved in this call is no longer the reported one.
+    const moved = drop({ ...reported!, keptCueIds: ['cue-000001'],
+      restoredEdge: { cueId: 'cue-000001', edge: 'end', fromMs: 27_000, toMs: 27_100 }, trimmedEdge: undefined }, reported!);
+    expect(texts(moved.segments)).toEqual([[23_700, 27_100, 'see you at noon'], whole]);
+    expect(moved.dropped[1]).toEqual({ ...reported!, trimmedEdge: undefined });
+    // Nor is a cue the report lists as a duplicate, kept here because it keeps another.
+    const listed = drop(reported!, { ...reported!, cueId: 'cue-000001', keptCueIds: ['cue-000002'], restoredEdge: undefined,
+      trimmedEdge: undefined });
+    expect(texts(listed.segments)).toEqual([before, whole]);
+    expect(listed.dropped).toEqual([{ ...reported!, trimmedEdge: undefined }]);
   });
 
   it.each([
@@ -262,7 +443,6 @@ describe('window seam duplicates', () => {
     const totalFrames = 80_000 * 16;
     const rootPlan = planLocalSubtitleRootWindows({ rootPlanId: 'plan-001', totalFrames, policy });
     const [first, middle, last] = rootPlan.windows;
-    const failed: readonly Raw[] = [raw(100, 100, '无效')];
     const retry = decideLocalSubtitleWindowRetry({ attempt: attempt(middle!, failed, 1), policy,
       assessment: assessLocalSubtitleRawWindow({ window: middle!, result: attempt(middle!, failed, 1).response.result, policy }) });
     if (retry.action !== 'split') throw new Error(`Expected a split, got ${retry.action}`);
@@ -292,13 +472,6 @@ describe('window seam duplicates', () => {
     const totalFrames = 80_000 * 16;
     const rootPlan = planLocalSubtitleRootWindows({ rootPlanId: 'plan-001', totalFrames, policy });
     const [first, middle, last] = rootPlan.windows;
-    const failed: readonly Raw[] = [raw(100, 100, '无效')];
-    const split = (window: Window, index: number) => {
-      const retry = decideLocalSubtitleWindowRetry({ attempt: attempt(window, failed, index), policy,
-        assessment: assessLocalSubtitleRawWindow({ window, result: attempt(window, failed, index).response.result, policy }) });
-      if (retry.action !== 'split') throw new Error(`Expected a split, got ${retry.action}`);
-      return retry.children;
-    };
     const [left, right] = split(middle!, 1);
     const [leftFirst, leftSecond] = split(left, 2);
     expect([leftFirst, leftSecond].map(window => [window.startMs, window.endMs, window.coreEndMs]))
@@ -324,6 +497,39 @@ describe('window seam duplicates', () => {
     const { segments } = dropLocalSubtitleSeamDuplicates(cues, report.seamDuplicates, cues);
     expect(segments.map(cue => [cue.startMs, cue.endMs]))
       .toEqual([[20_000, 24_000], [26_500, 33_500], [36_000, 39_000], [42_000, 45_000], [60_000, 62_000]]);
+  });
+
+  it('keeps a copy trimmed at both its seams within the longest cue', () => {
+    const totalFrames = 80_000 * 16;
+    const rootPlan = planLocalSubtitleRootWindows({ rootPlanId: 'plan-001', totalFrames, policy });
+    const [first, middle, last] = rootPlan.windows;
+    const [left, right] = split(middle!, 1);
+    const [leftFirst, leftSecond] = split(left, 2);
+    // A grandchild's long copy opens with the whole cue before one seam and closes with the whole cue after the other.
+    const { transcript, report } = run(rootPlan, totalFrames, [
+      [raw(22_000, 26_600, '各位同学请注意', 0), raw(27_200, 28_600, '明天的考试', 1)],
+      failed,
+      failed,
+      [raw(1_500, 9_000, '各位同学请注意，明天的考试改在三楼大教室，记得带好准考证')],
+      [raw(500, 1_400, '改在三楼大教室', 0), raw(1_800, 3_500, '记得带好准考证', 1)],
+      [raw(3_000, 6_000, '大家辛苦了')],
+      [raw(10_000, 12_000, '就这样')],
+    ], [first!, middle!, left, leftFirst, leftSecond, right, last!]);
+    const cues = transcript.segments;
+    expect(cues.map(cue => [cue.startMs, cue.endMs])).toEqual([[22_000, 26_600], [27_200, 27_500], [27_500, 33_000],
+      [33_000, 33_400], [33_800, 35_500], [42_000, 45_000], [60_000, 62_000]]);
+    // The start goes out to the cue before it; the end then stops 7 s after that trimmed start, short of the cue after it.
+    expect(report.seamDuplicates.map(duplicate => [duplicate.cueId, duplicate.restoredEdge, duplicate.trimmedEdge])).toEqual([
+      ['cue-000002', { cueId: 'cue-000003', edge: 'start', fromMs: 27_500, toMs: 27_200 },
+        { cueId: 'cue-000003', edge: 'start', removedChars: 8, fromMs: 27_200, toMs: 26_600 }],
+      ['cue-000004', { cueId: 'cue-000003', edge: 'end', fromMs: 33_000, toMs: 33_400 },
+        { cueId: 'cue-000003', edge: 'end', removedChars: 8, fromMs: 33_400, toMs: 33_600 }],
+    ]);
+    const { segments, dropped } = dropLocalSubtitleSeamDuplicates(cues, report.seamDuplicates, cues);
+    expect(dropped).toEqual(report.seamDuplicates);
+    expect(segments.map(cue => [cue.startMs, cue.endMs, cue.text])).toEqual([[22_000, 26_600, '各位同学请注意'],
+      [26_600, 33_600, '明天的考试改在三楼大教室'], [33_800, 35_500, '记得带好准考证'], [42_000, 45_000, '大家辛苦了'],
+      [60_000, 62_000, '就这样']]);
   });
 
   it.each([

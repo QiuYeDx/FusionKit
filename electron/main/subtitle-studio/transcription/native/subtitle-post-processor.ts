@@ -33,6 +33,9 @@ const QUALITY_COMPARISON_IGNORED_PATTERN = /[\p{P}\p{S}\s]+/gu;
 const BOUNDARY_COMPARISON_IGNORED_PATTERN = /[\p{P}\s]+/gu;
 const PUNCTUATION_ONLY_PATTERN = /^[\p{P}\s]+$/u;
 const CJK_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+// Alone between letters or digits these join one word (don't, e-mail, 3.5, 陈·嘉禾).
+const WORD_JOINER_PATTERN = /^['’\-‐‑.·・]$/u;
+const WORD_CHARACTER_PATTERN = /^[\p{L}\p{N}]/u;
 // Transcript confidence keeps three decimals.
 const CONFIDENCE_SCALE = 1_000;
 // A clipped seam cue repeats the other window when edits to at most a fifth of
@@ -40,6 +43,13 @@ const CONFIDENCE_SCALE = 1_000;
 const SEAM_DUPLICATE_MIN_COVERAGE = 0.8;
 // Bounds one comparison; a larger pair is kept rather than compared.
 const SEAM_DUPLICATE_MAX_COMPARISON_UNITS = 1_000_000;
+// Bounds one window's alignment with its timing anchor; a larger window keeps its times.
+const ANCHOR_RETIMING_MAX_COMPARISON_UNITS = 1_000_000;
+// The shortest segment a retimed window keeps.
+const ANCHOR_RETIMING_MIN_SEGMENT_MS = 200;
+// Only a window the preset heard early as a whole is retimed: its anchored edges'
+// median shift (anchor minus preset time) is at least this much later.
+export const LOCAL_SUBTITLE_ANCHOR_RETIMING_MIN_MEDIAN_SHIFT_MS = 500;
 
 export const LOCAL_SUBTITLE_POST_PROCESSING_POLICY = deepFreeze({
   schemaVersion: 3,
@@ -259,6 +269,13 @@ export interface LocalSubtitleSeamDuplicate {
    * furthest it may move; dropLocalSubtitleSeamDuplicates gives where it moved.
    */
   readonly restoredEdge?: LocalSubtitleRestoredSeamEdge;
+  /**
+   * The kept copy the far-end guard left, whose seam-side words repeat the whole
+   * remaining cue beside it; they go and its edge moves to that cue. The report
+   * gives the planned removal and the furthest the edge may move;
+   * dropLocalSubtitleSeamDuplicates gives what it removed and where the edge moved.
+   */
+  readonly trimmedEdge?: LocalSubtitleTrimmedSeamEdge;
 }
 
 /** A kept cue's edge moved from the seam (fromMs) toward its raw time (toMs); never text. */
@@ -267,6 +284,52 @@ export interface LocalSubtitleRestoredSeamEdge {
   readonly edge: "start" | "end";
   readonly fromMs: number;
   readonly toMs: number;
+}
+
+/** A kept cue lost removedChars characters at this edge, which moved from fromMs to toMs; never text. */
+export interface LocalSubtitleTrimmedSeamEdge {
+  readonly cueId: string;
+  readonly edge: "start" | "end";
+  readonly removedChars: number;
+  readonly fromMs: number;
+  readonly toMs: number;
+}
+
+/**
+ * How retimeLocalSubtitleSegmentsFromAnchor moved one window: "retimed" when an
+ * edge took an anchor time; otherwise the window keeps its times because the
+ * preset did not hear it early as a whole ("not_early"), no edge aligned or no
+ * ordered timing fits ("unaligned"), the texts are too long to compare
+ * ("oversized") or the anchor heard nothing ("empty").
+ */
+export type LocalSubtitleAnchorRetimingStatus = "retimed" | "not_early" | "unaligned" | "oversized" | "empty";
+
+/** One preset window's timing anchor; counts and times only, never text. */
+export interface LocalSubtitleAnchorRetiming {
+  /** The window's place among the task's accepted windows in request order, and its source range. */
+  readonly windowIndex: number;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly anchorSegments: number;
+  /** Segment edges that aligned with an anchor segment's edge, of all the window's segment edges. */
+  readonly anchoredEdges: number;
+  readonly totalEdges: number;
+  /**
+   * The median signed shift of the anchored edges (anchor minus preset time, later
+   * is positive; the lower middle of an even count), which decides whether the
+   * window is retimed, and the largest move of any edge either way, or of an
+   * anchored edge for a window kept as not early.
+   */
+  readonly medianShiftMs: number;
+  readonly maxShiftMs: number;
+  /**
+   * The retiming outcome, or why no anchor was used: its request failed, its audio
+   * differed or its response failed the quality guard ("failed"), the retimed
+   * window would fail that guard and keeps its times, though the counts and shifts
+   * describe the retiming ("rejected"), or the window had no text and sent none
+   * ("skipped").
+   */
+  readonly status: LocalSubtitleAnchorRetimingStatus | "failed" | "rejected" | "skipped";
 }
 
 export interface LocalSubtitlePostProcessingReport {
@@ -426,6 +489,14 @@ interface SeamDuplicateDecision {
   readonly restoredEdge?: {
     readonly index: number;
     readonly edge: "start" | "end";
+    readonly toMs: number;
+  };
+  /** Planned on times only; the report keeps it when the wording allows the cut. */
+  readonly trimmedEdge?: {
+    readonly index: number;
+    readonly edge: "start" | "end";
+    readonly neighbourIndex: number;
+    readonly fromMs: number;
     readonly toMs: number;
   };
 }
@@ -956,6 +1027,9 @@ export function postProcessLocalSubtitleTranscript(
       // Canonical cues map one to one onto merged segments.
       seamDuplicates: seamDuplicateDecisions.map((decision) => {
         const cue = validated.data.segments[decision.index]!;
+        const trim = decision.trimmedEdge;
+        const trimmed = trim && trimRepeatedSeamEdge(validated.data.segments[trim.index]!.text,
+          validated.data.segments[trim.neighbourIndex]!.text, trim.edge);
         return {
           cueId: cue.id,
           startMs: cue.startMs,
@@ -976,6 +1050,17 @@ export function postProcessLocalSubtitleTranscript(
                   toMs: decision.restoredEdge.toMs,
                 },
               }),
+          ...(trim === undefined || trimmed === undefined
+            ? {}
+            : {
+                trimmedEdge: {
+                  cueId: validated.data.segments[trim.index]!.id,
+                  edge: trim.edge,
+                  removedChars: trimmed.removedChars,
+                  fromMs: trim.fromMs,
+                  toMs: trim.toMs,
+                },
+              }),
         };
       }),
       splitSegmentCount: shapingDiagnostics.splitSegmentCount,
@@ -994,9 +1079,12 @@ export function postProcessLocalSubtitleTranscript(
  * Removes reported seam duplicates whose cue and kept cues are still present
  * with their reported timing and wording (separators aside). A cue a later
  * repair replaced keeps that repair's decision, and a duplicate whose kept cue
- * would also go stays. Kept cues keep their wording; only a reported edge
- * clipped to the same seam goes back toward its raw time, never over the
- * nearest remaining cue on that side.
+ * would also go stays. A reported edge clipped to the same seam goes back
+ * toward its raw time, never over the nearest remaining cue on that side. Kept
+ * cues keep their wording except under a reported trim: a kept copy's seam-side
+ * words go while they still repeat the whole reported neighbour and break off
+ * at punctuation or whitespace, and that neighbour is still next to it and
+ * unchanged; the copy's edge then moves out to the neighbour.
  */
 export function dropLocalSubtitleSeamDuplicates<
   T extends Pick<LocalSubtitleSegment, "id" | "startMs" | "endMs" | "text">,
@@ -1031,27 +1119,226 @@ export function dropLocalSubtitleSeamDuplicates<
   );
   const droppedIds = new Set(dropped.map((duplicate) => duplicate.cueId));
   const segments = current.filter((cue) => !droppedIds.has(cue.id));
-  // Each entry lists the edge it restored here, if any.
-  const restored = dropped.map(({ restoredEdge, ...duplicate }) => {
-    const position = restoredEdge && duplicate.keptCueIds.includes(restoredEdge.cueId)
+  const restore = (keptCueIds: readonly string[], restoredEdge: LocalSubtitleRestoredSeamEdge) => {
+    const position = keptCueIds.includes(restoredEdge.cueId)
       ? segments.findIndex((cue) => cue.id === restoredEdge.cueId)
       : -1;
     const cue = segments[position];
-    if (!restoredEdge || !cue) return Object.freeze(duplicate);
+    if (!cue) return undefined;
     const start = restoredEdge.edge === "start";
     const toMs = start
       ? Math.max(restoredEdge.toMs, segments[position - 1]?.endMs ?? restoredEdge.toMs)
       : Math.min(restoredEdge.toMs, segments[position + 1]?.startMs ?? restoredEdge.toMs);
     const fromMs = start ? cue.startMs : cue.endMs;
-    if (fromMs !== restoredEdge.fromMs || (start ? toMs >= fromMs : toMs <= fromMs)) {
-      return Object.freeze(duplicate);
-    }
+    if (fromMs !== restoredEdge.fromMs || (start ? toMs >= fromMs : toMs <= fromMs)) return undefined;
     segments[position] = Object.freeze(start ? { ...cue, startMs: toMs } : { ...cue, endMs: toMs });
-    return Object.freeze({ ...duplicate, restoredEdge: Object.freeze({ ...restoredEdge, toMs }) });
+    return Object.freeze({ ...restoredEdge, toMs });
+  };
+  // The report planned each trim against the cue next to the kept copy once
+  // every reported duplicate is gone.
+  const reportedIds = new Set(duplicates.map((duplicate) => duplicate.cueId));
+  const reportedRemaining = reported.filter((cue) => !reportedIds.has(cue.id));
+  const trim = (keptCueIds: readonly string[], trimmedEdge: LocalSubtitleTrimmedSeamEdge) => {
+    const position = keptCueIds.includes(trimmedEdge.cueId)
+      ? segments.findIndex((cue) => cue.id === trimmedEdge.cueId)
+      : -1;
+    const start = trimmedEdge.edge === "start";
+    const reportedAt = reportedRemaining.findIndex((cue) => cue.id === trimmedEdge.cueId);
+    const expected = reportedAt < 0 ? undefined : reportedRemaining[start ? reportedAt - 1 : reportedAt + 1];
+    const cue = segments[position];
+    const neighbour = segments[start ? position - 1 : position + 1];
+    // The reported neighbour, still next to the copy and neither repaired nor moved here.
+    if (
+      !cue || !neighbour || neighbour.id !== expected?.id ||
+      neighbour !== currentById.get(neighbour.id) || !unchanged(neighbour.id)
+    ) {
+      return undefined;
+    }
+    const trimmed = trimRepeatedSeamEdge(cue.text, neighbour.text, trimmedEdge.edge);
+    if (!trimmed) return undefined;
+    // The edge only moves out, never over the neighbour nor past the planned bound.
+    const fromMs = start ? cue.startMs : cue.endMs;
+    const toMs = start
+      ? Math.min(fromMs, Math.max(trimmedEdge.toMs, neighbour.endMs))
+      : Math.max(fromMs, Math.min(trimmedEdge.toMs, neighbour.startMs));
+    segments[position] = Object.freeze(start
+      ? { ...cue, text: trimmed.text, startMs: toMs }
+      : { ...cue, text: trimmed.text, endMs: toMs });
+    return Object.freeze({ ...trimmedEdge, removedChars: trimmed.removedChars, fromMs, toMs });
+  };
+  // Each entry lists the edge it restored here, then the edge it trimmed, if any.
+  const applied = dropped.map(({ restoredEdge, trimmedEdge, ...duplicate }) => {
+    const restoredTo = restoredEdge && restore(duplicate.keptCueIds, restoredEdge);
+    const trimmedTo = trimmedEdge && trim(duplicate.keptCueIds, trimmedEdge);
+    return Object.freeze({
+      ...duplicate,
+      ...(restoredTo ? { restoredEdge: restoredTo } : {}),
+      ...(trimmedTo ? { trimmedEdge: trimmedTo } : {}),
+    });
   });
   return Object.freeze({
     segments: Object.freeze(segments),
-    dropped: Object.freeze(restored),
+    dropped: Object.freeze(applied),
+  });
+}
+
+/**
+ * Moves a preset window's raw segments onto the times of the same audio
+ * recognized with the standard request fields (window-relative milliseconds);
+ * text and every other field stay. Both texts are compared as across seams
+ * (NFKC, lowercase, without punctuation and whitespace) and paired character by
+ * character along a longest common subsequence. A segment's start takes an
+ * anchor segment's start when its first two characters pair with that anchor
+ * segment's first two, and its end takes an anchor segment's end when its last
+ * two pair with that segment's last two. Every other edge moves by the shift
+ * interpolated, along the preset times, between the nearest anchored edges
+ * before and after it in segment order, or by the nearest one's shift beyond
+ * the outermost. Starts then stay at or after the previous end and segments
+ * last at least the minimum, all within the window; where the window end leaves
+ * a segment too short, it and those before it move earlier, though no anchored
+ * edge does. Only a window the preset heard early as a whole moves: the median
+ * of its anchored edges' shifts (anchor minus preset time) is at least
+ * LOCAL_SUBTITLE_ANCHOR_RETIMING_MIN_MEDIAN_SHIFT_MS. A window without an
+ * anchored edge or such a fit keeps its segments, as does one not heard early.
+ */
+export function retimeLocalSubtitleSegmentsFromAnchor<
+  T extends Pick<LocalSubtitleServerRawSegment, "startMs" | "endMs" | "text">,
+>(
+  preset: readonly T[],
+  anchor: readonly Pick<LocalSubtitleServerRawSegment, "startMs" | "endMs" | "text">[],
+  durationMs: number,
+): Readonly<{
+  segments: readonly T[];
+  status: LocalSubtitleAnchorRetimingStatus;
+  anchoredEdges: number;
+  totalEdges: number;
+  medianShiftMs: number;
+  maxShiftMs: number;
+}> {
+  const totalEdges = preset.length * 2;
+  const kept = (status: LocalSubtitleAnchorRetimingStatus) => Object.freeze({
+    segments: preset, status, anchoredEdges: 0, totalEdges, medianShiftMs: 0, maxShiftMs: 0,
+  });
+  // Each comparison character with its segment and its place from either end.
+  const characters = (segments: readonly Pick<LocalSubtitleServerRawSegment, "text">[]) =>
+    segments.flatMap((segment, index) => {
+      const units = isSafeUnicodeText(segment.text) ? createBoundaryComparisonMap(segment.text).units : [];
+      return units.map((unit, position) => ({ unit, index, position, fromEnd: units.length - 1 - position }));
+    });
+  const presetCharacters = characters(preset);
+  const anchorCharacters = characters(anchor);
+  if (anchorCharacters.length === 0) return kept("empty");
+  if (presetCharacters.length * anchorCharacters.length > ANCHOR_RETIMING_MAX_COMPARISON_UNITS) {
+    return kept("oversized");
+  }
+  if (!Number.isSafeInteger(durationMs) || durationMs <= 0) return kept("unaligned");
+
+  const pairedWith = longestCommonSubsequence(
+    presetCharacters.map((character) => character.unit),
+    anchorCharacters.map((character) => character.unit),
+  );
+  // The anchor time of an edge whose two outermost characters, from `first` on,
+  // pair with the two outermost characters at the same end of one anchor segment.
+  const anchorTime = (first: number, edge: "start" | "end"): number | undefined => {
+    const left = presetCharacters[first];
+    const right = presetCharacters[first + 1];
+    const pairedLeft = pairedWith[first] ?? -1;
+    if (!left || !right || left.index !== right.index || pairedLeft < 0 || pairedWith[first + 1] !== pairedLeft + 1) {
+      return undefined;
+    }
+    const anchorLeft = anchorCharacters[pairedLeft]!;
+    const anchorRight = anchorCharacters[pairedLeft + 1]!;
+    if (anchorLeft.index !== anchorRight.index) return undefined;
+    if (edge === "start" ? anchorLeft.position !== 0 : anchorRight.fromEnd !== 0) return undefined;
+    const segment = anchor[anchorLeft.index]!;
+    return edge === "start" ? segment.startMs : segment.endMs;
+  };
+  // Edge 2k is segment k's start and edge 2k + 1 its end.
+  const edges = preset.flatMap((segment) => [segment.startMs, segment.endMs]);
+  const targets = new Array<number | undefined>(totalEdges).fill(undefined);
+  presetCharacters.forEach((character, position) => {
+    if (character.position === 0) targets[character.index * 2] = anchorTime(position, "start");
+    if (character.fromEnd === 0) targets[character.index * 2 + 1] = anchorTime(position - 1, "end");
+  });
+  const anchoredEdges = targets.filter((target) => target !== undefined).length;
+  if (anchoredEdges === 0) return kept("unaligned");
+  const shiftOf = (edge: number) => targets[edge]! - edges[edge]!;
+  // A decoder that missed some speech hears what follows early, so only a window
+  // whose anchored edges mostly move later moves; smaller or earlier shifts are
+  // mostly the anchor's own variation. The lower middle of an even count asks more
+  // than half of them to move later by at least the minimum.
+  const anchoredShifts = targets.flatMap((target, edge) => target === undefined ? [] : [shiftOf(edge)])
+    .sort((left, right) => left - right);
+  const medianShiftMs = anchoredShifts[(anchoredShifts.length - 1) >> 1]!;
+  if (medianShiftMs < LOCAL_SUBTITLE_ANCHOR_RETIMING_MIN_MEDIAN_SHIFT_MS) {
+    return Object.freeze({
+      segments: preset, status: "not_early" as const, anchoredEdges, totalEdges, medianShiftMs,
+      maxShiftMs: anchoredShifts.reduce((maximum, shift) => Math.max(maximum, Math.abs(shift)), 0),
+    });
+  }
+
+  // The nearest anchored edge at or before each edge in segment order, and at or after it.
+  const before = new Array<number | undefined>(totalEdges);
+  const after = new Array<number | undefined>(totalEdges);
+  let nearest: number | undefined;
+  for (let edge = 0; edge < totalEdges; edge += 1) {
+    if (targets[edge] !== undefined) nearest = edge;
+    before[edge] = nearest;
+  }
+  nearest = undefined;
+  for (let edge = totalEdges - 1; edge >= 0; edge -= 1) {
+    if (targets[edge] !== undefined) nearest = edge;
+    after[edge] = nearest;
+  }
+  const moved = edges.map((timeMs, edge) => {
+    const from = before[edge];
+    const to = after[edge];
+    if (from === undefined) return timeMs + shiftOf(to!);
+    if (to === undefined || to === from) return timeMs + shiftOf(from);
+    const fromMs = edges[from]!;
+    const toMs = edges[to]!;
+    const fraction = toMs > fromMs ? Math.min(1, Math.max(0, (timeMs - fromMs) / (toMs - fromMs))) : 0;
+    return Math.round(timeMs + shiftOf(from) + (shiftOf(to) - shiftOf(from)) * fraction);
+  });
+
+  // Forward for order and the minimum length, then back from the window end,
+  // which may move only edges that took no anchor time.
+  const times = preset.map((_, index) => ({ startMs: moved[index * 2]!, endMs: moved[index * 2 + 1]! }));
+  let previousEndMs = 0;
+  for (const time of times) {
+    time.startMs = Math.min(Math.max(time.startMs, previousEndMs), durationMs);
+    time.endMs = Math.min(Math.max(time.endMs, time.startMs + ANCHOR_RETIMING_MIN_SEGMENT_MS), durationMs);
+    previousEndMs = time.endMs;
+  }
+  let nextStartMs = durationMs;
+  for (let index = times.length - 1; index >= 0; index -= 1) {
+    const time = times[index]!;
+    const endMs = Math.min(time.endMs, nextStartMs);
+    const startMs = Math.min(time.startMs, endMs - ANCHOR_RETIMING_MIN_SEGMENT_MS);
+    if ((endMs < time.endMs && targets[index * 2 + 1] !== undefined) ||
+        (startMs < time.startMs && targets[index * 2] !== undefined)) {
+      return kept("unaligned");
+    }
+    time.endMs = endMs;
+    time.startMs = startMs;
+    nextStartMs = startMs;
+  }
+  if (times[0]!.startMs < 0) return kept("unaligned");
+
+  const shifts = times.flatMap((time, index) =>
+    [time.startMs - preset[index]!.startMs, time.endMs - preset[index]!.endMs]);
+  return Object.freeze({
+    segments: Object.freeze(preset.map((segment, index) => {
+      const { startMs, endMs } = times[index]!;
+      return startMs === segment.startMs && endMs === segment.endMs
+        ? segment
+        : Object.freeze({ ...segment, startMs, endMs });
+    })),
+    status: "retimed" as const,
+    anchoredEdges,
+    totalEdges,
+    medianShiftMs,
+    maxShiftMs: shifts.reduce((maximum, shift) => Math.max(maximum, Math.abs(shift)), 0),
   });
 }
 
@@ -1595,7 +1882,10 @@ function shapeCanonicalSegments(
  * never cascade across consecutive seams. With its copy gone, a kept cue clipped
  * to the same seam from the other side no longer needs that cut: its edge may go
  * back toward its raw time, never past the copy's far edge nor beyond the
- * configured longest cue.
+ * configured longest cue. A copy kept for its far-end words may still open (or
+ * close) at the seam with the whole remaining cue beside it; the entry that
+ * keeps it plans removing those words, its edge going out to that cue within
+ * the longest cue.
  */
 function findSeamDuplicates(
   leaves: readonly LocalSubtitlePostProcessingWindowAttempt[],
@@ -1604,6 +1894,7 @@ function findSeamDuplicates(
 ): SeamDuplicateDecision[] {
   let decisions: SeamDuplicateDecision[] = [];
   const dropped = new Set<number>();
+  const farEndKept: { readonly index: number; readonly seamMs: number; readonly edge: "start" | "end" }[] = [];
   const covered = (index: number, clippedEdge: "start" | "end", keptIndices: readonly number[]) => {
     const coverage = seamDuplicateCoverage(
       merged[index]!.text,
@@ -1611,7 +1902,7 @@ function findSeamDuplicates(
       keptIndices.map((other) => merged[other]!.text),
       policy,
     );
-    return coverage !== undefined && coverage >= SEAM_DUPLICATE_MIN_COVERAGE
+    return coverage === "far_end" || (coverage !== undefined && coverage >= SEAM_DUPLICATE_MIN_COVERAGE)
       ? coverage
       : undefined;
   };
@@ -1653,14 +1944,15 @@ function findSeamDuplicates(
             Math.min(segment.rawObservationEndMs, candidate.rawObservationEndMs);
       });
       const coverage = covered(index, clippedEdge, keptIndices);
-      if (coverage === undefined) continue;
+      if (coverage === "far_end") farEndKept.push({ index, seamMs, edge: clippedEdge });
+      if (typeof coverage !== "number") continue;
       // Earlier decisions that kept this cue are judged again without it; one
       // that no longer holds keeps this cue.
       const revised = decisions.flatMap((decision) => {
         if (!decision.keptIndices.includes(index)) return [decision];
         const remaining = decision.keptIndices.filter((other) => other !== index);
         const kept = covered(decision.index, decision.clippedEdge, remaining);
-        return kept === undefined ? [] : [{
+        return typeof kept !== "number" ? [] : [{
           ...decision,
           coverage: kept,
           keptIndices: remaining,
@@ -1689,7 +1981,33 @@ function findSeamDuplicates(
       decisions = [...revised, { index, seamMs, clippedEdge, coverage, keptIndices, restoredEdge }];
     }
   }
-  return decisions;
+  const trims: NonNullable<SeamDuplicateDecision["trimmedEdge"]>[] = [];
+  return decisions.map((decision) => {
+    const copy = farEndKept.find((kept) => kept.seamMs === decision.seamMs &&
+      kept.edge !== decision.clippedEdge && decision.keptIndices.includes(kept.index));
+    if (copy === undefined) return decision;
+    const step = copy.edge === "start" ? -1 : 1;
+    let neighbourIndex = copy.index + step;
+    while (dropped.has(neighbourIndex)) neighbourIndex += step;
+    const neighbour = merged[neighbourIndex];
+    if (neighbour === undefined) return decision;
+    // Times as the restores and an earlier trim of the other edge leave them, so
+    // both edges stay within the longest cue.
+    const cue = merged[copy.index]!;
+    const movedTo = (edge: "start" | "end") =>
+      trims.find((trim) => trim.index === copy.index && trim.edge === edge)?.toMs ??
+      decisions.find((other) => other.restoredEdge?.index === copy.index &&
+        other.restoredEdge.edge === edge)?.restoredEdge?.toMs;
+    const startMs = movedTo("start") ?? cue.startMs;
+    const endMs = movedTo("end") ?? cue.endMs;
+    const toMs = copy.edge === "start"
+      ? Math.min(startMs, Math.max(neighbour.endMs, endMs - policy.maxCueDurationMs))
+      : Math.max(endMs, Math.min(neighbour.startMs, startMs + policy.maxCueDurationMs));
+    const trimmedEdge = { index: copy.index, edge: copy.edge, neighbourIndex,
+      fromMs: copy.edge === "start" ? startMs : endMs, toMs };
+    trims.push(trimmedEdge);
+    return { ...decision, trimmedEdge };
+  });
 }
 
 function seamDuplicateCoverage(
@@ -1697,7 +2015,7 @@ function seamDuplicateCoverage(
   clippedEdge: "start" | "end",
   across: readonly string[],
   policy: LocalSubtitlePostProcessPolicy,
-): number | undefined {
+): number | "far_end" | undefined {
   const units = createBoundaryComparisonMap(text).units;
   const acrossUnits = across.flatMap((value) => createBoundaryComparisonMap(value).units);
   const minimum = CJK_PATTERN.test(units.join(""))
@@ -1716,8 +2034,57 @@ function seamDuplicateCoverage(
     ? closestStretchEdits(units, acrossUnits)
     : closestStretchEdits([...units].reverse(), [...acrossUnits].reverse());
   // Words past where the other window's copy stops were heard only here.
-  if (edits.unmatchedTail >= minimum) return undefined;
+  if (edits.unmatchedTail >= minimum) return "far_end";
   return (units.length - edits.count) / units.length;
+}
+
+/**
+ * The text without its seam-side words (the start's or the end's) when, compared
+ * as across seams, they are exactly the whole of `neighbour` and the text breaks
+ * there at punctuation or whitespace, which goes with them; a lone word joiner
+ * between letters or digits is no break. Undefined otherwise, or when fewer than
+ * the minimum comparison characters would remain.
+ */
+function trimRepeatedSeamEdge(
+  text: string,
+  neighbour: string,
+  edge: "start" | "end",
+): { readonly text: string; readonly removedChars: number } | undefined {
+  const repeated = createBoundaryComparisonMap(neighbour).units;
+  const parts = graphemes(text);
+  const units = parts.map((part) => Array.from(part
+    .normalize("NFKC")
+    .toLocaleLowerCase("und")
+    .replace(BOUNDARY_COMPARISON_IGNORED_PATTERN, "")));
+  const all = units.flat();
+  const restCount = all.length - repeated.length;
+  if (repeated.length === 0 || restCount <= 0) return undefined;
+  const seamSide = edge === "start" ? all.slice(0, repeated.length) : all.slice(restCount);
+  const rest = edge === "start" ? all.slice(repeated.length) : all.slice(0, restCount);
+  // The policy's minimums are these constants; the executor has no policy.
+  const minimum = CJK_PATTERN.test(rest.join(""))
+    ? LOCAL_SUBTITLE_POST_PROCESSING_POLICY.boundaryTextMinCjkChars
+    : LOCAL_SUBTITLE_POST_PROCESSING_POLICY.boundaryTextMinLatinChars;
+  if (rest.length < minimum || seamSide.join("") !== repeated.join("")) return undefined;
+  // Walk from the seam side over whole graphemes to where the repeat ends; the
+  // next one must be punctuation or whitespace, and that run goes too.
+  const step = edge === "start" ? 1 : -1;
+  let position = edge === "start" ? 0 : parts.length - 1;
+  for (let matched = 0; matched < repeated.length; position += step) {
+    matched += units[position]!.length;
+    if (matched > repeated.length) return undefined;
+  }
+  if (units[position]?.length !== 0) return undefined;
+  const cut = position;
+  while (units[position]?.length === 0) position += step;
+  if (
+    position - cut === step && WORD_JOINER_PATTERN.test(parts[cut]!) &&
+    WORD_CHARACTER_PATTERN.test(parts[cut - step]!) && WORD_CHARACTER_PATTERN.test(parts[position]!)
+  ) {
+    return undefined;
+  }
+  const kept = edge === "start" ? parts.slice(position) : parts.slice(0, position + 1);
+  return { text: kept.join(""), removedChars: parts.length - kept.length };
 }
 
 /**
@@ -1762,6 +2129,41 @@ function closestStretchEdits(
     }
   }
   return { count, unmatchedTail };
+}
+
+/**
+ * For each unit of `left`, the index of the unit of `right` it pairs with along
+ * one longest common subsequence, or -1. The caller's size cap keeps every
+ * length below 16 bits.
+ */
+function longestCommonSubsequence(
+  left: readonly string[],
+  right: readonly string[],
+): number[] {
+  const width = right.length + 1;
+  // lengths[row * width + column]: the longest common subsequence of left from
+  // row on and right from column on.
+  const lengths = new Uint16Array((left.length + 1) * width);
+  for (let row = left.length - 1; row >= 0; row -= 1) {
+    for (let column = right.length - 1; column >= 0; column -= 1) {
+      lengths[row * width + column] = left[row] === right[column]
+        ? lengths[(row + 1) * width + column + 1]! + 1
+        : Math.max(lengths[(row + 1) * width + column]!, lengths[row * width + column + 1]!);
+    }
+  }
+  const pairedWith = new Array<number>(left.length).fill(-1);
+  for (let row = 0, column = 0; row < left.length && column < right.length; ) {
+    if (left[row] === right[column]) {
+      pairedWith[row] = column;
+      row += 1;
+      column += 1;
+    } else if (lengths[(row + 1) * width + column]! >= lengths[row * width + column + 1]!) {
+      row += 1;
+    } else {
+      column += 1;
+    }
+  }
+  return pairedWith;
 }
 
 function findBoundaryTextOverlap(

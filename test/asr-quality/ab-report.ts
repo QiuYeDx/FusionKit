@@ -3,7 +3,8 @@
 import type { AsrAbDevice, AsrAbVariant } from './ab-config';
 
 export interface AsrAbCue { startMs: number; endMs: number; text: string; confidence?: number }
-export type AsrAbRequestKind = 'primary' | 'quality_recovery' | 'separator';
+/** 'anchor': a preset window resent with the standard fields for its times only (T-ASRQ-16). */
+export type AsrAbRequestKind = 'primary' | 'quality_recovery' | 'separator' | 'anchor';
 /** One whisper-server request: the multipart fields it sent, its window and what the window returned. */
 export interface AsrAbRequest {
   ordinal: number; kind: AsrAbRequestKind; fields: Record<string, string>;
@@ -19,6 +20,11 @@ export interface AsrAbCase {
   profileApplied?: boolean;
   /** Review flags once the review rules exist (T-ASRQ-05); absent until then. */
   reviewFlags?: number;
+  /**
+   * Preset cases: each accepted window's timing anchor (T-ASRQ-16); counts, the anchored edges' median
+   * shift (later is positive) and outcomes only.
+   */
+  anchorRetiming?: readonly { anchoredEdges: number; totalEdges: number; medianShiftMs: number; status: string }[];
   error?: string;
 }
 export interface AsrAbSample {
@@ -177,9 +183,10 @@ export function listeningRegions(comparisons: readonly { variant: AsrAbVariant; 
 
 const STATUS_TEXT: Record<AsrAbCaseStatus, string> = { completed: '完成', no_content: '无内容', failed: '失败', cancelled: '已取消', not_implemented: '未实现' };
 const CHANGE_TEXT: Record<AsrAbChange, string> = { same: '相同', minor: '细微', changed: '改变', added: '新增', removed: '消失' };
-const KIND_TEXT: Record<AsrAbRequestKind, string> = { primary: '识别', quality_recovery: '质量重放', separator: '分句候选' };
+const KIND_TEXT: Record<AsrAbRequestKind, string> = { primary: '识别', quality_recovery: '质量重放', separator: '分句候选', anchor: '时间锚点' };
 const cell = (value: string) => value.replace(/\|/gu, '\\|').replace(/\r?\n/gu, ' ') || '—';
 const duration = (ms?: number) => ms === undefined ? '—' : `${(ms / 1000).toFixed(1)} s`;
+const signedMs = (ms: number) => `${ms > 0 ? '+' : ''}${ms} ms`;
 const caseOf = (report: AsrAbReport, sampleId: string, variant: AsrAbVariant) =>
   report.cases.find(value => value.sampleId === sampleId && value.variant === variant);
 function confidenceText(cues: readonly AsrAbCue[]) {
@@ -198,14 +205,33 @@ export function renderSummary(report: AsrAbReport) {
     '本摘要只列客观统计；哪个变体更好以听审为准（见 listening.md）。', '', '## 样本', '', '| 样本 | 语言 | 说明 | 时长 | 状态 |', '| --- | --- | --- | --- | --- |'];
   for (const sample of report.samples) lines.push(`| ${sample.id} | ${sample.language} | ${cell(sample.description)} | ${duration(sample.durationMs)} | ${
     sample.status === 'present' ? '存在' : `${sample.status === 'missing' ? '缺失' : '已变化'}：${cell(sample.reason ?? '')}`} |`);
-  lines.push('', '## 结果', '', '| 样本 | 变体 | 状态 | 字幕 | 字数 | 请求（识别/重放/分句） | 耗时（总/归一化/加载/识别） | 置信度 | 复核标记 | 预设字段 |',
+  lines.push('', '## 结果', '', '| 样本 | 变体 | 状态 | 字幕 | 字数 | 请求（识别/重放/分句/锚点） | 耗时（总/归一化/加载/识别） | 置信度 | 复核标记 | 预设字段 |',
     '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |');
   for (const value of report.cases) {
     const count = (kind: AsrAbRequestKind) => value.requests.filter(request => request.kind === kind).length;
     lines.push(`| ${value.sampleId} | ${value.variant} | ${STATUS_TEXT[value.status]} | ${terminal(value.status) ? value.cues.length : '—'} | ${
       terminal(value.status) ? value.cues.reduce((sum, cue) => sum + cueChars(cue.text), 0) : '—'} | ${value.requests.length}（${count('primary')}/${
-      count('quality_recovery')}/${count('separator')}） | ${[value.timings.totalMs, value.timings.normalizeMs, value.timings.loadMs, value.timings.inferenceMs].map(duration).join(' / ')} | ${
+      count('quality_recovery')}/${count('separator')}/${count('anchor')}） | ${[value.timings.totalMs, value.timings.normalizeMs, value.timings.loadMs, value.timings.inferenceMs].map(duration).join(' / ')} | ${
       terminal(value.status) ? confidenceText(value.cues) : '—'} | ${value.reviewFlags ?? '未实现'} | ${cell(describeProfileFields(summarizeRequestFields(value.requests)))} |`);
+  }
+  const anchored = report.cases.filter(value => value.anchorRetiming?.length);
+  if (anchored.length) {
+    lines.push('', '## 时间锚点', '', '预设窗口用标准字段再识别一次，只取时间。已对齐边的平移中位数（锚点减预设，往后为正）达到 +500 ms 的窗口整体偏早，'
+      + '对齐的边取锚点时间，其余边按插值移动（retimed）；不到的窗口保持原时间（not_early）。', '');
+    for (const value of anchored) {
+      const windows = value.anchorRetiming!, statuses = new Map<string, number>();
+      for (const window of windows) statuses.set(window.status, (statuses.get(window.status) ?? 0) + 1);
+      const edges = windows.reduce((sum, window) => sum + window.anchoredEdges, 0), total = windows.reduce((sum, window) => sum + window.totalEdges, 0);
+      // Why windows moved or stayed: the spread of their medians.
+      const medians = ['retimed', 'not_early'].flatMap(status => {
+        const values = windows.filter(window => window.status === status).map(window => window.medianShiftMs);
+        if (!values.length) return [];
+        const low = Math.min(...values), high = Math.max(...values);
+        return [`${status} ${low === high ? signedMs(low) : `${signedMs(low)} 至 ${signedMs(high)}`}`];
+      });
+      lines.push(`- ${value.sampleId} / ${value.variant}：窗口 ${windows.length}（${[...statuses].map(([status, count]) => `${status} ${count}`).join('，')}）；对齐的边 ${
+        edges}/${total}${total ? `（${Math.round((edges / total) * 100)}%）` : ''}${medians.length ? `；平移中位 ${medians.join('，')}` : ''}`);
+    }
   }
   const noise = report.cases.filter(value => value.sampleId === 'B-noise');
   if (noise.length) {

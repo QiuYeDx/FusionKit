@@ -1,0 +1,94 @@
+# T-ASRQ-16 V-ASRQ-16-1 只修整体偏早的窗口（not_early 门槛）单元测试：改时间逻辑、执行器锚点轮次、对照摘要
+# 日期：2026-10-25 02:48:47 +0800；工作树基于 8c0980a6（未提交）
+# 文件哈希（sha256）：0bc24af7ac74869f645275ad257e5c5572c2fd2c72ece128398e22df38692c08 electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts;e0859f89d25b0f3058f387588dbb08992d560501aa2d61baeef01fe9c2723fa2 electron/main/subtitle-studio/transcription/transcript-executor.ts;1285ddefd359c71dfadb8bc809b7ee9438ccd1658fbb148961933230e6aa4278 test/subtitle-studio/transcription/productionExecutor.test.ts;f6542f36a36180b0502ffc62e5d8c6f292593f2b58aa9200337a9e9a35735314 test/subtitle-studio/transcription/anchorRetiming.test.ts;2331105564e1423b3b48907e8da6146bdf5517adb7a4dbed643a4c554423c033 test/asr-quality/ab-report.ts;71bede98c5e15870411eecfd02601aa75bfc74c999f064a5a0dc570758f483bc test/asr-quality/ab-report.test.ts;59decea24b1b75a3742e3148151930a77a46f4b4498d94a1914245a0cb7ec6f4 scripts/subtitle-studio-provenance/current-copy-audits.json;
+
+## 1. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/anchorRetiming.test.ts --reporter=verbose
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > takes the anchor times of edges whose two outer characters pair with an anchor segment's
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > interpolates edges that pair inside an anchor segment
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > anchors an edge only when both of its outer characters pair
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > interpolates linearly between the nearest anchored edges and rounds to milliseconds
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > moves an unaligned sentence between aligned ones along their shifts
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > carries the nearest shift beyond the outermost anchored edges
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > retimes a window only when its anchored edges move at least 500 ms later at the median
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > keeps a window the anchor hears earlier, or about where the preset did
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > decides on the anchored edges alone, more than half of which must move that much later
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > retimes a window heard ever earlier after the decoder missed its opening
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > keeps a window without an anchored edge as it is
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > keeps each start after the previous end and each segment at least 0.2 s long
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > stays within the window, moving segments the window end cut short earlier
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > keeps a window whose segments cannot all fit in order
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > keeps a window too long to compare, or with an invalid duration or text
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts > anchor retiming > compares mixed CJK and Latin text as across seams
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Start at  02:48:48
+   Duration  532ms (transform 125ms, setup 0ms, collect 304ms, tests 28ms, environment 0ms, prepare 58ms)
+
+exit 0
+
+## 2. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/productionExecutor.test.ts -t "Studio timing anchors" --reporter=verbose（只列本块）
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > recognizes every quiet_whisper_v1 window first, then resends its audio with the standard fields
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > recognizes every noisy_music_v1 window first, then resends its audio with the standard fields
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > pads the anchor of a boosted window by 1000 ms like the standard type
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > sends no anchor when the window's audio differs from what the preset recognized
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > keeps the preset times when the anchor fails
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > keeps the preset times when the anchor hears nothing
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > keeps the preset times when the anchor fails the quality guard
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > keeps the preset times of a window its anchor moves by -1500 ms, which is not early
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > keeps the preset times of a window its anchor moves by 400 ms, which is not early
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > cancels the task promptly while an anchor is pending
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > keeps the preset times of a window the post-processor would refuse once retimed
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > counts the anchors in the transcribing progress, which never goes back
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > sends no anchor for the standard type and returns the transcript as before
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > anchors the accepted children of a split window, not the split window
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio timing anchors > leaves the separator repair of a window its anchor keeps in place as before
+
+ Test Files  1 passed (1)
+      Tests  15 passed | 177 skipped (192)
+   Start at  02:48:50
+   Duration  1.99s (transform 500ms, setup 0ms, collect 1.69s, tests 115ms, environment 0ms, prepare 58ms)
+
+exit 0
+
+## 3. npx vitest run --maxWorkers=4 --minWorkers=1 test/asr-quality/ab-report.test.ts --reporter=verbose
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/asr-quality/ab-report.test.ts > A/B selection > is gated by an explicit flag and defaults to every sample, variant, large-v3 and CUDA
+ ✓ test/asr-quality/ab-report.test.ts > A/B selection > reads trimmed, de-duplicated lists and rejects unknown names instead of skipping them
+ ✓ test/asr-quality/ab-report.test.ts > A/B selection > names a downloaded model after its file unless the model ID is given
+ ✓ test/asr-quality/ab-report.test.ts > A/B selection > budgets every selected case
+ ✓ test/asr-quality/ab-report.test.ts > A/B text and time formatting > writes the SRT layout of the app export, and an empty file for no cues
+ ✓ test/asr-quality/ab-report.test.ts > A/B text and time formatting > gives listeners whole-second ranges that cover the region
+ ✓ test/asr-quality/ab-report.test.ts > A/B text and time formatting > compares words without width, case, whitespace or punctuation
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > keeps identical runs the same and reports changed, added and removed sentences
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > treats a split, a punctuation change or a moved boundary with the same words as minor
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > does not chain neighbours through a shared edge of a few frames
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > keeps contiguous sentences apart when every edge moved by up to 1.3 s (real A, standard vs quiet_whisper_v1)
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > joins an unpaired cue to its largest real overlap instead of reporting it added and removed
+ ✓ test/asr-quality/ab-report.test.ts > A/B time-overlap alignment > orders unsorted input and groups one long cue against several
+ ✓ test/asr-quality/ab-report.test.ts > A/B statistics > buckets confidence at the review threshold and reports none for older transcripts
+ ✓ test/asr-quality/ab-report.test.ts > A/B statistics > counts each sent field value per request kind and names only the profile fields
+ ✓ test/asr-quality/ab-report.test.ts > A/B listening regions > pads, clamps and merges word differences across variants, ignoring minor ones
+ ✓ test/asr-quality/ab-report.test.ts > A/B reports > summarizes counts, timings, confidence, missing samples, the negative control and inactive variants
+ ✓ test/asr-quality/ab-report.test.ts > A/B reports > reports how many segment edges of each preset case took an anchor time, and which windows were not early
+ ✓ test/asr-quality/ab-report.test.ts > A/B reports > lists aligned differences per sample and says why a pair cannot be compared
+ ✓ test/asr-quality/ab-report.test.ts > A/B reports > gives the listener padded ranges, the sample file and an empty verdict column
+
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+   Start at  02:48:53
+   Duration  290ms (transform 54ms, setup 0ms, collect 96ms, tests 11ms, environment 0ms, prepare 57ms)
+
+exit 0
+

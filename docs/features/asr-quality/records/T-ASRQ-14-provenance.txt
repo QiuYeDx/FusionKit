@@ -1,0 +1,251 @@
+# T-ASRQ-14 V-ASRQ-14-2 provenance（复制检查与全量回放）、转写测试与类型检查
+# 日期：2026-10-25 03:12:20 +0800；工作树基于 8c0980a6（未提交）
+
+## 1. 审计文件哈希（sha256sum，与 current-copy-audits.json 的 currentSha256 对照）与换行
+0bc24af7ac74869f645275ad257e5c5572c2fd2c72ece128398e22df38692c08 *electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts
+e0859f89d25b0f3058f387588dbb08992d560501aa2d61baeef01fe9c2723fa2 *electron/main/subtitle-studio/transcription/transcript-executor.ts
+1285ddefd359c71dfadb8bc809b7ee9438ccd1658fbb148961933230e6aa4278 *test/subtitle-studio/transcription/productionExecutor.test.ts
+json currentSha256 0bc24af7ac74869f645275ad257e5c5572c2fd2c72ece128398e22df38692c08 electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts | reason has 2026-10-25 follow-up: true
+json currentSha256 e0859f89d25b0f3058f387588dbb08992d560501aa2d61baeef01fe9c2723fa2 electron/main/subtitle-studio/transcription/transcript-executor.ts | reason has 2026-10-25 follow-up: true
+json currentSha256 1285ddefd359c71dfadb8bc809b7ee9438ccd1658fbb148961933230e6aa4278 test/subtitle-studio/transcription/productionExecutor.test.ts | reason has 2026-10-25 follow-up: true
+CR bytes 0 electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts
+CR bytes 0 electron/main/subtitle-studio/transcription/transcript-executor.ts
+CR bytes 0 test/subtitle-studio/transcription/productionExecutor.test.ts
+
+## 2. node scripts/subtitle-studio-provenance/copy.mjs --check
+
+{"mode":"check","files":120,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567","status":"passed"}
+exit 0
+
+## 3. node scripts/subtitle-studio-provenance/transcript-executor-copy.mjs --check
+
+{"status":"passed","files":1,"dependencies":26,"sourceCommit":"3a0f50ed15c1b63451402cecf27240182235e567"}
+exit 0
+
+## 4. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio-provenance/
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio-provenance/real-default-comparison-analysis.test.ts (37 tests) 37ms
+ ↓ test/subtitle-studio-provenance/release-real-workflow.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/shared-resources.test.ts (19 tests) 18071ms
+   ✓ neutral shared resource extraction provenance > replays the reviewed transforms from the actual pinned Git commit and checks six exact historical snapshots 2780ms
+   ✓ neutral shared resource extraction provenance > reconstructs every output in an isolated fixture using the captured authoritative source bytes 1664ms
+   ✓ neutral shared resource extraction provenance > rejects output drift 1208ms
+   ✓ neutral shared resource extraction provenance > rejects source drift 1191ms
+   ✓ neutral shared resource extraction provenance > rejects source-pin drift 1207ms
+   ✓ neutral shared resource extraction provenance > rejects extra-file drift 1498ms
+   ✓ neutral shared resource extraction provenance > rejects unsafe-output drift 1206ms
+   ✓ neutral shared resource extraction provenance > rejects duplicate-output drift 1508ms
+   ✓ neutral shared resource extraction provenance > rejects edit-digest drift 1232ms
+   ✓ neutral shared resource extraction provenance > accepts a reviewed source change only for its exact current bytes 1612ms
+   ✓ neutral shared resource extraction provenance > rejects a linked output without following or altering its target 1266ms
+   ✓ neutral shared resource extraction provenance > rejects neutral receipt snapshot changes 316ms
+   ✓ neutral shared resource extraction provenance > rejects neutral receipt extra-receipt changes 302ms
+ ✓ test/subtitle-studio-provenance/generate.test.ts (17 tests) 17337ms
+   ✓ fixed Git transcription provenance > rebuilds identical canonical bytes without executing source, including alias/type/resource edges 1222ms
+   ✓ fixed Git transcription provenance > rejects baseline digest tampering without rewriting it 852ms
+   ✓ fixed Git transcription provenance > rejects baseline omission tampering without rewriting it 811ms
+   ✓ fixed Git transcription provenance > rejects baseline destination tampering without rewriting it 946ms
+   ✓ fixed Git transcription provenance > rejects baseline commit tampering without rewriting it 520ms
+   ✓ fixed Git transcription provenance > rejects baseline policy tampering without rewriting it 700ms
+   ✓ fixed Git transcription provenance > detects worktree source change while historical validation still passes 1467ms
+   ✓ fixed Git transcription provenance > detects worktree source add while historical validation still passes 1512ms
+   ✓ fixed Git transcription provenance > detects worktree source delete while historical validation still passes 1412ms
+   ✓ fixed Git transcription provenance > uses Git clean newline rules and refuses external filters without executing them 1769ms
+   ✓ fixed Git transcription provenance > rejects unresolved relative imports and URL fixtures 445ms
+   ✓ fixed Git transcription provenance > rejects unresolved relative imports and URL fixtures 484ms
+   ✓ fixed Git transcription provenance > rejects duplicate destination paths including case-only collisions 895ms
+   ✓ fixed Git transcription provenance > requires exact audits for computed import and createRequire, and rejects stale/new loader expressions 2108ms
+   ✓ fixed Git transcription provenance > preserves exact audit targets and refuses missing target files 725ms
+   ✓ fixed Git transcription provenance > extracts effective literal defaults and arithmetic without evaluating business code 599ms
+   ✓ fixed Git transcription provenance > fails on missing selected roots and syntactically invalid source 868ms
+ ✓ test/subtitle-studio-provenance/real-default-resource-fixture.test.ts (11 tests) 103ms
+ ✓ test/subtitle-studio-provenance/native-copy.test.ts (10 tests) 6705ms
+   ✓ independent native source copy > rebuilds exact audited C++ changes and binds shared tools to their owner 1005ms
+   ✓ independent native source copy > rejects stale exact-text rules and undeclared dependencies 759ms
+   ✓ independent native source copy > refuses source hash and commit mismatches 598ms
+   ✓ independent native source copy > rejects edit source drift before copying 509ms
+   ✓ independent native source copy > rejects delete source drift before copying 441ms
+   ✓ independent native source copy > rejects filter source drift before copying 562ms
+   ✓ independent native source copy > refuses shared dependency bytes tampering 637ms
+   ✓ independent native source copy > refuses shared dependency provenance tampering 642ms
+   ✓ independent native source copy > preflights conflicts and preserves both source and user destination 850ms
+   ✓ independent native source copy > refuses symlinked shared dependencies without touching their target 701ms
+ ✓ test/subtitle-studio-provenance/replay.test.ts (20 tests) 48500ms
+ ✓ test/subtitle-studio-provenance/current-copy-audits.test.ts (11 tests) 72ms
+ ✓ test/subtitle-studio-provenance/tooling-copy.test.ts (5 tests) 3547ms
+   ✓ T03 tooling copy provenance > rebuilds fixed blobs with precise edits and verifies every actual output 879ms
+   ✓ T03 tooling copy provenance > refuses source drift, changed baseline bytes and stale or overlapping edits 790ms
+   ✓ T03 tooling copy provenance > rejects destination collisions and user edits before writing any output 746ms
+   ✓ T03 tooling copy provenance > rejects source and destination links without writing through them 644ms
+   ✓ T03 tooling copy provenance > refuses configured clean filters before Git can execute them 487ms
+ ✓ test/subtitle-studio-provenance/real-default-comparison.test.ts (4 tests | 1 skipped) 4ms
+ ✓ test/subtitle-studio-provenance/transcript-executor-copy.test.ts (6 tests) 28ms
+ ✓ test/subtitle-studio-provenance/checkout-bytes.test.ts (1 test) 706ms
+   ✓ preserves frozen Studio LF and exact neutral extraction/receipt line endings under core.autocrlf 706ms
+ ✓ test/subtitle-studio-provenance/transcript-executor-replay.test.ts (23 tests) 79029ms
+ ✓ test/subtitle-studio-provenance/runtime-windows-copy.test.ts (5 tests) 2082ms
+   ✓ T07 independent Windows runtime derivation > replays the six fixed sources without changing older recipes or destination bytes 917ms
+ ✓ test/subtitle-studio-provenance/copy.test.ts (48 tests) 86169ms
+   ✓ transcription source copy > recomputes relative module/type/URL paths and only changes audited tokens/JSON fields 1943ms
+   ✓ transcription source copy > rejects conflicting destinations before writing any file 443ms
+   ✓ transcription source copy > refuses current source edit drift while preserving the fixed baseline 894ms
+   ✓ transcription source copy > refuses current source delete drift while preserving the fixed baseline 781ms
+   ✓ transcription source copy > refuses current source add drift while preserving the fixed baseline 883ms
+   ✓ transcription source copy > refuses an unrecorded relative dependency or a missing closure target 519ms
+   ✓ transcription source copy > checks Git blob size and SHA independently of supplied inventory metadata 528ms
+   ✓ transcription source copy > refuses changed or missing destinations and never overwrites user content 1004ms
+   ✓ transcription source copy > rejects stale literal counts, JSON values, and overlapping transformations 1907ms
+   ✓ transcription source copy > refuses source and output symlinks 1370ms
+   ✓ transcription source copy > hashes large source files with Git CRLF rules and refuses clean filters 1343ms
+   ✓ transcription source copy > audits exact current application wiring while preserving every frozen copy and baseline byte 3101ms
+   ✓ transcription source copy > accepts a reviewed source change for exact bytes while the copy keeps the frozen blob 2412ms
+   ✓ transcription source copy > rejects changed-current instead of treating composition as an unchecked exception 1836ms
+   ✓ transcription source copy > rejects reverted-current instead of treating composition as an unchecked exception 1830ms
+   ✓ transcription source copy > rejects missing-audit instead of treating composition as an unchecked exception 1841ms
+   ✓ transcription source copy > rejects an invalid composition audit: wrong-commit 1424ms
+   ✓ transcription source copy > rejects an invalid composition audit: wrong-source-sha 1517ms
+   ✓ transcription source copy > rejects an invalid composition audit: wrong-source-oid 1499ms
+   ✓ transcription source copy > rejects an invalid composition audit: unchanged-source 1480ms
+   ✓ transcription source copy > rejects an invalid composition audit: duplicate 1543ms
+   ✓ transcription source copy > rejects an invalid composition audit: unknown 1494ms
+   ✓ transcription source copy > rejects an invalid composition audit: wildcard 1585ms
+   ✓ transcription source copy > rejects an invalid composition audit: copied-source 1459ms
+   ✓ transcription source copy > rejects an invalid composition audit: extra-field 1525ms
+   ✓ transcription source copy > does not let an approved composition bypass source symlink or clean-filter rejection 2109ms
+   ✓ transcription source copy > permits the exact reviewed package build command while leaving frozen replay and baseline bytes unchanged 4025ms
+   ✓ transcription source copy > refuses a package audit that also changes dependencies even with the exact current blob hash 2313ms
+   ✓ transcription source copy > refuses a package audit that also changes devDependencies even with the exact current blob hash 2265ms
+   ✓ transcription source copy > refuses a package audit that also changes other-script even with the exact current blob hash 2212ms
+   ✓ transcription source copy > refuses a package audit that also changes name even with the exact current blob hash 2218ms
+   ✓ transcription source copy > refuses a package audit that also changes version even with the exact current blob hash 2183ms
+   ✓ transcription source copy > refuses a package audit that also changes added-field even with the exact current blob hash 2364ms
+   ✓ transcription source copy > refuses a package audit that also changes deleted-field even with the exact current blob hash 2231ms
+   ✓ transcription source copy > refuses a package audit that also changes unchanged-build even with the exact current blob hash 1824ms
+   ✓ transcription source copy > refuses a package audit that also changes missing-build even with the exact current blob hash 2250ms
+   ✓ transcription source copy > refuses a package audit that also changes invalid-build even with the exact current blob hash 2326ms
+   ✓ transcription source copy > accepts only the reviewed release version migration alongside the exact build change 3071ms
+   ✓ transcription source copy > rejects an unaudited version migration 0.2.11 -> 0.3.1 2287ms
+   ✓ transcription source copy > rejects an unaudited version migration 0.3.0 -> 0.3.2 2158ms
+   ✓ transcription source copy > rejects an unaudited version migration 0.3.1 -> 0.3.0 2197ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: missing-audit 2001ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: stale-current 2056ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: wrong-source-oid 1557ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: wrong-source-sha 1692ms
+   ✓ transcription source copy > keeps exact package audit identities and reason mandatory: empty-reason 1614ms
+   ✓ transcription source copy > does not extend the build exception to electron-builder.json 1445ms
+   ✓ transcription source copy > does not extend the build exception to pnpm-lock.yaml 1609ms
+ ✓ test/subtitle-studio-provenance/source-change-audits.test.ts (10 tests) 37ms
+ ✓ test/subtitle-studio-provenance/windows-addon-copy.test.ts (7 tests) 120788ms
+   ✓ T07 independent Windows addon tooling provenance > reconstructs six Windows scripts from the fixed source and verifies frozen C++ dependencies 22753ms
+   ✓ T07 independent Windows addon tooling provenance > records the exact recovery-host environment repair and its reason 19006ms
+   ✓ T07 independent Windows addon tooling provenance > rejects stale exact transforms, undeclared dependencies and unused C++ edits 46620ms
+   ✓ T07 independent Windows addon tooling provenance > rejects a different source commit and modified source digest 15654ms
+   ✓ T07 independent Windows addon tooling provenance > preflights destination conflict and never overwrites user bytes or publishes partial provenance 16754ms
+ ↓ test/subtitle-studio-provenance/real-cpu-comparison.test.ts (1 test | 1 skipped)
+
+ Test Files  16 passed | 2 skipped (18)
+      Tests  233 passed | 3 skipped (236)
+   Start at  03:13:20
+   Duration  172.14s (transform 2.48s, setup 0ms, collect 11.97s, tests 383.22s, environment 2ms, prepare 1.12s)
+
+exit 0
+
+## 5. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts (45 tests) 82ms
+ ✓ test/subtitle-studio/transcription/ipc-contract.test.ts (51 tests) 342ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts (85 tests) 274ms
+ ✓ test/subtitle-studio/transcription/domain.test.ts (44 tests) 14ms
+ ✓ test/subtitle-studio/transcription/anchorRetiming.test.ts (16 tests) 28ms
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts (37 tests) 12ms
+ ✓ test/subtitle-studio/transcription/cueSeparatorRestorer.test.ts (37 tests) 22ms
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts (10 tests) 21ms
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts (5 tests) 74ms
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts (30 tests) 14ms
+ ✓ test/subtitle-studio/transcription/cueOverlapResolver.test.ts (22 tests) 9ms
+ ✓ test/subtitle-studio/transcription/noTimestampsRequest.test.ts (5 tests) 39ms
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts (7 tests) 578ms
+ ✓ test/subtitle-studio/transcription/cueDisplaySeparators.test.ts (12 tests) 14ms
+ ✓ test/subtitle-studio/transcription/source-media-lifecycle.test.ts (3 tests) 354ms
+ ✓ test/subtitle-studio/transcription/cueShortOnsetEvidence.test.ts (33 tests) 397ms
+ ✓ test/subtitle-studio/transcription/cueVariantOverlapEvidence.test.ts (28 tests) 22ms
+ ✓ test/subtitle-studio/transcription/overlapGroupReview.test.ts (18 tests) 9ms
+ ✓ test/subtitle-studio/transcription/cueContainedOverlapEvidence.test.ts (23 tests) 19ms
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts (5 tests) 852ms
+   ✓ gated quiet PCM conditioning > boosts -65 dBFS speech the whole-window policy skips, keeping samples, positions and digital silence 544ms
+ ✓ test/subtitle-studio/transcription/cuePrefixSeparator.test.ts (9 tests) 15ms
+ ✓ test/subtitle-studio/transcription/cueBoundaryPlanner.test.ts (21 tests) 14ms
+ ✓ test/subtitle-studio/transcription/config.test.ts (10 tests) 4ms
+ ✓ test/subtitle-studio/transcription/cueLocalAnchorHead.test.ts (7 tests) 13ms
+ ✓ test/subtitle-studio/transcription/cueVariantOverlapResolver.test.ts (13 tests) 6ms
+ ✓ test/subtitle-studio/transcription/cuePrefixOverlapResolver.test.ts (9 tests) 5ms
+ ✓ test/subtitle-studio/transcription/cueMultiOverlapResolver.test.ts (10 tests) 4ms
+ ✓ test/subtitle-studio/transcription/cueContainedOverlapResolver.test.ts (10 tests) 7ms
+ ✓ test/subtitle-studio/transcription/pauseWindowPlan.test.ts (5 tests) 15ms
+ ✓ test/subtitle-studio/transcription/cueSummary.test.ts (12 tests) 5ms
+ ✓ test/subtitle-studio/transcription/quietAudio.test.ts (4 tests) 119ms
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts (192 tests) 3684ms
+ ✓ test/subtitle-studio/transcription/input-identity.test.ts (3 tests) 2ms
+
+ Test Files  33 passed (33)
+      Tests  821 passed (821)
+   Start at  03:16:14
+   Duration  5.62s (transform 1.17s, setup 0ms, collect 4.72s, tests 7.07s, environment 4ms, prepare 2.16s)
+
+exit 0
+
+## 6. npx vitest run --maxWorkers=4 --minWorkers=1（非 UI 的 test/subtitle-studio/transcription-*.test.ts 15 个，不含会启动 Electron 的 transcription-bridge.test.ts 与 *-ui.test.ts）
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription-controller.test.ts (46 tests) 72ms
+ ✓ test/subtitle-studio/transcription-review.test.ts (18 tests) 27ms
+ ✓ test/subtitle-studio/transcription-ipc.test.ts (20 tests) 447ms
+ ✓ test/subtitle-studio/transcription-document-sink.test.ts (12 tests) 430ms
+ ✓ test/subtitle-studio/transcription-document.test.ts (27 tests) 2378ms
+   ✓ canonical transcript document adaptation > accepts exactly 100000 cues and rejects 100001 without splitting or truncation 1088ms
+   ✓ canonical transcript document adaptation > counts cue and snapshot structure when source strings alone fit under 128 MiB 997ms
+ ✓ test/subtitle-studio/transcription-runtime.test.ts (19 tests) 1624ms
+ ✓ test/subtitle-studio/transcription-review-ipc.test.ts (2 tests) 204ms
+ ✓ test/subtitle-studio/transcription-preferences.test.ts (8 tests) 14ms
+ ✓ test/subtitle-studio/transcription-runtime-lifecycle.test.ts (4 tests) 259ms
+ ✓ test/subtitle-studio/transcription-document-producer.test.ts (14 tests) 87ms
+ ✓ test/subtitle-studio/transcription-confidence-document.test.ts (6 tests) 57ms
+ ✓ test/subtitle-studio/transcription-task-contract.test.ts (4 tests) 9ms
+ ✓ test/subtitle-studio/transcription-model-profiles.test.ts (5 tests) 4ms
+ ✓ test/subtitle-studio/transcription-task-service.test.ts (46 tests) 8202ms
+   ✓ reclaims clean released-owner task history so later owners do not inherit exhausted capacity 5259ms
+ ✓ test/subtitle-studio/transcription-retry-ipc.test.ts (3 tests) 7ms
+
+ Test Files  15 passed (15)
+      Tests  234 passed (234)
+   Start at  03:16:21
+   Duration  10.35s (transform 1.74s, setup 0ms, collect 11.07s, tests 13.82s, environment 2ms, prepare 947ms)
+
+exit 0
+
+## 7. npx vitest run --maxWorkers=4 --minWorkers=1 test/asr-quality/ab-report.test.ts
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/asr-quality/ab-report.test.ts (20 tests) 11ms
+
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+   Start at  03:16:32
+   Duration  298ms (transform 54ms, setup 0ms, collect 100ms, tests 11ms, environment 0ms, prepare 57ms)
+
+exit 0
+
+## 8. npx tsc --noEmit -p tsconfig.json
+
+exit 0
+

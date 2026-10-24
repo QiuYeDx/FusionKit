@@ -2055,11 +2055,14 @@ describe("Studio audio profiles", () => {
       inference: ({ request, window, index }) => ({ processEpoch: 1, response: serverResponse(request, window.endMs - window.startMs,
         index === 0 ? [rawSegment(0, 0, 12000, "Discarded candidate")] : [rawSegment(0, 0, 3000, "Original output")]) }) });
     expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
-    expect(harness.media.materializeWindow.mock.calls.map(([r]) => r.conditionQuietAudio)).toEqual([true, false]);
-    const [conditioned, original] = requests(harness);
+    // The timing anchor resends the accepted original audio.
+    expect(harness.media.materializeWindow.mock.calls.map(([r]) => r.conditionQuietAudio)).toEqual([true, false, false]);
+    const [conditioned, original, anchor] = requests(harness);
     expect(conditioned).toMatchObject({ vadEnabled: true, vadThreshold: 0.35, vadMinSpeechMs: 150, vadSpeechPadMs: 1000, noSpeechThreshold: 0.7 });
     expect(original).toMatchObject({ vadEnabled: true, vadThreshold: 0.35, vadMinSpeechMs: 150, vadSpeechPadMs: 300, noSpeechThreshold: 0.7 });
     expect(conditioned).not.toHaveProperty("suppressNonSpeech");
+    expect(anchor?.vadEnabled).toBe(true);
+    for (const key of profileKeys) expect(anchor).not.toHaveProperty(key);
     harness.executor.endBatchSlice(harness.context.batchRuntime);
   });
 
@@ -2067,11 +2070,13 @@ describe("Studio audio profiles", () => {
     const harness = await createStudioProfileHarness("noisy_music_v1", { totalFrames: 5 * 16000, vadEnabled: true,
       inference: ({ request, window, index }) => index === 0 ? repeatedResponse(request, window) : validResponse(request, window, "recovered") });
     expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
-    expect(requests(harness).map(request => request.temperature)).toEqual([0, 0.2]);
-    for (const request of requests(harness)) {
+    // The replay keeps the profile; the timing anchor that follows sends the standard fields.
+    expect(requests(harness).map(request => request.temperature)).toEqual([0, 0.2, 0]);
+    for (const request of requests(harness).slice(0, 2)) {
       expect(request).toMatchObject({ vadThreshold: 0.45, vadSpeechPadMs: 200, suppressNonSpeech: true });
       expect(request).not.toHaveProperty("vadMinSpeechMs"); expect(request).not.toHaveProperty("noSpeechThreshold");
     }
+    for (const key of profileKeys) expect(requests(harness)[2]).not.toHaveProperty(key);
     harness.executor.endBatchSlice(harness.context.batchRuntime);
   });
 
@@ -2086,9 +2091,12 @@ describe("Studio audio profiles", () => {
           return { processEpoch: request.vadEnabled ? 1 : 2, response: { ...response, result: { ...response.result, language: "japanese" } } };
         } });
       expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
-      const [primary, candidate] = requests(harness);
+      // The timing anchor spends none of the window's budget, so the candidate still follows it.
+      const [primary, anchor, candidate] = requests(harness);
       expect(primary).toMatchObject({ vadEnabled: true, vadThreshold: 0.35, vadSpeechPadMs: 300 });
+      expect(anchor?.vadEnabled).toBe(true);
       expect(candidate?.vadEnabled).toBe(false);
+      for (const key of profileKeys) expect(anchor).not.toHaveProperty(key);
       for (const key of profileKeys) expect(candidate).not.toHaveProperty(key);
       harness.executor.endBatchSlice(harness.context.batchRuntime);
     } finally { await accelerator.cleanup(); }
@@ -2123,9 +2131,13 @@ describe("Studio gated quiet audio", () => {
   it("conditions quiet_whisper_v1 windows with the gated gain and pads boosted windows by 1000 ms", async () => {
     const harness = await createStudioProfileHarness("quiet_whisper_v1", { vadEnabled: true, quietAudioGainDb: 24.5 });
     expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
-    expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" }]);
-    expect(requests(harness)).toHaveLength(1);
+    // The timing anchor resends the same boosted audio and pads it like the standard type.
+    expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" },
+      { conditionQuietAudio: true, quietAudioMode: "gated_v1" }]);
+    expect(requests(harness)).toHaveLength(2);
     expect(requests(harness)[0]).toMatchObject({ vadSpeechPadMs: 1000, vadThreshold: 0.35 });
+    expect(requests(harness)[1]).toMatchObject({ vadSpeechPadMs: 1000 });
+    expect(requests(harness)[1]).not.toHaveProperty("vadThreshold");
     harness.executor.endBatchSlice(harness.context.batchRuntime);
   });
 
@@ -2147,8 +2159,10 @@ describe("Studio gated quiet audio", () => {
     const text = result.transcript.segments.map(segment => segment.text).join(" ");
     expect(text).toContain("Original output");
     expect(text).not.toContain("Discarded");
-    expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" }, { conditionQuietAudio: false }]);
-    expect(requests(harness).map(request => request.vadSpeechPadMs)).toEqual([1000, 300]);
+    // The timing anchor resends the accepted original audio with the standard fields.
+    expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" }, { conditionQuietAudio: false },
+      { conditionQuietAudio: false }]);
+    expect(requests(harness).map(request => request.vadSpeechPadMs)).toEqual([1000, 300, undefined]);
     harness.executor.endBatchSlice(harness.context.batchRuntime);
   });
 
@@ -2157,8 +2171,11 @@ describe("Studio gated quiet audio", () => {
       const harness = await createStudioProfileHarness(audioProfile, { vadEnabled: true, totalFrames: 30 * 16000,
         quietAudioGainDb: 12, inference: risky("long") });
       expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
-      expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true }, { conditionQuietAudio: false }]);
-      expect(requests(harness).map(request => request.vadSpeechPadMs)).toEqual([1000, audioProfile ? 200 : undefined]);
+      // Only the preset adds a timing anchor, on the accepted original audio.
+      expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true }, { conditionQuietAudio: false },
+        ...(audioProfile ? [{ conditionQuietAudio: false }] : [])]);
+      expect(requests(harness).map(request => request.vadSpeechPadMs)).toEqual([1000, audioProfile ? 200 : undefined,
+        ...(audioProfile ? [undefined] : [])]);
       harness.executor.endBatchSlice(harness.context.batchRuntime);
     });
 
@@ -2174,8 +2191,10 @@ describe("Studio gated quiet audio", () => {
           return { processEpoch: request.vadEnabled ? 1 : 2, response: { ...response, result: { ...response.result, language: "japanese" } } };
         } });
       expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
-      expect(requests(harness).map(request => request.vadEnabled)).toEqual([true, false]);
-      expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" }, { conditionQuietAudio: false }]);
+      // The timing anchor resends the primary's gated audio; the candidate stays ungated.
+      expect(requests(harness).map(request => request.vadEnabled)).toEqual([true, true, false]);
+      expect(conditioning(harness)).toEqual([{ conditionQuietAudio: true, quietAudioMode: "gated_v1" },
+        { conditionQuietAudio: true, quietAudioMode: "gated_v1" }, { conditionQuietAudio: false }]);
       harness.executor.endBatchSlice(harness.context.batchRuntime);
     } finally { await accelerator.cleanup(); }
   });
@@ -2211,6 +2230,269 @@ describe("Studio seam duplicates", () => {
       restoredEdge: { cueId: "cue-000002", edge: "end", fromMs: 27500, toMs: 27900 } } : undefined);
     expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(2);
     harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  // 2026-10-24 asr-quality T-ASRQ-14: a long copy kept for its far-end words loses the opening
+  // that repeats the cue before it.
+  it("trims the repeated opening of a kept long copy and reports it outside the transcript", async () => {
+    const trimOptions: HarnessOptions = { totalFrames: 55 * 16000,
+      inference: ({ request, window }) => ({ processEpoch: 1, response: serverResponse(request, window.endMs - window.startMs,
+        window.startMs === 0 ? [rawSegment(0, 23700, 27420, "作为守护这座城市的人"), rawSegment(1, 27420, 28600, "我们绝不能让大家")]
+          : [rawSegment(0, 200, 6000, "作为守护这座城市的人，我们绝不能让大家失望")]) }) };
+    const original = await createHarness(trimOptions);
+    expect((await original.executor.execute(original.context)).status).toBe("completed");
+    original.executor.endBatchSlice(original.context.batchRuntime);
+    const exported = original.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+    expect(exported.map(cue => [cue.startMs, cue.endMs])).toEqual([[23700, 27420], [27420, 27500], [27500, 31000]]);
+    const harness = await createStudioHarness(trimOptions);
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready") return;
+    expect(result.transcript.segments).toEqual([exported[0], { ...exported[2], startMs: 27420, text: "我们绝不能让大家失望" }]);
+    expect(result.seamDuplicates).toEqual([{ cueId: "cue-000002", startMs: 27420, endMs: 27500, seamMs: 27500,
+      clippedEdge: "end", coverage: 1, keptCueIds: ["cue-000003"],
+      restoredEdge: { cueId: "cue-000003", edge: "start", fromMs: 27500, toMs: 27420 },
+      trimmedEdge: { cueId: "cue-000003", edge: "start", removedChars: 11, fromMs: 27420, toMs: 27420 } }]);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+});
+
+// 2026-10-24 asr-quality T-ASRQ-16: after every preset window, each accepted window is
+// recognized again from the same audio with the standard fields, and its segments take
+// that timing anchor's times; standard tasks send no anchor.
+describe("Studio timing anchors", () => {
+  const standardKeys = ["requestGeneration", "filePath", "expectedFileIdentity", "language", "taskMode", "beamSize",
+    "temperature", "vadEnabled", "vadMinSilenceMs", "signal"];
+  const requests = (harness: { supervisor: { beginInference: { mock: { calls: unknown[][] } } } }) =>
+    harness.supervisor.beginInference.mock.calls.map(call => call[1] as LocalSubtitleServerInferenceRequest);
+  const isAnchor = (request: LocalSubtitleServerInferenceRequest) => request.vadEnabled && request.vadThreshold === undefined;
+  /** Two sentences per window, which the preset hears 1.5 s earlier than its anchor. */
+  const sentences = (request: LocalSubtitleServerInferenceRequest, window: Pick<LocalSubtitleMediaStructuralWindow, "startMs" | "endMs">) => {
+    const startMs = (window.startMs === 0 ? 1_000 : 10_000) + (isAnchor(request) ? 1_500 : 0);
+    const [first, second] = window.startMs === 0 ? ["今天天气很好", "我们去公园吧"] : ["明天也许下雨", "那就改天再去"];
+    return { processEpoch: 1, response: serverResponse(request, window.endMs - window.startMs,
+      [rawSegment(0, startMs, startMs + 2_000, first), rawSegment(1, startMs + 2_000, startMs + 4_000, second)]) };
+  };
+  /** Each materialization without its normalized source and signal. */
+  const materialized = (harness: { media: { materializeWindow: { mock: { calls: unknown[][] } } } }) =>
+    harness.media.materializeWindow.mock.calls.map(([request]) => {
+      const { normalized: _normalized, signal: _signal, ...options } = request as Record<string, unknown>;
+      return options;
+    });
+  const transcribing = (harness: { context: { update: { mock: { calls: unknown[][] } } } }) =>
+    (harness.context.update.mock.calls as [{ status: string; progress: Record<string, number> }][])
+      .filter(([update]) => update.status === "transcribing")
+      .map(([{ progress }]) => [progress.completedWindows, progress.totalWindows, progress.stageProgress, progress.overallProgress]);
+
+  it.each([
+    ["quiet_whisper_v1", { conditionQuietAudio: true, quietAudioMode: "gated_v1" }],
+    ["noisy_music_v1", { conditionQuietAudio: true }],
+  ] as const)("recognizes every %s window first, then resends its audio with the standard fields", async (audioProfile, audio) => {
+    const harness = await createStudioProfileHarness(audioProfile, { vadEnabled: true, totalFrames: 55 * 16000,
+      inference: ({ request, window }) => sentences(request, window) });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready") return;
+    expect(requests(harness).map(isAnchor)).toEqual([false, false, true, true]);
+    for (const anchor of requests(harness).slice(2)) expect(Object.keys(anchor)).toEqual(standardKeys);
+    // The same windows with the same conditioning, so the same audio bytes.
+    expect(materialized(harness).slice(2)).toEqual(materialized(harness).slice(0, 2));
+    expect(materialized(harness)[0]).toMatchObject(audio);
+    // Text from the preset, times from its anchors.
+    expect(result.transcript.segments.map(cue => [cue.startMs, cue.endMs, cue.text])).toEqual([[2_500, 4_500, "今天天气很好"],
+      [4_500, 6_500, "我们去公园吧"], [36_500, 38_500, "明天也许下雨"], [38_500, 40_500, "那就改天再去"]]);
+    const retimed = { anchorSegments: 2, anchoredEdges: 4, totalEdges: 4, medianShiftMs: 1_500, maxShiftMs: 1_500, status: "retimed" };
+    expect(result.anchorRetiming).toEqual([{ windowIndex: 0, startMs: 0, endMs: 30_000, ...retimed },
+      { windowIndex: 1, startMs: 25_000, endMs: 55_000, ...retimed }]);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("pads the anchor of a boosted window by 1000 ms like the standard type", async () => {
+    const harness = await createStudioProfileHarness("quiet_whisper_v1", { vadEnabled: true, quietAudioGainDb: 12,
+      inference: ({ request, window }) => sentences(request, window) });
+    expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+    const [primary, anchor] = requests(harness);
+    expect(primary).toMatchObject({ vadThreshold: 0.35, vadSpeechPadMs: 1000 });
+    expect(Object.keys(anchor!)).toEqual([...standardKeys.slice(0, -1), "vadSpeechPadMs", "signal"]);
+    expect(anchor!.vadSpeechPadMs).toBe(1000);
+    expect(materialized(harness)[1]).toEqual(materialized(harness)[0]);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("sends no anchor when the window's audio differs from what the preset recognized", async () => {
+    const harness = await createStudioProfileHarness("noisy_music_v1", { vadEnabled: true,
+      inference: ({ request, window }) => sentences(request, window) });
+    const materialize = harness.media.materializeWindow.getMockImplementation()!;
+    let count = 0;
+    harness.media.materializeWindow.mockImplementation(async request => {
+      const brand = await materialize(request);
+      return ++count === 2 ? deepFreeze({ ...brand, sha256: "c".repeat(64) }) : brand;
+    });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready") return;
+    expect(requests(harness)).toHaveLength(1);
+    expect(harness.media.disposeWindow).toHaveBeenCalledTimes(2);
+    expect(result.transcript.segments.map(cue => [cue.startMs, cue.endMs])).toEqual([[1_000, 3_000], [3_000, 5_000]]);
+    expect(result.anchorRetiming).toEqual([{ windowIndex: 0, startMs: 0, endMs: 10_000, anchorSegments: 0, anchoredEdges: 0,
+      totalEdges: 4, medianShiftMs: 0, maxShiftMs: 0, status: "failed" }]);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it.each([["fails", "failed"], ["hears nothing", "empty"], ["fails the quality guard", "failed"]] as const)(
+    "keeps the preset times when the anchor %s", async (outcome, status) => {
+      const harness = await createStudioProfileHarness("quiet_whisper_v1", { vadEnabled: true, inference: ({ request, window }) => {
+        if (!isAnchor(request)) return sentences(request, window);
+        if (outcome === "fails") throw new Error("The anchor request failed.");
+        return outcome === "hears nothing"
+          ? { processEpoch: 1, response: serverResponse(request, window.endMs - window.startMs, []) }
+          : repeatedResponse(request, window);
+      } });
+      const result = await harness.executor.execute(harness.context);
+      expect(result.status).toBe("transcript_ready");
+      if (result.status !== "transcript_ready") return;
+      expect(requests(harness)).toHaveLength(2);
+      expect(result.transcript.segments.map(cue => [cue.startMs, cue.endMs, cue.text])).toEqual([[1_000, 3_000, "今天天气很好"],
+        [3_000, 5_000, "我们去公园吧"]]);
+      expect(result.anchorRetiming).toEqual([{ windowIndex: 0, startMs: 0, endMs: 10_000, anchorSegments: 0, anchoredEdges: 0,
+        totalEdges: 4, medianShiftMs: 0, maxShiftMs: 0, status }]);
+      harness.executor.endBatchSlice(harness.context.batchRuntime);
+    });
+
+  it.each([-1_500, 400])("keeps the preset times of a window its anchor moves by %i ms, which is not early", async shiftMs => {
+    const harness = await createStudioProfileHarness("noisy_music_v1", { vadEnabled: true, inference: ({ request, window }) => {
+      const startMs = 3_000 + (isAnchor(request) ? shiftMs : 0);
+      return { processEpoch: 1, response: serverResponse(request, window.endMs - window.startMs,
+        [rawSegment(0, startMs, startMs + 2_000, "今天天气很好"), rawSegment(1, startMs + 2_000, startMs + 4_000, "我们去公园吧")]) };
+    } });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready") return;
+    expect(requests(harness).map(isAnchor)).toEqual([false, true]);
+    expect(result.transcript.segments.map(cue => [cue.startMs, cue.endMs])).toEqual([[3_000, 5_000], [5_000, 7_000]]);
+    // The diagnostics still say how far the anchor would have moved the window.
+    expect(result.anchorRetiming).toEqual([{ windowIndex: 0, startMs: 0, endMs: 10_000, anchorSegments: 2, anchoredEdges: 4,
+      totalEdges: 4, medianShiftMs: shiftMs, maxShiftMs: Math.abs(shiftMs), status: "not_early" }]);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("cancels the task promptly while an anchor is pending", async () => {
+    const pending = deferred<LocalSubtitleServerSupervisorInferenceResponse>();
+    const ticket = Object.freeze({}) as LocalSubtitleServerRequestTicket;
+    const windows = [{ startMs: 0, endMs: 30_000 }, { startMs: 25_000, endMs: 55_000 }];
+    let abort = () => undefined as void;
+    const harness = await createStudioProfileHarness("quiet_whisper_v1", { vadEnabled: true, totalFrames: 55 * 16000,
+      beginInference: request => {
+        if (!isAnchor(request)) return Object.freeze({ ticket, result: Promise.resolve(sentences(request, windows.shift()!)) });
+        queueMicrotask(abort);
+        return Object.freeze({ ticket, result: pending.promise });
+      },
+      cancelRequest: async () => pending.reject(new Error("The anchor request was cancelled.")) });
+    abort = () => harness.controller.abort();
+    await expect(harness.executor.execute(harness.context)).resolves.toMatchObject({ status: "cancelled" });
+    // The first anchor is cancelled, not taken for a failed one: no second anchor, progress or post-processing follows.
+    expect(requests(harness).map(isAnchor)).toEqual([false, false, true]);
+    expect(harness.supervisor.cancelRequest).toHaveBeenCalledOnce();
+    expect(transcribing(harness)).toEqual([[0, 4, 0, 30], [1, 4, 25, 42], [2, 4, 50, 55]]);
+    expect((harness.context.update.mock.calls as unknown as [{ status: string }][]).map(([update]) => update.status))
+      .not.toContain("post_processing");
+    expect(harness.media.disposeNormalized).toHaveBeenCalledOnce();
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("keeps the preset times of a window the post-processor would refuse once retimed", async () => {
+    // Eight short repeats span 13.4 s; the anchor hears the first sentence 1 s and the
+    // last 3.5 s later, which would stretch them past the 15 s degenerate-repetition span.
+    const preset = [rawSegment(0, 1_000, 3_000, "今天天气很好"),
+      ...Array.from({ length: 8 }, (_, index) => rawSegment(index + 1, 4_000 + index * 1_800, 4_800 + index * 1_800, "嗯")),
+      rawSegment(9, 20_000, 22_000, "我们去公园吧")];
+    const options: HarnessOptions = { vadEnabled: true, totalFrames: 30 * 16000, inference: ({ request, window, index }) => ({
+      processEpoch: 1, response: serverResponse(request, window.endMs - window.startMs, index === 0 ? preset
+        : [rawSegment(0, 2_000, 4_000, "今天天气很好"), rawSegment(1, 23_500, 25_500, "我们去公园吧")]) }) };
+    const standard = await createStudioProfileHarness(undefined, options);
+    const expected = await standard.executor.execute(standard.context);
+    standard.executor.endBatchSlice(standard.context.batchRuntime);
+    expect(expected.status).toBe("transcript_ready");
+    const harness = await createStudioProfileHarness("quiet_whisper_v1", options);
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready" || expected.status !== "transcript_ready") return;
+    expect(requests(harness).map(isAnchor)).toEqual([false, true]);
+    expect(result.transcript.segments).toEqual(expected.transcript.segments);
+    expect(result.anchorRetiming).toEqual([{ windowIndex: 0, startMs: 0, endMs: 30_000, anchorSegments: 2, anchoredEdges: 4,
+      totalEdges: 20, medianShiftMs: 1_000, maxShiftMs: 3_500, status: "rejected" }]);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("counts the anchors in the transcribing progress, which never goes back", async () => {
+    const harness = await createStudioProfileHarness("quiet_whisper_v1", { vadEnabled: true, totalFrames: 55 * 16000,
+      inference: ({ request, window }) => sentences(request, window) });
+    expect((await harness.executor.execute(harness.context)).status).toBe("transcript_ready");
+    // [completed, total, stage, overall]: two preset windows, then their two anchors.
+    expect(transcribing(harness)).toEqual([[0, 4, 0, 30], [1, 4, 25, 42], [2, 4, 50, 55], [3, 4, 75, 67], [4, 4, 100, 80]]);
+    const overall = (harness.context.update.mock.calls as unknown as [{ progress: { overallProgress: number } }][])
+      .map(([update]) => update.progress.overallProgress);
+    expect(overall).toEqual([...overall].sort((left, right) => left - right));
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("sends no anchor for the standard type and returns the transcript as before", async () => {
+    const options: HarnessOptions = { vadEnabled: true, totalFrames: 55 * 16000, inference: ({ request, window }) => sentences(request, window) };
+    const original = await createHarness(options);
+    expect((await original.executor.execute(original.context)).status).toBe("completed");
+    original.executor.endBatchSlice(original.context.batchRuntime);
+    const exported = original.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+    const harness = await createStudioProfileHarness(undefined, options);
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready") return;
+    expect(result.transcript.segments).toEqual(exported);
+    expect(result).not.toHaveProperty("anchorRetiming");
+    expect(requests(harness).map(request => Object.keys(request))).toEqual([standardKeys, standardKeys]);
+    expect(harness.media.materializeWindow).toHaveBeenCalledTimes(2);
+    expect(transcribing(harness)).toEqual([[0, 2, 0, 30], [1, 2, 50, 55], [2, 2, 100, 80]]);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("anchors the accepted children of a split window, not the split window", async () => {
+    const harness = await createStudioProfileHarness("noisy_music_v1", { vadEnabled: true, totalFrames: 30 * 16000,
+      inference: ({ request, window, index }) => index === 0 ? repeatedResponse(request, window) : sentences(request, window) });
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready") return;
+    expect(requests(harness).map(isAnchor)).toEqual([false, false, false, true, true]);
+    const windows = materialized(harness).map(options => options.descriptor as LocalSubtitleMediaStructuralWindow);
+    expect(windows.slice(3)).toEqual(windows.slice(1, 3));
+    expect(windows[1]!.parentWindowKey).toBe(windows[0]!.windowKey);
+    expect(result.anchorRetiming?.map(entry => [entry.windowIndex, entry.startMs, entry.endMs, entry.status]))
+      .toEqual(windows.slice(1, 3).map((window, index) => [index, window.startMs, window.endMs, "retimed"]));
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+
+  it("leaves the separator repair of a window its anchor keeps in place as before", async () => {
+    const accelerator = await createAcceleratorFixture();
+    try {
+      const text = "今日はいい天気ですね明日は家で休みます";
+      const transcripts: unknown[] = [];
+      for (const audioProfile of [undefined, "noisy_music_v1"] as const) {
+        const harness = await createStudioProfileHarness(audioProfile, { backend: "cuda", acceleratorPack: accelerator.proof, vadEnabled: true,
+          inference: ({ request, window }) => {
+            const response = serverResponse(request, window.endMs - window.startMs, request.vadEnabled ? [rawSegment(0, 0, 10000, text)]
+              : [rawSegment(0, 0, 4000, "今日は、いい天気ですね"), rawSegment(1, 4000, 10000, "明日は家で休みます")]);
+            return { processEpoch: request.vadEnabled ? 1 : 2, response: { ...response, result: { ...response.result, language: "japanese" } } };
+          } });
+        const result = await harness.executor.execute(harness.context);
+        harness.executor.endBatchSlice(harness.context.batchRuntime);
+        expect(result.status).toBe("transcript_ready");
+        if (result.status === "transcript_ready") transcripts.push(result.transcript.segments);
+        // The anchor goes on the task's lease before the separator lease's candidate.
+        expect(requests(harness).map(request => request.vadEnabled)).toEqual(audioProfile ? [true, true, false] : [true, false]);
+        expect(harness.supervisor.acquirePinnedSeparatorLease).toHaveBeenCalledOnce();
+      }
+      // The candidate restored the separators in both.
+      expect(transcripts[0]).toMatchObject([{ startMs: 0, endMs: 10000, text: "今日は、いい天気ですね 明日は家で休みます" }]);
+      expect(transcripts[1]).toEqual(transcripts[0]);
+    } finally { await accelerator.cleanup(); }
   });
 });
 

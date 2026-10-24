@@ -1,0 +1,78 @@
+# T-ASRQ-14 V-ASRQ-14-1 接缝去重与修剪单元测试（seamDuplicates + 执行器 Studio seam duplicates）
+# 日期：2026-10-25 03:07:41 +0800；工作树基于 8c0980a6（未提交）
+# 文件哈希（sha256）：0bc24af7ac74869f645275ad257e5c5572c2fd2c72ece128398e22df38692c08 electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts;e0859f89d25b0f3058f387588dbb08992d560501aa2d61baeef01fe9c2723fa2 electron/main/subtitle-studio/transcription/transcript-executor.ts;1285ddefd359c71dfadb8bc809b7ee9438ccd1658fbb148961933230e6aa4278 test/subtitle-studio/transcription/productionExecutor.test.ts;85da0615ad159ad71bd90ca2ec357ca5e400a9ee5311bcb02a2f6f34daaf6804 test/subtitle-studio/transcription/seamDuplicates.test.ts;
+
+## 1. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/seamDuplicates.test.ts --reporter=verbose
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops the next window's 0.7 s copy of the previous two cues and gives the clipped tail it repeats its raw end
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops the previous window's clipped fragment that the next cue begins with and gives that cue its raw start
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops a 1.8 s near-identical variant starting at the seam and keeps the earlier wording with its raw end
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops both clipped copies when each repeats other cues across the seam
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a next-window copy whose far end the previous window's copy stops short of, drops that fragment and trims the repeated opening
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > moves a trimmed start back to the end of the cue it repeats, cutting at whitespace
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > caps a trimmed start at the longest cue (7 s)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > trims a kept previous-window copy whose ending is the whole cue after the seam and moves its end to that cue
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > caps a trimmed end at the longest cue (7 s)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps the whole long copy when its opening 'is not exactly the cue before it'
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps the whole long copy when its opening 'differs in one character from the cue…'
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps the whole long copy when its opening 'runs on without punctuation or whites…'
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps the whole long copy when its ending differs in one character from the cue after it
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never cuts a long copy's opening at a joiner inside a word ('Tell them we don\'t want to wait any …')
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never cuts a long copy's opening at a joiner inside a word ('油价每升涨了1.5元，大家都开始坐地铁')
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never trims a kept copy the far-end guard did not keep
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > trims only while the reported neighbour is still next to the copy, unchanged, and the rest keeps the minimum
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > moves a trimmed edge only out toward the reported neighbour as it stood before this call
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a next-window copy whose far end adds only 'one CJK character'
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a next-window copy whose far end adds only 'three Latin letters'
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a next-window copy whose last two characters differ from the previous window's
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a next-window copy whose extra words sit only at the seam side
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps both clipped copies when each carries words at its far end that the other window never heard
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a previous-window copy whose far end adds only one CJK character
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > gives the kept next-window copy its raw start when the longer variant before the seam goes
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never moves a restored start past the dropped copy's start or over a remaining cue
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never moves a restored end past the dropped copy's end or over a remaining cue
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > 'caps a restore at' the longest cue (7 s)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > 'skips the restore of a kept cue alrea…' the longest cue (7 s)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > caps a restored start at the longest cue (7 s) too
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps the kept cue's time when its raw observation already ended at the seam
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never drops a cue that keeps an earlier duplicate across the seams of retry children
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a cue restored at both its seams within the longest cue
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a copy trimmed at both its seams within the longest cue
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > applies the 80% coverage threshold 'at' the boundary { label: 'at', text: '嗯那会议改到下午三点', dropped: 1 }
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > applies the 80% coverage threshold 'below' the boundary { label: 'below', text: '嗯那个会议改到下午三点', dropped: +0 }
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps legal repetition across the seam with 'an unclipped first and a clipped seco…' うん
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps legal repetition across the seam with 'a clipped first and an unclipped seco…' うん
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a clipped cue below the CJK and Latin minimums (算了吧 / 了)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a clipped cue below the CJK and Latin minimums (it is ok now / OK!)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a short reply whose characters only occur apart in the longer cue across the seam (そうなんだけど、もう一回考えてみようか / うん)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a short reply whose characters only occur apart in the longer cue across the seam (you said this is it, right / yes it is)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps the same sentence repeated away from any seam
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > leaves pause cuts, which share no audio, untouched
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops and restores only while the duplicate and its kept cues keep their reported timing and wording
+
+ Test Files  1 passed (1)
+      Tests  45 passed (45)
+   Start at  03:07:42
+   Duration  593ms (transform 138ms, setup 0ms, collect 330ms, tests 76ms, environment 0ms, prepare 57ms)
+
+exit 0
+
+## 2. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/productionExecutor.test.ts -t "Studio seam duplicates" --reporter=verbose（只列本块）
+
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio seam duplicates > 'drops a clipped copy of the previous …' and reports drops outside the transcript
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio seam duplicates > 'keeps a repetition heard after the cl…' and reports drops outside the transcript
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio seam duplicates > trims the repeated opening of a kept long copy and reports it outside the transcript
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 189 skipped (192)
+   Start at  03:07:44
+   Duration  1.95s (transform 508ms, setup 0ms, collect 1.67s, tests 73ms, environment 0ms, prepare 59ms)
+
+exit 0
+

@@ -6,7 +6,7 @@
 | 日期 | 2026-10-24 |
 | 验证版本 | 工作树，基于 748285ec（未提交）。修改：`src/subtitle-studio/transcription-review.ts`（sha256 a5ec35e8…）、`test/subtitle-studio/transcription-review.test.ts`（4362b4fa…）；`src/locales/en/studio.json`、`src/locales/ja/studio.json`、`src/locales/zh/studio.json`、`src/locales/zh-Hant/studio.json`（各改一行，只改 `cue_review.details.duplicate_neighbor`，改为“相同或几乎相同”，由协调者改）；记录与证据：`records/T-ASRQ-12.md`、`records/T-ASRQ-12-unit.txt`、`records/T-ASRQ-12-stats.txt`。tasks.md 中本任务写集原写作 `src/locales/*/studio.json`，规格检查不接受通配符，已改为上面四个文件路径。统计用的真实输出：run-2512BY（去重前）、run-SVKkhx（第一版去重）与 run-Gg6ITS（2026-10-24 17:14 的重跑，远端保护 + 移回被裁的一端，见 records/T-ASRQ-11.md） |
 | 环境 | Windows 11 Pro 10.0.26200；Node v20.19.4；vitest 2.1.9；esbuild 0.21.5（把工作树版与 git HEAD 版的 `transcription-review.ts` 分别打包给 node，vite-node 无法加载本仓库的 Electron vite 配置）；统计不需要 GPU，也没有启动 Electron |
-| 任务指纹 | db233db4447a982489fd184658dd8d4424909127a933df6bed97c88c6b04fa6a |
+| 任务指纹 | 3fc427db05278710c5962a9e5a3120a95d9bb108a467204267245b76fc381657 |
 
 ## 实际结果
 
@@ -78,3 +78,4 @@ phantom_phrase 与 non_speech_only 在所有行都是 0。HEAD 规则在 run-SVK
 - 同一个 5 字句完全相同地说两遍不会被标，这是为了保持原来“完全相同至少 6 字”的门槛，需要在 design 中确认。
 - AC-ASRQ-14-5（用户听审去重结果）属于 T-ASRQ-13，未完成，由用户听审。
 - 未提交。工作树里有其他会话的改动，提交时只加入本任务的文件。
+- 2026-10-24 R-ASRQ-14 增加 AC-ASRQ-14-6（修剪保留长句的重复开头，由 T-ASRQ-14 负责）、并补充说明后重新评估任务指纹：本任务的验收项、检查与结论不变。

@@ -6,7 +6,7 @@
 | 日期 | 2026-10-24 |
 | 验证版本 | 工作树，基于 748285ec（未提交）。修改都在 gitignored 的 `test-results/asr-quality-listening/`，只存本机：`build.mjs`、`template/page.js`、`template/page.css`、`README.txt`，重写 `check/seam-check.cjs`，新增 `check/seam-data-compare.mjs` 和上一版页面副本 `_check/index-before-gg6its.html`；重新生成 `index.html`，`clips/` 没有增减（22 个接缝剪辑的范围和上一版相同）。记录与证据：`records/T-ASRQ-13.md`、`records/T-ASRQ-13-check.txt`。产品代码、测试与规格文档没有改动 |
 | 环境 | Windows 11 Pro 10.0.26200；Node v20.19.4；内置 FFmpeg（`build/subtitle-studio-resources/transcription/win-x64/media/ffmpeg.exe`）切剪辑、算 100 ms 音量；自检用 @playwright/test 1.58.2 驱动无界面 Chrome 155.0.8059.41（headless、静音），页面由 `serve.mjs` 在临时空闲端口提供，结束时停掉；用户自己开着的 47811 服务没有动；没有启动 Electron，没有占用 GPU |
-| 任务指纹 | f9445efd990f02836da9b2fa8f0734bbe1863233aa6b6ce8dc706414b4ec60f2 |
+| 任务指纹 | 64cad34d7cfb2536ee4eed12a27f4e699ae45bce0d50be0f3e61f20894a12e2d |
 
 ## 实际结果
 
@@ -80,3 +80,4 @@
 - 原有的 Electron 自检脚本（check/electron-check.cjs）这次没有运行，因为不能启动 Electron。播放器、列表和导出是共用代码，改动后 ① ② 页签的回归只用无界面脚本核对了上面列出的几项。
 - `_check/` 里还有上一次自检留下的截图（seam-light-*、seam-dark-*、seam-answered-bottom-*、summary-seam-dark-* 等），没有删除。本次的截图以 seam-report.json 列出的 16 张为准。
 - 未提交；tasks.md 中 T-ASRQ-13 的状态没有改动（不在本任务写集内，由协调者更新）。
+- 2026-10-24 R-ASRQ-14 增加 AC-ASRQ-14-6（修剪保留长句的重复开头，由 T-ASRQ-14 负责）、并补充说明后重新评估任务指纹：本任务的验收项、检查与结论不变。

@@ -366,3 +366,113 @@
 | --- | --- | --- | --- | --- |
 | V-ASRQ-13-1 | integration | required | 页面在本地服务下加载全部新剪辑、对比条目与导出字段正确（隐藏窗口自检与截图审阅） | - |
 | V-ASRQ-13-2 | manual | required | 用户逐处听审去重结果并导出结论（由用户完成，Agent 不代签） | - |
+
+### T-ASRQ-14 修剪保留长句的重复开头
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I1 |
+| 需求 | R-ASRQ-14 |
+| 验收 | AC-ASRQ-14-6 |
+| 依赖 | T-ASRQ-11 |
+| 写集 | electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts, electron/main/subtitle-studio/transcription/transcript-executor.ts, scripts/subtitle-studio-provenance/current-copy-audits.json, test/subtitle-studio/transcription/, test/asr-quality/, docs/features/asr-quality/records/ |
+| 负责人 | Agent（工作流 wf_0cfa5fe0-faa、wf_7c6f5710-845、wf_dfda662f-835） |
+| 依赖确认 | T-ASRQ-11 已完成（同一工作树） |
+| 完成日期 | 2026-10-25 |
+| 实施记录 | records/T-ASRQ-14.md |
+| 集成版本 | 工作树（基于 8c0980a6，未提交） |
+
+#### 实现要点
+
+按 design 方案 8“修剪保留长句的重复开头”实现：只对远端保护留下的那份，与紧挨着、仍保留的相邻句规范化全文完全相同、并在原文标点或空白处断开时，去掉这段并把这一端移到相邻句的边界；诊断记 `trimmedEdge`（不含文字），对照工具记录它。更新审计条目。真实数据核对随 T-ASRQ-16 的重跑一起做。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-ASRQ-14-1 | unit | required | 单元测试：开头与上一句完全相同且在标点处断开时去掉并移起点；结尾的对称情形；不完全相同、不在标点或空白处断开、剩下的字少于下限、相邻句已去掉或改过、不是远端保护留下的那份时都不动；其余去重判定不变 | - |
+| V-ASRQ-14-2 | integration | required | provenance 全量、转写测试通过，审计条目更新，回放不变 | - |
+| V-ASRQ-14-3 | integration | required | 真实重跑（与 T-ASRQ-16 同一次）里诊断记录的修剪逐条核对；pv-ja 嘈杂·音乐音效 177.42 s 开头的重复不再出现，没有别处被误剪 | - |
+
+### T-ASRQ-15 低音量·耳语时间偏早调查
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I1 |
+| 需求 | R-ASRQ-15 |
+| 验收 | AC-ASRQ-15-1 |
+| 依赖 | - |
+| 写集 | test-results/asr-quality-timing/, docs/features/asr-quality/records/ |
+| 负责人 | Agent（工作流 wf_0cfa5fe0-faa） |
+| 依赖确认 | 无依赖 |
+| 完成日期 | 2026-10-24 |
+| 实施记录 | records/T-ASRQ-15.md |
+| 集成版本 | 工作树（基于 8c0980a6，未提交；只读调查） |
+
+#### 实现要点
+
+只读调查，不改产品代码：在偏早的窗口（pv-zh 100–130 s、175–205 s 等）上用同一 whisper-server 逐项切换预设与标准不同的请求字段和门控增益，比较返回段的时间与关闭语音检测时的时间、标准模式和 100 ms 音量；对照服务端语音检测的时间映射源码与已知问题；结论写进记录，供 design 方案 9 补充原因与修法。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-ASRQ-15-1 | integration | required | 逐项切换实验可复现：每种组合的段时间与参照的偏移量，能指出引起偏移的字段或处理步骤 | - |
+| V-ASRQ-15-2 | static | required | 服务端（whisper.cpp v1.9.1）语音检测时间映射与本项目窗口时间换算的源码核对，说明偏移如何产生 | - |
+
+### T-ASRQ-16 低音量·耳语时间偏早修复
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I1 |
+| 需求 | R-ASRQ-15 |
+| 验收 | AC-ASRQ-15-2, AC-ASRQ-15-3 |
+| 依赖 | T-ASRQ-15 |
+| 写集 | electron/main/subtitle-studio/transcription/, src/locales/en/studio.json, src/locales/ja/studio.json, src/locales/zh/studio.json, src/locales/zh-Hant/studio.json, scripts/subtitle-studio-provenance/, test/subtitle-studio/, test/subtitle-studio-provenance/, test/asr-quality/, docs/features/asr-quality/records/ |
+| 负责人 | Agent（工作流 wf_7c6f5710-845、wf_dfda662f-835） |
+| 依赖确认 | T-ASRQ-15 已完成（同一工作树） |
+| 完成日期 | 2026-10-25 |
+| 实施记录 | records/T-ASRQ-16.md |
+| 集成版本 | 工作树（基于 8c0980a6，未提交） |
+
+#### 实现要点
+
+按 design 方案 9 的修法 C 实现：预设任务识别完所有窗口后，用同一段 PCM 按标准字段再请求一次作为时间锚点，逐字对齐后改预设各段的起止时间（文字不变），只改已对齐边平移中位数 ≥ +500 ms 的整体偏早窗口，锚点失败时保持原时间；计入进度、响应取消；诊断记录对齐情况；预设说明写明识别时间约翻倍；标准模式请求与输出不变；更新审计条目。随后按 run-2512BY 的配置重跑 9 段样本 × 3 种音频类型（设置 FUSIONKIT_KEEP_TEST_RUNS=1），与 run-Gg6ITS 和 run-2512BY 逐句对比时间与文字。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-ASRQ-16-1 | unit | required | 修正逻辑的单元测试；标准模式请求字段不变的断言 | - |
+| V-ASRQ-16-2 | integration | required | provenance 全量、转写测试通过，审计条目更新 | - |
+| V-ASRQ-16-3 | integration | required | 9 段样本 × 3 种音频类型重跑：标准逐句不变；两种预设与标准对应句的起点差超过 1 s 的逐条列出并用音量核对；文字变化逐条说明 | - |
+
+### T-ASRQ-17 时间修正听审对比
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 待验证 |
+| 批次 | I1 |
+| 需求 | R-ASRQ-15 |
+| 验收 | AC-ASRQ-15-4 |
+| 依赖 | T-ASRQ-14, T-ASRQ-16 |
+| 写集 | test-results/asr-quality-listening/, docs/features/asr-quality/records/ |
+| 负责人 | Agent（工作流 wf_7c6f5710-845、wf_dfda662f-835） |
+| 依赖确认 | T-ASRQ-14, T-ASRQ-16 已完成（同一工作树） |
+| 完成日期 | - |
+| 实施记录 | records/T-ASRQ-17.md |
+| 集成版本 | - |
+
+#### 实现要点
+
+在本地听审页面新增“时间修正对比”：时间变化明显的句子给出原声剪辑、修复前后的时间轴与音量，以及“对齐了 / 仍不对”选择，并纳入导出；177.42 s 修剪也放进来。页面与剪辑只放在被忽略的 test-results 中，不提交。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-ASRQ-17-1 | integration | required | 页面在本地服务下加载新剪辑、对比条目与导出字段正确（无界面浏览器自检与截图审阅） | - |
+| V-ASRQ-17-2 | manual | required | 用户听审修复前后的时间并导出结论（由用户完成，Agent 不代签） | - |

@@ -1,0 +1,288 @@
+# T-ASRQ-16 只修整体偏早的窗口：在 run-lGjDZk 上的离线推演（只含编号、时间、计数与音量判读，不含字幕文字）
+# 日期：2026-10-25 02:44:19 +0800；数据：test-results/asr-quality-ab/run-lGjDZk/timing-fix-compare.json（本机，生成于 T-ASRQ-16 重跑）；没有重新识别，没有用 GPU
+# 代理量：run-lGjDZk 的诊断里 medianShiftMs 是所有边最终平移的下中位数（含插值与排布），不是门槛现在用的已对齐边原始平移的中位数；
+#   两者在全部边都对齐时基本相同，其余窗口可能跨过门槛，标为 proxy?。cue 判读是 100 ms RMS 起声强度的自动判读，没有听音频。
+
+## 1. node anchor-gating-sim.mjs run-lGjDZk（协调者的推演脚本，原样运行；按整个窗口区间统计，重叠区的句子会被两个窗口各算一次）
+
+all                                            {"windows":128,"better":86,"worse":112,"unclear":53,"squeezed":16}
+median>=1000                                   {"windows":16,"better":15,"worse":29,"unclear":10,"squeezed":3}
+median>=1500                                   {"windows":11,"better":15,"worse":17,"unclear":9,"squeezed":2}
+median>=1000 & anchored>=50%                   {"windows":12,"better":11,"worse":25,"unclear":6,"squeezed":3}
+median>=1000 & no squeeze                      {"windows":13,"better":8,"worse":21,"unclear":5,"squeezed":0}
+median>=700 & anchored>=50% & no squeeze       {"windows":15,"better":14,"worse":21,"unclear":3,"squeezed":0}
+median>=1000 & anchored>=50% & no squeeze      {"windows":9,"better":4,"worse":17,"unclear":1,"squeezed":0}
+later only: median>=+500                       {"windows":12,"better":27,"worse":14,"unclear":10,"squeezed":2}
+later only: median>=+500 & no squeeze          {"windows":10,"better":20,"worse":8,"unclear":5,"squeezed":0}
+later only: median>=+1000                      {"windows":7,"better":11,"worse":12,"unclear":9,"squeezed":2}
+earlier only: median<=-500                     {"windows":18,"better":12,"worse":36,"unclear":12,"squeezed":2}
+small: |median|<500                            {"windows":98,"better":47,"worse":62,"unclear":31,"squeezed":12}
+
+windows with any moved cue:
+A/Q@0                    retimed 9/12 median -1180 max 1620 cueMedian -1180 b0 w4 u1 sq0
+A/N@0                    retimed 10/10 median -390 max 1680 cueMedian -390 b0 w3 u0 sq0
+C/Q@0                    retimed 4/4 median 80 max 1010 cueMedian -1010 b1 w1 u0 sq0
+C/N@0                    retimed 4/4 median 50 max 1000 cueMedian -1000 b0 w1 u0 sq0
+independent/Q@0          retimed 10/10 median 0 max 1070 cueMedian 0 b1 w0 u1 sq0
+independent/Q@26         retimed 8/10 median -30 max 1050 cueMedian -30 b1 w1 u0 sq0
+independent/Q@102        retimed 11/16 median 510 max 1630 cueMedian 510 b5 w0 u0 sq0
+independent/Q@127        retimed 8/8 median 20 max 470 cueMedian 20 b0 w1 u1 sq0
+independent/N@0          retimed 10/10 median 0 max 1070 cueMedian 0 b0 w1 u1 sq0
+independent/N@26         retimed 8/10 median -30 max 1090 cueMedian -30 b1 w1 u0 sq0
+independent/N@102        retimed 12/12 median 0 max 420 cueMedian 0 b2 w0 u0 sq0
+independent/N@127        retimed 8/8 median -10 max 2030 cueMedian -10 b0 w1 u0 sq0
+independent/N@152        retimed 8/10 median 900 max 1340 cueMedian 900 b3 w0 u0 sq0
+full/Q@0                 retimed 3/10 median -766 max 1220 cueMedian -476 b1 w3 u0 sq0
+full/Q@25                retimed 8/10 median -500 max 1320 cueMedian 0 b1 w2 u1 sq0
+full/Q@50                retimed 14/18 median -620 max 950 cueMedian -620 b0 w4 u2 sq0
+full/Q@75                retimed 8/8 median -10 max 1230 cueMedian 840 b3 w0 u0 sq0
+full/Q@96                retimed 8/10 median -10 max 880 cueMedian 20 b1 w1 u0 sq0
+full/Q@115               retimed 8/14 median -460 max 2740 cueMedian -330 b2 w4 u1 sq0
+full/Q@140               retimed 16/22 median -450 max 1230 cueMedian -350 b0 w6 u1 sq1
+full/Q@165               retimed 13/16 median 0 max 400 cueMedian 0 b0 w0 u1 sq0
+full/Q@190               retimed 13/18 median -270 max 1510 cueMedian -270 b0 w2 u1 sq0
+full/N@25                retimed 4/6 median -1180 max 1570 cueMedian 0 b0 w1 u0 sq0
+full/N@50                retimed 7/8 median -490 max 910 cueMedian -490 b1 w2 u0 sq0
+full/N@140               retimed 21/24 median -10 max 330 cueMedian -40 b0 w1 u0 sq0
+drama/Q@0                retimed 3/10 median -380 max 10630 cueMedian -380 b3 w1 u0 sq2
+drama/Q@25               retimed 6/6 median -790 max 1900 cueMedian 340 b2 w0 u0 sq0
+drama/Q@77               retimed 10/10 median -620 max 2030 cueMedian 300 b2 w0 u2 sq0
+drama/Q@102              retimed 5/6 median 270 max 1990 cueMedian 420 b2 w0 u0 sq0
+drama/Q@125              retimed 4/6 median -1130 max 2350 cueMedian -1130 b0 w2 u0 sq0
+drama/Q@151              retimed 6/6 median 190 max 3540 cueMedian -2190 b0 w2 u0 sq0
+drama/Q@205              retimed 4/4 median -10 max 400 cueMedian -400 b0 w1 u0 sq0
+drama/Q@229              retimed 7/12 median 838 max 2330 cueMedian 838 b4 w1 u0 sq0
+drama/Q@280              retimed 3/6 median 2360 max 2360 cueMedian 2360 b0 w2 u0 sq0
+drama/Q@306              retimed 11/14 median -40 max 1850 cueMedian -29 b0 w2 u0 sq0
+drama/Q@330              retimed 4/10 median -163 max 370 cueMedian -163 b1 w1 u0 sq0
+drama/Q@356              retimed 4/6 median -120 max 670 cueMedian 670 b0 w2 u0 sq0
+drama/Q@453              retimed 5/6 median -1070 max 2880 cueMedian -1070 b0 w3 u0 sq0
+drama/Q@478              retimed 8/8 median -50 max 1280 cueMedian -910 b1 w2 u0 sq0
+drama/Q@530              retimed 3/4 median 110 max 990 cueMedian -580 b0 w2 u0 sq0
+drama/Q@556              retimed 4/4 median -30 max 7530 cueMedian -30 b1 w0 u0 sq0
+drama/Q@628              retimed 3/4 median -320 max 620 cueMedian -320 b1 w0 u0 sq0
+drama/Q@679              retimed 4/4 median -10 max 3930 cueMedian -3930 b1 w1 u0 sq0
+drama/N@25               retimed 6/6 median -1550 max 1900 cueMedian 1080 b2 w0 u0 sq0
+drama/N@52               retimed 8/10 median -1440 max 2750 cueMedian 170 b0 w2 u0 sq1
+drama/N@77               retimed 10/10 median -490 max 2310 cueMedian 320 b3 w0 u1 sq1
+drama/N@102              retimed 5/6 median 170 max 1880 cueMedian 580 b1 w0 u1 sq0
+drama/N@125              retimed 4/6 median -890 max 1810 cueMedian -890 b0 w0 u2 sq0
+drama/N@151              retimed 11/12 median 150 max 3600 cueMedian 170 b1 w0 u0 sq0
+drama/N@180              retimed 4/6 median -810 max 2070 cueMedian 170 b0 w2 u0 sq0
+drama/N@205              retimed 4/4 median -10 max 460 cueMedian -460 b0 w1 u0 sq0
+drama/N@229              retimed 3/4 median 50 max 2710 cueMedian 50 b1 w0 u0 sq0
+drama/N@280              retimed 3/6 median 2970 max 2970 cueMedian 2970 b2 w1 u0 sq0
+drama/N@306              retimed 7/8 median 170 max 4290 cueMedian 50 b0 w1 u0 sq0
+drama/N@330              retimed 3/6 median 900 max 3190 cueMedian 900 b1 w1 u0 sq0
+drama/N@356              retimed 5/6 median -460 max 1470 cueMedian -210 b0 w0 u1 sq0
+drama/N@453              retimed 5/6 median -2950 max 2980 cueMedian -2950 b0 w3 u0 sq0
+drama/N@478              retimed 16/16 median 0 max 1270 cueMedian 0 b0 w1 u0 sq0
+drama/N@628              retimed 2/6 median -2910 max 2910 cueMedian -2910 b2 w1 u0 sq0
+drama/N@679              retimed 4/4 median -2700 max 2700 cueMedian -2700 b0 w1 u0 sq0
+pv-zh/Q@0                retimed 20/22 median 10 max 270 cueMedian 10 b1 w0 u0 sq0
+pv-zh/Q@25               retimed 9/10 median 90 max 910 cueMedian 90 b2 w0 u0 sq0
+pv-zh/Q@50               retimed 19/20 median -10 max 150 cueMedian -10 b1 w0 u0 sq0
+pv-zh/Q@75               retimed 19/24 median -10 max 1490 cueMedian -10 b1 w0 u1 sq1
+pv-zh/Q@100              retimed 22/26 median 2090 max 2610 cueMedian 2150 b4 w5 u2 sq1
+pv-zh/Q@125              retimed 24/32 median 10 max 1350 cueMedian 0 b1 w0 u3 sq2
+pv-zh/Q@150              retimed 14/16 median -250 max 570 cueMedian -250 b0 w1 u0 sq0
+pv-zh/Q@175              retimed 9/16 median 4760 max 5490 cueMedian 4760 b3 w1 u3 sq1
+pv-zh/Q@200              retimed 7/12 median -800 max 1300 cueMedian -800 b1 w3 u2 sq1
+pv-zh/N@25               retimed 8/10 median 80 max 1890 cueMedian 80 b0 w2 u0 sq0
+pv-zh/N@75               retimed 19/24 median -10 max 1150 cueMedian -10 b0 w0 u1 sq1
+pv-zh/N@100              retimed 25/28 median 320 max 580 cueMedian 370 b2 w3 u3 sq1
+pv-zh/N@125              retimed 24/34 median 10 max 1190 cueMedian 0 b0 w2 u3 sq1
+pv-zh/N@175              retimed 11/14 median 640 max 1770 cueMedian 640 b3 w0 u1 sq0
+pv-zh/N@200              retimed 7/12 median -400 max 1060 cueMedian -840 b1 w3 u1 sq0
+pv-ja/Q@25               retimed 6/8 median -90 max 2270 cueMedian -90 b2 w0 u0 sq0
+pv-ja/Q@75               retimed 25/34 median -10 max 410 cueMedian -10 b1 w1 u1 sq0
+pv-ja/Q@100              retimed 16/20 median -570 max 1180 cueMedian -640 b1 w5 u2 sq0
+pv-ja/Q@125              retimed 10/24 median -20 max 480 cueMedian 0 b1 w0 u3 sq0
+pv-ja/Q@150              retimed 10/22 median 12 max 340 cueMedian 12 b1 w0 u1 sq0
+pv-ja/Q@175              retimed 2/8 median 1880 max 1880 cueMedian 1880 b1 w0 u2 sq0
+pv-ja/N@0                retimed 10/18 median 417 max 990 cueMedian 417 b1 w4 u1 sq1
+pv-ja/N@25               retimed 4/10 median -210 max 590 cueMedian -210 b0 w1 u2 sq1
+pv-ja/N@75               retimed 26/32 median -10 max 450 cueMedian -10 b0 w0 u1 sq0
+pv-ja/N@150              retimed 5/20 median 310 max 320 cueMedian 254 b3 w2 u0 sq0
+pv-ja/N@175              retimed 2/8 median 1960 max 1960 cueMedian 1960 b1 w0 u2 sq0
+pv-ja/N@200              retimed 1/6 median 2580 max 2580 cueMedian 2580 b0 w3 u0 sq0
+exit 0
+
+## 2. node anchor-gate-windows.mjs run-lGjDZk 500（本步骤新增：逐窗口列出门槛下改时间 / 保持原时间，句子按起点所在窗口核心区归属）
+
+run-lGjDZk: 140 preset windows; gate median >= +500 ms (proxy: diagnostic all-edge median)
+status before -> with the gate: {"retimed -> not_early":116,"empty -> empty":2,"retimed -> retimed":12,"unaligned -> unaligned":6,"skipped -> skipped":4}
+retimed with the gate (cue verdicts are what the rerun did there): {"windows":12,"cues":62,"moved":58,"better":27,"worse":14,"unclear":10,"squeezed":2}
+left alone as not_early (verdicts are what the rerun did; the gate undoes them): {"windows":116,"cues":580,"moved":529,"better":54,"worse":94,"unclear":38,"squeezed":10}
+
+== retimed (12)
+independent/Q@102  101.85–126.85 s   11/16  median    510  max   1630  cueMedian    510  cues  8 moved  8  b5 w0 u0 sq0  proxy?
+independent/N@152  152.14–175.99 s    8/10  median    900  max   1340  cueMedian    900  cues  5 moved  4  b3 w0 u0 sq0
+drama/Q@229        229.05–254.77 s    7/12  median    838  max   2330  cueMedian    838  cues  6 moved  6  b4 w1 u0 sq0
+drama/Q@280        280.05–306.15 s     3/6  median   2360  max   2360  cueMedian   2360  cues  3 moved  2  b0 w2 u0 sq0
+drama/N@280        280.05–306.15 s     3/6  median   2970  max   2970  cueMedian   2970  cues  3 moved  3  b2 w1 u0 sq0
+drama/N@330        329.99–356.49 s     3/6  median    900  max   3190  cueMedian    900  cues  3 moved  3  b1 w1 u0 sq0
+pv-zh/Q@100        100.00–130.00 s   22/26  median   2090  max   2610  cueMedian   2150  cues 11 moved 11  b4 w5 u2 sq1
+pv-zh/Q@175        175.00–205.00 s    9/16  median   4760  max   5490  cueMedian   4760  cues  7 moved  7  b3 w1 u3 sq1
+pv-zh/N@175        175.00–205.00 s   11/14  median    640  max   1770  cueMedian    640  cues  6 moved  5  b3 w0 u1 sq0  proxy?
+pv-ja/Q@175        175.00–205.00 s     2/8  median   1880  max   1880  cueMedian   1880  cues  4 moved  3  b1 w0 u2 sq0
+pv-ja/N@175        175.00–205.00 s     2/8  median   1960  max   1960  cueMedian   1960  cues  3 moved  3  b1 w0 u2 sq0
+pv-ja/N@200        200.00–228.78 s     1/6  median   2580  max   2580  cueMedian   2580  cues  3 moved  3  b0 w3 u0 sq0
+
+== not_early (116)
+A/Q@0              0.00–30.00 s       9/12  median  -1180  max   1620  cueMedian  -1180  cues  6 moved  6  b0 w4 u1 sq0
+A/N@0              0.00–30.00 s      10/10  median   -390  max   1680  cueMedian   -390  cues  5 moved  5  b0 w3 u0 sq0
+B/Q@0              0.00–30.00 s        1/2  median    270  max    270  cueMedian    270  cues  1 moved  1  b0 w0 u0 sq0  proxy?
+B/N@0              0.00–30.00 s        1/2  median    170  max    170  cueMedian    170  cues  1 moved  1  b0 w0 u0 sq0
+C/Q@0              0.00–30.00 s        4/4  median     80  max   1010  cueMedian  -1010  cues  2 moved  2  b1 w1 u0 sq0
+C/N@0              0.00–30.00 s        4/4  median     50  max   1000  cueMedian  -1000  cues  2 moved  2  b0 w1 u0 sq0
+B-noise/Q@0        0.00–18.00 s        1/2  median      0  max      0  cueMedian      0  cues  1 moved  0  b0 w0 u0 sq0
+independent/Q@0    0.00–26.10 s      10/10  median      0  max   1070  cueMedian      0  cues  5 moved  2  b1 w0 u1 sq0
+independent/Q@26   26.10–52.01 s      8/10  median    -30  max   1050  cueMedian    -30  cues  5 moved  5  b1 w1 u0 sq0
+independent/Q@52   52.01–77.38 s       8/8  median      0  max    100  cueMedian      0  cues  4 moved  2  b0 w0 u0 sq0
+independent/Q@77   77.38–101.85 s      2/2  median    -10  max    270  cueMedian    270  cues  1 moved  1  b0 w0 u0 sq0
+independent/Q@127  126.85–152.14 s     8/8  median     20  max    470  cueMedian     20  cues  4 moved  4  b0 w1 u1 sq0
+independent/Q@152  152.14–175.99 s   10/10  median     30  max     70  cueMedian     30  cues  5 moved  5  b0 w0 u0 sq0
+independent/N@0    0.00–26.10 s      10/10  median      0  max   1070  cueMedian      0  cues  5 moved  2  b0 w1 u1 sq0
+independent/N@26   26.10–52.01 s      8/10  median    -30  max   1090  cueMedian    -30  cues  5 moved  5  b1 w1 u0 sq0
+independent/N@52   52.01–77.38 s       8/8  median      0  max     40  cueMedian      0  cues  4 moved  2  b0 w0 u0 sq0
+independent/N@77   77.38–101.85 s      4/4  median     10  max   1650  cueMedian    140  cues  2 moved  2  b0 w0 u0 sq0
+independent/N@102  101.85–126.85 s   12/12  median      0  max    420  cueMedian      0  cues  6 moved  3  b2 w0 u0 sq0
+independent/N@127  126.85–152.14 s     8/8  median    -10  max   2030  cueMedian    -10  cues  4 moved  4  b0 w1 u0 sq0
+full/Q@0           0.00–30.00 s       3/10  median   -766  max   1220  cueMedian   -476  cues  6 moved  5  b1 w3 u0 sq0
+full/Q@25          25.00–55.00 s      8/10  median   -500  max   1320  cueMedian      0  cues  4 moved  3  b1 w1 u1 sq0
+full/Q@50          50.00–80.00 s     14/18  median   -620  max    950  cueMedian   -620  cues  8 moved  8  b0 w4 u2 sq0
+full/Q@75          75.00–96.14 s       8/8  median    -10  max   1230  cueMedian    840  cues  3 moved  3  b3 w0 u0 sq0
+full/Q@96          96.14–114.98 s     8/10  median    -10  max    880  cueMedian     20  cues  5 moved  5  b1 w1 u0 sq0
+full/Q@115         114.98–144.98 s    8/14  median   -460  max   2740  cueMedian   -330  cues  6 moved  6  b2 w2 u1 sq0
+full/Q@140         139.98–169.98 s   16/22  median   -450  max   1230  cueMedian   -350  cues 10 moved 10  b0 w6 u1 sq1
+full/Q@165         164.98–194.98 s   13/16  median      0  max    400  cueMedian      0  cues  7 moved  6  b0 w0 u1 sq0
+full/Q@190         189.98–216.00 s   13/18  median   -270  max   1510  cueMedian   -270  cues  8 moved  8  b0 w2 u0 sq0
+full/N@0           0.00–30.00 s        5/6  median    -20  max    170  cueMedian      0  cues  9 moved  3  b0 w0 u0 sq0
+full/N@25          25.00–55.00 s       4/6  median  -1180  max   1570  cueMedian      0  cues  3 moved  2  b0 w1 u0 sq0
+full/N@50          50.00–80.00 s       7/8  median   -490  max    910  cueMedian   -490  cues  4 moved  3  b1 w2 u0 sq0
+full/N@75          75.00–96.14 s       8/8  median      0  max    170  cueMedian     40  cues  4 moved  3  b0 w0 u0 sq0
+full/N@96          96.14–114.98 s     7/10  median    -10  max    170  cueMedian    -10  cues  5 moved  5  b0 w0 u0 sq0
+full/N@115         114.98–144.98 s     4/6  median   -138  max    660  cueMedian    100  cues  3 moved  3  b0 w0 u0 sq0
+full/N@140         139.98–169.98 s   21/24  median    -10  max    330  cueMedian    -40  cues 10 moved 10  b0 w1 u0 sq0
+full/N@165         164.98–194.98 s   13/16  median    -10  max    170  cueMedian    -10  cues  7 moved  7  b0 w0 u0 sq0
+full/N@190         189.98–216.00 s   12/14  median     10  max    170  cueMedian     10  cues  6 moved  6  b0 w0 u0 sq0
+drama/Q@0          0.00–25.00 s       3/10  median   -380  max  10630  cueMedian   -380  cues  5 moved  5  b3 w1 u0 sq2
+drama/Q@25         25.00–52.05 s       6/6  median   -790  max   1900  cueMedian    340  cues  3 moved  3  b2 w0 u0 sq0
+drama/Q@52         52.05–77.05 s      9/12  median      2  max    270  cueMedian      2  cues  6 moved  6  b0 w0 u0 sq0
+drama/Q@77         77.05–101.97 s    10/10  median   -620  max   2030  cueMedian    300  cues  5 moved  5  b2 w0 u2 sq0
+drama/Q@102        101.97–125.25 s     5/6  median    270  max   1990  cueMedian    420  cues  3 moved  3  b2 w0 u0 sq0  proxy?
+drama/Q@125        125.25–150.98 s     4/6  median  -1130  max   2350  cueMedian  -1130  cues  3 moved  3  b0 w2 u0 sq0
+drama/Q@151        150.98–179.51 s     6/6  median    190  max   3540  cueMedian  -2190  cues  3 moved  3  b0 w2 u0 sq0
+drama/Q@180        179.51–204.51 s     4/8  median    290  max    530  cueMedian    290  cues  4 moved  4  b0 w0 u0 sq0  proxy?
+drama/Q@205        204.51–229.05 s     4/4  median    -10  max    400  cueMedian   -400  cues  2 moved  2  b0 w1 u0 sq0
+drama/Q@255        254.77–280.05 s     7/8  median    -20  max    270  cueMedian    -80  cues  4 moved  3  b0 w0 u0 sq0
+drama/Q@306        306.15–329.99 s   11/14  median    -40  max   1850  cueMedian    -29  cues  7 moved  7  b0 w2 u0 sq0
+drama/Q@330        329.99–356.49 s    4/10  median   -163  max    370  cueMedian   -163  cues  5 moved  5  b1 w1 u0 sq0
+drama/Q@356        356.49–380.52 s     4/6  median   -120  max    670  cueMedian    670  cues  3 moved  3  b0 w2 u0 sq0  proxy?
+drama/Q@381        380.52–400.04 s     3/8  median   -190  max    270  cueMedian   -190  cues  4 moved  4  b0 w0 u0 sq0
+drama/Q@400        400.04–427.82 s     1/4  median    270  max    270  cueMedian    270  cues  2 moved  2  b0 w0 u0 sq0  proxy?
+drama/Q@428        427.82–452.82 s     3/4  median     40  max    270  cueMedian     40  cues  2 moved  2  b0 w0 u0 sq0
+drama/Q@453        452.82–477.77 s     5/6  median  -1070  max   2880  cueMedian  -1070  cues  3 moved  3  b0 w3 u0 sq0
+drama/Q@478        477.77–504.85 s     8/8  median    -50  max   1280  cueMedian   -910  cues  4 moved  4  b1 w2 u0 sq0
+drama/Q@530        530.00–555.76 s     3/4  median    110  max    990  cueMedian   -580  cues  2 moved  2  b0 w2 u0 sq0
+drama/Q@556        555.76–580.76 s     4/4  median    -30  max   7530  cueMedian    -30  cues  2 moved  2  b1 w0 u0 sq0
+drama/Q@628        628.48–653.48 s     3/4  median   -320  max    620  cueMedian   -320  cues  2 moved  2  b1 w0 u0 sq0
+drama/Q@653        653.48–678.64 s     1/4  median    290  max    290  cueMedian    290  cues  2 moved  2  b0 w0 u0 sq0  proxy?
+drama/Q@679        678.64–700.54 s     4/4  median    -10  max   3930  cueMedian  -3930  cues  2 moved  2  b1 w1 u0 sq0
+drama/Q@701        700.54–725.83 s    5/12  median   -130  max    270  cueMedian   -130  cues  6 moved  6  b0 w0 u0 sq0
+drama/Q@726        725.83–753.39 s     3/4  median   -130  max    270  cueMedian   -130  cues  2 moved  2  b0 w0 u0 sq0
+drama/N@0          0.00–25.00 s        4/4  median    -30  max    360  cueMedian    -30  cues  2 moved  2  b0 w0 u0 sq0
+drama/N@25         25.00–52.05 s       6/6  median  -1550  max   1900  cueMedian   1080  cues  3 moved  3  b2 w0 u0 sq0
+drama/N@52         52.05–77.05 s      8/10  median  -1440  max   2750  cueMedian    170  cues  5 moved  5  b0 w2 u0 sq1
+drama/N@77         77.05–101.97 s    10/10  median   -490  max   2310  cueMedian    320  cues  5 moved  5  b3 w0 u1 sq1
+drama/N@102        101.97–125.25 s     5/6  median    170  max   1880  cueMedian    580  cues  3 moved  3  b1 w0 u1 sq0  proxy?
+drama/N@125        125.25–150.98 s     4/6  median   -890  max   1810  cueMedian   -890  cues  3 moved  3  b0 w0 u2 sq0
+drama/N@151        150.98–179.51 s   11/12  median    150  max   3600  cueMedian    170  cues  6 moved  6  b1 w0 u0 sq0
+drama/N@180        179.51–204.51 s     4/6  median   -810  max   2070  cueMedian    170  cues  3 moved  3  b0 w2 u0 sq0
+drama/N@205        204.51–229.05 s     4/4  median    -10  max    460  cueMedian   -460  cues  2 moved  2  b0 w1 u0 sq0
+drama/N@229        229.05–254.77 s     3/4  median     50  max   2710  cueMedian     50  cues  2 moved  2  b1 w0 u0 sq0
+drama/N@255        254.77–280.05 s     7/8  median    -10  max    190  cueMedian   -160  cues  4 moved  4  b0 w0 u0 sq0
+drama/N@306        306.15–329.99 s     7/8  median    170  max   4290  cueMedian     50  cues  4 moved  4  b0 w1 u0 sq0
+drama/N@356        356.49–380.52 s     5/6  median   -460  max   1470  cueMedian   -210  cues  3 moved  3  b0 w0 u1 sq0
+drama/N@381        380.52–400.04 s     4/8  median   -130  max    270  cueMedian   -130  cues  4 moved  4  b0 w0 u0 sq0
+drama/N@400        400.04–427.82 s     2/6  median   -154  max    200  cueMedian     17  cues  3 moved  3  b0 w0 u0 sq0
+drama/N@428        427.82–452.82 s     2/4  median     38  max    130  cueMedian     38  cues  2 moved  2  b0 w0 u0 sq0
+drama/N@453        452.82–477.77 s     5/6  median  -2950  max   2980  cueMedian  -2950  cues  3 moved  3  b0 w3 u0 sq0
+drama/N@478        477.77–504.85 s   16/16  median      0  max   1270  cueMedian      0  cues  8 moved  6  b0 w1 u0 sq0
+drama/N@505        504.85–530.00 s     7/8  median      0  max    170  cueMedian      0  cues  4 moved  3  b0 w0 u0 sq0
+drama/N@530        530.00–555.76 s     3/4  median   -160  max    160  cueMedian   -160  cues  2 moved  2  b0 w0 u0 sq0
+drama/N@556        555.76–580.76 s     4/4  median   -170  max    200  cueMedian   -170  cues  2 moved  2  b0 w0 u0 sq0
+drama/N@628        628.48–653.48 s     2/6  median  -2910  max   2910  cueMedian  -2910  cues  3 moved  3  b2 w1 u0 sq0
+drama/N@653        653.48–678.64 s     1/4  median    190  max    190  cueMedian    190  cues  2 moved  2  b0 w0 u0 sq0
+drama/N@679        678.64–700.54 s     4/4  median  -2700  max   2700  cueMedian  -2700  cues  2 moved  2  b0 w1 u0 sq0
+drama/N@701        700.54–725.83 s     5/6  median    -30  max    330  cueMedian     30  cues  3 moved  3  b0 w0 u0 sq0
+drama/N@726        725.83–753.39 s     4/4  median    -70  max    170  cueMedian    -70  cues  2 moved  2  b0 w0 u0 sq0
+pv-zh/Q@0          0.00–30.00 s      20/22  median     10  max    270  cueMedian     10  cues 11 moved 11  b0 w0 u0 sq0
+pv-zh/Q@25         25.00–55.00 s      9/10  median     90  max    910  cueMedian     90  cues  4 moved  4  b2 w0 u0 sq0
+pv-zh/Q@50         50.00–80.00 s     19/20  median    -10  max    150  cueMedian    -10  cues  8 moved  7  b0 w0 u0 sq0
+pv-zh/Q@75         75.00–105.00 s    19/24  median    -10  max   1490  cueMedian    -10  cues 12 moved 11  b1 w0 u1 sq1
+pv-zh/Q@125        125.00–155.00 s   24/32  median     10  max   1350  cueMedian      0  cues 13 moved 11  b0 w0 u2 sq1
+pv-zh/Q@150        150.00–180.00 s   14/16  median   -250  max    570  cueMedian   -250  cues  7 moved  7  b0 w1 u0 sq0
+pv-zh/Q@200        200.00–230.00 s    7/12  median   -800  max   1300  cueMedian   -800  cues  5 moved  5  b1 w3 u1 sq0
+pv-zh/N@0          0.00–30.00 s      20/22  median      0  max    170  cueMedian      0  cues 11 moved  9  b0 w0 u0 sq0
+pv-zh/N@25         25.00–55.00 s      8/10  median     80  max   1890  cueMedian     80  cues  4 moved  4  b0 w2 u0 sq0
+pv-zh/N@50         50.00–80.00 s     17/18  median    -10  max    150  cueMedian    -10  cues  7 moved  6  b0 w0 u0 sq0
+pv-zh/N@75         75.00–105.00 s    19/24  median    -10  max   1150  cueMedian    -10  cues 12 moved 12  b0 w0 u1 sq1
+pv-zh/N@100        100.00–130.00 s   25/28  median    320  max    580  cueMedian    370  cues 13 moved 12  b2 w3 u3 sq0  proxy?
+pv-zh/N@125        125.00–155.00 s   24/34  median     10  max   1190  cueMedian      0  cues 14 moved 13  b0 w2 u2 sq1
+pv-zh/N@150        150.00–180.00 s   14/16  median    -30  max    260  cueMedian    -30  cues  7 moved  5  b0 w0 u0 sq0
+pv-zh/N@200        200.00–230.00 s    7/12  median   -400  max   1060  cueMedian   -840  cues  5 moved  5  b1 w3 u1 sq0
+pv-ja/Q@25         25.00–55.00 s       6/8  median    -90  max   2270  cueMedian    -90  cues  3 moved  3  b2 w0 u0 sq0
+pv-ja/Q@50         50.00–80.00 s       2/8  median     70  max     70  cueMedian     70  cues  4 moved  4  b0 w0 u0 sq0
+pv-ja/Q@75         75.00–105.00 s    25/34  median    -10  max    410  cueMedian    -10  cues 14 moved 13  b0 w0 u1 sq0
+pv-ja/Q@100        100.00–130.00 s   16/20  median   -570  max   1180  cueMedian   -640  cues  9 moved  8  b1 w5 u2 sq0
+pv-ja/Q@125        125.00–155.00 s   10/24  median    -20  max    480  cueMedian      0  cues 10 moved  9  b0 w0 u3 sq0
+pv-ja/Q@150        150.00–180.00 s   10/22  median     12  max    340  cueMedian     12  cues  9 moved  8  b1 w0 u1 sq0
+pv-ja/Q@200        200.00–228.78 s     1/6  median    -80  max     80  cueMedian    -80  cues  3 moved  2  b0 w0 u0 sq0
+pv-ja/N@0          0.00–30.00 s      10/18  median    417  max    990  cueMedian    417  cues  9 moved  9  b1 w4 u1 sq1  proxy?
+pv-ja/N@25         25.00–55.00 s      4/10  median   -210  max    590  cueMedian   -210  cues  5 moved  4  b0 w1 u1 sq0
+pv-ja/N@50         50.00–80.00 s       2/6  median      9  max     50  cueMedian     50  cues  3 moved  3  b0 w0 u0 sq0
+pv-ja/N@75         75.00–105.00 s    26/32  median    -10  max    450  cueMedian    -10  cues 12 moved 11  b0 w0 u1 sq0
+pv-ja/N@100        100.00–130.00 s   18/20  median      0  max    170  cueMedian      0  cues  9 moved  7  b0 w0 u0 sq0
+pv-ja/N@150        150.00–180.00 s    5/20  median    310  max    320  cueMedian    254  cues 10 moved  9  b3 w2 u0 sq0  proxy?
+
+== unaligned (6)
+drama/Q@505        504.85–530.00 s     0/2  median      0  max      0  cueMedian      0  cues  1 moved  0  b0 w0 u0 sq0
+drama/Q@581        580.76–605.43 s     0/2  median      0  max      0  cueMedian      0  cues  1 moved  0  b0 w0 u0 sq0
+drama/Q@605        605.43–628.48 s     0/2  median      0  max      0  cueMedian      0  cues  1 moved  0  b0 w0 u0 sq0
+drama/N@581        580.76–605.43 s     0/2  median      0  max      0  cueMedian      0  cues  1 moved  0  b0 w0 u0 sq0
+pv-ja/Q@0          0.00–30.00 s       0/22  median      0  max      0  cueMedian      0  cues 10 moved  0  b0 w0 u0 sq0
+pv-ja/N@125        125.00–155.00 s    0/30  median      0  max      0  cueMedian      0  cues 12 moved  0  b0 w0 u0 sq0
+
+== empty (2)
+B-noise/N@0        0.00–18.00 s        0/2  median      0  max      0  cueMedian      0  cues  1 moved  0  b0 w0 u0 sq0
+drama/N@605        605.43–628.48 s     0/2  median      0  max      0  cueMedian      0  cues  1 moved  0  b0 w0 u0 sq0
+
+== skipped (4)
+pv-zh/Q@225        225.00–235.22 s     0/0  median      0  max      0  cueMedian      —  cues  0 moved  0  b0 w0 u0 sq0
+pv-zh/N@225        225.00–235.22 s     0/0  median      0  max      0  cueMedian      —  cues  0 moved  0  b0 w0 u0 sq0
+pv-ja/Q@229        228.78–230.23 s     0/0  median      0  max      0  cueMedian      —  cues  0 moved  0  b0 w0 u0 sq0
+pv-ja/N@229        228.78–230.23 s     0/0  median      0  max      0  cueMedian      —  cues  0 moved  0  b0 w0 u0 sq0
+
+== > 1 s from the matched standard cue: previous run / rerun / estimate with the gate
+A/Q            1/2/1
+A/N            1/3/1
+B/Q            0/0/0
+B/N            0/0/0
+C/Q            0/0/0
+C/N            0/0/0
+B-noise/Q      0/0/0
+B-noise/N      0/0/0
+independent/Q  3/1/3
+independent/N  2/3/4
+full/Q         6/2/6
+full/N         1/2/1
+drama/Q        15/8/13
+drama/N        14/7/13
+pv-zh/Q        21/3/6  (102–200 s 18/2/3, 175–205 s 6/2/2)
+pv-zh/N        5/2/5  (102–200 s 3/1/3, 175–205 s 2/1/2)
+pv-ja/Q        5/1/4
+pv-ja/N        5/4/4
+total          79/38/61
+exit 0

@@ -82,7 +82,9 @@ import {
   dropLocalSubtitleSeamDuplicates,
   planLocalSubtitleRootWindows,
   postProcessLocalSubtitleTranscript,
+  retimeLocalSubtitleSegmentsFromAnchor,
   throwLocalSubtitleWindowDecisionFailure,
+  type LocalSubtitleAnchorRetiming,
   type LocalSubtitlePostProcessingWindow,
   type LocalSubtitlePostProcessingWindowAttempt,
   type LocalSubtitleSeamDuplicate,
@@ -178,7 +180,7 @@ export type TranscriptionTaskExecutionContext = Omit<NativeTaskExecutionContext,
 };
 export type TranscriptExecutionResult =
   | Readonly<{ status: "transcript_ready"; transcript: LocalSubtitleTranscript; durationMs?: number; cueSummary: LocalSubtitleCueSummary;
-      seamDuplicates?: readonly LocalSubtitleSeamDuplicate[] }>
+      seamDuplicates?: readonly LocalSubtitleSeamDuplicate[]; anchorRetiming?: readonly LocalSubtitleAnchorRetiming[] }>
   | Readonly<{ status: "no_content"; durationMs?: number }>
   | Readonly<{ status: "failed"; error: LocalSubtitleError; durationMs?: number }>
   | Readonly<{ status: "cancelled"; durationMs?: number }>;
@@ -360,12 +362,14 @@ export class TranscriptionExecutor {
       | ReturnType<typeof postProcessLocalSubtitleTranscript>["transcript"]
       | undefined;
     let seamDuplicates: readonly LocalSubtitleSeamDuplicate[] = [];
+    const anchorRetiming: LocalSubtitleAnchorRetiming[] = [];
     let pipelineError: unknown;
     let durationMs: number | undefined;
 
     try {
       throwIfCancelled(context.signal);
-      const quietAudioMode = taskAudioProfile(context)?.quietAudioMode;
+      const audioProfile = taskAudioProfile(context);
+      const quietAudioMode = audioProfile?.quietAudioMode;
       normalized = await this.#media.normalizeTask({
         owner: context.owner,
         fileToken: context.fileToken,
@@ -493,6 +497,8 @@ export class TranscriptionExecutor {
       const attempts: LocalSubtitlePostProcessingWindowAttempt[] = [];
       const requestsPerRoot = new Map<string, number>();
       const acceptedPrimaryCounts = new Map<string, number>();
+      // The audio each accepted window was recognized from, for its timing anchor.
+      const acceptedAudio = new Map<string, Readonly<{ conditionQuietAudio: boolean; sha256: string }>>();
       const consumedBrands = new WeakSet<object>();
       const consumedResponses = new Set<string>();
       const retainedRawUsage: LocalSubtitleRetainedRawUsage = {
@@ -501,6 +507,8 @@ export class TranscriptionExecutor {
       };
       let nextWindowAttempt = 1;
       let completedRootWindows = 0;
+      // A preset task recognizes every window twice: with its fields, then as a timing anchor.
+      const totalWindows = rootPlan.windows.length * (audioProfile ? 2 : 1);
       context.update({
         status: "transcribing",
         progress: {
@@ -508,7 +516,7 @@ export class TranscriptionExecutor {
           stageProgress: 0,
           overallProgress: 30,
           completedWindows: 0,
-          totalWindows: rootPlan.windows.length,
+          totalWindows,
         },
         durationMs,
       });
@@ -519,6 +527,9 @@ export class TranscriptionExecutor {
         conditionQuietAudio = context.config.inference.vad.enabled,
         separatorCandidate = false,
         budgetRootWindowKey = window.rootWindowKey,
+        // A timing anchor resends an accepted window's exact audio with the standard
+        // fields; it spends no request budget of the window.
+        anchorAudioSha256?: string,
       ) => {
         throwIfCancelled(context.signal);
         let brand: LocalSubtitleBrandedPcmWindow | undefined;
@@ -529,6 +540,7 @@ export class TranscriptionExecutor {
               assessment: ReturnType<typeof assessLocalSubtitleRawWindow>;
               decision: ReturnType<typeof decideLocalSubtitleWindowRetry>;
               quietAudioConditioned: boolean;
+              audio: Readonly<{ conditionQuietAudio: boolean; sha256: string }>;
             }>
           | undefined;
         try {
@@ -554,6 +566,7 @@ export class TranscriptionExecutor {
             descriptor: window,
           });
           assertResolvedWindowMatchesBrand(brand, before);
+          if (anchorAudioSha256 !== undefined && before.sha256 !== anchorAudioSha256) throw new TimingAnchorUnavailable();
 
           const windowAttempt = nextWindowAttempt;
           nextWindowAttempt = incrementSafeCounter(
@@ -561,9 +574,11 @@ export class TranscriptionExecutor {
             "windowAttempt",
           );
           const requestGeneration = this.#claimRequestGeneration();
-          requestsPerRoot.set(budgetRootWindowKey, (requestsPerRoot.get(budgetRootWindowKey) ?? 0) + 1);
+          if (anchorAudioSha256 === undefined) {
+            requestsPerRoot.set(budgetRootWindowKey, (requestsPerRoot.get(budgetRootWindowKey) ?? 0) + 1);
+          }
           const request = createInferenceRequest(context, before, requestGeneration,
-            qualityRecoveryAttempt, separatorCandidate);
+            qualityRecoveryAttempt, separatorCandidate, anchorAudioSha256 !== undefined);
           let inference: LocalSubtitleServerSupervisorInferenceResponse;
           const deadline = separatorCandidate ? new AbortController() : undefined;
           const cancelDeadline = () => deadline?.abort();
@@ -617,7 +632,8 @@ export class TranscriptionExecutor {
             policy: attemptPolicy,
           });
           outcome = Object.freeze({ attempt, assessment, decision,
-            quietAudioConditioned: before.quietAudioGainDb !== undefined });
+            quietAudioConditioned: before.quietAudioGainDb !== undefined,
+            audio: Object.freeze({ conditionQuietAudio, sha256: before.sha256 }) });
         } catch (error) {
           operationError = error;
         } finally {
@@ -667,6 +683,7 @@ export class TranscriptionExecutor {
           const { attempt, assessment, decision } = outcome;
           if (decision.action === "accept") {
             retainAttempt(attempt);
+            acceptedAudio.set(window.windowKey, outcome.audio);
             const count = requestsPerRoot.get(window.rootWindowKey);
             if (!window.retryDepth && !qualityRecoveryAttempts &&
                 count === (unconditionedFallback ? 2 : 1)) acceptedPrimaryCounts.set(window.rootWindowKey, count);
@@ -699,7 +716,7 @@ export class TranscriptionExecutor {
         await dispatchWindow(rootWindow);
         completedRootWindows += 1;
         const stageProgress = Math.floor(
-          (completedRootWindows / rootPlan.windows.length) * 100,
+          (completedRootWindows / totalWindows) * 100,
         );
         context.update({
           status: "transcribing",
@@ -708,10 +725,70 @@ export class TranscriptionExecutor {
             stageProgress,
             overallProgress: 30 + Math.floor(stageProgress * 0.5),
             completedWindows: completedRootWindows,
-            totalWindows: rootPlan.windows.length,
+            totalWindows,
           },
           durationMs,
         });
+      }
+
+      // Every preset window was recognized above in the established request order,
+      // so its text is unchanged. Each accepted window is then recognized again from
+      // the same audio with the standard fields, and the segments of a window the
+      // preset heard early take times from that anchor before post-processing. An
+      // anchor that fails, hears nothing or does not align leaves the window's times,
+      // as does a window not heard early; only cancellation and cleanup fail.
+      if (audioProfile) {
+        const accepted = attempts.flatMap((attempt, index) =>
+          acceptedAudio.has(attempt.window.windowKey) ? [index] : []);
+        for (const [order, index] of accepted.entries()) {
+          throwIfCancelled(context.signal);
+          const primary = attempts[index]!;
+          const audio = acceptedAudio.get(primary.window.windowKey)!;
+          let anchor: typeof primary.response.result.segments | undefined;
+          let status: LocalSubtitleAnchorRetiming["status"] = "skipped";
+          if (primary.response.result.segments.some(segment => segment.text.trim())) {
+            try {
+              const candidate = await executeWindowAttempt(primary.window, 0, audio.conditionQuietAudio, false,
+                primary.window.rootWindowKey, audio.sha256);
+              if (candidate.decision.action === "accept") anchor = candidate.attempt.response.result.segments;
+              else status = "failed";
+            } catch (error) {
+              if (context.signal.aborted || isCleanupFailureCode(publicErrorCode(error, "transcribing"))) throw error;
+              status = "failed";
+            }
+          }
+          const retimed = anchor && retimeLocalSubtitleSegmentsFromAnchor(primary.response.result.segments, anchor,
+            primary.window.endMs - primary.window.startMs);
+          if (retimed) status = retimed.status;
+          if (retimed?.status === "retimed") {
+            const candidate = deepFreeze({ ...primary, response: { ...primary.response,
+              result: { ...primary.response.result, segments: retimed.segments } } });
+            // Post-processing assesses every window again; one the new times would
+            // make it refuse, such as a stretched repeat, keeps its times.
+            const assessment = assessLocalSubtitleRawWindow({ window: candidate.window, result: candidate.response.result, policy });
+            if (decideLocalSubtitleWindowRetry({ attempt: candidate, assessment, policy }).action === "accept") {
+              attempts[index] = candidate;
+            } else status = "rejected";
+          }
+          anchorRetiming.push(Object.freeze({ windowIndex: order, startMs: primary.window.startMs, endMs: primary.window.endMs,
+            anchorSegments: anchor?.length ?? 0, anchoredEdges: retimed?.anchoredEdges ?? 0,
+            totalEdges: primary.response.result.segments.length * 2, medianShiftMs: retimed?.medianShiftMs ?? 0,
+            maxShiftMs: retimed?.maxShiftMs ?? 0, status }));
+          const completedWindows = rootPlan.windows.length +
+            Math.floor(((order + 1) / accepted.length) * rootPlan.windows.length);
+          const stageProgress = Math.floor((completedWindows / totalWindows) * 100);
+          context.update({
+            status: "transcribing",
+            progress: {
+              stage: "transcribing",
+              stageProgress,
+              overallProgress: 30 + Math.floor(stageProgress * 0.5),
+              completedWindows,
+              totalWindows,
+            },
+            durationMs,
+          });
+        }
       }
 
       stage = "post_processing";
@@ -1164,7 +1241,8 @@ export class TranscriptionExecutor {
       }
       // The optional seam repairs above read the clipped cues first; a reported seam
       // duplicate leaves only while it and its kept cues are unchanged, and a kept
-      // cue clipped to the same seam then gets that edge back.
+      // cue clipped to the same seam then gets that edge back. A long copy kept for
+      // its far-end words also loses seam-side words that repeat the cue beside it.
       const seam = dropLocalSubtitleSeamDuplicates(processed.transcript.segments,
         processed.report.seamDuplicates, transcript.segments);
       seamDuplicates = seam.dropped;
@@ -1229,6 +1307,8 @@ export class TranscriptionExecutor {
       cueSummary: summarizeLocalSubtitleCues(transcript.segments, createSubtitlePostProcessPolicy(context.config.inference)),
       // Diagnostics only: the document receives the transcript without these cues.
       ...(seamDuplicates.length ? { seamDuplicates } : {}),
+      // Preset tasks only; ids, counts and times of each window's timing anchor.
+      ...(anchorRetiming.length ? { anchorRetiming: Object.freeze(anchorRetiming) } : {}),
     });
   }
 
@@ -1563,6 +1643,7 @@ function createInferenceRequest(
   requestGeneration: number,
   qualityRecoveryAttempt = 0,
   separatorCandidate = false,
+  timingAnchor = false,
 ): LocalSubtitleServerInferenceRequest {
   const dtw = separatorCandidate && context.config.resolvedBackend === "cuda" && context.config.model.modelId === "large-v3";
   const configuredTemperature = context.config.inference.advanced.temperature;
@@ -1579,9 +1660,10 @@ function createInferenceRequest(
           ),
         );
   // Audio-profile fields apply to every VAD recognition request, quality replays included;
-  // separator candidates run without VAD and keep their verified fields.
+  // separator candidates run without VAD and keep their verified fields, and a timing
+  // anchor sends the standard fields (1000 ms padding on conditioned audio as well).
   const vadEnabled = !separatorCandidate && context.config.inference.vad.enabled;
-  const profile = vadEnabled ? taskAudioProfile(context) : undefined;
+  const profile = vadEnabled && !timingAnchor ? taskAudioProfile(context) : undefined;
   const vadSpeechPadMs = !vadEnabled ? undefined
     : resolved.quietAudioGainDb !== undefined ? 1000 : profile?.vadSpeechPadMs;
   return Object.freeze({
@@ -2191,6 +2273,10 @@ class ExecutionCancelled extends Error {
 
 class SeparatorCandidateUnavailable extends Error {
   readonly name = "SeparatorCandidateUnavailable";
+}
+
+class TimingAnchorUnavailable extends Error {
+  readonly name = "TimingAnchorUnavailable";
 }
 
 function hasMethods(

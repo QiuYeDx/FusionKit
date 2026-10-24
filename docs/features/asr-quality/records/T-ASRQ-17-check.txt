@@ -1,0 +1,128 @@
+T-ASRQ-17 / V-ASRQ-17-1：本地听审页面“⑤ 时间修正对比”按门槛重跑 run-8YtcFr 重建后的无界面自检（2026-10-25，实际运行于 03:42–04:10 +0800）
+
+环境：Windows 11 Pro 10.0.26200；Node v20.19.4；@playwright/test 1.58.2；Chrome 155.0.8059.41（channel chrome，headless，--mute-audio，--autoplay-policy=no-user-gesture-required，不开窗口）；内置 FFmpeg（build/subtitle-studio-resources/transcription/win-x64/media/ffmpeg.exe）算 100 ms 音量。
+页面由 serve.mjs 在临时空闲端口（127.0.0.1:12102）提供，自检结束时停掉（之后只剩用户自己的 47811 服务，PID 24536，没有动）。没有启动 Electron，没有占用 GPU，没有结束任何进程。
+页面、剪辑、导出和截图都在 gitignored 的 test-results/asr-quality-listening/ 下，不提交；本文件只记数字、时间、条目 id 和字段名，没有样本转写文字。
+数据：修复前 run-Gg6ITS → 修复后 run-8YtcFr（test-results/asr-quality-ab/run-8YtcFr/timing-fix-compare.json，生成于 2026-10-24T19:27:35.441Z，runs.ungated = run-lGjDZk）；上一版页面用的是没有门槛的 run-lGjDZk。
+上一版页面副本：_check/index-before-8ytcfr.html（sha256 23abd0d84a1e7f9169cd65b695f14ea783d586fe2c6335a64d4592e377041795，生成于 2026-10-24T17:51:07Z）；改动前的 build.mjs、template/、check/、README.txt、index.html 另备份在本会话的临时目录。
+新 index.html sha256 30b28f4f206efb82db3413e0429b35032a3de22b97b5d98c57848609b41d3030（生成于 2026-10-24T20:05:51Z，即 04:05:51 +0800）。
+
+== 1. 生成：node test-results/asr-quality-listening/build.mjs（exit 0，0 个警告）
+clips: 0 made, 211 kept, 0 removed, 34 unused left in place (211 in use)
+items: T-09 40 curated + 54 optional (33 whole regions, 21 remainders of partly listed ones), T-10 28
+T-09: 19 items with context cues, 24 with 播放区间 wider than the listed region
+seam dedup (run-2512BY → run-Gg6ITS): 22 removed cues in 9 cases, 15 with the kept cue's clipped edge restored, 11 named in the listening notes, 4 with a hint, 1 kept cue flagged by duplicate_neighbor; other differences: 0
+seam vs run-SVKkhx: 21 item ids unchanged, 1 retired (seam-pv-ja-noisy-177500), 1 new (seam-pv-ja-noisy-177420)
+seam no restore: 1 over the 7000 ms cap, 6 kept cue not clipped at the seam, 0 other
+seam energy vs comparison RMS (seam-full-quiet-165370): 90 frames, mean |Δ| 0 dB, max 0 dB
+timing anchor (run-Gg6ITS → run-8YtcFr): 13 windows moved noticeably in 18 preset cases; 10 required (pv-zh 4, drama 3, pv-ja 3), 3 optional (pv-ja 1, independent 2)
+timing required: tfix-drama-quiet-229050, tfix-drama-quiet-280050, tfix-drama-noisy-280050, tfix-pv-zh-quiet-77500, tfix-pv-zh-quiet-102500, tfix-pv-zh-quiet-177500, tfix-pv-zh-noisy-177500, tfix-pv-ja-quiet-177500, tfix-pv-ja-noisy-177500, tfix-pv-ja-noisy-202500
+timing optional: tfix-independent-quiet-101850, tfix-independent-noisy-152140, tfix-pv-ja-noisy-152500
+timing vs run-lGjDZk: 13 item ids unchanged (tfix-pv-zh-quiet-77500, tfix-pv-ja-noisy-152500 with other core times), 54 retired (14 of them required: tfix-full-quiet-27500, tfix-full-quiet-114980, tfix-full-quiet-142480, tfix-full-noisy-27500, tfix-drama-quiet-0, tfix-drama-quiet-150980, tfix-drama-noisy-150980, tfix-drama-noisy-452820, tfix-pv-zh-quiet-127500, tfix-pv-zh-quiet-202500, tfix-pv-zh-noisy-77500, tfix-pv-zh-noisy-102500, tfix-pv-zh-noisy-127500, tfix-pv-zh-noisy-202500), 0 new (-)
+timing retired now: not_early 54
+trim: trim-pv-ja-noisy-177420 on the page; not shown: full.standard.138850
+timing energy vs comparison RMS: 3630 frames, mean |Δ| 0.01 dB, max 0.5 dB
+index.html 559 KB, clips 68.3 MB
+
+说明：
+- build.mjs 自动取 timing-fix-compare.json 最新的 run-8YtcFr；它的 runs.ungated（run-lGjDZk）的 timing-fix-compare.json 按同样的规则重新选一遍，得到上一版的 67 个窗口（必答 24 个，上一版的提示窗口优先这一点用 TIMING_NOTED_BEFORE 列出的 8 个窗口复现），用来保持 id、找出不再显示的窗口。
+- 选条目的规则没变：窗口核心（修复前起点落在核心内的句子）有一句起点或终点挪了 ≥ 1 s，或起点平移中位 ≥ 0.5 s；pv-zh 与 100–130 s、175–205 s、01:42–03:20 重叠的窗口全收为必答；drama / full / pv-ja 每样本限额 7 / 4 / 3，有提示的窗口优先，再按挪动句数、最大挪动；其余可选。这一版 drama 只有 3 个候选、full 没有、pv-ja 4 个候选（02:32.5 只有一句挪动，排在最后，放进可选）。
+- 新增的独立核对（都无警告）：run-lGjDZk 那份对比的 cues[] 与 run-lGjDZk 的字幕文件逐句相同；每个窗口按 gate.rows 重数的起声强弱判读（更好 / 更差 / 分不出）与对比文件 gate.windows[].verdicts 相同、状态相同；修剪在 run-lGjDZk 对比里是同一处（去掉的开头和修剪后的文字相同）。原有的核对照旧：18 个预设用例的配对、窗口核心的句数与中位、修剪的文字，以及 ⑤ 剪辑的音量与对比文件整段 RMS 逐格比较（3630 格，平均差 0.01 dB，最大 0.5 dB）。
+- “压短”改用对比文件自己的判法（gate.rows[].squeezed：不到 0.8 s，也不到修复前的一半），和重跑记录一致；结果是 pv-zh 低音量 #45（02:06.97–02:07.50）和 #72（03:21.78–03:22.50）两句。上一版页面用的是“≤ 0.7 s”，会漏掉 0.72 s 的 #72。
+- 剪辑：⑤ 的 11 个剪辑与上一版相同（窗口核心不变），0 个新切；上一版 ⑤ 用过、这一版不再用的 34 个剪辑按 build.mjs 的默认留在原处（旧页面副本还会用到），没有删除。
+
+== 2. 嵌入数据对比：node test-results/asr-quality-listening/check/tfix-data-compare.mjs _check/index-before-8ytcfr.html index.html（exit 0）
+tfix-data-compare.mjs 这次改写为通用版：两版的非 ⑤ 条目（①②④ 和可选差异）按顺序逐字节比较；⑤ 按 id 对上，不再显示的必须正好是新页面 tfix.previous.retired 列的那些、必答标记和窗口核心与旧页面相同；不变窗口核心里修复后时间不同的句数在这里按两版嵌入的数据重算，必须等于新页面的 vsPrevious.coreChanged。拿加 ⑤ 之前的 _check/index-before-tfix.html 和上一版比也照旧通过（exit 0）。
+{"schema":["fusionkit-asrq-listening/1","fusionkit-asrq-listening/1"],"builtAt":["2026-10-24T17:51:07.591Z","2026-10-24T20:05:51.407Z"],"items":{"old":212,"new":158,"nonTfix":{"old":144,"new":144,"sameOrder":true,"changed":0,"changedIds":[],"missing":[]}},"nonTfixBytesEqual":true,"topLevel":{"differ":[]},"counts":{"old":{"t09":40,"extras":54,"remainders":21,"t10":28,"seam":22,"tfix":24,"tfixOptional":43,"trim":1},"new":{"t09":40,"extras":54,"remainders":21,"t10":28,"seam":22,"tfix":10,"tfixOptional":3,"trim":1},"nonTfixKeysDiffer":[]},"tfix":{"runs":{"old":["run-Gg6ITS","run-lGjDZk"],"new":["run-Gg6ITS","run-8YtcFr"],"previous":"run-lGjDZk","comparedAt":"2026-10-24T19:27:35.441Z"},"old":68,"new":14,"kept":14,"retired":54,"retiredRequired":14,"added":0,"retiredListOk":true,"addedListOk":true,"keptOk":true,"trimOk":true,"keptChangedCore":["tfix-pv-zh-quiet-77500:12","tfix-pv-ja-noisy-152500:10"],"keptRequiredFlags":"13 个窗口必答 / 可选与上一版相同（10 R→R，3 o→o）","trims":[{"id":"trim-pv-ja-noisy-177420","clipSame":true,"removedSame":true,"before":true,"afterWas":[177489,182960],"afterNow":[177420,182960],"previousListed":true}],"idsUnique":true,"clashWithNonTfix":[]},"ok":true}
+说明：比较的顶层键是 schema、contextMs、runs、samples、md09、md10、seam，全部逐字节相同；①–④ 的 144 个条目按原顺序逐字节相同；counts 里 ⑤ 以外的 5 个键不变。存储键（fusionkit-asrq-listening/1）和 schema 没有改；template/page.html、page.css 与改动前逐字节相同（sha256 8509e496…、58b6d867…），只改了 page.js。
+
+== 3. 自检：OLD_PAGE=test-results/asr-quality-listening/_check/index-before-8ytcfr.html node test-results/asr-quality-listening/check/tfix-check.cjs（exit 0，37/37）
+tfix-check.cjs 按新的结果改写（旧版针对加 ⑤ 之前的页面）。预置存储按上一版（run-lGjDZk）留下的样子：T-09 18 条完整 + 1 条部分、T-10 18 条、1 条可选差异的备注、22 个接缝结论和改判旧 id seam-pv-ja-noisy-177500 的结论，以及 ⑤ 的 7 条：保留的 tfix-pv-zh-quiet-102500（都不准 + 带竖线的备注）、tfix-pv-zh-quiet-77500（修复后对齐）、可选的 tfix-independent-quiet-101850（说不准）、修剪（去得对）、这一版不再显示的 tfix-drama-quiet-0（修复前更准 + 备注）、tfix-full-quiet-27500（都不准）、tfix-A-quiet-0（修复前更准）；界面状态停在 ⑤、当前条目是不再显示的 tfix-drama-quiet-0、速度 0.75。共 68 条。上一版页面临时复制为 _tfix-check-previous-page.html（同源、共用存储），结束时删掉。
+第一次运行（约 04:03 结束）36/37：字幕栏拖动核对每条要求“多于 10 个定位点”，修剪那条这一版两句共用边界，只有 5 个不同边界、10 个定位点，0 处不符，但没过这个下限。把下限改为“至少 8 个”（注释写明原因）。同时看截图后把 ⑤ 列表顶部的说明改短（见第 5 节），重新生成后第二次运行全部通过：
+PASS build: ⑤ has 10 required windows (pv-zh 4, drama 3, pv-ja 3), 3 optional, 1 trim (task T-ASRQ-14); every id is the previous build's; the other 54 windows of that build are retired, with its required flags — {"required":10,"optional":3,"trims":["trim-pv-ja-noisy-177420"],"retired":54,"retiredRequired":14}
+PASS every stored answer of the previous build loads unchanged (①–④, the retired seam id, ⑤ kept and retired windows, the trim) — {"seeded":68,"loaded":68,"tfix":7}
+PASS counts: ① 18/40, ② 18/28, ④ 22/22 as before; ⑤ 3/11 (two kept windows and the trim; retired answers not counted); required 101, done 61 — {"t09":"18/40","t10":"18/28","seam":"22/22","tfix":"3/11","done":"61","total":"101"}
+PASS UI state restored (tab ⑤, speed 0.75); the stored current ⑤ item was retired, so ⑤ opens on its first window — {"tab":"tfix","current":"tfix-pv-zh-quiet-77500"}
+PASS the previous build reads the same answers (④ 22/22, ⑤ 5/25 there, required 115) — {"seam":"22/22","tfix":"5/25","total":"115"}
+PASS kept windows show the answers given on the previous build; 01:42.5 says its core times equal the previous build's, 01:17.5 is tagged 有变 with the count of changed cues — {"w4":{"pressed":["both_off"],"changedTag":false},"w3":{"pressed":["after_ok"],"changedTag":true}}
+PASS every clip of every tab reaches loadedmetadata, lengths match (±120 ms) — {"clips":211,"bad":[]}
+PASS ⑤ clips: window core ±2 s (clamped to the media), the trim's two cues ±2 s; each the same clip as on the previous build — {"clips":11,"spanBad":[],"trimBad":[],"sameClips":[]}
+PASS ⑤ clips keep the source channels and rate — {"bad":[],"formats":["1ch/16000","2ch/48000"]}
+PASS every ⑤ item carries the 100 ms levels over its whole clip
+PASS ⑤ list: pv-zh, drama, pv-ja, 重复开头修剪, then the folded 其余窗口 (3); 11 rows; the note names the runs, the gate, the previous build and its 54 retired windows (3 answered) — {"rows":11,"groups":["pv-zh … 2/4","drama … 0/3","pv-ja … 0/3","重复开头修剪 … 1/1","▸ 其余窗口（可选，不计入进度）1/3"]}
+PASS list tags: ④ #11 on pv-zh 低音量 01:42.5, T-09 #9 and 有变 on 01:17.5, 压短 on 01:42.5 and 02:57.5 — ["tfix-pv-zh-quiet-77500:T-09 #9","tfix-pv-zh-quiet-77500:有变","tfix-pv-zh-quiet-102500:④ #11","tfix-pv-zh-quiet-102500:压短","tfix-pv-zh-quiet-177500:压短"]
+PASS 其余窗口 unfolds and folds on its own flag (① 其余差异 stays folded); pv-ja 嘈杂 02:32.5 there is tagged 有变 — {"rows":14,"flag":true}
+PASS every ⑤ item (14): audio ready, 原声/音量/修复前/修复后/标准 rows, every cue on its lane, moved and squeezed cues marked, two captions + 标准 (idle text), table rows, its question, the gate and the previous build in the facts — 14 items
+PASS squeezed cues are the comparison's two (pv-zh 低音量 02:06.97–02:07.50 and 03:21.78–03:22.50) — ["tfix-pv-zh-quiet-102500:126970-127500","tfix-pv-zh-quiet-177500:201780-202500"]
+PASS captions (修复前 / 修复后 / 标准) show the cue under the playhead after seeks 120 ms either side of every cue boundary (4 items) — [{"id":"tfix-pv-zh-quiet-102500","probes":77,"wrong":0},{"id":"tfix-pv-zh-quiet-177500","probes":64,"wrong":0},{"id":"tfix-drama-quiet-280050","probes":28,"wrong":0},{"id":"trim-pv-ja-noisy-177420","probes":10,"wrong":0}]
+PASS a click on a rerun cue's time plays on from 0.5 s before it (mode seek, still playing 6 s later) — [{"id":"tfix-pv-zh-quiet-102500","from":101750,"want":101750,"first":101750},{"id":"tfix-drama-quiet-280050","from":298250,"want":298250,"first":298250},{"id":"trim-pv-ja-noisy-177420","from":173220,"want":173220,"first":173220}]
+PASS while playing, every timeupdate shows the cue under the playhead in all three captions, the boxes marked live, the captions switch, and the shown cues' times light up in the table — [{"id":"tfix-pv-zh-quiet-102500","samples":23,"wrong":0,"switches":"3/3/4","spanMs":4304,"onOk":true},{"id":"tfix-drama-quiet-280050","samples":23,"wrong":0,"switches":"2/4/2","spanMs":4301,"onOk":true},{"id":"trim-pv-ja-noisy-177420","samples":23,"wrong":0,"switches":"3/3/2","spanMs":4316,"onOk":true}]
+PASS 1024×700: after a click on a table time far down, the pane has scrolled and the captions stay pinned at its top, clear of the verdict bar — {"scrolled":801,"barTop":0,"barBottom":217,"verdictTop":657,"shown":"46"}
+PASS a click on a 修复前 lane block plays on from 0.5 s before it to the end of the clip — {"s":182060,"from":181560,"to":204500,"clipE":204500,"clipS":175500,"mode":"seek"}
+PASS key 1 replaces the earlier answer, a second click clears, another click and a note save; the trim takes key 3, an optional window key 2 (not counted); retired answers untouched — {"tfix":"3/11","done":"61"}
+PASS J / K step through the ⑤ list; N goes to the next unmarked ⑤ item — {"j1":"tfix-pv-zh-quiet-102500","k1":"tfix-pv-zh-quiet-77500","n1":"tfix-pv-zh-quiet-177500"}
+PASS after reload: the ⑤ answers and note persist, every other stored answer (①–④, retired seam and ⑤ windows) unchanged, ⑤ 3/11 — {"tfix":"3/11","done":"61","total":"101"}
+PASS after the new page wrote the store, the previous build still reads every answer (its ⑤ 5/25, retired windows included) — {"seam":"22/22","tfix":"5/25"}
+PASS JSON export: same schema, 10 required windows + the 2 answered optional ones (task T-ASRQ-17) with the gate and the previous build, the trim (T-ASRQ-14), 22 seam items as before, required 101 — {"windows":12,"trim":1,"seam":22,"required":101,"complete":61}
+PASS JSON export: retiredTimingItems lists the 54 retired windows with the answers saved for them (3), the required flag of the previous build; ①–④ answers and the retired seam item as before — {"retired":54,"answered":["tfix-A-quiet-0","tfix-full-quiet-27500","tfix-drama-quiet-0"]}
+PASS Markdown export: 时间修正对比 (run-8YtcFr) with 10 rows + 其余窗口 (2), 不再显示的窗口 with the 3 earlier answers, 重复开头修剪 answered, progress and 统计 lines — {"rows":12,"gone":3}
+PASS downloaded JSON equals the built export (apart from the time stamp) — tfix-download-asrq-listening-20261025-0406.json
+PASS downloaded Markdown: T-09/T-10 tables still match the curated lists (compare-export.mjs) — list rows: T-09 40, T-10 28; export rows 68; mismatches 0
+PASS importing the downloaded JSON into a clean store restores every answer (⑤, the retired windows, ①–④, the retired seam item) — 69
+PASS importing the previous build's JSON export restores every answer it had, the windows retired here included (⑤ 3/11) — {"items":68,"tfix":"3/11"}
+PASS summary: ⑤ progress row (3/11 counts the trim) and the 时间修正 card (2/10 answered, trim 说不准, pv-zh regions with the previous build, 54 retired of which 3 answered) — {"rows":["音频类型对照（T-09）18 / 40","只重识别模型（T-10）18 / 28","接缝去重对比（④）22 / 22","时间修正对比（⑤）3 / 11","其余差异（可选）0 / 54"]}
+PASS ① and ④ items render as before (no captions on them); ④'s note still names its one changed decision — {"view09":{"lanes":4,"caps":0,"all":"含前后 2 秒","energy":0},"vSeamView":{"lanes":6,"caps":0,"restore":1,"marks":1,"all":"含前后 3 秒"}}
+PASS narrow (820 px): the selector lists the 14 ⑤ items, captions stay side by side, no horizontal overflow — {"options":14,"overflow":0,"caps":2}
+PASS no request leaves the local server — []
+PASS no failed request (besides the browser's favicon probe) — {"failed":0,"unexpected":[]}
+PASS no console errors — {"errors":3,"other":[]}
+37/37 passed
+
+说明：
+- 上面的细节 JSON 有几处为篇幅缩短（列表分组的样本说明、页面上的长句），完整输出在 test-results/asr-quality-listening/_check/tfix-8ytcfr-check.log 和 tfix-report.json（本地，不提交）。
+- “旧答案照旧有效”核对了三种情况：同一个窗口 id 的结论（tfix-pv-zh-quiet-102500 在结论栏显示为“都不准”、备注原样）；这一版不再显示的窗口的结论（留在存储里，不计入进度，导出到 retiredTimingItems 和 Markdown「不再显示的窗口」，干净存储里导入后恢复）；上一版页面自己的 JSON 导出（不再显示的窗口还在它的 items 里）导入新页面后，68 条结论全部恢复。新页面写过存储后，上一版页面仍读到全部结论（它那边 ⑤ 5/25）。
+- 字幕栏核对的“正确”按页面自己的规则在 Node 里重算：播放头 t 落在 [起点, 终点) 的那一句，两句相接时取后一句；拖动核对 4 条共 179 个定位点，播放核对 3 条共 69 次 timeupdate（允许晚一帧），0 处不符。
+- 进度：⑤ 计 11 条（10 个窗口 + 修剪那条，修剪那条的 task 是 T-ASRQ-14）；必答共 101 条（40 + 28 + 22 + 11）。
+
+== 4. ⑤ 的条目（窗口核心；状态与“已对齐边的平移中位”是门槛看的量；挪动 = 起点或终点变化 ≥ 1 s；RMS = 对比文件对起点挪动 > 1 s 的句子的 100 ms 音量判读；起声强弱 = 门槛推演的判法，挪动 ≥ 0.3 s 的起点；vs 上一版 = 核心里修复后时间与 run-lGjDZk 不同的句数）
+必答 10 个：
+  tfix-drama-quiet-229050  核心 03:49.05–04:14.77  retimed（已对齐边平移中位 +610 ms，对齐 7/12）  4/6 句挪 ≥1 s  起点中位 +838 ms  最大 2330 ms  RMS 修复后/修复前/看不出 1/0/1  起声强弱 更好/更差/分不出 4/1/0  vs 上一版：核心 0/6 句不同，相邻 0/0
+  tfix-drama-quiet-280050  核心 04:40.05–05:06.15  retimed（已对齐边平移中位 +2360 ms，对齐 3/6）  2/2 句挪 ≥1 s  起点中位 +2360 ms  最大 2360 ms  RMS 修复后/修复前/看不出 0/2/0  起声强弱 更好/更差/分不出 0/2/0  vs 上一版：核心 0/4 句不同，相邻 2/2
+  tfix-drama-noisy-280050  核心 04:40.05–05:06.15  retimed（已对齐边平移中位 +2970 ms，对齐 3/6）  3/3 句挪 ≥1 s  起点中位 +2970 ms  最大 2970 ms  RMS 修复后/修复前/看不出 1/2/0  起声强弱 更好/更差/分不出 2/1/0  vs 上一版：核心 0/3 句不同，相邻 2/2
+  tfix-pv-zh-quiet-77500  核心 01:17.50–01:42.50  not_early（已对齐边平移中位 -10 ms，对齐 19/24）  1/12 句挪 ≥1 s  起点中位 ±0 ms  最大 2180 ms  RMS 0/0/0  起声强弱 0/0/0  vs 上一版：核心 12/12 句不同（最多 1490 ms），相邻 2/3  标签 T-09 #9、有变
+  tfix-pv-zh-quiet-102500  核心 01:42.50–02:07.50  retimed（已对齐边平移中位 +2150 ms，对齐 22/26）  11/11 句挪 ≥1 s  起点中位 +2150 ms  最大 2610 ms  RMS 修复后/修复前/看不出 3/0/8  起声强弱 更好/更差/分不出 4/5/2  vs 上一版：核心 0/12 句不同，相邻 4/4  标签 ④ #11、压短
+  tfix-pv-zh-quiet-177500  核心 02:57.50–03:22.50  retimed（已对齐边平移中位 +5010 ms，对齐 9/16）  7/7 句挪 ≥1 s  起点中位 +4760 ms  最大 5490 ms  RMS 修复后/修复前/看不出 0/0/7  起声强弱 更好/更差/分不出 3/1/3  vs 上一版：核心 0/8 句不同，相邻 2/2  标签 压短
+  tfix-pv-zh-noisy-177500  核心 02:57.50–03:22.50  retimed（已对齐边平移中位 +640 ms，对齐 11/14）  3/5 句挪 ≥1 s  起点中位 +640 ms  最大 1770 ms  RMS 修复后/修复前/看不出 0/0/2  起声强弱 更好/更差/分不出 3/0/1  vs 上一版：核心 0/5 句不同，相邻 1/2
+  tfix-pv-ja-quiet-177500  核心 02:57.50–03:22.50  retimed（已对齐边平移中位 +1880 ms，对齐 2/8）  4/4 句挪 ≥1 s  起点中位 +1880 ms  最大 1880 ms  RMS 修复后/修复前/看不出 0/0/3  起声强弱 更好/更差/分不出 1/0/2  vs 上一版：核心 0/4 句不同，相邻 2/2
+  tfix-pv-ja-noisy-177500  核心 02:57.50–03:22.50  retimed（已对齐边平移中位 +1960 ms，对齐 2/8）  3/3 句挪 ≥1 s  起点中位 +1960 ms  最大 1960 ms  RMS 修复后/修复前/看不出 0/0/3  起声强弱 更好/更差/分不出 1/0/2  vs 上一版：核心 0/3 句不同，相邻 2/2
+  tfix-pv-ja-noisy-202500  核心 03:22.50–03:48.78  retimed（已对齐边平移中位 +2580 ms，对齐 1/6）  3/3 句挪 ≥1 s  起点中位 +2580 ms  最大 2580 ms  RMS 修复后/修复前/看不出 0/3/0  起声强弱 更好/更差/分不出 0/3/0  vs 上一版：核心 0/3 句不同，相邻 0/0
+修剪 1 个：trim-pv-ja-noisy-177420（task T-ASRQ-14，修复前 02:57.42–03:01.00，修复后 02:57.42–03:02.96，上一版 02:57.49–03:02.96，去掉开头 20 个字素，剪辑 02:51.72–03:04.96，与上一版同一个剪辑）
+可选 3 个（折叠在列表最后，不计入进度）：
+  tfix-independent-quiet-101850  核心 01:41.85–02:06.85  retimed（已对齐边平移中位 +510 ms，对齐 11/16）  3/8 句挪 ≥1 s  起点中位 +510 ms  最大 1630 ms  RMS 修复后/修复前/看不出 2/0/0  起声强弱 更好/更差/分不出 5/0/0  vs 上一版：核心 0/8 句不同，相邻 2/2
+  tfix-independent-noisy-152140  核心 02:32.14–02:55.99  retimed（已对齐边平移中位 +900 ms，对齐 8/10）  3/5 句挪 ≥1 s  起点中位 +900 ms  最大 1340 ms  RMS 修复后/修复前/看不出 1/0/0  起声强弱 更好/更差/分不出 3/0/0  vs 上一版：核心 0/5 句不同，相邻 1/1
+  tfix-pv-ja-noisy-152500  核心 02:32.50–02:57.50  not_early（已对齐边平移中位 +310 ms，对齐 5/20）  1/10 句挪 ≥1 s  起点中位 ±0 ms  最大 1960 ms  RMS 0/0/0  起声强弱 0/0/0  vs 上一版：核心 10/10 句不同（最多 320 ms），相邻 0/1  标签 有变
+不再显示 54 个（上一版 run-lGjDZk 的窗口；上一版必答 14 个、可选 40 个；这一版全部 not_early，核心里没有一句挪动，最大 0 ms）：
+  上一版必答：tfix-full-quiet-27500, tfix-full-quiet-114980, tfix-full-quiet-142480, tfix-full-noisy-27500, tfix-drama-quiet-0, tfix-drama-quiet-150980, tfix-drama-noisy-150980, tfix-drama-noisy-452820, tfix-pv-zh-quiet-127500, tfix-pv-zh-quiet-202500, tfix-pv-zh-noisy-77500, tfix-pv-zh-noisy-102500, tfix-pv-zh-noisy-127500, tfix-pv-zh-noisy-202500
+  上一版可选：tfix-A-quiet-0, tfix-A-noisy-0, tfix-C-quiet-0, tfix-C-noisy-0, tfix-independent-quiet-0, tfix-independent-quiet-26100, tfix-independent-noisy-0, tfix-independent-noisy-26100, tfix-independent-noisy-77380, tfix-independent-noisy-126850, tfix-full-quiet-0, tfix-full-quiet-52500, tfix-full-quiet-77500, tfix-drama-quiet-25000, tfix-drama-quiet-77050, tfix-drama-quiet-101970, tfix-drama-quiet-125250, tfix-drama-quiet-306150, tfix-drama-quiet-356490, tfix-drama-quiet-452820, tfix-drama-quiet-477770, tfix-drama-quiet-530000, tfix-drama-quiet-555760, tfix-drama-quiet-678640, tfix-drama-noisy-25000, tfix-drama-noisy-52050, tfix-drama-noisy-77050, tfix-drama-noisy-101970, tfix-drama-noisy-125250, tfix-drama-noisy-179510, tfix-drama-noisy-229050, tfix-drama-noisy-306150, tfix-drama-noisy-329990, tfix-drama-noisy-356490, tfix-drama-noisy-477770, tfix-drama-noisy-628480, tfix-drama-noisy-678640, tfix-pv-zh-noisy-27500, tfix-pv-ja-quiet-27500, tfix-pv-ja-quiet-102500
+说明：
+- 13 个窗口都在上一版里，id 不变，必答 / 可选也与上一版相同（10 个必答，3 个可选）。11 个窗口这一版仍改时间，核心里的修复后时间与上一版完全相同，只是剪辑范围里相邻窗口的几句（表格灰色行）回到了修复前。另 2 个（pv-zh 低音量 01:17.5、pv-ja 嘈杂 02:32.5）这一版没有改时间，只因为接缝去重把一句的起点留在这个窗口、终点跟着下一个改了时间的窗口，才仍有一句挪 ≥ 1 s（对应重跑记录的两处接缝例外 pv-zh/Q #34、pv-ja/N #59）；它们核心里的时间与上一版不同，标“有变”。
+- 提示按这一版的结果改写：去掉了已不再显示的 drama 开头（T-09 #3）、drama 02:30–02:59、样本 A 的提示；新写了 pv-zh 低音量 01:17.5（标签 T-09 #9）、pv-zh 嘈杂 02:57.5、drama 低音量 03:49（#38 只剩 0.24 s）、pv-ja 两种预设 02:57.5（① #19）、pv-ja 嘈杂 03:22.5 与 02:32.5 的提示；pv-zh 低音量 01:42.5 / 02:57.5、drama 04:40 两种预设的提示补上了“门槛挡不住 / 这一版仍改时间”和起声强弱的读数；修剪那条改为“起点仍是上一句的终点 02:57.42”。每条提示另外自动写出起声强弱的计数。提示里只有时间、计数和窗口说明，没有转写文字。
+
+== 5. 截图（_check/，25 张，都逐张看过）
+tfix-pvzh-w4-light-1280x800.png、tfix-pvzh-w3-light-1280x800.png、tfix-drama-280-light-1280x800.png、tfix-trim-light-1280x800.png
+tfix-pvzh-w4-light-1024x700.png、tfix-pvzh-w3-light-1024x700.png、tfix-drama-280-light-1024x700.png、tfix-trim-light-1024x700.png
+tfix-pvzh-w4-dark-1280x800.png、tfix-pvzh-w3-dark-1280x800.png、tfix-drama-280-dark-1280x800.png、tfix-trim-dark-1280x800.png
+tfix-pvzh-w4-dark-1024x700.png、tfix-pvzh-w3-dark-1024x700.png、tfix-drama-280-dark-1024x700.png、tfix-trim-dark-1024x700.png
+tfix-playing-light-1280x800.png、tfix-playing-light-1024x700.png、tfix-playing-dark-1280x800.png、tfix-playing-dark-1024x700.png
+tfix-table-light-1280x800.png、tfix-list-bottom-light-1280x800.png、tfix-list-top-light-1280x800.png、tfix-pvzh-w4-light-820x900.png、summary-tfix-light-1280x800.png
+（pvzh-w4 = pv-zh 低音量 01:42.5，pvzh-w3 = pv-zh 低音量 01:17.5“有变”，drama-280 = drama 低音量 04:40，trim = 修剪那条。）
+看截图后改的：
+- 第一次运行的截图里，⑤ 列表顶部的说明三段约占侧栏 350 px，把条目挤到下面：把三段都改短（两次运行的说明、选法、和上一版的关系），第二次运行的 1280×800 截图里第一组条目从侧栏一半处开始，1024×700 下仍要往下翻一点。
+- 其余没有发现问题：“有变”“T-09 #9”“压短”标签在浅色、深色下都清楚；1024×700 下标签换到第二行，没有挤压时间；字幕栏、表格（灰色相邻行、橙色挪动、“被压到 0.72 s”“修复后没有”标记）、修剪的删除线、汇总卡片的“（上一版 x）”和不再显示的说明都正常；820 px 下条目选择器列出 14 条，没有横向滚动。
+
+== 6. 用户的服务与进程
+用户自己开着的 serve.mjs（127.0.0.1:47811，PID 24536）没有停、没有重启；只发了一次 HTTP GET /，返回 200，内容的 sha256 与新 index.html 相同（30b28f4f…），刷新即可看到新页面。自检用的临时 serve.mjs（12102 端口）在结束时停掉，之后没有其他 serve.mjs 进程。没有结束任何不是自己启动的进程。
+
+== 7. 记录结构试检
+python check_spec.py docs/features/asr-quality --stage draft --json：0 error、0 warning；T-ASRQ-17 的任务指纹重新计算为 4e4c7e213e1d605bd3859c9529b1568f0a39265c88e256aee67ac29a979ed807（与上一版记录相同，规格这次没有改到这个任务）。
+用 spec_core.record_check 把 T-ASRQ-17 当作已完成试检 records/T-ASRQ-17.md（不写任何文件）：只有 2 个错误，都是预期的——V-ASRQ-17-2 未运行、AC-ASRQ-15-4 没有已通过的关联检查（两者都要用户听审）；元数据、日期、任务指纹、检查表、AC 表和两个必需小节都通过。
