@@ -2181,6 +2181,39 @@ describe("Studio gated quiet audio", () => {
   });
 });
 
+// 2026-10-23 asr-quality T-ASRQ-11: the Studio executor drops reported seam duplicates;
+// the copied T02 executor still exports the post-processed transcript unchanged.
+// 2026-10-24: the kept tail clipped to the same seam gets its raw end back.
+describe("Studio seam duplicates", () => {
+  const options = (right: readonly ReturnType<typeof rawSegment>[]): HarnessOptions => ({ totalFrames: 55 * 16000,
+    inference: ({ request, window }) => ({ processEpoch: 1, response: serverResponse(request, window.endMs - window.startMs,
+      window.startMs === 0 ? [rawSegment(0, 23800, 25600, "明天上午"), rawSegment(1, 25600, 27900, "我们一起去图书馆")] : right) }) });
+
+  it.each([
+    { label: "drops a clipped copy of the previous cues, restores the kept tail's end", dropped: [2], restoredEndMs: 27900,
+      right: [rawSegment(0, 200, 3200, "明天上午，我们一起去图书馆"), rawSegment(1, 3200, 8600, "如果下雨就改到下周再去")] },
+    { label: "keeps a repetition heard after the clipped tail", dropped: [] as number[], restoredEndMs: undefined,
+      right: [rawSegment(0, 3000, 3600, "图书馆"), rawSegment(1, 3600, 8600, "如果下雨就改到下周再去")] },
+  ])("$label and reports drops outside the transcript", async ({ right, dropped, restoredEndMs }) => {
+    const original = await createHarness(options(right));
+    expect((await original.executor.execute(original.context)).status).toBe("completed");
+    original.executor.endBatchSlice(original.context.batchRuntime);
+    const exported = original.exporter.exportArtifacts.mock.calls[0]![0].transcript.segments;
+    const harness = await createStudioHarness(options(right));
+    const result = await harness.executor.execute(harness.context);
+    expect(result.status).toBe("transcript_ready");
+    if (result.status !== "transcript_ready") return;
+    expect(result.transcript.segments).toEqual(exported.flatMap((cue, index) => dropped.includes(index) ? []
+      : index === 1 && restoredEndMs !== undefined ? [{ ...cue, endMs: restoredEndMs }] : [cue]));
+    expect(result.seamDuplicates?.map(duplicate => duplicate.cueId)).toEqual(dropped.length ? ["cue-000003"] : undefined);
+    expect(result.seamDuplicates?.[0]).toEqual(dropped.length ? { cueId: "cue-000003", startMs: 27500, endMs: 28200, seamMs: 27500,
+      clippedEdge: "start", coverage: 1, keptCueIds: ["cue-000001", "cue-000002"],
+      restoredEdge: { cueId: "cue-000002", edge: "end", fromMs: 27500, toMs: 27900 } } : undefined);
+    expect(harness.supervisor.beginInference).toHaveBeenCalledTimes(2);
+    harness.executor.endBatchSlice(harness.context.batchRuntime);
+  });
+});
+
 interface HarnessOptions {
   readonly taskWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";
   readonly rootWindowStrategy?: "fixed_v1" | "acoustic_quiet_v1";

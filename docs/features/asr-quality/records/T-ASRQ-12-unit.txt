@@ -1,0 +1,47 @@
+# T-ASRQ-12 V-ASRQ-12-1 复核规则单元测试
+# 日期：2026-10-24 17:13:33 +0800；工作树基于 748285ec（未提交）
+# 文件哈希（sha256）：transcription-review.ts a5ec35e815129c392778983b5efc7f9ee0556c7d8eaa576bed39535295174083；transcription-review.test.ts 4362b4faf63c86ad90303183ffe4cf46b945daa83f6b8cacc309cf03412e1a7c
+# 命令：npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription-review.test.ts test/subtitle-studio/transcription-review-ipc.test.ts test/subtitle-studio/cue-recognize.test.ts --reporter=verbose
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > flags the requirement samples as phantom phrase, non-speech, repetition and rate, and leaves an ordinary line alone (AC-ASRQ-03-2)
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > uses confidence only on unedited cues that have one, below the threshold
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > matches phantom phrases per language after normalizing, and not common real lines
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > finds repetition loops by repeated units and, with a compressor, by the deflate ratio
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > marks symbol-only lines and bracketed notes as non-speech, but not lines with speech beside a note
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > flags speech too fast for its script, and long cues with almost no text
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > flags a line repeating the one before it shortly after
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > flags a near copy of the line before it: one inside the other, or a character or two apart (R-ASRQ-14)
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > leaves short interjections and lines a second or more apart alone
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > collapses the longest repetition to one unit and keeps what follows
+ ✓ test/subtitle-studio/transcription-review.test.ts > transcription review rules > reads the language from the transcript, the audio track or the script
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > lists flagged cues in document order with per-reason counts and the confidence used
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > drops confidence for edited, split and inserted cues, which may share a segment
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > compares a near copy only with the cue right before it
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > reviews an older document without confidence by its text alone
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > caps the listed cues but counts them all, and hides ignored flags until the text changes
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > keeps ignores per document, for the session when storage is unavailable, until they are restored
+ ✓ test/subtitle-studio/transcription-review.test.ts > reviewing a whole document > moves through flagged cues from where the list is, wrapping at both ends
+ ✓ test/subtitle-studio/transcription-review-ipc.test.ts > the review query over the Studio IPC > counts and orders flagged cues across pages, lands on each one's page and steps through them
+ ✓ test/subtitle-studio/transcription-review-ipc.test.ts > the review query over the Studio IPC > reviews an older transcript without confidence by its text alone
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > hands the model a 16 kHz clip of the cue with a second of context on each side, then removes it 1847ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > keeps only the segments over the cue: the context around it, or a neighbour heard with it, does not become its text 843ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > follows the model profile: a text-only model hears the cue alone, in its language and without a prompt 505ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > keeps a text-only model's padding off the cues around the cue, so their words do not join its text 309ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > gains a quiet clip and sends it with voice padding, as a gained transcription window 536ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > rates the result as the transcript is rated and names the review rules it trips 548ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > refuses long cues and missing media, and removes the clip when the model fails or is stopped 452ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > recognizing a cue again > accepts known languages, device settings and short plain prompts only
+ ✓ test/subtitle-studio/cue-recognize.test.ts > the runtime recognizes a clip outside the task queue > leases the server for an installed model, sends the clip without VAD, and reuses the warm process 810ms
+ ✓ test/subtitle-studio/cue-recognize.test.ts > the runtime recognizes a clip outside the task queue > pads a gained clip with the installed VAD, reloading the server for it, and returns the segments in clip time 410ms
+
+ Test Files  3 passed (3)
+      Tests  30 passed | 1 skipped (31)
+   Start at  17:13:35
+   Duration  10.96s (transform 1.75s, setup 0ms, collect 9.23s, tests 6.69s, environment 1ms, prepare 230ms)
+
+exit 0
+
+# 2026-10-24 17:13:46 +0800 npx tsc --noEmit -p tsconfig.json
+exit 0

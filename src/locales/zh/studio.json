@@ -1433,7 +1433,7 @@
       "repetition_loop": "同一段文字反复出现，识别可能陷入了循环",
       "non_speech_only": "只有符号、标点或括号标注，没有识别出说话内容",
       "abnormal_rate": "字数与时长不相称：读得过快，或很长时间里几乎没有文字",
-      "duplicate_neighbor": "与上一句文字相同且紧挨着"
+      "duplicate_neighbor": "与上一句文字相同或几乎相同且紧挨着"
     },
     "badge": "待复核：{{reasons}}",
     "current": "第 {{number}} 条",

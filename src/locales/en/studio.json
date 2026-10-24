@@ -1433,7 +1433,7 @@
       "repetition_loop": "The same words repeat; recognition may have looped",
       "non_speech_only": "Only symbols, punctuation or bracketed notes; no speech was recognized",
       "abnormal_rate": "Too much text for its length, or a long stretch with almost none",
-      "duplicate_neighbor": "Same text as the line just before it"
+      "duplicate_neighbor": "Same or nearly the same text as the line just before it"
     },
     "badge": "To check: {{reasons}}",
     "current": "#{{number}}",

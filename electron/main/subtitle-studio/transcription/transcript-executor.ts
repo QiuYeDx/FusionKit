@@ -79,11 +79,13 @@ import {
   assessLocalSubtitleRawWindow,
   createSubtitlePostProcessPolicy,
   decideLocalSubtitleWindowRetry,
+  dropLocalSubtitleSeamDuplicates,
   planLocalSubtitleRootWindows,
   postProcessLocalSubtitleTranscript,
   throwLocalSubtitleWindowDecisionFailure,
   type LocalSubtitlePostProcessingWindow,
   type LocalSubtitlePostProcessingWindowAttempt,
+  type LocalSubtitleSeamDuplicate,
 } from "./native/subtitle-post-processor";
 
 const DEFAULT_CPU_THREADS = 4;
@@ -175,7 +177,8 @@ export type TranscriptionTaskExecutionContext = Omit<NativeTaskExecutionContext,
   readonly config: TranscriptionBatchExecutionContext["config"];
 };
 export type TranscriptExecutionResult =
-  | Readonly<{ status: "transcript_ready"; transcript: LocalSubtitleTranscript; durationMs?: number; cueSummary: LocalSubtitleCueSummary }>
+  | Readonly<{ status: "transcript_ready"; transcript: LocalSubtitleTranscript; durationMs?: number; cueSummary: LocalSubtitleCueSummary;
+      seamDuplicates?: readonly LocalSubtitleSeamDuplicate[] }>
   | Readonly<{ status: "no_content"; durationMs?: number }>
   | Readonly<{ status: "failed"; error: LocalSubtitleError; durationMs?: number }>
   | Readonly<{ status: "cancelled"; durationMs?: number }>;
@@ -356,6 +359,7 @@ export class TranscriptionExecutor {
     let transcript:
       | ReturnType<typeof postProcessLocalSubtitleTranscript>["transcript"]
       | undefined;
+    let seamDuplicates: readonly LocalSubtitleSeamDuplicate[] = [];
     let pipelineError: unknown;
     let durationMs: number | undefined;
 
@@ -720,7 +724,7 @@ export class TranscriptionExecutor {
         },
         durationMs,
       });
-      transcript = postProcessLocalSubtitleTranscript({
+      const processed = postProcessLocalSubtitleTranscript({
         source: {
           displayName: normalized.displayName,
           durationMs: normalized.durationMs,
@@ -737,7 +741,8 @@ export class TranscriptionExecutor {
         policy,
         rootPlan,
         attempts,
-      }).transcript;
+      });
+      transcript = processed.transcript;
       // One optional pass retains primary words; qualified DTW points may divide a parent cue.
       // Non-Windows/backends remain on the previously verified production path.
       if (runtime.target.platform === "win32" && context.config.resolvedBackend === "cuda" &&
@@ -1157,6 +1162,13 @@ export class TranscriptionExecutor {
           segments: Object.freeze(transcript.segments.map(cue =>
             restoreFinalLocalSubtitleSeparators(cue, normalized!.normalizationId, displayViews))) });
       }
+      // The optional seam repairs above read the clipped cues first; a reported seam
+      // duplicate leaves only while it and its kept cues are unchanged, and a kept
+      // cue clipped to the same seam then gets that edge back.
+      const seam = dropLocalSubtitleSeamDuplicates(processed.transcript.segments,
+        processed.report.seamDuplicates, transcript.segments);
+      seamDuplicates = seam.dropped;
+      if (seam.dropped.length) transcript = Object.freeze({ ...transcript, segments: seam.segments });
       context.update({
         status: "post_processing",
         progress: {
@@ -1215,6 +1227,8 @@ export class TranscriptionExecutor {
       transcript,
       durationMs,
       cueSummary: summarizeLocalSubtitleCues(transcript.segments, createSubtitlePostProcessPolicy(context.config.inference)),
+      // Diagnostics only: the document receives the transcript without these cues.
+      ...(seamDuplicates.length ? { seamDuplicates } : {}),
     });
   }
 

@@ -11,6 +11,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { createTranscriptionRuntime } from '../../electron/main/subtitle-studio/transcription/runtime';
+import { TranscriptionExecutor } from '../../electron/main/subtitle-studio/transcription/transcript-executor';
+import type { LocalSubtitleSeamDuplicate } from '../../electron/main/subtitle-studio/transcription/native/subtitle-post-processor';
 import { LocalSubtitleMediaNormalizer as StudioMedia } from '../../electron/main/subtitle-studio/transcription/native/media-normalizer';
 import { LocalSubtitleServerSupervisor as StudioServer } from '../../electron/main/subtitle-studio/transcription/native/server-supervisor';
 import { createLocalSubtitleProductionBackendAttestor } from '../../electron/main/subtitle-studio/transcription/native/backend-attestor';
@@ -39,6 +41,11 @@ export interface AsrAbCaseEvidence extends AsrAbCase {
   schemaVersion: 1; sample: { id: string; language: string; path?: string; byteSize?: number; sha256?: string; durationMs?: number };
   config: EnqueueTranscriptionRequest['config']; profileAccepted: boolean; probeMs?: number;
   task?: unknown; document?: { id: string; cues: number }; transcriptModel?: unknown;
+  /**
+   * Cues the executor dropped at window seams, each with the kept cue edge it gave back
+   * (restoredEdge; ids and times only). The document never holds the dropped cues.
+   */
+  seamDuplicates?: readonly LocalSubtitleSeamDuplicate[];
   requestSummary: ReturnType<typeof summarizeRequestFields>; processIds: number[]; serverLoads: string[];
   backendProofs: { processId: number; backend: string; acceleratorPackGeneration?: string }[]; observerErrors: string[];
   cleanup?: { joined: boolean; processesExited: boolean; workRemoved: boolean; error?: string };
@@ -155,6 +162,12 @@ function observeCase(record: AsrAbCaseEvidence) {
           textChars: cueChars(String(result.text ?? '')) });
       }, rejected: error => { entry.elapsedMs = Date.now() - started; entry.error = message(error); } };
     }, result => object(result).result);
+    // Only the executor result lists the seam duplicates it dropped, and the kept edges it
+    // restored, before the document was written; entries are kept whole.
+    observe(TranscriptionExecutor.prototype, 'execute', () => ({ resolved: value => {
+      const { seamDuplicates } = object(value);
+      if (Array.isArray(seamDuplicates)) record.seamDuplicates = seamDuplicates as LocalSubtitleSeamDuplicate[];
+    } }));
   } catch (error) { for (const restore of restores.reverse()) restore(); throw error; }
   return { async close() {
     try { await within((async () => { while (pending.size) await Promise.all([...pending]); })(), ASR_AB_BUDGET.cleanupMs, 'A/B observers did not settle'); }

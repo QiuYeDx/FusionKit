@@ -35,6 +35,11 @@ const PUNCTUATION_ONLY_PATTERN = /^[\p{P}\s]+$/u;
 const CJK_PATTERN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 // Transcript confidence keeps three decimals.
 const CONFIDENCE_SCALE = 1_000;
+// A clipped seam cue repeats the other window when edits to at most a fifth of
+// its characters turn it into one stretch there.
+const SEAM_DUPLICATE_MIN_COVERAGE = 0.8;
+// Bounds one comparison; a larger pair is kept rather than compared.
+const SEAM_DUPLICATE_MAX_COMPARISON_UNITS = 1_000_000;
 
 export const LOCAL_SUBTITLE_POST_PROCESSING_POLICY = deepFreeze({
   schemaVersion: 3,
@@ -236,6 +241,34 @@ export interface LocalSubtitlePostProcessingWarning {
   readonly count: number;
 }
 
+/** A clipped seam cue the other window already recognized; ids and times only, never text. */
+export interface LocalSubtitleSeamDuplicate {
+  readonly cueId: string;
+  readonly startMs: number;
+  readonly endMs: number;
+  readonly seamMs: number;
+  /** "start": the next window's cue starts at the seam; "end": the previous window's cue ends there. */
+  readonly clippedEdge: "start" | "end";
+  /** 1 minus edits per comparison character to the closest stretch across the seam. */
+  readonly coverage: number;
+  /** Cues across the seam that keep this speech and stay unchanged. */
+  readonly keptCueIds: readonly string[];
+  /**
+   * The kept cue clipped to the same seam from the other side, whose edge goes
+   * back toward its raw time once this copy is gone. The report gives the
+   * furthest it may move; dropLocalSubtitleSeamDuplicates gives where it moved.
+   */
+  readonly restoredEdge?: LocalSubtitleRestoredSeamEdge;
+}
+
+/** A kept cue's edge moved from the seam (fromMs) toward its raw time (toMs); never text. */
+export interface LocalSubtitleRestoredSeamEdge {
+  readonly cueId: string;
+  readonly edge: "start" | "end";
+  readonly fromMs: number;
+  readonly toMs: number;
+}
+
 export interface LocalSubtitlePostProcessingReport {
   readonly localReview: LocalSubtitleReviewPlan;
   readonly policy: LocalSubtitlePostProcessPolicy;
@@ -259,6 +292,8 @@ export interface LocalSubtitlePostProcessingReport {
   readonly droppedBoundaryFragmentCount: number;
   readonly timelineOverlapAdjustmentCount: number;
   readonly timelineBoundaryClampCount: number;
+  /** Reported only; the transcript keeps these cues until dropLocalSubtitleSeamDuplicates. */
+  readonly seamDuplicates: readonly LocalSubtitleSeamDuplicate[];
   readonly splitSegmentCount: number;
   readonly shortCueMergeCount: number;
   readonly estimatedTimingSegmentCount: number;
@@ -380,6 +415,19 @@ interface ShapingDiagnostics {
   shortCueMergeCount: number;
   estimatedTimingSegmentCount: number;
   preservedSegmentCount: number;
+}
+
+interface SeamDuplicateDecision {
+  readonly index: number;
+  readonly seamMs: number;
+  readonly clippedEdge: "start" | "end";
+  readonly coverage: number;
+  readonly keptIndices: readonly number[];
+  readonly restoredEdge?: {
+    readonly index: number;
+    readonly edge: "start" | "end";
+    readonly toMs: number;
+  };
 }
 
 export function createSubtitlePostProcessPolicy(
@@ -765,6 +813,7 @@ export function postProcessLocalSubtitleTranscript(
       },
     );
   }
+  const seamDuplicateDecisions = findSeamDuplicates(leaves, merged, input.policy);
 
   const shapingDiagnostics: ShapingDiagnostics = {
     splitSegmentCount: 0,
@@ -904,6 +953,31 @@ export function postProcessLocalSubtitleTranscript(
         mergeDiagnostics.timelineOverlapAdjustmentCount,
       timelineBoundaryClampCount:
         mergeDiagnostics.timelineBoundaryClampCount,
+      // Canonical cues map one to one onto merged segments.
+      seamDuplicates: seamDuplicateDecisions.map((decision) => {
+        const cue = validated.data.segments[decision.index]!;
+        return {
+          cueId: cue.id,
+          startMs: cue.startMs,
+          endMs: cue.endMs,
+          seamMs: decision.seamMs,
+          clippedEdge: decision.clippedEdge,
+          coverage: decision.coverage,
+          keptCueIds: decision.keptIndices.map(
+            (index) => validated.data.segments[index]!.id,
+          ),
+          ...(decision.restoredEdge === undefined
+            ? {}
+            : {
+                restoredEdge: {
+                  cueId: validated.data.segments[decision.restoredEdge.index]!.id,
+                  edge: decision.restoredEdge.edge,
+                  fromMs: decision.seamMs,
+                  toMs: decision.restoredEdge.toMs,
+                },
+              }),
+        };
+      }),
       splitSegmentCount: shapingDiagnostics.splitSegmentCount,
       shortCueMergeCount: shapingDiagnostics.shortCueMergeCount,
       preservedSegmentCount: shapingDiagnostics.preservedSegmentCount,
@@ -913,6 +987,71 @@ export function postProcessLocalSubtitleTranscript(
       firstFinalStartMs: validated.data.segments[0]!.startMs,
       lastFinalEndMs: validated.data.segments.at(-1)!.endMs,
     },
+  });
+}
+
+/**
+ * Removes reported seam duplicates whose cue and kept cues are still present
+ * with their reported timing and wording (separators aside). A cue a later
+ * repair replaced keeps that repair's decision, and a duplicate whose kept cue
+ * would also go stays. Kept cues keep their wording; only a reported edge
+ * clipped to the same seam goes back toward its raw time, never over the
+ * nearest remaining cue on that side.
+ */
+export function dropLocalSubtitleSeamDuplicates<
+  T extends Pick<LocalSubtitleSegment, "id" | "startMs" | "endMs" | "text">,
+>(
+  reported: readonly LocalSubtitleSegment[],
+  duplicates: readonly LocalSubtitleSeamDuplicate[],
+  current: readonly T[],
+): Readonly<{
+  segments: readonly T[];
+  dropped: readonly LocalSubtitleSeamDuplicate[];
+}> {
+  const reportedById = new Map(reported.map((cue) => [cue.id, cue] as const));
+  const currentById = new Map(current.map((cue) => [cue.id, cue] as const));
+  const unchanged = (id: string): boolean => {
+    const before = reportedById.get(id);
+    const after = currentById.get(id);
+    return (
+      before !== undefined &&
+      after !== undefined &&
+      before.startMs === after.startMs &&
+      before.endMs === after.endMs &&
+      boundaryFingerprint(before.text) === boundaryFingerprint(after.text)
+    );
+  };
+  const candidates = duplicates.filter(
+    (duplicate) =>
+      unchanged(duplicate.cueId) && duplicate.keptCueIds.every(unchanged),
+  );
+  const candidateIds = new Set(candidates.map((duplicate) => duplicate.cueId));
+  const dropped = candidates.filter(
+    (duplicate) => !duplicate.keptCueIds.some((id) => candidateIds.has(id)),
+  );
+  const droppedIds = new Set(dropped.map((duplicate) => duplicate.cueId));
+  const segments = current.filter((cue) => !droppedIds.has(cue.id));
+  // Each entry lists the edge it restored here, if any.
+  const restored = dropped.map(({ restoredEdge, ...duplicate }) => {
+    const position = restoredEdge && duplicate.keptCueIds.includes(restoredEdge.cueId)
+      ? segments.findIndex((cue) => cue.id === restoredEdge.cueId)
+      : -1;
+    const cue = segments[position];
+    if (!restoredEdge || !cue) return Object.freeze(duplicate);
+    const start = restoredEdge.edge === "start";
+    const toMs = start
+      ? Math.max(restoredEdge.toMs, segments[position - 1]?.endMs ?? restoredEdge.toMs)
+      : Math.min(restoredEdge.toMs, segments[position + 1]?.startMs ?? restoredEdge.toMs);
+    const fromMs = start ? cue.startMs : cue.endMs;
+    if (fromMs !== restoredEdge.fromMs || (start ? toMs >= fromMs : toMs <= fromMs)) {
+      return Object.freeze(duplicate);
+    }
+    segments[position] = Object.freeze(start ? { ...cue, startMs: toMs } : { ...cue, endMs: toMs });
+    return Object.freeze({ ...duplicate, restoredEdge: Object.freeze({ ...restoredEdge, toMs }) });
+  });
+  return Object.freeze({
+    segments: Object.freeze(segments),
+    dropped: Object.freeze(restored),
   });
 }
 
@@ -1439,6 +1578,190 @@ function shapeCanonicalSegments(
   });
   diagnostics.estimatedTimingSegmentCount = planned.filter(segment => segment.estimatedTiming).length;
   return planned;
+}
+
+/**
+ * A raw observation that straddled an overlapping seam was clipped to it. When
+ * the other window already heard that speech (one stretch of the overlapping
+ * raw observations across the seam differs from the clipped cue in at most a
+ * fifth of its characters), the clipped copy is a duplicate; a short reply
+ * whose characters only occur apart in a longer sentence there stays. The next
+ * window's copy is judged first, so the previous window keeps speech it heard
+ * in place; legal repetition heard at other times never overlaps and is never
+ * compared. A clipped cue whose far end (away from the seam) carries words the
+ * other window's copy stops short of is not a duplicate, so dropping never
+ * loses words. A cue that keeps an earlier duplicate's speech goes only when that
+ * duplicate stays covered without it, so every kept cue survives and drops
+ * never cascade across consecutive seams. With its copy gone, a kept cue clipped
+ * to the same seam from the other side no longer needs that cut: its edge may go
+ * back toward its raw time, never past the copy's far edge nor beyond the
+ * configured longest cue.
+ */
+function findSeamDuplicates(
+  leaves: readonly LocalSubtitlePostProcessingWindowAttempt[],
+  merged: readonly WorkingSegment[],
+  policy: LocalSubtitlePostProcessPolicy,
+): SeamDuplicateDecision[] {
+  let decisions: SeamDuplicateDecision[] = [];
+  const dropped = new Set<number>();
+  const covered = (index: number, clippedEdge: "start" | "end", keptIndices: readonly number[]) => {
+    const coverage = seamDuplicateCoverage(
+      merged[index]!.text,
+      clippedEdge,
+      keptIndices.map((other) => merged[other]!.text),
+      policy,
+    );
+    return coverage !== undefined && coverage >= SEAM_DUPLICATE_MIN_COVERAGE
+      ? coverage
+      : undefined;
+  };
+  for (let order = 1; order < leaves.length; order += 1) {
+    const left = leaves[order - 1]!.window;
+    const right = leaves[order]!.window;
+    const seamMs = left.coreEndMs;
+    // A pause cut shares no audio, so no observation straddles it.
+    if (right.startMs >= left.endMs) continue;
+    // Merged segments are ordered and disjoint, so their ends ascend too.
+    let first = 0;
+    for (let last = merged.length; first < last; ) {
+      const middle = (first + last) >> 1;
+      if (merged[middle]!.endMs <= right.startMs) first = middle + 1;
+      else last = middle;
+    }
+    const shared: number[] = [];
+    for (let index = first; index < merged.length && merged[index]!.startMs < left.endMs; index += 1) {
+      if (!dropped.has(index)) shared.push(index);
+    }
+    const clippedTo = (index: number, edge: "start" | "end") => {
+      const segment = merged[index]!;
+      return edge === "start"
+        ? segment.sourceWindowKey === right.windowKey &&
+          segment.startMs === seamMs && segment.rawObservationStartMs < seamMs
+        : segment.sourceWindowKey === left.windowKey &&
+          segment.endMs === seamMs && segment.rawObservationEndMs > seamMs;
+    };
+    const clipped = (["start", "end"] as const).flatMap((clippedEdge) =>
+      shared.filter((index) => clippedTo(index, clippedEdge))
+        .map((index) => ({ index, clippedEdge })));
+    for (const { index, clippedEdge } of clipped) {
+      const candidate = merged[index]!;
+      const keptIndices = shared.filter((other) => {
+        const segment = merged[other]!;
+        return !dropped.has(other) &&
+          (clippedEdge === "start" ? segment.startMs < seamMs : segment.startMs >= seamMs) &&
+          Math.max(segment.rawObservationStartMs, candidate.rawObservationStartMs) <
+            Math.min(segment.rawObservationEndMs, candidate.rawObservationEndMs);
+      });
+      const coverage = covered(index, clippedEdge, keptIndices);
+      if (coverage === undefined) continue;
+      // Earlier decisions that kept this cue are judged again without it; one
+      // that no longer holds keeps this cue.
+      const revised = decisions.flatMap((decision) => {
+        if (!decision.keptIndices.includes(index)) return [decision];
+        const remaining = decision.keptIndices.filter((other) => other !== index);
+        const kept = covered(decision.index, decision.clippedEdge, remaining);
+        return kept === undefined ? [] : [{
+          ...decision,
+          coverage: kept,
+          keptIndices: remaining,
+          restoredEdge: decision.restoredEdge?.index === index ? undefined : decision.restoredEdge,
+        }];
+      });
+      if (revised.length < decisions.length) continue;
+      dropped.add(index);
+      const edge = clippedEdge === "start" ? "end" : "start";
+      const restored = keptIndices.find((other) => clippedTo(other, edge));
+      let restoredEdge: SeamDuplicateDecision["restoredEdge"];
+      if (restored !== undefined) {
+        const cue = merged[restored]!;
+        // Seams go in time order, so a cue clipped at both its seams gets its start
+        // back first; its end then stays within the longest cue from that start.
+        const startMs = revised.find((decision) => decision.restoredEdge?.index === restored)
+          ?.restoredEdge?.toMs ?? cue.startMs;
+        const toMs = edge === "start"
+          ? Math.max(cue.rawObservationStartMs, candidate.startMs,
+            cue.endMs - policy.maxCueDurationMs)
+          : Math.min(cue.rawObservationEndMs, candidate.endMs, startMs + policy.maxCueDurationMs);
+        if (edge === "start" ? toMs < seamMs : toMs > seamMs) {
+          restoredEdge = { index: restored, edge, toMs };
+        }
+      }
+      decisions = [...revised, { index, seamMs, clippedEdge, coverage, keptIndices, restoredEdge }];
+    }
+  }
+  return decisions;
+}
+
+function seamDuplicateCoverage(
+  text: string,
+  clippedEdge: "start" | "end",
+  across: readonly string[],
+  policy: LocalSubtitlePostProcessPolicy,
+): number | undefined {
+  const units = createBoundaryComparisonMap(text).units;
+  const acrossUnits = across.flatMap((value) => createBoundaryComparisonMap(value).units);
+  const minimum = CJK_PATTERN.test(units.join(""))
+    ? policy.boundaryTextMinCjkChars
+    : policy.boundaryTextMinLatinChars;
+  if (
+    units.length < minimum ||
+    acrossUnits.length === 0 ||
+    units.length * acrossUnits.length > SEAM_DUPLICATE_MAX_COMPARISON_UNITS
+  ) {
+    return undefined;
+  }
+  // Read toward the far end, away from the seam: a next window's cue forward,
+  // a previous window's cue backward.
+  const edits = clippedEdge === "start"
+    ? closestStretchEdits(units, acrossUnits)
+    : closestStretchEdits([...units].reverse(), [...acrossUnits].reverse());
+  // Words past where the other window's copy stops were heard only here.
+  if (edits.unmatchedTail >= minimum) return undefined;
+  return (units.length - edits.count) / units.length;
+}
+
+/**
+ * Fewest insertions, deletions and substitutions that turn `units` into one
+ * contiguous stretch of `across`, so characters scattered through a longer
+ * sentence never count as a match, and the trailing units that every such
+ * edit leaves without any counterpart in `across`, matched or substituted.
+ */
+function closestStretchEdits(
+  units: readonly string[],
+  across: readonly string[],
+): { readonly count: number; readonly unmatchedTail: number } {
+  // A stretch may start anywhere, so matching no units yet costs nothing.
+  const edits = new Array<number>(across.length + 1).fill(0);
+  // A stretch may end anywhere too: for each prefix of units, the fewest
+  // edits that still pair its last unit with a character of the stretch
+  // (the empty prefix pairs nothing and costs nothing).
+  const pairedEdits = [0];
+  for (const unit of units) {
+    let diagonal = edits[0]!;
+    edits[0] = diagonal + 1;
+    let paired = Infinity;
+    for (let index = 0; index < across.length; index += 1) {
+      const above = edits[index + 1]!;
+      const pairing = diagonal + (unit === across[index] ? 0 : 1);
+      edits[index + 1] = Math.min(pairing, above + 1, edits[index]! + 1);
+      paired = Math.min(paired, pairing);
+      diagonal = above;
+    }
+    pairedEdits.push(paired);
+  }
+  // Units after the last paired one each cost a deletion. Among the fewest
+  // edits, the latest last pairing leaves only units past the end of `across`:
+  // any earlier, substituting the next unit would cost no more.
+  let count = units.length;
+  let unmatchedTail = units.length;
+  for (let prefix = 0; prefix <= units.length; prefix += 1) {
+    const total = pairedEdits[prefix]! + units.length - prefix;
+    if (total <= count) {
+      count = total;
+      unmatchedTail = units.length - prefix;
+    }
+  }
+  return { count, unmatchedTail };
 }
 
 function findBoundaryTextOverlap(

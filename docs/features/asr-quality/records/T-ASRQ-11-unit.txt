@@ -1,0 +1,105 @@
+# T-ASRQ-11 V-ASRQ-11-1 后处理与执行器单元测试
+# 日期：2026-10-24 17:06:32 +0800；工作树基于 748285ec（未提交）
+# 文件哈希（sha256）：subtitle-post-processor.ts 6e2c648ac9d8a5a974f95280ac05ea26d0b23726b61d3437b370e7a2c32b225e；transcript-executor.ts 74df118f9573c3a1f46a7ac01e0e841f84dfb9e51fc382f123cecc48019972fe；seamDuplicates.test.ts 9901194bcc35e1fe7f90e9fbd199ff7f3dbc90ed17c8eff6c5c419da10914bd6；productionExecutor.test.ts 1e30080a60687315c8dda2aff349cfe587ce694617f3126b205c58b042a9ff12
+
+## 1. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/seamDuplicates.test.ts --reporter=verbose
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops the next window's 0.7 s copy of the previous two cues and gives the clipped tail it repeats its raw end
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops the previous window's clipped fragment that the next cue begins with and gives that cue its raw start
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops a 1.8 s near-identical variant starting at the seam and keeps the earlier wording with its raw end
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops both clipped copies when each repeats other cues across the seam
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a next-window copy whose far end the previous window's copy stops short of and drops that fragment instead
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a next-window copy whose far end adds only 'one CJK character'
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a next-window copy whose far end adds only 'three Latin letters'
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a next-window copy whose last two characters differ from the previous window's
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a next-window copy whose extra words sit only at the seam side
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps both clipped copies when each carries words at its far end that the other window never heard
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > still drops a previous-window copy whose far end adds only one CJK character
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > gives the kept next-window copy its raw start when the longer variant before the seam goes
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never moves a restored start past the dropped copy's start or over a remaining cue
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never moves a restored end past the dropped copy's end or over a remaining cue
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > 'caps a restore at' the longest cue (7 s)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > 'skips the restore of a kept cue alrea…' the longest cue (7 s)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > caps a restored start at the longest cue (7 s) too
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps the kept cue's time when its raw observation already ended at the seam
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > never drops a cue that keeps an earlier duplicate across the seams of retry children
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a cue restored at both its seams within the longest cue
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > applies the 80% coverage threshold 'at' the boundary { label: 'at', text: '嗯那会议改到下午三点', dropped: 1 }
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > applies the 80% coverage threshold 'below' the boundary { label: 'below', text: '嗯那个会议改到下午三点', dropped: +0 }
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps legal repetition across the seam with 'an unclipped first and a clipped seco…' うん
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps legal repetition across the seam with 'a clipped first and an unclipped seco…' うん
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a clipped cue below the CJK and Latin minimums (算了吧 / 了)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a clipped cue below the CJK and Latin minimums (it is ok now / OK!)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a short reply whose characters only occur apart in the longer cue across the seam (そうなんだけど、もう一回考えてみようか / うん)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps a short reply whose characters only occur apart in the longer cue across the seam (you said this is it, right / yes it is)
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > keeps the same sentence repeated away from any seam
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > leaves pause cuts, which share no audio, untouched
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts > window seam duplicates > drops and restores only while the duplicate and its kept cues keep their reported timing and wording
+
+ Test Files  1 passed (1)
+      Tests  31 passed (31)
+   Start at  17:06:34
+   Duration  608ms (transform 116ms, setup 0ms, collect 353ms, tests 51ms, environment 0ms, prepare 61ms)
+
+exit 0
+
+## 2. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/productionExecutor.test.ts -t "Studio seam duplicates" --reporter=verbose
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio seam duplicates > 'drops a clipped copy of the previous …' and reports drops outside the transcript
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts > Studio seam duplicates > 'keeps a repetition heard after the cl…' and reports drops outside the transcript
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 174 skipped (176)
+   Start at  17:06:36
+   Duration  2.06s (transform 480ms, setup 0ms, collect 1.81s, tests 50ms, environment 0ms, prepare 58ms)
+
+exit 0
+
+## 3. npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio/transcription/
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/subtitle-studio/transcription/domain.test.ts (44 tests) 14ms
+ ✓ test/subtitle-studio/transcription/seamDuplicates.test.ts (31 tests) 55ms
+ ✓ test/subtitle-studio/transcription/ipc-contract.test.ts (51 tests) 346ms
+ ✓ test/subtitle-studio/transcription/subtitlePostProcessor.test.ts (85 tests) 258ms
+ ✓ test/subtitle-studio/transcription/serverContract.test.ts (37 tests) 13ms
+ ✓ test/subtitle-studio/transcription/cueSeparatorRestorer.test.ts (37 tests) 22ms
+ ✓ test/subtitle-studio/transcription/transcriptConfidence.test.ts (10 tests) 22ms
+ ✓ test/subtitle-studio/transcription/audioProfileRequest.test.ts (5 tests) 73ms
+ ✓ test/subtitle-studio/transcription/overlapGroupSplice.test.ts (30 tests) 13ms
+ ✓ test/subtitle-studio/transcription/cueOverlapResolver.test.ts (22 tests) 9ms
+ ✓ test/subtitle-studio/transcription/noTimestampsRequest.test.ts (5 tests) 40ms
+ ✓ test/subtitle-studio/transcription/cueDisplaySeparators.test.ts (12 tests) 13ms
+ ✓ test/subtitle-studio/transcription/quietAudioWindow.test.ts (7 tests) 581ms
+ ✓ test/subtitle-studio/transcription/cueShortOnsetEvidence.test.ts (33 tests) 420ms
+ ✓ test/subtitle-studio/transcription/source-media-lifecycle.test.ts (3 tests) 428ms
+ ✓ test/subtitle-studio/transcription/cueVariantOverlapEvidence.test.ts (28 tests) 20ms
+ ✓ test/subtitle-studio/transcription/overlapGroupReview.test.ts (18 tests) 8ms
+ ✓ test/subtitle-studio/transcription/cueContainedOverlapEvidence.test.ts (23 tests) 15ms
+ ✓ test/subtitle-studio/transcription/cuePrefixSeparator.test.ts (9 tests) 13ms
+ ✓ test/subtitle-studio/transcription/gatedQuietAudio.test.ts (5 tests) 837ms
+   ✓ gated quiet PCM conditioning > boosts -65 dBFS speech the whole-window policy skips, keeping samples, positions and digital silence 559ms
+ ✓ test/subtitle-studio/transcription/cueBoundaryPlanner.test.ts (21 tests) 14ms
+ ✓ test/subtitle-studio/transcription/cueLocalAnchorHead.test.ts (7 tests) 14ms
+ ✓ test/subtitle-studio/transcription/config.test.ts (10 tests) 6ms
+ ✓ test/subtitle-studio/transcription/cueVariantOverlapResolver.test.ts (13 tests) 6ms
+ ✓ test/subtitle-studio/transcription/cuePrefixOverlapResolver.test.ts (9 tests) 5ms
+ ✓ test/subtitle-studio/transcription/cueMultiOverlapResolver.test.ts (10 tests) 6ms
+ ✓ test/subtitle-studio/transcription/cueContainedOverlapResolver.test.ts (10 tests) 5ms
+ ✓ test/subtitle-studio/transcription/pauseWindowPlan.test.ts (5 tests) 14ms
+ ✓ test/subtitle-studio/transcription/cueSummary.test.ts (12 tests) 5ms
+ ✓ test/subtitle-studio/transcription/quietAudio.test.ts (4 tests) 116ms
+ ✓ test/subtitle-studio/transcription/productionExecutor.test.ts (176 tests) 6540ms
+ ✓ test/subtitle-studio/transcription/input-identity.test.ts (3 tests) 3ms
+
+ Test Files  32 passed (32)
+      Tests  775 passed (775)
+   Start at  17:06:39
+   Duration  8.59s (transform 1.13s, setup 0ms, collect 4.78s, tests 9.93s, environment 4ms, prepare 2.09s)
+
+exit 0

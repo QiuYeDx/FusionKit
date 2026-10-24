@@ -113,6 +113,44 @@ describe('transcription review rules', () => {
     expect(reviewCue(cue('はい', 2000, { previous: { text: 'はい', startMs: 9000, endMs: 9900 } }))).toEqual([]);
   });
 
+  it('flags a near copy of the line before it: one inside the other, or a character or two apart (R-ASRQ-14)', () => {
+    expect(CUE_REVIEW_THRESHOLDS).toMatchObject({ duplicateMinChars: 6, duplicateMaxGapMs: 1000, duplicateContainedMinChars: 5, duplicateSimilarMinChars: 6, duplicateMinSimilarity: 0.8 });
+    const after = (text: string, previous: string, extra: Partial<CueReviewInput> = {}) => reviewCue(cue(text, 3000, { previous: { text: previous, startMs: 8000, endMs: 9500 }, ...extra }));
+    // Containment, either way round: a seam window joins the line to the next one, or keeps only its end.
+    expect(after('そうなんですね、わかりました。', 'そうなんですね。')).toEqual(['duplicate_neighbor']);
+    expect(after('また明日学校で会おうね', 'じゃあ、また明日学校で会おうね')).toEqual(['duplicate_neighbor']);
+    expect(after('See you tomorrow, then.', 'See you tomorrow.', { language: 'en' })).toEqual(['duplicate_neighbor']);
+    // From five characters on; the same short line twice still needs the exact rule's six.
+    expect(after('ありがとう、助かったよ', 'ありがとう')).toEqual(['duplicate_neighbor']);
+    expect(after('なるほど、そういうことか', 'なるほど')).toEqual([]);
+    expect(after('ありがとう', 'ありがとう')).toEqual([]);
+    // A character or two apart: kana for kanji, a changed ending; 80% alike is enough, 70% is not.
+    expect(after('駅まで歩いていきます', '駅まで歩いて行きます')).toEqual(['duplicate_neighbor']);
+    expect(after('明日の朝は早く起きました', '明日の朝は早く起きます')).toEqual(['duplicate_neighbor']);
+    expect(after('すごいですよ', 'すごいですね')).toEqual(['duplicate_neighbor']);
+    expect(after('四時に駅前で待ってた', '三時に駅前で待ってる')).toEqual(['duplicate_neighbor']);
+    expect(after('五時に駅裏で待ってた', '三時に駅前で待ってる')).toEqual([]);
+    expect(after('すてきですね', 'すごいですね')).toEqual([]);
+    expect(after('明日は雨です', '今日は晴れです')).toEqual([]);
+    // A name with an interpunct once and two homophones the next time: 9 of 11 alike once the dot is gone.
+    expect(after('玛莉安托娃内特家的誓言', '玛丽·安托瓦内特家的誓言', { language: 'zh' })).toEqual(['duplicate_neighbor']);
+    // A seam copy squeezed under half a second reads too fast as well; an overlapping one is still a neighbour.
+    expect(reviewCue(cue('そうなんですね、分かりました', 400, { previous: { text: 'そうなんですね、わかりました', startMs: 8000, endMs: 9960 } }))).toEqual(['abnormal_rate', 'duplicate_neighbor']);
+    expect(reviewCue(cue('駅まで歩いていきます', 3000, { previous: { text: '駅まで歩いて行きます', startMs: 8000, endMs: 10_500 } }))).toEqual(['duplicate_neighbor']);
+  });
+
+  it('leaves short interjections and lines a second or more apart alone', () => {
+    const after = (text: string, previous: string, endMs = 9500) => reviewCue(cue(text, 2000, { previous: { text: previous, startMs: endMs - 1500, endMs } }));
+    for (const [text, previous] of [['うん', 'うん'], ['はい', 'はい'], ['うんうん', 'うん'], ['はいはい', 'はい'], ['ええ', 'ええ、ええ'], ['そうそうそう', 'そうそう'], ['なるほどね', 'なるほど']]) {
+      expect(after(text, previous), `${previous} → ${text}`).toEqual([]);
+    }
+    // The gap applies to every form: 999 ms is close enough, a whole second is not.
+    for (const [text, previous] of [['そうなんですね、わかりました。', 'そうなんですね。'], ['駅まで歩いていきます', '駅まで歩いて行きます'], ['そうなんですね', 'そうなんですね。']]) {
+      expect(after(text, previous, 9001), text).toEqual(['duplicate_neighbor']);
+      expect(after(text, previous, 9000), text).toEqual([]);
+    }
+  });
+
   it('collapses the longest repetition to one unit and keeps what follows', () => {
     expect(collapseRepetition('あああああああああああ')).toBe('あ');
     expect(collapseRepetition('はい、はい、はい、はい。')).toBe('はい。');
@@ -169,6 +207,18 @@ describe('reviewing a whole document', () => {
     expect(result.cues.filter(entry => entry.cueId === doc.cues[1].id || entry.cueId === half.id)).toEqual([]);
     expect(result.counts.low_confidence).toBe(0);
     expect(result.cues.every(entry => entry.confidence === undefined || doc.cues[entry.index].sourceRevision === 1)).toBe(true);
+  });
+
+  it('compares a near copy only with the cue right before it', () => {
+    const doc = media([
+      { text: '駅まで歩いて行きます', startMs: 0, endMs: 2000 },
+      { text: 'ちょっと待って', startMs: 2200, endMs: 3200 },
+      // The first line again, one cue later: not flagged.
+      { text: '駅まで歩いていきます', startMs: 3400, endMs: 5400 },
+      { text: '駅まで歩いていきますね', startMs: 5600, endMs: 7600 },
+    ]);
+    const result = reviewDocument(doc, { compressedSize: zlib });
+    expect(result.cues.map(entry => [entry.index, entry.reasons])).toEqual([[3, ['duplicate_neighbor']]]);
   });
 
   it('reviews an older document without confidence by its text alone', () => {

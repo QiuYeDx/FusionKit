@@ -284,3 +284,85 @@
 | --- | --- | --- | --- | --- |
 | V-ASRQ-10-1 | integration | required | 三款模型各完成一次加载与识别并记录输出摘要 | - |
 | V-ASRQ-10-2 | manual | required | 用户对 anime-whisper 重识别结果的听审结论 | - |
+
+### T-ASRQ-11 窗口接缝去重
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I1 |
+| 需求 | R-ASRQ-14 |
+| 验收 | AC-ASRQ-14-1, AC-ASRQ-14-2, AC-ASRQ-14-3 |
+| 依赖 | - |
+| 写集 | electron/main/subtitle-studio/transcription/native/subtitle-post-processor.ts, electron/main/subtitle-studio/transcription/transcript-executor.ts, scripts/subtitle-studio-provenance/current-copy-audits.json, scripts/subtitle-studio-provenance/current-copy-audits.mjs, test/subtitle-studio/transcription/, test/subtitle-studio-provenance/, test/asr-quality/, docs/features/asr-quality/records/ |
+| 负责人 | Agent（工作流 wf_3dc42c4d-9bb、wf_70f07a30-8c6、wf_af8ca977-dc4） |
+| 依赖确认 | 无依赖 |
+| 完成日期 | 2026-10-24 |
+| 实施记录 | records/T-ASRQ-11.md |
+| 集成版本 | 工作树（基于 748285ec，未提交） |
+
+#### 实现要点
+
+按 design 方案 8 实现接缝去重：后处理在跨窗合并之后检测，候选只来自被裁到接缝时刻的句子，只与接缝另一侧原始时间重叠的句子比较，在拼接文字中找最接近的一段连续文字，按编辑覆盖率（≥ 80%）判断是否重合；先判下一窗口的候选，去掉的句子不再拿来比较。2026-10-24 按重跑结果补两条：候选远端（离开接缝的一端）有达到字数下限的字在另一侧没有对应时保留候选（去重不丢字）；去掉一份拷贝后，被裁到同一接缝的保留句把被裁的一端往原始时间移回，不越过去掉那份的远端与最近一句仍在的字幕，不超过最长字幕时长。Studio 执行器在 CUDA 修复之后去掉重复并移回这一端，去掉的句子与移回的一端只写进诊断（不含文字，不进文档）；T02 执行器不去重。更新审计条目；旧版对拍回放若因此变化，作为审阅过的差异处理并说明。随后用对照工具按 run-2512BY 的配置重跑 9 段样本 × 3 种音频类型（设置 FUSIONKIT_KEEP_TEST_RUNS=1），逐条对比修复前后。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-ASRQ-11-1 | unit | required | 后处理单元测试：下一窗口被裁到接缝的重复句被去掉；上一窗口被裁到接缝的重复句被去掉；文字覆盖不足 80% 的保留；候选远端有达到字数下限（2 个 CJK 字或 4 个拉丁字符）的字另一侧没有时保留，另一侧被它覆盖的截断片段随后被去掉，远端多出的字不到下限、只在接缝一侧多出或远端只是与另一侧的字不同时仍去掉；「うん」「うん」合法重复与非接缝处相同句保留；保留一侧的文字一律不变，时间只有被裁到同一接缝的那一端按方案 8 往原始时间移回（不越过去掉那份的远端与最近一句仍在的字幕，不超过最长字幕时长；保留句被改过或没被裁时不动） | - |
+| V-ASRQ-11-2 | integration | required | provenance 全量、转写与文档测试通过，审计条目更新；回放差异逐条说明 | - |
+| V-ASRQ-11-3 | integration | required | 9 段样本 × 3 种音频类型重跑，与 run-2512BY 逐条对比：列出被去掉的句子，其余字幕文字与时间不变或差异逐条说明 | - |
+
+### T-ASRQ-12 复核规则识别近似重复
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I1 |
+| 需求 | R-ASRQ-14 |
+| 验收 | AC-ASRQ-14-4 |
+| 依赖 | - |
+| 写集 | src/subtitle-studio/transcription-review.ts, test/subtitle-studio/transcription-review.test.ts, src/locales/en/studio.json, src/locales/ja/studio.json, src/locales/zh/studio.json, src/locales/zh-Hant/studio.json, docs/features/asr-quality/records/ |
+| 负责人 | Agent（工作流 wf_3dc42c4d-9bb、wf_70f07a30-8c6、wf_af8ca977-dc4） |
+| 依赖确认 | 无依赖 |
+| 完成日期 | 2026-10-24 |
+| 实施记录 | records/T-ASRQ-12.md |
+| 集成版本 | 工作树（基于 748285ec，未提交） |
+
+#### 实现要点
+
+按 design 复核规则表扩展 `duplicate_neighbor`：包含关系（较短 ≥ 5 字）与编辑距离相似度（两句 ≥ 6 字、≥ 0.8），间隔条件不变；规则模块保持纯函数。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-ASRQ-12-1 | unit | required | 规则测试：包含上一句、只差一两个字的相邻句被标记；「うん」「はい」与不相邻、间隔 ≥ 1 s 的句子不被标记；既有用例全部通过 | - |
+| V-ASRQ-12-2 | static | required | 在 run-2512BY 与修复后的重跑输出上统计各变体的“与上一句重复”标记数，并抽查被标出的句子 | - |
+
+### T-ASRQ-13 去重前后听审对比
+
+| 字段 | 值 |
+| --- | --- |
+| 状态 | 已完成 |
+| 批次 | I1 |
+| 需求 | R-ASRQ-14 |
+| 验收 | AC-ASRQ-14-5 |
+| 依赖 | T-ASRQ-11, T-ASRQ-12 |
+| 写集 | test-results/asr-quality-listening/, docs/features/asr-quality/records/ |
+| 负责人 | Agent（工作流 wf_3dc42c4d-9bb、wf_70f07a30-8c6、wf_af8ca977-dc4） |
+| 依赖确认 | T-ASRQ-11, T-ASRQ-12 已完成（同一工作树） |
+| 完成日期 | 2026-10-24 |
+| 实施记录 | records/T-ASRQ-13.md |
+| 集成版本 | 工作树（基于 748285ec，未提交；页面只存本机） |
+
+#### 实现要点
+
+在本地听审页面新增“接缝去重对比”：每一处被去掉的句子给出原声剪辑（含前后文）、修复前后的字幕对照与“去得对 / 不该去”选择，并纳入导出；页面与剪辑只放在被忽略的 test-results 中，不提交。
+
+#### 验证计划
+
+| 检查 | 类型 | 要求 | 命令或步骤 | 不适用理由 |
+| --- | --- | --- | --- | --- |
+| V-ASRQ-13-1 | integration | required | 页面在本地服务下加载全部新剪辑、对比条目与导出字段正确（隐藏窗口自检与截图审阅） | - |
+| V-ASRQ-13-2 | manual | required | 用户逐处听审去重结果并导出结论（由用户完成，Agent 不代签） | - |

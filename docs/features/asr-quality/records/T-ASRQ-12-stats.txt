@@ -1,0 +1,73 @@
+# T-ASRQ-12 V-ASRQ-12-2 复核规则在修复前后真实输出上的统计（只含编号、时间与计数，不含字幕文字）
+# 生成：2026-10-24T09:33:21.220Z
+# 规则：src/subtitle-studio/transcription-review.ts 的 reviewDocument（与主进程 cue-review.ts 相同的入口，deflate 压缩比），用 esbuild 打包给 node（seam-rerun-bundle.mjs）；
+# head = git HEAD 版本（只认完全相同），shipped = 工作树版本（T-ASRQ-12）。文档语言按样本固定（pv-zh 为 zh，其余 ja），置信度取自转写。
+# index 与 #n 是 run JSON 里 cues 数组从 0 起的下标（听审页面与 records/T-ASRQ-13.md 用从 1 起的序号）。
+# 运行：run-2512BY = 去重前；run-SVKkhx = 第一版去重（无远端保护、无移回）；run-Gg6ITS = 本次重跑（远端保护 + 移回被裁的一端）。
+
+runs=run-2512BY,run-SVKkhx,run-Gg6ITS rules: head = git HEAD transcription-review.ts (exact duplicate only); shipped = working tree (T-ASRQ-12)
+
+review counts (9 samples summed, reviewDocument): rules run variant cues flagged low_confidence phantom_phrase repetition_loop non_speech_only abnormal_rate duplicate_neighbor
+head run-2512BY standard 363 17 10 0 1 0 6 0
+head run-2512BY quiet_whisper_v1 351 24 14 0 1 0 11 0
+head run-2512BY noisy_music_v1 336 15 6 0 1 0 9 0
+head run-SVKkhx standard 358 15 10 0 1 0 4 0
+head run-SVKkhx quiet_whisper_v1 343 18 14 0 1 0 5 0
+head run-SVKkhx noisy_music_v1 327 11 6 0 1 0 5 0
+head run-Gg6ITS standard 358 15 10 0 1 0 4 0
+head run-Gg6ITS quiet_whisper_v1 343 16 14 0 1 0 3 0
+head run-Gg6ITS noisy_music_v1 327 8 6 0 1 0 2 0
+shipped run-2512BY standard 363 18 10 0 1 0 6 1
+shipped run-2512BY quiet_whisper_v1 351 25 14 0 1 0 11 4
+shipped run-2512BY noisy_music_v1 336 19 6 0 1 0 9 5
+shipped run-SVKkhx standard 358 15 10 0 1 0 4 0
+shipped run-SVKkhx quiet_whisper_v1 343 18 14 0 1 0 5 0
+shipped run-SVKkhx noisy_music_v1 327 11 6 0 1 0 5 0
+shipped run-Gg6ITS standard 358 15 10 0 1 0 4 0
+shipped run-Gg6ITS quiet_whisper_v1 343 16 14 0 1 0 3 0
+shipped run-Gg6ITS noisy_music_v1 327 9 6 0 1 0 2 1
+
+duplicate_neighbor hits (shipped rules): run sample variant index span previous_index previous_span gap_ms rule units(cue/previous) other_reasons flagged_by_head near_seam_s pair_dropped_in_rerun
+run-2512BY full standard 54 192.48–194.93 53 191.02–192.48 0 similar 15/14 - false 192.48 true
+run-2512BY full quiet_whisper_v1 33 142.48–142.97 32 138.80–142.48 0 similar 14/13 abnormal_rate false 142.48 true
+run-2512BY full noisy_music_v1 46 192.48–194.94 45 190.91–192.48 0 similar 15/14 - false 192.48 true
+run-2512BY pv-zh quiet_whisper_v1 11 27.50–29.01 10 27.09–27.50 0 contained 16/7 - false 27.50 true
+run-2512BY pv-zh quiet_whisper_v1 36 102.50–103.60 35 102.25–102.50 0 contained 16/8 abnormal_rate false 102.50 true
+run-2512BY pv-zh quiet_whisper_v1 62 152.50–153.20 61 150.56–152.50 0 contained 13/10 abnormal_rate false 152.50 true
+run-2512BY pv-zh noisy_music_v1 11 27.50–28.75 10 27.10–27.50 0 contained 16/7 abnormal_rate false 27.50 true
+run-2512BY pv-zh noisy_music_v1 16 52.50–54.30 15 49.34–52.50 0 similar 11/11 - false 52.50 true
+run-2512BY pv-ja noisy_music_v1 17 77.50–78.50 16 74.40–77.50 0 contained 8/27 - false 77.50 true
+run-2512BY pv-ja noisy_music_v1 62 177.50–181.00 61 177.42–177.50 0 contained 36/13 - false 177.50 true
+run-Gg6ITS pv-ja noisy_music_v1 59 177.42–181.00 58 173.72–177.42 0 contained 36/19 - false 177.50 -
+
+## 标记不同的句子（shipped 规则，run-SVKkhx → run-Gg6ITS，按文字与 3 s 内的时间配对；node test-results/asr-quality-ab/seam-rerun2-flags.mjs run-SVKkhx run-Gg6ITS）
+pv-zh quiet_whisper_v1 only run-SVKkhx: #10 27.09–27.50 abnormal_rate
+pv-zh quiet_whisper_v1 only run-SVKkhx: #34 102.50–103.60 abnormal_rate
+pv-zh noisy_music_v1 only run-SVKkhx: #10 27.10–27.50 abnormal_rate
+pv-ja noisy_music_v1 only run-SVKkhx: #37 126.45–127.50 abnormal_rate
+pv-ja noisy_music_v1 only run-SVKkhx: #59 177.42–177.50 abnormal_rate
+pv-ja noisy_music_v1 only run-Gg6ITS: #59 177.42–181.00 duplicate_neighbor
+
+## 标记不同的句子（shipped 规则，run-2512BY → run-Gg6ITS，按文字与 3 s 内的时间配对；node test-results/asr-quality-ab/seam-rerun2-flags.mjs run-2512BY run-Gg6ITS）
+full standard only run-2512BY: #36 142.48–142.60 abnormal_rate
+full standard only run-2512BY: #54 192.48–194.93 duplicate_neighbor
+full quiet_whisper_v1 only run-2512BY: #17 77.44–77.50 abnormal_rate
+full quiet_whisper_v1 only run-2512BY: #33 142.48–142.97 abnormal_rate,duplicate_neighbor
+full noisy_music_v1 only run-2512BY: #28 142.48–142.79 abnormal_rate
+full noisy_music_v1 only run-2512BY: #46 192.48–194.94 duplicate_neighbor
+pv-zh standard only run-2512BY: #63 177.50–177.59 abnormal_rate
+pv-zh quiet_whisper_v1 only run-2512BY: #10 27.09–27.50 abnormal_rate
+pv-zh quiet_whisper_v1 only run-2512BY: #11 27.50–29.01 duplicate_neighbor
+pv-zh quiet_whisper_v1 only run-2512BY: #35 102.25–102.50 abnormal_rate
+pv-zh quiet_whisper_v1 only run-2512BY: #36 102.50–103.60 abnormal_rate,duplicate_neighbor
+pv-zh quiet_whisper_v1 only run-2512BY: #62 152.50–153.20 abnormal_rate,duplicate_neighbor
+pv-zh noisy_music_v1 only run-2512BY: #10 27.10–27.50 abnormal_rate
+pv-zh noisy_music_v1 only run-2512BY: #11 27.50–28.75 abnormal_rate,duplicate_neighbor
+pv-zh noisy_music_v1 only run-2512BY: #16 52.50–54.30 duplicate_neighbor
+pv-zh noisy_music_v1 only run-2512BY: #62 152.27–152.50 abnormal_rate
+pv-zh noisy_music_v1 only run-2512BY: #63 152.50–153.00 abnormal_rate
+pv-ja quiet_whisper_v1 only run-2512BY: #31 102.46–102.50 abnormal_rate
+pv-ja quiet_whisper_v1 only run-2512BY: #32 102.50–103.00 abnormal_rate
+pv-ja noisy_music_v1 only run-2512BY: #17 77.50–78.50 duplicate_neighbor
+pv-ja noisy_music_v1 only run-2512BY: #38 126.45–127.50 abnormal_rate
+pv-ja noisy_music_v1 only run-2512BY: #61 177.42–177.50 abnormal_rate

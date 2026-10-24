@@ -31,6 +31,11 @@ export const CUE_REVIEW_THRESHOLDS = {
   slowMinDurationMs: 10_000, slowMaxRate: 0.8,
   /** The same text as the cue before, at least this long and less than a second after it. */
   duplicateMinChars: 6, duplicateMaxGapMs: 1000,
+  /**
+   * Or, within that second, a near copy (R-ASRQ-14): the shorter text, from 5 characters, inside the
+   * longer; or both from 6 characters and at least 80% alike by edit distance.
+   */
+  duplicateContainedMinChars: 5, duplicateSimilarMinChars: 6, duplicateMinSimilarity: 0.8,
 } as const;
 /** Flagged cues returned at most by one review; the counts always cover the whole document. */
 export const CUE_REVIEW_LIMIT = 10_000;
@@ -142,6 +147,42 @@ function abnormalRate(key: string, startMs: number, endMs: number | null) {
   return durationMs >= limits.slowMinDurationMs && rate < limits.slowMaxRate;
 }
 
+/**
+ * Whether two texts are at least `minSimilarity` alike: one less their edit distance (characters
+ * inserted, deleted or replaced) over the longer length. Stops at the first row of the distance
+ * table that already rules it out.
+ */
+function alike(a: readonly string[], b: readonly string[], minSimilarity: number) {
+  const longer = Math.max(a.length, b.length);
+  const near = (distance: number) => 1 - distance / longer >= minSimilarity;
+  if (!near(Math.abs(a.length - b.length))) return false;
+  let row = Array.from({ length: b.length + 1 }, (_, at) => at);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    let least = i;
+    for (let j = 1; j <= b.length; j++) {
+      next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      least = Math.min(least, next[j]);
+    }
+    if (!near(least)) return false;
+    row = next;
+  }
+  return near(row[b.length]);
+}
+
+/**
+ * Whether a cue's normalized text repeats the one before it. Overlapping windows can output a line
+ * twice at their seam with a comma or a character changed, or joined to the next line (R-ASRQ-14).
+ * The same text twice is held to its own length, so a short line said again stays unflagged.
+ */
+function duplicateNeighbor(key: string, previousKey: string) {
+  const limits = CUE_REVIEW_THRESHOLDS;
+  const [shorter, longer] = [[...key], [...previousKey]].sort((a, b) => a.length - b.length);
+  if (key === previousKey) return shorter.length >= limits.duplicateMinChars;
+  if (shorter.length >= limits.duplicateContainedMinChars && (key.includes(previousKey) || previousKey.includes(key))) return true;
+  return shorter.length >= limits.duplicateSimilarMinChars && alike(shorter, longer, limits.duplicateMinSimilarity);
+}
+
 /** The reasons one cue is worth hearing again, in `CUE_REVIEW_REASONS` order; empty when it reads as ordinary speech. */
 export function reviewCue(input: CueReviewInput, compressedSize?: CueReviewCompressor): CueReviewReason[] {
   const limits = CUE_REVIEW_THRESHOLDS;
@@ -158,8 +199,8 @@ export function reviewCue(input: CueReviewInput, compressedSize?: CueReviewCompr
   if (text && !speech) reasons.push('non_speech_only');
   if (abnormalRate(speech, input.startMs, input.endMs)) reasons.push('abnormal_rate');
   const previous = input.previous;
-  if (previous && [...key].length >= limits.duplicateMinChars && reviewText(previous.text) === key
-    && input.startMs - (previous.endMs ?? previous.startMs) < limits.duplicateMaxGapMs) reasons.push('duplicate_neighbor');
+  if (previous && input.startMs - (previous.endMs ?? previous.startMs) < limits.duplicateMaxGapMs
+    && duplicateNeighbor(key, reviewText(previous.text))) reasons.push('duplicate_neighbor');
   return reasons;
 }
 

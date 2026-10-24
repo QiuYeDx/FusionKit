@@ -15,12 +15,12 @@
     {
       "id": "I1",
       "title": "可选复杂音频模式、质量复核与新模型",
-      "status": "verifying",
+      "status": "implementing",
       "approval": {
         "state": "approved",
         "by": "用户",
-        "basis": "2026-10-22 用户回复：“按 I1 计划开始实现；允许把 3 个测试模型（turbo q8_0、Belle 中文、anime-whisper q8_0，约 3.3 GB）下载到 D 盘做验证”",
-        "digest": "2c6b7f0562c4284f1ba9c838a67b2168c0aa440238bc1d918f19c4bc2b0df087"
+        "basis": "2026-10-22 用户回复：“按 I1 计划开始实现；允许把 3 个测试模型（turbo q8_0、Belle 中文、anime-whisper q8_0，约 3.3 GB）下载到 D 盘做验证”；2026-10-23 听审后用户追加：“先修窗口接缝处的重复字幕（后处理去重 + 复核规则识别近似重复），修完给我听对比”（R-ASRQ-14）；2026-10-24 协调者按重跑结果细化 R-ASRQ-14 的实现约束（不丢字、保留句被裁一端可移回原始时间，AC-ASRQ-14-3 相应放宽为列出移回的一端），并把 AC 示例中的样本原句改为位置引用；范围仍是用户 10-23 指示的接缝去重与近似重复复核，由用户在听审（AC-ASRQ-14-5）时确认",
+        "digest": "f670d67fdb31ad14c6f3e0c2c2fc16127780e9115e5566fe512eef5e2698050c"
       },
       "acceptance": {
         "state": "pending",

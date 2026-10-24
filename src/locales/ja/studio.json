@@ -1433,7 +1433,7 @@
       "repetition_loop": "同じ言葉が繰り返されています。認識がループした可能性があります",
       "non_speech_only": "記号、句読点、括弧の注記だけで、発話が認識されていません",
       "abnormal_rate": "長さに対して文字が多すぎるか、長い区間にほとんど文字がありません",
-      "duplicate_neighbor": "直前の行と同じ文字列が続いています"
+      "duplicate_neighbor": "直前の行と同じか、ほぼ同じ文字列が続いています"
     },
     "badge": "要確認：{{reasons}}",
     "current": "{{number}} 行目",

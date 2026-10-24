@@ -1,0 +1,94 @@
+T-ASRQ-13 / V-ASRQ-13-1：本地听审页面 ④ 接缝去重对比（换成 run-Gg6ITS）的隐藏自检（2026-10-24）
+
+环境：Windows 11 Pro 10.0.26200；Node v20.19.4；@playwright/test 1.58.2；Chrome 155.0.8059.41（channel chrome，headless，--mute-audio，不开窗口）。
+页面由 serve.mjs 在临时空闲端口（127.0.0.1）提供，自检结束时停掉；用户自己开着的 47811 服务没有动（只发了一次 HTTP 请求，确认它返回 200 和新生成的页面）。没有启动 Electron。
+页面、剪辑、导出和截图都在 gitignored 的 test-results/asr-quality-listening/ 下，不提交；本文件只记数字、时间和条目 id，没有样本转写文字。
+数据：修复前 run-2512BY → 修复后 run-Gg6ITS（test-results/asr-quality-ab/run-Gg6ITS/seam-dedup-compare.json，生成于 2026-10-24T09:26:02Z）；上一版页面用的是 run-SVKkhx（previousFix）。
+
+== 1. 生成：node test-results/asr-quality-listening/build.mjs（无警告；22 个接缝剪辑的范围都和上一版相同，0 个新切、0 个不再使用）
+clips: 0 made, 200 kept, 0 removed, 0 unused left in place (200 in use)
+items: T-09 40 curated + 54 optional (33 whole regions, 21 remainders of partly listed ones), T-10 28
+T-09: 19 items with context cues, 24 with 播放区间 wider than the listed region
+seam dedup (run-2512BY → run-Gg6ITS): 22 removed cues in 9 cases, 15 with the kept cue's clipped edge restored, 11 named in the listening notes, 4 with a hint, 1 kept cue flagged by duplicate_neighbor; other differences: 0
+seam vs run-SVKkhx: 21 item ids unchanged, 1 retired (seam-pv-ja-noisy-177500), 1 new (seam-pv-ja-noisy-177420)
+seam no restore: 1 over the 7000 ms cap, 6 kept cue not clipped at the seam, 0 other
+seam energy vs comparison RMS (seam-full-quiet-165370): 90 frames, mean |Δ| 0 dB, max 0 dB
+index.html 418 KB, clips 44.4 MB
+
+说明：“energy vs comparison RMS”是新加的音量一行（100 ms RMS，16 kHz，两声道平均）和 seam-dedup-compare.json 里 full 163.0–172.0 s 的 RMS 逐格比较。
+
+== 2. 嵌入数据对比：node test-results/asr-quality-listening/check/seam-data-compare.mjs _check/index-before-gg6its.html index.html（exit 0）
+上一版页面副本 _check/index-before-gg6its.html 是重建前的 index.html（sha256 c563a9af5f86bffd27da1f2dcb691ed320ba7e8f8db917fe2761713e820db0a4）；新 index.html sha256 86c730d5707c5395032dc8c249902096bb2cbc3e4b649155585ce93265eab52c。
+{"ok":true,"schema":["fusionkit-asrq-listening/1","fusionkit-asrq-listening/1"],"runs":{"ab":"run-2512BY","pre":"run-0fDn3f","post":"run-olRvTt","seam":"run-Gg6ITS"},"nonSeamItems":{"old":122,"new":122,"sameOrder":true,"changed":0,"changedIds":[]},"md09Same":true,"md10Same":true,"samplesSame":true,"otherRunsSame":true,"contextSame":true,"counts":{"t09":40,"extras":54,"remainders":21,"t10":28,"seam":22},"seam":{"after":["run-SVKkhx","run-Gg6ITS"],"sameIds":21,"sameIdsWithDifferentRemovedOrKept":[],"sameIdsWithRestoredKeptEdge":14,"retired":[{"id":"seam-pv-ja-noisy-177500","startMs":177500,"endMs":181000}],"added":[{"id":"seam-pv-ja-noisy-177420","startMs":177420,"endMs":177500,"replaces":["seam-pv-ja-noisy-177500"]}],"restoredItems":15,"other":[0,0]}}
+
+== 3. 自检：OLD_PAGE=_check/index-before-gg6its.html node test-results/asr-quality-listening/check/seam-check.cjs（exit 0）
+预置存储（按页面存储格式）：T-09 18 条完整 + 1 条部分、T-10 18 条、1 条可选条目的备注、决定和界面状态，外加上一版 22 个接缝条目 id 的结论（含改判的旧 id seam-pv-ja-noisy-177500 = 不该去 + 备注），当前接缝条目设为旧 id。共 60 条。
+PASS build: 22 seam items, 21 ids of the previous build unchanged, 1 retired, 1 new — {"unchanged":21,"retired":["seam-pv-ja-noisy-177500"],"added":["seam-pv-ja-noisy-177420"]}
+PASS every stored answer loads, including the one for the retired seam id (kept, not shown) — {"seeded":60,"loaded":60}
+PASS answers for the previous build's seam ids apply to the 21 unchanged items; progress counts them, not the retired one — {"seam":"21/22","t09":"18/40","t10":"18/28","done":"57","total":"90"}
+PASS UI state restored; the stale current seam id (retired) falls back to the first ④ item — {"tab":"seam","seam":"seam-full-quiet-77440","first":"seam-full-quiet-77440"}
+PASS ④ list: 22 rows, the 21 unchanged ones shown done, the new one open — {"rows":22,"done":21}
+PASS ④ list note: "1 处判定已改" with the old and new removed cue, the saved old answer, and a link to the new item — 1 处判定已改：pv-ja 嘈杂 接缝 02:57.50 现在保留上一版（run-SVKkhx）去掉的 02:57.50–03:01.00（36 字），改为去掉 02:57.42–02:57.50。旧条目不再显示，新条目要重新作答；你对旧条目的结论「不该去」仍保存，导出时一并带上。 打开新条目其余 21 处判定不变，标
+PASS ④ list tags: 复原 on the 15 restored items, 改判 on the new one — {"restore":15,"changed":["seam-pv-ja-noisy-177420"]}
+PASS the previous build reads the same answers (22/22 seam, the retired one included) — {"seam":"22/22","complete":58}
+PASS every clip of every tab reaches loadedmetadata, lengths match (±120 ms) — {"clips":200,"bad":[]}
+PASS ① first item: curated order #1…#40, 3 sections, one player with 含前后 2 秒, 4 timeline rows, no seam line, 音量 row or restore marks, seeded answer shown — {"order":["t09-r01","t09-r02","t09-r03","t09-r04","t09-r05","t09-r06","t09-r07","t09-r08","t09-r09","t09-r10","t09-r11","t09-r12","t09-r13","t09-r14","t09-r15","t09-r16","t09-r17","t09-r18","t09-r19","t09-r20","t09-r21","t09-r22","t09-r23","t09-r24","t09-r25","t09-r26","t09-r27","t09-r28","t09-r29","t09-r30","t09-r31","t09-r32","t09-r33","t09-r34","t09-r35","t09-r36","t09-r37","t09-r38","t09-r39","t09-r40"],"sections":3,"seamNote":false,"audios":1,"all":"含前后 2 秒","lanes":4,"energy":0,"restore":0,"marks":0,"pressed":"noisy:same,quiet:better"}
+PASS ① context cues (r39) and the standard-relative strike-through title unchanged — {"ctx":2,"del":{"id":"t09-r04","title":"标准里有、这里没有"}}
+PASS ② restored item renders the original and both model clips, all loaded, no 音量 row — {"id":"t10-aw-B-1","audios":[true,true,true],"inline":2,"energy":0}
+PASS every seam clip exists — 22 clips, missing 0
+PASS every seam clip reaches loadedmetadata — 22/22
+PASS seam clip durations match their ranges (±120 ms) — []
+PASS clips span the removed cue and the kept cue before and after its restore, 3 s on each side — []
+PASS clips keep the source channels and rate (build warns otherwise) — 2ch/48000
+PASS every seam item carries the 100 ms levels over its whole clip — []
+PASS ④ tab lists the 22 removed cues grouped by sample, then 其他差异 (none, restored edges named) — {"rows":22,"groups":["full216 s 日语7/7","pv-zh游戏 PV 中文配音（BGM 重）9/9","pv-ja游戏 PV 日语配音（BGM 重）5/6","其他差异不是去重规则去掉的0"],"info":"无。重跑 run-Gg6ITS 和修复前 run-2512BY 相比，27 个样本×变体里，除了上面去掉的 22 句和 "}
+PASS first seam item renders one player — full 接缝 01:17.50
+PASS every seam item: removed cue marked before, gone after, kept tagged, seam drawn, 音量 row, audio ready — 22 items
+PASS restored edges: hatched on the 修复后 lane at old → new, tagged on the kept cue in the 修复后 row, named under the timeline (15); none elsewhere (7, with the reason) — {"restored":15,"unchanged":["seam-full-noisy-142480: 保留句时间没变：保留的那句贴着接缝，但修复前已有 8.60 s，超过最长字幕 7.00 s，所以不移。","seam-pv-zh-standard-177500: 保留句时间没变：保留的句子没有被裁到这个接缝，不用移。","seam-pv-zh-standard-176620: 保留句时间没变：保留的句子没有被裁到这个接缝，不用移。","seam-pv-zh-noisy-152500: 保留句时间没变：保留的句子没有被裁到这个接缝，不用移。","seam-pv-zh-noisy-152270: 保留句时间没变：保留的句子没有被裁到这个接缝，不用移。","seam-pv-ja-quiet-102500: 保留句时间没变：保留的句子没有被裁到这个接缝，不用移。","seam-pv-ja-quiet-102460: 保留句时间没变：保留的句子没有被裁到这个接缝，不用移。"]}
+PASS the review rule's duplicate_neighbor hit is tagged on exactly its item — ["seam-pv-ja-noisy-177420 #60⊃#59"]
+PASS other removed cues in the same window are tagged 也去掉 — {"withSiblings":["seam-pv-zh-standard-177500","seam-pv-zh-standard-176620","seam-pv-zh-noisy-152500","seam-pv-zh-noisy-152270","seam-pv-ja-quiet-102500","seam-pv-ja-quiet-102460"],"bad":[]}
+PASS 细听 hints refreshed: 167.48 names the restore and what the levels say; pv-ja names the new decision and the repeated opening flagged by the rule — {"flagged":["seam-full-quiet-165370","seam-pv-zh-standard-177500","seam-pv-zh-standard-176620","seam-pv-ja-noisy-177420"]}
+PASS the new item: key 1 answers, a second click clears, another click and a note save; a carried-over answer changes with key 2 — {"seam":"22/22","done":"58"}
+PASS N from a fully answered ④ wraps to the next unmarked item (T-09 #19) — t09-r19
+PASS after reload: the new answers and note persist, every other stored answer (retired one included) unchanged — {"seam":"22/22","done":"58","current":"seam-pv-ja-noisy-177420"}
+PASS after the new page wrote the store, the previous build still reads its retired item's answer — ["wrong"]
+PASS JSON export: same schema, 22 seam items with verdicts, texts and restoredEdge (15 set), the new one marked, required 90 — {"seam":22,"restored":15,"required":90,"complete":58}
+PASS JSON export: retiredSeamItems carries the retired item with its saved answer and note
+PASS JSON export still carries the T-09/T-10 answers
+PASS Markdown export: 22 seam rows all answered, restored edges noted (15), 已改判定 with the old answer, 其他差异 无 — {"rows":22}
+PASS downloaded JSON equals the built export (apart from the time stamp) — seam-download-asrq-listening-20261024-1804.json
+PASS downloaded Markdown: T-09/T-10 tables still match the curated lists (compare-export.mjs) — list rows: T-09 40, T-10 28; export rows 68; mismatches 0
+PASS importing the downloaded JSON restores every answer, the retired one included — 61
+PASS importing an export of the previous build applies its seam answers (retired id kept aside) — {"n":2,"retired":"right","kept":"unsure"}
+PASS summary: seam progress row and tally card name the restored edges and the changed decision — {"rows":["音频类型对照（T-09）18 / 40","只重识别模型（T-10）18 / 28","接缝去重对比（④）22 / 22","其余差异（可选）0 / 54"],"reading":"读数：已答 22/22 处：去得对 6，不该去 8，说不准 8。保留句一端挪回 15 处。与上一版 run-SVKkhx 相比 1 处判定已改（旧条目的结论另存，导出时带上）。其他差异（不是去重去掉的）：无。"}
+PASS narrow (820 px): the selector names 复原 and 改判, no horizontal overflow — {"options":22,"overflow":0}
+PASS no request leaves the local server — []
+PASS no failed request (besides the browser's favicon probe) — {"failed":[],"unexpected":[]}
+PASS no console errors — {"errors":1,"other":[]}
+42/42 passed
+
+完成时间 2026-10-24T10:04:54.980Z
+
+== 4. 截图（test-results/asr-quality-listening/_check/，已逐张查看）
+- seam-flag-light-1280x800.png
+- seam-changed-light-1280x800.png
+- seam-cap-light-1280x800.png
+- seam-flag-light-1024x700.png
+- seam-changed-light-1024x700.png
+- seam-cap-light-1024x700.png
+- seam-flag-dark-1280x800.png
+- seam-changed-dark-1280x800.png
+- seam-cap-dark-1280x800.png
+- seam-flag-dark-1024x700.png
+- seam-changed-dark-1024x700.png
+- seam-cap-dark-1024x700.png
+- seam-changed-texts-light-1280x800.png
+- seam-list-bottom-light-1280x800.png
+- seam-flag-light-820x900.png
+- summary-seam-light-1280x800.png
+
+== 5. 看图后的修改（草稿 index-dev.html 上，修改后重跑全部检查）
+- 列表行：加“复原”“改判”标签后，1280 宽有 6 行、1024 宽有 11 行的说明文字被省略号截断（无界面 Chrome 量 scrollWidth/clientWidth）。④ 的行改为标签放不下时换到第二行右侧，标签内边距收窄；重量后 1280/1100/1024/900 宽都是 0 行截断。
+- 列表从底部往上跳到某条时，当前行被吸顶的样本标题挡住：行加 scroll-margin-top，当前行停在标题下面。
+- 列表顶部的改判说明原来 1280 宽高 207 px、1024 宽 288 px，压缩文字和字号后为 182 px / 222 px。
+- 列表底部截图第一次滚的是 #list（不是滚动容器），没有拍到“其他差异”；改为滚 .sidebar 后重拍。
