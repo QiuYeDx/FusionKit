@@ -27,3 +27,5 @@
 # Historical migration receipts preserve their initial, audited checkout bytes.
 /resources/speech-resources/migration/legacy/*.json text eol=crlf
 /resources/speech-resources/migration/studio/*.json text eol=lf
+# Long text fixtures are compared as exact bytes (line splitting, encoding detection, export output).
+/test/long-text/fixtures/** text eol=lf
