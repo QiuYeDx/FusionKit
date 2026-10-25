@@ -56,12 +56,12 @@ function UpdateBadge({ state }: { state: AppUpdateState | undefined }) {
 
 interface LinkItem { icon: LucideIcon; tone: Tone; titleKey: string; descKey: string; url: string; href: string }
 
-const LINKS: LinkItem[] = [
+const LINKS = [
   { icon: Github, tone: "neutral", titleKey: "about:links.repo.title", descKey: "about:links.repo.desc", url: "github.com/QiuYeDx/FusionKit", href: REPO_URL },
   { icon: Globe, tone: "blue", titleKey: "about:links.author.title", descKey: "about:links.author.desc", url: "qiuvision.com", href: AUTHOR_URL },
   { icon: BookText, tone: "violet", titleKey: "about:links.blog.title", descKey: "about:links.blog.desc", url: "blog.qiuyedx.com", href: BLOG_URL },
   { icon: Mail, tone: "amber", titleKey: "about:links.contact.title", descKey: "about:links.contact.desc", url: CONTACT_EMAIL, href: `mailto:${CONTACT_EMAIL}` },
-];
+] as const satisfies readonly LinkItem[];
 
 const About: React.FC = () => {
   const { t } = useTranslation();

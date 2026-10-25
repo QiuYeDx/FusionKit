@@ -23,13 +23,13 @@ interface NavItem {
   tone: Tone;
 }
 
-const NAV: NavItem[] = [
+const NAV = [
   { key: "general", labelKey: "setting:nav.general.label", hintKey: "setting:nav.general.hint", icon: SlidersHorizontal, tone: "neutral" },
   { key: "proxy", labelKey: "setting:nav.proxy.label", hintKey: "setting:nav.proxy.hint", icon: Globe, tone: "blue" },
   { key: "model", labelKey: "setting:nav.model.label", hintKey: "setting:nav.model.hint", icon: Cpu, tone: "violet" },
   { key: "agent", labelKey: "setting:nav.agent.label", hintKey: "setting:nav.agent.hint", icon: Bot, tone: "teal" },
   { key: "external", labelKey: "setting:nav.external.label", hintKey: "setting:nav.external.hint", icon: Plug, tone: "green" },
-];
+] as const satisfies readonly NavItem[];
 
 const contentVariants = {
   initial: (dir: number) => ({ opacity: 0, y: dir * 10, filter: "blur(2px)" }),

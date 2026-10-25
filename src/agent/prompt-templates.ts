@@ -29,9 +29,11 @@ export interface TemplateField {
 }
 
 export type TemplateIcon = "media" | "convert" | "names" | "translate" | "extract" | "resume";
+/** Names the template's `home:templates.<id>.*` texts. */
+export type TemplateId = "media_bilingual" | "convert_subtitles" | "bilingual_names" | "translate_subtitles" | "extract_language" | "resume_translation";
 
 export interface PromptTemplate {
-  id: string;
+  id: TemplateId;
   icon: TemplateIcon;
   fields: readonly TemplateField[];
   /** The agents this job can be given to. */
@@ -41,7 +43,8 @@ export interface PromptTemplate {
   build: (values: TemplateValues, target: TemplateTarget, t: Translate) => string;
 }
 
-const K = (key: string) => `home:templates.${key}`;
+/** Keeps a literal key literal, so the i18n usage check can resolve it. */
+const K = <Key extends string>(key: Key): `home:templates.${Key}` => `home:templates.${key}`;
 
 const LANGUAGES = ["ZH", "ZH_HANT", "JA", "EN", "KO"] as const;
 const languageOptions = (codes: readonly string[]): TemplateOption[] => codes.map((value) => ({ value, labelKey: K(`lang.${value}`) }));

@@ -206,7 +206,7 @@ const Help: React.FC = () => {
       }],
     },
   };
-  const steps = [1, 2, 3].map((index) => ({
+  const steps = ([1, 2, 3] as const).map((index) => ({
     index, title: t(`help:sections.quick_start.step${index}_title`), body: t(`help:sections.quick_start.step${index}_body`),
     action: t(`help:sections.quick_start.step${index}_action`),
     icon: [Settings, FolderDown, Home][index - 1], tone: (["violet", "teal", "orange"] as const)[index - 1],

@@ -267,7 +267,7 @@ export default function ExternalAgentConfig() {
               ) : <span className="text-[11px] text-muted-foreground">{t("setting:external_agent.clients.stdio_only")}</span>}
             </div>
             <ol className="space-y-1.5 text-xs leading-relaxed text-muted-foreground" data-testid="setting-external-guide">
-              {[1, 2, 3].map((step) => <li key={step} className="flex gap-2.5">
+              {([1, 2, 3] as const).map((step) => <li key={step} className="flex gap-2.5">
                 <span aria-hidden className="mt-px inline-flex size-[18px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[10px] tabular-nums text-foreground/70">{step}</span>
                 <span className="min-w-0">{t(`setting:external_agent.clients.guide.${client}.step${step}`)}</span>
               </li>)}

@@ -31,7 +31,7 @@ const EXPERIMENTAL_TOOLS: ToolTileItem[] = [
     chips: ["tools:chips.text_translator_txt", "tools:chips.text_translator_markdown"], translateChips: true },
 ];
 
-type FeaturedItem = { id: "subtitleStudio" | "translationKnowledge"; kind: FeaturedKind; titleKey: string; descKey: string; chipKeys: string[]; details: [string, string][]; ctaKey: string };
+type FeaturedItem = { id: "subtitleStudio" | "translationKnowledge"; kind: FeaturedKind; titleKey: string; descKey: string; chipKeys: readonly string[]; details: readonly (readonly [string, string])[]; ctaKey: string };
 
 const FEATURED_TOOLS = [
   {
@@ -46,7 +46,7 @@ const FEATURED_TOOLS = [
     details: [["tools:catalog.organize_label", "tools:catalog.organize_value"], ["tools:catalog.reuse_label", "tools:catalog.reuse_value"], ["tools:catalog.share_label", "tools:catalog.share_value"]],
     ctaKey: "tools:catalog.open_knowledge",
   },
-] satisfies FeaturedItem[];
+] as const satisfies readonly FeaturedItem[];
 
 function SectionHeading({ id, testId, title, count, description, badge }: {
   id: string; testId: string; title: string; count: number; description: string; badge?: string;
