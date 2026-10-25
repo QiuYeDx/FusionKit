@@ -37,7 +37,7 @@ export function Hero() {
             href={`${REPO}/blob/main/CHANGELOG.md`}
             className="group inline-flex max-w-full items-center gap-2 rounded-full border bg-background/70 py-1 pr-3 pl-1 text-left text-xs text-muted-foreground backdrop-blur transition-colors hover:text-foreground sm:text-sm"
           >
-            <span className="shrink-0 rounded-full bg-studio-soft px-2 py-0.5 font-medium text-studio">0.5.1</span>
+            <span className="shrink-0 rounded-full bg-studio-soft px-2 py-0.5 font-medium text-studio">0.5.2</span>
             <span className="min-w-0">{t.hero.notice}</span>
             <ArrowRight className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
           </motion.a>
