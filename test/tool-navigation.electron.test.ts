@@ -57,8 +57,13 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool navigation in na
         await nativeWindow.evaluate((win, size) => win.setSize(...size), [width, height] as [number, number]);
         let studioTop = 0;
         for (const route of routes) {
+          // The external agent activity page shares the tool layout but is not a
+          // tool: Escape navigation belongs to /tools/ pages, and its Back button
+          // returns to the previous page, or to Settings on direct entry like this.
+          const isTool = route.startsWith('/tools/');
+          const parent = isTool ? '/tools' : '/setting?tab=external';
           await openTool(route);
-          const label = `${route.slice(7).replaceAll('/', '-')}-${theme}-${width}x${height}`;
+          const label = `${route.replace(/^\/(tools\/)?/, '').replaceAll('/', '-')}-${theme}-${width}x${height}`;
           const geometry = await page.locator('h1').evaluate(element => ({
             top: element.getBoundingClientRect().top,
             expectedTop: 40 + (innerHeight <= 650 ? 20 : 24),
@@ -88,14 +93,15 @@ describe.runIf(process.env.FUSIONKIT_TOOL_UI_E2E === '1')('Tool navigation in na
             await uiExpect(page.getByText(/再按一次 Esc|Press Esc again/)).toBeVisible();
             await staysOn(route);
           }
-          await page.keyboard.press('Escape');
-          await uiExpect(page).toHaveURL(/#\/tools$/);
+          if (isTool) await page.keyboard.press('Escape');
+          else await page.getByRole('button', { name: /^(返回|Back)$/ }).click();
+          await uiExpect(page).toHaveURL(isTool ? /#\/tools$/ : /#\/setting\?tab=external$/);
           const tops = await departure;
           expect(Math.max(...tops) - Math.min(...tops), `${label} exit jump`).toBeLessThan(1);
           await uiExpect(page.locator('[data-slot=tool-detail-layout]')).toHaveCount(0);
-          // Holding Escape must not continue out of the tool list.
+          // Holding Escape must not continue out of the parent page.
           await page.keyboard.press('Escape');
-          await staysOn('/tools');
+          await staysOn(parent);
         }
       }
     }
