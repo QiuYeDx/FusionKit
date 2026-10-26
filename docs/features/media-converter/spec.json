@@ -1,0 +1,232 @@
+{
+  "schema_version": 2,
+  "feature": "media-converter",
+  "tier": "L",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "engine",
+      "code": "ENGINE",
+      "path": "modules/module-engine"
+    },
+    {
+      "slug": "encode",
+      "code": "ENCODE",
+      "path": "modules/module-encode"
+    },
+    {
+      "slug": "workbench",
+      "code": "WORKBENCH",
+      "path": "modules/module-workbench"
+    },
+    {
+      "slug": "agent",
+      "code": "AGENT",
+      "path": "modules/module-agent"
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "Windows 端到端主链路：探测、能力、队列、安全输出、压缩/转换/提取音频（简单模式）",
+      "status": "implementing",
+      "approval": {
+        "state": "approved",
+        "by": "用户（当前会话）",
+        "basis": "2026-10-26 用户审阅规格与评审结果后回复「For Q-01 use option B: default to HEVC when a hardware encoder is available, otherwise H.264; AV1 stays as the 'smallest size' option. Everything else as recommended. Approve I1 and start development.」。据此批准 I1：Q-01 选项 B，Q-02/Q-03/Q-04 按推荐；按此前说明建立 v0.6.0 分支、提交文档，并从 T-ENGINE-01 开始开发。不推送、不发布；验收由用户执行，不代签；Electron UI 测试只在 quiet 模式下用测试套件运行；T-ENCODE-05 与 I1 验收等待用户提供样片（A-07）。",
+        "digest": "accabb1d899a832ac49473c2ad8aab062dd36c26e75fcfc2d5a4d374658cb1c5"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I2",
+      "title": "智能压缩：目标大小、VMAF 画质目标、压缩前预估、预览对比与画质报告",
+      "status": "planning",
+      "approval": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": ""
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I3",
+      "title": "高阶设置：码控与编码器参数、滤镜与音频处理、自定义预设、GIF/WebP 与无损裁剪",
+      "status": "planning",
+      "approval": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": ""
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I4",
+      "title": "macOS 媒体引擎与平台支持",
+      "status": "planning",
+      "approval": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": ""
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    },
+    {
+      "id": "I5",
+      "title": "Agent 接入（内置 + MCP）与 0.6.0 发布收尾",
+      "status": "planning",
+      "approval": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": ""
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "Q-01",
+      "increment": "I1",
+      "blocking": true,
+      "state": "resolved",
+      "text": "「压缩视频」的默认输出编码。选项 A（推荐）：默认 AV1，即 SVT-AV1 10-bit，封装 MP4，音频 AAC。在当前许可下压缩率最高，同等画质下体积约为 H.264 的 1/2–1/3，正好对应「尽可能在保留画质的前提下压缩更多空间」。代价是兼容性：iPhone 15 Pro 之前的 iPhone、M1/M2 Mac 的 QuickTime 和「照片」完全无法解码 AV1（苹果没有软件解码）；Windows 需要免费的 AV1 扩展（Windows 11 通常已预装）；微信等 App 内置播放器能否播放，待 I1 验收时实测。界面上会按用途命名选项，并写明兼容说明，可一键改为「最大兼容（H.264）」或「苹果与较新设备（HEVC）」。选项 B：有硬件编码器时默认 HEVC（所有 iPhone 与 Mac 都能播放；Windows「照片」需要付费扩展），没有硬件编码器时默认 H.264，AV1 作为「最小体积/存档」供用户主动选择。选项 C：默认 H.264（到处都能播放，但体积最大；没有显卡编码器时 CPU 编码质量较弱）。无论选哪个，I2 的「按大小（发送分享）」都默认使用兼容编码。",
+      "resolution": "2026-10-26 用户选择选项 B：本机有 HEVC 硬件编码器（nvenc/qsv/amf/mf 硬件）时默认 HEVC，否则默认 H.264；AV1 保留为「最小体积」选项，由用户主动选择。见 AC-ENCODE-02-7。"
+    },
+    {
+      "id": "Q-02",
+      "increment": "I4",
+      "blocking": true,
+      "state": "resolved",
+      "text": "macOS 方案。推荐 a：新增独立的 media-tools 运行时，用 LGPL-2.1 构建 ffmpeg 8.1.2，包含 VideoToolbox/AudioToolbox（系统框架），以及 SVT-AV1、dav1d、Opus、LAME、libvpx、zimg、libvmaf、soxr；由用户在 Mac 上执行构建脚本并签名，I4 交付。其他选择：b，作为可下载资源；c，v0.6.0 只支持 Windows。I1–I3 期间 macOS 不显示该工具。",
+      "resolution": "2026-10-26 用户「Everything else as recommended」：采用方案 a。新增独立的 media-tools 运行时（LGPL-2.1，含 VideoToolbox、AudioToolbox、SVT-AV1 等），由用户在 Mac 上构建并签名，I4 交付；I1–I3 期间 macOS 页面内显示不支持。"
+    },
+    {
+      "id": "Q-03",
+      "increment": "I3",
+      "blocking": false,
+      "state": "resolved",
+      "text": "是否提供可选下载的 GPL 编码器扩展包（x264/x265 等）。推荐 v0.6.0 不提供：避免承担 GPL 源码提供义务、许可审查和下载管理的额外工作；先用硬件编码器和 SVT-AV1 满足需求，I3 结束后再根据实测和用户反馈决定。",
+      "resolution": "2026-10-26 用户「Everything else as recommended」：v0.6.0 不提供 GPL 编码器扩展包，I3 结束后再根据实测与反馈决定。"
+    },
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "Windows 复用字幕工作台转写运行时中经过校验的 LGPL ffmpeg 8.1.2，I1 不改打包和许可。",
+      "resolution": "按调研结论采用（discovery.md）：安装包体积不变；只 import 冻结副本的导出，不修改它们。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "输出默认放在源文件旁，文件名加后缀，冲突时自动编号；永不覆盖输入文件；「不比原文件小时丢弃」默认开。选择覆盖时，开始前列出将被替换的文件并确认；被替换的旧文件先移到回收站；「覆盖」只在当前会话有效。",
+      "resolution": "沿用项目的 indexed/overwrite 冲突语义（FK-PIT-0044），以及业界避免「静默损害」的做法。"
+    },
+    {
+      "id": "A-03",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "工具放在新增的「媒体工具」分区，不放进经典或精选分区。",
+      "resolution": "避免牵动 Agent 能力目录测试和 e2e 目录布局的约束；I5 接入 Agent 时再评估位置。"
+    },
+    {
+      "id": "A-04",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "队列由主进程持有并持久化保存；退出应用时取消运行中的任务；重启后不自动继续编码，只标记为已中断，用户可重试。",
+      "resolution": "与长文本翻译的「主进程持有、启动时恢复」模式一致，也避免跨重启续编的复杂性。"
+    },
+    {
+      "id": "A-05",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "默认同一时间只运行一个转换任务，进程优先级为「低于正常」。另设「低占用模式」：最低优先级 + 把 CPU 亲和性限制在约一半的逻辑核上（混合架构优先使用能效核）+ SVT lp=1。I1 不在界面上开放并发数设置。",
+      "resolution": "与 HandBrake、FastFlix 的队列行为一致。评审指出 SVT 的 lp 是并行级别、不能限制线程数，所以低占用改用操作系统的亲和性实现，并在验收中测量 CPU 占用。"
+    },
+    {
+      "id": "A-06",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "简单模式下 MP4/MOV 中的音频一律用 AAC；Opus 只用于 MKV/WebM，或在高级设置中由用户自选。",
+      "resolution": "Windows 自带播放器、QuickTime 和部分车机不支持 MP4 中的 Opus（discovery 中的音频调研）。"
+    },
+    {
+      "id": "A-07",
+      "increment": "I1",
+      "blocking": false,
+      "state": "open",
+      "text": "编码参数的初值来自公开资料与合成素材。T-ENCODE-05（AC-ENCODE-02-6）和 I1 验收需要用户提供 4–6 段真实样片：iPhone 竖屏 HEVC（最好带 HDR）、屏幕录制、动画、带颗粒的电影、游戏录像、从社交平台下载的视频。样片放在仓库和 %TEMP% 之外的文件夹。这项只阻断校准与 I1 验收，不阻断开始开发。样片不到位时，经用户同意，可改用公开测试片（如 Xiph derf）。AC-ENCODE-06-1 等功能性验收用合成素材做执行器测试，不依赖真实样片。",
+      "resolution": ""
+    },
+    {
+      "id": "Q-04",
+      "increment": "I5",
+      "blocking": true,
+      "state": "resolved",
+      "text": "许可与编解码专利（发布前必须处理，I1–I4 开发不受影响）。转换工具首次把随附 ffmpeg 中的外部编码器（libopenh264、libkvazaar、原生 aac、libmp3lame、libopus、libsvtav1 等）直接交给用户使用。仓库中尚未关闭的 QA-005 包括：Windows 外部库的逐项许可声明、BtbN 提交 ce3c09c1 对应的源码提供、编解码专利审查。另外，Cisco 的 OpenH264 专利许可只覆盖 Cisco 自己分发的二进制，不覆盖 BtbN 从源码静态编译的版本；libkvazaar（HEVC）同样没有专利许可。需要决定：A（推荐）——发布前完成 QA-005 的许可声明与源码提供，保留 openh264/kvazaar 作为 CPU 兜底，并在第三方声明中如实说明；B——从默认降级链中移除 openh264/kvazaar（没有硬件编码器时提示改用 AV1）。本项不构成法律意见。",
+      "resolution": "2026-10-26 用户「Everything else as recommended」：采用 A。发布前（I5）完成 QA-005 的外部库许可声明与源码提供；openh264 与 kvazaar 保留为 CPU 兜底，并在第三方声明中如实说明专利情况。不构成法律意见。"
+    },
+    {
+      "id": "A-08",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "「压缩视频」的输出格式默认「自动」：源文件含带样式的 ASS、图形字幕或附件时用 MKV，否则用 MP4，避免字幕被悄悄降级。",
+      "resolution": "评审 UX-2：MP4 中的 mov_text 无法承载 ASS 的样式与定位，丢失会在用户不知情的情况下发生。"
+    },
+    {
+      "id": "A-09",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "在 macOS 上（I4 之前），工具列表不显示该工具；直接访问路由时，在页内显示「暂不支持此平台」，不跳转。",
+      "resolution": "评审 INT-9：工具页导航测试会遍历所有工具路由；在页内显示说明比跳转更清楚。"
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}
