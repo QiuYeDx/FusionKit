@@ -74,6 +74,7 @@ import {
 import { registerSubtitleStudio } from "./subtitle-studio";
 import { registerTranslationKnowledge } from "./translation-knowledge";
 import { registerLongText } from "./long-text";
+import { registerMediaConverter } from "./media-converter";
 import { createSharedResourceApplicationShutdown, createResourceConsumerLifecycle } from "./app-shutdown";
 import { SpeechResourceService } from "./speech-resources/service";
 import { SPEECH_CUDA_RESOURCE_ID } from "./speech-resources/catalog";
@@ -120,6 +121,7 @@ if (!app.requestSingleInstanceLock()) {
 let win: BrowserWindow | null = null;
 let subtitleStudio: ReturnType<typeof registerSubtitleStudio> | undefined;
 let translationKnowledge: ReturnType<typeof registerTranslationKnowledge> | undefined;
+let mediaConverter: ReturnType<typeof registerMediaConverter> | undefined;
 let localSubtitleServerLifecycle: LocalSubtitleServerAppLifecycle | undefined;
 let translationService: TranslationService = new TranslationService();
 const subtitleTranslationDirectoryCapabilities =
@@ -299,6 +301,9 @@ app.whenReady().then(async () => {
     return translationKnowledge.readForExecution();
   } }); }
   catch { console.error("Long text translator initialization failed."); }
+  try { mediaConverter = registerMediaConverter({ getWindow: () => win, environment: localSubtitleResourceEnvironment,
+    userDataPath: app.getPath("userData"), platform: process.platform }); }
+  catch { console.error("Media converter initialization failed."); }
   const localSubtitleInputAuthorizations =
     new LocalSubtitleInputAuthorizationRegistry();
   const localSubtitleOutputAuthorizations =
@@ -417,7 +422,8 @@ app.whenReady().then(async () => {
   localSubtitleServerLifecycle = new LocalSubtitleServerAppLifecycle(
     createSharedResourceApplicationShutdown({
       resources: { fence: () => speechResources.fence(), async shutdown() { await speechResources.shutdown(); detachSpeechResources(); } },
-      runtimes: [localSubtitleResourceConsumer, { shutdown: reason => subtitleStudio?.dispose(reason) ?? Promise.resolve() }, { shutdown: () => translationKnowledge?.dispose() ?? Promise.resolve() }],
+      runtimes: [localSubtitleResourceConsumer, { shutdown: reason => subtitleStudio?.dispose(reason) ?? Promise.resolve() }, { shutdown: () => translationKnowledge?.dispose() ?? Promise.resolve() },
+        { shutdown: reason => mediaConverter?.shutdown(reason) ?? Promise.resolve() }],
       smokeServer: speechResourceSmoke,
     }),
   );

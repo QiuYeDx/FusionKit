@@ -1,0 +1,105 @@
+# 2026-10-28 20:07-20:20, review of T-WORKBENCH-01. Every command below ran one at a time (no other build or Electron run in this checkout); builds at
+# IDLE priority (cmd start /low), vitest and the Electron it launches at BELOW_NORMAL (start /belownormal); quiet window mode (vitest.config.ts default);
+# electron.exe count 0 before and after every run. Earlier evidence (17:5x) is superseded.
+
+## Test bundle
+$ pnpm run pretest
+✓ built in 31.69s
+dist-electron/main/index.js  6,275.19 kB │ gzip: 2,218.36 kB
+✓ built in 11.18s
+dist-electron/preload/index.mjs  322.69 kB │ gzip: 88.31 kB
+✓ built in 1.58s
+Sandboxed preload external module check passed (electron).
+exit 0
+
+## (a)(b)(d) quiet Electron, T-WORKBENCH-01 scenarios of the shared file (the T-WORKBENCH-02 describe block is not part of this check)
+$ FUSIONKIT_MEDIA_E2E=1 npx vitest run --maxWorkers=1 --minWorkers=1 test/media-converter/media-converter.electron.test.ts -t "media UI helpers|Media converter in Electron"
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/media-converter.electron.test.ts (10 tests | 5 skipped) 61838ms
+   ✓ Media converter in Electron > lists the converter in its own catalog section, opens it and goes back with Escape and Back 34134ms
+   ✓ Media converter in Electron > makes media in the run folder and hands it over by drop and by the stubbed dialog 10525ms
+   ✓ Media converter in Electron > explains the platform instead of showing the tool where the converter is not supported 17161ms
+ Test Files  1 passed (1)
+      Tests  5 passed | 5 skipped (10)
+   Start at  20:11:19
+   Duration  62.83s (transform 103ms, setup 62ms, collect 729ms, tests 61.84s, environment 0ms, prepare 58ms)
+exit 0
+# (a) measurements written by the test (T-WORKBENCH-01-catalog.json; page = the window's page size, 12 px over setSize off-screen, FK-PIT-0188):
+catalog-light-zh {"viewport":{"width":1292,"height":806},"classicTop":565,"mediaTop":1068.5,"experimentalTop":1350,"classicRows":2,"experimentalCards":["textTranslator"],"tileWidthShare":0.5,"tileHeight":178,"iconColor":"oklch(0.62 0.15 335)","media":"oklch(62% .15 335)","destructive":"oklch(57.7% .245 27.325)","rename":"oklch(60% .14 290)","translator":"oklch(65% .16 45)","contrast":{"hueFromDestructive":52.32499999999999,"deltaEFromDestructive":0.199,"hueFromRename":45,"hueFromTranslator":70},"overflowProbe":{"detected":true,"windowScrolls":false}}
+page-light-zh {"top":64,"expectedTop":64,"badgeColor":"oklch(0.62 0.15 335)"}
+catalog-dark-en {"viewport":{"width":1292,"height":806},"classicTop":581.1875,"mediaTop":1084.6875,"experimentalTop":1384.1875,"classicRows":2,"experimentalCards":["textTranslator"],"tileWidthShare":0.5,"tileHeight":196,"iconColor":"oklch(0.72 0.15 335)","media":"oklch(72% .15 335)","destructive":"oklch(70.4% .191 22.216)","rename":"oklch(70% .14 290)","translator":"oklch(74% .16 45)","contrast":{"hueFromDestructive":47.21600000000001,"deltaEFromDestructive":0.143,"hueFromRename":45,"hueFromTranslator":70},"overflowProbe":{"detected":true,"windowScrolls":false}}
+page-dark-en {"top":64,"expectedTop":64,"badgeColor":"oklch(0.72 0.15 335)"}
+catalog-light-zh-786x540 {"viewport":{"width":798,"height":546},"tile":{"x":32,"y":206.5,"width":361,"height":196,"top":206.5,"right":393,"bottom":402.5,"left":32}}
+# (d) unsupported platform (T-WORKBENCH-01-unsupported.json):
+light-zh-1280x800 {"asideDisplay":"none","asideChildren":0,"noticeLeft":38,"contentLeft":38,"noticeWidth":1216,"contentWidth":1216,"noticeHeight":178,"h1Top":64,"expectedTop":64}
+dark-en-786x540 {"asideDisplay":"none","asideChildren":0,"noticeLeft":32,"contentLeft":32,"noticeWidth":734,"contentWidth":734,"noticeHeight":178,"h1Top":60,"expectedTop":60}
+# Final screenshots (10): records/i1/screenshots/T-WORKBENCH-01-*.jpg, copied from that run's folders, which were then deleted.
+# A first run at 20:08 (before the test waited for the engine to be ready) also passed, 5 passed | 5 skipped; its page shot in light zh showed the engine still detecting.
+
+## (c) working tree
+$ FUSIONKIT_TOOL_UI_E2E=1 FUSIONKIT_TEST_MEDIA_CAPS=cpu_only npx vitest run --maxWorkers=1 --minWorkers=1 test/tool-navigation.electron.test.ts
+# FUSIONKIT_TEST_MEDIA_CAPS=cpu_only only keeps the converter page from test-encoding on the GPU when tool-navigation opens it; it changes no layout.
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/tool-navigation.electron.test.ts (1 test) 126985ms
+   ✓ Tool navigation in native Electron > aligns every tool with Studio and reserves Escape for the innermost interaction 126768ms
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  20:13:03
+   Duration  127.84s (transform 44ms, setup 65ms, collect 582ms, tests 126.99s, environment 0ms, prepare 62ms)
+exit 0
+$ npx vitest run --maxWorkers=1 --minWorkers=1 test/e2e.spec.ts -t "tool catalog lists long text translation"
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/e2e.spec.ts (5 tests | 4 skipped) 6458ms
+   ✓ [electron-vite-react] e2e tests > tool catalog lists long text translation as the only experimental tool 4845ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 4 skipped (5)
+   Start at  20:15:33
+   Duration  7.13s (transform 49ms, setup 73ms, collect 375ms, tests 6.46s, environment 0ms, prepare 66ms)
+exit 0
+
+## (c) HEAD baseline a742ec76, built without junctions or worktrees
+$ git archive HEAD | tar -x -C test-results/mc-baseline-3
+# patched there: scripts/translation-knowledge/build-artifacts.mjs reads ../../node_modules/zod/LICENSE; the launch guard harness of the working tree
+# (test/support/vitest.setup.ts, scripts/{guard-electron-launch.mjs,electron-launch-guard.cjs,ui-test-lock.mjs}, setupFiles in vitest.config.ts) copied in,
+# so a baseline Electron error box would go to stderr instead of the screen. The app and the tests under comparison are HEAD's.
+$ (cwd test-results/mc-baseline-3) node ../../node_modules/vite/bin/vite.js build --mode=test && node scripts/check-preload-bundle.mjs
+✓ built in 24.39s
+dist-electron/main/index.js  5,999.67 kB │ gzip: 2,135.19 kB
+✓ built in 6.50s
+dist-electron/preload/index.mjs  308.29 kB │ gzip: 83.64 kB
+✓ built in 675ms
+Sandboxed preload external module check passed (electron).
+exit 0
+$ (cwd test-results/mc-baseline-3) FUSIONKIT_TOOL_UI_E2E=1 FUSIONKIT_TEST_MEDIA_CAPS=cpu_only npx vitest run --maxWorkers=1 --minWorkers=1 test/tool-navigation.electron.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit/test-results/mc-baseline-3
+ ✓ test/tool-navigation.electron.test.ts (1 test) 117069ms
+   ✓ Tool navigation in native Electron > aligns every tool with Studio and reserves Escape for the innermost interaction 116858ms
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  20:17:35
+   Duration  117.93s (transform 46ms, setup 80ms, collect 572ms, tests 117.07s, environment 0ms, prepare 60ms)
+exit 0
+$ (cwd test-results/mc-baseline-3) npx vitest run --maxWorkers=1 --minWorkers=1 test/e2e.spec.ts -t "tool catalog lists long text translation"
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit/test-results/mc-baseline-3
+ ✓ test/e2e.spec.ts (5 tests | 4 skipped) 6343ms
+   ✓ [electron-vite-react] e2e tests > tool catalog lists long text translation as the only experimental tool 4828ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 4 skipped (5)
+   Start at  20:19:44
+   Duration  7.00s (transform 48ms, setup 70ms, collect 371ms, tests 6.34s, environment 0ms, prepare 60ms)
+exit 0
+$ (cwd test-results/mc-baseline-3) npx vitest run --maxWorkers=4 --minWorkers=1 src/agent/capability-catalog.test.ts
+ ✓ src/agent/capability-catalog.test.ts (2 tests) 2688ms
+   ✓ translation materials capability > lists the knowledge tools the agent can call 2684ms
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  20:20:01
+   Duration  3.02s (transform 569ms, setup 68ms, collect 42ms, tests 2.69s, environment 0ms, prepare 61ms)
+exit 0
+# tool-navigation geometry.json, working tree vs baseline, compared label by label (h1 top, horizontal overflow):
+current 60 baseline 54 common-label differences 0 only in current: media-converter-light-1280x860,media-converter-light-786x660,media-converter-light-786x540,media-converter-dark-1280x860,media-converter-dark-786x660,media-converter-dark-786x540
+# media-converter rows: h1 top 64/64 (1280x860, 786x660) and 60/60 (786x540) in both themes, no horizontal overflow.
+$ rm -rf test-results/mc-baseline-3
+exit 0
+
+## Result: tool-navigation pass/pass, e2e catalog pass/pass, capability catalog 2/2 and 2/2: the same as HEAD; the new route only adds its own 6 geometry rows.

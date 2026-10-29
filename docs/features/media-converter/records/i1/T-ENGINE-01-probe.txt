@@ -1,0 +1,113 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/probe.test.ts
+# 批次 B 修正评审（2026-10-28）后重跑；--reporter=verbose 只为列出每个用例
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/probe.test.ts > the runtime without a staged bundle > refuses every platform but Windows without touching the runtime
+ ✓ test/media-converter/probe.test.ts > the runtime without a staged bundle > maps verification failures to runtime reason codes
+ ✓ test/media-converter/probe.test.ts > the runtime without a staged bundle > accepts only a branded runtime proof
+ ✓ test/media-converter/probe.test.ts > the reason codes > form one closed list without duplicates, and every probe failure is one of them
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > turns a portrait phone video upright through its Display Matrix and ignores the metadata track
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > ignores the legacy rotate tag (ffmpeg 8 does not turn by it), and reads an unknown aspect ratio and full range from yuvj
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > takes the rotation from the Display Matrix alone, whatever a rotate tag says
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > reads HDR10 static metadata from the first frame
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > recognizes HLG and keeps the static metadata empty when the frame has none
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > recognizes Dolby Vision profile 5 from the stream side data although the transfer is unknown
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > marks Dolby Vision profile 8.1 compatible and prefers the stream metadata over the first frame
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > flags variable frame rate and keeps a negative start time
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > treats cover art as a cover, so audio with a cover is an audio file
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > sorts subtitles into text, image and other, with their flags and per-type positions
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > counts ASS streams as styled until their events are read
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > tells WebM from Matroska by DocType
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > keeps the start offset of an MPEG-TS and the field order of interlaced video
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > leaves the duration unknown when nothing reports one, and falls back to the DURATION tag
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > refuses files without audio or a main video, and demuxers outside the allow list
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > refuses malformed output
+ ✓ test/media-converter/probe.test.ts > normalizing ffprobe output > treats an implausible bit rate as unknown instead of refusing the file
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "qt  ", DocType null and extension mov is mov
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "isom", DocType null and extension mov is mp4
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "iso2", DocType null and extension mp4 is mp4
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "mp41", DocType null and extension mp4 is mp4
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "mp42", DocType null and extension m4v is mp4
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "avc1", DocType null and extension mp4 is mp4
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "M4A ", DocType null and extension mp4 is m4a
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "M4B ", DocType null and extension m4b is m4a
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "iso5", DocType null and extension mp4 is mp4
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "iso5", DocType null and extension mov is mov
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand "3gp4", DocType null and extension 3gp is 3gp
+ ✓ test/media-converter/probe.test.ts > container identity > mov with brand null, DocType null and extension bin is unknown
+ ✓ test/media-converter/probe.test.ts > container identity > matroska with brand null, DocType "webm" and extension mkv is webm
+ ✓ test/media-converter/probe.test.ts > container identity > matroska with brand null, DocType "matroska" and extension webm is matroska
+ ✓ test/media-converter/probe.test.ts > container identity > matroska with brand null, DocType null and extension mka is matroska
+ ✓ test/media-converter/probe.test.ts > container identity > matroska with brand null, DocType null and extension mp4 is unknown
+ ✓ test/media-converter/probe.test.ts > container identity > ogg with brand null, DocType null and extension opus is opus
+ ✓ test/media-converter/probe.test.ts > container identity > ogg with brand null, DocType null and extension ogg is ogg
+ ✓ test/media-converter/probe.test.ts > container identity > mpegts with brand null, DocType null and extension mp4 is mpegts
+ ✓ test/media-converter/probe.test.ts > container identity > mp3 with brand null, DocType null and extension mp3 is mp3
+ ✓ test/media-converter/probe.test.ts > container identity > wav with brand null, DocType null and extension wav is wav
+ ✓ test/media-converter/probe.test.ts > checks before ffprobe runs > refuses playlist and session extensions, whatever their case
+ ✓ test/media-converter/probe.test.ts > checks before ffprobe runs > recognizes WeChat SILK with and without the leading byte
+ ✓ test/media-converter/probe.test.ts > checks before ffprobe runs > reads the DocType of an EBML header
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuv420p is 8-bit 420
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuvj420p is 8-bit 420
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuv420p10le is 10-bit 420
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuv422p10le is 10-bit 422
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuv444p12le is 12-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuva420p is 8-bit 420
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuv411p is 8-bit 411
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuv440p is 8-bit 440
+ ✓ test/media-converter/probe.test.ts > pixel formats > nv12 is 8-bit 420
+ ✓ test/media-converter/probe.test.ts > pixel formats > nv16 is 8-bit 422
+ ✓ test/media-converter/probe.test.ts > pixel formats > nv20le is 10-bit 422
+ ✓ test/media-converter/probe.test.ts > pixel formats > nv24 is 8-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > p010le is 10-bit 420
+ ✓ test/media-converter/probe.test.ts > pixel formats > p016le is 16-bit 420
+ ✓ test/media-converter/probe.test.ts > pixel formats > p210le is 10-bit 422
+ ✓ test/media-converter/probe.test.ts > pixel formats > p410le is 10-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > y210le is 10-bit 422
+ ✓ test/media-converter/probe.test.ts > pixel formats > yuyv422 is 8-bit 422
+ ✓ test/media-converter/probe.test.ts > pixel formats > uyvy422 is 8-bit 422
+ ✓ test/media-converter/probe.test.ts > pixel formats > gray is 8-bit 400
+ ✓ test/media-converter/probe.test.ts > pixel formats > gray10le is 10-bit 400
+ ✓ test/media-converter/probe.test.ts > pixel formats > grayf32le is 32-bit 400
+ ✓ test/media-converter/probe.test.ts > pixel formats > gbrp is 8-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > gbrp10le is 10-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > gbrpf32le is 32-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > rgb24 is 8-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > rgb48le is 16-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > x2rgb10le is 10-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > xv30le is 10-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > pal8 is 8-bit 444
+ ✓ test/media-converter/probe.test.ts > pixel formats > knows nothing of unlisted formats, so the raw sample depth decides
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > ass-plain.ass
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > ass-positioned.ass
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > ass-overlap.ass
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > ass-two-styles.ass
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > ass-top-style.ass
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > ssa-legacy.ssa
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > ass-unreadable.ass
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > looks at the first 200 events only
+ ✓ test/media-converter/probe.test.ts > ASS/SSA styling > a dialogue line without a valid time counts as unreadable
+ ✓ test/media-converter/probe.test.ts > probe cache identity > uses volume and file ID when they identify the file
+ ✓ test/media-converter/probe.test.ts > probe cache identity > falls back to the normalized path when the FileId is all zeros or unavailable
+ ✓ test/media-converter/probe.test.ts > probe cache identity > changes with the size or the modification time
+ ✓ test/media-converter/probe.test.ts > probing files > refuses playlists by extension without reading them or starting ffprobe
+ ✓ test/media-converter/probe.test.ts > probing files > refuses WeChat SILK by its header without starting ffprobe
+ ✓ test/media-converter/probe.test.ts > probing files > restricts every ffprobe input to the media demuxers and the file protocol
+ ✓ test/media-converter/probe.test.ts > probing files > reads the first frame of PQ video with the probed demuxer pinned, and skips it for SDR
+ ✓ test/media-converter/probe.test.ts > probing files > reads the events of each ASS stream to decide whether it is styled
+ ✓ test/media-converter/probe.test.ts > probing files > counts an ASS stream as styled when its events cannot be read in full
+ ✓ test/media-converter/probe.test.ts > probing files > maps ffprobe refusals and failures to reason codes
+ ✓ test/media-converter/probe.test.ts > probing files > reports a missing file and anything that is not a regular file
+ ✓ test/media-converter/probe.test.ts > probing files > refuses a path that is not fully qualified, since ffprobe would resolve it in its own working directory
+ ✓ test/media-converter/probe.test.ts > probing files > caches results by identity, probes again after a change, and never caches a failure to run
+ ✓ test/media-converter/probe.test.ts > probing files > shares one probe between simultaneous requests for the same file
+ ✓ test/media-converter/probe.test.ts > probing files > probes a file again when it changed while it was read, and gives up when it keeps changing
+ ✓ test/media-converter/probe.test.ts > probing files > runs at most four probes at once and settles each file as soon as it is done 571ms
+ ✓ test/media-converter/probe.test.ts > probing files > stops probing once disposed
+
+ Test Files  1 passed (1)
+      Tests  102 passed (102)
+   Start at  12:30:44
+   Duration  1.38s (transform 176ms, setup 0ms, collect 470ms, tests 724ms, environment 0ms, prepare 58ms)
+exit 0

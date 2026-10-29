@@ -1,0 +1,54 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/media-converter/capabilities.test.ts test/media-converter/test-hooks.test.ts
+# 2026-10-28 review rerun after the fixes (CUDA failures never kept as no_device, cache minimumDriver schema, no listener after dispose, isHardwareEncodeRunning required); the real-runtime case runs too (its summary is in T-ENGINE-03-real.txt)
+ ✓ test/media-converter/test-hooks.test.ts > the test build gate > is a test build only with NODE_ENV=test and not packaged
+ ✓ test/media-converter/test-hooks.test.ts > the test build gate > ignores FUSIONKIT_TEST_MEDIA_CAPS in a packaged build, whatever the environment says
+ ✓ test/media-converter/test-hooks.test.ts > the test build gate > ignores it outside NODE_ENV=test
+ ✓ test/media-converter/test-hooks.test.ts > FUSIONKIT_TEST_MEDIA_CAPS values > reads the four forms of design §9
+ ✓ test/media-converter/test-hooks.test.ts > FUSIONKIT_TEST_MEDIA_CAPS values > treats anything else as unset
+ ✓ test/media-converter/test-hooks.test.ts > the switch in the capability detection > replaces the detection in a test build and is ignored by a packaged one
+ ✓ test/media-converter/test-hooks.test.ts > the switch in the capability detection > unavailable:<code> answers that code without touching the runtime, as the runtime status too for a runtime code
+ ✓ test/media-converter/capabilities.test.ts > the software capabilities (-encoders, -muxers, -filters) > reads the names of the bundled ffmpeg lists, never the legend above them
+ ✓ test/media-converter/capabilities.test.ts > the software capabilities (-encoders, -muxers, -filters) > finds nothing missing in the bundled runtime, and names what a broken one lacks
+ ✓ test/media-converter/capabilities.test.ts > the software capabilities (-encoders, -muxers, -filters) > refuses a runtime that lacks what the plans need, without a single test encode
+ ✓ test/media-converter/capabilities.test.ts > the software capabilities (-encoders, -muxers, -filters) > reports a listing that does not finish as unknown and one that fails as an invalid runtime
+ ✓ test/media-converter/capabilities.test.ts > stderr classification > names the category of every failure this machine printed
+ ✓ test/media-converter/capabilities.test.ts > stderr classification > takes a size refusal for a parameter, before the "No capable devices found" NVENC prints with it (design §7b)
+ ✓ test/media-converter/capabilities.test.ts > stderr classification > names an old driver with the version NVENC needs, the session limit before "No capable devices", and missing runtimes
+ ✓ test/media-converter/capabilities.test.ts > stderr classification > never keeps a CUDA failure that passes as no_device, although NVENC prints "No capable devices found" after it
+ ✓ test/media-converter/capabilities.test.ts > stderr classification > treats a silent substitution as a failure even when ffmpeg exits 0
+ ✓ test/media-converter/capabilities.test.ts > the candidates > are every NVENC, QSV and AMF configuration of the planner, then Media Foundation, in the order of design §3
+ ✓ test/media-converter/capabilities.test.ts > the candidates > use exactly the production arguments; only the hevc_mf 10-bit check changes nv12 to p010le
+ ✓ test/media-converter/capabilities.test.ts > the candidates > never include *_d3d12va, *_vulkan, *_vaapi or av1_mf, although -encoders lists them (AC-ENGINE-03-4)
+ ✓ test/media-converter/capabilities.test.ts > the candidates > encode three frames of the lavfi probe picture at level+warning into Matroska, and read them back with the demuxer pinned
+ ✓ test/media-converter/capabilities.test.ts > the candidates > expect what the decoder reports for each configuration
+ ✓ test/media-converter/capabilities.test.ts > the detection > tests every configuration once, serially, with its production arguments, and builds the planner table
+ ✓ test/media-converter/capabilities.test.ts > the detection > gives the planner a table it plans with: uhq NVENC HEVC Main10 for a 1080p source
+ ✓ test/media-converter/capabilities.test.ts > the detection > fails a configuration whose stderr says auto-selecting format even at exit 0, and one whose output is not what was asked
+ ✓ test/media-converter/capabilities.test.ts > the detection > keeps only definitive verdicts: session_limit, unknown and timeouts are measured again at the next start
+ ✓ test/media-converter/capabilities.test.ts > the detection > reuses kept verdicts while the key stays the same, and measures again when the runtime, card or driver changes
+ ✓ test/media-converter/capabilities.test.ts > the detection > measures a configuration again when its production arguments changed since it was kept
+ ✓ test/media-converter/capabilities.test.ts > the detection > without driver versions in the key, keeps a verdict for a week
+ ✓ test/media-converter/capabilities.test.ts > the detection > reads the cards and drivers of Electron's basic GPU info
+ ✓ test/media-converter/capabilities.test.ts > the detection > stops testing after 30 s: the rest are unknown for this session and measured at the next start
+ ✓ test/media-converter/capabilities.test.ts > the detection > gives one configuration 15 s, encode and check together
+ ✓ test/media-converter/capabilities.test.ts > the detection > records an old NVIDIA driver with the version to install (AC-ENGINE-03-4), and keeps it
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > goes unverified → detecting → ready, telling every change; concurrent askers share one detection
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > is detecting while a detection runs: planner() waits for it
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > answers the runtime's code when it cannot be used, does not retry by itself, and detects again on request
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > a runtime that cannot start in the middle of the tests makes the engine unavailable
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > refuses "detect again" while a hardware encode runs (AC-ENGINE-03-2), and otherwise measures everything anew
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > follows a detection that used kept verdicts with a full one when asked to detect again meanwhile
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > passes over a degraded encoder for the rest of the session, until "detect again"
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > resolves each codec along the planner's chains, the weak CPU encoders marked
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > measures everything again when capabilities.json cannot be read, and replaces it
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > takes no kept driver version the engine status could not carry
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > still detects when capabilities.json cannot be written
+ ✓ test/media-converter/capabilities.test.ts > status, redetection and degradation > dispose() ends the ffmpeg of a detection in progress; later asks answer busy
+ ✓ test/media-converter/capabilities.test.ts > the test switch in the detection > cpu_only: no hardware encoder, no test encode, no file
+ ✓ test/media-converter/capabilities.test.ts > the test switch in the detection > nvenc: exactly the NVENC configurations
+ ✓ test/media-converter/capabilities.test.ts > the test switch in the detection > detecting_ms: detecting for that long, then cpu_only
+ ✓ test/media-converter/capabilities.test.ts > the real detection on this computer > tests every configuration within 30 s, keeps only definitive verdicts, and does not test again with the same key 4640ms
+ Test Files  2 passed (2)
+      Tests  48 passed (48)
+   Duration  6.00s (transform 277ms, setup 0ms, collect 1.32s, tests 5.04s, environment 0ms, prepare 118ms)
+exit 0

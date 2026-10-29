@@ -1,0 +1,10 @@
+{
+  "file": { "name": "stream.mp4", "sizeBytes": 220, "matroskaDocType": null },
+  "ffprobe": {
+    "streams": [
+      { "index": 0, "codec_name": "h264", "codec_type": "video", "width": 640, "height": 360, "r_frame_rate": "25/1", "avg_frame_rate": "25/1",
+        "disposition": { "default": 1 } }
+    ],
+    "format": { "format_name": "hls", "duration": "10.000000" }
+  }
+}

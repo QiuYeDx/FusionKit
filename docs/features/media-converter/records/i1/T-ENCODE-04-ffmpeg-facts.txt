@@ -1,0 +1,181 @@
+$ node <scratchpad>/te04/layouts.mjs   (bundled ffmpeg/ffprobe n8.1.2 at IDLE priority; lavfi sources ≤ 2 s)
+2.1 → libopus plain: exit 4294967274 [aost#0:0/libopus @ …] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 00000209301bfc00] [error] Nothing was written into output file, because at least one of its streams received no packets.
+2.1 → aac: exit 0  layout 3,2.1
+3.0(back) → libopus plain: exit 4294967274 [aost#0:0/libopus @ 0000021f7fac9b40] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 0000021f7fa4e000] [error] Nothing was written into output file, because at least one of its streams received no packets.
+3.0(back) → aac: exit 0  layout 3,3.0(back)
+4.0 → libopus plain: exit 4294967274 [aost#0:0/libopus @ 0000021807536dc0] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 00000218074efec0] [error] Nothing was written into output file, because at least one of its streams received no packets.
+4.0 → aac: exit 0  layout 4,4.0
+quad(side) → libopus plain: exit 4294967274 [aost#0:0/libopus @ 0000026caaf89b80] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 0000026ca8d0ff00] [error] Nothing was written into output file, because at least one of its streams received no packets.
+quad(side) → aac: exit 0  layout 4,unknown
+5.0(side) → libopus plain: exit 4294967274 [aost#0:0/libopus @ 000001a68d080800] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 000001a68affe180] [error] Nothing was written into output file, because at least one of its streams received no packets.
+5.0(side) → aac: exit 0  layout 5,unknown
+5.1(side) → libopus plain: exit 4294967274 [aost#0:0/libopus @ 00000248d5400c00] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 00000248d315f640] [error] Nothing was written into output file, because at least one of its streams received no packets.
+5.1(side) → aac: exit 0  layout 6,unknown
+6.1(back) → libopus plain: exit 4294967274 [aost#0:0/libopus @ 0000016261c03540] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 0000016261bbd880] [error] Nothing was written into output file, because at least one of its streams received no packets.
+6.1(back) → aac: exit 0  layout 7,unknown
+6.1(front) → libopus plain: exit 4294967274 [aost#0:0/libopus @ 000001c852699400] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 000001c8506af680] [error] Nothing was written into output file, because at least one of its streams received no packets.
+6.1(front) → aac: exit 0  layout 7,unknown
+7.1(wide) → libopus plain: exit 4294967274 [af#0:0 @ 000001cfbeba2c00] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 000001cfbcb9ee00] [error] Nothing was written into output file, because at least one of its streams received no packets.
+7.1(wide) → aac: exit 0  layout 8,unknown
+7.1(wide-side) → libopus plain: exit 4294967274 [aost#0:0/libopus @ 000001669d5e29c0] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 000001669b45eac0] [error] Nothing was written into output file, because at least one of its streams received no packets.
+7.1(wide-side) → aac: exit 0  layout 8,unknown
+7.1 → libopus plain: exit 0 [libopus @ 0000022f0a7900c0] [warning] No bit rate set. Defaulting to 416000 bps.
+7.1 → aac: exit 0  layout 8,7.1
+5.1 → libopus plain: exit 0 [libopus @ 000001228a6e1540] [warning] No bit rate set. Defaulting to 320000 bps.
+5.1 → aac: exit 0  layout 6,5.1
+hexagonal → libopus plain: exit 4294967274 [aost#0:0/libopus @ 000001a847381b80] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ 000001a8472df800] [error] Nothing was written into output file, because at least one of its streams received no packets.
+hexagonal → aac: exit 0  layout 6,unknown
+6.0 → libopus plain: exit 4294967274 [aost#0:0/libopus @ 000002248746f700] [error] Terminating thread with return code -22 (Invalid argument) | [out#0/opus @ …] [error] Nothing was written into output file, because at least one of its streams received no packets.
+6.0 → aac: exit 0  layout 6,unknown
+exit 0
+
+$ node <scratchpad>/te04/layouts3.mjs   (bundled ffmpeg/ffprobe n8.1.2 at IDLE priority; lavfi sources ≤ 2 s)
+mono             aac:1,mono(warn:[aist#0:0/pcm_s16le @ 0000026b058710c0] [warning] Guessed Channel Layout: mono;[ipod @ 0000026b05878680] [warning] Warn)  flac:1,mono(warn:[aist#0:0/pcm_s16le @ 000002b9d36d3900] [warning] Guessed Channel Layout: mono)  alac:1,mono(warn:[aist#0:0/pcm_s16le @ 0000021aaa941080] [warning] Guessed Channel Layout: mono;[ipod @ 0000021aaa948680] [warning] Warn)
+stereo           aac:2,stereo(warn:[aist#0:0/pcm_s16le @ …] [warning] Guessed Channel Layout: stereo;[ipod @ …] [warning] Wa)  flac:2,stereo(warn:[aist#0:0/pcm_s16le @ 000001e2aaf20c80] [warning] Guessed Channel Layout: stereo)  alac:2,stereo(warn:[aist#0:0/pcm_s16le @ 00000275ac781400] [warning] Guessed Channel Layout: stereo;[ipod @ 00000275ac786fc0] [warning] Wa)
+2.1              aac:3,2.1(warn:[ipod @ 00000238273b04c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:3,2.1  alac:2,stereo(warn:[ipod @ 00000270bd38a6c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+3.0              aac:3,3.0(warn:[ipod @ 0000015f10ec6680] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:3,3.0  alac:3,3.0(warn:[ipod @ 00000267ff2e7740] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+3.0(back)        aac:3,3.0(back)(warn:[ipod @ 000001ec042d8b80] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:3,3.0(back)  alac:5,5.0(warn:[ipod @ 000002408d3d8580] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+4.0              aac:4,4.0(warn:[ipod @ 0000023e178c6b40] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:4,4.0  alac:4,4.0(warn:[ipod @ 000001913ded3b40] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+quad             aac:4,quad(warn:[ipod @ 0000019d19063dc0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:4,quad  alac:5,5.0(warn:[ipod @ 000001af41464780] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+quad(side)       aac:4,unknown(warn:[ipod @ 00000192ce4ded40] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:4,quad(side)  alac:5,5.0(warn:[ipod @ 000001f453f252c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+3.1              aac:4,unknown(warn:[ipod @ 00000253cac44480] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:4,3.1  alac:3,3.0(warn:[ipod @ 0000011a04023b80] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+5.0              aac:5,5.0(warn:[ipod @ 00000179b4732680] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:5,5.0  alac:5,5.0(warn:[ipod @ 0000025ecc4c31c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+5.0(side)        aac:5,unknown(warn:[ipod @ 000001721db73a00] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:5,5.0(side)  alac:5,5.0(warn:[ipod @ 000001f88cfe6c00] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+4.1              aac:5,unknown(warn:[ipod @ 0000028c521e1fc0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:5,4.1  alac:6,5.1(warn:[ipod @ 000001b90a1017c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+5.1              aac:6,5.1(warn:[ipod @ 0000011bd8eb4680] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:6,5.1  alac:6,5.1(warn:[ipod @ 0000019993b3bf80] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+5.1(side)        aac:6,unknown(warn:[ipod @ 000002003d9e6ac0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:6,5.1(side)  alac:6,5.1(warn:[ipod @ 000001eeecc577c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+6.0              aac:6,unknown(warn:[ipod @ …] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:6,6.0  alac:7,6.1(back)(warn:[ipod @ 000001d66cc468c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+6.0(front)       aac:6,unknown(warn:[ipod @ 0000017fd6a55940] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:6,6.0(front)  alac:8,7.1(wide)(warn:[ipod @ …] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+3.1.2            aac:FAIL  flac:6,3.1.2  alac:3,3.0(warn:[ipod @ 0000020bbea06b40] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+hexagonal        aac:6,unknown(warn:[ipod @ 000001f57e896840] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:6,hexagonal  alac:7,6.1(back)(warn:[ipod @ 000001b7568c7980] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+6.1              aac:7,unknown(warn:[ipod @ 000001a8859290c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:7,6.1  alac:7,6.1(back)(warn:[ipod @ 0000023d0af87600] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+6.1(back)        aac:7,unknown(warn:[ipod @ 00000115bd7a5380] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:7,6.1(back)  alac:7,6.1(back)(warn:[ipod @ 000001f868d77d80] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+6.1(front)       aac:7,unknown(warn:[ipod @ 00000206a37f7900] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:7,6.1(front)  alac:8,7.1(wide)(warn:[ipod @ 00000158634f6800] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+7.0              aac:7,unknown(warn:[ipod @ 000002815a9a6b40] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:7,7.0  alac:7,6.1(back)(warn:[ipod @ 000002533b287600] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+7.0(front)       aac:7,unknown(warn:[ipod @ 000001d1abe97840] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:7,7.0(front)  alac:8,7.1(wide)(warn:[ipod @ 0000021240f475c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+7.1              aac:8,7.1(warn:[ipod @ 0000022f9d782b80] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:8,7.1  alac:7,6.1(back)(warn:[ipod @ 00000293a3be8c00] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+7.1(wide)        aac:8,unknown(warn:[ipod @ 0000020c78067c40] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:8,7.1(wide)  alac:8,7.1(wide)(warn:[ipod @ 000001cb728d70c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+7.1(wide-side)   aac:8,unknown(warn:[ipod @ 00000296d7847fc0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:8,7.1(wide-side)  alac:8,7.1(wide)(warn:[ipod @ 0000027a82a179c0] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+5.1.2            aac:FAIL  flac:8,5.1.2  alac:6,5.1(warn:[ipod @ 000001a717436d80] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+7.1(top)         gen-fail [Parsed_aformat_1 @ 0000021ed46d0140] [error] Unable to parse "channel_layouts" option value "7.1(top)" as channel layout
+octagonal        aac:8,unknown(warn:[ipod @ 000001fbca2b6e40] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)  flac:8,octagonal  alac:7,6.1(back)(warn:[ipod @ 000001675f537a80] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+downmix          aac:2,stereo(warn:[aist#0:0/pcm_s16le @ 000002382c8fa1c0] [warning] Guessed Channel Layout: stereo;[ipod @ 000002382c8f4700] [warning] Wa)  flac:2,stereo(warn:[aist#0:0/pcm_s16le @ 000002700d582440] [warning] Guessed Channel Layout: stereo)  alac:2,stereo(warn:[aist#0:0/pcm_s16le @ 000001e3a5d51d40] [warning] Guessed Channel Layout: stereo;[ipod @ 000001e3a5d58940] [warning] Wa)
+5.1.2(back)      aac:FAIL  flac:8,5.1.2(back)  alac:6,5.1(warn:[ipod @ 0000023f92e69340] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+cube             aac:FAIL  flac:8,cube  alac:5,5.0(warn:[ipod @ 00000263011a9480] [warning] Warning, extension is not .m4a nor .m4v Quicktime/Ipod might not play the file)
+exit 0
+
+$ node <scratchpad>/te04/facts1.mjs   (bundled ffmpeg/ffprobe n8.1.2 at IDLE priority; lavfi sources ≤ 2 s)
+src quad(side) rms -23.010150 -23.010030 -23.009775 -23.010107
+quad(side)->quad: exit 0 -23.010150 -23.010030 -23.009775 -23.010107 
+src 7.1(wide) rms -23.010150 -23.010030 -23.009775 -23.010107 -23.009907 -23.009882 -23.010150 -23.009939
+7.1(wide)->7.1 remix: exit 0 -26.020479 -26.020284 -29.030375 -29.030707 -29.030507 -29.030482 -inf -inf 
+src 5.1(side) rms -23.010150 -23.010030 -23.009775 -23.010107 -23.009907 -23.009882
+5.1(side) channelmap: exit 0 pcm_s16le,s16,48000,6,5.1,16,N/A -23.010150 -23.010030 -23.009775 -23.010107 -23.009907 -23.009882 
+gen unspec: exit 0 pcm_s16le,s16,48000,6,unknown,16,N/A [in#0/s16le @ 0000021441bb1440] [warning] Estimating duration from bitrate, this may be inaccurate
+gen unspec mka: exit 0 pcm_s16le,s16,48000,6,unknown,16,N/A [in#0/s16le @ 00000270f65e1340] [warning] Estimating duration from bitrate, this may be inaccurate
+u6.wav → opus plain: exit 0 opus,fltp,48000,6,5.1,0,N/A [aist#0:0/pcm_s16le @ 000001960539a1c0] [warning] Guessed Channel Layout: 5.1
+u6.wav → opus channelmap: exit 0 opus,fltp,48000,6,5.1,0,N/A [aist#0:0/pcm_s16le @ 000001ab08666580] [warning] Guessed Channel Layout: 5.1
+u6.wav → alac channelmap 7.1(wide) (6ch!): exit 4294967274  [aist#0:0/pcm_s16le @ 00000193827dcec0] [warning] Guessed Channel Layout: 5.1 | [Parsed_channelmap_0 @ 000001938274fc80] [error] input channel 'FL' not available from input layout '5.1' | [Parsed_channelmap_0 @ 000001938274fc80] [error] input channel 'FL' not available from input layout '5.1' | [Par
+u6.wav → alac channelmap 5.1: exit 0 alac,s16p,48000,6,5.1,0,16 [aist#0:0/pcm_s16le @ 0000025538c10c00] [warning] Guessed Channel Layout: 5.1
+u6.wav → aac: exit 0 aac,fltp,48000,6,5.1,0,N/A [aist#0:0/pcm_s16le @ 000001c2b7480200] [warning] Guessed Channel Layout: 5.1
+u6.mka → opus plain: exit 0 opus,fltp,48000,6,5.1,0,N/A [aist#0:0/pcm_s16le @ 000001c9f1c4f9c0] [warning] Guessed Channel Layout: 5.1
+u6.mka → opus channelmap: exit 0 opus,fltp,48000,6,5.1,0,N/A [aist#0:0/pcm_s16le @ 0000024bd39e8d80] [warning] Guessed Channel Layout: 5.1
+u6.mka → alac channelmap 7.1(wide) (6ch!): exit 4294967274  [aist#0:0/pcm_s16le @ 0000028e587f0400] [warning] Guessed Channel Layout: 5.1 | [Parsed_channelmap_0 @ 0000028e587af240] [error] input channel 'FL' not available from input layout '5.1' | [Parsed_channelmap_0 @ 0000028e587af240] [error] input channel 'FL' not available from input layout '5.1' | [Par
+u6.mka → alac channelmap 5.1: exit 0 alac,s16p,48000,6,5.1,0,16 [aist#0:0/pcm_s16le @ 00000252e9c40640] [warning] Guessed Channel Layout: 5.1
+u6.mka → aac: exit 0 aac,fltp,48000,6,5.1,0,N/A [aist#0:0/pcm_s16le @ 00000271f8762d80] [warning] Guessed Channel Layout: 5.1
+7.1 → alac relabel 7.1(wide): exit 0 alac,s16p,48000,8,7.1(wide),0,16 
+10 → alac 7.1 → relabel: exit 0 alac,s16p,48000,8,7.1(wide),0,16 
+10 → flac 7.1: exit 0 flac,s16,48000,8,7.1,0,16 
+exit 0
+
+$ node <scratchpad>/te04/facts2.mjs   (bundled ffmpeg/ffprobe n8.1.2 at IDLE priority; lavfi sources ≤ 2 s)
+gen s16.wav 0 pcm_s16le,s16,96000,1,mono,16,1536000,N/A
+gen s24.flac 0 flac,s32,96000,1,mono,0,N/A,24
+gen s24.wav 0 pcm_s24le,s32,96000,1,mono,24,2304000,24
+gen s32.wav 0 pcm_s32le,s32,96000,1,mono,32,3072000,32
+gen f32.wav 0 pcm_f32le,flt,96000,1,mono,32,3072000,N/A
+gen f64.wav 0 pcm_f64le,dbl,96000,1,mono,64,6144000,N/A
+gen src.mp3 0 mp3,fltp,48000,1,mono,0,39256,N/A
+gen s24be.aiff 0 pcm_s24be,s32,96000,1,unknown,24,2304000,24
+s16.wav → flac: exit 0 flac,s16,96000,1,mono,0,N/A,16 
+s16.wav → alac: exit 0 alac,s16p,96000,1,mono,0,305192,16 
+s24.flac → flac: exit 0 flac,s32,96000,1,mono,0,N/A,24 
+s24.flac → alac: exit 0 alac,s32p,96000,1,mono,0,1073192,24 [alac @ 000001883a8249c0] [warning] encoding as 24 bits-per-sample
+s24.wav → flac: exit 0 flac,s32,96000,1,mono,0,N/A,24 
+s24.wav → alac: exit 0 alac,s32p,96000,1,mono,0,1073192,24 [alac @ 000002dcc9d21200] [warning] encoding as 24 bits-per-sample
+s32.wav → flac: exit 0 flac,s32,96000,1,mono,0,N/A,24 [flac @ 000002409a022b40] [warning] encoding as 24 bits-per-sample, more is considered experimental. Add -strict experimental if you want to encode more than 24 bits-per-sample
+s32.wav → alac: exit 0 alac,s32p,96000,1,mono,0,1073192,24 [alac @ 0000024c2e189840] [warning] encoding as 24 bits-per-sample
+f32.wav → flac: exit 0 flac,s32,96000,1,mono,0,N/A,24 [flac @ 000001a0399f9940] [warning] encoding as 24 bits-per-sample, more is considered experimental. Add -strict experimental if you want to encode more than 24 bits-per-sample
+f32.wav → alac: exit 0 alac,s32p,96000,1,mono,0,1073192,24 [alac @ 000001ff63439c00] [warning] encoding as 24 bits-per-sample
+f64.wav → flac: exit 0 flac,s32,96000,1,mono,0,N/A,24 [flac @ 000002b5542fcdc0] [warning] encoding as 24 bits-per-sample, more is considered experimental. Add -strict experimental if you want to encode more than 24 bits-per-sample
+f64.wav → alac: exit 0 alac,s32p,96000,1,mono,0,1073192,24 [alac @ 0000024c718de440] [warning] encoding as 24 bits-per-sample
+src.mp3 → flac: exit 0 flac,s32,48000,1,mono,0,N/A,24 [flac @ 0000019065ef5140] [warning] encoding as 24 bits-per-sample, more is considered experimental. Add -strict experimental if you want to encode more than 24 bits-per-sample
+src.mp3 → alac: exit 0 alac,s32p,48000,1,mono,0,573360,24 [alac @ 000002a61eae4b40] [warning] encoding as 24 bits-per-sample
+s24be.aiff → flac: exit 0 flac,s32,96000,1,mono,0,N/A,24 [aist#0:0/pcm_s24be @ 000001dd56b38b40] [warning] Guessed Channel Layout: mono
+s24be.aiff → alac: exit 0 alac,s32p,96000,1,mono,0,1073192,24 [aist#0:0/pcm_s24be @ 000002b8ae837b00] [warning] Guessed Channel Layout: mono | [alac @ 000002b8ae8812c0] [warning] encoding as 24 bits-per-sample
+f32.wav → flac -sample_fmt:a:0 s32 -bits_per_raw_sample:a:0 24: exit 0 flac,s32,96000,1,mono,0,N/A,24 
+s32.wav → flac -sample_fmt:a:0 s32 -bits_per_raw_sample:a:0 24: exit 0 flac,s32,96000,1,mono,0,N/A,24 
+src.mp3 → flac -sample_fmt:a:0 s16: exit 0 flac,s16,48000,1,mono,0,N/A,16 
+f32.wav → alac -sample_fmt:a:0 s32p -bits_per_raw_sample:a:0 24: exit 0 alac,s32p,96000,1,mono,0,1073192,24 
+s24.flac → alac : exit 0 alac,s32p,96000,1,mono,0,1073192,24 [alac @ 000001114b764180] [warning] encoding as 24 bits-per-sample
+s32.wav → alac -sample_fmt:a:0 s32p -bits_per_raw_sample:a:0 24: exit 0 alac,s32p,96000,1,mono,0,1073192,24 
+96k → aac soxr: exit 0 aac,fltp,48000,1,mono,0,141900,N/A 
+96k → aac plain: exit 0 aac,fltp,96000,1,mono,0,193155,N/A 
+96k → mp3 plain: exit 0 mp3,fltp,48000,1,mono,0,38884,N/A 
+96k → opus plain: exit 0 opus,fltp,48000,1,mono,0,N/A,N/A 
+96k → opus aresample: exit 0 opus,fltp,48000,1,mono,0,N/A,N/A 
+44.1k → opus aresample: exit 0 opus,fltp,48000,1,mono,0,N/A,N/A 
+44.1k → opus plain: exit 0 opus,fltp,48000,1,mono,0,N/A,N/A 
+mp3 → wav f32: exit 0 pcm_f32le,flt,48000,1,unknown,32,1536000,N/A 
+exit 0
+
+$ node <scratchpad>/te04/facts3.mjs   (bundled ffmpeg/ffprobe n8.1.2 at IDLE priority; lavfi sources ≤ 2 s)
+gen n2: exit 0  
+gen n6: exit 0  
+gen n2 independent: exit 0  [Parsed_amerge_0 @ 0000013212631e00] [warning] No channel layout for input 1 | [Parsed_amerge_0 @ 0000013212631e00] [warning] Input channel layouts overlap: output layout will be determined by the number of distinct input channels
+n2i.wav libopus -b:a:0 128k -vbr:a:0 on -compression_level:a:0 10: exit 0 121 kbit/s [aist#0:0/pcm_s16le @ 0000023f671f0900] [warning] Guessed Channel Layout: stereo
+n2i.wav libopus -b:a:0 96k -vbr:a:0 on -compression_level:a:0 10: exit 0 89 kbit/s [aist#0:0/pcm_s16le @ 0000018933b56c40] [warning] Guessed Channel Layout: stereo
+n2i.wav libopus -b:a:0 160k -vbr:a:0 on -compression_level:a:0 10: exit 0 150 kbit/s [aist#0:0/pcm_s16le @ 00000132b63c52c0] [warning] Guessed Channel Layout: stereo
+n2i.wav aac -b:a:0 256k: exit 0 263 kbit/s [aist#0:0/pcm_s16le @ 0000015e88047380] [warning] Guessed Channel Layout: stereo
+n2i.wav aac -b:a:0 128k: exit 0 133 kbit/s [aist#0:0/pcm_s16le @ 00000209c3d6e4c0] [warning] Guessed Channel Layout: stereo
+n6.wav aac -b:a:0 768k: exit 0 779 kbit/s 
+n6.wav aac -b:a:0 384k: exit 0 392 kbit/s 
+n6.wav libopus -b:a:0 480k -vbr:a:0 on -compression_level:a:0 10: exit 0 386 kbit/s 
+n2i.wav libmp3lame -q:a:0 0: exit 0 275 kbit/s [aist#0:0/pcm_s16le @ 000001e10e85dd00] [warning] Guessed Channel Layout: stereo
+n2i.wav libmp3lame -q:a:0 5: exit 0 131 kbit/s [aist#0:0/pcm_s16le @ 00000129919944c0] [warning] Guessed Channel Layout: stereo
+n6.wav libmp3lame -q:a:0 0 -ac:a:0 2: exit 0 174 kbit/s 
+exit 0
+
+$ node <scratchpad>/te04/facts4.mjs   (bundled ffmpeg/ffprobe n8.1.2 at IDLE priority; lavfi sources ≤ 2 s)
+png: exit 0  [image2 @ 00000164145b8300] [warning] The specified filename 'cover.png' does not contain an image sequence pattern or a pattern is invalid. | [image2 @ 00000164145b8300] [warning] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+flac: exit 0  
+SRC {"ftags":{"title":"Sine Song","artist":"FusionKit Band","album":"Planner Album","date":"2026","genre":"Test","encoder":"Lavf62.12.102"},"streams":[{"t":"audio","c":"flac","d":0},{"t":"video","c":"png","d":1,"tags":{"comment":"Cover (front)"}}],"ch":[["0.000000","Opening"],["1.000000","Ending"]]}
+mp3: exit 4294967274  [fatal] Stream map '' matches no streams. | To ignore this, add a trailing '?' to the map. | [error] Failed to set value '0:2' for option 'map': Invalid argument | [error] Error parsing options for output file o.mp3. | [fatal] Error opening output files: Invalid argument
+MP3 {"ftags":{"title":"Sine Song","artist":"FusionKit Band","album":"Planner Album","encoder":"Lavf62.12.102","genre":"Test","date":"2026"},"streams":[{"t":"audio","c":"mp3","d":0},{"t":"video","c":"png","d":1,"tags":{"comment":"Cover (front)"}}],"ch":[["0.000000","Opening"],["1.000000","Ending"]]} ID3  3
+m4a: exit 0  
+M4A {"ftags":{"major_brand":"M4A ","minor_version":"512","compatible_brands":"M4A isomiso2","title":"Sine Song","artist":"FusionKit Band","album":"Planner Album","date":"2026","encoder":"Lavf62.12.102","genre":"Test"},"streams":[{"t":"audio","c":"aac","d":0,"tags":{"language":"und","handler_name":"SoundHandler"}},{"t":"data","c":"bin_data","d":0,"tags":{"language":"eng","handler_name":"SubtitleHandler"}},{"t":"video"
+opus: exit 0  
+OPUS {"streams":[{"t":"audio","c":"opus","d":0,"tags":{"encoder":"Lavc62.28.102 libopus","title":"Sine Song","artist":"FusionKit Band","album":"Planner Album","date":"2026","genre":"Test"}}],"ch":[["0.000000","Opening"],["1.000000","Ending"]]}
+m4a→mp3 clean=false: exit 0  [in#0 @ 0000028261dd1d40] [warning] stream 0, timescale not set
+  {"ftags":{"major_brand":"M4A ","minor_version":"512","compatible_brands":"M4A isomiso2","title":"Sine Song","artist":"FusionKit Band","album":"Planner Album","encoder":"Lavf62.12.102","genre":"Test","date":"2026"},"streams":[{"t":"audio","c":"mp3","d":0},{"t":"video","c":"png","d":1,"tags":{"comment":"Other"}}],"ch":[["0.000000","Opening"],["1.000000","Ending"]]}
+m4a→flac clean=false: exit 0  [in#0 @ 0000029a08821340] [warning] stream 0, timescale not set | [flac @ 0000029a088aee40] [warning] encoding as 24 bits-per-sample, more is considered experimental. Add -strict experimental if you want to encode more than 24 bits-per-sample
+  {"ftags":{"major_brand":"M4A ","minor_version":"512","compatible_brands":"M4A isomiso2","title":"Sine Song","artist":"FusionKit Band","album":"Planner Album","date":"2026","genre":"Test","encoder":"Lavf62.12.102"},"streams":[{"t":"audio","c":"flac","d":0},{"t":"video","c":"png","d":1,"tags":{"comment":"Other"}}],"ch":[]}
+m4a→opus clean=false: exit 0  [in#0 @ 000001bbe89c1280] [warning] stream 0, timescale not set
+  {"streams":[{"t":"audio","c":"opus","d":0,"tags":{"encoder":"Lavc62.28.102 libopus","language":"und","handler_name":"SoundHandler","major_brand":"M4A ","minor_version":"512","compatible_brands":"M4A isomiso2","title":"Sine Song","artist":"FusionKit Band","album":"Planner Album","date":"2026","genre":"Test"}}],"ch":[["0.000000","Opening"],["1.000000","Ending"]]}
+m4a→mp3 clean=true: exit 0  [in#0 @ 00000269d8f115c0] [warning] stream 0, timescale not set
+  {"ftags":{"genre":"Test","album":"Planner Album","encoder":"Lavf62.12.102","title":"Sine Song","artist":"FusionKit Band","date":"2026"},"streams":[{"t":"audio","c":"mp3","d":0},{"t":"video","c":"png","d":1,"tags":{"comment":"Other"}}],"ch":[["0.000000","Opening"],["1.000000","Ending"]]}
+m4a→flac clean=true: exit 0  [in#0 @ 000002449b2b1640] [warning] stream 0, timescale not set | [flac @ 000002449b340f00] [warning] encoding as 24 bits-per-sample, more is considered experimental. Add -strict experimental if you want to encode more than 24 bits-per-sample
+  {"ftags":{"genre":"Test","album":"Planner Album","date":"2026","title":"Sine Song","artist":"FusionKit Band","encoder":"Lavf62.12.102"},"streams":[{"t":"audio","c":"flac","d":0},{"t":"video","c":"png","d":1,"tags":{"comment":"Other"}}],"ch":[]}
+m4a→opus clean=true: exit 0  [in#0 @ 000002b551f61400] [warning] stream 0, timescale not set
+  {"streams":[{"t":"audio","c":"opus","d":0,"tags":{"encoder":"Lavc62.28.102 libopus","language":"und","handler_name":"SoundHandler","genre":"Test","album":"Planner Album","date":"2026","title":"Sine Song","artist":"FusionKit Band"}}],"ch":[["0.000000","Opening"],["1.000000","Ending"]]}
+exit 0
+
+$ node <scratchpad>/te04/facts5.mjs   (bundled ffmpeg/ffprobe n8.1.2 at IDLE priority; lavfi sources ≤ 2 s)
+src-5_1.wav  exit 0 layout 5.1 channelConfiguration 6 asc 11b056e500
+src-5_1_side_.wav  exit 0 layout undefined channelConfiguration 0 asc 118004c844002000
+src-5_1_side_.wav relabelled exit 0 layout 5.1 channelConfiguration 6 asc 11b056e500
+src-7_1.wav  exit 0 layout 7.1 channelConfiguration 7 asc 11b856e500
+src-7_1_wide_.wav  exit 0 layout undefined channelConfiguration 0 asc 118004c848002000
+src-5_0_side_.wav  exit 0 layout undefined channelConfiguration 0 asc 118004c840002008
+exit 0
+

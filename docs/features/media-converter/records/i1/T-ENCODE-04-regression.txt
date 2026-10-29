@@ -1,0 +1,15 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/stream-plan.test.ts test/media-converter/plan/naming.test.ts test/media-converter/plan/video-correctness.test.ts test/media-converter/remux-real.test.ts   (re-run after the T-ENCODE-04 review fixes)
+ ✓ test/media-converter/plan/naming.test.ts (15 tests) 10ms
+ ✓ test/media-converter/plan/video-correctness.test.ts (29 tests) 64ms
+ ✓ test/media-converter/plan/stream-plan.test.ts (68 tests) 169ms
+ ✓ test/media-converter/remux-real.test.ts (5 tests) 914ms
+ Test Files  4 passed (4)
+      Tests  117 passed (117)
+exit 0
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/video.test.ts   (T-ENCODE-02 file, outside this write set; failures pre-existing since T-ENCODE-03 setparams, same count as before the review)
+⎯⎯⎯⎯⎯⎯ Failed Tests 30 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed (1)
+      Tests  30 failed | 32 passed (62)
+lines mentioning setparams in the failure output: 119
+exit 1

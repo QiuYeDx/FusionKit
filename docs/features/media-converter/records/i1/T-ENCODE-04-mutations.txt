@@ -1,0 +1,60 @@
+# In-memory mutations of plan/audio.ts and plan/stream-plan.ts (a vite transform in a scratchpad vitest config; nothing on disk changes).
+# Mutation list: <scratchpad>/te04/mutations.mjs; runner: <scratchpad>/te04/run-mutations.mjs; config: <scratchpad>/te04/vitest.mutate.config.mjs.
+$ sha256sum electron/main/media-converter/plan/audio.ts electron/main/media-converter/plan/stream-plan.ts   (before)
+62821373ca26ca533efe2f2a38dfafbce03a0c14aec3aca3ae62bc464425c209 *electron/main/media-converter/plan/audio.ts
+614b130b18376d84dcb9d73c6c85aa3267508095763d3d1cc729e75b362586fc *electron/main/media-converter/plan/stream-plan.ts
+exit 0
+
+$ node <scratchpad>/te04/run-mutations.mjs test/media-converter/plan/audio.test.ts test/media-converter/plan/stream-plan.test.ts
+M1 audio.ts — MP3 V5 → V4: killed (2 failed)
+M2 audio.ts — no mono AAC rates: killed (2 failed)
+M3 audio.ts — format mono rate ignored: killed (3 failed)
+M4 audio.ts — 5.1(side) not relabelled: killed (1 failed)
+M5 audio.ts — no downmix above 8 channels: killed (6 failed)
+M6 audio.ts — Opus non-standard layouts passed through: killed (14 failed)
+M7 audio.ts — AAC never remixed: killed (1 failed)
+M8 audio.ts — MP3 not mixed down: killed (5 failed)
+M9 audio.ts — no downmixed_to_stereo: killed (3 failed)
+M10 audio.ts — Opus not resampled: killed (3 failed)
+M11 audio.ts — AAC above 48 kHz kept: killed (4 failed)
+M12 audio.ts — filter order swapped: killed (2 failed)
+M13 audio.ts — no lossy_to_lossless: killed (2 failed)
+M14 audio.ts — same codec re-encoded: killed (11 failed)
+M15 audio.ts — big-endian PCM to WAV: killed (5 failed)
+M16 audio.ts — Blu-ray PCM to MKA: killed (5 failed)
+M17 audio.ts — compress copies every compatible track: killed (7 failed)
+M18 audio.ts — 1.25 × dropped: killed (1 failed)
+M19 audio.ts — lossless/DTS copied by compress: killed (1 failed)
+M20 audio.ts — in-video mono not halved: killed (1 failed)
+M21 audio.ts — in-video 5.1 rate ignored: killed (3 failed)
+M22 audio.ts — FLAC/ALAC always 16-bit: killed (10 failed)
+M23 audio.ts — float WAV as 16-bit: killed (4 failed)
+M24 audio.ts — brand tags kept: killed (2 failed)
+M25 audio.ts — Opus keeps the MP4 handler: killed (2 failed)
+M26 audio.ts — 7.1(wide) remixed: killed (audio.test.ts fails to collect: TypeError in LAYOUT_SYNONYMS["7.1(wide)"] of its table)
+M27 audio.ts — ALAC left to ffmpeg: killed (1 failed)
+M28 stream-plan.ts — summary drops the confirmation: killed (2 failed)
+M29 stream-plan.ts — output tag cleanup not applied: killed (2 failed)
+M30 audio.ts — DTS-HD MA treated as lossy: killed (1 failed)
+M31 audio.ts — source rate ignored: killed (4 failed)
+M32 audio.ts — multichannel format rate not scaled: killed (4 failed)
+M33 audio.ts — AAC side layouts not relabelled (PCE): killed (4 failed)
+exit 0
+
+$ ONLY=M4,M10,M11,M15,M17,M22,M24,M25,M27,M33 node <scratchpad>/te04/run-mutations.mjs test/media-converter/encode-audio-real.test.ts
+M4 audio.ts — 5.1(side) not relabelled: killed (3 failed)
+M10 audio.ts — Opus not resampled: killed (2 failed)
+M11 audio.ts — AAC above 48 kHz kept: killed (2 failed)
+M15 audio.ts — big-endian PCM to WAV: killed (1 failed)
+M17 audio.ts — compress copies every compatible track: killed (2 failed)
+M22 audio.ts — FLAC/ALAC always 16-bit: killed (1 failed)
+M24 audio.ts — brand tags kept: killed (1 failed)
+M25 audio.ts — Opus keeps the MP4 handler: killed (1 failed)
+M27 audio.ts — ALAC left to ffmpeg: killed (1 failed)
+M33 audio.ts — AAC side layouts not relabelled (PCE): killed (2 failed)
+exit 0
+
+$ sha256sum -c   (after)
+electron/main/media-converter/plan/audio.ts: OK
+electron/main/media-converter/plan/stream-plan.ts: OK
+exit 0

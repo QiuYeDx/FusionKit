@@ -17,16 +17,16 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKBENCH-01 |
 | 验收 | AC-WORKBENCH-01-1, AC-WORKBENCH-01-2, AC-WORKBENCH-01-3 |
 | 依赖 | T-ENGINE-06 |
 | 写集 | src/pages/Tools/_shared/toolMeta.ts, src/pages/Tools/index.tsx, src/App.tsx, src/constants/router.ts, src/index.css, src/i18n/constants.ts, src/i18n/resources.ts, src/locales/zh/media.json, src/locales/en/media.json, src/locales/ja/media.json, src/locales/zh-Hant/media.json, src/locales/zh/tools.json, src/locales/en/tools.json, src/locales/ja/tools.json, src/locales/zh-Hant/tools.json, src/locales/zh/common.json, src/locales/en/common.json, src/locales/ja/common.json, src/locales/zh-Hant/common.json, src/pages/Tools/Media/MediaConverter/index.tsx, src/pages/Tools/Media/MediaConverter/registration.test.ts, scripts/i18n-usage-manifest.mjs, test/media-converter/media-converter.electron.test.ts, test/media-converter/helpers/media-ui.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 D1 实施 + 独立评审） |
+| 依赖确认 | T-ENGINE-06 已完成（工作树，批次 C 集成检查通过） |
+| 完成日期 | 2026-10-28 |
+| 实施记录 | records/i1/T-WORKBENCH-01.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -60,16 +60,16 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKBENCH-03, R-WORKBENCH-05 |
 | 验收 | AC-WORKBENCH-03-1, AC-WORKBENCH-03-2, AC-WORKBENCH-03-3, AC-WORKBENCH-03-4, AC-WORKBENCH-05-1, AC-WORKBENCH-05-2 |
 | 依赖 | T-WORKBENCH-01, T-ENCODE-04 |
 | 写集 | src/services/media-converter/controller.ts, src/services/media-converter/controller.test.ts, src/store/tools/media/useMediaConverterPreferences.ts, src/store/tools/media/useMediaConverterPreferences.test.ts, src/pages/Tools/Media/MediaConverter/index.tsx, src/pages/Tools/Media/MediaConverter/MediaConverterSettings.tsx, src/pages/Tools/Media/MediaConverter/EngineStatusBadge.tsx, src/pages/Tools/Media/MediaConverter/labels.ts, src/locales/zh/media.json, src/locales/en/media.json, src/locales/ja/media.json, src/locales/zh-Hant/media.json, test/media-converter/media-converter.electron.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 D1 实施 + 独立评审） |
+| 依赖确认 | T-WORKBENCH-01、T-ENCODE-04 已完成（工作树，批次 B/D1 集成检查通过） |
+| 完成日期 | 2026-10-28 |
+| 实施记录 | records/i1/T-WORKBENCH-02.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -99,16 +99,16 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKBENCH-02, R-WORKBENCH-03 |
 | 验收 | AC-WORKBENCH-02-1, AC-WORKBENCH-02-2, AC-WORKBENCH-02-3, AC-WORKBENCH-02-4, AC-WORKBENCH-03-5, AC-WORKBENCH-03-6 |
 | 依赖 | T-WORKBENCH-02 |
 | 写集 | src/pages/Tools/Media/MediaConverter/index.tsx, src/pages/Tools/Media/MediaConverter/MediaQueue.tsx, src/pages/Tools/Media/MediaConverter/MediaQueueRow.tsx, src/pages/Tools/Media/MediaConverter/PlanSummaryView.tsx, src/pages/Tools/Media/MediaConverter/format.ts, src/pages/Tools/Media/MediaConverter/format.test.ts, src/pages/Tools/Media/MediaConverter/labels.ts, src/locales/zh/media.json, src/locales/en/media.json, src/locales/ja/media.json, src/locales/zh-Hant/media.json, test/media-converter/media-converter.electron.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 D2 实施 + 独立评审） |
+| 依赖确认 | T-WORKBENCH-02 已完成（工作树，批次 D1 集成检查通过） |
+| 完成日期 | 2026-10-28 |
+| 实施记录 | records/i1/T-WORKBENCH-03.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -138,16 +138,16 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-WORKBENCH-04, R-WORKBENCH-03, R-ENGINE-05 |
 | 验收 | AC-WORKBENCH-04-1, AC-WORKBENCH-04-2, AC-WORKBENCH-04-3, AC-WORKBENCH-04-4, AC-WORKBENCH-03-6, AC-ENGINE-05-1 |
 | 依赖 | T-WORKBENCH-03, T-ENGINE-07 |
 | 写集 | src/pages/Tools/Media/MediaConverter/MediaQueue.tsx, src/pages/Tools/Media/MediaConverter/MediaQueueRow.tsx, src/pages/Tools/Media/MediaConverter/index.tsx, src/locales/zh/media.json, src/locales/en/media.json, src/locales/ja/media.json, src/locales/zh-Hant/media.json, test/media-converter/media-converter.electron.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 D2 实施 + 独立评审） |
+| 依赖确认 | T-WORKBENCH-03、T-ENGINE-07 已完成（工作树，批次 C/D2 集成检查通过） |
+| 完成日期 | 2026-10-28 |
+| 实施记录 | records/i1/T-WORKBENCH-04.md |
 | 集成版本 | - |
 
 #### 实现要点

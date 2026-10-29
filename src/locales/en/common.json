@@ -18,6 +18,9 @@
     "text": {
       "translator": "Long Text Translator"
     },
+    "media": {
+      "converter": "Media Converter"
+    },
     "help": "Help"
   },
   "start": "Start",

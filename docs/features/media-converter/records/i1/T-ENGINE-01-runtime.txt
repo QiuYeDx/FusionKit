@@ -1,0 +1,26 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/runtime.test.ts
+# 批次 B 修正评审（2026-10-28）后重跑；--reporter=verbose 只为列出每个用例
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/runtime.test.ts > the bundled media runtime > verifies once, reuses the result, and verifies again when an executable changes 401ms
+ ✓ test/media-converter/runtime.test.ts > the bundled media runtime > does not keep a failed verification, so the next use verifies again
+ ✓ test/media-converter/runtime.test.ts > the bundled media runtime > reports a missing runtime as runtime_missing
+ ✓ test/media-converter/runtime.test.ts > the bundled media runtime > reports a damaged executable as runtime_invalid, whether its size or only its hash is wrong 985ms
+ ✓ test/media-converter/runtime.test.ts > the bundled media runtime > reports another version as runtime_version_mismatch, from the manifest and from the executable itself 328ms
+ ✓ test/media-converter/runtime.test.ts > the bundled media runtime > reports an executable that cannot start as runtime_spawn_failed
+ ✓ test/media-converter/runtime.test.ts > the bundled media runtime > verifies again and retries once when a run cannot start, and gives up after the second failure 661ms
+ ✓ test/media-converter/runtime.test.ts > the bundled media runtime > never runs an ffmpeg or ffprobe found on PATH
+ ✓ test/media-converter/runtime.test.ts > probing real files > describes an MP4 and a WebM, telling the containers apart
+ ✓ test/media-converter/runtime.test.ts > probing real files > takes the rotation from the Display Matrix only: a Matroska ROTATE=90 tag probes as 0, a display matrix as its turn
+ ✓ test/media-converter/runtime.test.ts > probing real files > reads the ASS events of each stream to tell styled from plain subtitles
+ ✓ test/media-converter/runtime.test.ts > probing real files > takes an MP3 with cover art for an audio file
+ ✓ test/media-converter/runtime.test.ts > probing real files > reads HDR10 static metadata from the first frame
+ ✓ test/media-converter/runtime.test.ts > probing real files > refuses playlists without opening the files they reference 571ms
+ ✓ test/media-converter/runtime.test.ts > probing real files > runs at most four probes at once out of 100, below normal priority, and settles each file on its own 1351ms
+
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  12:30:47
+   Duration  7.12s (transform 176ms, setup 0ms, collect 683ms, tests 6.25s, environment 0ms, prepare 58ms)
+exit 0

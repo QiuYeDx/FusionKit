@@ -1,0 +1,59 @@
+# Independent review of T-ENCODE-04 (2026-10-26). Ad-hoc checks run the bundled ffmpeg/ffprobe n8.1.2 (build/subtitle-studio-resources/transcription/win-x64/media)
+# spawned from node with os.setPriority(PRIORITY_LOW) (IDLE), lavfi sources of 1 s, in a run- folder under <scratchpad>/review04 removed by each script.
+
+$ node <scratchpad>/review04/facts.mjs   (planner arguments that were only unit-tested, plus extraction of SMPTE 302M)
+source hires6.flac: exit 0
+(a) 96k 5.1(side) -> mp3 -ac 2 + soxr: exit 0 codec_name=mp3|sample_rate=48000|channels=2|channel_layout=stereo
+source s302m.ts: exit 0 codec_name=s302m|sample_fmt=s32|channels=2|bits_per_raw_sample=24
+(b) s302m -> mka copy: exit 4294967274 | [matroska] [error] No wav codec tag found for codec s302m / [out#0/matroska] [error] Could not write header (incorrect codec parameters ?): Invalid argument
+(b2) s302m -> wav pcm_s16le: exit 0 codec_name=pcm_s16le|sample_rate=48000|channels=2
+(b3) s302m film -> mkv copy: exit 4294967274 | [matroska] [error] No wav codec tag found for codec s302m
+(c) quad -> alac relabel 4.0: exit 0 codec_name=alac|channels=4|channel_layout=4.0|bits_per_raw_sample=16
+(d) 8 kHz mono -> aac 128k: exit 0 | [aac] [warning] Too many bits 16384.000000 > 6144 per frame requested, clamping to max
+(e) 22.05 kHz 5.1 -> aac 768k: exit 0
+exit 0
+
+$ node <scratchpad>/review04/facts2.mjs   (real sources with each codec, then "-c copy -f matroska" of video+audio (convert to MKV) and of the audio alone (extract to .mka))
+pcm_bluray (M2TS): mkv copy exit 4294967274 [matroska] [error] No wav codec tag found for codec pcm_bluray; mka copy exit 4294967274
+pcm_dvd (VOB): mkv copy exit 4294967274 [matroska] [error] No wav codec tag found for codec pcm_dvd; mka copy exit 4294967274
+pcm_f32be (MOV): mkv copy exit 4294967274 [matroska] [error] No wav codec tag found for codec pcm_f32be; mka copy exit 4294967274
+pcm_f64be (MOV): mkv copy exit 4294967274 [matroska] [error] No wav codec tag found for codec pcm_f64be; mka copy exit 4294967274
+pcm_s8 (MOV): mkv copy exit 4294967274 [matroska] [error] No wav codec tag found for codec pcm_s8; mka copy exit 4294967274
+pcm_s16be (MOV): mkv copy exit 0; mka copy exit 0
+pcm_s24be (MOV): mkv copy exit 0; mka copy exit 0
+pcm_alaw (MOV): mkv copy exit 0; mka copy exit 0
+adpcm_ima_qt (MOV): mkv copy exit 4294967274 [matroska] [error] No wav codec tag found for codec adpcm_ima_qt; mka copy exit 4294967274
+mp2 (TS): mkv copy exit 0; mka copy exit 0
+exit 0
+
+$ node <scratchpad>/review04/facts3.mjs   (every PCM encoder of the bundled ffmpeg written straight into Matroska)
+matroska takes: pcm_alaw, pcm_f32le, pcm_f64le, pcm_mulaw, pcm_s16be, pcm_s16le, pcm_s24be, pcm_s24le, pcm_s32be, pcm_s32le, pcm_s64le, pcm_u8
+matroska refuses: pcm_bluray; pcm_dvd; pcm_f32be; pcm_f64be; pcm_s16be_planar; pcm_s16le_planar; pcm_s24daud; pcm_s24le_planar; pcm_s32le_planar; pcm_s64be; pcm_s8; pcm_s8_planar; pcm_u16be; pcm_u16le; pcm_u24be; pcm_u24le; pcm_u32be; pcm_u32le; pcm_vidc; s302m  (each: "No wav codec tag found for codec <codec>")
+exit 0
+
+$ node <scratchpad>/review04/facts4.mjs   (phone and Flash era audio)
+libopencore_amrnb (amr_nb in 3GP): mkv copy exit 0; mka copy exit 0
+nellymoser (FLV): mkv copy exit 4294967274 [matroska] No wav codec tag found for codec nellymoser; mka copy exit 4294967274
+exit 0
+
+$ node <scratchpad>/review04/facts5.mjs   (every non-PCM audio encoder of the bundled ffmpeg written straight into Matroska)
+taken: aac, ac3, adpcm_g722, adpcm_g726, adpcm_ima_wav, adpcm_ms, adpcm_swf, adpcm_yamaha, alac, amr_nb, dfpwm, dts, eac3, flac, g723_1, mlp, mp2, mp3, opus, ra_144, truehd, tta, vorbis, wavpack, wmav1, wmav2
+refused: adpcm_adx; adpcm_argo; adpcm_g726le; adpcm_ima_alp; adpcm_ima_amv; adpcm_ima_apm; adpcm_ima_qt; adpcm_ima_ssi; adpcm_ima_ws; anull; aptx; aptx_hd; comfortnoise; nellymoser; roq_dpcm; sbc  (each: "No wav codec tag found for codec <codec>")
+untestable: (none)
+exit 0
+
+# Finding: before the review, planVideoAudio copied every codec into MKV ("MKV takes all", matrix.ts) and planExtractCopy sent
+# s302m and every non-PCM codec but the five named ones to .mka, so converting a Blu-ray M2TS (pcm_bluray), a DVD VOB (pcm_dvd),
+# a MOV with float big-endian PCM or IMA ADPCM, a broadcast TS with SMPTE 302M or an FLV with Nellymoser to MKV, and extracting
+# s302m / adpcm_ima_qt / nellymoser "as it is", failed in the muxer. Fix (audio.ts): matroskaTakesAudio() from the lists above;
+# such tracks are re-encoded (Opus) when converted to MKV and decoded into same-depth little-endian PCM WAV when extracted; s302m counts as PCM.
+
+$ sha256sum electron/main/media-converter/plan/audio.ts   (before the mutation runs, prefix)
+c8de6879adeaea7e
+$ MUTATION=<n> npx vitest run --config <scratchpad>/review04/mutate.config.mjs --maxWorkers=4 --minWorkers=1   (vite transform in memory, test/media-converter/plan/audio.test.ts)
+mutation 1 (planVideoAudio without the Matroska check): exit 1 | Tests 1 failed | 93 passed (94) | "convert" re-encodes into MKV the PCM and ADPCM kinds the Matroska muxer refuses as they are
+mutation 2 (planExtractCopy without the WAV fallback for refused codecs): exit 1 | Tests 2 failed | 92 passed (94) | adpcm_ima_qt → .wav; nellymoser → .wav
+mutation 3 (s302m not counted as PCM): exit 1 | Tests 1 failed | 93 passed (94) | "convert" re-encodes into MKV ... (isLosslessAudio s302m)
+$ sha256sum electron/main/media-converter/plan/audio.ts   (after, prefix)
+c8de6879adeaea7e
+exit 0

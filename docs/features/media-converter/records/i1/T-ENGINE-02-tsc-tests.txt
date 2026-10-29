@@ -1,0 +1,4 @@
+# Supplementary: tsconfig.json covers src and electron only, so the two test files were type-checked with a scratch config
+# extending tsconfig.json (typeRoots node_modules/@types) whose include is process.test.ts, progress.test.ts and src/vite-env.d.ts.
+$ pnpm exec tsc -p <scratchpad>/review/tsconfig.engine02.json
+exit 0

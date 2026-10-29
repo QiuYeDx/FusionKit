@@ -1,0 +1,7 @@
+$ pnpm exec tsc --noEmit -p <scratchpad>/tsconfig.t06-tests.json   # extends tsconfig.json; includes src/vite-env.d.ts and the two test files (tsconfig.json does not include test/)
+# first run of the review pass:
+test/media-converter/composition.test.ts(285,91): error TS2322: Type 'string' is not assignable to type 'never'.
+exit 2
+# fixed (the hoisted dialog mock's filePaths typed string[]), run again:
+(no diagnostics)
+exit 0

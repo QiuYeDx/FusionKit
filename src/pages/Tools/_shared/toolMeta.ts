@@ -7,8 +7,9 @@ import {
   Edit,
   Captions,
   Clapperboard,
+  FileVideoCamera,
 } from "lucide-react";
-import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
+import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE, MEDIA_CONVERTER_ROUTE } from "@/constants/router";
 
 export type ToolKey =
   | "translationKnowledge"
@@ -18,14 +19,15 @@ export type ToolKey =
   | "extractor"
   | "localSubtitleTranscriber"
   | "nameTranslator"
-  | "textTranslator";
+  | "textTranslator"
+  | "mediaConverter";
 
 export type ToolMeta = {
   id: ToolKey;
   /** CSS variable name (without var()) — defined in index.css */
   toneVar: string;
   icon: LucideIcon;
-  category: "subtitle" | "rename" | "text";
+  category: "subtitle" | "rename" | "text" | "media";
   status: "stable";
   route?: string;
 };
@@ -95,6 +97,22 @@ export const TOOL_META: Record<ToolKey, ToolMeta> = {
     status: "stable",
     route: "/tools/text/translator",
   },
+  mediaConverter: {
+    id: "mediaConverter",
+    toneVar: "--tool-media",
+    icon: FileVideoCamera,
+    category: "media",
+    status: "stable",
+    route: MEDIA_CONVERTER_ROUTE,
+  },
 };
 
 export const toneCss = (meta: Pick<ToolMeta, "toneVar">) => `var(${meta.toneVar})`;
+
+/**
+ * Whether the media converter runs here: the preload's `supported`, true only on Windows until its
+ * macOS engine ships (I4). Elsewhere the catalog leaves the tool out, and its route, still
+ * registered, explains why instead of redirecting (AC-WORKBENCH-01-2).
+ */
+export const isMediaConverterSupported = (): boolean =>
+  typeof window !== "undefined" && window.mediaConverter?.supported === true;

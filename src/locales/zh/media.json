@@ -1,0 +1,476 @@
+{
+  "title": "音视频转换",
+  "description": "压缩视频、转换格式、提取音频，全程在本机完成，文件不会上传。",
+  "unsupported": {
+    "title": "暂不支持此平台",
+    "body": "音视频转换目前只能在 Windows 上使用。"
+  },
+  "upload": {
+    "title": "添加音视频文件",
+    "hint": "拖入视频或音频文件，或点「选择文件」，可一次添加多个",
+    "choose": "选择文件",
+    "unavailable": "暂时无法添加文件：{{reason}}。{{advice}}",
+    "added": "已加入 {{count}} 个文件",
+    "added_one": "已加入 {{count}} 个文件",
+    "hint_more": "可以继续拖入或选择文件，一次最多 100 个",
+    "drop_label": "松开以加入音视频转换",
+    "drop_hint": "松开即可加入列表",
+    "filter_menu": "按类型选择文件",
+    "filter": {
+      "video": "只选视频文件",
+      "audio": "只选音频文件",
+      "all": "所有音视频文件"
+    }
+  },
+  "settings": {
+    "title": "转换设置",
+    "task_label": "任务",
+    "task": {
+      "compress": "压缩视频",
+      "convert": "转换格式",
+      "extract": "提取音频"
+    },
+    "tier_label": "压缩档位",
+    "tier": {
+      "quality": "画质优先",
+      "balanced": "均衡",
+      "size": "体积优先"
+    },
+    "audio_tier": {
+      "quality": "高音质",
+      "balanced": "标准",
+      "size": "小体积"
+    },
+    "codec_label": "输出编码",
+    "codec": {
+      "av1": "最小体积（AV1）",
+      "hevc": "苹果与较新设备（HEVC）",
+      "h264": "最大兼容（H.264）"
+    },
+    "codec_compatibility": {
+      "av1": "体积最小；iPhone 15 Pro 之前的 iPhone、M3 之前的 Mac 自带播放器无法播放",
+      "hevc": "苹果设备都能播放；Windows 自带的「照片」需要安装 HEVC 扩展",
+      "h264": "几乎所有设备和 App 都能播放，体积较大"
+    },
+    "weak_encoder": "本机没有可用的 {{codec}} 显卡编码器，只能用较弱的 {{encoder}}编码，体积会偏大。",
+    "use_av1": "改用 AV1",
+    "container_label": "输出格式",
+    "container_hint": "自动：带图形字幕、样式字幕或附件时输出 MKV，其他情况输出 MP4。",
+    "container": {
+      "auto": "自动",
+      "mp4": "MP4",
+      "mkv": "MKV"
+    },
+    "resolution_label": "分辨率上限",
+    "resolution_original": "保持原始",
+    "gpu_label": "使用显卡加速",
+    "gpu_hint": "更快，但体积约大一倍",
+    "gpu_disabled_codec": "只有「最小体积（AV1）」可以选择是否用显卡编码。HEVC 和 H.264 会自动使用显卡（如果有）。",
+    "gpu_disabled_hardware": "本机没有可用的 AV1 显卡编码器。HEVC 和 H.264 会自动使用显卡（如果有）。",
+    "gpu_disabled_detecting": "正在检测编码能力，完成后才知道能否用显卡编码 AV1。HEVC 和 H.264 会自动使用显卡（如果有）。",
+    "discard_label": "不比原文件小时丢弃",
+    "discard_hint": "压缩后没有明显变小，就不保存输出",
+    "target_label": "目标格式",
+    "target_group_video": "视频",
+    "target_group_audio": "音频",
+    "remux_label": "尽量只换封装",
+    "remux_hint": "可复制的音视频不重新编码，快且无损",
+    "reencode_tier_label": "重新编码时的画质",
+    "reencode_audio_tier_label": "重新编码时的音质",
+    "extract_format_label": "输出格式",
+    "extract_copy": "保持原音轨（无损）",
+    "audio_tier_label": "音质档位",
+    "all_tracks_label": "全部音轨",
+    "all_tracks_hint": "每条音轨各输出一个文件；关闭时只提取默认音轨",
+    "output_group": "输出与性能",
+    "output_mode_label": "输出位置",
+    "output_mode": {
+      "source": "源文件旁",
+      "directory": "指定文件夹"
+    },
+    "output_source_hint": "输出文件保存在源文件所在的文件夹",
+    "choose_directory": "选择输出文件夹",
+    "no_directory": "未选择文件夹",
+    "output_directory_missing": "之前选择的输出文件夹已不可用，已改回「源文件旁」",
+    "conflict_label": "同名文件",
+    "conflict": {
+      "number": "自动编号",
+      "overwrite": "覆盖"
+    },
+    "overwrite_warning": "会把同名旧文件移到回收站；源文件永远不会被覆盖",
+    "low_usage_label": "低占用模式",
+    "low_usage_hint": "编码更慢，但尽量不影响游戏和其他程序",
+    "low_usage_on": "低占用"
+  },
+  "engine": {
+    "detecting": "正在检测编码能力",
+    "detecting_detail": "正在用小样测试本机的显卡和 CPU 编码器。可以先添加文件，检测完成后才能开始。",
+    "cpu_only": "仅 CPU",
+    "cpu_only_detail": "本机没有可用的显卡编码器，所有编码都由 CPU 完成。",
+    "hardware_title": "可用的显卡编码器",
+    "list_separator": "、",
+    "family": {
+      "nvenc": "NVIDIA NVENC",
+      "qsv": "Intel Quick Sync",
+      "amf": "AMD AMF",
+      "mf": "Windows 媒体基础"
+    },
+    "degraded": "本次运行中出错、已暂停使用：{{encoders}}。重新检测后恢复。",
+    "driver_update_version": "{{family}} 的显卡驱动过旧：需要 {{version}} 或更新版本。请更新显卡驱动后点「重新检测」。",
+    "driver_update": "{{family}} 的显卡驱动过旧，请更新显卡驱动后点「重新检测」。",
+    "unavailable_label": "不可用：{{reason}}",
+    "unavailable": {
+      "platform_unsupported": "此平台不支持",
+      "runtime_missing": "缺少编码组件",
+      "runtime_invalid": "编码组件已损坏",
+      "runtime_version_mismatch": "编码组件版本不符",
+      "runtime_spawn_failed": "编码组件无法启动",
+      "no_device": "找不到可用的编码设备",
+      "driver_too_old": "显卡驱动过旧",
+      "unknown": "检测失败"
+    },
+    "advice": {
+      "platform_unsupported": "音视频转换目前只能在 Windows 上使用。",
+      "reinstall": "随附的 FFmpeg 缺失或被改动。请重新安装 FusionKit 后再试。",
+      "spawn_failed": "FFmpeg 无法启动，可能被安全软件拦截。请检查后点「重新检测」。",
+      "retry": "请稍后点「重新检测」。",
+      "driver": "请更新显卡驱动后点「重新检测」。"
+    },
+    "redetect": "重新检测",
+    "redetect_busy": "有显卡编码任务在运行，结束后才能重新检测"
+  },
+  "encoders": {
+    "libsvtav1": "SVT-AV1（CPU）",
+    "av1_nvenc": "NVIDIA NVENC AV1",
+    "av1_qsv": "Intel Quick Sync AV1",
+    "av1_amf": "AMD AMF AV1",
+    "hevc_nvenc": "NVIDIA NVENC HEVC",
+    "hevc_qsv": "Intel Quick Sync HEVC",
+    "hevc_amf": "AMD AMF HEVC",
+    "hevc_mf": "Windows 媒体基础 HEVC",
+    "libkvazaar": "Kvazaar HEVC（CPU）",
+    "h264_nvenc": "NVIDIA NVENC H.264",
+    "h264_qsv": "Intel Quick Sync H.264",
+    "h264_amf": "AMD AMF H.264",
+    "h264_mf": "Windows 媒体基础 H.264",
+    "h264_mf_sw": "Windows 媒体基础 H.264（CPU）",
+    "libopenh264": "OpenH264（CPU）",
+    "aac": "AAC",
+    "libopus": "Opus",
+    "libmp3lame": "MP3（LAME）",
+    "flac": "FLAC",
+    "alac": "ALAC（Apple 无损）",
+    "pcm_s16le": "PCM 16 位",
+    "pcm_s24le": "PCM 24 位",
+    "pcm_s32le": "PCM 32 位",
+    "pcm_f32le": "PCM 32 位浮点",
+    "mov_text": "MP4 文本字幕",
+    "srt": "SRT 字幕",
+    "webvtt": "WebVTT 字幕"
+  },
+  "request_errors": {
+    "busy": "正在处理其他操作，请稍后再试",
+    "platform_unsupported": "此平台不支持音视频转换",
+    "invalid_request": "请求无效，请刷新页面后再试",
+    "unknown": "操作失败，请重试"
+  },
+  "notifications": {
+    "batch_title": "音视频转换完成",
+    "batch_body": "成功 {{succeeded}} 个，失败 {{failed}} 个，跳过 {{skipped}} 个。",
+    "batch_saved": "共节省 {{size}}。"
+  },
+  "add": {
+    "added": "已加入 {{count}} 个文件。",
+    "added_one": "已加入 {{count}} 个文件。",
+    "duplicate": "「{{name}}」已在列表中，没有重复加入。",
+    "duplicates": "{{count}} 个文件已在列表中，没有重复加入：{{names}}。",
+    "names_more": "{{names}}，另有 {{count}} 个",
+    "truncated": "一次最多加入 100 个文件，另有 {{count}} 个没有加入。",
+    "truncated_one": "一次最多加入 100 个文件，另有 {{count}} 个没有加入。",
+    "queue_full": "列表已满（最多 500 个），另有 {{count}} 个文件没有加入。",
+    "queue_full_one": "列表已满（最多 500 个），另有 {{count}} 个文件没有加入。",
+    "rejected": {
+      "folder_not_supported": "「{{name}}」是文件夹：暂不支持文件夹，请选择其中的文件。",
+      "temporary_copy_unresolved": "「{{name}}」是临时副本，找不到原文件：请先解压，或用选择文件添加。",
+      "file_unavailable": "「{{name}}」无法读取：找不到它在磁盘上的位置，请用选择文件添加。",
+      "not_a_regular_file": "「{{name}}」不是普通文件，没有加入：请选择实际的音视频文件。"
+    },
+    "rejected_many": {
+      "folder_not_supported": "{{count}} 个文件夹没有加入（{{names}}）：暂不支持文件夹，请选择其中的文件。",
+      "temporary_copy_unresolved": "{{count}} 个临时副本找不到原文件（{{names}}）：请先解压，或用选择文件添加。",
+      "file_unavailable": "{{count}} 个文件无法读取（{{names}}）：请用选择文件添加。",
+      "not_a_regular_file": "{{count}} 个项目不是普通文件，没有加入（{{names}}）：请选择实际的音视频文件。"
+    },
+    "dismiss": "关闭提示"
+  },
+  "queue": {
+    "title": "队列",
+    "remove": "移除",
+    "analyzing": "分析中…",
+    "list_separator": "、",
+    "separator": "；",
+    "status": {
+      "analyzing": "分析中",
+      "unsupported": "无法处理",
+      "idle": "待开始",
+      "queued": "排队中",
+      "running": "处理中",
+      "succeeded": "已完成",
+      "skipped": "已跳过",
+      "failed": "失败",
+      "cancelled": "已取消",
+      "interrupted": "已中断",
+      "input_changed": "输入已变化"
+    },
+    "phase": {
+      "preparing": "准备中",
+      "encoding": "编码中",
+      "pass1": "第 1 遍",
+      "pass2": "第 2 遍",
+      "finalizing": "收尾中"
+    },
+    "hdr": {
+      "hdr10": "HDR10",
+      "hlg": "HLG",
+      "dolby_vision": "杜比视界"
+    },
+    "channels": {
+      "mono": "单声道",
+      "stereo": "立体声",
+      "surround_51": "5.1 声道",
+      "surround_71": "7.1 声道",
+      "count": "{{count}} 声道"
+    },
+    "meta": {
+      "fps": "{{fps}} fps",
+      "vfr": "约 {{fps}} fps（可变帧率）",
+      "audio_tracks": "{{count}} 条音轨",
+      "audio_tracks_one": "{{count}} 条音轨",
+      "no_audio": "无音轨",
+      "subtitles": "{{count}} 条字幕",
+      "subtitles_one": "{{count}} 条字幕",
+      "cover": "含封面",
+      "unknown_duration": "时长未知"
+    },
+    "not_applicable_title": "当前任务不适用",
+    "not_applicable": {
+      "audio_compress": "这是音频文件，「压缩视频」只处理视频",
+      "audio_extract": "这已经是音频文件，无需提取",
+      "no_video": "没有视频画面，无法转换为视频格式",
+      "no_audio": "这个视频没有音轨，无法得到音频"
+    },
+    "switch_task": "切换到「{{task}}」",
+    "switch_to_audio": "改为转换成 {{format}}",
+    "no_encoder": "本机没有能处理这个画面的 {{codec}} 编码器",
+    "no_encoder_none": "其他输出编码也无法处理",
+    "use_codec": "改用{{codec}}",
+    "already_target": "已经是目标格式，开始时会跳过",
+    "disk_space": "磁盘空间不足：需要 {{required}}，可用 {{available}}",
+    "published": "已保存 {{done}}/{{total}} 个输出",
+    "start": "开始",
+    "start_all": "全部开始",
+    "checking": "正在检查…",
+    "start_none": "没有待开始的文件",
+    "start_unavailable": "编码引擎不可用：{{reason}}。{{advice}}",
+    "cancel": "取消",
+    "cancel_all": "全部取消",
+    "cancel_all_title": "取消全部转换？",
+    "cancel_all_body": "将取消 {{count}} 个排队中或处理中的文件。未完成的临时文件会被删除，已经保存的输出会保留。",
+    "cancel_all_body_one": "将取消 {{count}} 个排队中或处理中的文件。未完成的临时文件会被删除，已经保存的输出会保留。",
+    "cancel_all_confirm": "全部取消",
+    "cancel_all_keep": "继续转换",
+    "clear_done": "清除已完成",
+    "clear_done_hint": "从列表中移除已完成的文件，输出文件不受影响",
+    "retry": "重试",
+    "convert_anyway": "仍然转换",
+    "reveal": "在文件夹中显示",
+    "reveal_missing": "「{{name}}」已不在原来的位置",
+    "details": "查看详情",
+    "background": "转换会在后台继续，回到此页面即可查看进度",
+    "not_started": "{{count}} 个文件没有开始：{{reason}}",
+    "not_started_one": "{{count}} 个文件没有开始：{{reason}}",
+    "progress": {
+      "written": "已写",
+      "eta": "剩余"
+    },
+    "result": {
+      "sizes": "{{source}} → {{output}}",
+      "outputs": "{{count}} 个输出",
+      "outputs_one": "{{count}} 个输出",
+      "partial": "部分完成 {{done}}/{{total}}",
+      "cancelled": "未完成的临时文件已删除，可以重试",
+      "interrupted": "应用关闭时没有完成，可以重试",
+      "input_changed": "加入后文件被修改过，没有开始；重试会重新分析"
+    },
+    "announce": {
+      "succeeded_saved": "{{name}} 已完成，节省 {{percent}}",
+      "succeeded_larger": "{{name}} 已完成，体积变化 {{change}}",
+      "succeeded_plain": "{{name}} 已完成",
+      "partial": "{{name}} 部分完成 {{done}}/{{total}}",
+      "failed": "{{name}} 失败：{{reason}}",
+      "skipped": "{{name}} 已跳过：{{reason}}",
+      "cancelled": "{{name}} 已取消",
+      "interrupted": "{{name}} 已中断",
+      "input_changed": "{{name}} 没有开始：文件已变化"
+    },
+    "summary": {
+      "files": "{{count}} 个文件",
+      "files_one": "{{count}} 个文件",
+      "done": "完成 {{count}}",
+      "saved": "节省 {{size}}"
+    }
+  },
+  "errors": {
+    "no_media_streams": "不是音视频文件",
+    "container_not_allowed": "文件格式不受支持（如播放列表）",
+    "wechat_silk_unsupported": "微信语音格式暂不支持",
+    "probe_failed": "文件已损坏或无法读取",
+    "file_unavailable": "找不到文件或无法读取",
+    "not_a_regular_file": "不是普通文件"
+  },
+  "advice": {
+    "no_media_streams": "请选择视频或音频文件。",
+    "container_not_allowed": "请添加播放列表指向的实际音视频文件。",
+    "wechat_silk_unsupported": "这类语音暂时无法转换。",
+    "probe_failed": "请确认文件能正常播放，或换一个文件。",
+    "file_unavailable": "文件可能已被移动、删除，或正被其他程序占用。",
+    "not_a_regular_file": "请选择实际的音视频文件，而不是快捷方式或设备。"
+  },
+  "warnings": {
+    "cpu_weak_encoder": "只能用较弱的 CPU 编码器，体积会偏大",
+    "hdr_tonemapped": "HDR 将转为 SDR",
+    "dolby_vision_rpu_dropped": "杜比视界的动态元数据将被丢弃",
+    "chroma_subsampled": "色度采样将降为 4:2:0",
+    "cover_dropped": "封面将被丢弃",
+    "downmixed_to_stereo": "多声道音频将缩混为立体声",
+    "subtitle_styling_lost": "ASS 字幕样式将丢失",
+    "subtitle_dropped": "{{count}} 条字幕将被丢弃",
+    "subtitle_dropped_one": "{{count}} 条字幕将被丢弃",
+    "subtitle_dropped_image": "{{count}} 条图形字幕将被丢弃",
+    "subtitle_dropped_image_one": "{{count}} 条图形字幕将被丢弃",
+    "subtitle_dropped_text": "{{count}} 条文字字幕将被丢弃",
+    "subtitle_dropped_text_one": "{{count}} 条文字字幕将被丢弃",
+    "attachment_dropped": "{{count}} 个附件（如字体）将被丢弃",
+    "attachment_dropped_one": "{{count}} 个附件（如字体）将被丢弃",
+    "mp4_default_subtitle_forced": "MP4 会默认显示第一条字幕",
+    "encoder_fallback": "{{from}} 不可用，改用 {{to}}",
+    "chapters_dropped": "章节信息将被丢弃",
+    "mp4_default_audio_forced": "MP4 会默认播放第一条音轨",
+    "duration_unverified": "无法确认输出的时长是否完整",
+    "output_name_collision": "目标文件夹已有同名文件，输出会自动编号"
+  },
+  "plan": {
+    "title": "处理计划",
+    "pending": "正在生成…",
+    "loading": "正在生成处理计划…",
+    "remux_only": "不重新编码，只更换封装",
+    "remux_short": "只换封装",
+    "encoders": "编码器",
+    "output": "输出",
+    "output_numbered": "输出 {{number}}",
+    "output_value": "{{format}}（.{{extension}}）",
+    "output_track": "音轨 {{number}}",
+    "kind": {
+      "video": "视频",
+      "audio": "音频",
+      "subtitle": "字幕",
+      "cover": "封面"
+    },
+    "action": {
+      "copy": "直接复制",
+      "encode": "重新编码：{{encoder}}",
+      "convert": "转为 {{encoder}}"
+    },
+    "drop": {
+      "not_selected": "不保留",
+      "subtitle_dropped": "丢弃：{{format}} 无法保存这种字幕",
+      "cover_dropped": "丢弃：{{format}} 不保存封面"
+    },
+    "attachments_kept": "附件 {{count}} 个：保留",
+    "attachments_kept_one": "附件 {{count}} 个：保留",
+    "attachments_dropped": "附件 {{count}} 个：丢弃",
+    "attachments_dropped_one": "附件 {{count}} 个：丢弃",
+    "chapters_kept": "章节 {{count}} 个：保留",
+    "chapters_kept_one": "章节 {{count}} 个：保留",
+    "chapters_dropped": "章节 {{count}} 个：丢弃",
+    "chapters_dropped_one": "章节 {{count}} 个：丢弃",
+    "data_dropped": "数据流 {{count}} 条（如时间码）：不保留",
+    "data_dropped_one": "数据流 {{count}} 条（如时间码）：不保留",
+    "confirm": {
+      "lossy_to_lossless": "有损音频转为无损格式：体积会变大，音质不会变好。开始前需要确认。"
+    },
+    "frozen": "按开始时的设置处理",
+    "errors": {
+      "dolby_vision_p5_unsupported": "杜比视界 Profile 5 的画面暂时无法转换",
+      "unknown": "暂时无法生成处理计划"
+    }
+  },
+  "skip": {
+    "not_smaller": "压缩后没有明显变小，没有保存输出",
+    "already_target": "已经是目标格式，没有转换"
+  },
+  "failure": {
+    "code": "错误码：{{code}}",
+    "no_log": "没有记录到 FFmpeg 日志",
+    "session_limit": "显卡编码器正忙",
+    "params_rejected": "编码器不接受这些参数",
+    "encoder_stalled": "编码长时间没有进展，已停止",
+    "output_open_failed": "无法创建输出文件",
+    "disk_full": "磁盘已满",
+    "disk_space_low": "磁盘空间不足",
+    "input_missing": "找不到源文件",
+    "encode_failed": "编码过程出错",
+    "output_cap_exceeded": "输出远超预期大小，已停止",
+    "file_too_large_for_volume": "目标磁盘不支持这么大的文件",
+    "output_is_input": "输出会覆盖源文件",
+    "output_dir_unwritable": "输出文件夹无法写入",
+    "output_path_too_long": "输出路径太长",
+    "overwrite_trash_failed": "无法把同名旧文件移到回收站",
+    "output_publish_failed": "无法保存输出文件",
+    "confirmation_required": "需要先确认",
+    "no_encoder_available": "本机没有能处理这个文件的编码器",
+    "busy": "还在分析中",
+    "not_applicable": "当前任务不适用",
+    "unknown": "原因不明"
+  },
+  "failure_advice": {
+    "session_limit": "显卡同时运行的编码任务已满，例如游戏或录屏软件正在用显卡编码。请稍后重试。",
+    "params_rejected": "这台电脑的编码器拒绝了生成的编码参数。请重试；仍然失败时换一种输出编码。",
+    "encoder_stalled": "FFmpeg 很长时间没有任何进展，可能卡住了，已经停止。请重试；仍然失败时换一种输出编码。",
+    "output_open_failed": "FFmpeg 无法在目标文件夹中创建输出文件，可能没有写入权限，或被安全软件拦截。请检查后重试，或换一个输出位置。",
+    "disk_full": "写入时目标磁盘已满，未完成的文件已删除。请释放空间后重试。",
+    "disk_space_low": "开始前的检查发现目标磁盘的可用空间放不下输出。请释放空间，或换一个输出位置后重试。",
+    "input_missing": "源文件已被移动、重命名或删除。请把它放回原处后重试，或重新添加。",
+    "encode_failed": "FFmpeg 编码失败，没有给出更具体的原因。日志末尾可能有线索；请重试，仍然失败时换一种输出编码或格式。",
+    "output_cap_exceeded": "输出文件比预期大得多，为避免写满磁盘已停止，未完成的文件已删除。请换一种输出编码或格式后重试。",
+    "file_too_large_for_volume": "目标磁盘是 FAT32 格式，单个文件不能超过 4 GB。请把输出放到 NTFS 或 exFAT 磁盘上。",
+    "output_is_input": "输出文件会和某个源文件同名同位置。请换一个输出位置后重试。",
+    "output_dir_unwritable": "目标文件夹不存在或没有写入权限。请换一个输出位置后重试。",
+    "output_path_too_long": "输出文件的完整路径超过了 Windows 的长度限制。请换一个层级更浅的输出文件夹。",
+    "overwrite_trash_failed": "同名旧文件没能移到回收站，所以没有覆盖它。可以改用「自动编号」后重试。",
+    "output_publish_failed": "转换已完成，但无法把结果保存为最终文件名，未完成的文件已删除。请检查目标文件夹后重试。",
+    "confirmation_required": "这个文件需要先确认（例如有损音频转为无损格式）。请重新点「开始」，在确认框中确认。",
+    "no_encoder_available": "本机没有能处理这个画面的编码器。请换一种输出编码后重新开始。",
+    "busy": "文件还在分析，或正被其他操作占用。请稍后重试。",
+    "not_applicable": "重新分析后，这个文件已不适合开始时选择的任务。请切换任务后重新开始。",
+    "unknown": "转换没有完成，原因不明。请重试；仍然失败时，可以复制下面的错误信息反馈问题。"
+  },
+  "confirm": {
+    "title": "开始前请确认",
+    "description": "{{count}} 个文件需要确认（本次共 {{total}} 个）。可以逐个跳过，其余文件会一起开始。",
+    "description_one": "{{count}} 个文件需要确认（本次共 {{total}} 个）。可以逐个跳过，其余文件会一起开始。",
+    "use_mkv": "改为 MKV",
+    "mkv_note": "「改为 MKV」会把输出格式改为 MKV，对本次所有文件生效。",
+    "resolved": "已改为 MKV，内容会完整保留",
+    "lossless": "有损音频转为无损格式：体积会变大，音质不会变好",
+    "replace": "会把同名旧文件移到回收站：{{names}}",
+    "replace_one": "会把同名旧文件移到回收站：{{names}}",
+    "skip": "跳过",
+    "include": "恢复",
+    "skipped": "本次跳过，不会开始",
+    "cancel": "取消",
+    "start": "开始 {{count}} 个文件",
+    "start_one": "开始 {{count}} 个文件",
+    "start_none": "没有要开始的文件"
+  }
+}

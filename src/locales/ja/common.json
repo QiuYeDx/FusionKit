@@ -18,6 +18,9 @@
     "text": {
       "translator": "長文翻訳"
     },
+    "media": {
+      "converter": "音声・動画変換"
+    },
     "help": "ヘルプ"
   },
   "start": "開始",

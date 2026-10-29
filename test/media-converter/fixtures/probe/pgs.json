@@ -1,0 +1,25 @@
+{
+  "file": { "name": "bluray-remux.mkv", "sizeBytes": 25000000000, "matroskaDocType": "matroska" },
+  "ffprobe": {
+    "streams": [
+      { "index": 0, "codec_name": "h264", "profile": "High", "codec_type": "video", "width": 1920, "height": 1080, "sample_aspect_ratio": "1:1",
+        "pix_fmt": "yuv420p", "field_order": "progressive", "r_frame_rate": "24000/1001", "avg_frame_rate": "24000/1001",
+        "disposition": { "default": 1 }, "tags": { "BPS-eng": "30000000", "DURATION-eng": "02:00:00.000000000" } },
+      { "index": 1, "codec_name": "dts", "profile": "DTS-HD MA", "codec_type": "audio", "sample_fmt": "s32p", "sample_rate": "48000", "channels": 6,
+        "channel_layout": "5.1(side)", "bits_per_raw_sample": "24", "disposition": { "default": 1 },
+        "tags": { "language": "eng", "BPS-eng": "3500000", "DURATION-eng": "02:00:00.000000000" } },
+      { "index": 2, "codec_name": "ac3", "codec_type": "audio", "sample_rate": "48000", "channels": 2, "channel_layout": "stereo", "bit_rate": "192000",
+        "disposition": { "default": 0 }, "tags": { "language": "eng", "title": "Commentary" } },
+      { "index": 3, "codec_name": "hdmv_pgs_subtitle", "codec_type": "subtitle", "disposition": { "default": 0, "forced": 1 },
+        "tags": { "language": "eng", "title": "Forced" } },
+      { "index": 4, "codec_name": "subrip", "codec_type": "subtitle", "disposition": { "default": 1, "forced": 0, "hearing_impaired": 1 },
+        "tags": { "language": "eng", "title": "SDH" } },
+      { "index": 5, "codec_name": "dvd_subtitle", "codec_type": "subtitle", "width": 720, "height": 480, "disposition": { "default": 0 },
+        "tags": { "language": "fre" } },
+      { "index": 6, "codec_name": "eia_608", "codec_type": "subtitle", "disposition": { "default": 0 } },
+      { "index": 7, "codec_type": "attachment", "codec_name": "ttf", "tags": { "filename": "font.ttf", "mimetype": "font/ttf" } }
+    ],
+    "chapters": [ { "id": 1 }, { "id": 2 }, { "id": 3 } ],
+    "format": { "format_name": "matroska,webm", "duration": "7200.000000", "bit_rate": "27777777", "tags": { "title": "Remux" } }
+  }
+}

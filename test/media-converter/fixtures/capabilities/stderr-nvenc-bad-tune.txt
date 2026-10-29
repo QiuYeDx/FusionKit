@@ -1,0 +1,6 @@
+[h264_nvenc @ 00000205c4354080] [Eval @ 000000a962dfd010] [error] Undefined constant or missing '(' in 'bogus'
+[h264_nvenc @ 00000205c4354080] [error] Unable to parse "tune" option value "bogus"
+[h264_nvenc @ 00000205c4354080] [error] Error setting option tune to value bogus.
+[vost#0:0/h264_nvenc @ 00000205c4353580] [error] Error applying encoder options: Invalid argument
+[error] Error opening output file file:<work>/probe.mkv.
+[fatal] Error opening output files: Invalid argument

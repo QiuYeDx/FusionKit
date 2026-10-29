@@ -1,0 +1,63 @@
+# V-WORKBENCH-04-3, independent review 2026-10-29, final code.
+$ pnpm exec tsc --noEmit -p tsconfig.json
+exit 0
+
+$ pnpm exec tsc -p scratchpad/wb04r/tsconfig.wb04r-tests.json   # extends tsconfig.json; files: test/media-converter/media-converter.electron.test.ts, src/vite-env.d.ts
+exit 0
+
+$ pnpm run i18n:check
+
+> FusionKit@0.5.2 i18n:check C:\Users\Administrator\Documents\GitHub\FusionKit
+> node scripts/check-i18n.mjs && node scripts/check-i18n-usage.mjs
+
+╔══════════════════════════════════════════════════╗
+║          i18n Completeness Check                ║
+╚══════════════════════════════════════════════════╝
+
+  Source lang : zh
+  Languages   : zh, en, ja, zh-Hant
+  Namespaces  : about, common, help, home, knowledge, materials, media, rename, setting, studio, subtitle, text, tools
+
+  Namespace              zh      en      ja zh-Hant
+  ─────────────────────────────────────────────────
+  about                  41      41      41      41
+  common                241     241     241     241
+  help                   87      87      87      87
+  home                  556     556     556     556
+  knowledge             327     327     327     327
+  materials              70      70      70      70
+  media                 382     382     382     382
+  rename                199     199     199     199
+  setting               574     574     574     574
+  studio               1259    1259    1259    1259
+  subtitle              765     765     765     765
+  text                  394     394     394     394
+  tools                  73      73      73      73
+  ─────────────────────────────────────────────────
+  TOTAL                4968    4968    4968    4968
+
+  ... (same-as-source notices; in media only plan.output_value, queue.analyzing, encoder names and queue.result.sizes "{{source}} → {{output}}", a format string)
+i18n source usage check
+  Languages       : zh, en, ja, zh-Hant
+  Calls scanned   : 4005
+  Static/finite   : 3972
+  Manifest-backed : 33
+  Resolved keys   : 4727
+
+All source translation keys resolve.
+exit 0
+
+# Supplementary unit tests (not in this task's plan): registration (static render of the page), format, controller, shared-control consumers, drop scope.
+$ npx vitest run --maxWorkers=4 --minWorkers=1 src/pages/Tools/Media/MediaConverter/registration.test.ts src/pages/Tools/Media/MediaConverter/format.test.ts src/services/media-converter/controller.test.ts src/pages/Tools/_shared/ui/segmentedControlConsumers.test.ts src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts src/pages/Tools/_shared/ui/ToolFileDropScope.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts (2 tests) 14ms
+ ✓ src/pages/Tools/Media/MediaConverter/format.test.ts (9 tests) 17ms
+ ✓ src/services/media-converter/controller.test.ts (16 tests) 345ms
+ ✓ src/pages/Tools/_shared/ui/ToolFileDropScope.test.ts (8 tests) 3ms
+ ✓ src/pages/Tools/Media/MediaConverter/registration.test.ts (12 tests) 174ms
+ ✓ src/pages/Tools/_shared/ui/segmentedControlConsumers.test.ts (2 tests) 15ms
+ Test Files  6 passed (6)
+      Tests  49 passed (49)
+   Start at  02:07:44
+   Duration  3.45s (transform 696ms, setup 219ms, collect 3.33s, tests 567ms, environment 1ms, prepare 398ms)
+exit 0

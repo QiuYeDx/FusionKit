@@ -16,6 +16,8 @@ import { assertLegacyKnowledgeChannelAllowed, createTranslationKnowledgeApi } fr
 import { assertLegacyNameTranslationChannelAllowed, createNameTranslationApi } from './name-translation-api'
 import { assertLegacyLongTextChannelAllowed } from './long-text-channel-policy'
 import { createLongTextApi } from './long-text-api'
+import { assertLegacyMediaConverterChannelAllowed } from './media-converter-channel-policy'
+import { createMediaConverterApi } from './media-converter-api'
 import { assertLegacyWebLookupChannelAllowed, createWebLookupApi } from './web-lookup-api'
 import { assertLegacyAgentSessionsChannelAllowed, createAgentSessionsApi } from './agent-sessions-api'
 import { assertLegacyExternalAgentChannelAllowed, createExternalAgentApi } from './external-agent-api'
@@ -40,6 +42,7 @@ const assertLegacyIpcChannelAllowed = (channel: string) => {
   assertLegacySystemSetupChannelAllowed(channel)
   assertLegacyNameTranslationChannelAllowed(channel)
   assertLegacyLongTextChannelAllowed(channel)
+  assertLegacyMediaConverterChannelAllowed(channel)
   assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyAgentSessionsChannelAllowed(channel)
   assertLegacyExternalAgentChannelAllowed(channel)
@@ -58,6 +61,7 @@ const assertLegacyListenChannelAllowed = (channel: string) => {
   assertLegacySystemSetupChannelAllowed(channel)
   assertLegacyNameTranslationChannelAllowed(channel)
   assertLegacyLongTextChannelAllowed(channel)
+  assertLegacyMediaConverterChannelAllowed(channel)
   assertLegacyWebLookupChannelAllowed(channel)
   assertLegacyAgentSessionsChannelAllowed(channel)
   assertLegacyExternalAgentChannelAllowed(channel)
@@ -74,6 +78,7 @@ contextBridge.exposeInMainWorld('translationKnowledge', createTranslationKnowled
 contextBridge.exposeInMainWorld('speechResources', createSpeechResourcesApi(ipcRenderer))
 contextBridge.exposeInMainWorld('nameTranslation', createNameTranslationApi(ipcRenderer))
 contextBridge.exposeInMainWorld('longText', createLongTextApi(ipcRenderer))
+contextBridge.exposeInMainWorld('mediaConverter', createMediaConverterApi(ipcRenderer, webUtils))
 contextBridge.exposeInMainWorld('webLookup', createWebLookupApi(ipcRenderer))
 contextBridge.exposeInMainWorld('agentSessions', createAgentSessionsApi(ipcRenderer))
 contextBridge.exposeInMainWorld('externalAgent', createExternalAgentApi(ipcRenderer))

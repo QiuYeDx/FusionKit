@@ -1,0 +1,14 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/queue.test.ts test/media-converter/plan test/media-converter/probe.test.ts test/media-converter/progress.test.ts
+# 2026-10-28 review rerun: the suites that parse the contract schemas and use the planner table still pass
+ ✓ test/media-converter/plan/video.test.ts (63 tests) 61ms
+ ✓ test/media-converter/plan/audio.test.ts (97 tests) 74ms
+ ✓ test/media-converter/plan/stream-plan.test.ts (69 tests) 178ms
+ ✓ test/media-converter/plan/video-correctness.test.ts (29 tests) 65ms
+ ✓ test/media-converter/probe.test.ts (102 tests) 755ms
+ ✓ test/media-converter/progress.test.ts (20 tests) 14ms
+ ✓ test/media-converter/queue.test.ts (28 tests) 5840ms
+ ✓ test/media-converter/plan/naming.test.ts (15 tests) 10ms
+ Test Files  8 passed (8)
+      Tests  423 passed (423)
+   Duration  7.08s (transform 577ms, setup 0ms, collect 2.21s, tests 7.00s, environment 1ms, prepare 496ms)
+exit 0

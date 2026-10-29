@@ -1,0 +1,225 @@
+$ python <scratchpad>/mutate.py   # 23 mutations of output.ts/inputs.ts; each applied alone, then: npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/output.test.ts; source restored afterwards and checked by sha256
+M1 journal written only after the partial exists: exit 1; 1 failed | 43 passed (44)
+    - partial files > records the partial in partials.json before creating it, then its identity; ffmpeg-style truncation keeps the identity
+    - records the partial in partials.json before creating it, then its identity; ffmpeg-style truncation keeps the identity
+M2 placeholder fallback only for EISDIR: exit 1; 6 failed | 38 passed (44)
+    - a link error ENOTSUP falls back to an exclusive placeholder
+    - a link error EPERM falls back to an exclusive placeholder
+    - a link error EWHATEVER falls back to an exclusive placeholder
+    - a link error EXDEV falls back to an exclusive placeholder
+    - a link error UNKNOWN falls back to an exclusive placeholder
+    - a link error undefined falls back to an exclusive placeholder
+M3 placeholder left after a failed rename: exit 1; 2 failed | 42 passed (44)
+    - a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+    - publishing without replacing anything > a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+    - publishing without replacing anything > when the rename over the placeholder fails, neither the placeholder nor the partial is left
+    - when the rename over the placeholder fails, neither the placeholder nor the partial is left
+M4 placeholder removed even when no longer empty: exit 1; 1 failed | 43 passed (44)
+    - a placeholder that is no longer empty is not removed after a failed rename
+    - publishing without replacing anything > a placeholder that is no longer empty is not removed after a failed rename
+M5 overwrite deletes instead of trashing: exit 1; 4 failed | 40 passed (44)
+    - a recycle bin that reports success but leaves the file never leads to replacing it
+    - keeps the old file and reports overwrite_trash_failed when the recycle bin refuses it
+    - moves the old file to the recycle bin before the new one takes its name
+    - names within a batch > with overwrite, an item never replaces a name another item of the batch holds; after the batch it may
+    - overwriting > a recycle bin that reports success but leaves the file never leads to replacing it
+    - overwriting > keeps the old file and reports overwrite_trash_failed when the recycle bin refuses it
+M6 overwrite renames onto the name: exit 1; 2 failed | 42 passed (44)
+    - a recycle bin that reports success but leaves the file never leads to replacing it
+    - moves the old file to the recycle bin before the new one takes its name
+    - overwriting > a recycle bin that reports success but leaves the file never leads to replacing it
+    - overwriting > moves the old file to the recycle bin before the new one takes its name
+M7 batch claims ignored when numbering: exit 1; 1 failed | 43 passed (44)
+    - names within a batch > two items resolving to one name: the second is numbered and warned, whichever publishes first
+    - two items resolving to one name: the second is numbered and warned, whichever publishes first
+M8 all-zero FileIds compared as identities: exit 1; 1 failed | 43 passed (44)
+    - output_is_input > with an all-zero FileId, compares the real paths: the same file is refused, another file with a zero FileId is not
+    - with an all-zero FileId, compares the real paths: the same file is refused, another file with a zero FileId is not
+M9 caps of other running outputs not summed: exit 1; 1 failed | 43 passed (44)
+    - space and volume limits > sums the caps of the running outputs on one volume against its free space plus 512 MB
+    - sums the caps of the running outputs on one volume against its free space plus 512 MB
+M10 no FAT32 check: exit 1; 1 failed | 43 passed (44)
+    - refuses a cap over 4 GiB on FAT32 before starting, and asks the volume type only for such a cap
+    - space and volume limits > refuses a cap over 4 GiB on FAT32 before starting, and asks the volume type only for such a cap
+M11 cleanup deletes a file whose identity differs: exit 1; 1 failed | 43 passed (44)
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+M12 cleanup drops records of unmounted volumes: exit 1; 1 failed | 43 passed (44)
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+M13 cleanup drops records whose delete failed: exit 1; 1 failed | 43 passed (44)
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+M14 work directory not emptied: exit 1; 1 failed | 43 passed (44)
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+M15 no EBUSY/EPERM retries: exit 1; 4 failed | 40 passed (44)
+    - EBUSY and EPERM on the rename are retried and the publish then succeeds
+    - a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - numbered names and busy retries follow the policy
+    - publishing without replacing anything > EBUSY and EPERM on the rename are retried and the publish then succeeds
+    - publishing without replacing anything > a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+M16 renamed output always checked by identity: exit 1; 1 failed | 43 passed (44)
+    - after the placeholder rename, FAT is checked by size and other volumes by identity
+    - publishing without replacing anything > after the placeholder rename, FAT is checked by size and other volumes by identity
+M17 partial identity not checked before publishing: exit 1; 1 failed | 43 passed (44)
+    - a replaced partial is not moved by the placeholder flow either
+    - partial files > a replaced partial is not moved by the placeholder flow either
+M18 discard deletes whatever holds the name: exit 1; 2 failed | 42 passed (44)
+    - a replaced partial is not moved by the placeholder flow either
+    - discards the partial and its record, but leaves a file that replaced it alone and never publishes that file
+    - partial files > a replaced partial is not moved by the placeholder flow either
+    - partial files > discards the partial and its record, but leaves a file that replaced it alone and never publishes that file
+M19 partial name kept after the link: exit 1; 4 failed | 40 passed (44)
+    - a partial written by the bundled ffmpeg > ffmpeg -y truncates the partial without changing its identity, and the result publishes by link
+    - ffmpeg -y truncates the partial without changing its identity, and the result publishes by link
+    - moves the old file to the recycle bin before the new one takes its name
+    - never moves a folder or an input to the recycle bin
+    - numbers the name, (1) then (2), by hard link, and leaves the existing file byte for byte
+    - overwriting > moves the old file to the recycle bin before the new one takes its name
+M20 refused drop batch rejects every file: exit 1; 1 failed | 43 passed (44)
+    - drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+    - inputs > drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+M21 folders reported as non-regular files: exit 1; 2 failed | 42 passed (44)
+    - drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+    - drop: maps the resolver codes, with the real resolver for paths outside %TEMP%
+    - inputs > drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+    - inputs > drop: maps the resolver codes, with the real resolver for paths outside %TEMP%
+M22 input check ignores the FileId: exit 1; 1 failed | 43 passed (44)
+    - inputs > verify: input_changed for an edit or another file with the same size and time, input_missing when gone; refresh accepts it as it is
+    - verify: input_changed for an edit or another file with the same size and time, input_missing when gone; refresh accepts it as it is
+M23 duplicates by path only: exit 1; 1 failed | 43 passed (44)
+    - inputs > registers a file once: another case or a hard link of it is the same item; folders and missing files are refused
+    - registers a file once: another case or a hard link of it is the same item; folders and missing files are refused
+restored: True
+output.ts 0a31340b7fc3c73a31cb662c9f5be22d0c6c12ad47bc562f4df5ccdffe65326f
+inputs.ts 65011392e1a14f0ef0cf598130054282a04946757e50691dbfe0b8bb4dc3dfd1
+survivors: none
+exit 0
+
+# ── Review 2026-10-26 (independent review of T-ENGINE-04) ─────────────────────────────
+# The 23 mutants above, re-run on the reviewed sources (M4, M12 and M16 re-targeted at the refactored lines; 49 tests):
+$ python <scratchpad>/review-mutate-prior.py
+M1 journal written only after the partial exists: exit 1; 1 failed | 48 passed (49)
+    - partial files > records the partial in partials.json before creating it, then its identity; ffmpeg-style truncation keeps the identity
+    - records the partial in partials.json before creating it, then its identity; ffmpeg-style truncation keeps the identity
+M2 placeholder fallback only for EISDIR: exit 1; 6 failed | 43 passed (49)
+    - a link error ENOTSUP falls back to an exclusive placeholder
+    - a link error EPERM falls back to an exclusive placeholder
+    - a link error EWHATEVER falls back to an exclusive placeholder
+    - a link error EXDEV falls back to an exclusive placeholder
+    - a link error UNKNOWN falls back to an exclusive placeholder
+    - a link error undefined falls back to an exclusive placeholder
+M3 placeholder left after a failed rename: exit 1; 2 failed | 47 passed (49)
+    - a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+    - publishing without replacing anything > a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+    - publishing without replacing anything > when the rename over the placeholder fails, neither the placeholder nor the partial is left
+    - when the rename over the placeholder fails, neither the placeholder nor the partial is left
+M4 placeholder removed even when no longer empty: exit 1; 2 failed | 47 passed (49)
+    - a placeholder another program wrote into before the rename is left to it; the output takes the next name
+    - a placeholder that is no longer empty is not removed after a failed rename
+    - publishing without replacing anything > a placeholder another program wrote into before the rename is left to it; the output takes the next name
+    - publishing without replacing anything > a placeholder that is no longer empty is not removed after a failed rename
+M5 overwrite deletes instead of trashing: exit 1; 4 failed | 45 passed (49)
+    - a recycle bin that reports success but leaves the file never leads to replacing it
+    - keeps the old file and reports overwrite_trash_failed when the recycle bin refuses it
+    - moves the old file to the recycle bin before the new one takes its name
+    - names within a batch > with overwrite, an item never replaces a name another item of the batch holds; after the batch it may
+    - overwriting > a recycle bin that reports success but leaves the file never leads to replacing it
+    - overwriting > keeps the old file and reports overwrite_trash_failed when the recycle bin refuses it
+M6 overwrite renames onto the name: exit 1; 2 failed | 47 passed (49)
+    - a recycle bin that reports success but leaves the file never leads to replacing it
+    - moves the old file to the recycle bin before the new one takes its name
+    - overwriting > a recycle bin that reports success but leaves the file never leads to replacing it
+    - overwriting > moves the old file to the recycle bin before the new one takes its name
+M7 batch claims ignored when numbering: exit 1; 1 failed | 48 passed (49)
+    - names within a batch > two items resolving to one name: the second is numbered and warned, whichever publishes first
+    - two items resolving to one name: the second is numbered and warned, whichever publishes first
+M8 all-zero FileIds compared as identities: exit 1; 1 failed | 48 passed (49)
+    - output_is_input > with an all-zero FileId, compares the real paths: the same file is refused, another file with a zero FileId is not
+    - with an all-zero FileId, compares the real paths: the same file is refused, another file with a zero FileId is not
+M9 caps of other running outputs not summed: exit 1; 1 failed | 48 passed (49)
+    - space and volume limits > sums the caps of the running outputs on one volume against its free space plus 512 MB
+    - sums the caps of the running outputs on one volume against its free space plus 512 MB
+M10 no FAT32 check: exit 1; 1 failed | 48 passed (49)
+    - refuses a cap over 4 GiB on FAT32 before starting, and asks the volume type only for such a cap
+    - space and volume limits > refuses a cap over 4 GiB on FAT32 before starting, and asks the volume type only for such a cap
+M11 cleanup deletes a file whose identity differs: exit 1; 1 failed | 48 passed (49)
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+M12 cleanup drops records of unmounted volumes: exit 1; 2 failed | 47 passed (49)
+    - a record whose folder is gone is kept while the nearest folder there sits on another volume
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - startup cleanup > a record whose folder is gone is kept while the nearest folder there sits on another volume
+    - startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+M13 cleanup drops records whose delete failed: exit 1; 1 failed | 48 passed (49)
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+M14 work directory not emptied: exit 1; 1 failed | 48 passed (49)
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+M15 no EBUSY/EPERM retries: exit 1; 4 failed | 45 passed (49)
+    - EBUSY and EPERM on the rename are retried and the publish then succeeds
+    - a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+    - deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+    - numbered names and busy retries follow the policy
+    - publishing without replacing anything > EBUSY and EPERM on the rename are retried and the publish then succeeds
+    - publishing without replacing anything > a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+M16 renamed output always checked by identity: exit 1; 1 failed | 48 passed (49)
+    - after the placeholder rename, FAT and unknown volumes are checked by size, other volumes by identity
+    - publishing without replacing anything > after the placeholder rename, FAT and unknown volumes are checked by size, other volumes by identity
+M17 partial identity not checked before publishing: exit 1; 2 failed | 47 passed (49)
+    - a placeholder another program wrote into before the rename is left to it; the output takes the next name
+    - a replaced partial is not moved by the placeholder flow either
+    - partial files > a replaced partial is not moved by the placeholder flow either
+    - publishing without replacing anything > a placeholder another program wrote into before the rename is left to it; the output takes the next name
+M18 discard deletes whatever holds the name: exit 1; 2 failed | 47 passed (49)
+    - a replaced partial is not moved by the placeholder flow either
+    - discards the partial and its record, but leaves a file that replaced it alone and never publishes that file
+    - partial files > a replaced partial is not moved by the placeholder flow either
+    - partial files > discards the partial and its record, but leaves a file that replaced it alone and never publishes that file
+M19 partial name kept after the link: exit 1; 5 failed | 44 passed (49)
+    - a name held by a file pending deletion is skipped, by link and by placeholder alike
+    - a partial written by the bundled ffmpeg > ffmpeg -y truncates the partial without changing its identity, and the result publishes by link
+    - ffmpeg -y truncates the partial without changing its identity, and the result publishes by link
+    - moves the old file to the recycle bin before the new one takes its name
+    - never moves a folder or an input to the recycle bin
+    - numbers the name, (1) then (2), by hard link, and leaves the existing file byte for byte
+M20 refused drop batch rejects every file: exit 1; 1 failed | 48 passed (49)
+    - drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+    - inputs > drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+M21 folders reported as non-regular files: exit 1; 2 failed | 47 passed (49)
+    - drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+    - drop: maps the resolver codes, with the real resolver for paths outside %TEMP%
+    - inputs > drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+    - inputs > drop: maps the resolver codes, with the real resolver for paths outside %TEMP%
+M22 input check ignores the FileId: exit 1; 1 failed | 48 passed (49)
+    - inputs > verify: input_changed for an edit or another file with the same size and time, input_missing when gone; refresh accepts it as it is
+    - verify: input_changed for an edit or another file with the same size and time, input_missing when gone; refresh accepts it as it is
+M23 duplicates by path only: exit 1; 1 failed | 48 passed (49)
+    - inputs > registers a file once: another case or a hard link of it is the same item; folders and missing files are refused
+    - registers a file once: another case or a hard link of it is the same item; folders and missing files are refused
+restored: True
+output.ts 527ac00f532da466dfcb5788eb5facf0e0c7cf6160c4a287d684a9f8e5696931
+inputs.ts b14d32ab0f184f0c0a4016c2766444841fcd18948be8515c54a9e8ec01f45713
+survivors: none
+exit 0
+
+# 11 further mutants: each review fix reverted (or bent) alone, then the same vitest run; source restored and checked by sha256:
+$ node <scratchpad>/review-mutate.mjs <repo>
+R1 startup: folder gone → only root stat (pre-review): killed (1 failed)
+R2 overwrite: uninspectable name throws (pre-review): killed (1 failed)
+R3 placeholder: EPERM create not treated as a held name (pre-review): killed (2 failed)
+R4 placeholder: EPERM create always treated as held: killed (1 failed)
+R5 placeholder: no re-check before rename (pre-review): killed (1 failed)
+R6 numberedName: only / \ NUL refused (pre-review): killed (1 failed)
+R7 numberedName: device names allowed: killed (1 failed)
+R8 constructor: relative root accepted (pre-review): killed (1 failed)
+R9 after rename: unknown volume checked by identity (pre-review): killed (1 failed)
+R10 after rename: FAT checked by identity: killed (1 failed)
+R11 restore: state not validated (pre-review): killed (1 failed)
+restored output.ts sha256 527ac00f532da466dfcb5788eb5facf0e0c7cf6160c4a287d684a9f8e5696931 (expected 527ac00f532da466dfcb5788eb5facf0e0c7cf6160c4a287d684a9f8e5696931)
+restored inputs.ts sha256 b14d32ab0f184f0c0a4016c2766444841fcd18948be8515c54a9e8ec01f45713 (expected b14d32ab0f184f0c0a4016c2766444841fcd18948be8515c54a9e8ec01f45713)
+survivors: none
+exit 0

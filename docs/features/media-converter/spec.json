@@ -34,8 +34,8 @@
       "approval": {
         "state": "approved",
         "by": "用户（当前会话）",
-        "basis": "2026-10-26 用户审阅规格与评审结果后回复「For Q-01 use option B: default to HEVC when a hardware encoder is available, otherwise H.264; AV1 stays as the 'smallest size' option. Everything else as recommended. Approve I1 and start development.」。据此批准 I1：Q-01 选项 B，Q-02/Q-03/Q-04 按推荐；按此前说明建立 v0.6.0 分支、提交文档，并从 T-ENGINE-01 开始开发。不推送、不发布；验收由用户执行，不代签；Electron UI 测试只在 quiet 模式下用测试套件运行；T-ENCODE-05 与 I1 验收等待用户提供样片（A-07）。",
-        "digest": "accabb1d899a832ac49473c2ad8aab062dd36c26e75fcfc2d5a4d374658cb1c5"
+        "basis": "2026-10-26 用户审阅规格与评审结果后回复「For Q-01 use option B: default to HEVC when a hardware encoder is available, otherwise H.264; AV1 stays as the 'smallest size' option. Everything else as recommended. Approve I1 and start development.」。据此批准 I1：Q-01 选项 B，Q-02/Q-03/Q-04 按推荐；按此前说明建立 v0.6.0 分支、提交文档，并从 T-ENGINE-01 开始开发。不推送、不发布；验收由用户执行，不代签；Electron UI 测试只在 quiet 模式下用测试套件运行；T-ENCODE-05 与 I1 验收等待用户提供样片（A-07）。 2026-10-26 实施中规格纠正：批次 B 实测发现，按 changes/2026-10-26-batch-b-spec-corrections.md 纠正三处——AC-ENCODE-02-2 改为按编码器实测尺寸范围；AC-ENCODE-03-2 未标记色彩改为「宽≥1280 或高>576 推定为 BT.709」；AC-ENCODE-04-5 纠正方向，目标码率不低于源码率时才直接复制。均为 spec-correction，不扩大范围。协调者据此刷新摘要，并在交接时告知用户。",
+        "digest": "11c160606ea8e29623dfbfc23621250b0454cdba5ea333c5b0e2791ceef31a04"
       },
       "acceptance": {
         "state": "pending",

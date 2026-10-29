@@ -10,16 +10,16 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENCODE-01, R-ENCODE-06 |
 | 验收 | AC-ENCODE-01-1, AC-ENCODE-01-2, AC-ENCODE-01-3, AC-ENCODE-01-4, AC-ENCODE-01-5, AC-ENCODE-01-6, AC-ENCODE-01-8, AC-ENCODE-06-1, AC-ENCODE-06-2 |
 | 依赖 | T-ENGINE-01 |
 | 写集 | electron/main/media-converter/plan/types.ts, electron/main/media-converter/plan/matrix.ts, electron/main/media-converter/plan/stream-plan.ts, electron/main/media-converter/plan/naming.ts, electron/main/media-converter/plan/args.ts, electron/main/media-converter/plan/caps.ts, src/media-converter/contract.ts, test/media-converter/plan/stream-plan.test.ts, test/media-converter/plan/naming.test.ts, test/media-converter/remux-real.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 A 实施 + 独立评审） |
+| 依赖确认 | T-ENGINE-01：同一工作树（批次 A 集成检查 tsc 0 错误、311 测试通过） |
+| 完成日期 | 2026-10-26 |
+| 实施记录 | records/i1/T-ENCODE-01.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -50,16 +50,16 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENCODE-02, R-ENCODE-01 |
 | 验收 | AC-ENCODE-02-1, AC-ENCODE-02-2, AC-ENCODE-02-3, AC-ENCODE-02-4, AC-ENCODE-02-5, AC-ENCODE-02-7, AC-ENCODE-01-7 |
 | 依赖 | T-ENCODE-01 |
-| 写集 | electron/main/media-converter/plan/video.ts, electron/main/media-converter/plan/args.ts, electron/main/media-converter/plan/stream-plan.ts, test/media-converter/plan/video.test.ts, test/media-converter/encode-real.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 写集 | electron/main/media-converter/plan/video.ts, electron/main/media-converter/plan/args.ts, electron/main/media-converter/plan/stream-plan.ts, electron/main/media-converter/plan/types.ts, test/media-converter/plan/video.test.ts, test/media-converter/plan/stream-plan.test.ts, test/media-converter/encode-real.test.ts |
+| 负责人 | Agent（批次 B 实施 + 独立评审 + 2026-10-28 修正） |
+| 依赖确认 | T-ENCODE-01：同一工作树（批次 B 修正后集成检查 PASS） |
+| 完成日期 | 2026-10-26 |
+| 实施记录 | records/i1/T-ENCODE-02.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -90,16 +90,16 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENCODE-03 |
 | 验收 | AC-ENCODE-03-1, AC-ENCODE-03-2, AC-ENCODE-03-3, AC-ENCODE-03-4, AC-ENCODE-03-5 |
 | 依赖 | T-ENCODE-02 |
-| 写集 | electron/main/media-converter/plan/video.ts, electron/main/media-converter/plan/stream-plan.ts, test/media-converter/plan/video-correctness.test.ts, test/media-converter/encode-real.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 写集 | electron/main/media-converter/plan/video.ts, electron/main/media-converter/plan/stream-plan.ts, electron/main/media-converter/plan/types.ts, test/media-converter/plan/video-correctness.test.ts, test/media-converter/plan/stream-plan.test.ts, test/media-converter/encode-real.test.ts |
+| 负责人 | Agent（批次 B 实施 + 独立评审 + 2026-10-28 修正） |
+| 依赖确认 | T-ENCODE-02：同一工作树（批次 B 修正后集成检查 PASS） |
+| 完成日期 | 2026-10-26 |
+| 实施记录 | records/i1/T-ENCODE-03.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -126,16 +126,16 @@
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENCODE-04, R-ENCODE-05 |
 | 验收 | AC-ENCODE-04-1, AC-ENCODE-04-2, AC-ENCODE-04-3, AC-ENCODE-04-4, AC-ENCODE-04-5, AC-ENCODE-05-1, AC-ENCODE-05-2 |
 | 依赖 | T-ENCODE-03 |
-| 写集 | electron/main/media-converter/plan/audio.ts, electron/main/media-converter/plan/args.ts, electron/main/media-converter/plan/stream-plan.ts, test/media-converter/plan/audio.test.ts, test/media-converter/encode-audio-real.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 写集 | electron/main/media-converter/plan/audio.ts, electron/main/media-converter/plan/args.ts, electron/main/media-converter/plan/stream-plan.ts, electron/main/media-converter/plan/types.ts, electron/main/media-converter/plan/caps.ts, test/media-converter/plan/audio.test.ts, test/media-converter/plan/stream-plan.test.ts, test/media-converter/encode-audio-real.test.ts |
+| 负责人 | Agent（批次 B 实施 + 独立评审 + 2026-10-28 修正） |
+| 依赖确认 | T-ENCODE-03：同一工作树（批次 B 修正后集成检查 PASS） |
+| 完成日期 | 2026-10-26 |
+| 实施记录 | records/i1/T-ENCODE-04.md |
 | 集成版本 | - |
 
 #### 实现要点

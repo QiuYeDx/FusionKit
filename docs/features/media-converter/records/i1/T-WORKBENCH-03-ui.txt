@@ -1,0 +1,93 @@
+# Review pass (independent reviewer, 2026-10-28 23:42 - 2026-10-29 00:11). Every command ran through cmd.exe started at Idle priority (Start-Process, PriorityClass=Idle; vitest, Electron, ffmpeg and ffprobe inherit it), one at a time; electron.exe count before and after each run: 0. Window mode: quiet (vitest.config.ts default). FUSIONKIT_MEDIA_REVIEW_DIR was not set; the T-WORKBENCH-03 screenshots were copied from the final run folders, which were then deleted.
+
+# History of this pass: run 1 (after the first fixes, 23:42) had 2 failures: the T-WORKBENCH-03 wrap assertion (the variable-rate average now reads "~16" instead of "~14.985", so the 360x640 sample fit one line at 786x540; the sample became the design's 1080x1920 with 44.1 kHz audio) and a T-WORKBENCH-02 click on media-conflict-overwrite intercepted while the panel folded "output and performance" by itself (a race in that scenario: it read aria-expanded before the fold settled; now it settles first). Run 2 (23:51) passed 12/12 and showed the rows in view moving 224 px while the files above finished analyzing; the analyzing row now holds its plan line. Run 3 below is on the final code.
+$ pnpm run pretest
+computing gzip size...
+dist-electron/main/index.js  6,275.19 kB │ gzip: 2,218.36 kB
+✓ built in 7.57s
+vite v5.4.21 building for test...
+transforming...
+✓ 441 modules transformed.
+rendering chunks...
+computing gzip size...
+dist-electron/preload/index.mjs  322.69 kB │ gzip: 88.31 kB
+✓ built in 1.14s
+Sandboxed preload external module check passed (electron).
+exit 0 
+
+$ FUSIONKIT_MEDIA_E2E=1 npx vitest run --maxWorkers=1 --minWorkers=1 test/media-converter/media-converter.electron.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/media-converter.electron.test.ts (12 tests) 337772ms
+   ✓ Media converter in Electron > lists the converter in its own catalog section, opens it and goes back with Escape and Back 44940ms
+   ✓ Media converter in Electron > makes media in the run folder and hands it over by drop and by the stubbed dialog 10842ms
+   ✓ Media converter in Electron > explains the platform instead of showing the tool where the converter is not supported 19121ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: defaults per task, the codec sentences, the weak CPU encoder hint, the GPU tooltip and the fold, across windows, themes and languages 67548ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: restores the preferences after a restart, never overwrite, and falls back from a folder the engine no longer knows 26731ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: an NVENC computer defaults to HEVC, offers the GPU for AV1, names the driver update and blocks detecting again during a hardware encode 20419ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: shows the detection while it runs, keeps the GPU switch off until it ends, and detects again on request 28360ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: says why the engine is unavailable and what to do 17305ms
+   ✓ Media converter files, media information and plans in Electron (T-WORKBENCH-03) > files: adds by the dialog and by drop, shows the media information, unsupported and not-applicable rows, the loss line and the plan 62757ms
+   ✓ Media converter files, media information and plans in Electron (T-WORKBENCH-03) > files: explains duplicates, folders, temporary copies, files without a path and more than 100 files, and plans only rows in view 39703ms
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  00:01:10
+   Duration  350.10s (transform 185ms, setup 98ms, collect 11.62s, tests 337.77s, environment 0ms, prepare 353ms)
+exit 0 
+
+# Measurements of that run (T-WORKBENCH-03-files.json and T-WORKBENCH-03-adds.json of its run folders, summarised; the folders were deleted afterwards).
+upload area height: empty (stacked) 158 px, with files (horizontal) 68 px
+rows-light-zh-1280x800 page 1292x806
+   cover.flac             state=not_applicable height= 90 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   vertical-hdr.mp4       state=idle           height=112 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   subtitles.mkv          state=idle           height= 90 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   【4K HDR】2026 年家庭聚会 - 第 state=idle           height= 90 metaLines=1 fitsOneLine=True nameCut=True removeInset(top,right)=8,8 overflow=[]
+   notes.mp4              state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   playlist.m3u8          state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   voice.silk             state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   subtitles-only.mkv     state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+rows-dark-en-1280x800 page 1292x806
+   cover.flac             state=not_applicable height= 90 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   vertical-hdr.mp4       state=idle           height=112 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   subtitles.mkv          state=idle           height= 90 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   【4K HDR】2026 年家庭聚会 - 第 state=idle           height= 90 metaLines=1 fitsOneLine=True nameCut=True removeInset(top,right)=8,8 overflow=[]
+   notes.mp4              state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   playlist.m3u8          state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   voice.silk             state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   subtitles-only.mkv     state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+rows-light-en-786x540 page 798x546
+   cover.flac             state=not_applicable height= 90 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   vertical-hdr.mp4       state=idle           height=132 metaLines=2 fitsOneLine=False nameCut=False removeInset(top,right)=8,8 overflow=[]
+   subtitles.mkv          state=idle           height= 90 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   【4K HDR】2026 年家庭聚会 - 第 state=idle           height= 90 metaLines=1 fitsOneLine=True nameCut=True removeInset(top,right)=8,8 overflow=[]
+   notes.mp4              state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   playlist.m3u8          state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   voice.silk             state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   subtitles-only.mkv     state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+rows-dark-zh-786x540 page 798x546
+   cover.flac             state=not_applicable height= 90 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   vertical-hdr.mp4       state=idle           height=132 metaLines=2 fitsOneLine=False nameCut=False removeInset(top,right)=8,8 overflow=[]
+   subtitles.mkv          state=idle           height= 90 metaLines=1 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   【4K HDR】2026 年家庭聚会 - 第 state=idle           height= 90 metaLines=1 fitsOneLine=True nameCut=True removeInset(top,right)=8,8 overflow=[]
+   notes.mp4              state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   playlist.m3u8          state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   voice.silk             state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+   subtitles-only.mkv     state=unsupported    height= 84 metaLines=0 fitsOneLine=True nameCut=False removeInset(top,right)=8,8 overflow=[]
+chips wrapped to a second line at 786x540: ['light-en-786x540', 'dark-zh-786x540']
+debounce: two tiers clicked 100 ms apart; preview-plan requests after the second click: 4 requests, all for tier size, one per plannable row, delays (ms): [307, 307, 307, 308]
+plan-light-zh encoders shown = ['OpenH264（CPU）', 'AAC', 'MP4 文本字幕'] | streams = ['video:encode', 'audio:encode', 'subtitle:drop', 'subtitle:drop', 'subtitle:encode'] | warnings = ['cpu_weak_encoder:1', 'subtitle_styling_lost:1', 'subtitle_dropped:2', 'mp4_default_audio_forced:1', 'mp4_default_subtitle_forced:1']
+plan-dark-en encoders shown = ['OpenH264 (CPU)', 'AAC', 'MP4 text subtitles'] | streams = ['video:encode', 'audio:encode', 'subtitle:drop', 'subtitle:drop', 'subtitle:encode'] | warnings = ['cpu_weak_encoder:1', 'subtitle_styling_lost:1', 'subtitle_dropped:2', 'mp4_default_audio_forced:1', 'mp4_default_subtitle_forced:1']
+101-file drop: rows analyzing when the 101 rows were first counted: 92
+last row top (px) while the rest finished analyzing, every 250 ms: [(456, 76), (456, 58), (456, 40), (456, 20), (456, 1), (456, 0)] -> distinct tops: [456]
+batch rows that asked for a plan before scrolling to the middle: 10 of 100 (page 798x546; the rows seen at the end while they finished, and those at the top); batch-050, never shown, had not asked and asked once scrolled to
+rows within 100 px below the scrolled area (observer margin 120 px on the app scroll area): [(21, True)]
+
+# Regression (supplementary): the tool navigation test visits every ToolNameMap route, the converter included; same build.
+$ FUSIONKIT_TOOL_UI_E2E=1 FUSIONKIT_TEST_MEDIA_CAPS=cpu_only npx vitest run --maxWorkers=1 --minWorkers=1 test/tool-navigation.electron.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/tool-navigation.electron.test.ts (1 test) 130884ms
+   ✓ Tool navigation in native Electron > aligns every tool with Studio and reserves Escape for the innermost interaction 130682ms
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  00:08:58
+   Duration  131.86s (transform 47ms, setup 67ms, collect 687ms, tests 130.88s, environment 0ms, prepare 63ms)
+exit 0 

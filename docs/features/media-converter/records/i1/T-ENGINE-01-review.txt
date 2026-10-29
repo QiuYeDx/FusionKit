@@ -1,0 +1,45 @@
+Independent review of T-ENGINE-01, 2026-10-26. Every ffmpeg/ffprobe below is the bundled n8.1.2 started by a
+helper that sets IDLE priority right after spawn (node lowrun.mjs <tool> args...); inputs are lavfi samples
+of at most 2 s, in a scratch folder that was deleted afterwards.
+
+== 1. HEVC with decoder delay: does -read_intervals %+#1 still return the first frame? ==
+$ node lowrun.mjs ffmpeg -hide_banner -nostdin -v error -y -f lavfi -i testsrc=s=320x176:d=1:r=25 -vf setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc -c:v libkvazaar -kvazaar-params gop=8:bipred=1 hevc.mp4
+exit 0
+$ node lowrun.mjs ffprobe -hide_banner -v error -show_entries stream=codec_name,has_b_frames,color_transfer -of compact hevc.mp4
+stream|codec_name=hevc|has_b_frames=7|color_transfer=smpte2084
+exit 0
+$ node lowrun.mjs ffprobe -hide_banner -v error -f mov -format_whitelist mov,matroska -protocol_whitelist file -select_streams 0 -read_intervals %+#1 -show_frames -show_entries frame=pts,pict_type,side_data_list -of compact file:hevc.mp4
+frame|pts=0|pict_type=I|side_datum/h_26_45__user_data_unregistered_sei_message:side_data_type=H.26[45] User Data Unregistered SEI message
+exit 0
+=> One packet plus the decoder flush yields the I frame; `-f mov` pins the demuxer as the probe passes it.
+
+== 2. Does a damaged stream flood stderr past the 64 KB probe cap? ==
+$ node lowrun.mjs ffmpeg -hide_banner -nostdin -v error -y -f lavfi -i testsrc=s=640x360:d=2:r=25 -c:v libopenh264 -b:v 2M -f mpegts clean.ts
+exit 0
+(every 97th payload byte of clean.ts XOR 0x5a, TS sync bytes kept -> damaged.ts, 86480 bytes)
+$ node lowrun.mjs ffprobe -hide_banner -v error -format_whitelist mpegts -protocol_whitelist file -show_format -show_streams -show_chapters -show_error -of json file:damaged.ts
+...
+[h264 @ 0000027418bbb140] P sub_mb_type 13 out of range at 38 16
+[h264 @ 0000027418bbb140] error while decoding MB 38 16
+exit 0
+stderr bytes 887
+=> find_stream_info decodes only a few frames; the cap is not a practical risk. No change.
+
+== 3. Reproduction: an implausible bit rate refused the whole file (before the fix) ==
+$ npx vitest run --root <scratchpad> bitrate-repro
+tiny duration: {"ok":false,"code":"probe_failed"}        (format.duration 0.000001 s, 2 GB, no format.bit_rate)
+bogus stream rate: {"ok":false,"code":"probe_failed"}    (stream bit_rate 5000000000000)
+ Test Files  1 passed (1)
+exit 0
+=> After the fix both give ok:true with the bit rate null (probe.test.ts "treats an implausible bit rate as unknown ...").
+
+== 4. Mutations of probe.ts, each run against the unit tests, then restored ==
+$ (remove the MAX_BIT_RATE bounds) npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/probe.test.ts
+ x normalizing ffprobe output > leaves the duration unknown when nothing reports one, and falls back to the DURATION tag
+ x normalizing ffprobe output > treats an implausible bit rate as unknown instead of refusing the file
+      Tests  2 failed | 99 passed (101)
+$ (remove the fully-qualified path check) npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/probe.test.ts
+ x probing files > refuses a path that is not fully qualified, since ffprobe would resolve it in its own working directory
+      Tests  1 failed | 100 passed (101)
+restored: yes f15dee3cdafe45a5f6af8b89796e302723748363a4e3eb713ac4dcfc4415ee95 (sha256 of probe.ts, equal before and after)
+exit 0

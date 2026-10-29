@@ -1,0 +1,34 @@
+# V-WORKBENCH-02-3 static checks, 2026-10-28 (independent review re-run, after the last source change: tsc 21:02, test-file tsc and i18n 21:08)
+
+$ pnpm exec tsc --noEmit -p tsconfig.json
+exit 0
+(no diagnostics)
+
+# Supplementary: the test files are outside tsconfig.json (include: src, electron); they are checked with a scratch config that extends it and includes src/vite-env.d.ts,
+# test/media-converter/media-converter.electron.test.ts, src/services/media-converter/controller.test.ts and src/store/tools/media/useMediaConverterPreferences.test.ts (--listFiles confirmed all three are checked).
+$ pnpm exec tsc --noEmit -p <scratchpad>/wb02r/tsconfig.w02r-tests.json
+exit 0
+(no diagnostics)
+
+$ pnpm run i18n:check
+  Languages   : zh, en, ja, zh-Hant
+  Namespaces  : about, common, help, home, knowledge, materials, media, rename, setting, studio, subtitle, text, tools
+  Namespace              zh      en      ja zh-Hant
+  media                 135     135     135     135
+  TOTAL                4721    4721    4721    4721
+i18n source usage check
+  Languages       : zh, en, ja, zh-Hant
+  Calls scanned   : 3854
+  Static/finite   : 3821
+  Manifest-backed : 33
+  Resolved keys   : 4501
+All source translation keys resolve.
+exit 0
+
+# The locale part prints only same-as-zh warnings (exit 0); those in the media namespace are product names kept in Japanese as in Chinese:
+     [SAME AS zh]  ja/media: encoders.libsvtav1 = "SVT-AV1（CPU）"
+     [SAME AS zh]  ja/media: encoders.libkvazaar = "Kvazaar HEVC（CPU）"
+     [SAME AS zh]  ja/media: encoders.libopenh264 = "OpenH264（CPU）"
+     [SAME AS zh]  ja/media: encoders.libmp3lame = "MP3（LAME）"
+     [SAME AS zh]  ja/media: encoders.srt = "SRT 字幕"
+     [SAME AS zh]  ja/media: encoders.webvtt = "WebVTT 字幕"

@@ -1,0 +1,2 @@
+[error] Unrecognized option 'nosuchopt:v:0'.
+[fatal] Error splitting the argument list: Option not found

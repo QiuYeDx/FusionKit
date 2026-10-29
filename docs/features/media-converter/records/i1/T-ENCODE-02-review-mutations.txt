@@ -1,0 +1,17 @@
+$ # 评审变异（2026-10-26）：每次只改 electron/main/media-converter/plan/video.ts 一处（sed），运行单元测试后从备份还原
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/video.test.ts test/media-converter/plan/stream-plan.test.ts
+R1 H.264 NVENC minimum back to the design's 144: Failed Tests 1
+R2 no range for the MF hardware encoders: Failed Tests 3
+R3 no maximum side: Failed Tests 1
+R4 no openh264 area limit: Failed Tests 1
+R5 caps.nvencMin ignored: Failed Tests 1
+R6 default codec counts variants the chain never picks: Failed Tests 1
+video.ts sha256 before 7bd916d560f826d2 after 7bd916d560f826d2
+
+$ # R1r：同 R1，改跑真实编码中的尺寸范围用例
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/encode-real.test.ts -t "opens the hardware encoders"
+R1r (real) H.264 minimum 144:
+     → h264_nvenc 144×50 must open: [h264_nvenc @ 00000212ed52e4c0] [error] InitializeEncoder failed: invalid param (8): Frame Dimension less than the minimum supported value.
+Failed Tests 1
+video.ts sha256 restored 7bd916d560f826d2
+exit 0

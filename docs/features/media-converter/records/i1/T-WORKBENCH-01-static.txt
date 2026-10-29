@@ -1,0 +1,54 @@
+# 2026-10-28 20:22-20:24, review of T-WORKBENCH-01, after the reviewer's last change. The tree also holds T-WORKBENCH-02's finished work (media.json: 135 keys per language).
+$ pnpm run i18n:check
+  Source lang : zh
+  Languages   : zh, en, ja, zh-Hant
+  Namespaces  : about, common, help, home, knowledge, materials, media, rename, setting, studio, subtitle, text, tools
+  Namespace              zh      en      ja zh-Hant
+  ─────────────────────────────────────────────────
+  about                  41      41      41      41
+  common                241     241     241     241
+  help                   87      87      87      87
+  home                  556     556     556     556
+  knowledge             327     327     327     327
+  materials              70      70      70      70
+  media                 135     135     135     135
+  rename                199     199     199     199
+  setting               574     574     574     574
+  studio               1259    1259    1259    1259
+  subtitle              765     765     765     765
+  text                  394     394     394     394
+  tools                  73      73      73      73
+  ─────────────────────────────────────────────────
+  TOTAL                4721    4721    4721    4721
+  ⚠  48 warning(s) (same value as source, may be fine):
+i18n source usage check
+  Languages       : zh, en, ja, zh-Hant
+  Calls scanned   : 3854
+  Static/finite   : 3821
+  Manifest-backed : 33
+  Resolved keys   : 4501
+All source translation keys resolve.
+exit 0
+
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+# tsconfig.json includes only src/ and electron/: the two test files of this task are checked with a scratch config that extends it
+# (include: src/vite-env.d.ts, test/media-converter/media-converter.electron.test.ts, test/media-converter/helpers/media-ui.ts; --listFiles shows both test files among 474).
+$ pnpm exec tsc --noEmit -p <scratchpad>/w01r/tsconfig.tests.json
+(no diagnostics)
+exit 0
+
+# The usage manifest is the only check of ToolTile's t(item.titleKey)/t(item.descKey)/t(chip) and BottomNavigation's t(currentToolName):
+$ grep -n "media_converter\|menu.media\|selector: \"src/pages/Tools/ToolTile\|currentToolName" scripts/i18n-usage-manifest.mjs
+144:    selector: "src/pages/Tools/ToolTile.tsx#item.titleKey",
+152:      "tools:fields.media_converter",
+156:    selector: "src/pages/Tools/ToolTile.tsx#item.descKey",
+164:      "tools:field_desc.media_converter",
+169:    selector: "src/pages/Tools/ToolTile.tsx#chip",
+177:      "tools:chips.media_converter_tasks",
+178:      "tools:chips.media_converter_local",
+186:    selector: "src/pages/components/BottomNavigation.tsx#currentToolName",
+194:      "common:menu.media.converter",
+exit 0

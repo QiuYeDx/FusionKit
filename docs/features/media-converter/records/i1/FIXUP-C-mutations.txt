@@ -1,0 +1,105 @@
+# 批次 C 修正（2026-10-28）：每次撤销一项修正（M1–M12，覆盖 F1–F6），只运行应当发现它的测试，然后按字节还原源文件（sha256 前后一致）。
+# 在最终代码上运行。M12 还原的是修正前的规划代码（裸 H.264/HEVC 照旧复制并加 +genpts）；executor.test.ts 的用例使用真实 ffmpeg（IDLE 优先级，lavfi 小样）。
+$ python <scratchpad>/fixc/mutate.py
+== M1 F1 executor: disk_space_low without its bytes
+   $ npx vitest run test/media-converter/executor.test.ts -t disk_space_low -> exit 1; Tests  1 failed | 27 skipped (28)
+     x the executor with the real ffmpeg > refuses before anything runs when the volume lacks the caps of every running output plus 512 MB (disk_space_low) 15ms
+     FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > refuses before anything runs when the volume lacks the caps of every running output plus 512 MB (disk_space_low)
+   => CAUGHT
+   restored byte for byte: True
+== M2 F1 queue: the failed state drops the bytes
+   $ npx vitest run test/media-converter/queue.test.ts -t disk_space_low -> exit 1; Tests  1 failed | 33 skipped (34)
+     x detection, disk space, cancelled outputs and preview alternatives > keeps the bytes of disk_space_low in the failed state, in state.json and after a restart (AC-ENGINE-06-4) 206ms
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > keeps the bytes of disk_space_low in the failed state, in state.json and after a restart (AC-ENGINE-06-4)
+   => CAUGHT
+   restored byte for byte: True
+== M3 F1 contract: any failure may carry the bytes
+   $ npx vitest run test/media-converter/queue.test.ts -t disk_space_low -> exit 1; Tests  1 failed | 33 skipped (34)
+     x detection, disk space, cancelled outputs and preview alternatives > keeps the bytes of disk_space_low in the failed state, in state.json and after a restart (AC-ENGINE-06-4) 212ms
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > keeps the bytes of disk_space_low in the failed state, in state.json and after a restart (AC-ENGINE-06-4)
+   => CAUGHT
+   restored byte for byte: True
+== M4 F2 executor: a cancel lists nothing it published
+   $ npx vitest run test/media-converter/executor.test.ts -t cancelled during the next one -> exit 1; Tests  1 failed | 27 skipped (28)
+     x the executor with the real ffmpeg > lists the track it had published when an "all tracks" extraction is cancelled during the next one, so it can be shown 688ms
+     FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > lists the track it had published when an "all tracks" extraction is cancelled during the next one, so it can be shown
+   => CAUGHT
+   restored byte for byte: True
+== M5 F2 queue: a cancelled item keeps no result
+   $ npx vitest run test/media-converter/queue.test.ts -t cancelled item of several outputs -> exit 1; Tests  1 failed | 33 skipped (34)
+     x detection, disk space, cancelled outputs and preview alternatives > lists what a cancelled item of several outputs had published, so they can be shown, also when the app quits 141ms
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > lists what a cancelled item of several outputs had published, so they can be shown, also when the app quits
+   => CAUGHT
+   restored byte for byte: True
+== M6 F3 queue: scheduling ignores a detection
+   $ npx vitest run test/media-converter/queue.test.ts -t detect|numbers every event -> exit 1; Tests  2 failed | 5 passed | 27 skipped (34)
+     x detection, disk space, cancelled outputs and preview alternatives > starts nothing while the encoders are detected, and the queued items once the detection ends 32ms
+     x detection, disk space, cancelled outputs and preview alternatives > gives the slot back when a detection begins during the input check, and runs the item once it ends 73ms
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > starts nothing while the encoders are detected, and the queued items once the detection ends
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > gives the slot back when a detection begins during the input check, and runs the item once it ends
+   => CAUGHT
+   restored byte for byte: True
+== M7 F3 queue: the end of a detection does not schedule
+   $ npx vitest run test/media-converter/queue.test.ts -t detect|numbers every event -> exit 1; Tests  3 failed | 4 passed | 27 skipped (34)
+     x events > numbers every event strictly upwards, and a snapshot plus the later events show the current state 1154ms
+     x detection, disk space, cancelled outputs and preview alternatives > starts nothing while the encoders are detected, and the queued items once the detection ends 1070ms
+     x detection, disk space, cancelled outputs and preview alternatives > gives the slot back when a detection begins during the input check, and runs the item once it ends 1041ms
+     FAIL  test/media-converter/queue.test.ts > events > numbers every event strictly upwards, and a snapshot plus the later events show the current state
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > starts nothing while the encoders are detected, and the queued items once the detection ends
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > gives the slot back when a detection begins during the input check, and runs the item once it ends
+   => CAUGHT
+   restored byte for byte: True
+== M8 F3 queue: a detection that began during the input check is ignored
+   $ npx vitest run test/media-converter/queue.test.ts -t during the input check -> exit 1; Tests  1 failed | 33 skipped (34)
+     x detection, disk space, cancelled outputs and preview alternatives > gives the slot back when a detection begins during the input check, and runs the item once it ends 47ms
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > gives the slot back when a detection begins during the input check, and runs the item once it ends
+   => CAUGHT
+   restored byte for byte: True
+== M9 F4 contract: resolvedEncoders and defaults optional again
+   $ npx vitest run test/media-converter/queue.test.ts -t ready capability status -> exit 1; Tests  1 failed | 33 skipped (34)
+     x detection, disk space, cancelled outputs and preview alternatives > a ready capability status carries every field the engine sets: degraded, driver updates, resolved encoders and defaults 10ms
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > a ready capability status carries every field the engine sets: degraded, driver updates, resolved encoders and defaults
+   => CAUGHT
+   restored byte for byte: True
+== M10 F5 queue: no_encoder_available answers the code alone
+   $ npx vitest run test/media-converter/queue.test.ts -t previews no_encoder_available -> exit 1; Tests  1 failed | 33 skipped (34)
+     x detection, disk space, cancelled outputs and preview alternatives > previews no_encoder_available with the codecs that would work instead; other plan errors stay codes 15ms
+     FAIL  test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > previews no_encoder_available with the codecs that would work instead; other plan errors stay codes
+   $ npx vitest run test/media-converter/ipc.test.ts -t previews no_encoder_available -> exit 1; Tests  1 failed | 16 skipped (17)
+     x media converter IPC: what reaches the renderer > previews no_encoder_available with the codecs that would work instead, so the interface can offer them 19ms
+     FAIL  test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > previews no_encoder_available with the codecs that would work instead, so the interface can offer them
+   => CAUGHT
+   restored byte for byte: True
+== M11 F5 ipc: the handler answers the code instead of the alternatives
+   $ npx vitest run test/media-converter/ipc.test.ts -t previews no_encoder_available -> exit 1; Tests  1 failed | 16 skipped (17)
+     x media converter IPC: what reaches the renderer > previews no_encoder_available with the codecs that would work instead, so the interface can offer them 19ms
+     FAIL  test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > previews no_encoder_available with the codecs that would work instead, so the interface can offer them
+   => CAUGHT
+   restored byte for byte: True
+== M12 F6 planner: raw H.264/HEVC remuxed with +genpts again (the code before the fix)
+   $ npx vitest run test/media-converter/plan/stream-plan.test.ts -t raw H.264 -> exit 1; Tests  1 failed | 69 skipped (70)
+     x remux and already_target (AC-ENCODE-06-2) > re-encodes raw H.264 and HEVC streams, which a copy cannot time; raw MPEG-1/2 video remuxes with +genpts (design §7b) 9ms
+     FAIL  test/media-converter/plan/stream-plan.test.ts > remux and already_target (AC-ENCODE-06-2) > re-encodes raw H.264 and HEVC streams, which a copy cannot time; raw MPEG-1/2 video remuxes with +genpts (design §7b)
+   $ npx vitest run test/media-converter/executor.test.ts -t raw H.264 -> exit 1; Tests  1 failed | 27 skipped (28)
+     x the executor with the real ffmpeg > re-encodes a raw H.264 or HEVC stream, which a remux cannot time, for MP4, MKV and compress (module-encode design §7b) 103ms
+     FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > re-encodes a raw H.264 or HEVC stream, which a remux cannot time, for MP4, MKV and compress (module-encode design §7b)
+   => CAUGHT
+   restored byte for byte: True
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）：评审新增的修正也做「撤销即失败」检查
+# R1：删去 executor.ts #execute 中回退重新规划之后的 `if (signal.aborted) return this.#cancelled(item, published);`
+#     （评审修正：重新规划期间收到取消时按取消结束）。变异前后按 sha256 确认源文件逐字节还原。
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/executor.test.ts -t "settles cancelled"   # with R1 applied
+   × the executor with the real ffmpeg > settles cancelled, not failed, when the cancel comes while a hardware failure is planned again 35ms
+   FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > settles cancelled, not failed, when the cancel comes while a hardware failure is planned again
+   AssertionError: expected { status: 'failed', …(4) } to deeply equal { status: 'cancelled' }
+   + [FUSIONKIT_TEST_MEDIA_FAIL] no_device was injected into the first run of this item.
+   Tests  1 failed | 28 skipped (29)
+   => CAUGHT
+   restored byte for byte: True (sha256 7dfb9f0b1a3b34211fd7b4d8c38c8c489178abe0c786bea6f9bdaee973fa8ed2 before and after)
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/executor.test.ts -t "settles cancelled"   # the fix in place
+   ✓ test/media-converter/executor.test.ts (29 tests | 28 skipped)
+   Tests  1 passed | 28 skipped (29)
+exit 0

@@ -1,0 +1,8 @@
+$ pnpm exec tsc --noEmit -p <scratchpad>/tsconfig.mc-tests.json   # extends tsconfig.json, adds test/media-converter/**/*.ts
+test/media-converter/test-hooks.test.ts(17,57): error TS2739: Type '{ FUSIONKIT_TEST_MEDIA_CAPS?: string | undefined; NODE_ENV: string; }' is missing the following properties from type 'ProcessEnv': APP_ROOT, VITE_PUBLIC
+exit 2
+
+# 批次 C 集成检查后重跑（2026-10-28）：test-hooks.test.ts 的 testEnv 返回类型已改为 MediaTestEnvironment
+$ pnpm exec tsc --noEmit -p <scratchpad>/tsconfig.mc-tests.json   # extends tsconfig.json, adds test/media-converter/**/*.ts
+(no diagnostics)
+exit 0

@@ -16,6 +16,7 @@ export const NAMESPACES = [
   "subtitle",
   "rename",
   "text",
+  "media",
   "help",
 ] as const;
 

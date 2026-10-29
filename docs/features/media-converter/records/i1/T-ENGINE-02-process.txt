@@ -1,0 +1,47 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/process.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/process.test.ts > the ffmpeg arguments > pins each input to its probed demuxer, the file protocol and a file: path
+ ✓ test/media-converter/process.test.ts > the ffmpeg arguments > adds the common prefix once and refuses what the prefix owns, a cap without -fs, and -fs without a cap
+ ✓ test/media-converter/process.test.ts > the ffmpeg arguments > moves a filter over 8 KB into a file of the working directory
+ ✓ test/media-converter/process.test.ts > the ffmpeg arguments > refuses a command line Windows cannot start
+ ✓ test/media-converter/process.test.ts > priority and affinity > keeps low-usage runs on the upper half of the logical processors
+ ✓ test/media-converter/process.test.ts > priority and affinity > sets below normal priority on spawn, idle plus affinity in low-usage mode, and only logs a failure
+ ✓ test/media-converter/process.test.ts > priority and affinity > does not try the affinity off Windows, and abandons it when ffmpeg ends first
+ ✓ test/media-converter/process.test.ts > priority and affinity > rejects a bad pid or mask before starting PowerShell
+ ✓ test/media-converter/process.test.ts > the stall watchdog > gives 300 s before the first output, 600 s in low-usage mode
+ ✓ test/media-converter/process.test.ts > the stall watchdog > stops an encode when neither processed time nor bytes grew for 120 s
+ ✓ test/media-converter/process.test.ts > the stall watchdog > gives the finalizing phase 120 s plus the bytes written at 20 MB/s, from 1 s before the expected end
+ ✓ test/media-converter/process.test.ts > the stall watchdog > without an expected duration, encoding gets the finalizing budget when it is larger
+ ✓ test/media-converter/process.test.ts > the stall watchdog > kills the process with the production thresholds and reports encoder_stalled after close
+ ✓ test/media-converter/process.test.ts > the stall watchdog > counts an audio-only output (no frame key) as started once processed time appears
+ ✓ test/media-converter/process.test.ts > the run > does not start when cancelled first, and reports a start failure as spawn_error
+ ✓ test/media-converter/process.test.ts > the run > settles at its own deadline when close never comes, and still tells when the process is gone
+ ✓ test/media-converter/process.test.ts > the run > keeps the last 256 KB of a flood of stderr without stopping ffmpeg
+ ✓ test/media-converter/process.test.ts > the run > names disk_full and output_open_failed from stderr, the disk first, and not from a file name
+ ✓ test/media-converter/process.test.ts > the run > survives a progress listener that throws, and stops for a broken pipe
+ ✓ test/media-converter/process.test.ts > the success judgement > needs exit 0, progress=end, no cap, no stall, and a cancelled run is never a success
+ ✓ test/media-converter/process.test.ts > the success judgement > needs a readable output with every planned stream
+ ✓ test/media-converter/process.test.ts > the success judgement > checks the duration within max(2 s, 1 %), on the main stream (the extracted track for audio)
+ ✓ test/media-converter/process.test.ts > the success judgement > warns duration_unverified, needing only processed time, when the duration is unknown or contradicts itself
+ ✓ test/media-converter/process.test.ts > the success judgement > never excuses an output main stream cut short under a container that another stream kept long
+ ✓ test/media-converter/process.test.ts > the success judgement > proves no cap and publishes nothing for a process whose close was never seen
+ ✓ test/media-converter/process.test.ts > the success judgement > counts an output within 64 KB (at most 0.5 %) of the cap as reaching it
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > runs below normal priority, hidden, in the job directory with the reduced environment, every input pinned, and a good output passes 3011ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > runs low-usage encodes at idle priority on the upper half of the logical processors 526ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > stops within 3 s of a cancel, after which the partial output and the job directory can be removed 559ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > stops a run that shows no output within the first-output grace 1579ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > stops an encode whose processed time and size stand still 1629ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > stops a finalizing run past its budget of base plus size 2193ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > lets a slow run finish as long as it keeps advancing 4671ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > keeps going through more stderr than it keeps, and keeps the last 256 KB
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > recognizes an output cut off by -fs although ffmpeg exits 0 and reports the end
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > fails an output that was cut short: unreadable, or shorter than expected
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > fails an output whose video stopped early while its audio kept the container long 319ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > accepts an input without a duration with the warning duration_unverified
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > passes a filter over 8 KB through a file that ffmpeg reads with -/filter:v:0 353ms
+ ✓ test/media-converter/process.test.ts > the real ffmpeg > names output_open_failed from real ffmpeg, keeps paths out of the tail, and does not blame the output for a bad filter
+ Test Files  1 passed (1)
+      Tests  40 passed (40)
+   Start at  13:19:24
+   Duration  17.60s (transform 202ms, setup 0ms, collect 717ms, tests 16.69s, environment 0ms, prepare 60ms)
+exit 0

@@ -1,0 +1,188 @@
+Formats:
+ D.. = Demuxing supported
+ .E. = Muxing supported
+ ..d = Is a device
+ ---
+  E  3g2             3GP2 (3GPP2 file format)
+  E  3gp             3GP (3GPP file format)
+  E  a64             a64 - video for Commodore 64
+  E  ac3             raw AC-3
+  E  ac4             raw AC-4
+  E  adts            ADTS AAC (Advanced Audio Coding)
+  E  adx             CRI ADX
+  E  aea             MD STUDIO audio
+  E  aiff            Audio IFF
+  E  alaw            PCM A-law
+  E  alp             LEGO Racers ALP
+  E  amr             3GPP AMR
+  E  amv             AMV
+  E  apm             Ubisoft Rayman 2 APM
+  E  apng            Animated Portable Network Graphics
+  E  aptx            raw aptX (Audio Processing Technology for Bluetooth)
+  E  aptx_hd         raw aptX HD (Audio Processing Technology for Bluetooth)
+  E  apv             APV raw bitstream
+  E  argo_asf        Argonaut Games ASF
+  E  argo_cvg        Argonaut Games CVG
+  E  asf             ASF (Advanced / Active Streaming Format)
+  E  asf_stream      ASF (Advanced / Active Streaming Format)
+  E  ass             SSA (SubStation Alpha) subtitle
+  E  ast             AST (Audio Stream)
+  E  au              Sun AU
+  E  avi             AVI (Audio Video Interleaved)
+  E  avif            AVIF
+  E  avm2            SWF (ShockWave Flash) (AVM2)
+  E  avs2            raw AVS2-P2/IEEE1857.4 video
+  E  avs3            AVS3-P2/IEEE1857.10
+  E  bit             G.729 BIT file format
+  E  caf             Apple CAF (Core Audio Format)
+  E  cavsvideo       raw Chinese AVS (Audio Video Standard) video
+  E  chromaprint     Chromaprint
+  E  codec2          codec2 .c2 muxer
+  E  codec2raw       raw codec2 muxer
+  E  crc             CRC testing
+  E  dash            DASH Muxer
+  E  data            raw data
+  E  daud            D-Cinema audio
+  E  dfpwm           raw DFPWM1a
+  E  dirac           raw Dirac
+  E  dnxhd           raw DNxHD (SMPTE VC-3)
+  E  dts             raw DTS
+  E  dv              DV (Digital Video)
+  E  dvd             MPEG-2 PS (DVD VOB)
+  E  eac3            raw E-AC-3
+  E  evc             raw EVC video
+  E  f32be           PCM 32-bit floating-point big-endian
+  E  f32le           PCM 32-bit floating-point little-endian
+  E  f4v             F4V Adobe Flash Video
+  E  f64be           PCM 64-bit floating-point big-endian
+  E  f64le           PCM 64-bit floating-point little-endian
+  E  ffmetadata      FFmpeg metadata in text
+  E  fifo            FIFO queue pseudo-muxer
+  E  film_cpk        Sega FILM / CPK
+  E  filmstrip       Adobe Filmstrip
+  E  fits            Flexible Image Transport System
+  E  flac            raw FLAC
+  E  flv             FLV (Flash Video)
+  E  framecrc        framecrc testing
+  E  framehash       Per-frame hash testing
+  E  framemd5        Per-frame MD5 testing
+  E  g722            raw G.722
+  E  g723_1          raw G.723.1
+  E  g726            raw big-endian G.726 ("left-justified")
+  E  g726le          raw little-endian G.726 ("right-justified")
+  E  gif             CompuServe Graphics Interchange Format (GIF)
+  E  gsm             raw GSM
+  E  gxf             GXF (General eXchange Format)
+  E  h261            raw H.261
+  E  h263            raw H.263
+  E  h264            raw H.264 video
+  E  hash            Hash testing
+  E  hds             HDS Muxer
+  E  hevc            raw HEVC video
+  E  hls             Apple HTTP Live Streaming
+  E  iamf            Raw Immersive Audio Model and Formats
+  E  ico             Microsoft Windows ICO
+  E  ilbc            iLBC storage
+  E  image2          image2 sequence
+  E  image2pipe      piped image2 sequence
+  E  ipod            iPod H.264 MP4 (MPEG-4 Part 14)
+  E  ircam           Berkeley/IRCAM/CARL Sound Format
+  E  ismv            ISMV/ISMA (Smooth Streaming)
+  E  ivf             On2 IVF
+  E  jacosub         JACOsub subtitle format
+  E  kvag            Simon & Schuster Interactive VAG
+  E  latm            LOAS/LATM
+  E  lc3             LC3 (Low Complexity Communication Codec)
+  E  lrc             LRC lyrics
+  E  m4v             raw MPEG-4 video
+  E  matroska        Matroska
+  E  mcc             MacCaption
+  E  md5             MD5 testing
+  E  microdvd        MicroDVD subtitle format
+  E  mjpeg           raw MJPEG video
+  E  mkvtimestamp_v2 extract pts as timecode v2 format, as defined by mkvtoolnix
+  E  mlp             raw MLP
+  E  mmf             Yamaha SMAF
+  E  mov             QuickTime / MOV
+  E  mp2             MP2 (MPEG audio layer 2)
+  E  mp3             MP3 (MPEG audio layer 3)
+  E  mp4             MP4 (MPEG-4 Part 14)
+  E  mpeg            MPEG-1 Systems / MPEG program stream
+  E  mpeg1video      raw MPEG-1 video
+  E  mpeg2video      raw MPEG-2 video
+  E  mpegts          MPEG-TS (MPEG-2 Transport Stream)
+  E  mpjpeg          MIME multipart JPEG
+  E  mulaw           PCM mu-law
+  E  mxf             MXF (Material eXchange Format)
+  E  mxf_d10         MXF (Material eXchange Format) D-10 Mapping
+  E  mxf_opatom      MXF (Material eXchange Format) Operational Pattern Atom
+  E  null            raw null video
+  E  nut             NUT
+  E  obu             AV1 low overhead OBU
+  E  oga             Ogg Audio
+  E  ogg             Ogg
+  E  ogv             Ogg Video
+  E  oma             Sony OpenMG audio
+  E  opus            Ogg Opus
+  E  psp             PSP MP4 (MPEG-4 Part 14)
+  E  rawvideo        raw video
+  E  rcwt            RCWT (Raw Captions With Time)
+  E  rm              RealMedia
+  E  roq             raw id RoQ
+  E  rso             Lego Mindstorms RSO
+  E  rtp             RTP output
+  E  rtp_mpegts      RTP/mpegts output format
+  E  rtsp            RTSP output
+  E  s16be           PCM signed 16-bit big-endian
+  E  s16le           PCM signed 16-bit little-endian
+  E  s24be           PCM signed 24-bit big-endian
+  E  s24le           PCM signed 24-bit little-endian
+  E  s32be           PCM signed 32-bit big-endian
+  E  s32le           PCM signed 32-bit little-endian
+  E  s8              PCM signed 8-bit
+  E  sap             SAP output
+  E  sbc             raw SBC
+  E  scc             Scenarist Closed Captions
+  E  segment         segment
+  E  smjpeg          Loki SDL MJPEG
+  E  smoothstreaming Smooth Streaming Muxer
+  E  sox             SoX (Sound eXchange) native
+  E  spdif           IEC 61937 (used on S/PDIF - IEC958)
+  E  spx             Ogg Speex
+  E  srt             SubRip subtitle
+  E  stream_segment,ssegment streaming segment muxer
+  E  streamhash      Per-stream hash testing
+  E  sup             raw HDMV Presentation Graphic Stream subtitles
+  E  svcd            MPEG-2 PS (SVCD)
+  E  swf             SWF (ShockWave Flash)
+  E  tee             Multiple muxer tee
+  E  truehd          raw TrueHD
+  E  tta             TTA (True Audio)
+  E  ttml            TTML subtitle
+  E  u16be           PCM unsigned 16-bit big-endian
+  E  u16le           PCM unsigned 16-bit little-endian
+  E  u24be           PCM unsigned 24-bit big-endian
+  E  u24le           PCM unsigned 24-bit little-endian
+  E  u32be           PCM unsigned 32-bit big-endian
+  E  u32le           PCM unsigned 32-bit little-endian
+  E  u8              PCM unsigned 8-bit
+  E  uncodedframecrc uncoded framecrc testing
+  E  vc1             raw VC-1 video
+  E  vc1test         VC-1 test bitstream
+  E  vcd             MPEG-1 Systems / MPEG program stream (VCD)
+  E  vidc            PCM Archimedes VIDC
+  E  vob             MPEG-2 PS (VOB)
+  E  voc             Creative Voice
+  E  vvc             raw H.266/VVC video
+  E  w64             Sony Wave64
+  E  wav             WAV / WAVE (Waveform Audio)
+  E  webm            WebM
+  E  webm_chunk      WebM Chunk Muxer
+  E  webm_dash_manifest WebM DASH Manifest
+  E  webp            WebP
+  E  webvtt          WebVTT subtitle
+  E  whip            WHIP(WebRTC-HTTP ingestion protocol) muxer
+  E  wsaud           Westwood Studios audio
+  E  wtv             Windows Television (WTV)
+  E  wv              raw WavPack
+  E  yuv4mpegpipe    YUV4MPEG pipe

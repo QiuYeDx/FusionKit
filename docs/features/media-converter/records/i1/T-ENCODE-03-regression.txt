@@ -1,0 +1,48 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/stream-plan.test.ts test/media-converter/plan/naming.test.ts test/media-converter/plan/video-correctness.test.ts   # review re-run (2026-10-26)
+ ✓ test/media-converter/plan/naming.test.ts (15 tests) 11ms
+ ✓ test/media-converter/plan/video-correctness.test.ts (29 tests) 63ms
+ ✓ test/media-converter/plan/stream-plan.test.ts (68 tests) 158ms
+ Test Files  3 passed (3)
+      Tests  112 passed (112)
+exit 0
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/video.test.ts   # T-ENCODE-02 V-ENCODE-02-1, outside this write set
+      Tests  30 failed | 32 passed (62)
+  Snapshots  3 failed
+ FAIL  test/media-converter/plan/video.test.ts > probeArgs (engine design §3) > matches the snapshot
+ FAIL  test/media-converter/plan/video.test.ts > run-time options > adds lp=1 to SVT-AV1 in low-usage mode only, before the filters
+ FAIL  test/media-converter/plan/video.test.ts > the convert codec per target container (AC-ENCODE-01-7) > matches the snapshot of every container
+ FAIL  test/media-converter/plan/video.test.ts > the convert codec per target container (AC-ENCODE-01-7) > uses the compress tiers with the same values, and never scales
+ FAIL  test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > falls back to 8-bit HEVC (Main, yuv420p) when 10-bit did not pass
+ FAIL  test/media-converter/plan/video.test.ts > the output size (AC-ENCODE-02-3, design §4) > leaves a picture of unknown size alone and keeps it off the encoders that need the size
+ FAIL  test/media-converter/plan/video.test.ts > the parameter snapshot of every codec × tier × capability combination (AC-ENCODE-02-5) > matches the snapshot
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > av1_amf 10bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > av1_nvenc 10bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > av1_nvenc 10bit_uhq matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > av1_qsv 10bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > feeds the Media Foundation encoders nv12, and asks h264_mf for High by number
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > gives kvazaar its options as one comma-separated value
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_amf 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_mf 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_mf 8bit_sw matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_nvenc 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_qsv 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_amf 10bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_amf 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_mf 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_nvenc 10bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_nvenc 10bit_uhq matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_nvenc 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_nvenc 8bit_uhq matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_qsv 10bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_qsv 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > libkvazaar 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > libopenh264 8bit matches the design row at every tier
+ FAIL  test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > libsvtav1 10bit matches the design row at every tier
+ Test Files  1 failed (1)
+exit 1
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 --config <scratchpad>/review03/vitest.nosetparams.config.mjs test/media-converter/plan/video.test.ts   # in memory only: video.ts without the line "filters.push(setparams(picture.tags));"
+ Test Files  1 passed (1)
+      Tests  62 passed (62)
+exit 0

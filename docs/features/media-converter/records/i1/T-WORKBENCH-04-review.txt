@@ -1,0 +1,68 @@
+# V-WORKBENCH-04-2 rendered review, independent review 2026-10-29: the scenario "review: thirty items in every state across windows, themes and languages, the corners, the dock and steady numbers" of the final full run (the same command as V-WORKBENCH-04-1), on the final code.
+$ FUSIONKIT_MEDIA_E2E=1 FUSIONKIT_MEDIA_REVIEW_DIR=test-results/media-converter/wb04r-review npx vitest run --maxWorkers=1 --minWorkers=1 test/media-converter/media-converter.electron.test.ts
+   ✓ Media converter queue, progress and results in Electron (T-WORKBENCH-04) > review: thirty items in every state across windows, themes and languages, the corners, the dock and steady numbers 57677ms
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+exit 0
+
+# Thirty rows: two real idle files (vacation.mp4 and the long name) and 28 items injected through media-converter:changed with a real probe and a real plan: running x2 (one of unknown length), queued x3, done x7 (one with three outputs, one 18% larger), partly done x2, failed x5 (encode_failed, output_open_failed, disk_space_low, input_missing, encoder_stalled), skipped x4, interrupted x2, cancelled x2 (one with a saved track), input changed x1.
+# Per window: page size, header last button inset (top/right), every row last button inset (top/right), row heights by state (+n: listed outputs), at the end of the page the last row bottom and the bottom bar top, and what the AgentDock launcher covers at the top and at the end. Same values as the implementation's final run.
+light-zh-1280x800 {"viewport": {"width": 1292, "height": 806}, "header": {"top": 12, "right": 12, "buttonHeight": 28}, "rowCorners": ["8/8"], "heights": {"idle": [90, 90], "running": [102, 102], "queued": [90, 90, 90], "succeeded": [68, 68, 68, 68, 68, 68], "succeeded+3": [148], "partial+2": [122], "partial+1": [96], "failed": [68, 68, 68, 68, 68], "skipped": [68, 68, 68, 68], "interrupted": [68, 68], "cancelled": [68], "cancelled+1": [96], "input_changed": [68]}, "end": {"lastRowBottom": 697, "barTop": 756, "covered": []}, "dockAtTop": {"covered": ["media-converter-settings"], "content": ["button \"输出与性能源文件旁 · 自动编号\""]}}
+dark-en-1280x800 {"viewport": {"width": 1292, "height": 806}, "header": {"top": 12, "right": 12, "buttonHeight": 28}, "rowCorners": ["8/8"], "heights": {"idle": [90, 90], "running": [102, 102], "queued": [90, 90, 90], "succeeded": [68, 68, 68, 68, 68, 68], "succeeded+3": [148], "partial+2": [122], "partial+1": [96], "failed": [68, 68, 68, 68, 68], "skipped": [68, 68, 68, 68], "interrupted": [68, 68], "cancelled": [68], "cancelled+1": [96], "input_changed": [68]}, "end": {"lastRowBottom": 697, "barTop": 756, "covered": []}, "dockAtTop": {"covered": ["media-converter-settings"], "content": ["button \"Output and performan\""]}}
+light-en-1080x786 {"viewport": {"width": 1092, "height": 792}, "header": {"top": 12, "right": 12, "buttonHeight": 28}, "rowCorners": ["8/8"], "heights": {"idle": [90, 90], "running": [102, 102], "queued": [90, 90, 90], "succeeded": [68, 68, 68, 68, 68, 68], "succeeded+3": [148], "partial+2": [122], "partial+1": [96], "failed": [68, 68, 68, 68, 68], "skipped": [68, 68, 68, 68], "interrupted": [68, 68], "cancelled": [68], "cancelled+1": [96], "input_changed": [68]}, "end": {"lastRowBottom": 683, "barTop": 742, "covered": []}, "dockAtTop": {"covered": ["media-converter-settings"], "content": ["button \"Output and performan\""]}}
+dark-zh-1024x700 {"viewport": {"width": 1036, "height": 706}, "header": {"top": 12, "right": 12, "buttonHeight": 28}, "rowCorners": ["8/8"], "heights": {"idle": [90, 90], "running": [102, 102], "queued": [90, 90, 90], "succeeded": [68, 68, 68, 68, 68, 68], "succeeded+3": [148], "partial+2": [122], "partial+1": [96], "failed": [68, 68, 68, 68, 68], "skipped": [68, 68, 68, 68], "interrupted": [68, 68], "cancelled": [68], "cancelled+1": [96], "input_changed": [68]}, "end": {"lastRowBottom": 597, "barTop": 656, "covered": []}, "dockAtTop": {"covered": ["media-converter-settings"], "content": ["label \"不比原文件小时丢弃压缩后没有明显变小，就\""]}}
+light-zh-786x540 {"viewport": {"width": 798, "height": 546}, "header": {"top": 12, "right": 12, "buttonHeight": 28}, "rowCorners": ["8/8"], "heights": {"idle": [90, 90], "running": [102, 102], "queued": [90, 90, 90], "succeeded": [68, 68, 68, 68, 68, 68], "succeeded+3": [148], "partial+2": [122], "partial+1": [96], "failed": [68, 68, 68, 68, 68], "skipped": [68, 68, 68, 68], "interrupted": [68, 68], "cancelled": [68], "cancelled+1": [96], "input_changed": [68]}, "end": {"lastRowBottom": -228, "barTop": 496, "covered": []}, "dockAtTop": {"covered": [], "content": []}}
+dark-en-786x540 {"viewport": {"width": 798, "height": 546}, "header": {"top": 12, "right": 12, "buttonHeight": 28}, "rowCorners": ["8/8"], "heights": {"idle": [90, 90], "running": [102, 102], "queued": [90, 90, 90], "succeeded": [68, 68, 68, 68, 68, 68], "succeeded+3": [148], "partial+2": [122], "partial+1": [96], "failed": [68, 68, 68, 68, 68], "skipped": [68, 68, 68, 68], "interrupted": [68, 68], "cancelled": [68], "cancelled+1": [96], "input_changed": [68]}, "end": {"lastRowBottom": -228, "barTop": 496, "covered": []}, "dockAtTop": {"covered": [], "content": []}}
+dock {"media": {"launcher": {"left": 11, "top": 759, "right": 47, "bottom": 795}, "covered": ["media-converter-settings"], "coveredContent": ["button \"输出与性能源文件旁 · 自动编号\""]}, "subtitleConverter": {"launcher": {"left": 11, "top": 759, "right": 47, "bottom": 795}, "aside": {"left": 38, "top": 138, "right": 358, "bottom": 607.375}, "overlap": false}}
+transcriptionHeader {"top": 10, "right": 12, "buttonHeight": 28}
+frames-light-zh [{"texts": "41% | 3× | 99 fps | 9.9 MB | 0:59", "boxes": "media-row-status:414,100,73.5,18 media-row-stats:958,100,279,18 media-stat-percent:958,100,24.5,18 media-stat-speed:994,100,32.5,18 media-stat-fps:1038.5,100,45,18 media-stat-written:1121.5,100,45,18 media-stat-eta:1205,100,32.5,18 PROGRESS:391,126,846,4"}, {"texts": "47% | 10× | 100 fps | 10.4 MB | 1:01", "boxes": "media-row-status:414,100,73.5,18 media-row-stats:958,100,279,18 media-stat-percent:958,100,24.5,18 media-stat-speed:994,100,32.5,18 media-stat-fps:1038.5,100,45,18 media-stat-written:1121.5,100,45,18 media-stat-eta:1205,100,32.5,18 PROGRESS:391,126,846,4"}, {"texts": "53% | 0.85× | 7 fps | 100 MB | 0:01", "boxes": "media-row-status:414,100,73.5,18 media-row-stats:958,100,279,18 media-stat-percent:958,100,24.5,18 media-stat-speed:994,100,32.5,18 media-stat-fps:1038.5,100,45,18 media-stat-written:1121.5,100,45,18 media-stat-eta:1205,100,32.5,18 PROGRESS:391,126,846,4"}]
+frames-dark-en [{"texts": "41% | 3× | 99 fps | 9.9 MB | 0:59", "boxes": "media-row-status:414,100,109,18 media-row-stats:943,100,294,18 media-stat-percent:943,100,24.5,18 media-stat-speed:979.5,100,32.5,18 media-stat-fps:1024,100,45,18 media-stat-written:1124.5,100,45,18 media-stat-eta:1205,100,32.5,18 PROGRESS:391,126,846,4"}, {"texts": "47% | 10× | 100 fps | 10.4 MB | 1:01", "boxes": "media-row-status:414,100,109,18 media-row-stats:943,100,294,18 media-stat-percent:943,100,24.5,18 media-stat-speed:979.5,100,32.5,18 media-stat-fps:1024,100,45,18 media-stat-written:1124.5,100,45,18 media-stat-eta:1205,100,32.5,18 PROGRESS:391,126,846,4"}, {"texts": "53% | 0.85× | 7 fps | 100 MB | 0:01", "boxes": "media-row-status:414,100,109,18 media-row-stats:943,100,294,18 media-stat-percent:943,100,24.5,18 media-stat-speed:979.5,100,32.5,18 media-stat-fps:1024,100,45,18 media-stat-written:1124.5,100,45,18 media-stat-eta:1205,100,32.5,18 PROGRESS:391,126,846,4"}]
+
+# Final screenshots (47), copied from this run to records/i1/screenshots/ after it passed, then viewed:
+T-WORKBENCH-04-background-toast-light-zh.jpg
+T-WORKBENCH-04-cancel-all-light-zh.jpg
+T-WORKBENCH-04-confirm-light-zh.jpg
+T-WORKBENCH-04-confirm-lossless-replace-light-zh.jpg
+T-WORKBENCH-04-confirm-mkv-light-zh.jpg
+T-WORKBENCH-04-confirm-skip-light-zh.jpg
+T-WORKBENCH-04-dock-light-zh-1280x800.jpg
+T-WORKBENCH-04-error-details-dark-en.jpg
+T-WORKBENCH-04-error-details-light-zh-786x540.jpg
+T-WORKBENCH-04-error-details-light-zh.jpg
+T-WORKBENCH-04-header-dark-en.jpg
+T-WORKBENCH-04-header-light-zh.jpg
+T-WORKBENCH-04-progress-frame-1-light-zh.jpg
+T-WORKBENCH-04-progress-frame-2-light-zh.jpg
+T-WORKBENCH-04-progress-frame-3-light-zh.jpg
+T-WORKBENCH-04-results-light-zh.jpg
+T-WORKBENCH-04-review-dark-en-1280x800.jpg
+T-WORKBENCH-04-review-dark-en-786x540.jpg
+T-WORKBENCH-04-review-dark-zh-1024x700.jpg
+T-WORKBENCH-04-review-end-dark-en-1280x800.jpg
+T-WORKBENCH-04-review-end-dark-en-786x540.jpg
+T-WORKBENCH-04-review-end-dark-zh-1024x700.jpg
+T-WORKBENCH-04-review-end-light-en-1080x786.jpg
+T-WORKBENCH-04-review-end-light-zh-1280x800.jpg
+T-WORKBENCH-04-review-end-light-zh-786x540.jpg
+T-WORKBENCH-04-review-frame-1-dark-en.jpg
+T-WORKBENCH-04-review-frame-1-light-zh.jpg
+T-WORKBENCH-04-review-frame-2-dark-en.jpg
+T-WORKBENCH-04-review-frame-2-light-zh.jpg
+T-WORKBENCH-04-review-frame-3-dark-en.jpg
+T-WORKBENCH-04-review-frame-3-light-zh.jpg
+T-WORKBENCH-04-review-light-en-1080x786.jpg
+T-WORKBENCH-04-review-light-zh-1280x800.jpg
+T-WORKBENCH-04-review-light-zh-786x540.jpg
+T-WORKBENCH-04-review-list-end-dark-en-786x540.jpg
+T-WORKBENCH-04-review-list-end-light-zh-786x540.jpg
+T-WORKBENCH-04-rows-done-dark-en.jpg
+T-WORKBENCH-04-rows-done-light-zh.jpg
+T-WORKBENCH-04-rows-ended-dark-en.jpg
+T-WORKBENCH-04-rows-ended-light-zh.jpg
+T-WORKBENCH-04-rows-failed-dark-en.jpg
+T-WORKBENCH-04-rows-failed-light-zh.jpg
+T-WORKBENCH-04-rows-running-dark-en.jpg
+T-WORKBENCH-04-rows-running-light-zh.jpg
+T-WORKBENCH-04-run-end-light-zh-1280x800.jpg
+T-WORKBENCH-04-skipped-light-zh.jpg
+T-WORKBENCH-04-start-detecting-light-zh.jpg

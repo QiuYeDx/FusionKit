@@ -1,0 +1,9 @@
+{
+  "comment": "File identities as filesystem-object-identity.ts reports them. FAT/exFAT volumes report a FileId of all zeros, which identifies nothing.",
+  "exfatA": { "path": "E:\\Videos\\clip.mp4", "state": { "objectIdentity": { "volumeSerialHex": "5a1c9e02", "fileIdHex": "00000000000000000000000000000000" }, "size": 1048576, "mtimeMs": 1792000000000.5 } },
+  "exfatB": { "path": "E:\\Videos\\other.mp4", "state": { "objectIdentity": { "volumeSerialHex": "5a1c9e02", "fileIdHex": "00000000000000000000000000000000" }, "size": 1048576, "mtimeMs": 1792000000000.5 } },
+  "exfatACase": { "path": "e:\\videos\\CLIP.MP4", "state": { "objectIdentity": { "volumeSerialHex": "5a1c9e02", "fileIdHex": "00000000000000000000000000000000" }, "size": 1048576, "mtimeMs": 1792000000000.5 } },
+  "ntfs": { "path": "C:\\Videos\\clip.mp4", "state": { "objectIdentity": { "volumeSerialHex": "b04f12aa", "fileIdHex": "0000000000000000000b00000003c1d2" }, "size": 1048576, "mtimeMs": 1792000000000.5 } },
+  "ntfsHardLink": { "path": "C:\\Elsewhere\\link-to-clip.mp4", "state": { "objectIdentity": { "volumeSerialHex": "b04f12aa", "fileIdHex": "0000000000000000000b00000003c1d2" }, "size": 1048576, "mtimeMs": 1792000000000.5 } },
+  "unavailable": { "path": "\\\\server\\share\\clip.mp4", "state": { "objectIdentity": null, "size": 1048576, "mtimeMs": 1792000000000.5 } }
+}

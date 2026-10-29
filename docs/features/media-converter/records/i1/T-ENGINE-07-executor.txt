@@ -1,0 +1,106 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/executor.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > reads <code>:first_attempt for the failures one run can end with, and nothing else
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > honours them only in an unpackaged test build, like FUSIONKIT_TEST_MEDIA_CAPS
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > tolerates exactly the warnings of module-encode design §7b, and the planned openh264 rate-control note
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > compresses: one run of exactly the plan's arguments into a recorded partial, probed back, published, nothing left behind
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > converts by remux and with low usage asks for idle priority and half the cores
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > accepts an output whose duration cannot be checked with duration_unverified (AC-ENGINE-04-5)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > publishes only an output that passes the check of AC-ENGINE-04-5: a planned stream missing or a wrong duration fails the item
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > extracts every audio track, each published on its own; the ipod muxer's .partial warning is tolerated
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > fails a 2-track extraction whose second track fails, listing the first as published (partly done)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > still writes the second track when the first fails, and reports the item partly done with the second
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > fails output_publish_failed when the finished output cannot be put under its name, and leaves neither partial nor placeholder
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > skips a pre-compressed still picture at the quality tier as not_smaller when it reaches the cap early, leaving no partial
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > cancels: ffmpeg is gone within 3 s, then the partial, the work folder and the 2-pass log in it are removed (AC-ENGINE-04-3) 587ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > falls back once when NVENC fails before its first frame (FUSIONKIT_TEST_MEDIA_FAIL), with encoder_fallback in the plan summary
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > retries only once: the next hardware encoder failing before its first frame too is degraded, and the item fails
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > does not retry when NVENC fails after its first frame 1124ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > judges a hardware plan by its first frame on any machine: killed after it, no retry; killed before it, one fallback 739ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > injects only the first run of an item, and a failure that is not the encoder's never falls back
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > refuses before anything runs when the volume lacks the caps of every running output plus 512 MB (disk_space_low) 3471ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > checks the input once more when the item starts: an edited file is input_changed, a deleted one input_missing
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > refuses a cap over 4 GiB on FAT32, an output that is an input, and fails a non-compress output that reaches its cap
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > numbers an output whose name another item of the batch holds, even when overwriting, with output_name_collision 347ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > overwrites only a confirmed file, through the recycle bin; an unconfirmed one is numbered beside
+ Test Files  1 passed (1)
+      Tests  24 passed (24)
+   Start at  14:53:40
+   Duration  11.28s (transform 294ms, setup 0ms, collect 1.09s, tests 9.99s, environment 0ms, prepare 58ms)
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）；真实 ffmpeg 以 IDLE 运行，素材为 lavfi 小样
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/executor.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > reads <code>:first_attempt for the failures one run can end with, and nothing else
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > honours them only in an unpackaged test build, like FUSIONKIT_TEST_MEDIA_CAPS
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > tolerates exactly the warnings of module-encode design §7b, and the planned openh264 rate-control note
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > compresses: one run of exactly the plan's arguments into a recorded partial, probed back, published, nothing left behind
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > converts by remux and with low usage asks for idle priority and half the cores
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > accepts an output whose duration cannot be checked with duration_unverified (AC-ENGINE-04-5)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > publishes only an output that passes the check of AC-ENGINE-04-5: a planned stream missing or a wrong duration fails the item
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > extracts every audio track, each published on its own; the ipod muxer's .partial warning is tolerated
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > fails a 2-track extraction whose second track fails, listing the first as published (partly done)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > still writes the second track when the first fails, and reports the item partly done with the second
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > lists the track it had published when an "all tracks" extraction is cancelled during the next one, so it can be shown 684ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > re-encodes a raw H.264 or HEVC stream, which a remux cannot time, for MP4, MKV and compress (module-encode design §7b) 1323ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > never gets the raw streams the probe does not admit: MPEG-4 Part 2 (m4v) and AV1 (obu) are container_not_allowed
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > remuxes a raw MPEG-2 stream with B-frames into MKV with +genpts, every picture as it was
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > fails output_publish_failed when the finished output cannot be put under its name, and leaves neither partial nor placeholder
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > skips a pre-compressed still picture at the quality tier as not_smaller when it reaches the cap early, leaving no partial
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > cancels: ffmpeg is gone within 3 s, then the partial, the work folder and the 2-pass log in it are removed (AC-ENGINE-04-3) 594ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > falls back once when NVENC fails before its first frame (FUSIONKIT_TEST_MEDIA_FAIL), with encoder_fallback in the plan summary
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > retries only once: the next hardware encoder failing before its first frame too is degraded, and the item fails
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > does not retry when NVENC fails after its first frame 1140ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > judges a hardware plan by its first frame on any machine: killed after it, no retry; killed before it, one fallback 735ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > injects only the first run of an item, and a failure that is not the encoder's never falls back
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > refuses before anything runs when the volume lacks the caps of every running output plus 512 MB (disk_space_low) 3407ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > checks the input once more when the item starts: an edited file is input_changed, a deleted one input_missing
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > refuses a cap over 4 GiB on FAT32, an output that is an input, and fails a non-compress output that reaches its cap
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > numbers an output whose name another item of the batch holds, even when overwriting, with output_name_collision 359ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > overwrites only a confirmed file, through the recycle bin; an unconfirmed one is numbered beside
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+   Start at  16:45:06
+   Duration  14.08s (transform 291ms, setup 0ms, collect 1.03s, tests 12.85s, environment 0ms, prepare 59ms)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑：执行器在回退重新规划期间收到取消时按取消结束（executor.ts 与 executor.test.ts 的最终版本）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/executor.test.ts --reporter=verbose
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > reads <code>:first_attempt for the failures one run can end with, and nothing else
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > honours them only in an unpackaged test build, like FUSIONKIT_TEST_MEDIA_CAPS
+ ✓ test/media-converter/executor.test.ts > FUSIONKIT_TEST_MEDIA_FAIL and FUSIONKIT_TEST_MEDIA_REVEAL > tolerates exactly the warnings of module-encode design §7b, and the planned openh264 rate-control note
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > compresses: one run of exactly the plan's arguments into a recorded partial, probed back, published, nothing left behind
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > converts by remux and with low usage asks for idle priority and half the cores
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > accepts an output whose duration cannot be checked with duration_unverified (AC-ENGINE-04-5)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > publishes only an output that passes the check of AC-ENGINE-04-5: a planned stream missing or a wrong duration fails the item
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > extracts every audio track, each published on its own; the ipod muxer's .partial warning is tolerated
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > fails a 2-track extraction whose second track fails, listing the first as published (partly done)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > still writes the second track when the first fails, and reports the item partly done with the second
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > lists the track it had published when an "all tracks" extraction is cancelled during the next one, so it can be shown 681ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > re-encodes a raw H.264 or HEVC stream, which a remux cannot time, for MP4, MKV and compress (module-encode design §7b) 1316ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > never gets the raw streams the probe does not admit: MPEG-4 Part 2 (m4v) and AV1 (obu) are container_not_allowed
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > remuxes a raw MPEG-2 stream with B-frames into MKV with +genpts, every picture as it was
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > fails output_publish_failed when the finished output cannot be put under its name, and leaves neither partial nor placeholder
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > skips a pre-compressed still picture at the quality tier as not_smaller when it reaches the cap early, leaving no partial
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > cancels: ffmpeg is gone within 3 s, then the partial, the work folder and the 2-pass log in it are removed (AC-ENGINE-04-3) 593ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > falls back once when NVENC fails before its first frame (FUSIONKIT_TEST_MEDIA_FAIL), with encoder_fallback in the plan summary
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > retries only once: the next hardware encoder failing before its first frame too is degraded, and the item fails
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > settles cancelled, not failed, when the cancel comes while a hardware failure is planned again
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > does not retry when NVENC fails after its first frame 1131ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > judges a hardware plan by its first frame on any machine: killed after it, no retry; killed before it, one fallback 738ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1)
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > injects only the first run of an item, and a failure that is not the encoder's never falls back
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > refuses before anything runs when the volume lacks the caps of every running output plus 512 MB (disk_space_low) 3394ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > checks the input once more when the item starts: an edited file is input_changed, a deleted one input_missing
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > refuses a cap over 4 GiB on FAT32, an output that is an input, and fails a non-compress output that reaches its cap
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > numbers an output whose name another item of the batch holds, even when overwriting, with output_name_collision 350ms
+ ✓ test/media-converter/executor.test.ts > the executor with the real ffmpeg > overwrites only a confirmed file, through the recycle bin; an unconfirmed one is numbered beside
+Test Files  1 passed (1)
+Tests  29 passed (29)
+Start at  17:13:14
+Duration  14.16s (transform 292ms, setup 0ms, collect 1.10s, tests 12.86s, environment 0ms, prepare 61ms)
+(test-results/media-converter 下的残留：0 项)
+exit 0

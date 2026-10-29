@@ -1,0 +1,24 @@
+$ python <scratchpad>/e07review/mutate_review.py   # each mutation of engine/executor.ts runs test/media-converter/executor.test.ts, then the source is restored (sha256 checked)
+R1 no runtime re-verification on a spawn error: KILLED (Tests  1 failed | 23 passed (24); exit 1)
+    x the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1) 29ms
+    FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1)
+R2 runtime not forgotten after the second spawn error: KILLED (Tests  1 failed | 23 passed (24); exit 1)
+    x the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1) 135ms
+    FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1)
+R3 fallback even after the first frame: KILLED (Tests  2 failed | 22 passed (24); exit 1)
+    x the executor with the real ffmpeg > does not retry when NVENC fails after its first frame 4210ms
+    x the executor with the real ffmpeg > judges a hardware plan by its first frame on any machine: killed after it, no retry; killed before it, one fallback 3621ms
+    FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > does not retry when NVENC fails after its first frame
+    FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > judges a hardware plan by its first frame on any machine: killed after it, no retry; killed before it, one fallback
+R4 no fallback for a process killed before its first frame (exit_code not an encoder failure): KILLED (Tests  4 failed | 20 passed (24); exit 1)
+    x the executor with the real ffmpeg > still writes the second track when the first fails, and reports the item partly done with the second 68ms
+    x the executor with the real ffmpeg > falls back once when NVENC fails before its first frame (FUSIONKIT_TEST_MEDIA_FAIL), with encoder_fallback in the plan summary 21ms
+    x the executor with the real ffmpeg > retries only once: the next hardware encoder failing before its first frame too is degraded, and the item fails 21ms
+    x the executor with the real ffmpeg > judges a hardware plan by its first frame on any machine: killed after it, no retry; killed before it, one fallback 624ms
+    FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > still writes the second track when the first fails, and reports the item partly done with the second
+    FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > falls back once when NVENC fails before its first frame (FUSIONKIT_TEST_MEDIA_FAIL), with encoder_fallback in the plan
+R5 the re-verified tools are not used: KILLED (Tests  1 failed | 23 passed (24); exit 1)
+    x the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1) 32ms
+    FAIL  test/media-converter/executor.test.ts > the executor with the real ffmpeg > verifies the runtime again when ffmpeg cannot be started, then tries once more (design §1)
+source restored, sha256 0aa2b582dc143e8e28c417309432fe6c0291a00a09cfacb051863e073c403264
+exit 0

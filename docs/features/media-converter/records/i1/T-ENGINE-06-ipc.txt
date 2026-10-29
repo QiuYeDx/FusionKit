@@ -1,0 +1,78 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/ipc.test.ts --reporter=verbose
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > registers one handler per request channel and removes them all on dispose
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > serves only the main frame of the application window, and nothing else reaches a handler
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > answers every malformed request with invalid_request without running anything
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > never takes a path from the renderer
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > waits for the restore, answers busy once closed, and reports unexpected errors as a code only
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > reads every dropped path at once, sends the first 100 and counts the rest
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > refuses a dropped folder, a missing file and a link, and adds the rest
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > refuses only the %TEMP% copy the resolver cannot trace, and adds the file dropped with it
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > adds what the main-process dialog returns, and remembers the output folder it picks
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > starts the encoder detection on the first snapshot or added file, never at registration
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > previews the plan an item would get, or answers the code
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > shows in its folder only an output this tool published
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > carries redacted logs and no absolute path in the snapshot and the events
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > sends events only to a live application window
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > delivers valid change events only and unsubscribes
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > answers busy for "detect again" while a hardware encode runs
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Start at  15:59:47
+   Duration  1.48s (transform 290ms, setup 0ms, collect 878ms, tests 402ms, environment 0ms, prepare 59ms)
+
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/ipc.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > registers one handler per request channel and removes them all on dispose
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > serves only the main frame of the application window, and nothing else reaches a handler
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > answers every malformed request with invalid_request without running anything
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > never takes a path from the renderer
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > waits for the restore, answers busy once closed, and reports unexpected errors as a code only
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > reads every dropped path at once, sends the first 100 and counts the rest
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > refuses a dropped folder, a missing file and a link, and adds the rest
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > refuses only the %TEMP% copy the resolver cannot trace, and adds the file dropped with it
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > adds what the main-process dialog returns, and remembers the output folder it picks
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > starts the encoder detection on the first snapshot or added file, never at registration
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > previews the plan an item would get, or answers the code
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > previews no_encoder_available with the codecs that would work instead, so the interface can offer them
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > shows in its folder only an output this tool published
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > carries redacted logs and no absolute path in the snapshot and the events
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > sends events only to a live application window
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > delivers valid change events only and unsubscribes
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > answers busy for "detect again" while a hardware encode runs
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+   Start at  16:45:22
+   Duration  1.54s (transform 298ms, setup 0ms, collect 898ms, tests 438ms, environment 0ms, prepare 58ms)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑（本文件对应的源码未改；评审只改了 executor.ts、executor.test.ts 与 engine design §11）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/ipc.test.ts --reporter=verbose
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > registers one handler per request channel and removes them all on dispose
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > serves only the main frame of the application window, and nothing else reaches a handler
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > answers every malformed request with invalid_request without running anything
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > never takes a path from the renderer
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: who and what is served > waits for the restore, answers busy once closed, and reports unexpected errors as a code only
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > reads every dropped path at once, sends the first 100 and counts the rest
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > refuses a dropped folder, a missing file and a link, and adds the rest
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > refuses only the %TEMP% copy the resolver cannot trace, and adds the file dropped with it
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: adding files > adds what the main-process dialog returns, and remembers the output folder it picks
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > starts the encoder detection on the first snapshot or added file, never at registration
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > previews the plan an item would get, or answers the code
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > previews no_encoder_available with the codecs that would work instead, so the interface can offer them
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > shows in its folder only an output this tool published
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > carries redacted logs and no absolute path in the snapshot and the events
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > sends events only to a live application window
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > delivers valid change events only and unsubscribes
+ ✓ test/media-converter/ipc.test.ts > media converter IPC: what reaches the renderer > answers busy for "detect again" while a hardware encode runs
+Test Files  1 passed (1)
+Tests  17 passed (17)
+Start at  17:14:12
+Duration  1.51s (transform 289ms, setup 0ms, collect 889ms, tests 429ms, environment 0ms, prepare 59ms)
+exit 0

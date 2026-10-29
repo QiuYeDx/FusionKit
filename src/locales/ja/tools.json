@@ -20,7 +20,8 @@
     "subtitle_language_extractor": "字幕言語抽出",
     "local_subtitle_transcriber": "ローカル字幕文字起こし",
     "name_translator": "ファイル/フォルダ名翻訳",
-    "text_translator": "長文翻訳"
+    "text_translator": "長文翻訳",
+    "media_converter": "音声・動画変換"
   },
   "field_desc": {
     "subtitle_translator": "AIモデルで字幕ファイルを翻訳",
@@ -29,6 +30,7 @@
     "local_subtitle_transcriber": "ローカルモデルで音声や動画を一括処理し、SRT / LRC 字幕に文字起こしします",
     "name_translator": "ファイルやフォルダー（中身を含む）を選んで AI で名前を翻訳し、確認・編集してから一括で名前を変更。元に戻すこともできます",
     "text_translator": "TXT・Markdown のインポートや貼り付けに対応。原文と訳文を段落ごとに対照し、試訳、一時停止と再開、見直し後の書き出しができます",
+    "media_converter": "動画の圧縮、音声・動画の形式変換、音声の抽出をこのパソコン上で行います。ファイルはアップロードされません",
     "subtitle_studio": "音声・動画の文字起こし、AI 字幕翻訳、対訳字幕の一括出力"
   },
   "chips": {
@@ -36,6 +38,8 @@
     "name_translator_safe": "確認 · 元に戻す",
     "text_translator_txt": "TXT",
     "text_translator_markdown": "Markdown",
+    "media_converter_tasks": "圧縮 · 変換 · 音声抽出",
+    "media_converter_local": "ローカル処理 · アップロードなし",
     "local_offline": "オフライン文字起こし",
     "local_batch_formats": "一括 · SRT/LRC",
     "studio_transcription": "ローカル文字起こし",
@@ -64,6 +68,8 @@
     "share_value": "読込 / 書出",
     "classic": "定番ツール",
     "classic_description": "字幕の用途に合わせて使える、実績のある単機能ツール。",
+    "media": "メディアツール",
+    "media_description": "音声・動画ファイルを扱うツール。すべてこのパソコン上で動作します。",
     "experimental": "実験的なツール",
     "experimental_description": "このツールはベータ版で、機能や使い勝手を調整中です。本番作業にはまだ推奨しません。上のツールを優先してご利用ください。",
     "toolbox": "{{count}} 個のツール",

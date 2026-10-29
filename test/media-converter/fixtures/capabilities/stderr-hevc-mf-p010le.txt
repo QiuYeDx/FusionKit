@@ -1,0 +1,1 @@
+[warning] Incompatible pixel format 'p010le' for codec 'hevc_mf', auto-selecting format 'nv12'

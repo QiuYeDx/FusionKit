@@ -1,0 +1,30 @@
+$ FUSIONKIT_MEDIA_CAPS_EXPECT=nvidia-no-igpu npx vitest run --maxWorkers=4 --minWorkers=1 --reporter=verbose test/media-converter/capabilities.test.ts -t "the real detection"
+# 2026-10-28 review rerun. Bundled ffmpeg/ffprobe via MediaRuntime (verifyLocalSubtitleRuntimeBundle scope media), every test encode BELOW_NORMAL, 3 frames of lavfi color 1280x720@30, level+warning; durations include the ffprobe check
+capability detection: tests 4184 ms, with runtime verification 4503 ms
+h264_nvenc:8bit        available          285 ms  
+hevc_nvenc:10bit_uhq   available          346 ms  
+hevc_nvenc:10bit       available          301 ms  
+hevc_nvenc:8bit_uhq    available          307 ms  
+hevc_nvenc:8bit        available          282 ms  
+av1_nvenc:10bit_uhq    available          351 ms  
+av1_nvenc:10bit        available          320 ms  
+h264_qsv:8bit          no_device          107 ms  [h264_qsv @ 0000012effa5a800] [error] Error creating a MFX session: -9.
+hevc_qsv:10bit         no_device          127 ms  [hevc_qsv @ 0000015c8b7ca900] [error] Error creating a MFX session: -9.
+hevc_qsv:8bit          no_device          103 ms  [hevc_qsv @ 000001a222eb7780] [error] Error creating a MFX session: -9.
+av1_qsv:10bit          no_device          118 ms  [av1_qsv @ 0000016f434aab00] [error] Error creating a MFX session: -9.
+h264_amf:8bit          runtime_missing     38 ms  [AMF @ 0000025518bc9b40] [error] DLL amfrt64.dll failed to open
+hevc_amf:10bit         runtime_missing     40 ms  [AMF @ 000001fa7713e840] [error] DLL amfrt64.dll failed to open
+hevc_amf:8bit          runtime_missing     38 ms  [AMF @ 000002be7529a740] [error] DLL amfrt64.dll failed to open
+av1_amf:10bit          runtime_missing     39 ms  [AMF @ 0000018884207cc0] [error] DLL amfrt64.dll failed to open
+h264_mf:8bit           available          428 ms  
+hevc_mf:8bit           available          416 ms  
+hevc_mf:10bit          params_rejected    391 ms  [warning] Incompatible pixel format 'p010le' for codec 'hevc_mf', auto-selecting format 'nv12'
+h264_mf:8bit_sw        available          141 ms  
+engine status: {"runtime":{"state":"ready","version":"n8.1.2-21-gce3c09c101-20260630"},"capabilities":{"state":"ready","hardwareEncoders":["av1_nvenc","hevc_nvenc","hevc_mf","h264_nvenc","h264_mf"],"degraded":[],"driverUpdates":[],"resolvedEncoders":{"av1":{"gpuOff":{"encoder":"libsvtav1","variant":"10bit","hardware":false,"weak":false,"nameKey":"media:encoders.libsvtav1"},"gpuOn":{"encoder":"av1_nvenc","variant":"10bit_uhq","hardware":true,"weak":false,"nameKey":"media:encoders.av1_nvenc"}},"hevc":{"gpuOff":{"encoder":"hevc_nvenc","variant":"10bit_uhq","hardware":true,"weak":false,"nameKey":"media:encoders.hevc_nvenc"},"gpuOn":{"encoder":"hevc_nvenc","variant":"10bit_uhq","hardware":true,"weak":false,"nameKey":"media:encoders.hevc_nvenc"}},"h264":{"gpuOff":{"encoder":"h264_nvenc","variant":"8bit","hardware":true,"weak":false,"nameKey":"media:encoders.h264_nvenc"},"gpuOn":{"encoder":"h264_nvenc","variant":"8bit","hardware":true,"weak":false,"nameKey":"media:encoders.h264_nvenc"}}},"defaults":{"compressCodec":"hevc"}}}
+checked against the expected verdicts of nvidia-no-igpu: 19 configurations match
+ ✓ test/media-converter/capabilities.test.ts > the real detection on this computer > tests every configuration within 30 s, keeps only definitive verdicts, and does not test again with the same key 4609ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 40 skipped (41)
+   Start at  13:44:36
+   Duration  5.58s (transform 224ms, setup 0ms, collect 782ms, tests 4.61s, environment 0ms, prepare 58ms)
+exit 0

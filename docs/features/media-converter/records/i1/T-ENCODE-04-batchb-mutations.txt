@@ -1,0 +1,76 @@
+$ python <scratchpad>/bfix/mutate.py   # 批次 B 修正（2026-10-28）的变异检查
+# 每种变异：在磁盘上临时替换一处代码，运行列出的测试文件（与 V-check 相同的 vitest 参数），随后写回原文，并用 sha256 核对与变异前一致。
+# 运行前后另用 sha256sum -c 核对了 engine/probe.ts 与 plan/*.ts 全部文件：全部 OK。
+
+## M8 T-ENCODE-04: audio.ts copies the same codec whatever the rates (the batch A rule)
+   file electron/main/media-converter/plan/audio.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/audio.test.ts test/media-converter/plan/stream-plan.test.ts
+     exit 1; Tests 3 failed | 163 passed (166)
+       x lossy to lossless and the same codec (AC-ENCODE-04-5) > re-encodes the same codec to shrink it when the target rate is lower than the source's (a 320k MP3 to standard MP3)
+       x lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only
+       x remux and already_target (AC-ENCODE-06-2) > re-encodes the same codec when the target rate is lower (AC-ENCODE-04-5): not already_target, no remux
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/encode-audio-real.test.ts -t 320 kbit/s MP3
+     exit 1; Tests 1 failed | 22 skipped (23)
+       x audio with the planner arguments and the real ffmpeg > re-encodes a 320 kbit/s MP3 to standard MP3, smaller, and takes a 96 kbit/s one as already the target (AC-ENCODE-04-5)
+   restored, sha256 c8d895abd3227cbc90ce69ac56cbfe5f5f13449f5430f868f9dfedba81c15a06 (same as before)
+
+## M9 T-ENCODE-04: audio.ts compares the target rate the other way round (the original AC wording)
+   file electron/main/media-converter/plan/audio.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/audio.test.ts test/media-converter/plan/stream-plan.test.ts
+     exit 1; Tests 5 failed | 161 passed (166)
+       x lossy to lossless and the same codec (AC-ENCODE-04-5) > copies the same codec when the target rate is not lower, and skips it when the container is the same too
+       x lossy to lossless and the same codec (AC-ENCODE-04-5) > re-encodes the same codec to shrink it when the target rate is lower than the source's (a 320k MP3 to standard MP3)
+       x lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only
+       x remux and already_target (AC-ENCODE-06-2) > re-encodes the same codec when the target rate is lower (AC-ENCODE-04-5): not already_target, no remux
+       x remux and already_target (AC-ENCODE-06-2) > skips audio already in the target codec and type at no lower a rate, and remuxes when only the type differs
+   restored, sha256 c8d895abd3227cbc90ce69ac56cbfe5f5f13449f5430f868f9dfedba81c15a06 (same as before)
+
+## M10 T-ENCODE-04: stream-plan.ts takes the container total for any audio file (cover art and other tracks included)
+   file electron/main/media-converter/plan/stream-plan.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/audio.test.ts test/media-converter/plan/stream-plan.test.ts
+     exit 1; Tests 1 failed | 165 passed (166)
+       x lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only
+   restored, sha256 58ff1b7d7ae27ac303a79633c0a1e5c51e137b12a423d2e8b97bbba9e8ddac39 (same as before)
+
+## M11 T-ENCODE-04: stream-plan.ts never takes the container total
+   file electron/main/media-converter/plan/stream-plan.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/audio.test.ts test/media-converter/plan/stream-plan.test.ts
+     exit 1; Tests 2 failed | 164 passed (166)
+       x lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only
+       x remux and already_target (AC-ENCODE-06-2) > re-encodes the same codec when the target rate is lower (AC-ENCODE-04-5): not already_target, no remux
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/encode-audio-real.test.ts -t 320 kbit/s MP3
+     exit 1; Tests 1 failed | 22 skipped (23)
+       x audio with the planner arguments and the real ffmpeg > re-encodes a 320 kbit/s MP3 to standard MP3, smaller, and takes a 96 kbit/s one as already the target (AC-ENCODE-04-5)
+   restored, sha256 58ff1b7d7ae27ac303a79633c0a1e5c51e137b12a423d2e8b97bbba9e8ddac39 (same as before)
+
+## M12 T-ENCODE-04: audio.ts relabels ALAC to its layout of the channel count again (the batch A behaviour)
+   file electron/main/media-converter/plan/audio.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/audio.test.ts
+     exit 1; Tests 1 failed | 96 passed (97)
+       x channel layouts (AC-ENCODE-04-4) > gives ALAC the nearest ALAC layout: remixed by position, relabelled only when the layout is merely renamed (design §7b)
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/encode-audio-real.test.ts -t into ALAC by position
+     exit 1; Tests 3 failed | 20 skipped (23)
+       x audio with the planner arguments and the real ffmpeg > remixes 2_1 into ALAC by position: each channel lands in its place, never on the centre (design §7b)
+       x audio with the planner arguments and the real ffmpeg > remixes 7_1 into ALAC by position: each channel lands in its place, never on the centre (design §7b)
+       x audio with the planner arguments and the real ffmpeg > remixes quad into ALAC by position: each channel lands in its place, never on the centre (design §7b)
+   restored, sha256 c8d895abd3227cbc90ce69ac56cbfe5f5f13449f5430f868f9dfedba81c15a06 (same as before)
+
+## M13 T-ENCODE-04: audio.ts remixes ALAC to the layout of the same channel count (quad into 4.0)
+   file electron/main/media-converter/plan/audio.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/audio.test.ts
+     exit 1; Tests 1 failed | 96 passed (97)
+       x channel layouts (AC-ENCODE-04-4) > gives ALAC the nearest ALAC layout: remixed by position, relabelled only when the layout is merely renamed (design §7b)
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/encode-audio-real.test.ts -t into ALAC by position
+     exit 1; Tests 2 failed | 1 passed | 20 skipped (23)
+       x audio with the planner arguments and the real ffmpeg > remixes 2_1 into ALAC by position: each channel lands in its place, never on the centre (design §7b)
+       x audio with the planner arguments and the real ffmpeg > remixes quad into ALAC by position: each channel lands in its place, never on the centre (design §7b)
+   restored, sha256 c8d895abd3227cbc90ce69ac56cbfe5f5f13449f5430f868f9dfedba81c15a06 (same as before)
+
+## M14 T-ENCODE-04: caps.ts sizes ALAC by the source channel count
+   file electron/main/media-converter/plan/caps.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/stream-plan.test.ts
+     exit 1; Tests 1 failed | 68 passed (69)
+       x output caps (AC-ENCODE-06-1, design §7) > caps audio by its format: PCM exactly, FLAC and ALAC below it, lossy by the rate bound
+   restored, sha256 ab7b31ff6dc4c1a138a2a53b738bbb1660fda29c3c830585a57f3eb241aa0900 (same as before)
+
+exit 0

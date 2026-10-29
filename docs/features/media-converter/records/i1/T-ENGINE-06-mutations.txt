@@ -1,0 +1,31 @@
+$ python <scratchpad>/mutate.py   # each mutation applied alone to the final source, then: npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/ipc.test.ts test/media-converter/composition.test.ts; the file is restored byte for byte afterwards
+M1 no trust check: exit 1 ::       Tests  2 failed | 21 passed (23)
+M2 trust ignores the sender: exit 1 ::       Tests  2 failed | 21 passed (23)
+M3 trust ignores subframes: exit 1 ::       Tests  1 failed | 22 passed (23)
+M4 no schema check: exit 1 ::       Tests  2 failed | 21 passed (23)
+M5 darwin served: exit 1 ::       Tests  1 failed | 22 passed (23)
+M6 drop bypasses the wrapper: exit 1 ::       Tests  1 failed | 22 passed (23)
+M7 reveal without existence check: exit 1 ::       Tests  1 failed | 22 passed (23)
+M8 reveal any index: exit 1 ::       Tests  1 failed | 22 passed (23)
+M9 snapshot does not start detection: exit 1 ::       Tests  2 failed | 21 passed (23)
+M10 preload reads paths after an await: exit 1 ::       Tests  2 failed | 21 passed (23)
+M11 preload sends all paths: exit 1 ::       Tests  1 failed | 22 passed (23)
+M12 preload supported everywhere: exit 1 ::       Tests  2 failed | 21 passed (23)
+M13 listen guard missing: exit 1 ::       Tests  1 failed | 22 passed (23)
+M14 shutdown not joined: exit 1 ::       Tests  1 failed | 22 passed (23)
+M15 policy lets channels through: exit 1 ::       Tests  1 failed | 22 passed (23)
+M16 shutdown does not close the IPC: exit 1 ::       Tests  1 failed | 22 passed (23)
+M17 handlers before ready: exit 1 ::       Tests  1 failed | 22 passed (23)
+M18 untrusted answered unsupported-like ok: exit 1 ::       Tests  1 failed | 22 passed (23)
+exit 0
+
+$ git hash-object electron/main/index.ts electron/preload/index.ts   # unchanged after the mutation run
+1f90db7889cec49e92e3b3307de5883a06f57370
+a92ae621bf67e23de3077c59139b52f397362eb3
+exit 0
+
+$ python <scratchpad>/mutate.py M19 M20 M21   # added after the first pass: shutdown order and reason, snapshot fields
+M19 probes ended before the queue settled: exit 1 ::       Tests  1 failed | 22 passed (23)
+M20 shutdown reason dropped: exit 1 ::       Tests  1 failed | 22 passed (23)
+M21 snapshot without resolvedEncoders: exit 1 ::       Tests  7 failed | 16 passed (23)
+exit 0

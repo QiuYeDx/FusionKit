@@ -1,0 +1,11 @@
+[Script Info]
+ScriptType: v4.00
+
+[V4 Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, TertiaryColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, AlphaLevel, Encoding
+Style: Default,Arial,28,16777215,65535,0,0,0,0,1,2,0,2,30,30,20,0,1
+
+[Events]
+Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: Marked=0,0:00:01.00,0:00:03.00,Default,,0000,0000,0000,,Bottom line
+Dialogue: Marked=0,0:00:04.00,0:00:06.00,Default,,0000,0000,0000,,{\a6}Moved to the top

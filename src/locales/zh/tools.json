@@ -20,7 +20,8 @@
     "subtitle_language_extractor": "字幕语言提取",
     "local_subtitle_transcriber": "本地字幕转写",
     "name_translator": "文件名/文件夹名翻译",
-    "text_translator": "长文本翻译"
+    "text_translator": "长文本翻译",
+    "media_converter": "音视频转换"
   },
   "field_desc": {
     "subtitle_translator": "使用AI模型翻译字幕文件",
@@ -29,6 +30,7 @@
     "local_subtitle_transcriber": "使用本地模型批量将音视频转写为 SRT / LRC 字幕",
     "name_translator": "勾选文件和文件夹（含子项），AI 翻译名称，核对修改后一键重命名，支持撤销",
     "text_translator": "导入 TXT、Markdown 或粘贴文本，原文译文逐段对照，可试译、暂停续译、校对后导出",
+    "media_converter": "压缩视频、转换音视频格式、提取音频，全程在本机完成，不上传文件",
     "subtitle_studio": "本地转写音视频、AI 翻译字幕，批量导出双语文件"
   },
   "chips": {
@@ -36,6 +38,8 @@
     "name_translator_safe": "核对 · 可撤销",
     "text_translator_txt": "TXT",
     "text_translator_markdown": "Markdown",
+    "media_converter_tasks": "压缩 · 转换 · 提取音频",
+    "media_converter_local": "本机处理 · 不上传",
     "local_offline": "离线转写",
     "local_batch_formats": "批量 · SRT/LRC",
     "studio_transcription": "本地转写",
@@ -64,6 +68,8 @@
     "share_value": "导入 / 导出",
     "classic": "经典工具",
     "classic_description": "成熟可用的独立工具，按需处理字幕。",
+    "media": "媒体工具",
+    "media_description": "处理音视频文件的工具，全程在本机运行。",
     "experimental": "实验性工具",
     "experimental_description": "该工具仍处于 Beta 阶段，功能与体验尚在打磨，暂不推荐用于正式任务。建议优先使用上方工具。",
     "toolbox": "{{count}} 个工具",

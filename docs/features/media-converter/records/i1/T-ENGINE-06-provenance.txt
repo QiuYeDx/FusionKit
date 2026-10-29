@@ -1,0 +1,80 @@
+# review pass 2026-10-28 (about 15:55–15:59); nothing it checks changed afterwards (the review did not edit electron/main/index.ts, electron/preload/index.ts or either audit JSON)
+$ node scripts/subtitle-studio-provenance/shared-resource-integration.mjs
+{
+  "entries": 11,
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit 0
+
+$ git hash-object electron/main/index.ts electron/preload/index.ts   # equal to the currentBlobOid recorded in both audit JSONs
+1f90db7889cec49e92e3b3307de5883a06f57370
+a92ae621bf67e23de3077c59139b52f397362eb3
+exit 0
+
+# under PowerShell Start-Process with PriorityClass Idle; FUSIONKIT_RELEASE_REAL_WORKFLOW / FUSIONKIT_REAL_ASR / FUSIONKIT_REAL_DEFAULT_ASR unset, so the
+# Electron-launching release-real-workflow and the real-ASR cases skip. The two evidence JSONs under test-results that this suite may rewrite
+# (subtitle-studio-transcript-executor/replay-evidence.json, studio-transcription-replay/evidence.json) were copied before and restored after
+# the run (sha256 222930892d71… and eecde9af1bbd… before and after; the run left them identical).
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/subtitle-studio-provenance
+ ✓ test/subtitle-studio-provenance/real-default-comparison-analysis.test.ts (37 tests) 39ms
+ ↓ test/subtitle-studio-provenance/release-real-workflow.test.ts (1 test | 1 skipped)
+ ✓ test/subtitle-studio-provenance/shared-resources.test.ts (19 tests) 24934ms
+ ✓ test/subtitle-studio-provenance/generate.test.ts (17 tests) 24010ms
+ ✓ test/subtitle-studio-provenance/real-default-resource-fixture.test.ts (11 tests) 105ms
+ ✓ test/subtitle-studio-provenance/native-copy.test.ts (10 tests) 9492ms
+ ✓ test/subtitle-studio-provenance/replay.test.ts (20 tests) 67624ms
+ ✓ test/subtitle-studio-provenance/tooling-copy.test.ts (5 tests) 4944ms
+ ✓ test/subtitle-studio-provenance/current-copy-audits.test.ts (11 tests) 68ms
+ ✓ test/subtitle-studio-provenance/real-default-comparison.test.ts (4 tests | 1 skipped) 5ms
+ ✓ test/subtitle-studio-provenance/transcript-executor-copy.test.ts (6 tests) 32ms
+ ✓ test/subtitle-studio-provenance/checkout-bytes.test.ts (1 test) 745ms
+ ✓ test/subtitle-studio-provenance/transcript-executor-replay.test.ts (23 tests) 112897ms
+ ✓ test/subtitle-studio-provenance/runtime-windows-copy.test.ts (5 tests) 3025ms
+ ✓ test/subtitle-studio-provenance/copy.test.ts (48 tests) 124414ms
+ ✓ test/subtitle-studio-provenance/source-change-audits.test.ts (10 tests) 47ms
+ ✓ test/subtitle-studio-provenance/windows-addon-copy.test.ts (7 tests) 190040ms
+ ↓ test/subtitle-studio-provenance/real-cpu-comparison.test.ts (1 test | 1 skipped)
+ Test Files  16 passed | 2 skipped (18)
+      Tests  233 passed | 3 skipped (236)
+   Duration  260.53s (transform 2.57s, setup 0ms, collect 12.96s, tests 562.42s, environment 2ms, prepare 1.14s)
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑。本次修正没有改动 electron/main/index.ts、electron/preload/index.ts 与两份审计 JSON（下面的 git hash-object 与登记值一致），
+# 所以只重跑集成检查；test/subtitle-studio-provenance 没有重跑：它的输入都没有变化，而且它会改写 test-results 下的证据文件，本次修正不得改动 test-results。
+$ node scripts/subtitle-studio-provenance/shared-resource-integration.mjs
+{
+  "entries": 11,
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit 0
+
+$ git hash-object electron/main/index.ts electron/preload/index.ts
+1f90db7889cec49e92e3b3307de5883a06f57370
+a92ae621bf67e23de3077c59139b52f397362eb3
+exit 0
+
+$ grep -c "1f90db7889cec49e92e3b3307de5883a06f57370\|a92ae621bf67e23de3077c59139b52f397362eb3" scripts/subtitle-studio-provenance/current-composition-audits.json resources/speech-resources/provenance/current-integration-audits.v1.json
+scripts/subtitle-studio-provenance/current-composition-audits.json:2
+resources/speech-resources/provenance/current-integration-audits.v1.json:2
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑（electron/main/index.ts、electron/preload/index.ts 与两份审计 JSON 都未改；test/subtitle-studio-provenance 的 vitest 部分未重跑，原因见 T-ENGINE-06 记录）
+$ node scripts/subtitle-studio-provenance/shared-resource-integration.mjs
+{
+  "entries": 11,
+  "legacyWorktreeAudits": 5,
+  "exact": true
+}
+exit 0
+
+$ git hash-object electron/main/index.ts electron/preload/index.ts
+1f90db7889cec49e92e3b3307de5883a06f57370
+a92ae621bf67e23de3077c59139b52f397362eb3
+exit 0
+
+$ grep -c "1f90db7889cec49e92e3b3307de5883a06f57370\|a92ae621bf67e23de3077c59139b52f397362eb3" scripts/subtitle-studio-provenance/current-composition-audits.json resources/speech-resources/provenance/current-integration-audits.v1.json
+scripts/subtitle-studio-provenance/current-composition-audits.json:2
+resources/speech-resources/provenance/current-integration-audits.v1.json:2
+exit 0

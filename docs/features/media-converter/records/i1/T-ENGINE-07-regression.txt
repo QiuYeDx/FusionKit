@@ -1,0 +1,8 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/test-hooks.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/test-hooks.test.ts (7 tests) 11ms
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  14:54:45
+   Duration  782ms (transform 185ms, setup 0ms, collect 572ms, tests 11ms, environment 0ms, prepare 58ms)
+exit 0

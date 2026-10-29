@@ -1,0 +1,70 @@
+# T-ENCODE-03 independent review (2026-10-26). Every ffmpeg/ffprobe below ran through a scratchpad wrapper
+# (review03/lowrun.cjs) that spawns the bundled n8.1.2 binary and sets os.setPriority(PRIORITY_LOW) (idle).
+# Inputs: lavfi, <= 1 s, 320x180, made and deleted in the scratchpad.
+
+## 1. A yuvj* source tagged tv was not converted (finding F1, fixed)
+
+$ ffmpeg -f lavfi -i "color=gray:s=320x180:r=30:d=0.5,format=yuvj420p" -vf "geq=lum=min(255\,X*255*4/(3*W)):cb=128:cr=128" -color_range pc -c:v mjpeg -q:v 2 -f matroska yuvj-pc.mkv
+exit 0
+$ ffmpeg -i yuvj-pc.mkv -c copy -color_range tv -f matroska yuvj-tv.mkv
+exit 0
+$ ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt,color_range -of csv=p=0 yuvj-tv.mkv
+yuvj420p,tv
+exit 0
+# The probe maps yuvj* to pc only when the range is untagged, so the planner saw colorRange 'tv' and added no conversion.
+$ ffmpeg -f matroska -i file:yuvj-tv.mkv -map 0:0 -c:v:0 libsvtav1 -preset:v:0 6 -crf:v:0 30 -pix_fmt:v:0 yuv420p10le -filter:v:0 "format=yuv420p10le,setparams=color_primaries=smpte170m:color_trc=smpte170m:colorspace=bt470bg:range=tv" -f matroska out.mkv
+[swscaler] [warning] deprecated pixel format used, make sure you did set range correctly
+exit 0
+$ ffmpeg -i out.mkv -vf "signalstats,metadata=mode=print:key=lavfi.signalstats.YMAX:file=ymax.txt" -f null -   (max over frames)
+lavfi.signalstats.YMAX=1023          <- full-range codes labelled limited (AC-ENCODE-03-2 requires <= 940)
+exit 0
+$ the same with "scale=in_range=pc:out_range=tv," in front (the chain after the fix)
+lavfi.signalstats.YMAX=938
+exit 0
+
+## 2. HDR10 kept by av1_nvenc too (now a V-ENCODE-03-2 case)
+
+$ ffmpeg -f matroska -i file:hdr10.mkv -map 0:0 -c:v:0 av1_nvenc -preset:v:0 p7 -tune:v:0 uhq -rc:v:0 vbr -cq:v:0 34 -b:v:0 0 -rc-lookahead:v:0 32 -g:v:0 150 -pix_fmt:v:0 p010le -filter:v:0 "format=p010le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc:range=tv" -f mp4 av1nv.mp4
+exit 0
+$ ffprobe -v error -select_streams v:0 -read_intervals "%+#1" -show_entries frame_side_data:stream=color_primaries,color_transfer,color_space,pix_fmt -of json av1nv.mp4
+first frame: Mastering display metadata red 34000/50000,16000/50000 ... min 1/10000 max 10000000/10000; Content light level 1000/400
+stream: yuv420p10le bt2020nc / smpte2084 / bt2020
+exit 0
+
+## 3. Option values the planner writes, checked against the bundled ffmpeg
+
+$ ffmpeg -h encoder=libsvtav1   -> "-dolbyvision <boolean> Enable Dolby Vision RPU coding (default auto)"
+$ ffmpeg -h filter=scale       -> out_color_matrix takes bt709, smpte170m, bt470bg, bt2020, bt2020nc (an RGB source kept as HDR gets bt2020nc); in_range/out_range take pc and tv
+$ ffmpeg -h filter=sidedata    -> types MASTERING_DISPLAY_METADATA, CONTENT_LIGHT_LEVEL (also DOVI_RPU_BUFFER, DOVI_METADATA)
+$ ffmpeg -h filter=setparams   -> every value of video.ts TAG_VALUES is accepted:
+primaries missing []
+transfer missing []
+matrix missing []
+exit 0
+$ ffmpeg -f lavfi -i "testsrc2=s=320x180:r=30:d=0.2,format=yuv420p10le" -vf "zscale=t=linear:npl=100:tin=arib-std-b67:pin=bt2020:p=bt2020:min=bt2020nc:rin=tv,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,sidedata=mode=delete:type=MASTERING_DISPLAY_METADATA,sidedata=mode=delete:type=CONTENT_LIGHT_LEVEL,format=yuv420p,format=nv12,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv" -f null -
+(untagged HLG tone mapped to the MF pixel format, as the planner writes it)
+exit 0
+$ ffmpeg -f lavfi -i "testsrc2=s=321x181:r=30:d=0.2,format=yuv420p10le,setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc:range=tv" -vf "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,sidedata=mode=delete:type=MASTERING_DISPLAY_METADATA,sidedata=mode=delete:type=CONTENT_LIGHT_LEVEL,format=yuv420p,scale=w=320:h=180:flags=lanczos+accurate_rnd+full_chroma_int,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv" -f null -
+(odd-size HDR10 tone mapped, then the even-size scale)
+exit 0
+
+## 4. The fix undone in memory (REVIEW_MUTATION=R1: only a pc tag counts as full range), never on disk
+
+$ REVIEW_MUTATION=R1 npx vitest run --maxWorkers=4 --minWorkers=1 --config <scratchpad>/review03/vitest.mutate.config.mjs test/media-converter/plan/video-correctness.test.ts
+   × full range brought to limited range (AC-ENCODE-03-2) > a yuvj* source counts as full range whatever its range tag says
+   × the filter chain of design §4 > always ends with the encoder pixel format and setparams, keeps the order and converts any full range once
+      Tests  2 failed | 27 passed (29)
+exit 1
+$ REVIEW_MUTATION=R1 npx vitest run --maxWorkers=4 --minWorkers=1 --config <scratchpad>/review03/vitest.mutate.config.mjs test/media-converter/encode-real.test.ts -t "full range"
+   × correctness (V-ENCODE-03-2) ... > full range (AC-ENCODE-03-2): pc and yuvj* sources (also one tagged tv) measure YMAX <= 940 ...
+     -> ramp-jpeg-tv YMAX: expected 1023 to be less than or equal to 940
+      Tests  1 failed | 23 skipped (24)
+exit 1
+# Unmutated: 29 passed (unit) and 9 passed (real), see T-ENCODE-03-correctness-unit.txt / -correctness-real.txt.
+# test-results/media-converter held no run folder after each run.
+
+## 5. video.test.ts (T-ENCODE-02, outside the write set): setparams is the only cause of its 30 failures
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 --config <scratchpad>/review03/vitest.nosetparams.config.mjs test/media-converter/plan/video.test.ts
+      Tests  62 passed (62)
+exit 0

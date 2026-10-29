@@ -140,7 +140,7 @@ export const I18N_USAGE_MANIFEST = [
     ],
   },
   {
-    // The classic and experimental tool tiles of the tools catalog (src/pages/Tools/index.tsx).
+    // The classic, media and experimental tool tiles of the tools catalog (src/pages/Tools/index.tsx).
     selector: "src/pages/Tools/ToolTile.tsx#item.titleKey",
     keys: [
       "tools:fields.subtitle_translator",
@@ -149,6 +149,7 @@ export const I18N_USAGE_MANIFEST = [
       "tools:fields.local_subtitle_transcriber",
       "tools:fields.name_translator",
       "tools:fields.text_translator",
+      "tools:fields.media_converter",
     ],
   },
   {
@@ -160,6 +161,7 @@ export const I18N_USAGE_MANIFEST = [
       "tools:field_desc.local_subtitle_transcriber",
       "tools:field_desc.name_translator",
       "tools:field_desc.text_translator",
+      "tools:field_desc.media_converter",
     ],
   },
   {
@@ -172,6 +174,8 @@ export const I18N_USAGE_MANIFEST = [
       "tools:chips.name_translator_safe",
       "tools:chips.text_translator_txt",
       "tools:chips.text_translator_markdown",
+      "tools:chips.media_converter_tasks",
+      "tools:chips.media_converter_local",
     ],
   },
   {
@@ -187,6 +191,7 @@ export const I18N_USAGE_MANIFEST = [
       "common:menu.subtitle.extractor",
       "common:menu.rename.name_translator",
       "common:menu.text.translator",
+      "common:menu.media.converter",
     ],
   },
   {

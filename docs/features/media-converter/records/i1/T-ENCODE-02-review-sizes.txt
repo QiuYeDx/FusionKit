@@ -1,0 +1,63 @@
+# 评审实测（2026-10-26）：随附 ffmpeg n8.1.2（LGPL），RTX 4070 Ti SUPER。每条命令经 PowerShell Start-Process 启动后立即设为 Idle 优先级；
+# 输入都是 lavfi color/testsrc2 的 2–3 帧，输出写到 -f null 或 scratchpad，结束后删除。
+
+## 1. 参数表中的每个选项与命名常量都存在于随附 ffmpeg（含本机无设备的 QSV/AMF）
+$ ffmpeg -hide_banner -h encoder=<14 个视频编码器>   # 再用 scratchpad/check-opts.mjs 逐行核对 VIDEO_TABLE.parameters 的选项名、命名常量与数值范围
+libsvtav1/10bit: ok
+av1_nvenc/10bit_uhq: ok
+av1_nvenc/10bit: ok
+av1_qsv/10bit: ok
+av1_amf/10bit: ok
+hevc_nvenc/10bit_uhq: ok
+hevc_nvenc/10bit: ok
+hevc_nvenc/8bit_uhq: ok
+hevc_nvenc/8bit: ok
+hevc_qsv/10bit: ok
+hevc_qsv/8bit: ok
+hevc_amf/10bit: ok
+hevc_amf/8bit: ok
+hevc_mf/8bit: ok
+libkvazaar/8bit: ok
+h264_nvenc/8bit: ok
+h264_qsv/8bit: ok
+h264_amf/8bit: ok
+h264_mf/8bit: ok
+h264_mf/8bit_sw: ok
+libopenh264/8bit: ok
+# 各编码器支持的像素格式也都包含参数表中的 -pix_fmt（av1_qsv: nv12 p010le；h264_qsv: nv12；*_mf: nv12 yuv420p；libkvazaar: yuv420p；libsvtav1: yuv420p yuv420p10le）。
+exit 0
+
+## 2. NVENC 与 MF 硬件编码器的最小尺寸（design 写的是「宽 ≥ 144、高 ≥ 120」）
+$ ffmpeg -f lavfi -i color=black:s=<W>x<H>:r=30 -frames:v 2 -c:v <enc> [-hw_encoding 1] -pix_fmt <nv12|p010le> -f null -
+h264_nvenc nv12: min width 146 (at 256 high), min height 50 (at 256 wide)
+hevc_nvenc nv12: min width 130 (at 256 high), min height 34 (at 256 wide)
+hevc_nvenc p010le: min width 130 (at 256 high), min height 34 (at 256 wide)
+av1_nvenc p010le: min width 130 (at 256 high), min height 66 (at 256 wide)
+h264_mf nv12: min width 146 (at 256 high), min height 50 (at 256 wide)
+hevc_mf nv12: min width 130 (at 256 high), min height 34 (at 256 wide)
+h264_nvenc 144x120: exit -22   [h264_nvenc] InitializeEncoder failed: invalid param (8): Frame Dimension less than the minimum supported value.
+h264_nvenc 192x108: exit 0     （高 108 < 120 也能打开）
+h264_mf -hw_encoding 1 144x120: exit -542398533   [h264_mf] could not set output type (MF_E_UNSUPPORTED_D3D_TYPE)
+h264_mf -hw_encoding 1 108x192: exit -542398533   （V-ENCODE-02-1 的 108×192 夹具：原实现在 NVENC 之后选 MF 硬件，实际打不开）
+hevc_mf -hw_encoding 1 108x192: exit -542398533
+h264_mf（软件）108x192: exit 0
+
+## 3. 最大尺寸
+h264_nvenc 4096x2304: True    h264_nvenc 4112x2304: False   （stderr：「[warning] Width 4112 exceeds 4096」后接「[fatal] No capable devices found」）
+h264_nvenc 2304x4096: True    h264_nvenc 2304x4112: False
+hevc_nvenc 8192x4320: True    hevc_nvenc 8208x4320: False
+av1_nvenc 8192x4320: True     av1_nvenc 8208x4320: False
+hevc_mf 8192x4320: True       hevc_mf 8208x4320: False
+h264_mf（硬件）4096x4096: True  h264_mf（硬件）4112x2304: False
+h264_mf（软件）4112x2304: True  h264_mf（软件）5312x2988: True
+libopenh264 4112x2304: False  [OpenH264] Error:ParamValidationExt(), width > 0, height > 0, width * height <= 9437184, invalid 4112 x 2304
+libopenh264 5312x2988: False
+libsvtav1 6x6: True   libkvazaar 8x8: True   libopenh264 6x6: False
+
+## 4. 旋转标记（跨模块问题，不在本任务写集）
+$ ffmpeg -f lavfi -i testsrc2=s=64x32:r=10:d=0.3 -c:v ffv1 -metadata:s:v:0 rotate=90 -f matroska tag.mkv
+$ ffprobe -show_entries stream=width,height:stream_tags:stream_side_data tag.mkv
+  width 64, height 32, tags { "ROTATE": "90" }，没有 Display Matrix
+$ ffmpeg -i tag.mkv -c:v ffv1 -f matroska out.mkv && ffprobe out.mkv
+  width 64, height 32   （ffmpeg 8 的 autorotate 不理会 ROTATE 标签；engine/probe.ts 的 rotationOf 却会把它读成 90°）
+exit 0

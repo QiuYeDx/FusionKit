@@ -1,0 +1,38 @@
+# 2026-10-28 20:24, review of T-WORKBENCH-01: the 7 mutations re-run against the current tree (supersedes the 17:58 run). M3 (render order) has no unit test to run; the order is asserted in the quiet Electron test (V-WORKBENCH-01-3).
+# Supplementary: the same 7 source mutations as the implementation (scratchpad w01_mutations.py, run with python -I -X utf8), each applied alone
+# to the current tree and checked with the tests named in it; every file restored byte for byte afterwards (sha256sum -c below).
+$ python -I -X utf8 <scratchpad>/w01r/w01_mutations.py
+M1 catalog shows the media section whatever the platform [src/pages/Tools/index.tsx]: DETECTED (exit 1)
+       × tools catalog media section > leaves the section out, and out of the count, where the converter is not supported 28ms
+          Tests  1 failed | 11 passed (12)
+M2 header count leaves the media tools out [src/pages/Tools/index.tsx]: DETECTED (exit 1)
+       × tools catalog media section > shows the media tools between the classic and the experimental tools where the converter is supported 53ms
+          Tests  1 failed | 11 passed (12)
+M4 MEDIA_TOOLS declared inside the classic list cut [src/pages/Tools/index.tsx]: DETECTED (exit 1)
+       × tools catalog media section > declares the media tools outside the two lists the agent capability catalog reads 8ms
+       × official Agent capability catalog > matches the actual featured/classic product sections and excludes experimental tools 15ms
+          Tests  2 failed | 12 passed (14)
+M5 the supported check accepts any truthy value [src/pages/Tools/_shared/toolMeta.ts]: DETECTED (exit 1)
+       × media converter registration > reads the platform from the preload and nothing else 5ms
+       × tools catalog media section > leaves the section out, and out of the count, where the converter is not supported 25ms
+       × media converter page > shows the header and only the platform notice where the converter is not supported 24ms
+          Tests  3 failed | 9 passed (12)
+M6 no dark media tone [src/index.css]: DETECTED (exit 1)
+       × media converter registration > defines the media tone for the light and the dark theme 13ms
+          Tests  1 failed | 11 passed (12)
+M7 bottom navigation key missing from the usage manifest [scripts/i18n-usage-manifest.mjs]: DETECTED (exit 1)
+       × media converter wording > lists the tile and bottom navigation keys in the usage manifest, the only check of those calls 18ms
+          Tests  1 failed | 11 passed (12)
+M8 ToolNameMap names the route with the tools menu [src/constants/router.ts]: DETECTED (exit 1)
+       × media converter registration > registers the tool, its route, tone and bottom navigation name 7ms
+       × media converter wording > names the tile, the section and the bottom navigation entry in every language 1ms
+          Tests  2 failed | 10 passed (12)
+all mutated files restored byte for byte (sha256 checked)
+exit 0
+$ sha256sum -c <scratchpad>/w01r/pre-mutation.sha
+src/pages/Tools/index.tsx: OK
+src/pages/Tools/_shared/toolMeta.ts: OK
+src/index.css: OK
+scripts/i18n-usage-manifest.mjs: OK
+src/constants/router.ts: OK
+exit 0

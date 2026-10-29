@@ -1,0 +1,31 @@
+# 批次 C 修正（2026-10-28）：更新 T-ENGINE-05/06/07、T-ENCODE-01 记录与两份设计文档之后运行（最后一次记录修改之后）
+$ python C:/Users/Administrator/.claude/skills/spec-driven-ai-coding/scripts/check_spec.py C:/Users/Administrator/Documents/GitHub/FusionKit/docs/features/media-converter --stage draft
+阶段 draft：0 error，0 warning
+范围指纹：11c160606ea8e29623dfbfc23621250b0454cdba5ea333c5b0e2791ceef31a04
+批次指纹：8a08468ebd13f20ba6f2c71faa311536ac1e80cc1acd454d906f620fe4fc89d5
+仅检查结构与声明完整性，不证明实际批准、实际执行或业务正确性。
+exit 0
+
+$ python C:/Users/Administrator/.claude/skills/spec-driven-ai-coding/scripts/check_spec.py C:/Users/Administrator/Documents/GitHub/FusionKit/docs/features/media-converter --stage draft --json   # errors, warnings and the digests of the affected tasks
+errors: [] warnings: []
+T-ENGINE-05 6fcbcc00973d69e9f1914a81c20a1f1ebef88826950ae33315b567fa18ac6e64
+T-ENGINE-06 9df8531adf9071d1b062c918d259cc0827e0d93e7bc42b41a9f98930ea4e5130
+T-ENGINE-07 18b1f31300fe8337b9a3b0b36cb70ec006b0171158e2999ce79f190888fed626
+T-ENCODE-01 ba7fb764aa5aaaf6f82aa2d5b4c9ee3519d339b31be7cf059c1777fdd160d016
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）：更新 T-ENGINE-05/06/07、T-ENCODE-01 记录与 engine design §11 之后运行（最后一次记录修改之后）
+$ python C:/Users/Administrator/.claude/skills/spec-driven-ai-coding/scripts/check_spec.py C:/Users/Administrator/Documents/GitHub/FusionKit/docs/features/media-converter --stage draft
+阶段 draft：0 error，0 warning
+范围指纹：11c160606ea8e29623dfbfc23621250b0454cdba5ea333c5b0e2791ceef31a04
+批次指纹：8a08468ebd13f20ba6f2c71faa311536ac1e80cc1acd454d906f620fe4fc89d5
+仅检查结构与声明完整性，不证明实际批准、实际执行或业务正确性。
+exit 0
+
+$ python C:/Users/Administrator/.claude/skills/spec-driven-ai-coding/scripts/check_spec.py C:/Users/Administrator/Documents/GitHub/FusionKit/docs/features/media-converter --stage draft --json   # errors, warnings and the digests of the affected tasks
+errors: [] warnings: []
+T-ENGINE-05 6fcbcc00973d69e9f1914a81c20a1f1ebef88826950ae33315b567fa18ac6e64
+T-ENGINE-06 9df8531adf9071d1b062c918d259cc0827e0d93e7bc42b41a9f98930ea4e5130
+T-ENGINE-07 18b1f31300fe8337b9a3b0b36cb70ec006b0171158e2999ce79f190888fed626
+T-ENCODE-01 ba7fb764aa5aaaf6f82aa2d5b4c9ee3519d339b31be7cf059c1777fdd160d016
+exit 0

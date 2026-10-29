@@ -343,6 +343,116 @@ tune 保持默认（1 = PSNR）。本机实验中 `tune=0` 没有提高 VMAF，�
 
 时长未知时，用源体积 × 4 作为宽松上限，并附 `duration_unverified`。
 
+### 7a. 实施中确认的调整（I1 批次 A，2026-10-26）
+
+本节记录 T-ENCODE-01 实现时对设计的调整，依据见 `records/i1/T-ENCODE-01.md`。
+
+**流映射与标记**
+
+- 流按绝对序号映射（`-map 0:<index>`），主视频取 `MediaInfo.primaryVideoIndex`，不用 `0:V:0`。这样可以避开排在主视频前面、帧率为 0/0 的静态图片流。
+- 处置标记写成相对源的增减，例如 `+default-forced`，避免抹掉 commentary、visual_impaired、original 等探测没有报告的标记。
+
+**新增原因码**
+
+- `mp4_default_audio_forced`：源没有默认音轨时，MP4 会自动启用第一条音轨，与字幕的处理方式相同。
+- `chapters_dropped`：用于 AC-ENCODE-04-3 的开始前提示。
+
+**视频输出的封面与附带流**
+
+- 视频输出一律丢弃封面，并附 `cover_dropped`。matroska 会把 `attached_pic` 写成一帧的视频轨，所以不保留。
+- 数据流和非主视频流直接丢弃，不加警告。MP4 的章节轨、iPhone 的 mebx 轨很常见，如果加警告，几乎每个文件都会触发开始前确认。
+
+**输出上限**
+
+- 所有 `output_cap_exceeded` 公式都附加 16 MiB 余量，用于容纳封面、字体和标签。
+- 复制的纯音频输出，按 32 位 PCM 估算上限，且不超过源体积 × 1.05。
+- 封面按 宽 × 高 × 8 字节估算。
+
+**命名与跳过判定**
+
+- 提取音频的输出名如果与源文件同名，追加 `-converted`。
+- `already_target` 额外要求源文件与目标的扩展名相同，因此 .m4v、.m4b 不会被跳过。只要有任何一条流需要编码（包括字幕格式转换），就不跳过。
+- `isRemuxOnly` 表示没有音频、视频或封面需要编码；文本字幕的格式转换仍算作重封装。
+
+**由 T-ENCODE-02 及之后的任务处理**
+
+- 字幕编码器 id 由 `srt` 改为 `subrip`（`srt` 是已弃用的别名）。
+- 在 `PlannedOutput` 上记录 `expectedFrom`（取值为 stream 或 container），供 executor 判定时长。
+- 视频与音频的编码参数目前是占位，由 T-ENCODE-02 到 T-ENCODE-04 补全。
+- 判断 VFR 时，若场序为隔行，且 r_frame_rate 约等于 avg_frame_rate 的 2 倍，视为恒定帧率，不加 passthrough，也不在摘要中写 VFR（由 T-ENCODE-03 在规划端判定）。
+
+### 7b. 批次 B 的实测纠正（2026-10-26）
+
+详见 [changes/2026-10-26-batch-b-spec-corrections.md](../../changes/2026-10-26-batch-b-spec-corrections.md)。
+
+**尺寸范围**
+
+表中的 NVENC 尺寸范围替代 §3 中「宽 ≥ 144、高 ≥ 120」的写法：
+
+| 编码器 | 宽 | 高 | 每边上限 |
+| --- | --- | --- | --- |
+| H.264 | 145–4096 | ≥ 49 | 4096 |
+| HEVC | ≥ 129 | ≥ 33 | 8192 |
+| AV1 | ≥ 129 | ≥ 65 | 8192 |
+
+MF 硬件编码器沿用 NVENC 的范围；libopenh264 的画面面积不超过 4096×2304。上述范围以 `VIDEO_TABLE.hardwareFrame` 为准，由能力探测提供 `nvencMin`。
+
+NVENC 因尺寸超限拒绝编码时，stderr 同样输出「No capable devices found」。T-ENGINE-03 与 T-ENGINE-07 应先检查尺寸相关的原因（`exceeds`、`less than the minimum`），再将其归类为 `no_device`。
+
+**色彩推定**
+
+源未标记色彩时：宽 ≥ 1280 或高 > 576 推定为 BT.709，否则推定为 BT.601。
+
+**输出上限**
+
+重新编码视频时，上限为 max(源体积 × 4, 1.0 bpp × 像素速率 × 时长) × 1.05 + 16 MiB。
+
+**同编码转换**
+
+只有目标码率不低于源码率时才直接复制；低于源码率时重新编码。
+
+**声道布局**
+
+- ALAC 不支持的布局，重混到最接近的 ALAC 布局。
+- Opus 的 7.1(wide) 用 channelmap 改标签。
+- AAC 遇到 5.0(side)、5.1(side)、7.1(wide) 时改标签为标准布局，样本本身不重混。
+
+**MKV**
+
+matroska 封装器拒收的音频编码：转换时转为 Opus，提取时解码为 WAV。
+
+**位深**
+
+FLAC 和 ALAC 不使用实验性选项时，位深最高 24 bit。32 位整数源与浮点源因此会输出为 24 bit。
+
+**修正中确认的解释（2026-10-28）**
+
+- **同编码转换的码率比较。** 源码率依次取流码率、`tags.BPS`；只有当文件里只有这一条音轨、且没有封面时，才取容器总码率。比较时乘以 1.05 的测量余量（`AUDIO_TABLE.sameCodecMargin`），因为实测码率通常比标称值高 0.03%–2%。MP3 的标称码率取 LAME 的平均值 245 / 190 / 130 kbit/s。源码率完全未知时直接复制。内容相关的 VBR 漂移不在覆盖范围内：例如平均 200–220 kbit/s 的 V2 文件转「标准」档，仍会重新编码，体积相近。
+- **ALAC 最近布局。** 取能容纳所有源声道的最小 ALAC 布局，因此声道数可能增加：quad→5.0、2.1→5.1、4.1→6.1(back)。没有合适布局时（7.1、7.0、含高度声道、超过 8 声道），用声道数相同的 ALAC 布局，由 swresample 混音。
+- **高度声道。** swresample 没有顶部后置声道（TBL/TBR）的混音规则，所以 5.1.4、7.1.4 下混或重混时这两个声道会丢失；顶部前置声道以 0.707 并入 FL/FR。I1 接受这个限制；以后如需保留，再生成 pan 矩阵。
+- **输出上限的视频项。** 在像素项上再加音频码率，只会放宽上限。MF 编码器在「画质优先」档实测约 1.6 bpp，超过 1.0 bpp 的像素项；高压缩源由「源体积 × 4」兜底，T-ENCODE-05 再校准。
+- **`PlannerCapabilities.nvencMin`。** 规划器已不再读取，尺寸范围以 `VIDEO_TABLE.hardwareFrame` 为准。
+- **BT.601 推定。** 一律写 smpte170m。mpv 对 576/288 行的画面推定为 bt470bg 原色，两者矩阵相同。I1 不区分，留给 T-ENCODE-05 用真实样片评估。
+
+**执行器容忍的警告**
+
+以下警告不视为失败，T-ENGINE-07 应予容忍：
+
+- yuvj 的 `deprecated pixel format`；
+- ipod 封装器对 .partial 扩展名的提示；
+- aac 的 `Too many bits … clamping`；
+- `Guessed Channel Layout`。
+
+**批次 C 修正（2026-10-28）**
+
+- **裸 H.264/HEVC 不再只换封装，改为重新编码。** 这条修正替代 §2「只换封装」中「源为裸流时加 `-fflags +genpts`」的写法。
+  - 现象：随附 ffmpeg 8.1.2 读取裸 H.264/HEVC（解复用器 `h264`、`hevc`）时，数据包没有任何时间戳，复制后无法补齐。MP4 会写入猜测的时间戳并发出警告，有 B 帧时没有显示时间；Matroska 直接拒收（`Can't write packet with unknown timestamp`）。进度中的 `out_time` 一直是 `N/A`，执行器因此判为 `encode_failed`。
+  - 已实测无效的做法：`-fflags +genpts`；在输入前加 `-r` 或 `-framerate`；`setts` 码流过滤器（只会产生不单调的时间戳）。
+  - 现在的规划：源的解复用器为 `h264` 或 `hevc` 时，视频一律重新编码。即使开启「优先只换封装」也是如此，编码选择按 §2 的转换表（MP4/MOV 用 H.264 降级链，MKV/WebM 用 AV1）。解码会给每帧时间：H.264 没有 VUI 计时信息时按 25 fps，有时按 VUI 的帧率。实测转为 MP4、MKV 以及压缩时，帧数与时长都与源一致，含 B 帧重排的 kvazaar HEVC。
+  - `-fflags +genpts` 只保留给 AVI 与裸 MPEG-1/2（`mpegvideo`）。后者的解析器会给出 dts，+genpts 再补齐 B 帧的 pts；实测复制到 MKV 后逐帧一致。MPEG-2 不能复制进 MP4，本来就会重新编码。
+  - 其他裸视频流的解复用器（`m4v`、`obu`、`vvc`）不在探测白名单中，这类文件在探测阶段就被拒绝，代码为 `container_not_allowed`。
+  - 依据见 `records/i1/T-ENCODE-01.md` 的「批次 C 修正」。
+
 ### 8. I2 设计草案：画质目标搜索（R-ENCODE-08/09）
 
 本方案参照 ab-av1 的 `crf-search` 与 Av1an 的 target quality，并结合本机实测的开销做了调整。

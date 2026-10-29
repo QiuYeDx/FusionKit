@@ -1,0 +1,9 @@
+[hevc_nvenc @ 00000269f8114100] [error] InitializeEncoder failed: invalid param (8): 
+[vost#0:0/hevc_nvenc @ 00000269f8113ec0] [enc:hevc_nvenc @ 00000269f60defc0] [error] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+[vf#0:0 @ 00000269f81147c0] [error] Error sending frames to consumers: Invalid argument
+[vf#0:0 @ 00000269f81147c0] [error] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 00000269f81147c0] [error] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/hevc_nvenc @ 00000269f8113ec0] [enc:hevc_nvenc @ 00000269f60defc0] [error] Could not open encoder before EOF
+[vost#0:0/hevc_nvenc @ 00000269f8113ec0] [error] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/hevc_nvenc @ 00000269f8113ec0] [error] Terminating thread with return code -22 (Invalid argument)
+[out#0/matroska @ 00000269f606de80] [error] Nothing was written into output file, because at least one of its streams received no packets.

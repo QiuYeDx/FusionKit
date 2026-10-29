@@ -1,0 +1,31 @@
+$ python <scratchpad>/review2/mutate.py
+# 评审的变异检查：逐项改写 video.ts / audio.ts，运行相关测试，写回后核对 sha256
+R1 NVENC floored by caps.nvencMin again (pre-review behaviour)
+  exit 1; Test Files  1 failed (1) | Tests  2 failed | 61 passed (63)
+    × the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > keeps NVENC and the MF hardware encoders within the range each codec opens, which the old 144×120 of caps.nvencMin no longer narrows 2ms
+    × the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > holds exactly the measured size ranges of AC-ENCODE-02-2, each boundary inside and one step outside 2ms
+    FAIL  test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > keeps NVENC and the MF hardware encoders within the range each codec opens, which the old 144×120 of caps.nvencMin no longer narrows
+    FAIL  test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > holds exactly the measured size ranges of AC-ENCODE-02-2, each boundary inside and one step outside
+  restored sha256 407e2f9f67e0f6b91ca16773e62d58ed422563de16a570c4037d9536a3852701 == before
+R2 strict same-codec comparison (no measuring margin)
+  exit 1; Test Files  2 failed (2) | Tests  3 failed | 118 passed (121)
+    × lossy to lossless and the same codec (AC-ENCODE-04-5) > copies the same codec when the target rate is not lower, and skips it when the container is the same too 4ms
+    × lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only 1ms
+    × audio with the planner arguments and the real ffmpeg > takes a file made at a tier's own rate as already the target when converted at that tier again, though its measured rate reads higher 93ms
+    FAIL  test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > takes a file made at a tier's own rate as already the target when converted at that tier again, though its measured rate reads higher
+    FAIL  test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > copies the same codec when the target rate is not lower, and skips it when the container is the same too
+    FAIL  test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only
+  restored sha256 5bf83b6bf1735504856745d6c061f8cfe8e01dbe7acb1c48a9aa07974e0bb46a == before
+R3 margin widened to the compress ratio 1.25
+  exit 1; Test Files  1 failed (1) | Tests  3 failed | 94 passed (97)
+    × lossy to lossless and the same codec (AC-ENCODE-04-5) > re-encodes the same codec to shrink it when the target rate is lower than the source's (a 320k MP3 to standard MP3) 3ms
+    × lossy to lossless and the same codec (AC-ENCODE-04-5) > copies the same codec when the target rate is not lower, and skips it when the container is the same too 2ms
+    × lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only 1ms
+    FAIL  test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > re-encodes the same codec to shrink it when the target rate is lower than the source's (a 320k MP3 to standard MP3)
+    FAIL  test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > copies the same codec when the target rate is not lower, and skips it when the container is the same too
+    FAIL  test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only
+  restored sha256 5bf83b6bf1735504856745d6c061f8cfe8e01dbe7acb1c48a9aa07974e0bb46a == before
+R4 5.1.4 back to a back layout in LAYOUT_POSITIONS (no behaviour change expected)
+  exit 0; Test Files  1 passed (1) | Tests  97 passed (97)
+  restored sha256 5bf83b6bf1735504856745d6c061f8cfe8e01dbe7acb1c48a9aa07974e0bb46a == before
+exit 0

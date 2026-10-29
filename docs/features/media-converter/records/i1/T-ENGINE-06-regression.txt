@@ -1,0 +1,13 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/long-text/composition.test.ts test/long-text/ipc.test.ts test/local-subtitle/overwriteProductionRuntime.test.ts test/windowChrome.test.ts test/projectMetadata.test.ts test/media-converter/queue.test.ts test/media-converter/test-hooks.test.ts test/media-converter/capabilities.test.ts test/media-converter/progress.test.ts
+ ✓ test/media-converter/progress.test.ts (20 tests) 15ms
+ ✓ test/local-subtitle/overwriteProductionRuntime.test.ts (9 tests) 23ms
+ ✓ test/media-converter/test-hooks.test.ts (7 tests) 10ms
+ ✓ test/long-text/ipc.test.ts (9 tests) 69ms
+ ✓ test/projectMetadata.test.ts (3 tests) 4ms
+ ✓ test/media-converter/capabilities.test.ts (41 tests) 5377ms
+ ✓ test/long-text/composition.test.ts (3 tests) 3ms
+ ✓ test/media-converter/queue.test.ts (28 tests) 5822ms
+ ✓ test/windowChrome.test.ts (1 test) 2ms
+ Test Files  9 passed (9)
+      Tests  121 passed (121)
+exit 0

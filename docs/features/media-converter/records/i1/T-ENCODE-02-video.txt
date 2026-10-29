@@ -1,0 +1,74 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/video.test.ts
+# 批次 B 修正评审（2026-10-28）后重跑；--reporter=verbose 只为列出每个用例
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > libsvtav1 10bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > av1_nvenc 10bit_uhq matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > av1_nvenc 10bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > av1_qsv 10bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > av1_amf 10bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_nvenc 10bit_uhq matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_nvenc 10bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_nvenc 8bit_uhq matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_nvenc 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_qsv 10bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_qsv 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_amf 10bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_amf 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > hevc_mf 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > libkvazaar 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_nvenc 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_qsv 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_amf 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_mf 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > h264_mf 8bit_sw matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > libopenh264 8bit matches the design row at every tier
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > holds exactly the rows of the design, each with a pixel format and only the known placeholders
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > never sets -bf on hevc_nvenc uhq, and sets -bf 3 on hq (the driver refuses uhq with -bf 3)
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > feeds the Media Foundation encoders nv12, and asks h264_mf for High by number
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > gives kvazaar its options as one comma-separated value
+ ✓ test/media-converter/plan/video.test.ts > the parameter tables (AC-ENCODE-02-5, design §3) > parses only well-formed option text
+ ✓ test/media-converter/plan/video.test.ts > the parameter snapshot of every codec × tier × capability combination (AC-ENCODE-02-5) > matches the snapshot
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > HEVC: nvenc → qsv → amf → mf (hardware) → libkvazaar, 10-bit before 8-bit, uhq before hq
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > H.264: nvenc → qsv → amf → mf (hardware) → mf (software) → libopenh264
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > AV1: libsvtav1 unless the graphics card is asked for; then av1_nvenc → av1_qsv → av1_amf → libsvtav1
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > passes over the encoders degraded in this session
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > falls back to 8-bit HEVC (Main, yuv420p) when 10-bit did not pass
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > keeps an HDR source on a 10-bit configuration further down the chain before an 8-bit one
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > skips NVENC for a picture under its minimum (108×192), taking the next encoder of the chain
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > keeps NVENC and the MF hardware encoders within the range each codec opens, which the old 144×120 of caps.nvencMin no longer narrows
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > keeps a large picture off the encoders that refuse it: H.264 hardware over 4096 a side, HEVC and AV1 over 8192, openh264 over 4096 × 2304
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > holds exactly the measured size ranges of AC-ENCODE-02-2, each boundary inside and one step outside
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > says cpu_weak_encoder for libkvazaar, h264_mf in software and libopenh264 only
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > says encoder_fallback to libsvtav1 when the graphics card is asked for but no hardware AV1 encoder works
+ ✓ test/media-converter/plan/video.test.ts > the encoder chains (AC-ENCODE-02-1, AC-ENCODE-02-2) > answers no_encoder_available with the codecs that would work, and no arguments
+ ✓ test/media-converter/plan/video.test.ts > the output size (AC-ENCODE-02-3, design §4) > limits the short side of the shown picture, keeps the aspect ratio and even sides
+ ✓ test/media-converter/plan/video.test.ts > the output size (AC-ENCODE-02-3, design §4) > never enlarges, and does not scale a picture already within the limit
+ ✓ test/media-converter/plan/video.test.ts > the output size (AC-ENCODE-02-3, design §4) > rounds an odd side down to even
+ ✓ test/media-converter/plan/video.test.ts > the output size (AC-ENCODE-02-3, design §4) > gives kvazaar multiples of 8, rounding down (854×480 → 848×480, 1920×804 → 1920×800)
+ ✓ test/media-converter/plan/video.test.ts > the output size (AC-ENCODE-02-3, design §4) > leaves a picture of unknown size alone and keeps it off the encoders that need the size
+ ✓ test/media-converter/plan/video.test.ts > the output size (AC-ENCODE-02-3, design §4) > feeds the output size and frame rate to the output cap
+ ✓ test/media-converter/plan/video.test.ts > the values filled into the tables > takes the SVT-AV1 CRF by tier and output short side, and sets no GOP for it
+ ✓ test/media-converter/plan/video.test.ts > the values filled into the tables > moves hardware values two steps from 1080p by output short side, the better way for each row
+ ✓ test/media-converter/plan/video.test.ts > the values filled into the tables > sets the GOP to round(5 × fps), and kvazaar's period to the nearest multiple of 16
+ ✓ test/media-converter/plan/video.test.ts > the values filled into the tables > gives openh264 min(bpp × w × h × fps, 0.7 × the source video rate)
+ ✓ test/media-converter/plan/video.test.ts > the convert codec per target container (AC-ENCODE-01-7) > MP4 and MOV: the H.264 chain; WebM: libsvtav1 10-bit; MKV: copy, or the AV1 chain when re-encoding
+ ✓ test/media-converter/plan/video.test.ts > the convert codec per target container (AC-ENCODE-01-7) > uses the compress tiers with the same values, and never scales
+ ✓ test/media-converter/plan/video.test.ts > the convert codec per target container (AC-ENCODE-01-7) > says cpu_weak_encoder for a weak CPU encoder here too
+ ✓ test/media-converter/plan/video.test.ts > the convert codec per target container (AC-ENCODE-01-7) > matches the snapshot of every container
+ ✓ test/media-converter/plan/video.test.ts > defaultCompressCodec (AC-ENCODE-02-7) > is HEVC when any HEVC hardware encoder works, 8- or 10-bit
+ ✓ test/media-converter/plan/video.test.ts > defaultCompressCodec (AC-ENCODE-02-7) > is H.264 with only CPU encoders, or no HEVC hardware encoder that works
+ ✓ test/media-converter/plan/video.test.ts > defaultCompressCodec (AC-ENCODE-02-7) > is pure: the same table gives the same answer and stays untouched
+ ✓ test/media-converter/plan/video.test.ts > probeArgs (engine design §3) > is exactly what toFfmpegArgs writes for that configuration on the probe picture, at the balanced tier
+ ✓ test/media-converter/plan/video.test.ts > probeArgs (engine design §3) > refuses a configuration the tables do not have
+ ✓ test/media-converter/plan/video.test.ts > probeArgs (engine design §3) > matches the snapshot
+ ✓ test/media-converter/plan/video.test.ts > run-time options > adds lp=1 to SVT-AV1 in low-usage mode only, before the filters
+ ✓ test/media-converter/plan/video.test.ts > run-time options > writes hvc1 and faststart for HEVC in MP4
+ ✓ test/media-converter/plan/video.test.ts > run-time options > names the plan encoder and its configuration in the summary
+
+ Test Files  1 passed (1)
+      Tests  63 passed (63)
+   Start at  12:30:57
+   Duration  589ms (transform 133ms, setup 0ms, collect 334ms, tests 57ms, environment 0ms, prepare 59ms)
+exit 0

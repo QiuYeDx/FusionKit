@@ -1,0 +1,17 @@
+{
+  "file": { "name": "family-hlg.mov", "sizeBytes": 30000000, "matroskaDocType": null },
+  "ffprobe": {
+    "streams": [
+      {
+        "index": 0, "codec_name": "hevc", "profile": "Main 10", "codec_type": "video", "width": 3840, "height": 2160, "sample_aspect_ratio": "1:1",
+        "pix_fmt": "yuv420p10le", "color_range": "tv", "color_space": "bt2020nc", "color_transfer": "arib-std-b67", "color_primaries": "bt2020",
+        "r_frame_rate": "60/1", "avg_frame_rate": "60/1", "duration": "4.000000", "bit_rate": "58000000",
+        "disposition": { "default": 1 }, "tags": { "language": "und" }
+      },
+      { "index": 1, "codec_name": "aac", "codec_type": "audio", "sample_rate": "48000", "channels": 2, "channel_layout": "stereo", "duration": "4.000000",
+        "bit_rate": "192000", "disposition": { "default": 1 } }
+    ],
+    "format": { "format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "4.000000", "bit_rate": "60000000", "tags": { "major_brand": "qt  " } }
+  },
+  "firstFrame": { "frames": [ { "side_data_list": [ { "side_data_type": "Ambient viewing environment", "ambient_illuminance": "314/10000" } ] } ] }
+}

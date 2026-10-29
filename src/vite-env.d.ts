@@ -15,6 +15,8 @@ interface Window {
   speechResources: import('./speech-resources/events').SpeechResourcesNotifications;
   nameTranslation: import('./name-translation/contract').NameTranslationRendererApi;
   longText: import('./long-text/contract').LongTextApi;
+  /** Exposed on every platform; `supported` is false outside Windows. */
+  mediaConverter?: import('./media-converter/contract').MediaConverterApi;
   webLookup: import('./web-lookup/contract').WebLookupApi;
   agentSessions?: import('./agent/session-store-contract').AgentSessionsApi;
   externalAgent?: import('./agent/external/contract').ExternalAgentApi;

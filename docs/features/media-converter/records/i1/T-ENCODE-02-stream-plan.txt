@@ -1,0 +1,10 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/stream-plan.test.ts test/media-converter/plan/naming.test.ts test/media-converter/remux-real.test.ts
+# 评审复跑（2026-10-26，修复之后）：补充回归
+ ✓ test/media-converter/plan/naming.test.ts (15 tests) 10ms
+ ✓ test/media-converter/plan/stream-plan.test.ts (68 tests) 167ms
+ ✓ test/media-converter/remux-real.test.ts (5 tests) 942ms
+ Test Files  3 passed (3)
+      Tests  88 passed (88)
+   Start at  14:30:20
+   Duration  1.81s (transform 374ms, setup 0ms, collect 1.07s, tests 1.12s, environment 0ms, prepare 187ms)
+exit 0

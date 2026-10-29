@@ -1,0 +1,63 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/encode-audio-real.test.ts
+# 批次 B 修正评审（2026-10-28）后重跑；--reporter=verbose 只为列出每个用例
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > starts from a tagged FLAC with a PNG cover and two chapters
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > FLAC to MP3: ID3v2.3 with the tags, the cover as APIC and the chapters
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > FLAC to M4A: the tags and the cover
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > FLAC to Opus: the tags and the chapters, with the cover dropped as the plan says
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > M4A to MP3, FLAC and Opus: no brand tags of the source container, the user tags kept
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > extracts AAC out of an MKV as it is, into .m4a
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > extracts 24-bit big-endian PCM out of a MOV as it is, into .aiff
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > converts 5.1(side) audio to Opus
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > converts 2.1 audio to Opus
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > converts 5.0(side) audio to Opus
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > converts 7.1(wide) audio to Opus 322ms
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > converts 5.1.4 audio to Opus 371ms
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > converts 4.0 audio to Opus
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > converts audio of an unspecified layout to Opus
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > writes 5.1(side) into AAC with the standard channel configuration, 7.1 into ALAC with 8 channels, 5.1(side) into stereo MP3 881ms
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > remixes quad into ALAC by position: each channel lands in its place, never on the centre (design §7b)
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > remixes 2_1 into ALAC by position: each channel lands in its place, never on the centre (design §7b)
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > remixes 7_1 into ALAC by position: each channel lands in its place, never on the centre (design §7b) 433ms
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > re-encodes a 320 kbit/s MP3 to standard MP3, smaller, and takes a 96 kbit/s one as already the target (AC-ENCODE-04-5) 402ms
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > takes a file made at a tier's own rate as already the target when converted at that tier again, though its measured rate reads higher
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > brings 96 kHz down to 48 kHz for AAC, and keeps 96 kHz and 24 bits in ALAC, WAV and FLAC (from floating point too) 495ms
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > converts a MOV with big-endian float PCM to MKV and extracts SMPTE 302M PCM, both of which Matroska refuses as they are 371ms
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > a video with a 5.1(side) AC-3 track and a stereo FLAC track > compresses to MKV, re-encoding each track with its own filter chain
+stdout | test/media-converter/encode-audio-real.test.ts
+V-ENCODE-04-2 results
+FLAC → MP3: ID3v2.3, APIC, 2 chapters
+  brand-mp3 log: [in#0 @ 00000207ccb3c040] [warning] stream 0, timescale not set
+M4A → mp3: tags album,artist,comment,encoder,title
+  brand-flac log: [in#0 @ 0000025e355bebc0] [warning] stream 0, timescale not set
+M4A → flac: tags album,artist,comment,encoder,title
+  brand-opus log: [in#0 @ 000001e32c27f840] [warning] stream 0, timescale not set
+M4A → opus: tags album,artist,encoder,language,title
+5.1(side) → Opus 5.1 with channelmap=map=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:channel_layout=5.1
+2.1 → Opus 3.0 with aformat=channel_layouts=3.0
+5.0(side) → Opus 5.0 with channelmap=map=FL-FL|FR-FR|FC-FC|SL-BL|SR-BR:channel_layout=5.0
+7.1(wide) → Opus 7.1 with channelmap=map=FL-FL|FR-FR|FC-FC|LFE-LFE|BL-BL|BR-BR|FLC-SL|FRC-SR:channel_layout=7.1
+5.1.4 → Opus 7.1 with aformat=channel_layouts=7.1
+4.0 → Opus quad with aformat=channel_layouts=quad
+  opus-unspecified log: [aist#0:0/pcm_s16le @ 000002ac44a07c40] [warning] Guessed Channel Layout: 5.1
+quad → ALAC 5.0: 220 Hz → FL 0.200, 330 Hz → FR 0.200, 440 Hz → BL 0.200, 550 Hz → BR 0.200; silent FC
+2.1 → ALAC 5.1: 220 Hz → FL 0.200, 330 Hz → FR 0.200, 440 Hz → LFE 0.200; silent FC,BL,BR
+7.1 → ALAC 7.1(wide): 220 Hz → FL 0.117, 330 Hz → FR 0.117, 440 Hz → FC 0.117, 550 Hz → LFE 0.117, 660 Hz → BL 0.117, 770 Hz → BR 0.117, 880 Hz → BL 0.083, 990 Hz → BR 0.083; silent FLC,FRC
+same codec: MP3 320k 82605 B → standard 14037 B; MP3 96k already the target; Opus total 194966 → re-encoded, 97917 → already the target
+same codec at its own tier: CBR Opus 128k total 130535 bit/s and AAC 256k 260046 bit/s → already the target
+  float-flac log: [aist#0:0/pcm_f32le @ 0000023b0e668140] [warning] Guessed Channel Layout: stereo
+pcm_f32be MOV → MKV: mjpeg copy + opus; s302m TS → extract: pcm_s24le .wav
+  two-tracks-mkv log: [libopenh264 @ 000002749893ab00] [warning] [OpenH264] this = 0x00000274993e7e40, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+two tracks → mkv: opus 5.1 48000 + opus stereo 48000
+  two-tracks-mp4 log: [libopenh264 @ 000001b29b21e200] [warning] [OpenH264] this = 0x000001b29db40670, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+two tracks → mp4: aac 5.1 44100 + aac stereo 48000
+
+ ✓ test/media-converter/encode-audio-real.test.ts > audio with the planner arguments and the real ffmpeg > a video with a 5.1(side) AC-3 track and a stereo FLAC track > compresses to MP4, re-encoding each track with its own filter chain
+
+ Test Files  1 passed (1)
+      Tests  24 passed (24)
+   Start at  12:31:51
+   Duration  8.16s (transform 201ms, setup 0ms, collect 749ms, tests 7.20s, environment 0ms, prepare 59ms)
+exit 0

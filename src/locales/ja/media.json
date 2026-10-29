@@ -1,0 +1,476 @@
+{
+  "title": "音声・動画変換",
+  "description": "動画の圧縮、形式の変換、音声の抽出をすべてこのパソコン上で行います。ファイルはアップロードされません。",
+  "unsupported": {
+    "title": "このプラットフォームには未対応です",
+    "body": "音声・動画変換は現在 Windows でのみ利用できます。"
+  },
+  "upload": {
+    "title": "音声・動画ファイルを追加",
+    "hint": "動画や音声ファイルをドラッグするか、「ファイルを選択」で追加します。複数まとめて追加できます",
+    "choose": "ファイルを選択",
+    "unavailable": "現在ファイルを追加できません：{{reason}}。{{advice}}",
+    "added": "{{count}} 件のファイルを追加しました",
+    "added_one": "{{count}} 件のファイルを追加しました",
+    "hint_more": "さらにドラッグするか選択して追加できます（一度に 100 件まで）",
+    "drop_label": "離すと音声・動画変換に追加します",
+    "drop_hint": "離すとリストに追加します",
+    "filter_menu": "種類を指定して選択",
+    "filter": {
+      "video": "動画ファイルのみ",
+      "audio": "音声ファイルのみ",
+      "all": "すべての音声・動画ファイル"
+    }
+  },
+  "settings": {
+    "title": "変換設定",
+    "task_label": "タスク",
+    "task": {
+      "compress": "動画を圧縮",
+      "convert": "形式を変換",
+      "extract": "音声を抽出"
+    },
+    "tier_label": "圧縮レベル",
+    "tier": {
+      "quality": "画質優先",
+      "balanced": "バランス",
+      "size": "サイズ優先"
+    },
+    "audio_tier": {
+      "quality": "高音質",
+      "balanced": "標準",
+      "size": "小サイズ"
+    },
+    "codec_label": "出力コーデック",
+    "codec": {
+      "av1": "最小サイズ（AV1）",
+      "hevc": "Apple と新しいデバイス（HEVC）",
+      "h264": "最大互換（H.264）"
+    },
+    "codec_compatibility": {
+      "av1": "サイズは最小。iPhone 15 Pro より前の iPhone と M3 より前の Mac の標準プレーヤーでは再生できません",
+      "hevc": "Apple デバイスならすべて再生可能。Windows の「フォト」には HEVC 拡張機能が必要です",
+      "h264": "ほぼすべてのデバイスとアプリで再生可能。サイズは大きめです"
+    },
+    "weak_encoder": "{{codec}} のグラフィックスエンコーダーがなく、低性能な {{encoder}}を使うためサイズが大きめになります。",
+    "use_av1": "AV1 に変更",
+    "container_label": "出力形式",
+    "container_hint": "自動：画像字幕・スタイル付き字幕・添付ファイルがあれば MKV、それ以外は MP4。",
+    "container": {
+      "auto": "自動",
+      "mp4": "MP4",
+      "mkv": "MKV"
+    },
+    "resolution_label": "解像度の上限",
+    "resolution_original": "元のまま",
+    "gpu_label": "グラフィックスで高速化",
+    "gpu_hint": "速くなりますが、サイズは約 2 倍になります",
+    "gpu_disabled_codec": "グラフィックスでのエンコードを選べるのは「最小サイズ（AV1）」だけです。HEVC と H.264 はグラフィックスがあれば自動で使います。",
+    "gpu_disabled_hardware": "このパソコンで使える AV1 グラフィックスエンコーダーがありません。HEVC と H.264 はグラフィックスがあれば自動で使います。",
+    "gpu_disabled_detecting": "エンコード機能を検出中です。AV1 をグラフィックスでエンコードできるかは検出後にわかります。HEVC と H.264 はグラフィックスがあれば自動で使います。",
+    "discard_label": "元より小さくなければ破棄",
+    "discard_hint": "圧縮しても明らかに小さくならない場合は保存しません",
+    "target_label": "変換先の形式",
+    "target_group_video": "動画",
+    "target_group_audio": "音声",
+    "remux_label": "できるだけコンテナだけ変更",
+    "remux_hint": "そのままコピーできる音声・映像は再エンコードせず、高速かつ劣化なし",
+    "reencode_tier_label": "再エンコード時の画質",
+    "reencode_audio_tier_label": "再エンコード時の音質",
+    "extract_format_label": "出力形式",
+    "extract_copy": "元の音声トラックのまま（ロスレス）",
+    "audio_tier_label": "音質",
+    "all_tracks_label": "すべての音声トラック",
+    "all_tracks_hint": "音声トラックごとに 1 ファイル出力します。オフのときは既定のトラックだけ",
+    "output_group": "出力とパフォーマンス",
+    "output_mode_label": "保存先",
+    "output_mode": {
+      "source": "元ファイルと同じ場所",
+      "directory": "指定したフォルダー"
+    },
+    "output_source_hint": "出力ファイルは元ファイルと同じフォルダーに保存されます",
+    "choose_directory": "出力フォルダーを選択",
+    "no_directory": "フォルダー未選択",
+    "output_directory_missing": "以前選んだ出力フォルダーが使えなくなったため、「元ファイルと同じ場所」に戻しました",
+    "conflict_label": "同じ名前のファイル",
+    "conflict": {
+      "number": "番号を付ける",
+      "overwrite": "上書き"
+    },
+    "overwrite_warning": "同じ名前の古いファイルはごみ箱に移されます。元ファイルが上書きされることはありません",
+    "low_usage_label": "低負荷モード",
+    "low_usage_hint": "エンコードは遅くなりますが、ゲームやほかのアプリへの影響を抑えます",
+    "low_usage_on": "低負荷"
+  },
+  "engine": {
+    "detecting": "エンコード機能を検出中",
+    "detecting_detail": "短いテストエンコードで、このパソコンのグラフィックスと CPU のエンコーダーを確認しています。ファイルは先に追加できます。開始できるのは検出の完了後です。",
+    "cpu_only": "CPU のみ",
+    "cpu_only_detail": "このパソコンで使えるグラフィックスエンコーダーはありません。すべて CPU でエンコードします。",
+    "hardware_title": "使えるグラフィックスエンコーダー",
+    "list_separator": "、",
+    "family": {
+      "nvenc": "NVIDIA NVENC",
+      "qsv": "Intel Quick Sync",
+      "amf": "AMD AMF",
+      "mf": "Windows Media Foundation"
+    },
+    "degraded": "この起動中にエラーが出たため使用を停止中：{{encoders}}。再検出すると元に戻ります。",
+    "driver_update_version": "{{family}} のグラフィックスドライバーが古すぎます。{{version}} 以降が必要です。ドライバーを更新してから「再検出」をクリックしてください。",
+    "driver_update": "{{family}} のグラフィックスドライバーが古すぎます。ドライバーを更新してから「再検出」をクリックしてください。",
+    "unavailable_label": "使用不可：{{reason}}",
+    "unavailable": {
+      "platform_unsupported": "このプラットフォームは非対応",
+      "runtime_missing": "エンコード部品がありません",
+      "runtime_invalid": "エンコード部品が破損しています",
+      "runtime_version_mismatch": "エンコード部品のバージョンが違います",
+      "runtime_spawn_failed": "エンコード部品を起動できません",
+      "no_device": "使えるエンコードデバイスがありません",
+      "driver_too_old": "グラフィックスドライバーが古すぎます",
+      "unknown": "検出に失敗しました"
+    },
+    "advice": {
+      "platform_unsupported": "音声・動画変換は現在 Windows でのみ使えます。",
+      "reinstall": "同梱の FFmpeg が見つからないか、変更されています。FusionKit を再インストールしてからお試しください。",
+      "spawn_failed": "FFmpeg を起動できません。セキュリティソフトがブロックしている可能性があります。確認してから「再検出」をクリックしてください。",
+      "retry": "しばらくしてから「再検出」をクリックしてください。",
+      "driver": "グラフィックスドライバーを更新してから「再検出」をクリックしてください。"
+    },
+    "redetect": "再検出",
+    "redetect_busy": "グラフィックスでのエンコード中です。終わってから再検出してください"
+  },
+  "encoders": {
+    "libsvtav1": "SVT-AV1（CPU）",
+    "av1_nvenc": "NVIDIA NVENC AV1",
+    "av1_qsv": "Intel Quick Sync AV1",
+    "av1_amf": "AMD AMF AV1",
+    "hevc_nvenc": "NVIDIA NVENC HEVC",
+    "hevc_qsv": "Intel Quick Sync HEVC",
+    "hevc_amf": "AMD AMF HEVC",
+    "hevc_mf": "Windows Media Foundation HEVC",
+    "libkvazaar": "Kvazaar HEVC（CPU）",
+    "h264_nvenc": "NVIDIA NVENC H.264",
+    "h264_qsv": "Intel Quick Sync H.264",
+    "h264_amf": "AMD AMF H.264",
+    "h264_mf": "Windows Media Foundation H.264",
+    "h264_mf_sw": "Windows Media Foundation H.264（CPU）",
+    "libopenh264": "OpenH264（CPU）",
+    "aac": "AAC",
+    "libopus": "Opus",
+    "libmp3lame": "MP3（LAME）",
+    "flac": "FLAC",
+    "alac": "ALAC（Apple ロスレス）",
+    "pcm_s16le": "PCM 16 ビット",
+    "pcm_s24le": "PCM 24 ビット",
+    "pcm_s32le": "PCM 32 ビット",
+    "pcm_f32le": "PCM 32 ビット浮動小数点",
+    "mov_text": "MP4 テキスト字幕",
+    "srt": "SRT 字幕",
+    "webvtt": "WebVTT 字幕"
+  },
+  "request_errors": {
+    "busy": "ほかの処理中です。しばらくしてからお試しください",
+    "platform_unsupported": "このプラットフォームでは音声・動画変換を使えません",
+    "invalid_request": "リクエストが無効です。ページを再読み込みしてからお試しください",
+    "unknown": "操作に失敗しました。もう一度お試しください"
+  },
+  "notifications": {
+    "batch_title": "音声・動画変換が完了しました",
+    "batch_body": "成功 {{succeeded}} 件、失敗 {{failed}} 件、スキップ {{skipped}} 件。",
+    "batch_saved": "合計 {{size}} 削減しました。"
+  },
+  "add": {
+    "added": "{{count}} 件のファイルを追加しました。",
+    "added_one": "{{count}} 件のファイルを追加しました。",
+    "duplicate": "「{{name}}」はすでにリストにあるため、追加しませんでした。",
+    "duplicates": "{{count}} 件のファイルはすでにリストにあるため、追加しませんでした：{{names}}。",
+    "names_more": "{{names}} ほか {{count}} 件",
+    "truncated": "一度に追加できるのは 100 件までです。残りの {{count}} 件は追加していません。",
+    "truncated_one": "一度に追加できるのは 100 件までです。残りの {{count}} 件は追加していません。",
+    "queue_full": "リストがいっぱいです（最大 500 件）。残りの {{count}} 件は追加していません。",
+    "queue_full_one": "リストがいっぱいです（最大 500 件）。残りの {{count}} 件は追加していません。",
+    "rejected": {
+      "folder_not_supported": "「{{name}}」はフォルダーです：フォルダーにはまだ対応していません。中のファイルを選んでください。",
+      "temporary_copy_unresolved": "「{{name}}」は一時コピーで、元のファイルが見つかりません：先に展開するか、「ファイルを選択」で追加してください。",
+      "file_unavailable": "「{{name}}」を読み取れません：ディスク上の場所がわかりません。「ファイルを選択」で追加してください。",
+      "not_a_regular_file": "「{{name}}」は通常のファイルではないため、追加しませんでした：実際の音声・動画ファイルを選んでください。"
+    },
+    "rejected_many": {
+      "folder_not_supported": "{{count}} 件のフォルダーを追加しませんでした（{{names}}）：フォルダーにはまだ対応していません。中のファイルを選んでください。",
+      "temporary_copy_unresolved": "{{count}} 件の一時コピーの元ファイルが見つかりません（{{names}}）：先に展開するか、「ファイルを選択」で追加してください。",
+      "file_unavailable": "{{count}} 件のファイルを読み取れません（{{names}}）：「ファイルを選択」で追加してください。",
+      "not_a_regular_file": "{{count}} 件は通常のファイルではないため、追加しませんでした（{{names}}）：実際の音声・動画ファイルを選んでください。"
+    },
+    "dismiss": "閉じる"
+  },
+  "queue": {
+    "title": "キュー",
+    "remove": "削除",
+    "analyzing": "分析中…",
+    "list_separator": "、",
+    "separator": "；",
+    "status": {
+      "analyzing": "分析中",
+      "unsupported": "処理できません",
+      "idle": "開始待ち",
+      "queued": "待機中",
+      "running": "処理中",
+      "succeeded": "完了",
+      "skipped": "スキップ",
+      "failed": "失敗",
+      "cancelled": "キャンセル済み",
+      "interrupted": "中断",
+      "input_changed": "入力が変更されました"
+    },
+    "phase": {
+      "preparing": "準備中",
+      "encoding": "エンコード中",
+      "pass1": "1 パス目",
+      "pass2": "2 パス目",
+      "finalizing": "仕上げ中"
+    },
+    "hdr": {
+      "hdr10": "HDR10",
+      "hlg": "HLG",
+      "dolby_vision": "Dolby Vision"
+    },
+    "channels": {
+      "mono": "モノラル",
+      "stereo": "ステレオ",
+      "surround_51": "5.1ch",
+      "surround_71": "7.1ch",
+      "count": "{{count}}ch"
+    },
+    "meta": {
+      "fps": "{{fps}} fps",
+      "vfr": "約 {{fps}} fps（可変フレームレート）",
+      "audio_tracks": "音声トラック {{count}} 本",
+      "audio_tracks_one": "音声トラック {{count}} 本",
+      "no_audio": "音声なし",
+      "subtitles": "字幕 {{count}} 本",
+      "subtitles_one": "字幕 {{count}} 本",
+      "cover": "カバー画像あり",
+      "unknown_duration": "長さ不明"
+    },
+    "not_applicable_title": "現在のタスクには使えません",
+    "not_applicable": {
+      "audio_compress": "音声ファイルです。「動画を圧縮」は動画だけを処理します",
+      "audio_extract": "すでに音声ファイルなので、抽出は不要です",
+      "no_video": "映像がないため、動画形式には変換できません",
+      "no_audio": "この動画には音声トラックがありません"
+    },
+    "switch_task": "「{{task}}」に切り替え",
+    "switch_to_audio": "{{format}} への変換に切り替え",
+    "no_encoder": "この映像を処理できる {{codec}} エンコーダーがこの PC にありません",
+    "no_encoder_none": "ほかの出力コーデックでも処理できません",
+    "use_codec": "{{codec}}に変更",
+    "already_target": "すでに目標の形式です。開始時にスキップします",
+    "disk_space": "ディスクの空き容量が足りません：必要 {{required}}、空き {{available}}",
+    "published": "{{total}} 件中 {{done}} 件の出力を保存しました",
+    "start": "開始",
+    "start_all": "すべて開始",
+    "checking": "確認中…",
+    "start_none": "開始待ちのファイルはありません",
+    "start_unavailable": "エンコードエンジンを使えません：{{reason}}。{{advice}}",
+    "cancel": "キャンセル",
+    "cancel_all": "すべてキャンセル",
+    "cancel_all_title": "すべての変換をキャンセルしますか？",
+    "cancel_all_body": "待機中または処理中の {{count}} 件をキャンセルします。未完成の一時ファイルは削除され、保存済みの出力は残ります。",
+    "cancel_all_body_one": "待機中または処理中の {{count}} 件をキャンセルします。未完成の一時ファイルは削除され、保存済みの出力は残ります。",
+    "cancel_all_confirm": "すべてキャンセル",
+    "cancel_all_keep": "変換を続ける",
+    "clear_done": "完了分をクリア",
+    "clear_done_hint": "完了したファイルを一覧から外します。出力ファイルはそのまま残ります",
+    "retry": "再試行",
+    "convert_anyway": "それでも変換",
+    "reveal": "フォルダーで表示",
+    "reveal_missing": "「{{name}}」は保存した場所にありません",
+    "details": "詳細を表示",
+    "background": "変換はバックグラウンドで続きます。このページに戻ると進行状況を確認できます",
+    "not_started": "{{count}} 件は開始されませんでした：{{reason}}",
+    "not_started_one": "{{count}} 件は開始されませんでした：{{reason}}",
+    "progress": {
+      "written": "書き込み済み",
+      "eta": "残り"
+    },
+    "result": {
+      "sizes": "{{source}} → {{output}}",
+      "outputs": "出力 {{count}} 件",
+      "outputs_one": "出力 {{count}} 件",
+      "partial": "一部完了 {{done}}/{{total}}",
+      "cancelled": "未完成の一時ファイルは削除しました。再試行できます",
+      "interrupted": "アプリの終了までに完了しませんでした。再試行できます",
+      "input_changed": "追加後にファイルが変更されたため開始していません。再試行すると分析し直します"
+    },
+    "announce": {
+      "succeeded_saved": "{{name}} が完了しました。{{percent}} 小さくなりました",
+      "succeeded_larger": "{{name}} が完了しました。サイズの変化 {{change}}",
+      "succeeded_plain": "{{name}} が完了しました",
+      "partial": "{{name}} は一部完了しました（{{done}}/{{total}}）",
+      "failed": "{{name}} は失敗しました：{{reason}}",
+      "skipped": "{{name}} はスキップされました：{{reason}}",
+      "cancelled": "{{name}} をキャンセルしました",
+      "interrupted": "{{name}} は中断されました",
+      "input_changed": "{{name}} は開始されませんでした：ファイルが変更されています"
+    },
+    "summary": {
+      "files": "{{count}} 件",
+      "files_one": "{{count}} 件",
+      "done": "完了 {{count}}",
+      "saved": "{{size}} 削減"
+    }
+  },
+  "errors": {
+    "no_media_streams": "音声・動画ファイルではありません",
+    "container_not_allowed": "対応していないファイル形式です（プレイリストなど）",
+    "wechat_silk_unsupported": "WeChat の音声メッセージ形式にはまだ対応していません",
+    "probe_failed": "ファイルが壊れているか、読み取れません",
+    "file_unavailable": "ファイルが見つからないか、読み取れません",
+    "not_a_regular_file": "通常のファイルではありません"
+  },
+  "advice": {
+    "no_media_streams": "動画または音声ファイルを選んでください。",
+    "container_not_allowed": "プレイリストが指す実際の音声・動画ファイルを追加してください。",
+    "wechat_silk_unsupported": "この種類の音声はまだ変換できません。",
+    "probe_failed": "ファイルが正常に再生できるか確認するか、別のファイルを選んでください。",
+    "file_unavailable": "移動・削除されたか、ほかのプログラムが使用中の可能性があります。",
+    "not_a_regular_file": "ショートカットやデバイスではなく、実際の音声・動画ファイルを選んでください。"
+  },
+  "warnings": {
+    "cpu_weak_encoder": "性能の低い CPU エンコーダーしか使えないため、サイズが大きくなります",
+    "hdr_tonemapped": "HDR は SDR に変換されます",
+    "dolby_vision_rpu_dropped": "Dolby Vision の動的メタデータは破棄されます",
+    "chroma_subsampled": "色差サンプリングが 4:2:0 に下がります",
+    "cover_dropped": "カバー画像は破棄されます",
+    "downmixed_to_stereo": "マルチチャンネル音声はステレオにダウンミックスされます",
+    "subtitle_styling_lost": "ASS 字幕のスタイルは失われます",
+    "subtitle_dropped": "字幕 {{count}} 本が破棄されます",
+    "subtitle_dropped_one": "字幕 {{count}} 本が破棄されます",
+    "subtitle_dropped_image": "画像字幕 {{count}} 本が破棄されます",
+    "subtitle_dropped_image_one": "画像字幕 {{count}} 本が破棄されます",
+    "subtitle_dropped_text": "テキスト字幕 {{count}} 本が破棄されます",
+    "subtitle_dropped_text_one": "テキスト字幕 {{count}} 本が破棄されます",
+    "attachment_dropped": "添付ファイル（フォントなど）{{count}} 件が破棄されます",
+    "attachment_dropped_one": "添付ファイル（フォントなど）{{count}} 件が破棄されます",
+    "mp4_default_subtitle_forced": "MP4 では最初の字幕が既定で表示されます",
+    "encoder_fallback": "{{from}} が使えないため、{{to}} を使います",
+    "chapters_dropped": "チャプター情報は破棄されます",
+    "mp4_default_audio_forced": "MP4 では最初の音声トラックが既定で再生されます",
+    "duration_unverified": "出力の長さが完全かどうか確認できませんでした",
+    "output_name_collision": "保存先に同じ名前のファイルがあるため、出力に番号を付けます"
+  },
+  "plan": {
+    "title": "処理計画",
+    "pending": "作成中…",
+    "loading": "処理計画を作成しています…",
+    "remux_only": "再エンコードせず、コンテナだけを変更します",
+    "remux_short": "コンテナのみ",
+    "encoders": "エンコーダー",
+    "output": "出力",
+    "output_numbered": "出力 {{number}}",
+    "output_value": "{{format}}（.{{extension}}）",
+    "output_track": "トラック {{number}}",
+    "kind": {
+      "video": "映像",
+      "audio": "音声",
+      "subtitle": "字幕",
+      "cover": "カバー"
+    },
+    "action": {
+      "copy": "そのままコピー",
+      "encode": "再エンコード：{{encoder}}",
+      "convert": "{{encoder}}に変換"
+    },
+    "drop": {
+      "not_selected": "保持しない",
+      "subtitle_dropped": "破棄：{{format}} はこの字幕を保存できません",
+      "cover_dropped": "破棄：{{format}} にはカバー画像を保存しません"
+    },
+    "attachments_kept": "添付ファイル {{count}} 件：保持",
+    "attachments_kept_one": "添付ファイル {{count}} 件：保持",
+    "attachments_dropped": "添付ファイル {{count}} 件：破棄",
+    "attachments_dropped_one": "添付ファイル {{count}} 件：破棄",
+    "chapters_kept": "チャプター {{count}} 件：保持",
+    "chapters_kept_one": "チャプター {{count}} 件：保持",
+    "chapters_dropped": "チャプター {{count}} 件：破棄",
+    "chapters_dropped_one": "チャプター {{count}} 件：破棄",
+    "data_dropped": "データストリーム {{count}} 本（タイムコードなど）：保持しない",
+    "data_dropped_one": "データストリーム {{count}} 本（タイムコードなど）：保持しない",
+    "confirm": {
+      "lossy_to_lossless": "非可逆の音声をロスレス形式に変換します：サイズは大きくなり、音質は良くなりません。開始前に確認が必要です。"
+    },
+    "frozen": "開始時の設定で処理します",
+    "errors": {
+      "dolby_vision_p5_unsupported": "Dolby Vision プロファイル 5 の映像はまだ変換できません",
+      "unknown": "現在、処理計画を表示できません"
+    }
+  },
+  "skip": {
+    "not_smaller": "圧縮しても十分に小さくならなかったため、出力を保存していません",
+    "already_target": "すでに目標の形式のため、変換していません"
+  },
+  "failure": {
+    "code": "エラーコード：{{code}}",
+    "no_log": "FFmpeg のログは記録されていません",
+    "session_limit": "グラフィックスのエンコーダーが使用中です",
+    "params_rejected": "エンコーダーがこの設定を受け付けませんでした",
+    "encoder_stalled": "エンコードが進まなくなったため停止しました",
+    "output_open_failed": "出力ファイルを作成できません",
+    "disk_full": "ディスクがいっぱいです",
+    "disk_space_low": "ディスクの空き容量が足りません",
+    "input_missing": "元のファイルが見つかりません",
+    "encode_failed": "エンコード中にエラーが発生しました",
+    "output_cap_exceeded": "出力が想定より大幅に大きくなったため停止しました",
+    "file_too_large_for_volume": "保存先のディスクはこの大きさのファイルを扱えません",
+    "output_is_input": "出力が元のファイルを上書きしてしまいます",
+    "output_dir_unwritable": "出力フォルダーに書き込めません",
+    "output_path_too_long": "出力パスが長すぎます",
+    "overwrite_trash_failed": "同名の古いファイルをごみ箱に移せませんでした",
+    "output_publish_failed": "出力を保存できませんでした",
+    "confirmation_required": "先に確認が必要です",
+    "no_encoder_available": "このファイルを処理できるエンコーダーがこのパソコンにありません",
+    "busy": "まだ分析中です",
+    "not_applicable": "現在のタスクには使えません",
+    "unknown": "原因不明のエラー"
+  },
+  "failure_advice": {
+    "session_limit": "グラフィックスカードで同時に動かせるエンコードがいっぱいです。ゲームや録画ソフトがエンコーダーを使っている可能性があります。しばらくしてから再試行してください。",
+    "params_rejected": "このパソコンのエンコーダーが生成された設定を受け付けませんでした。再試行し、それでも失敗する場合は別の出力コーデックを選んでください。",
+    "encoder_stalled": "FFmpeg が長時間進まなかったため停止しました。再試行し、それでも失敗する場合は別の出力コーデックを選んでください。",
+    "output_open_failed": "FFmpeg が保存先フォルダーに出力ファイルを作成できませんでした。書き込み権限がないか、セキュリティソフトにブロックされた可能性があります。確認して再試行するか、別の保存先を選んでください。",
+    "disk_full": "書き込み中に保存先のディスクがいっぱいになりました。未完成のファイルは削除済みです。空き容量を増やして再試行してください。",
+    "disk_space_low": "開始前の確認で、保存先のディスクに出力を書き込む空き容量が足りないことがわかりました。空き容量を増やすか、別の保存先を選んで再試行してください。",
+    "input_missing": "元のファイルが移動・名前変更・削除されています。元の場所に戻して再試行するか、もう一度追加してください。",
+    "encode_failed": "FFmpeg がエンコードに失敗しましたが、具体的な理由は出力されませんでした。ログの末尾に手がかりがあるかもしれません。再試行し、それでも失敗する場合は別の出力コーデックか形式を選んでください。",
+    "output_cap_exceeded": "出力が想定よりはるかに大きくなったため、ディスクを使い切る前に停止しました。未完成のファイルは削除済みです。別の出力コーデックか形式で再試行してください。",
+    "file_too_large_for_volume": "保存先のディスクは FAT32 形式で、4 GB を超えるファイルを保存できません。NTFS か exFAT のディスクに保存してください。",
+    "output_is_input": "出力ファイルが元のファイルと同じ場所・同じ名前になります。別の保存先を選んで再試行してください。",
+    "output_dir_unwritable": "保存先フォルダーが存在しないか、書き込み権限がありません。別の保存先を選んで再試行してください。",
+    "output_path_too_long": "出力ファイルのフルパスが Windows の長さの上限を超えています。階層の浅いフォルダーを保存先にしてください。",
+    "overwrite_trash_failed": "同名の古いファイルをごみ箱に移せなかったため、上書きしていません。「番号を付ける」に切り替えて再試行してください。",
+    "output_publish_failed": "変換は終わりましたが、結果を最終的なファイル名で保存できませんでした。未完成のファイルは削除済みです。保存先フォルダーを確認して再試行してください。",
+    "confirmation_required": "このファイルは先に確認が必要です（非可逆の音声をロスレス形式に変換する場合など）。もう一度開始して、確認ダイアログで確認してください。",
+    "no_encoder_available": "この映像を処理できるエンコーダーがこのパソコンにありません。別の出力コーデックを選んで開始し直してください。",
+    "busy": "ファイルはまだ分析中か、ほかの操作で使用中です。しばらくしてから再試行してください。",
+    "not_applicable": "分析し直した結果、このファイルは開始時に選んだタスクに合わなくなりました。タスクを切り替えて開始し直してください。",
+    "unknown": "原因不明のため変換が完了しませんでした。再試行し、それでも失敗する場合は下のエラー情報をコピーして報告してください。"
+  },
+  "confirm": {
+    "title": "開始前の確認",
+    "description": "{{count}} 件のファイルに確認が必要です（今回は全 {{total}} 件）。個別にスキップでき、残りはまとめて開始します。",
+    "description_one": "{{count}} 件のファイルに確認が必要です（今回は全 {{total}} 件）。個別にスキップでき、残りはまとめて開始します。",
+    "use_mkv": "MKV に変更",
+    "mkv_note": "「MKV に変更」は出力形式を MKV にし、今回のすべてのファイルに適用します。",
+    "resolved": "MKV に変更しました。内容はすべて保持されます",
+    "lossless": "非可逆の音声をロスレス形式に変換します：サイズは大きくなり、音質は良くなりません",
+    "replace": "同名の古いファイルをごみ箱に移します：{{names}}",
+    "replace_one": "同名の古いファイルをごみ箱に移します：{{names}}",
+    "skip": "スキップ",
+    "include": "戻す",
+    "skipped": "今回はスキップします。開始しません",
+    "cancel": "キャンセル",
+    "start": "{{count}} 件を開始",
+    "start_one": "{{count}} 件を開始",
+    "start_none": "開始するファイルはありません"
+  }
+}

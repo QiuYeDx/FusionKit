@@ -1,0 +1,11 @@
+{
+  "file": { "name": "fonts.mks", "sizeBytes": 120000, "matroskaDocType": "matroska" },
+  "ffprobe": {
+    "streams": [
+      { "index": 0, "codec_name": "subrip", "codec_type": "subtitle", "disposition": { "default": 1 } },
+      { "index": 1, "codec_type": "attachment", "codec_name": "ttf", "tags": { "filename": "a.ttf" } },
+      { "index": 2, "codec_name": "mjpeg", "codec_type": "video", "width": 300, "height": 300, "avg_frame_rate": "0/0", "disposition": { "attached_pic": 1 } }
+    ],
+    "format": { "format_name": "matroska,webm", "duration": "60.000000" }
+  }
+}

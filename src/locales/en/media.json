@@ -1,0 +1,476 @@
+{
+  "title": "Media Converter",
+  "description": "Compress videos, convert formats and extract audio, all on this computer. Files are never uploaded.",
+  "unsupported": {
+    "title": "Not available on this platform",
+    "body": "The media converter currently runs on Windows only."
+  },
+  "upload": {
+    "title": "Add audio and video files",
+    "hint": "Drop video or audio files anywhere on the page, or choose them; several at once is fine",
+    "choose": "Choose files",
+    "unavailable": "Files cannot be added right now: {{reason}}. {{advice}}",
+    "added": "{{count}} files added",
+    "added_one": "1 file added",
+    "hint_more": "Drop or choose more files, up to 100 at a time",
+    "drop_label": "Release to add to the Media Converter",
+    "drop_hint": "Release to add the files",
+    "filter_menu": "Choose files by type",
+    "filter": {
+      "video": "Video files only",
+      "audio": "Audio files only",
+      "all": "All audio and video files"
+    }
+  },
+  "settings": {
+    "title": "Conversion settings",
+    "task_label": "Task",
+    "task": {
+      "compress": "Compress",
+      "convert": "Convert",
+      "extract": "Extract audio"
+    },
+    "tier_label": "Compression",
+    "tier": {
+      "quality": "Quality first",
+      "balanced": "Balanced",
+      "size": "Size first"
+    },
+    "audio_tier": {
+      "quality": "High",
+      "balanced": "Standard",
+      "size": "Small"
+    },
+    "codec_label": "Output codec",
+    "codec": {
+      "av1": "Smallest size (AV1)",
+      "hevc": "Apple & newer devices (HEVC)",
+      "h264": "Widest compatibility (H.264)"
+    },
+    "codec_compatibility": {
+      "av1": "Smallest files; the built-in players of iPhones before the iPhone 15 Pro and Macs before M3 cannot play them",
+      "hevc": "Plays on every Apple device; the Windows Photos app needs the HEVC extension",
+      "h264": "Plays on almost every device and app; larger files"
+    },
+    "weak_encoder": "Only the weaker {{encoder}} can encode {{codec}} here, so files come out larger.",
+    "use_av1": "Use AV1",
+    "container_label": "Output format",
+    "container_hint": "Auto: MKV for image subtitles, styled subtitles or attachments, MP4 otherwise.",
+    "container": {
+      "auto": "Auto",
+      "mp4": "MP4",
+      "mkv": "MKV"
+    },
+    "resolution_label": "Maximum resolution",
+    "resolution_original": "Keep original",
+    "gpu_label": "Use the graphics card",
+    "gpu_hint": "Faster, but files are about twice as large",
+    "gpu_disabled_codec": "Only \"Smallest size (AV1)\" lets you choose the graphics card. HEVC and H.264 use the graphics card automatically when there is one.",
+    "gpu_disabled_hardware": "No AV1 graphics encoder works on this computer. HEVC and H.264 use the graphics card automatically when there is one.",
+    "gpu_disabled_detecting": "The encoders are still being detected; whether the graphics card can encode AV1 is known afterwards. HEVC and H.264 use the graphics card automatically when there is one.",
+    "discard_label": "Discard if not smaller",
+    "discard_hint": "Nothing is saved when compression does not make the file clearly smaller",
+    "target_label": "Target format",
+    "target_group_video": "Video",
+    "target_group_audio": "Audio",
+    "remux_label": "Change only the container when possible",
+    "remux_hint": "Audio and video that can be copied are not re-encoded: fast and lossless",
+    "reencode_tier_label": "Quality when re-encoding",
+    "reencode_audio_tier_label": "Audio quality when re-encoding",
+    "extract_format_label": "Output format",
+    "extract_copy": "Keep the original track (lossless)",
+    "audio_tier_label": "Audio quality",
+    "all_tracks_label": "All audio tracks",
+    "all_tracks_hint": "One file per audio track; off extracts the default track only",
+    "output_group": "Output and performance",
+    "output_mode_label": "Save to",
+    "output_mode": {
+      "source": "Next to source",
+      "directory": "Chosen folder"
+    },
+    "output_source_hint": "Output files are saved in the folder of each source file",
+    "choose_directory": "Choose an output folder",
+    "no_directory": "No folder chosen",
+    "output_directory_missing": "The output folder chosen before is no longer available; files are saved next to their sources again",
+    "conflict_label": "Same file name",
+    "conflict": {
+      "number": "Number it",
+      "overwrite": "Overwrite"
+    },
+    "overwrite_warning": "The old file of that name goes to the Recycle Bin; a source file is never overwritten",
+    "low_usage_label": "Low-usage mode",
+    "low_usage_hint": "Encodes more slowly but keeps games and other apps running smoothly",
+    "low_usage_on": "Low usage"
+  },
+  "engine": {
+    "detecting": "Detecting encoders",
+    "detecting_detail": "Short test encodes check the graphics card and CPU encoders of this computer. You can add files now; conversions start once this is done.",
+    "cpu_only": "CPU only",
+    "cpu_only_detail": "No graphics encoder works on this computer, so the CPU does all encoding.",
+    "hardware_title": "Graphics encoders available",
+    "list_separator": ", ",
+    "family": {
+      "nvenc": "NVIDIA NVENC",
+      "qsv": "Intel Quick Sync",
+      "amf": "AMD AMF",
+      "mf": "Windows Media Foundation"
+    },
+    "degraded": "Paused after an error in this session: {{encoders}}. Detecting again brings them back.",
+    "driver_update_version": "The {{family}} graphics driver is too old: version {{version}} or newer is needed. Update the graphics driver, then click \"Detect again\".",
+    "driver_update": "The {{family}} graphics driver is too old. Update the graphics driver, then click \"Detect again\".",
+    "unavailable_label": "Unavailable: {{reason}}",
+    "unavailable": {
+      "platform_unsupported": "Platform not supported",
+      "runtime_missing": "Encoder files missing",
+      "runtime_invalid": "Encoder files damaged",
+      "runtime_version_mismatch": "Wrong encoder version",
+      "runtime_spawn_failed": "Encoder cannot start",
+      "no_device": "No encoding device found",
+      "driver_too_old": "Graphics driver too old",
+      "unknown": "Detection failed"
+    },
+    "advice": {
+      "platform_unsupported": "The media converter works on Windows only for now.",
+      "reinstall": "The bundled FFmpeg is missing or was changed. Reinstall FusionKit and try again.",
+      "spawn_failed": "FFmpeg cannot start; security software may be blocking it. Check it, then click \"Detect again\".",
+      "retry": "Click \"Detect again\" in a moment.",
+      "driver": "Update the graphics driver, then click \"Detect again\"."
+    },
+    "redetect": "Detect again",
+    "redetect_busy": "A graphics card encode is running; detect again when it ends"
+  },
+  "encoders": {
+    "libsvtav1": "SVT-AV1 (CPU)",
+    "av1_nvenc": "NVIDIA NVENC AV1",
+    "av1_qsv": "Intel Quick Sync AV1",
+    "av1_amf": "AMD AMF AV1",
+    "hevc_nvenc": "NVIDIA NVENC HEVC",
+    "hevc_qsv": "Intel Quick Sync HEVC",
+    "hevc_amf": "AMD AMF HEVC",
+    "hevc_mf": "Windows Media Foundation HEVC",
+    "libkvazaar": "Kvazaar HEVC (CPU)",
+    "h264_nvenc": "NVIDIA NVENC H.264",
+    "h264_qsv": "Intel Quick Sync H.264",
+    "h264_amf": "AMD AMF H.264",
+    "h264_mf": "Windows Media Foundation H.264",
+    "h264_mf_sw": "Windows Media Foundation H.264 (CPU)",
+    "libopenh264": "OpenH264 (CPU)",
+    "aac": "AAC",
+    "libopus": "Opus",
+    "libmp3lame": "MP3 (LAME)",
+    "flac": "FLAC",
+    "alac": "ALAC (Apple Lossless)",
+    "pcm_s16le": "PCM 16-bit",
+    "pcm_s24le": "PCM 24-bit",
+    "pcm_s32le": "PCM 32-bit",
+    "pcm_f32le": "PCM 32-bit float",
+    "mov_text": "MP4 text subtitles",
+    "srt": "SRT subtitles",
+    "webvtt": "WebVTT subtitles"
+  },
+  "request_errors": {
+    "busy": "Something else is in progress; try again in a moment",
+    "platform_unsupported": "The media converter is not supported on this platform",
+    "invalid_request": "The request was not accepted; reload the page and try again",
+    "unknown": "That did not work; please try again"
+  },
+  "notifications": {
+    "batch_title": "Media conversion finished",
+    "batch_body": "{{succeeded}} succeeded, {{failed}} failed, {{skipped}} skipped.",
+    "batch_saved": "{{size}} saved."
+  },
+  "add": {
+    "added": "{{count}} files added.",
+    "added_one": "1 file added.",
+    "duplicate": "“{{name}}” is already in the list, so it was not added again.",
+    "duplicates": "{{count}} files are already in the list, so they were not added again: {{names}}.",
+    "names_more": "{{names}} and {{count}} more",
+    "truncated": "Up to 100 files can be added at a time; {{count}} more were not added.",
+    "truncated_one": "Up to 100 files can be added at a time; 1 more was not added.",
+    "queue_full": "The list is full (500 files at most); {{count}} more were not added.",
+    "queue_full_one": "The list is full (500 files at most); 1 more was not added.",
+    "rejected": {
+      "folder_not_supported": "“{{name}}” is a folder. Folders are not supported yet; choose the files inside it.",
+      "temporary_copy_unresolved": "“{{name}}” is a temporary copy whose original cannot be found. Extract it first, or add it with Choose files.",
+      "file_unavailable": "“{{name}}” cannot be read: its place on disk is unknown. Add it with Choose files.",
+      "not_a_regular_file": "“{{name}}” is not a regular file and was not added. Choose the actual audio or video file."
+    },
+    "rejected_many": {
+      "folder_not_supported": "{{count}} folders were not added ({{names}}). Folders are not supported yet; choose the files inside them.",
+      "temporary_copy_unresolved": "{{count}} temporary copies have no original that can be found ({{names}}). Extract them first, or add them with Choose files.",
+      "file_unavailable": "{{count}} files cannot be read ({{names}}). Add them with Choose files.",
+      "not_a_regular_file": "{{count}} items are not regular files and were not added ({{names}}). Choose the actual audio or video files."
+    },
+    "dismiss": "Dismiss"
+  },
+  "queue": {
+    "title": "Queue",
+    "remove": "Remove",
+    "analyzing": "Analyzing…",
+    "list_separator": ", ",
+    "separator": "; ",
+    "status": {
+      "analyzing": "Analyzing",
+      "unsupported": "Cannot be converted",
+      "idle": "Ready",
+      "queued": "Queued",
+      "running": "Converting",
+      "succeeded": "Done",
+      "skipped": "Skipped",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "interrupted": "Interrupted",
+      "input_changed": "File changed"
+    },
+    "phase": {
+      "preparing": "Preparing",
+      "encoding": "Encoding",
+      "pass1": "Pass 1",
+      "pass2": "Pass 2",
+      "finalizing": "Finishing"
+    },
+    "hdr": {
+      "hdr10": "HDR10",
+      "hlg": "HLG",
+      "dolby_vision": "Dolby Vision"
+    },
+    "channels": {
+      "mono": "Mono",
+      "stereo": "Stereo",
+      "surround_51": "5.1",
+      "surround_71": "7.1",
+      "count": "{{count}} channels"
+    },
+    "meta": {
+      "fps": "{{fps}} fps",
+      "vfr": "~{{fps}} fps (variable)",
+      "audio_tracks": "{{count}} audio tracks",
+      "audio_tracks_one": "1 audio track",
+      "no_audio": "No audio",
+      "subtitles": "{{count}} subtitles",
+      "subtitles_one": "1 subtitle",
+      "cover": "Cover art",
+      "unknown_duration": "Unknown length"
+    },
+    "not_applicable_title": "Not for this task",
+    "not_applicable": {
+      "audio_compress": "This is an audio file; Compress handles videos",
+      "audio_extract": "This is already an audio file; there is nothing to extract",
+      "no_video": "It has no picture, so it cannot become a video format",
+      "no_audio": "This video has no audio track"
+    },
+    "switch_task": "Switch to {{task}}",
+    "switch_to_audio": "Convert to {{format}} instead",
+    "no_encoder": "No {{codec}} encoder on this computer can handle this picture",
+    "no_encoder_none": "No other output codec can either",
+    "use_codec": "Use {{codec}}",
+    "already_target": "Already in the target format; it is skipped at the start",
+    "disk_space": "Not enough disk space: {{required}} needed, {{available}} free",
+    "published": "{{done}} of {{total}} outputs saved",
+    "start": "Start",
+    "start_all": "Start all",
+    "checking": "Checking…",
+    "start_none": "No files are waiting to start",
+    "start_unavailable": "The encoding engine is unavailable: {{reason}}. {{advice}}",
+    "cancel": "Cancel",
+    "cancel_all": "Cancel all",
+    "cancel_all_title": "Cancel every conversion?",
+    "cancel_all_body": "{{count}} queued or running files will be cancelled. Unfinished temporary files are deleted; outputs already saved are kept.",
+    "cancel_all_body_one": "1 queued or running file will be cancelled. Unfinished temporary files are deleted; outputs already saved are kept.",
+    "cancel_all_confirm": "Cancel all",
+    "cancel_all_keep": "Keep converting",
+    "clear_done": "Clear done",
+    "clear_done_hint": "Removes finished files from the list; their outputs stay where they are",
+    "retry": "Retry",
+    "convert_anyway": "Convert anyway",
+    "reveal": "Show in folder",
+    "reveal_missing": "“{{name}}” is no longer where it was saved",
+    "details": "Details",
+    "background": "Conversions continue in the background; come back to this page to see their progress",
+    "not_started": "{{count}} files did not start: {{reason}}",
+    "not_started_one": "1 file did not start: {{reason}}",
+    "progress": {
+      "written": "Written",
+      "eta": "ETA"
+    },
+    "result": {
+      "sizes": "{{source}} → {{output}}",
+      "outputs": "{{count}} outputs",
+      "outputs_one": "1 output",
+      "partial": "Partly done {{done}}/{{total}}",
+      "cancelled": "The unfinished file was deleted; you can retry",
+      "interrupted": "It did not finish before the app closed; you can retry",
+      "input_changed": "The file changed after it was added, so it did not start; a retry analyzes it again"
+    },
+    "announce": {
+      "succeeded_saved": "{{name}} is done, {{percent}} smaller",
+      "succeeded_larger": "{{name}} is done, size change {{change}}",
+      "succeeded_plain": "{{name}} is done",
+      "partial": "{{name}} is partly done, {{done}} of {{total}}",
+      "failed": "{{name}} failed: {{reason}}",
+      "skipped": "{{name}} was skipped: {{reason}}",
+      "cancelled": "{{name}} was cancelled",
+      "interrupted": "{{name}} was interrupted",
+      "input_changed": "{{name}} did not start: the file changed"
+    },
+    "summary": {
+      "files": "{{count}} files",
+      "files_one": "1 file",
+      "done": "{{count}} done",
+      "saved": "{{size}} saved"
+    }
+  },
+  "errors": {
+    "no_media_streams": "Not an audio or video file",
+    "container_not_allowed": "Unsupported file type (such as a playlist)",
+    "wechat_silk_unsupported": "WeChat voice messages are not supported yet",
+    "probe_failed": "The file is damaged or cannot be read",
+    "file_unavailable": "The file cannot be found or read",
+    "not_a_regular_file": "Not a regular file"
+  },
+  "advice": {
+    "no_media_streams": "Choose a video or audio file.",
+    "container_not_allowed": "Add the actual media files the playlist points to.",
+    "wechat_silk_unsupported": "This kind of voice message cannot be converted yet.",
+    "probe_failed": "Check that the file plays, or try another file.",
+    "file_unavailable": "It may have been moved or deleted, or another program may have it open.",
+    "not_a_regular_file": "Choose the actual audio or video file, not a shortcut or a device."
+  },
+  "warnings": {
+    "cpu_weak_encoder": "Only a weaker CPU encoder is available, so the file comes out larger",
+    "hdr_tonemapped": "HDR will be converted to SDR",
+    "dolby_vision_rpu_dropped": "Dolby Vision dynamic metadata will be dropped",
+    "chroma_subsampled": "Chroma will be reduced to 4:2:0",
+    "cover_dropped": "The cover art will be dropped",
+    "downmixed_to_stereo": "Multichannel audio will be downmixed to stereo",
+    "subtitle_styling_lost": "ASS subtitle styling will be lost",
+    "subtitle_dropped": "{{count}} subtitles will be dropped",
+    "subtitle_dropped_one": "1 subtitle will be dropped",
+    "subtitle_dropped_image": "{{count}} image subtitles will be dropped",
+    "subtitle_dropped_image_one": "1 image subtitle will be dropped",
+    "subtitle_dropped_text": "{{count}} text subtitles will be dropped",
+    "subtitle_dropped_text_one": "1 text subtitle will be dropped",
+    "attachment_dropped": "{{count}} attachments (such as fonts) will be dropped",
+    "attachment_dropped_one": "1 attachment (such as a font) will be dropped",
+    "mp4_default_subtitle_forced": "MP4 shows the first subtitle by default",
+    "encoder_fallback": "{{from}} did not work; {{to}} is used instead",
+    "chapters_dropped": "Chapters will be dropped",
+    "mp4_default_audio_forced": "MP4 plays the first audio track by default",
+    "duration_unverified": "Whether the output is complete could not be verified",
+    "output_name_collision": "A file of that name exists, so the output gets a number"
+  },
+  "plan": {
+    "title": "Plan",
+    "pending": "Preparing…",
+    "loading": "Preparing the plan…",
+    "remux_only": "No re-encoding; only the container changes",
+    "remux_short": "Container only",
+    "encoders": "Encoders",
+    "output": "Output",
+    "output_numbered": "Output {{number}}",
+    "output_value": "{{format}} (.{{extension}})",
+    "output_track": "Track {{number}}",
+    "kind": {
+      "video": "Video",
+      "audio": "Audio",
+      "subtitle": "Subtitle",
+      "cover": "Cover"
+    },
+    "action": {
+      "copy": "Copied as is",
+      "encode": "Re-encoded: {{encoder}}",
+      "convert": "Converted to {{encoder}}"
+    },
+    "drop": {
+      "not_selected": "Not kept",
+      "subtitle_dropped": "Dropped: {{format}} cannot hold this subtitle",
+      "cover_dropped": "Dropped: {{format}} keeps no cover art"
+    },
+    "attachments_kept": "{{count}} attachments kept",
+    "attachments_kept_one": "1 attachment kept",
+    "attachments_dropped": "{{count}} attachments dropped",
+    "attachments_dropped_one": "1 attachment dropped",
+    "chapters_kept": "{{count}} chapters kept",
+    "chapters_kept_one": "1 chapter kept",
+    "chapters_dropped": "{{count}} chapters dropped",
+    "chapters_dropped_one": "1 chapter dropped",
+    "data_dropped": "{{count}} data streams (such as timecode) not kept",
+    "data_dropped_one": "1 data stream (such as timecode) not kept",
+    "confirm": {
+      "lossy_to_lossless": "Lossy audio to a lossless format: the file gets larger, the sound no better. You confirm this before the start."
+    },
+    "frozen": "Converted with the settings it was started with",
+    "errors": {
+      "dolby_vision_p5_unsupported": "Dolby Vision Profile 5 video cannot be converted yet",
+      "unknown": "The plan cannot be shown right now"
+    }
+  },
+  "skip": {
+    "not_smaller": "Not noticeably smaller after compressing, so no output was kept",
+    "already_target": "Already in the target format, so nothing was converted"
+  },
+  "failure": {
+    "code": "Error code: {{code}}",
+    "no_log": "No FFmpeg log was recorded",
+    "session_limit": "The graphics encoder is busy",
+    "params_rejected": "The encoder refused these settings",
+    "encoder_stalled": "Encoding stopped making progress",
+    "output_open_failed": "The output file could not be created",
+    "disk_full": "The disk is full",
+    "disk_space_low": "Not enough disk space",
+    "input_missing": "The source file is missing",
+    "encode_failed": "Encoding error",
+    "output_cap_exceeded": "The output grew far beyond its expected size",
+    "file_too_large_for_volume": "The target disk cannot hold a file this large",
+    "output_is_input": "The output would overwrite a source file",
+    "output_dir_unwritable": "The output folder cannot be written to",
+    "output_path_too_long": "The output path is too long",
+    "overwrite_trash_failed": "The old file could not be moved to the Recycle Bin",
+    "output_publish_failed": "The output could not be saved",
+    "confirmation_required": "Needs confirming first",
+    "no_encoder_available": "No encoder on this computer can handle this file",
+    "busy": "Still being analyzed",
+    "not_applicable": "Not for this task",
+    "unknown": "Unknown error"
+  },
+  "failure_advice": {
+    "session_limit": "The graphics card is already running as many encodes as it can, for example for a game or a screen recorder. Try again later.",
+    "params_rejected": "The encoder on this computer refused the settings it was given. Try again; if it fails again, choose another output codec.",
+    "encoder_stalled": "FFmpeg made no progress for a long time and was stopped. Try again; if it fails again, choose another output codec.",
+    "output_open_failed": "FFmpeg could not create the output file in the target folder: the folder may not be writable, or security software blocked it. Check it and try again, or choose another output folder.",
+    "disk_full": "The target disk filled up while writing; the unfinished file was deleted. Free up space and try again.",
+    "disk_space_low": "The check before the start found too little free space on the target disk for the output. Free up space, or choose another output folder, and try again.",
+    "input_missing": "The source file was moved, renamed or deleted. Put it back and try again, or add it again.",
+    "encode_failed": "FFmpeg failed without a more specific reason. The end of the log may tell more; try again, and if it fails again, choose another output codec or format.",
+    "output_cap_exceeded": "The output became far larger than expected and was stopped before it could fill the disk; the unfinished file was deleted. Choose another output codec or format and try again.",
+    "file_too_large_for_volume": "The target disk uses FAT32, which cannot hold files over 4 GB. Save the output to an NTFS or exFAT disk.",
+    "output_is_input": "The output would have the same name and place as a source file. Choose another output folder and try again.",
+    "output_dir_unwritable": "The target folder does not exist or cannot be written to. Choose another output folder and try again.",
+    "output_path_too_long": "The output's full path is longer than Windows allows. Choose an output folder closer to the top of the disk.",
+    "overwrite_trash_failed": "The old file of that name could not be moved to the Recycle Bin, so it was not replaced. Switch to “Number it” and try again.",
+    "output_publish_failed": "The conversion finished, but the result could not be saved under its final name; the unfinished file was deleted. Check the target folder and try again.",
+    "confirmation_required": "This file needs a confirmation first (for example lossy audio to a lossless format). Start it again and confirm in the dialog.",
+    "no_encoder_available": "No encoder on this computer can handle this picture. Choose another output codec and start again.",
+    "busy": "The file is still being analyzed or is in use by another action. Try again in a moment.",
+    "not_applicable": "Analyzed again, the file no longer fits the task it was started with. Switch the task and start again.",
+    "unknown": "The conversion did not finish, for an unknown reason. Try again; if it fails again, copy the error below to report it."
+  },
+  "confirm": {
+    "title": "Confirm before starting",
+    "description": "{{count}} files need your confirmation ({{total}} in this start). Skip any you like; the others start together.",
+    "description_one": "1 file needs your confirmation ({{total}} in this start). Skip it if you like; the others start together.",
+    "use_mkv": "Change to MKV",
+    "mkv_note": "“Change to MKV” sets the output format to MKV for every file in this start.",
+    "resolved": "Changed to MKV; nothing is lost",
+    "lossless": "Lossy audio to a lossless format: the file gets larger, the sound does not get better",
+    "replace": "Moves the old files of the same name to the Recycle Bin: {{names}}",
+    "replace_one": "Moves the old file of the same name to the Recycle Bin: {{names}}",
+    "skip": "Skip",
+    "include": "Include",
+    "skipped": "Skipped this time; it will not start",
+    "cancel": "Cancel",
+    "start": "Start {{count}} files",
+    "start_one": "Start 1 file",
+    "start_none": "Nothing to start"
+  }
+}

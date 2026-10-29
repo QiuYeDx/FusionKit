@@ -1,0 +1,10 @@
+$ pnpm exec tsc --noEmit -p tsconfig.json
+# 批次 B 修正评审（2026-10-28）后重跑
+(no diagnostics)
+exit 0
+
+$ pnpm exec tsc --noEmit -p <scratchpad>/tsconfig.batchb-fix.json
+# 测试文件不在 tsconfig.json 的 include 中；用继承它的临时配置检查 test/media-converter 下的全部测试文件：
+# { "extends": "C:/Users/Administrator/Documents/GitHub/FusionKit/tsconfig.json", "compilerOptions": { "noEmit": true, "typeRoots": ["C:/Users/Administrator/Documents/GitHub/FusionKit/node_modules/@types"] }, "include": [ "C:/Users/Administrator/Documents/GitHub/FusionKit/src", "C:/Users/Administrator/Documents/GitHub/FusionKit/electron", "C:/Users/Administrator/Documents/GitHub/FusionKit/test/media-converter/**/*.ts" ] }
+(no diagnostics)
+exit 0

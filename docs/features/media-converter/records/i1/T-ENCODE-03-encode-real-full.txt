@@ -1,0 +1,77 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/encode-real.test.ts test/media-converter/remux-real.test.ts   # review re-run (2026-10-26, after the review fix): whole files, T-ENCODE-02 real encodes with the T-ENCODE-03 filters
+stdout | test/media-converter/encode-real.test.ts > correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg
+V-ENCODE-03-2 results
+rotation: re-encode 180×320 without a display matrix, block top right; remux 320×180 keeping rotation -90
+HDR10 → AV1: {"mastering":{"red_x":0.67999267578125,"red_y":0.32000732421875,"green_x":0.2649993896484375,"green_y":0.69000244140625,"blue_x":0.149993896484375,"blue_y":0.05999755859375,"white_point_x":0.3126983642578125,"white_point_y":0.3289947509765625,"min_luminance":0.0001220703125,"max_luminance":1000},"light":{"maxCll":1000,"maxFall":400}}
+HDR10 → hevc_nvenc 10-bit: {"mastering":{"red_x":0.68,"red_y":0.32,"green_x":0.265,"green_y":0.69,"blue_x":0.15,"blue_y":0.06,"white_point_x":0.3127,"white_point_y":0.329,"min_luminance":0.0001,"max_luminance":1000},"light":{"maxCll":1000,"maxFall":400}}
+HDR10 → av1_nvenc 10-bit: {"mastering":{"red_x":0.68,"red_y":0.32,"green_x":0.265,"green_y":0.69,"blue_x":0.15,"blue_y":0.06,"white_point_x":0.3127,"white_point_y":0.329,"min_luminance":0.0001,"max_luminance":1000},"light":{"maxCll":1000,"maxFall":400}}
+  hdr10-h264 log: [libopenh264 @ 0000024817cde240] [warning] [OpenH264] this = 0x000002481aa31d80, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+HDR10 → H.264: BT.709 SDR, Y average 106.6–107.6
+  ramp-jpeg-av1 log: [swscaler @ 000001ff54adc680] [warning] deprecated pixel format used, make sure you did set range correctly
+  ramp-jpeg-tv-av1 log: [swscaler @ 000001d36b8da000] [warning] deprecated pixel format used, make sure you did set range correctly
+full range → AV1 10-bit: ramp YMIN 63 YMAX 937; ramp-odd YMIN 64 YMAX 937; ramp-jpeg YMIN 67 YMAX 938; ramp-jpeg-tv YMIN 67 YMAX 938
+VFR: 40 → 40 frames, timestamps within 2 ms, duration 2 → 2 s
+interlaced: idet source {"frames":30,"interlaced":30,"progressive":0} → output {"frames":30,"interlaced":4,"progressive":26}
+stdout | test/media-converter/encode-real.test.ts
+V-ENCODE-02-2 results
+libsvtav1 (libsvtav1/10bit): quality 419311 B, balanced 249318 B, size 172703 B
+  keyframes at 0.00, 5.37, 10.73 s
+av1_nvenc uhq (av1_nvenc/10bit_uhq): quality 300470 B, balanced 222151 B, size 157917 B
+  keyframes at 0.00, 5.00, 10.00 s
+av1_nvenc hq (av1_nvenc/10bit): quality 373837 B, balanced 238650 B, size 172750 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_nvenc uhq 10-bit (hevc_nvenc/10bit_uhq): quality 651240 B, balanced 330009 B, size 259489 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_nvenc hq 10-bit (hevc_nvenc/10bit): quality 579659 B, balanced 313511 B, size 205135 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_nvenc uhq 8-bit (hevc_nvenc/8bit_uhq): quality 651670 B, balanced 332618 B, size 259727 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_nvenc hq 8-bit (hevc_nvenc/8bit): quality 580688 B, balanced 334022 B, size 207180 B
+  keyframes at 0.00, 5.00, 10.00 s
+h264_nvenc (h264_nvenc/8bit): quality 893627 B, balanced 508678 B, size 297519 B
+  keyframes at 0.00, 5.00, 10.00 s
+h264_mf hardware (h264_mf/8bit): quality 2726118 B, balanced 567934 B, size 292848 B
+  keyframes at 0.00, 5.00, 10.00 s
+h264_mf software (h264_mf/8bit_sw): quality 2700081 B, balanced 1429475 B, size 434008 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_mf hardware (hevc_mf/8bit): quality 2081088 B, balanced 945329 B, size 361287 B
+  keyframes at 0.00, 5.00, 10.00 s
+libkvazaar (libkvazaar/8bit): quality 871696 B, balanced 364578 B, size 205406 B
+  keyframes at 0.00, 4.80, 9.60 s
+libopenh264 (libopenh264/8bit): quality 208854 B, balanced 156684 B, size 113720 B
+  quality log: [libopenh264 @ 0000020a069c9600] [warning] [OpenH264] this = 0x0000020a0867c500, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+  balanced log: [libopenh264 @ 0000015659f2d500] [warning] [OpenH264] this = 0x000001565c9618e0, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+  size log: [libopenh264 @ 0000023088e45340] [warning] [OpenH264] this = 0x00000230890ce1e0, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+  keyframes at 0.00, 5.00, 10.00 s
+size range h264_nvenc: 146×50 opens, 4096×1088 opens, 144×50 refused, 146×48 refused, 4112×1088 refused, 1088×4112 refused
+size range hevc_nvenc: 130×34 opens, 8192×1088 opens, 128×34 refused, 130×32 refused, 8208×1088 refused, 1088×8208 refused
+size range av1_nvenc: 130×66 opens, 8192×1088 opens, 128×66 refused, 130×64 refused, 8208×1088 refused, 1088×8208 refused
+size range h264_mf: 146×50 opens, 4096×1088 opens, 144×50 refused, 146×48 refused, 4112×1088 refused, 1088×4112 refused
+size range hevc_mf: 130×34 opens, 8192×1088 opens, 128×34 refused, 130×32 refused, 8208×1088 refused, 1088×8208 refused
+ ✓ test/media-converter/encode-real.test.ts (25 tests) 36408ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libsvtav1': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1923ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'av1_nvenc uhq': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1520ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'av1_nvenc hq': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1406ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc uhq 10-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1623ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc hq 10-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1466ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc uhq 8-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1583ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc hq 8-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1413ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_nvenc': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1393ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_mf hardware': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 2253ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_mf software': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 944ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_mf hardware': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 2436ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libkvazaar': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 3046ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libopenh264': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 566ms
+   ✓ encoding with the planner arguments and the real ffmpeg > runs SVT-AV1 with lp=1 in low-usage mode without a warning 1013ms
+   ✓ encoding with the planner arguments and the real ffmpeg > opens the hardware encoders at the edges of the sizes the planner gives them, and NVENC refuses one step outside 8664ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > rotation (AC-ENCODE-03-1): a re-encode turns the pixels and keeps no display matrix; a remux keeps the matrix 434ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > HDR10 to 'HEVC 10-bit' on NVENC (AC-ENCODE-03-3): kept the same way, where the device is here 333ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > HDR10 to 'AV1' on NVENC (AC-ENCODE-03-3): kept the same way, where the device is here 314ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > full range (AC-ENCODE-03-2): pc and yuvj* sources (also one tagged tv) measure YMAX ≤ 940 at 10 bits after conversion, scaled or not 1115ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > variable frame rate (AC-ENCODE-03-5): -fps_mode passthrough keeps every timestamp, the duration within max(0.1 s, 0.5 %) 498ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > interlacing (AC-ENCODE-03-5): a top-field-first source is deinterlaced by bwdif, frame for frame 443ms
+ Test Files  2 passed (2)
+      Tests  30 passed (30)
+   Start at  15:59:05
+   Duration  37.33s (transform 234ms, setup 0ms, collect 1.44s, tests 37.41s, environment 0ms, prepare 118ms)
+exit 0

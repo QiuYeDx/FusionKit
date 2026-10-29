@@ -1,0 +1,56 @@
+$ ffmpeg -hide_banner -nostdin -loglevel level+warning -y -f lavfi -i anoisesrc=d=2:c=white:r=48000:a=0.3:seed=7,aformat=channel_layouts=stereo -c:a aac -b:a 128k <scratchpad>/aac-128k.m4a
+# 以 IDLE 优先级运行；输出在 scratchpad
+(no output)
+exit 0
+
+$ ffprobe -v error -show_entries stream=codec_name,bit_rate:format=bit_rate,size,duration -of compact <scratchpad>/aac-128k.m4a
+# 流码率（AAC、MP3）或文件总码率（Ogg Opus 没有流码率），对照档位的标称码率
+stream|codec_name=aac|bit_rate=128034
+format|duration=2.000000|size=33537|bit_rate=134148
+exit 0
+
+$ ffmpeg -hide_banner -nostdin -loglevel level+warning -y -f lavfi -i anoisesrc=d=2:c=white:r=48000:a=0.3:seed=7,aformat=channel_layouts=stereo -c:a aac -b:a 256k <scratchpad>/aac-256k.m4a
+# 以 IDLE 优先级运行；输出在 scratchpad
+(no output)
+exit 0
+
+$ ffprobe -v error -show_entries stream=codec_name,bit_rate:format=bit_rate,size,duration -of compact <scratchpad>/aac-256k.m4a
+# 流码率（AAC、MP3）或文件总码率（Ogg Opus 没有流码率），对照档位的标称码率
+stream|codec_name=aac|bit_rate=260046
+format|duration=2.000000|size=66892|bit_rate=267568
+exit 0
+
+$ ffmpeg -hide_banner -nostdin -loglevel level+warning -y -f lavfi -i aevalsrc=exprs=0.2*sin(220*2*PI*t)|0.2*sin(330*2*PI*t):sample_rate=48000:duration=2 -c:a libopus -b:a 128k -vbr off <scratchpad>/opus-cbr-128k.opus
+# 以 IDLE 优先级运行；输出在 scratchpad
+(no output)
+exit 0
+
+$ ffprobe -v error -show_entries stream=codec_name,bit_rate:format=bit_rate,size,duration -of compact <scratchpad>/opus-cbr-128k.opus
+# 流码率（AAC、MP3）或文件总码率（Ogg Opus 没有流码率），对照档位的标称码率
+stream|codec_name=opus|bit_rate=N/A
+format|duration=2.006500|size=32740|bit_rate=130535
+exit 0
+
+$ ffmpeg -hide_banner -nostdin -loglevel level+warning -y -f lavfi -i aevalsrc=exprs=0.2*sin(220*2*PI*t)|0.2*sin(330*2*PI*t):sample_rate=48000:duration=2 -c:a libmp3lame -b:a 320k <scratchpad>/mp3-cbr-320k.mp3
+# 以 IDLE 优先级运行；输出在 scratchpad
+(no output)
+exit 0
+
+$ ffprobe -v error -show_entries stream=codec_name,bit_rate:format=bit_rate,size,duration -of compact <scratchpad>/mp3-cbr-320k.mp3
+# 流码率（AAC、MP3）或文件总码率（Ogg Opus 没有流码率），对照档位的标称码率
+stream|codec_name=mp3|bit_rate=320000
+format|duration=2.000000|size=82605|bit_rate=330420
+exit 0
+
+$ ffmpeg -hide_banner -nostdin -loglevel level+warning -y -f lavfi -i aevalsrc=exprs=0.2*sin(220*2*PI*t)|0.2*sin(330*2*PI*t)|0.2*sin(440*2*PI*t)|0.2*sin(550*2*PI*t)|0.2*sin(660*2*PI*t)|0.2*sin(770*2*PI*t)|0.2*sin(880*2*PI*t)|0.2*sin(990*2*PI*t)|0.2*sin(1100*2*PI*t)|0.2*sin(1210*2*PI*t):sample_rate=48000:duration=1:channel_layout=5.1.4 -af aformat=channel_layouts=7.1(wide) -c:a pcm_f32le -f f32le <scratchpad>/h514-to-71wide.f32
+# 5.1.4 的每个声道一个独立频率，经 aformat 重混到 ALAC 的 7.1(wide)；随后用 Goertzel 逐声道测各频率的幅度（0.2 为完整）
+FL <- FL 0.200, TFL 0.141
+FR <- FR 0.200, TFR 0.141
+FC <- FC 0.200
+LFE <- LFE 0.200
+BL <- SL 0.200
+BR <- SR 0.200
+FLC <- silent
+FRC <- silent
+TBL, TBR: in no output channel
+exit 0

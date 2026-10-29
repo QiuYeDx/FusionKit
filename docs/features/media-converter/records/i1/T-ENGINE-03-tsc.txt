@@ -1,0 +1,9 @@
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no output: no errors in the project, the files of this task included)
+exit 0
+
+# tsconfig.json includes src and electron only, so the two test files were also type-checked with a scratch config extending tsconfig.json
+# (typeRoots node_modules/@types) whose include is capabilities.test.ts, test-hooks.test.ts and src/vite-env.d.ts:
+$ pnpm exec tsc -p <scratchpad>/tsconfig.engine03.json
+(no output)
+exit 0

@@ -1,0 +1,122 @@
+# review pass 2026-10-28 (about 15:52–15:55), after the final source change (electron/main/media-converter/ipc.ts and index.ts); tsc and vite build under PowerShell Start-Process with PriorityClass Idle
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+$ npx vite build --mode=test
+vite v5.4.21 building for test...
+✓ 5484 modules transformed.
+dist/index.html                                           0.57 kB │ gzip:     0.36 kB
+✓ built in 12.98s
+vite v5.4.21 building for test...
+✓ 826 modules transformed.
+dist-electron/main/index.js  6,272.27 kB │ gzip: 2,217.55 kB
+✓ built in 6.16s
+vite v5.4.21 building for test...
+✓ 441 modules transformed.
+dist-electron/preload/index.mjs  322.39 kB │ gzip: 88.22 kB
+✓ built in 644ms
+(stderr: only the pre-existing reporter notes on a dynamic import in src/agent/orchestrator.ts and chunk sizes over 500 kB)
+exit 0
+
+$ node scripts/check-preload-bundle.mjs
+Sandboxed preload external module check passed (electron).
+exit 0
+
+$ grep -c "media-converter:get-snapshot" dist-electron/preload/index.mjs dist-electron/main/index.js
+dist-electron/preload/index.mjs:1
+dist-electron/main/index.js:1
+exit 0
+
+$ grep -o "webContents && ![^;]\{0,200\}" dist-electron/main/index.js | grep senderFrame   # the review's main-frame check is in the built main bundle
+webContents && !!t.senderFrame && t.senderFrame === t.sender.mainFrame && Gee(t)
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑：vite build 经 PowerShell Start-Process 以 PriorityClass Idle 运行（node node_modules/vite/bin/vite.js build --mode=test）
+$ npx vite build --mode=test
+vite v5.4.21 building for test...
+✓ 5494 modules transformed.
+dist/index.html                                           0.57 kB │ gzip:     0.36 kB
+✓ built in 13.52s
+vite v5.4.21 building for test...
+✓ 826 modules transformed.
+dist-electron/main/index.js  6,275.13 kB │ gzip: 2,218.34 kB
+✓ built in 6.32s
+vite v5.4.21 building for test...
+✓ 441 modules transformed.
+dist-electron/preload/index.mjs  322.69 kB │ gzip: 88.31 kB
+✓ built in 677ms
+(stderr: only the pre-existing reporter notes on a dynamic import in src/agent/orchestrator.ts and chunk sizes over 500 kB)
+exit 0
+
+$ node scripts/check-preload-bundle.mjs
+Sandboxed preload external module check passed (electron).
+exit 0
+
+$ grep -c "media-converter:get-snapshot" dist-electron/preload/index.mjs dist-electron/main/index.js
+dist-electron/preload/index.mjs:1
+dist-electron/main/index.js:1
+exit 0
+
+$ grep -o 'capabilities.state === "detecting"' dist-electron/main/index.js   # F3: the queue holds queued items during a detection
+capabilities.state === "detecting"
+exit 0
+
+$ grep -o 'status: "error", reason: [a-z.]*, alternatives' dist-electron/main/index.js   # F5: queue and IPC carry the alternatives
+status: "error", reason: r.reason, alternatives
+status: "error", reason: m.reason, alternatives
+exit 0
+
+$ grep -o "Only disk_space_low carries the space" dist-electron/preload/index.mjs   # F1: the contract the preload checks events with
+Only disk_space_low carries the space
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑（executor.ts 的最终版本；本任务写集内的文件未改）
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+# 评审与修复（2026-10-28）后重跑：vite build 经 PowerShell Start-Process 以 PriorityClass Idle 运行（node node_modules/vite/bin/vite.js build --mode=test）
+$ npx vite build --mode=test
+vite v5.4.21 building for test...
+✓ 5494 modules transformed.
+dist/index.html                                           0.57 kB │ gzip:     0.36 kB
+✓ built in 13.83s
+vite v5.4.21 building for test...
+✓ 826 modules transformed.
+dist-electron/main/index.js  6,275.19 kB │ gzip: 2,218.36 kB
+✓ built in 6.07s
+vite v5.4.21 building for test...
+✓ 441 modules transformed.
+dist-electron/preload/index.mjs  322.69 kB │ gzip: 88.31 kB
+✓ built in 725ms
+(stderr: only the pre-existing reporter notes on a dynamic import in src/agent/orchestrator.ts and chunk sizes over 500 kB)
+exit 0
+
+$ node scripts/check-preload-bundle.mjs
+Sandboxed preload external module check passed (electron).
+exit 0
+
+$ grep -c "media-converter:get-snapshot" dist-electron/preload/index.mjs dist-electron/main/index.js
+dist-electron/preload/index.mjs:1
+dist-electron/main/index.js:1
+exit 0
+
+$ grep -n -A 3 'o.kind === "failed" && o.fallback && !t.fellBack' dist-electron/main/index.js   # review fix: a cancel during the fallback re-plan settles cancelled
+114277:    if (o.kind === "failed" && o.fallback && !t.fellBack) {
+114278-      const c = await y(this, ft, tje).call(this, t, s, o.fallback);
+114279-      if (i.aborted) return y(this, ft, vB).call(this, t, r);
+114280-      c.ok ? o = await y(this, ft, ZZ).call(this, t, s) : c.code && (o = { kind: "failed", code: c.code, log: c.log, continuable: !1, fallback: null, space: c.space });
+exit 0
+
+$ grep -o 'capabilities.state === "detecting"' dist-electron/main/index.js; grep -o 'status: "error", reason: [a-z.]*, alternatives' dist-electron/main/index.js; grep -o "Only disk_space_low carries the space" dist-electron/preload/index.mjs
+capabilities.state === "detecting"
+status: "error", reason: r.reason, alternatives
+status: "error", reason: m.reason, alternatives
+Only disk_space_low carries the space
+exit 0

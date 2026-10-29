@@ -1,0 +1,108 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/audio.test.ts
+# 批次 B 修正评审（2026-10-28）后重跑；--reporter=verbose 只为列出每个用例
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/plan/audio.test.ts > the audio tables (design §5) > hold the values of design §5 and AC-ENCODE-04-1
+ ✓ test/media-converter/plan/audio.test.ts > the audio tables (design §5) > parse their option text strictly
+ ✓ test/media-converter/plan/audio.test.ts > the audio tables (design §5) > give every format its arguments at each tier, from stereo and from mono (AC-ENCODE-04-1)
+ ✓ test/media-converter/plan/audio.test.ts > the audio tables (design §5) > scale the format rates per pair of channels above two, and halve nothing for MP3 (VBR quality)
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > aac → .{}
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > alac → .{ sampleFormat: 's32', bitsPerRawSample: 24 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > mp3 → .{}
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > opus → .{}
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > vorbis → .{}
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > flac → .{ sampleFormat: 's32', bitsPerRawSample: 24 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_u8 → .{ sampleFormat: 'u8' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_s16le → .{ sampleFormat: 's16' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_s24le → .{ sampleFormat: 's32', bitsPerRawSample: 24 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_s32le → .{ sampleFormat: 's32', bitsPerRawSample: 32 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_f32le → .{ sampleFormat: 'flt' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_f64le → .{ sampleFormat: 'dbl' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_alaw → .{ sampleFormat: 's16' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_mulaw → .{ sampleFormat: 's16' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_s16be → .{ sampleFormat: 's16' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_s24be → .{ sampleFormat: 's32', bitsPerRawSample: 24 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_s32be → .{ sampleFormat: 's32', bitsPerRawSample: 32 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_f32be → .{ sampleFormat: 'flt' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_f64be → .{ sampleFormat: 'dbl' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_bluray → .{ sampleFormat: 's32', bitsPerRawSample: 24 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_bluray → .{ sampleFormat: 's16', bitsPerRawSample: 16 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_dvd → .{ sampleFormat: 's32', bitsPerRawSample: 20 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_s16be_planar → .{ sampleFormat: 's16p' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > pcm_s8 → .{ sampleFormat: 'u8' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > s302m → .{ sampleFormat: 's32', bitsPerRawSample: 24 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > adpcm_ima_qt → .{ sampleFormat: 's16p' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > nellymoser → .{}
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > mp2 → .{}
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > amr_nb → .{ sampleFormat: 'flt', channels: 1, channelLayout: 'mono' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > ac3 → .{}
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > eac3 → .{}
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > dts → .{ profile: 'DTS-HD MA' }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > truehd → .{ sampleFormat: 's32', bitsPerRawSample: 24 }
+ ✓ test/media-converter/plan/audio.test.ts > extracting audio as it is (AC-ENCODE-04-2) > takes the default track, else the first, and every track as its own numbered output with "all tracks"
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > has the standard layout of design §5 for 1 to 8 channels, and synonyms of the same channel count
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from mono (1 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from stereo (2 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 2.1 (3 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 3.0 (3 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 3.0(back) (3 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 4.0 (4 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from quad (4 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from quad(side) (4 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 5.0(side) (5 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 5.0 (5 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 4.1 (5 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 5.1(side) (6 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 5.1 (6 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from hexagonal (6 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 6.1(back) (7 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 6.1(front) (7 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 6.1 (7 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 7.1(wide) (8 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 7.1(wide-side) (8 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 7.1 (8 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 5.1.2 (8 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 5.1.4 (10 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from hexadecagonal (16 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from unknown (6 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from null (3 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from 8 channels (8 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > libopus from downmix (2 channels)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > gives Opus the standard layout through the planner, with the track rate per channel pair
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > leaves AAC its layout, but relabels the side and wide synonyms (no PCE) and remixes what aac refuses
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > gives ALAC the nearest ALAC layout: remixed by position, relabelled only when the layout is merely renamed (design §7b)
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > mixes FLAC, AAC and Opus down to 7.1 above 8 channels, and leaves MP3, PCM and unknown counts alone
+ ✓ test/media-converter/plan/audio.test.ts > channel layouts (AC-ENCODE-04-4) > mixes MP3 down to stereo above two channels and says so; mono and stereo stay
+ ✓ test/media-converter/plan/audio.test.ts > sample rates (AC-ENCODE-04-4) > writes Opus at 48 kHz, brings AAC and MP3 above 48 kHz down with soxr, and keeps the rest
+ ✓ test/media-converter/plan/audio.test.ts > sample rates (AC-ENCODE-04-4) > puts the layout first, then the sample rate, in the track's own -filter:a:<n>
+ ✓ test/media-converter/plan/audio.test.ts > sample rates (AC-ENCODE-04-4) > gives every track of a video its own filter chain, never -af (two tracks)
+ ✓ test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > asks to confirm a lossy track written as FLAC, WAV or ALAC, and nothing else
+ ✓ test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > re-encodes the same codec to shrink it when the target rate is lower than the source's (a 320k MP3 to standard MP3)
+ ✓ test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > copies the same codec when the target rate is not lower, and skips it when the container is the same too
+ ✓ test/media-converter/plan/audio.test.ts > lossy to lossless and the same codec (AC-ENCODE-04-5) > takes the container's total rate when neither the stream nor a tag states one, for an audio file of that one track only
+ ✓ test/media-converter/plan/audio.test.ts > audio inside a video (AC-ENCODE-05-1, AC-ENCODE-05-2) > "convert" copies every codec the container takes, whatever its rate
+ ✓ test/media-converter/plan/audio.test.ts > audio inside a video (AC-ENCODE-05-1, AC-ENCODE-05-2) > "convert" re-encodes into MKV the PCM and ADPCM kinds the Matroska muxer refuses as they are
+ ✓ test/media-converter/plan/audio.test.ts > audio inside a video (AC-ENCODE-05-1, AC-ENCODE-05-2) > "compress" copies a compatible track only up to 1.25 × the tier rate, read from the stream, else the BPS tag
+ ✓ test/media-converter/plan/audio.test.ts > audio inside a video (AC-ENCODE-05-1, AC-ENCODE-05-2) > "compress" always re-encodes lossless tracks and DTS, however low their rate
+ ✓ test/media-converter/plan/audio.test.ts > audio inside a video (AC-ENCODE-05-1, AC-ENCODE-05-2) > re-encodes at the "audio inside a video" rates, keeping the channel count (more than 8 become 7.1)
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > pcm_s16le (s16, 16 bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > flac (s32, 24 bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > pcm_s32le (s32, 32 bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > pcm_dvd (s32, 20 bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > pcm_u8 (u8, null bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > pcm_f32le (flt, null bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > pcm_f64be (dbl, null bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > mp3 (fltp, null bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > wavpack (s64p, null bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > bit depth (design §5, R-ENCODE-04 边界) > tta (null, null bits) keeps its depth in WAV, FLAC and ALAC
+ ✓ test/media-converter/plan/audio.test.ts > covers, chapters and tags (AC-ENCODE-04-3) > puts cover art into MP3, M4A and FLAC as an attached picture, and drops it from Opus and the rest with cover_dropped
+ ✓ test/media-converter/plan/audio.test.ts > covers, chapters and tags (AC-ENCODE-04-3) > keeps chapters in MP3, M4A and Opus, and tells before the start that FLAC, WAV and Ogg Vorbis lose them
+ ✓ test/media-converter/plan/audio.test.ts > covers, chapters and tags (AC-ENCODE-04-3) > removes the source container's brand tags from MP3, FLAC, Opus and Ogg, and sets no encoder tag anywhere
+ ✓ test/media-converter/plan/audio.test.ts > the output caps of audio encodes (design §7) > bound lossy formats by their table rate, MP3 by its largest frame
+
+ Test Files  1 passed (1)
+      Tests  97 passed (97)
+   Start at  12:31:49
+   Duration  615ms (transform 125ms, setup 0ms, collect 349ms, tests 70ms, environment 0ms, prepare 58ms)
+exit 0

@@ -1,0 +1,11 @@
+{
+  "file": { "name": "capture.h264", "sizeBytes": 1048576, "matroskaDocType": null },
+  "ffprobe": {
+    "streams": [
+      { "index": 0, "codec_name": "h264", "profile": "Main", "codec_type": "video", "width": 1280, "height": 720, "sample_aspect_ratio": "1:1",
+        "pix_fmt": "yuv420p", "field_order": "progressive", "r_frame_rate": "25/1", "avg_frame_rate": "25/1", "time_base": "1/1200000",
+        "bits_per_raw_sample": "8", "disposition": { "default": 0 } }
+    ],
+    "format": { "format_name": "h264", "format_long_name": "raw H.264 video", "nb_streams": 1, "probe_score": 51 }
+  }
+}

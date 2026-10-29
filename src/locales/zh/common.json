@@ -18,6 +18,9 @@
     "text": {
       "translator": "长文本翻译"
     },
+    "media": {
+      "converter": "音视频转换"
+    },
     "help": "帮助"
   },
   "start": "开始",

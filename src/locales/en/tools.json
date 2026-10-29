@@ -20,7 +20,8 @@
     "subtitle_language_extractor": "Language Extraction",
     "local_subtitle_transcriber": "Local Subtitle Transcriber",
     "name_translator": "Name Translator",
-    "text_translator": "Long Text Translator"
+    "text_translator": "Long Text Translator",
+    "media_converter": "Media Converter"
   },
   "field_desc": {
     "subtitle_translator": "Translate subtitle files with AI models",
@@ -29,6 +30,7 @@
     "local_subtitle_transcriber": "Batch transcribe audio or video into SRT / LRC subtitles with an on-device model",
     "name_translator": "Tick files and folders (including nested items), translate their names with AI, review and edit, then rename in one go with undo",
     "text_translator": "Import TXT or Markdown or paste text, compare source and translation segment by segment, try a sample, pause and resume, then review and export",
+    "media_converter": "Compress videos, convert audio and video formats or extract audio, all on this computer with nothing uploaded",
     "subtitle_studio": "Transcribe, translate and batch export bilingual subtitles"
   },
   "chips": {
@@ -36,6 +38,8 @@
     "name_translator_safe": "Review · Undo",
     "text_translator_txt": "TXT",
     "text_translator_markdown": "Markdown",
+    "media_converter_tasks": "Compress · Convert · Extract audio",
+    "media_converter_local": "On this computer · No upload",
     "local_offline": "Offline transcription",
     "local_batch_formats": "Batch · SRT/LRC",
     "studio_transcription": "Local transcription",
@@ -64,6 +68,8 @@
     "share_value": "Import / export",
     "classic": "Classic tools",
     "classic_description": "Established standalone tools for everyday subtitle tasks.",
+    "media": "Media tools",
+    "media_description": "Tools for audio and video files that run entirely on this computer.",
     "experimental": "Experimental tools",
     "experimental_description": "This tool is in beta, with features and usability still being refined. It is not yet recommended for production work. Prefer the tools above.",
     "toolbox": "{{count}} tools",

@@ -18,16 +18,16 @@ T-ENGINE-01 → T-ENCODE-01 → T-ENGINE-02 → T-ENGINE-04 → T-ENGINE-05 → 
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENGINE-01, R-ENGINE-02 |
 | 验收 | AC-ENGINE-01-1, AC-ENGINE-01-2, AC-ENGINE-02-1, AC-ENGINE-02-2, AC-ENGINE-02-3, AC-ENGINE-02-4, AC-ENGINE-02-5 |
 | 依赖 | - |
 | 写集 | electron/main/media-converter/engine/runtime.ts, electron/main/media-converter/engine/probe.ts, src/media-converter/contract.ts, test/media-converter/runtime.test.ts, test/media-converter/probe.test.ts, test/media-converter/fixtures/probe/ |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 A 实施 + 独立评审） |
+| 依赖确认 | 无依赖 |
+| 完成日期 | 2026-10-26 |
+| 实施记录 | records/i1/T-ENGINE-01.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -58,16 +58,16 @@ T-ENGINE-01 → T-ENCODE-01 → T-ENGINE-02 → T-ENGINE-04 → T-ENGINE-05 → 
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENGINE-04 |
 | 验收 | AC-ENGINE-04-1, AC-ENGINE-04-2, AC-ENGINE-04-3, AC-ENGINE-04-4, AC-ENGINE-04-5 |
 | 依赖 | T-ENGINE-01 |
 | 写集 | electron/main/media-converter/engine/process.ts, electron/main/media-converter/engine/progress.ts, test/media-converter/progress.test.ts, test/media-converter/process.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 A 实施 + 独立评审） |
+| 依赖确认 | T-ENGINE-01：同一工作树（批次 A 集成检查通过） |
+| 完成日期 | 2026-10-26 |
+| 实施记录 | records/i1/T-ENGINE-02.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -96,16 +96,16 @@ T-ENGINE-01 → T-ENCODE-01 → T-ENGINE-02 → T-ENGINE-04 → T-ENGINE-05 → 
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENGINE-03 |
 | 验收 | AC-ENGINE-03-1, AC-ENGINE-03-2, AC-ENGINE-03-4 |
 | 依赖 | T-ENGINE-02, T-ENCODE-02 |
 | 写集 | electron/main/media-converter/engine/capabilities.ts, electron/main/media-converter/test-hooks.ts, src/media-converter/contract.ts, test/media-converter/capabilities.test.ts, test/media-converter/test-hooks.test.ts, test/media-converter/fixtures/capabilities/ |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 C 实施 + 独立评审） |
+| 依赖确认 | T-ENGINE-02、T-ENCODE-02 已完成（工作树，批次 A/B 集成检查通过） |
+| 完成日期 | 2026-10-28 |
+| 实施记录 | records/i1/T-ENGINE-03.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -134,16 +134,16 @@ Intel 核显和 AMD 显卡的能力探测无法在本机验证（本机没有这
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENGINE-06 |
 | 验收 | AC-ENGINE-06-1, AC-ENGINE-06-2, AC-ENGINE-06-3, AC-ENGINE-06-4, AC-ENGINE-06-5 |
 | 依赖 | T-ENGINE-01 |
 | 写集 | electron/main/media-converter/engine/output.ts, electron/main/media-converter/engine/inputs.ts, test/media-converter/output.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 A 实施 + 独立评审） |
+| 依赖确认 | T-ENGINE-01：同一工作树（批次 A 集成检查通过） |
+| 完成日期 | 2026-10-26 |
+| 实施记录 | records/i1/T-ENGINE-04.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -172,16 +172,16 @@ Intel 核显和 AMD 显卡的能力探测无法在本机验证（本机没有这
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENGINE-05 |
 | 验收 | AC-ENGINE-05-1, AC-ENGINE-05-2, AC-ENGINE-05-3, AC-ENGINE-05-4, AC-ENGINE-05-5 |
 | 依赖 | T-ENGINE-02, T-ENGINE-04, T-ENCODE-01 |
 | 写集 | electron/main/media-converter/queue/queue.ts, electron/main/media-converter/queue/state-store.ts, electron/main/media-converter/queue/types.ts, src/media-converter/contract.ts, test/media-converter/queue.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 B 实施 + 独立评审） |
+| 依赖确认 | T-ENGINE-02、T-ENGINE-04、T-ENCODE-01：同一工作树（批次 B 集成检查，582 测试通过） |
+| 完成日期 | 2026-10-26 |
+| 实施记录 | records/i1/T-ENGINE-05.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -210,16 +210,16 @@ Intel 核显和 AMD 显卡的能力探测无法在本机验证（本机没有这
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENGINE-03, R-ENGINE-04, R-ENGINE-06 |
 | 验收 | AC-ENGINE-03-3, AC-ENGINE-04-3, AC-ENGINE-04-5, AC-ENGINE-06-1, AC-ENGINE-06-4 |
 | 依赖 | T-ENGINE-03, T-ENGINE-05, T-ENCODE-02, T-ENCODE-03, T-ENCODE-04 |
 | 写集 | electron/main/media-converter/engine/executor.ts, electron/main/media-converter/test-hooks.ts, test/media-converter/executor.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 C 实施 + 独立评审） |
+| 依赖确认 | T-ENGINE-03、T-ENGINE-05、T-ENCODE-02、T-ENCODE-03、T-ENCODE-04 已完成（工作树，批次 A/B/C 集成检查通过） |
+| 完成日期 | 2026-10-28 |
+| 实施记录 | records/i1/T-ENGINE-07.md |
 | 集成版本 | - |
 
 #### 实现要点
@@ -242,16 +242,16 @@ Intel 核显和 AMD 显卡的能力探测无法在本机验证（本机没有这
 
 | 字段 | 值 |
 | --- | --- |
-| 状态 | 未开始 |
+| 状态 | 已完成 |
 | 批次 | I1 |
 | 需求 | R-ENGINE-07, R-ENGINE-01, R-ENGINE-05 |
 | 验收 | AC-ENGINE-07-1, AC-ENGINE-07-2, AC-ENGINE-07-3, AC-ENGINE-01-3, AC-ENGINE-05-4 |
 | 依赖 | T-ENGINE-07 |
 | 写集 | src/media-converter/channels.ts, src/media-converter/contract.ts, electron/preload/media-converter-api.ts, electron/preload/media-converter-channel-policy.ts, electron/preload/index.ts, electron/main/media-converter/ipc.ts, electron/main/media-converter/index.ts, electron/main/index.ts, src/vite-env.d.ts, scripts/subtitle-studio-provenance/current-composition-audits.json, resources/speech-resources/provenance/current-integration-audits.v1.json, test/media-converter/ipc.test.ts, test/media-converter/composition.test.ts |
-| 负责人 | - |
-| 依赖确认 | - |
-| 完成日期 | - |
-| 实施记录 | - |
+| 负责人 | Agent（批次 C 实施 + 独立评审） |
+| 依赖确认 | T-ENGINE-07 已完成（工作树，批次 C 集成检查通过） |
+| 完成日期 | 2026-10-28 |
+| 实施记录 | records/i1/T-ENGINE-06.md |
 | 集成版本 | - |
 
 #### 实现要点

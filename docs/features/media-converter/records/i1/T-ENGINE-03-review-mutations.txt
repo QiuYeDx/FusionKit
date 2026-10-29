@@ -1,0 +1,11 @@
+$ python <scratchpad>/mutate.py (M19: <scratchpad>/mutate-m19.py) electron/main/media-converter/engine/capabilities.ts <scratchpad>/capabilities.ts.bak   # review mutations M18-M23, each applied alone, then:
+#   npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/capabilities.test.ts test/media-converter/test-hooks.test.ts -t "^(?!the real detection)"
+# the source is restored byte for byte after each (md5 27a1c7a21caf4470ec99f752fc783b70 before and after)
+baseline (no mutation): exit 0 | Tests  47 passed | 1 skipped (48)
+M18 CUDA out of memory kept as no_device: killed (exit 1) | Tests  2 failed | 45 passed | 1 skipped (48) | test/media-converter/capabilities.test.ts > stderr classification > never keeps a CUDA failure that passes as no_device, although NVENC prints "No capable devices found" after it ; test/media-converter/capabilities.test.ts > the detection > keeps only definitive verdicts: session_limit, unknown and timeouts are measured again at the next start
+M20 "No CUDA capable devices" not no_device: killed (exit 1) | Tests  1 failed | 46 passed | 1 skipped (48) | test/media-converter/capabilities.test.ts > stderr classification > never keeps a CUDA failure that passes as no_device, although NVENC prints "No capable devices found" after it
+M21 unsupported param not params_rejected: killed (exit 1) | Tests  1 failed | 46 passed | 1 skipped (48) | test/media-converter/capabilities.test.ts > stderr classification > never keeps a CUDA failure that passes as no_device, although NVENC prints "No capable devices found" after it
+M22 cache takes any minimumDriver: killed (exit 1) | Tests  1 failed | 46 passed | 1 skipped (48) | test/media-converter/capabilities.test.ts > status, redetection and degradation > takes no kept driver version the engine status could not carry
+M23 listeners called after dispose: killed (exit 1) | Tests  1 failed | 46 passed | 1 skipped (48) | test/media-converter/capabilities.test.ts > status, redetection and degradation > dispose() ends the ffmpeg of a detection in progress; later asks answer busy
+M19 other CUDA failures kept as no_device: killed (exit 1) | Tests  1 failed | 46 passed | 1 skipped (48) | test/media-converter/capabilities.test.ts > stderr classification > never keeps a CUDA failure that passes as no_device, although NVENC prints "No capable devices found" after it
+exit 0

@@ -1,0 +1,175 @@
+# V-WORKBENCH-04-1, independent review 2026-10-29, final code. Every command ran through PowerShell Start-Process (cmd.exe at Idle priority; vitest, Electron, ffmpeg/ffprobe inherit it), one at a time, quiet window mode (vitest.config.ts default); electron.exe and ffmpeg.exe processes before and after each run: 0.
+
+# Review finding 1 proved first. The run scenario was strengthened (its live-region recorder is installed with page.addInitScript before the reload, and the reloaded page must announce nothing), then run on the code WITHOUT the fix (useEndAnnouncements without its ready gate):
+$ pnpm run pretest
+Sandboxed preload external module check passed (electron).
+exit 0
+$ FUSIONKIT_MEDIA_E2E=1 npx vitest run --maxWorkers=1 --minWorkers=1 test/media-converter/media-converter.electron.test.ts -t "run: confirms"
+ ❯ test/media-converter/media-converter.electron.test.ts (15 tests | 1 failed | 14 skipped) 25137ms
+   × Media converter queue, progress and results in Electron (T-WORKBENCH-04) > run: confirms the loss before the start, shows progress through leaving and reloading, cancels, reveals, skips, converts anyway, announces and notifies 25110ms
+     → announced after the reload: expected [ 'pgs.mkv 已完成，节省 64%' ] to deeply equal []
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/media-converter/media-converter.electron.test.ts > Media converter queue, progress and results in Electron (T-WORKBENCH-04) > run: confirms the loss before the start, shows progress through leaving and reloading, cancels, reveals, skips, converts anyway, announces and notifies
+AssertionError: announced after the reload: expected [ 'pgs.mkv 已完成，节省 64%' ] to deeply equal []
+- Expected
++ Received
+- Array []
++ Array [
++   "pgs.mkv 已完成，节省 64%",
++ ]
+ ❯ test/media-converter/media-converter.electron.test.ts:2077:70
+    2075|     await page.waitForTimeout(500);
+    2076|     expect(await page.evaluate(() => !!(globalThis as AnnouncementGlob…
+    2077|     expect(await announcedLines(page), 'announced after the reload').t…
+       |                                                                      ^
+    2078|     await recordQueueEvents(page);
+    2079|     const afterReload = (await rowFraction(longRow))!;
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 skipped (15)
+   Start at  01:54:10
+   Duration  36.05s (transform 165ms, setup 68ms, collect 10.64s, tests 25.14s, environment 0ms, prepare 61ms)
+exit 1
+
+# With the fix restored and rebuilt: the three T-WORKBENCH-04 scenarios, then the whole file.
+$ pnpm run pretest
+✓ built in 13.60s
+✓ built in 5.96s
+✓ built in 691ms
+Sandboxed preload external module check passed (electron).
+exit 0
+$ FUSIONKIT_MEDIA_E2E=1 npx vitest run --maxWorkers=1 --minWorkers=1 test/media-converter/media-converter.electron.test.ts -t "T-WORKBENCH-04"
+ ✓ test/media-converter/media-converter.electron.test.ts (15 tests | 12 skipped) 129103ms
+   ✓ ... (T-WORKBENCH-04) > run: ... 29417ms
+   ✓ ... (T-WORKBENCH-04) > failures and holds: ... 41918ms
+   ✓ ... (T-WORKBENCH-04) > review: ... 57758ms
+ Test Files  1 passed (1)
+      Tests  3 passed | 12 skipped (15)
+exit 0
+
+$ FUSIONKIT_MEDIA_E2E=1 npx vitest run --maxWorkers=1 --minWorkers=1 test/media-converter/media-converter.electron.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/media-converter.electron.test.ts (15 tests) 433662ms
+   ✓ Media converter in Electron > lists the converter in its own catalog section, opens it and goes back with Escape and Back 34044ms
+   ✓ Media converter in Electron > makes media in the run folder and hands it over by drop and by the stubbed dialog 10401ms
+   ✓ Media converter in Electron > explains the platform instead of showing the tool where the converter is not supported 17422ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: defaults per task, the codec sentences, the weak CPU encoder hint, the GPU tooltip and the fold, across windows, themes and languages 62024ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: restores the preferences after a restart, never overwrite, and falls back from a folder the engine no longer knows 25392ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: an NVENC computer defaults to HEVC, offers the GPU for AV1, names the driver update and blocks detecting again during a hardware encode 17697ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: shows the detection while it runs, keeps the GPU switch off until it ends, and detects again on request 27505ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: says why the engine is unavailable and what to do 15815ms
+   ✓ Media converter files, media information and plans in Electron (T-WORKBENCH-03) > files: adds by the dialog and by drop, shows the media information, unsupported and not-applicable rows, the loss line and the plan 58379ms
+   ✓ Media converter files, media information and plans in Electron (T-WORKBENCH-03) > files: explains duplicates, folders, temporary copies, files without a path and more than 100 files, and plans only rows in view 36423ms
+   ✓ Media converter queue, progress and results in Electron (T-WORKBENCH-04) > run: confirms the loss before the start, shows progress through leaving and reloading, cancels, reveals, skips, converts anyway, announces and notifies 29308ms
+   ✓ Media converter queue, progress and results in Electron (T-WORKBENCH-04) > failures and holds: the error code and the redacted log, a retry that succeeds, no start while detecting, lossless and replaced files in one confirmation 41559ms
+   ✓ Media converter queue, progress and results in Electron (T-WORKBENCH-04) > review: thirty items in every state across windows, themes and languages, the corners, the dock and steady numbers 57677ms
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  01:58:55
+   Duration  434.76s (transform 162ms, setup 65ms, collect 813ms, tests 433.66s, environment 0ms, prepare 61ms)
+exit 0
+
+# Facts the T-WORKBENCH-04 scenarios recorded in their run folders (T-WORKBENCH-04-run.json, T-WORKBENCH-04-failures.json), final full run:
+{
+ "plan of pgs.mkv (AV1) before and after Change to MKV": {
+  "mp4": {
+   "container": "mp4",
+   "warnings": [
+    "subtitle_dropped",
+    "mp4_default_audio_forced"
+   ]
+  },
+  "mkv": {
+   "container": "mkv",
+   "warnings": []
+  }
+ },
+ "long-take.mp4 bar values, 450 ms apart": [
+  0,
+  0.8,
+  1.7,
+  2.7
+ ],
+ "three frames of its numbers (texts, then boxes; equal boxes asserted)": [
+  "5% | 2.1× | 53 fps | 512 KB | 0:59  @  media-row-status:414,343.5,73.5,18 media-row-stats:958,343.5,279,18 media-stat-percent:958,343.5,24.5,18 media-stat-speed:994,343.5,32.5,18 media-stat-fps:1038.5,343.5,45,18 media-stat-written:1121.5,343.5,45,18 media-stat-eta:1205,343.5,32.5,18 PROGRESS:391,369.5,846,4",
+  "6% | 2.2× | 55 fps | 512 KB | 0:58  @  media-row-status:414,343.5,73.5,18 media-row-stats:958,343.5,279,18 media-stat-percent:958,343.5,24.5,18 media-stat-speed:994,343.5,32.5,18 media-stat-fps:1038.5,343.5,45,18 media-stat-written:1121.5,343.5,45,18 media-stat-eta:1205,343.5,32.5,18 PROGRESS:391,369.5,846,4",
+  "7% | 2.2× | 55 fps | 512 KB | 0:58  @  media-row-status:414,343.5,73.5,18 media-row-stats:958,343.5,279,18 media-stat-percent:958,343.5,24.5,18 media-stat-speed:994,343.5,32.5,18 media-stat-fps:1038.5,343.5,45,18 media-stat-written:1121.5,343.5,45,18 media-stat-eta:1205,343.5,32.5,18 PROGRESS:391,369.5,846,4"
+ ],
+ "bar value before leaving / after coming back / before reload / right after reload / later": {
+  "beforeLeave": 6.8,
+  "afterReturn": 9.4,
+  "beforeReload": 9.4,
+  "afterReload": 16.3,
+  "later": 17.1
+ },
+ "window focus for the notification": "document.hasFocus replaced: the quiet window still reported focus",
+ "partial output of long-take.mp4 while running / partials right after its cancel (the next item's)": {
+  "during": ".fusionkit-media-1cc51df2.partial",
+  "after": [
+   ".fusionkit-media-d9519f55.partial"
+  ]
+ },
+ "live region lines, in order (lines before the reload, then the reloaded page's recorder, installed by page.addInitScript before the reload; it heard nothing until long-take.mp4 was cancelled)": [
+  "pgs.mkv 已完成，节省 64%",
+  "long-take.mp4 已取消",
+  "clip.mp4 已完成，节省 64%",
+  "tight.mp4 已跳过：压缩后没有明显变小，没有保存输出",
+  "tight.mp4 已完成，体积变化 +206%",
+  "long-take.mp4 已取消"
+ ],
+ "change events per recording (0: before reload, 2: after); progress rate of long-take.mp4": [
+  {
+   "recording": 0,
+   "events": 21,
+   "progress": 13
+  },
+  {
+   "events": 13,
+   "seconds": 6.2,
+   "perSecond": 1.93,
+   "minGapMs": 501
+  },
+  {
+   "recording": 2,
+   "events": 31,
+   "progress": 1
+  }
+ ],
+ "start held while detecting": {
+  "startAll": "disabled while detecting",
+  "rowStart": "disabled while detecting"
+ },
+ "song.m4a converted to FLAC over the older song.flac (overwrite)": {
+  "result": {
+   "outputs": [
+    {
+     "index": 0,
+     "fileName": "song.flac",
+     "folderName": "media",
+     "sizeBytes": 120372,
+     "replaced": true
+    }
+   ],
+   "outputCount": 1,
+   "sourceBytes": 32118,
+   "outputBytes": 120372,
+   "warnings": []
+  },
+  "trashed": [
+   "song.flac"
+  ]
+ },
+ "failure details as rendered (zh)": "错误详情 - clip.mp4\n\nFFmpeg 无法在目标文件夹中创建输出文件，可能没有写入权限，或被安全软件拦截。请检查后重试，或换一个输出位置。\n\n错误时间\n2026/10/29 02:04:41\n错误消息\n无法创建输出文件\n错误详情\n错误码：output_open_failed\n详细日志 (3 条记录)\n#1[out#0/mp4 @ 0000000000000000] [error] Error opening output <output>: Permission denied\n#2[FUSIONKIT_TEST_MEDIA_FAIL] output_open_failed was injected into the first run of this item.\n#3[media-converter] The output file could not be opened.\n复制错误信息\n关闭\nClose",
+ "failure details as rendered (en)": "Error Details - clip.mp4\n\nFFmpeg could not create the output file in the target folder: the folder may not be writable, or security software blocked it. Check it and try again, or choose another output folder.\n\nTime\n10/29/2026, 2:04:41 AM\nMessage\nThe output file could not be created\nDetail\nError code: output_open_failed\nLogs (3 records)\n#1[out#0/mp4 @ 0000000000000000] [error] Error opening output <output>: Permission denied\n#2[FUSIONKIT_TEST_MEDIA_FAIL] output_open_failed was injected into the first run of this item.\n#3[media-converter] The output file could not be opened.\nCopy error info\nClose\nClose"
+}
+
+# History of the implementation (other agent, 2026-10-28/29, before this review):
+# Earlier runs during the implementation (each followed by a fix, then everything ran again):
+#  1. run: expected clip-compressed.mp4, got clip-compressed.mkv: "Change to MKV" changes the panel, so every file of that start is MKV (test expectation fixed; the dialog says so in its note).
+#  2. failures and holds: song.m4a had no start button after detection: extract audio does not apply to an audio file (test switched to convert to FLAC).
+#     review: settle() timed out: spinning icons change their boxes every frame (the review settles on the queue without svg).
+#  3. after the rendered review (cancelled note repeating the status, ended rows 62/68 px, red reason twice): fixed, rebuilt, all three T-WORKBENCH-04 scenarios 3/3, then the whole file 15/15 twice.
+
+# The implementation's supplementary regression (not repeated in this review; the review changed only MediaQueue.tsx's live region, announcement gate and cancel-all text):
+$ FUSIONKIT_TOOL_UI_E2E=1 FUSIONKIT_TEST_MEDIA_CAPS=cpu_only npx vitest run --maxWorkers=1 --minWorkers=1 test/tool-navigation.electron.test.ts
+      Tests  1 passed (1)   (2026-10-29 01:24, before this review)

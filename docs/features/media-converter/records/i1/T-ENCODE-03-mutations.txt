@@ -1,0 +1,65 @@
+# T-ENCODE-03 mutation checks. Each mutation is applied IN MEMORY to electron/main/media-converter/plan/video.ts by a vite transform
+# (scratchpad vitest.mutate.config.mjs, MUTATION=<id>); no file on disk is changed. sha256 of the 6 write-set files was checked before and after: unchanged.
+# Mutations (id: what changes):
+#   M1: setparams omitted  ["  filters.push(setparams(picture.tags));" -> "  // mutated"]
+#   M2: full range not converted  ["...(picture.fullRange ? ['in_range=pc', 'out_range=tv'] : picture.rgbMatrix" -> "...(false ? [] : picture.rgbMatrix"]
+#   M3: HDR never kept (always tone mapped)  ["variantBitDepth(variant) === 10 ? 'keep' : 'tonemap'" -> "'tonemap' as const"]
+#   M4: HDR never tone mapped (kept on 8-bit too)  ["variantBitDepth(variant) === 10 ? 'keep' : 'tonemap'" -> "'keep' as const"]
+#   M5: Dolby Vision profile 5 not refused  ["if (isUnsupportedDolbyVision(video)) return { ok: false, reason: 'dolby_vision_p5_unsupported', alternatives: [] };" -> ""]
+#   M6: no -dolbyvision 0  ["if (picture.dropDolbyVision && encoder === 'libsvtav1') params.push(['dolbyvision', '0']);" -> ""]
+#   M7: no -fps_mode passthrough  ["if (picture.passthrough) params.push(['fps_mode', 'passthrough']);" -> ""]
+#   M8: interlaced field-rate rule dropped (design §7a)  ["return !(isInterlaced(video) && base !== null" -> "return !(false && base !== null"]
+#   M9: no bwdif  ["if (picture.deinterlace) filters.push(DEINTERLACE);" -> ""]
+#   M10: no chroma_subsampled  ["chromaSubsampled: video.chromaSubsampling !== null &&" -> "chromaSubsampled: false &&"]
+#   M11: no explicit pin/p for untagged primaries  ["if (source.primaries === null) tonemapInput.push('pin=bt2020', 'p=bt2020');" -> ""]
+#   M12: zscale not pinned to Y'CbCr before scale  [", ...TONEMAP_TAIL, `format=${planarFormat(pixFmt)}`);" -> ", ...TONEMAP_TAIL);"]
+#   M13: HDR metadata kept on tone-mapped output  ["'sidedata=mode=delete:type=MASTERING_DISPLAY_METADATA', 'sidedata=mode=delete:type=CONTENT_LIGHT_LEVEL'," -> ""]
+#   M14: RGB converted without a matrix  ["...(picture.rgbMatrix ? [`out_color_matrix=${picture.rgbMatrix}`] : [])," -> ""]
+#   M15: SD/HD boundary at ≤ 720  ["short < SD_SHORT_SIDE" -> "short <= SD_SHORT_SIDE"]
+#   M16: HDR without 10-bit preference  ["dynamicRangeOf(video) !== 'sdr' ? firstUsable" -> "false ? firstUsable"]
+#   M17: no hdr_tonemapped warning  ["if (picture.hdr === 'tonemap') add('hdr_tonemapped');" -> ""]
+#   M18: no explicit rin  ["if (video.colorRange !== 'tv') tonemapInput.push(`rin=${video.colorRange === 'pc' ? 'pc' : 'tv'}`);" -> ""]
+
+$ for m in M1..M18: MUTATION=$m npx vitest run --config <scratchpad>/vitest.mutate.config.mjs --maxWorkers=4 --minWorkers=1 test/media-converter/plan/video-correctness.test.ts test/media-converter/plan/stream-plan.test.ts
+M1 (setparams omitted) | Tests 18 failed | 79 passed (97)
+M2 (full range not converted) | Tests 7 failed | 90 passed (97)
+M3 (HDR never kept (always tone mapped)) | Tests 6 failed | 91 passed (97)
+M4 (HDR never tone mapped (kept on 8-bit too)) | Tests 6 failed | 91 passed (97)
+M5 (Dolby Vision profile 5 not refused) | Tests 1 failed | 96 passed (97)
+M6 (no -dolbyvision 0) | Tests 2 failed | 95 passed (97)
+M7 (no -fps_mode passthrough) | Tests 2 failed | 95 passed (97)
+M8 (interlaced field-rate rule dropped (design §7a)) | Tests 1 failed | 96 passed (97)
+M9 (no bwdif) | Tests 2 failed | 95 passed (97)
+M10 (no chroma_subsampled) | Tests 4 failed | 93 passed (97)
+M11 (no explicit pin/p for untagged primaries) | Tests 2 failed | 95 passed (97)
+M12 (zscale not pinned to Y'CbCr before scale) | Tests 3 failed | 94 passed (97)
+M13 (HDR metadata kept on tone-mapped output) | Tests 3 failed | 94 passed (97)
+M14 (RGB converted without a matrix) | Tests 2 failed | 95 passed (97)
+M15 (SD/HD boundary at ≤ 720) | Tests 3 failed | 94 passed (97)
+M16 (HDR without 10-bit preference) | Tests 1 failed | 96 passed (97)
+M17 (no hdr_tonemapped warning) | Tests 4 failed | 93 passed (97)
+M18 (no explicit rin) | Tests 3 failed | 94 passed (97)
+exit 1 (each run: >= 1 failed, i.e. every mutation is detected; unmutated: 97 passed)
+
+$ for m in M2 M3 M4 M7 M9 M13: MUTATION=$m npx vitest run --config <scratchpad>/vitest.mutate.config.mjs --maxWorkers=4 --minWorkers=1 test/media-converter/encode-real.test.ts -t correctness   # real ffmpeg, idle priority; assertions on the measured output come before the argument checks
+M2 (full range not converted) | Tests 1 failed | 7 passed | 16 skipped (24)
+    × full range (AC-ENCODE-03-2): pc and yuvj* sources measure YMAX ≤ 940 at 10 bits after conversion, scaled or not 278ms
+    → ramp YMAX: expected 1023 to be less than or equal to 940
+M3 (HDR never kept (always tone mapped)) | Tests 2 failed | 6 passed | 16 skipped (24)
+    × HDR10 to AV1 (AC-ENCODE-03-3): BT.2020 + PQ, 10-bit into the encoder, mastering display and content light in the first frame 240ms
+    → expected { width: 320, height: 180, …(6) } to match object { pix_fmt: 'yuv420p10le', …(4) }
+    × HDR10 to HEVC 10-bit on NVENC (AC-ENCODE-03-3): kept the same way, where the device is here 257ms
+    → expected { width: 320, height: 180, …(6) } to match object { pix_fmt: 'yuv420p10le', …(4) }
+M4 (HDR never tone mapped (kept on 8-bit too)) | Tests 1 failed | 7 passed | 16 skipped (24)
+    × HDR10 to H.264 (AC-ENCODE-03-3): tone mapped to BT.709 SDR, said so, without the HDR metadata 112ms
+    → expected { width: 320, height: 180, …(7) } to match object { pix_fmt: 'yuv420p', …(4) }
+M7 (no -fps_mode passthrough) | Tests 1 failed | 7 passed | 16 skipped (24)
+    × variable frame rate (AC-ENCODE-03-5): -fps_mode passthrough keeps every timestamp, the duration within max(0.1 s, 0.5 %) 243ms
+    → expected '-f' to be 'passthrough' // Object.is equality
+M9 (no bwdif) | Tests 1 failed | 7 passed | 16 skipped (24)
+    × interlacing (AC-ENCODE-03-5): a top-field-first source is deinterlaced by bwdif, frame for frame 377ms
+    → {"frames":30,"interlaced":30,"progressive":0}: expected 0 to be greater than or equal to 22.5
+M13 (HDR metadata kept on tone-mapped output) | Tests 1 failed | 7 passed | 16 skipped (24)
+    × HDR10 to H.264 (AC-ENCODE-03-3): tone mapped to BT.709 SDR, said so, without the HDR metadata 102ms
+    → expected [ { …(11) }, { …(3) } ] to deeply equal []
+exit 1 (each run: >= 1 failed; unmutated: 8 passed, see T-ENCODE-03-correctness-real.txt). M7: the default fps_mode of the MP4 muxer already keeps these timestamps, so only the -fps_mode passthrough argument check (the AC itself) catches it.

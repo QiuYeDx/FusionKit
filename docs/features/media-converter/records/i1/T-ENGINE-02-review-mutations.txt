@@ -1,0 +1,11 @@
+# Review mutations: each fix of the review reverted on its own in engine/process.ts, then the V-ENGINE-02-2 test file run; the file is restored after each (sha256 compared).
+$ python -X utf8 <scratchpad>/review/mutate.py
+R1 output stream/container contradiction excuses the duration again | exit 1 | Tests  2 failed | 38 passed (40) | failed: the real ffmpeg > fails an output whose video stopped early while its audio kept the container long ; the success judgement > never excuses an output main stream cut short under a container that another stream kept long | restored True
+R2 expectedFrom ignored (main stream always first) | exit 1 | Tests  1 failed | 39 passed (40) | failed: the success judgement > never excuses an output main stream cut short under a container that another stream kept long | restored True
+R3 cap judged before an unconfirmed close | exit 1 | Tests  2 failed | 38 passed (40) | failed: the success judgement > needs exit 0, progress=end, no cap, no stall, and a cancelled run is never a success ; the success judgement > proves no cap and publishes nothing for a process whose close was never seen | restored True
+R4 late close reports progress after settle | exit 1 | Tests  1 failed | 39 passed (40) | failed: the run > settles at its own deadline when close never comes, and still tells when the process is gone | restored True
+R5 output path not tied to the written file | exit 1 | Tests  1 failed | 39 passed (40) | failed: the ffmpeg arguments > adds the common prefix once and refuses what the prefix owns, a cap without -fs, and -fs without a cap | restored True
+R6 a stall hides the full disk again | exit 1 | Tests  1 failed | 39 passed (40) | failed: the run > names disk_full and output_open_failed from stderr, the disk first, and not from a file name | restored True
+# sha256 before d593531777b49af287622ccab3f4d0d8d8acca5043d91f6c71041a16a8e81285
+# sha256 after  d593531777b49af287622ccab3f4d0d8d8acca5043d91f6c71041a16a8e81285
+exit 0

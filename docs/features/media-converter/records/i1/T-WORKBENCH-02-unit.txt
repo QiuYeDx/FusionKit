@@ -1,0 +1,51 @@
+# V-WORKBENCH-02-1 unit tests, 2026-10-28 21:07 (independent review re-run; after the last source change)
+
+$ npx vitest run --maxWorkers=4 --minWorkers=1 src/services/media-converter/controller.test.ts src/store/tools/media/useMediaConverterPreferences.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ src/store/tools/media/useMediaConverterPreferences.test.ts (8 tests) 165ms
+ ✓ src/services/media-converter/controller.test.ts (16 tests) 289ms
+ Test Files  2 passed (2)
+      Tests  24 passed (24)
+   Start at  21:07:53
+   Duration  758ms (transform 150ms, setup 132ms, collect 338ms, tests 454ms, environment 0ms, prepare 119ms)
+exit 0
+
+# Covered: sequence dedup and out-of-order drop (events during the snapshot read replayed only when newer); progress merged per item at most every 250 ms, other rows keep their identity (the vacuous identity assertion of the earlier version replaced by real before/after references);
+# batch-finished notifies only when the window is not focused (not for a cancel-only batch), default notification text; preferences round trip; field-by-field sanitising; overwrite never persisted; vanished folder falls back to next-to-source; codec follows the computer default until picked; GPU only for AV1 with an AV1 hardware encoder.
+
+# Supplementary 1: mutation check (review re-run, 20:51-20:54, same controller.ts and store bytes as the final version; M20 added by the review). One mutation at a time in controller.ts / useMediaConverterPreferences.ts, the two files above re-run, original bytes restored (sha256 7637e5e017bc... / fdc5fbea976c... before and after).
+$ python <scratchpad>/wb02r/mutate.py
+M1 stale events applied (no sequence check): caught (Tests  4 failed | 20 passed (24))
+M2 events that arrived during the snapshot read dropped: caught (Tests  1 failed | 23 passed (24))
+M3 no listener before the snapshot (events during the read lost): caught (Tests  1 failed | 23 passed (24))
+M4 progress not throttled: caught (Tests  1 failed | 23 passed (24))
+M5 progress re-creates every item (every row re-renders): caught (Tests  1 failed | 23 passed (24))
+M6 waiting progress kept after a newer item summary: caught (Tests  1 failed | 23 passed (24))
+M7 notification while the window is focused: caught (Tests  1 failed | 23 passed (24))
+M8 notification for a cancel-only batch: caught (Tests  1 failed | 23 passed (24))
+M9 late set-options answer overrides a newer event: caught (Tests  1 failed | 23 passed (24))
+M10 engine event ignores the detection results: caught (Tests  1 failed | 23 passed (24))
+M11 plan cache not dropped on an item change: caught (Tests  1 failed | 23 passed (24))
+M12 h264_mf software mode counted as hardware: caught (Tests  1 failed | 23 passed (24))
+M13 overwrite persisted: caught (Tests  2 failed | 22 passed (24))
+M14 vanished folder kept: caught (Tests  1 failed | 23 passed (24))
+M15 invalid stored field wipes the defaults of its group: caught (Tests  5 failed | 19 passed (24))
+M16 codec fixed instead of following the computer default: caught (Tests  1 failed | 23 passed (24))
+M17 GPU sent for AV1 without an AV1 hardware encoder: caught (Tests  1 failed | 23 passed (24))
+M18 default notification drops the saved size: caught (Tests  1 failed | 23 passed (24))
+M19 a ready snapshot engine ignored for the computer defaults: caught (Tests  1 failed | 23 passed (24))
+M20 an items event re-creates the items it did not change (every row re-renders): caught (Tests  1 failed | 23 passed (24))
+20/20 caught; sources restored byte for byte: True
+exit 0
+
+# Supplementary 2: the shared-control consumer tests the panel must keep passing, and T-WORKBENCH-01's registration test with this page.
+$ npx vitest run --maxWorkers=4 --minWorkers=1 src/pages/Tools/Media/MediaConverter/registration.test.ts src/pages/Tools/_shared/ui/segmentedControlConsumers.test.ts src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts src/pages/Tools/_shared/ui/toolConfigDisclosureConsumers.test.ts
+ ✓ src/pages/Tools/_shared/ui/toolConfigDisclosureConsumers.test.ts (1 test) 2ms
+ ✓ src/pages/Tools/_shared/ui/toolBooleanControlConsumers.test.ts (2 tests) 13ms
+ ✓ src/pages/Tools/_shared/ui/segmentedControlConsumers.test.ts (2 tests) 15ms
+ ✓ src/pages/Tools/Media/MediaConverter/registration.test.ts (12 tests) 165ms
+ Test Files  4 passed (4)
+      Tests  17 passed (17)
+   Start at  21:09:41
+   Duration  2.76s (transform 463ms, setup 208ms, collect 2.45s, tests 195ms, environment 0ms, prepare 252ms)
+exit 0

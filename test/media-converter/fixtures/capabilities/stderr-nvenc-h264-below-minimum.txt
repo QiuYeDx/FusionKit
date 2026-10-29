@@ -1,0 +1,9 @@
+[h264_nvenc @ 000001fac0823cc0] [error] InitializeEncoder failed: invalid param (8): Frame Dimension less than the minimum supported value.
+[vost#0:0/h264_nvenc @ 000001fac0823a80] [enc:h264_nvenc @ 000001fac080c5c0] [error] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+[vf#0:0 @ 000001fac083eb80] [error] Error sending frames to consumers: Invalid argument
+[vf#0:0 @ 000001fac083eb80] [error] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 000001fac083eb80] [error] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/h264_nvenc @ 000001fac0823a80] [enc:h264_nvenc @ 000001fac080c5c0] [error] Could not open encoder before EOF
+[vost#0:0/h264_nvenc @ 000001fac0823a80] [error] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/h264_nvenc @ 000001fac0823a80] [error] Terminating thread with return code -22 (Invalid argument)
+[out#0/matroska @ 000001fac07a0a40] [error] Nothing was written into output file, because at least one of its streams received no packets.

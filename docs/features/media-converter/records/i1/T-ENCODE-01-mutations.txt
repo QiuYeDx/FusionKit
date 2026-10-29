@@ -1,0 +1,96 @@
+# Review re-run (2026-10-26) on the reviewed code; one mutation at a time in plan/*.ts, related tests run, file restored and its sha256 compared
+$ node <scratchpad>/mutate.mjs   (original M1-M10: unit tests, plus the real remux test where marked)
+M1 already_target ignores the extension: exit 1; restored true
+  × remux and already_target (AC-ENCODE-06-2) > does not skip MKV to WebM, nor an .m4v to .mp4, nor an MPEG-TS named .mp4 6ms
+  Tests  1 failed | 81 passed (82)
+M2 no handler_name: exit 1; restored true
+  × streams per target container (AC-ENCODE-01-3) > MP4: text to mov_text, styled ASS warned, PGS, fonts and cover dropped and listed, with the complete arguments 8ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > carries titles in handler_name for MP4 and MOV only, video titles included 1ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 9ms
+  × remuxing with the planner arguments and the real ffmpeg > MKV to MP4 keeps metadata, chapters, languages, forced and default flags, and carries titles in handler_name 102ms
+  Tests  4 failed | 83 passed (87)
+M3 attachments not mapped: exit 1; restored true
+  × explicit mapping (AC-ENCODE-01-2) > never maps data streams or the source attachments outside MKV 8ms
+  × streams per target container (AC-ENCODE-01-3) > MP4: text to mov_text, styled ASS warned, PGS, fonts and cover dropped and listed, with the complete arguments 2ms
+  × streams per target container (AC-ENCODE-01-3) > MKV: keeps every subtitle and the fonts, drops the cover, writes no handler names 3ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > maps global metadata and chapters, and writes every audio and subtitle disposition so ffmpeg adds no default of its own 1ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > drops chapters only where the target cannot hold them, and says so 0ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 10ms
+  × remuxing with the planner arguments and the real ffmpeg > MKV to MKV ("convert anyway" after already_target) keeps titles, flags, chapters, metadata and the attachment 94ms
+  Tests  7 failed | 80 passed (87)
+M4 not_smaller at 99 %: exit 1; restored true
+  × output caps (AC-ENCODE-06-1, design §7) > caps a compress below 98 % of the source while "discard if not smaller" is on 9ms
+  × output caps (AC-ENCODE-06-1, design §7) > limits the duration to max(105 %, +10 s) of the probed duration 1ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 9ms
+  Tests  3 failed | 79 passed (82)
+M5 auto ignores image subtitles: exit 1; restored true
+  × the compress container "auto" (AC-ENCODE-01-8) > PGS → { kind: 'video', container: { demuxer: 'matroska', formatName: 'matroska,webm', majorBrand: null, matroskaDocType: 'matroska', extension: 'mkv', identity: 'matroska' }, sizeBytes...
+  × the compress container "auto" (AC-ENCODE-01-8) > VobSub → { kind: 'video', container: { demuxer: 'matroska', formatName: 'matroska,webm', majorBrand: null, matroskaDocType: 'matroska', extension: 'mkv', identity: 'matroska' }, sizeBy...
+  Tests  2 failed | 80 passed (82)
+M6 maps by type selector: exit 1; restored true
+  × explicit mapping (AC-ENCODE-01-2) > maps every kept stream by its absolute index and never by default, `-map 0` or a type selector 8ms
+  × explicit mapping (AC-ENCODE-01-2) > takes the probed main video even when a still picture comes first 1ms
+  × streams per target container (AC-ENCODE-01-3) > MP4: text to mov_text, styled ASS warned, PGS, fonts and cover dropped and listed, with the complete arguments 2ms
+  × streams per target container (AC-ENCODE-01-3) > MKV: keeps every subtitle and the fonts, drops the cover, writes no handler names 3ms
+  × audio outputs > puts cover art in MP3, M4A and FLAC as an attached picture, and nowhere else 1ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 9ms
+  × remuxing with the planner arguments and the real ffmpeg > MKV to MP4 keeps metadata, chapters, languages, forced and default flags, and carries titles in handler_name 62ms
+  Tests  7 failed | 80 passed (87)
+M7 audio dispositions not written: exit 1; restored true
+  × streams per target container (AC-ENCODE-01-3) > MP4: text to mov_text, styled ASS warned, PGS, fonts and cover dropped and listed, with the complete arguments 7ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > maps global metadata and chapters, and writes every audio and subtitle disposition so ffmpeg adds no default of its own 2ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > notes in MP4 and MOV that the first audio track of a video becomes the default when none is 1ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > writes dispositions relative to the source flags, so commentary, visual impaired and similar flags stay 2ms
+  × the plan summary (AC-ENCODE-01-5) > lists the encoders, each stream, the losses with their reasons, the remux flag and the warnings 1ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 9ms
+  Tests  6 failed | 76 passed (82)
+M8 cut by UTF-16 units: exit 1; restored true
+  × fitting the folder > cuts at code points, never between the halves of a surrogate pair 6ms
+  Tests  1 failed | 81 passed (82)
+M9 bidi controls kept: exit 1; restored true
+  × cleaning a name for Windows > removes every bidirectional control, so a name cannot pretend to another extension 6ms
+  × naming an output by task > cleans what comes from the source name 1ms
+  Tests  2 failed | 80 passed (82)
+M10 mov_text copied into MKV instead of becoming SRT: exit 1; restored true
+  × streams per target container (AC-ENCODE-01-3) > MKV: mov_text and EIA-608 become SRT, text without a decoder or a CodecID is dropped 9ms
+  × remuxing with the planner arguments and the real ffmpeg > MP4 back to MKV turns mov_text into SRT and keeps the flags, without the chapter text track 101ms
+  Tests  2 failed | 85 passed (87)
+exit 0
+
+$ node <scratchpad>/rev/mutate2.cjs   (review mutations R1-R6 for the review fixes; stream-plan, naming and remux-real tests)
+R1 absolute dispositions (clears other source flags): exit 1; restored true
+  × streams per target container (AC-ENCODE-01-3) > MP4: text to mov_text, styled ASS warned, PGS, fonts and cover dropped and listed, with the complete arguments 7ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > maps global metadata and chapters, and writes every audio and subtitle disposition so ffmpeg adds no default of its own 2ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > notes in MP4 and MOV that the first subtitle becomes the default when none is 1ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > notes in MP4 and MOV that the first audio track of a video becomes the default when none is 1ms
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > writes dispositions relative to the source flags, so commentary, visual impaired and similar flags stay 1ms
+  × the plan summary (AC-ENCODE-01-5) > lists the encoders, each stream, the losses with their reasons, the remux flag and the warnings 4ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 10ms
+  × remuxing with the planner arguments and the real ffmpeg > MKV to MP4 keeps metadata, chapters, languages, forced and default flags, and carries titles in handler_name 7ms
+  × remuxing with the planner arguments and the real ffmpeg > MKV to MKV ("convert anyway" after already_target) keeps titles, flags, chapters, metadata and the attachment 90ms
+  × remuxing with the planner arguments and the real ffmpeg > MP4 enables the first audio track when the source marks none default, as the summary says beforehand 180ms
+  Tests  10 failed | 77 passed (87)
+R2 no mp4_default_audio_forced: exit 1; restored true
+  × metadata, chapters and dispositions (AC-ENCODE-01-4) > notes in MP4 and MOV that the first audio track of a video becomes the default when none is 7ms
+  × remuxing with the planner arguments and the real ffmpeg > MP4 enables the first audio track when the source marks none default, as the summary says beforehand 94ms
+  Tests  2 failed | 85 passed (87)
+R3 audio-only remux capped at the whole source: exit 1; restored true
+  × output caps (AC-ENCODE-06-1, design §7) > caps a copied audio track without its video by 32-bit PCM of its rate and channels, never above the remux bound 9ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 10ms
+  Tests  2 failed | 85 passed (87)
+R4 copied audio trusts no PCM bound: exit 1; restored true
+  × output caps (AC-ENCODE-06-1, design §7) > caps a copied audio track without its video by 32-bit PCM of its rate and channels, never above the remux bound 9ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 9ms
+  Tests  2 failed | 85 passed (87)
+R5 source rule without -converted: exit 1; restored true
+  × naming an output by task > extraction keeps the source name, or adds the track number and a valid language for all tracks 6ms
+  Tests  1 failed | 86 passed (87)
+R6 copied cover art adds nothing: exit 1; restored true
+  × output caps (AC-ENCODE-06-1, design §7) > adds copied cover art at 8 bytes a pixel, so a large scan in a FLAC does not trip the cap of its MP3 7ms
+  × the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination 9ms
+  Tests  2 failed | 85 passed (87)
+exit 0
+
+$ sha256sum electron/main/media-converter/plan/*.ts src/media-converter/contract.ts | diff - <before>
+HASHES-SAME
+exit 0

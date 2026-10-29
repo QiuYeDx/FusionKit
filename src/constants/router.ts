@@ -1,6 +1,8 @@
 export const LOCAL_SUBTITLE_TRANSCRIBER_ROUTE =
   "/tools/subtitle/local-transcriber" as const;
 
+export const MEDIA_CONVERTER_ROUTE = "/tools/media/converter" as const;
+
 export const ToolNameMap: { [key: string]: string } = {
   "/tools/translation-knowledge": "knowledge:title",
   "/tools/subtitle/studio": "studio:title",
@@ -10,5 +12,6 @@ export const ToolNameMap: { [key: string]: string } = {
   [LOCAL_SUBTITLE_TRANSCRIBER_ROUTE]: "menu.subtitle.local_transcriber",
   "/tools/rename/name-translator": "menu.rename.name_translator",
   "/tools/text/translator": "menu.text.translator",
+  [MEDIA_CONVERTER_ROUTE]: "menu.media.converter",
   "/external-agent": "setting:external_agent.activity.title",
 };

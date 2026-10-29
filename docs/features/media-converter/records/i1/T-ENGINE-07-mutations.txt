@@ -1,0 +1,77 @@
+$ python <scratchpad>/e07/mutate_executor.py   # each mutation of engine/executor.ts runs test/media-converter/executor.test.ts, then the source is restored (sha256 checked)
+M1 no fallback at all: KILLED (Tests  2 failed | 20 passed (22); exit 1)
+M2 fallback even after the first frame: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M3 fallback more than once: SURVIVED (Tests  22 passed (22); exit 0)
+M4 fallback for CPU encoders too: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M5 cap hit is never not_smaller: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M6 no final-size not_smaller: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M7 overwrite ignores the confirmed list: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M8 partial never discarded: KILLED (Tests  11 failed | 11 passed (22); exit 1)
+M9 work folder kept: KILLED (Tests  17 failed | 5 passed (22); exit 1)
+M10 reservations of a failed item kept: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M11 a second -fs (outputLimitArgs again): KILLED (Tests  2 failed | 20 passed (22); exit 1)
+M12 the probe-back verdict ignored: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M13 no input re-check: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M14 no preflight: KILLED (Tests  2 failed | 20 passed (22); exit 1)
+M15 lowUsage not passed to ffmpeg: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M16 stop after a failed track (no continuing): KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M17 unknown not mapped to encode_failed: KILLED (Tests  6 failed | 16 passed (22); exit 1)
+M18 publish failure code kept as output_dir_unwritable: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+M19 encoder_fallback missing from the summary: KILLED (Tests  2 failed | 20 passed (22); exit 1)
+M20 injection on every run: KILLED (Tests  3 failed | 19 passed (22); exit 1)
+M1 no fallback at all: KILLED (Tests  2 failed | 20 passed (22); exit 1)
+    x the executor with the real ffmpeg > falls back once when NVENC fails before its first frame (FUSIONKIT_TEST_MEDIA_FAIL), with encoder_fallback in the plan summary 35ms
+    x the executor with the real ffmpeg > retries only once: the next hardware encoder failing before its first frame too is degraded, and the item fails 32ms
+M2 fallback even after the first frame: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > does not retry when NVENC fails after its first frame 4213ms
+M3 fallback more than once: SURVIVED (Tests  22 passed (22); exit 0)
+M4 fallback for CPU encoders too: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > injects only the first run of an item, and a failure that is not the encoder's never falls back 32ms
+M5 cap hit is never not_smaller: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > skips a pre-compressed still picture at the quality tier as not_smaller when it reaches the cap early, leaving no partial 132ms
+M6 no final-size not_smaller: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > skips a pre-compressed still picture at the quality tier as not_smaller when it reaches the cap early, leaving no partial 284ms
+M7 overwrite ignores the confirmed list: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > overwrites only a confirmed file, through the recycle bin; an unconfirmed one is numbered beside 108ms
+M8 partial never discarded: KILLED (Tests  11 failed | 11 passed (22); exit 1)
+    x the executor with the real ffmpeg > publishes only an output that passes the check of AC-ENGINE-04-5: a planned stream missing or a wrong duration fails the item 114ms
+    x the executor with the real ffmpeg > fails a 2-track extraction whose second track fails, listing the first as published (partly done) 152ms
+    x the executor with the real ffmpeg > still writes the second track when the first fails, and reports the item partly done with the second 165ms
+    x the executor with the real ffmpeg > skips a pre-compressed still picture at the quality tier as not_smaller when it reaches the cap early, leaving no partial 102ms
+M9 work folder kept: KILLED (Tests  17 failed | 5 passed (22); exit 1)
+    x the executor with the real ffmpeg > compresses: one run of exactly the plan's arguments into a recorded partial, probed back, published, nothing left behind 158ms
+    x the executor with the real ffmpeg > converts by remux and with low usage asks for idle priority and half the cores 110ms
+    x the executor with the real ffmpeg > accepts an output whose duration cannot be checked with duration_unverified (AC-ENGINE-04-5) 117ms
+    x the executor with the real ffmpeg > publishes only an output that passes the check of AC-ENGINE-04-5: a planned stream missing or a wrong duration fails the item 108ms
+M10 reservations of a failed item kept: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > refuses before anything runs when the volume lacks the caps of every running output plus 512 MB (disk_space_low) 3274ms
+M11 a second -fs (outputLimitArgs again): KILLED (Tests  2 failed | 20 passed (22); exit 1)
+    x the executor with the real ffmpeg > compresses: one run of exactly the plan's arguments into a recorded partial, probed back, published, nothing left behind 151ms
+    x the executor with the real ffmpeg > refuses a cap over 4 GiB on FAT32, an output that is an input, and fails a non-compress output that reaches its cap 73ms
+M12 the probe-back verdict ignored: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > publishes only an output that passes the check of AC-ENGINE-04-5: a planned stream missing or a wrong duration fails the item 124ms
+M13 no input re-check: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > checks the input once more when the item starts: an edited file is input_changed, a deleted one input_missing 164ms
+M14 no preflight: KILLED (Tests  2 failed | 20 passed (22); exit 1)
+    x the executor with the real ffmpeg > refuses before anything runs when the volume lacks the caps of every running output plus 512 MB (disk_space_low) 3049ms
+    x the executor with the real ffmpeg > refuses a cap over 4 GiB on FAT32, an output that is an input, and fails a non-compress output that reaches its cap 117ms
+M15 lowUsage not passed to ffmpeg: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > converts by remux and with low usage asks for idle priority and half the cores 117ms
+M16 stop after a failed track (no continuing): KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > still writes the second track when the first fails, and reports the item partly done with the second 73ms
+M17 unknown not mapped to encode_failed: KILLED (Tests  6 failed | 16 passed (22); exit 1)
+    x the executor with the real ffmpeg > publishes only an output that passes the check of AC-ENGINE-04-5: a planned stream missing or a wrong duration fails the item 119ms
+    x the executor with the real ffmpeg > fails a 2-track extraction whose second track fails, listing the first as published (partly done) 170ms
+    x the executor with the real ffmpeg > still writes the second track when the first fails, and reports the item partly done with the second 177ms
+    x the executor with the real ffmpeg > retries only once: the next hardware encoder failing before its first frame too is degraded, and the item fails 93ms
+M18 publish failure code kept as output_dir_unwritable: KILLED (Tests  1 failed | 21 passed (22); exit 1)
+    x the executor with the real ffmpeg > fails output_publish_failed when the finished output cannot be put under its name, and leaves neither partial nor placeholder 130ms
+M19 encoder_fallback missing from the summary: KILLED (Tests  2 failed | 20 passed (22); exit 1)
+    x the executor with the real ffmpeg > falls back once when NVENC fails before its first frame (FUSIONKIT_TEST_MEDIA_FAIL), with encoder_fallback in the plan summary 170ms
+    x the executor with the real ffmpeg > retries only once: the next hardware encoder failing before its first frame too is degraded, and the item fails 90ms
+M20 injection on every run: KILLED (Tests  3 failed | 19 passed (22); exit 1)
+    x the executor with the real ffmpeg > falls back once when NVENC fails before its first frame (FUSIONKIT_TEST_MEDIA_FAIL), with encoder_fallback in the plan summary 45ms
+    x the executor with the real ffmpeg > retries only once: the next hardware encoder failing before its first frame too is degraded, and the item fails 42ms
+    x the executor with the real ffmpeg > injects only the first run of an item, and a failure that is not the encoder's never falls back 41ms
+source restored, sha256 9b3bebb749a95bf18c575b20309e0d40ebb38fd30822d0840d7f229fe1d8e6ef
+exit 0

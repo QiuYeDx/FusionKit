@@ -1,0 +1,10 @@
+[h264_nvenc @ 0000019c23640e80] [warning] Width 4112 exceeds 4096
+[h264_nvenc @ 0000019c23640e80] [fatal] No capable devices found
+[vost#0:0/h264_nvenc @ 0000019c25682180] [enc:h264_nvenc @ 0000019c2362cc00] [error] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+[vf#0:0 @ 0000019c2365bd40] [error] Error sending frames to consumers: Generic error in an external library
+[vf#0:0 @ 0000019c2365bd40] [error] Task finished with error code: -542398533 (Generic error in an external library)
+[vf#0:0 @ 0000019c2365bd40] [error] Terminating thread with return code -542398533 (Generic error in an external library)
+[vost#0:0/h264_nvenc @ 0000019c25682180] [enc:h264_nvenc @ 0000019c2362cc00] [error] Could not open encoder before EOF
+[vost#0:0/h264_nvenc @ 0000019c25682180] [error] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/h264_nvenc @ 0000019c25682180] [error] Terminating thread with return code -22 (Invalid argument)
+[out#0/matroska @ 0000019c2360d580] [error] Nothing was written into output file, because at least one of its streams received no packets.

@@ -1,0 +1,119 @@
+# Re-run by the independent review of 2026-10-26, after the review's last code change (28 tests: the implementation's 24 plus 4 added by the review).
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/queue.test.ts --reporter=verbose
+✓ test/media-converter/queue.test.ts > scheduling > runs one item at a time by default, in the order started, while probing needs no slot
+✓ test/media-converter/queue.test.ts > scheduling > runs two items at once with concurrency 2, the third waiting for a slot
+✓ test/media-converter/queue.test.ts > scheduling > cancels a queued item at once and a running one through its executor
+✓ test/media-converter/queue.test.ts > scheduling > clears finished items, or everything not queued, running or analyzing
+✓ test/media-converter/queue.test.ts > scheduling > rejects invalid requests as a whole
+✓ test/media-converter/queue.test.ts > events > numbers every event strictly upwards, and a snapshot plus the later events show the current state
+✓ test/media-converter/queue.test.ts > events > sends at most four progress events per item per second, the latest value last
+✓ test/media-converter/queue.test.ts > options and persistence > keeps the queue options in the main process and in state.json
+✓ test/media-converter/queue.test.ts > options and persistence > writes state.json at most once per 500 ms through an atomic write, and again after a failed write
+✓ test/media-converter/queue.test.ts > options and persistence > reads state.json before the first command even when restore was not called, so nothing persisted is written over
+✓ test/media-converter/queue.test.ts > options and persistence > checks the input again just before it runs: deleted is input_missing, edited is input_changed
+✓ test/media-converter/queue.test.ts > options and persistence > after a restart, running and queued items are interrupted and idle ones are checked again
+✓ test/media-converter/queue.test.ts > options and persistence > keeps at most 500 items, removing the earliest finished first 596ms
+✓ test/media-converter/queue.test.ts > options and persistence > keeps the 500 latest finished items of a restored state.json
+✓ test/media-converter/queue.test.ts > options and persistence > sets a corrupt state.json aside, starts empty and says so once
+✓ test/media-converter/queue.test.ts > options and persistence > leaves out restored items whose output folder or outputs are not full paths
+✓ test/media-converter/queue.test.ts > options and persistence > keeps only the redacted last 16 KB of a failure log, and no path reaches the renderer
+✓ test/media-converter/queue.test.ts > confirmations and retry > answers confirmation_required until a lossy-to-lossless conversion is confirmed, starting nothing meanwhile
+✓ test/media-converter/queue.test.ts > confirmations and retry > lists the files an overwrite would replace and keeps the confirmed names for the executor
+✓ test/media-converter/queue.test.ts > confirmations and retry > skips a conversion that changes nothing until "convert anyway" overrides it
+✓ test/media-converter/queue.test.ts > confirmations and retry > turns the not-larger guard off when a compression is retried with the not_smaller override
+✓ test/media-converter/queue.test.ts > confirmations and retry > refuses items that cannot start and says why
+✓ test/media-converter/queue.test.ts > batches, power and shutdown > holds the power blocker for a batch and sends batch-finished once, late items joining the batch 400ms
+✓ test/media-converter/queue.test.ts > batches, power and shutdown > shuts down: one promise for every caller, cancels and waits for every run, then writes interrupted items
+✓ test/media-converter/queue.test.ts > batches, power and shutdown > stops waiting for an executor that does not stop after the shutdown wait
+✓ test/media-converter/queue.test.ts > batches, power and shutdown > fails an item whose run cannot be settled instead of taking it again, and the batch still ends
+✓ test/media-converter/queue.test.ts > batches, power and shutdown > takes the plan summary the executor ran with only when it has the summary shape
+✓ test/media-converter/queue.test.ts > batches, power and shutdown > passes engine status changes on and reports a running hardware encode
+Test Files  1 passed (1)
+Tests  28 passed (28)
+Duration  5.83s (transform 264ms, setup 0ms, collect 771ms, tests 4.86s, environment 0ms, prepare 57ms)
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/queue.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/queue.test.ts > scheduling > runs one item at a time by default, in the order started, while probing needs no slot
+ ✓ test/media-converter/queue.test.ts > scheduling > runs two items at once with concurrency 2, the third waiting for a slot
+ ✓ test/media-converter/queue.test.ts > scheduling > cancels a queued item at once and a running one through its executor
+ ✓ test/media-converter/queue.test.ts > scheduling > clears finished items, or everything not queued, running or analyzing
+ ✓ test/media-converter/queue.test.ts > scheduling > rejects invalid requests as a whole
+ ✓ test/media-converter/queue.test.ts > events > numbers every event strictly upwards, and a snapshot plus the later events show the current state
+ ✓ test/media-converter/queue.test.ts > events > sends at most four progress events per item per second, the latest value last
+ ✓ test/media-converter/queue.test.ts > options and persistence > keeps the queue options in the main process and in state.json
+ ✓ test/media-converter/queue.test.ts > options and persistence > writes state.json at most once per 500 ms through an atomic write, and again after a failed write
+ ✓ test/media-converter/queue.test.ts > options and persistence > reads state.json before the first command even when restore was not called, so nothing persisted is written over
+ ✓ test/media-converter/queue.test.ts > options and persistence > checks the input again just before it runs: deleted is input_missing, edited is input_changed
+ ✓ test/media-converter/queue.test.ts > options and persistence > after a restart, running and queued items are interrupted and idle ones are checked again
+ ✓ test/media-converter/queue.test.ts > options and persistence > keeps at most 500 items, removing the earliest finished first 619ms
+ ✓ test/media-converter/queue.test.ts > options and persistence > keeps the 500 latest finished items of a restored state.json
+ ✓ test/media-converter/queue.test.ts > options and persistence > sets a corrupt state.json aside, starts empty and says so once
+ ✓ test/media-converter/queue.test.ts > options and persistence > leaves out restored items whose output folder or outputs are not full paths
+ ✓ test/media-converter/queue.test.ts > options and persistence > keeps only the redacted last 16 KB of a failure log, and no path reaches the renderer
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > answers confirmation_required until a lossy-to-lossless conversion is confirmed, starting nothing meanwhile
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > lists the files an overwrite would replace and keeps the confirmed names for the executor
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > skips a conversion that changes nothing until "convert anyway" overrides it
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > turns the not-larger guard off when a compression is retried with the not_smaller override
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > refuses items that cannot start and says why
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > holds the power blocker for a batch and sends batch-finished once, late items joining the batch 400ms
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > shuts down: one promise for every caller, cancels and waits for every run, then writes interrupted items
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > stops waiting for an executor that does not stop after the shutdown wait
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > fails an item whose run cannot be settled instead of taking it again, and the batch still ends
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > takes the plan summary the executor ran with only when it has the summary shape
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > passes engine status changes on and reports a running hardware encode
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > a ready capability status carries every field the engine sets: degraded, driver updates, resolved encoders and defaults
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > starts nothing while the encoders are detected, and the queued items once the detection ends 337ms
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > gives the slot back when a detection begins during the input check, and runs the item once it ends
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > keeps the bytes of disk_space_low in the failed state, in state.json and after a restart (AC-ENGINE-06-4)
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > lists what a cancelled item of several outputs had published, so they can be shown, also when the app quits
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > previews no_encoder_available with the codecs that would work instead; other plan errors stay codes
+ Test Files  1 passed (1)
+      Tests  34 passed (34)
+   Start at  16:44:57
+   Duration  8.06s (transform 304ms, setup 0ms, collect 875ms, tests 6.99s, environment 0ms, prepare 58ms)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑（本文件对应的源码未改；评审只改了 executor.ts、executor.test.ts 与 engine design §11）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/queue.test.ts --reporter=verbose
+ ✓ test/media-converter/queue.test.ts > scheduling > runs one item at a time by default, in the order started, while probing needs no slot
+ ✓ test/media-converter/queue.test.ts > scheduling > runs two items at once with concurrency 2, the third waiting for a slot
+ ✓ test/media-converter/queue.test.ts > scheduling > cancels a queued item at once and a running one through its executor
+ ✓ test/media-converter/queue.test.ts > scheduling > clears finished items, or everything not queued, running or analyzing
+ ✓ test/media-converter/queue.test.ts > scheduling > rejects invalid requests as a whole
+ ✓ test/media-converter/queue.test.ts > events > numbers every event strictly upwards, and a snapshot plus the later events show the current state
+ ✓ test/media-converter/queue.test.ts > events > sends at most four progress events per item per second, the latest value last
+ ✓ test/media-converter/queue.test.ts > options and persistence > keeps the queue options in the main process and in state.json
+ ✓ test/media-converter/queue.test.ts > options and persistence > writes state.json at most once per 500 ms through an atomic write, and again after a failed write
+ ✓ test/media-converter/queue.test.ts > options and persistence > reads state.json before the first command even when restore was not called, so nothing persisted is written over
+ ✓ test/media-converter/queue.test.ts > options and persistence > checks the input again just before it runs: deleted is input_missing, edited is input_changed
+ ✓ test/media-converter/queue.test.ts > options and persistence > after a restart, running and queued items are interrupted and idle ones are checked again
+ ✓ test/media-converter/queue.test.ts > options and persistence > keeps at most 500 items, removing the earliest finished first 614ms
+ ✓ test/media-converter/queue.test.ts > options and persistence > keeps the 500 latest finished items of a restored state.json
+ ✓ test/media-converter/queue.test.ts > options and persistence > sets a corrupt state.json aside, starts empty and says so once
+ ✓ test/media-converter/queue.test.ts > options and persistence > leaves out restored items whose output folder or outputs are not full paths
+ ✓ test/media-converter/queue.test.ts > options and persistence > keeps only the redacted last 16 KB of a failure log, and no path reaches the renderer
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > answers confirmation_required until a lossy-to-lossless conversion is confirmed, starting nothing meanwhile
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > lists the files an overwrite would replace and keeps the confirmed names for the executor
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > skips a conversion that changes nothing until "convert anyway" overrides it
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > turns the not-larger guard off when a compression is retried with the not_smaller override
+ ✓ test/media-converter/queue.test.ts > confirmations and retry > refuses items that cannot start and says why
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > holds the power blocker for a batch and sends batch-finished once, late items joining the batch 399ms
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > shuts down: one promise for every caller, cancels and waits for every run, then writes interrupted items
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > stops waiting for an executor that does not stop after the shutdown wait
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > fails an item whose run cannot be settled instead of taking it again, and the batch still ends
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > takes the plan summary the executor ran with only when it has the summary shape
+ ✓ test/media-converter/queue.test.ts > batches, power and shutdown > passes engine status changes on and reports a running hardware encode
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > a ready capability status carries every field the engine sets: degraded, driver updates, resolved encoders and defaults
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > starts nothing while the encoders are detected, and the queued items once the detection ends 337ms
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > gives the slot back when a detection begins during the input check, and runs the item once it ends
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > keeps the bytes of disk_space_low in the failed state, in state.json and after a restart (AC-ENGINE-06-4)
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > lists what a cancelled item of several outputs had published, so they can be shown, also when the app quits
+ ✓ test/media-converter/queue.test.ts > detection, disk space, cancelled outputs and preview alternatives > previews no_encoder_available with the codecs that would work instead; other plan errors stay codes
+Test Files  1 passed (1)
+Tests  34 passed (34)
+Start at  17:14:02
+Duration  7.97s (transform 299ms, setup 0ms, collect 878ms, tests 6.90s, environment 0ms, prepare 58ms)
+exit 0

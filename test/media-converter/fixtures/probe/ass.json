@@ -1,0 +1,20 @@
+{
+  "file": { "name": "anime-episode.mkv", "sizeBytes": 412000000, "matroskaDocType": "matroska" },
+  "ffprobe": {
+    "streams": [
+      { "index": 0, "codec_name": "hevc", "profile": "Main 10", "codec_type": "video", "width": 1920, "height": 1080, "sample_aspect_ratio": "1:1",
+        "pix_fmt": "yuv420p10le", "color_range": "tv", "r_frame_rate": "24000/1001", "avg_frame_rate": "24000/1001",
+        "disposition": { "default": 1 }, "tags": { "DURATION": "00:23:40.040000000" } },
+      { "index": 1, "codec_name": "flac", "codec_type": "audio", "sample_fmt": "s16", "sample_rate": "48000", "channels": 2, "channel_layout": "stereo",
+        "bits_per_raw_sample": "16", "disposition": { "default": 1 }, "tags": { "language": "jpn", "BPS": "918000", "DURATION": "00:23:40.032000000" } },
+      { "index": 2, "codec_name": "ass", "codec_type": "subtitle", "disposition": { "default": 1, "forced": 0 },
+        "tags": { "language": "eng", "title": "Full Subtitles [Group]" } },
+      { "index": 3, "codec_name": "ass", "codec_type": "subtitle", "disposition": { "default": 0, "forced": 0 },
+        "tags": { "language": "chi", "title": "简体中文" } },
+      { "index": 4, "codec_type": "attachment", "codec_name": "ttf", "tags": { "filename": "Arial.ttf", "mimetype": "font/ttf" } },
+      { "index": 5, "codec_type": "attachment", "codec_name": "otf", "tags": { "filename": "Sign.otf", "mimetype": "font/otf" } }
+    ],
+    "chapters": [ { "id": 1 }, { "id": 2 }, { "id": 3 }, { "id": 4 }, { "id": 5 } ],
+    "format": { "format_name": "matroska,webm", "duration": "1420.040000", "bit_rate": "2321000" }
+  }
+}

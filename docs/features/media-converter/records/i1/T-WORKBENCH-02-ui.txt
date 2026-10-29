@@ -1,0 +1,110 @@
+# V-WORKBENCH-02-2 quiet Electron UI test and rendered review, 2026-10-28 (independent review re-run, 21:03-21:07)
+# Every command ran at IDLE priority (cmd 'start "" /low /wait /b', so vitest, Electron and ffmpeg inherit it), one Electron run at a time; electron.exe count was 0 before and after every run.
+# Window mode: vitest.config.ts default FUSIONKIT_TEST_WINDOW=quiet (off-screen, never focused, muted). Switches per test: FUSIONKIT_TEST_MEDIA_CAPS=cpu_only | nvenc | detecting_ms:10000 | unavailable:runtime_invalid.
+# The review ran this pair three times (20:46, 20:55, 21:03 starts); all three passed 10/10. Only the last one, after the last source change, is recorded here.
+
+## Final run (after the last source change)
+$ pnpm run pretest   (21:03, right before the run)
+✓ built in 23.48s
+✓ built in 9.96s
+✓ built in 1.37s
+Sandboxed preload external module check passed (electron).
+exit 0
+
+$ FUSIONKIT_MEDIA_E2E=1 FUSIONKIT_MEDIA_REVIEW_DIR=test-results/media-converter/wb02r-review npx vitest run --maxWorkers=1 --minWorkers=1 test/media-converter/media-converter.electron.test.ts
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/media-converter.electron.test.ts (10 tests) 210361ms
+   ✓ Media converter in Electron > lists the converter in its own catalog section, opens it and goes back with Escape and Back 34271ms
+   ✓ Media converter in Electron > makes media in the run folder and hands it over by drop and by the stubbed dialog 10403ms
+   ✓ Media converter in Electron > explains the platform instead of showing the tool where the converter is not supported 17570ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: defaults per task, the codec sentences, the weak CPU encoder hint, the GPU tooltip and the fold, across windows, themes and languages 61361ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: restores the preferences after a restart, never overwrite, and falls back from a folder the engine no longer knows 25575ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: an NVENC computer defaults to HEVC, offers the GPU for AV1, names the driver update and blocks detecting again during a hardware encode 17760ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: shows the detection while it runs, keeps the GPU switch off until it ends, and detects again on request 27603ms
+   ✓ Media converter settings in Electron (T-WORKBENCH-02) > settings: says why the engine is unavailable and what to do 15801ms
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  21:03:44
+   Duration  211.40s (transform 103ms, setup 62ms, collect 759ms, tests 210.36s, environment 0ms, prepare 62ms)
+exit 0
+# 10 tests = T-WORKBENCH-01's 2 helper tests (no Electron) and 3 Electron scenarios, plus this task's 5 Electron scenarios.
+
+## Panel against the window (the test's T-WORKBENCH-02-settings.json, copied here; run folders deleted after the review)
+# viewport = page size (quiet windows are a few px larger than setSize, FK-PIT-0188); h = panel height as the page chose it; open/folded = measured by opening and folding 输出与性能;
+# room = top of the bottom bar - 40px sticky top (the page itself keeps 6px more); position = the aside's computed position; sideBySide = two columns (>=1024px); clipped = elements in the panel whose content overflows a clipping box.
+format-row-light-zh-1280x800 {"fieldTops": [529, 529], "controlTops": [552, 552], "controlHeights": [28, 28]}
+compress-light-zh-1280x800: viewport={'width': 1292, 'height': 806} h=667 open=903 folded=667 room=716 bar=50 expanded=False position=sticky sideBySide=True clipped=[]
+format-row-dark-en-1280x800 {"fieldTops": [516, 516], "controlTops": [538, 538], "controlHeights": [28, 28]}
+compress-dark-en-1280x800: viewport={'width': 1292, 'height': 806} h=682 open=933 folded=682 room=716 bar=50 expanded=False position=sticky sideBySide=True clipped=[]
+format-row-light-en-1024x700 {"fieldTops": [315, 315], "controlTops": [337, 337], "controlHeights": [28, 28]}
+compress-light-en-1024x700: viewport={'width': 1036, 'height': 706} h=682 open=933 folded=682 room=616 bar=50 expanded=False position=static sideBySide=True clipped=[]
+format-row-dark-zh-1024x700 {"fieldTops": [330, 330], "controlTops": [353, 353], "controlHeights": [28, 28]}
+compress-dark-zh-1024x700: viewport={'width': 1036, 'height': 706} h=667 open=903 folded=667 room=616 bar=50 expanded=False position=static sideBySide=True clipped=[]
+format-row-light-zh-786x540 {"fieldTops": [170, 170], "controlTops": [192, 192], "controlHeights": [28, 28]}
+compress-light-zh-786x540: viewport={'width': 798, 'height': 546} h=649 open=885 folded=649 room=456 bar=50 expanded=False position=static sideBySide=False clipped=[]
+format-row-dark-en-786x540 {"fieldTops": [170, 170], "controlTops": [192, 192], "controlHeights": [28, 28]}
+compress-dark-en-786x540: viewport={'width': 798, 'height': 546} h=649 open=885 folded=649 room=456 bar=50 expanded=False position=static sideBySide=False clipped=[]
+convert-light-zh (1280x800, output group opened by itself): {"height": 628, "expanded": true}
+extract-light-zh (1280x800, output group opened by itself): {"height": 577, "expanded": true}
+convert-dark-en (1280x800, output group opened by itself): {"height": 674, "expanded": true}
+extract-dark-en (1280x800, output group opened by itself): {"height": 592, "expanded": true}
+compress-light-ja-1280x800: viewport={'width': 1292, 'height': 806} h=718 open=987 folded=718 room=716 bar=50 expanded=False position=static sideBySide=True clipped=[]
+# Rule checks in the test: open <= room-6 -> expanded (convert/extract); open > room -> folded; sticky only when h <= room; folded > room -> static; 1280x800 compress -> sticky and folded. No horizontal overflow at any size.
+
+## Interactions asserted (new in the review marked +)
++ 'Use AV1' activated by keyboard: the hint goes away, AV1 is checked and the AV1 option has the focus (zh and en).
++ Low-usage mode switched off by keyboard (Space): the switch keeps the focus while the main process saves it; get-snapshot options.lowUsage=false.
++ The weak-encoder line reads '<sentence>改用 AV1' in zh (no space after the full-width stop) and '<sentence> Use AV1' in en.
++ Convert and extract-audio panels at 1280x800 open 'output and performance' by themselves (heights above).
++ Driver too old for NVENC injected as a computer with that driver reports it: hardwareEncoders=[], CPU encoders for every codec, driverUpdates=[nvenc 570]: badge 'CPU only'/'仅 CPU' with the amber dot, no encoder list, the driver line with 570; the ready NVENC engine is then restored before the hardware-encode busy check.
+  Defaults per task; codec sentences; weak hint (Kvazaar/OpenH264) and its absence for AV1 and on NVENC; GPU switch disabled with the two tooltips (codec / no AV1 hardware) and the detecting one; GPU usable for AV1 on NVENC;
+  target groups (10 options); lossy extract formats show the audio tier; overwrite warning; low-usage via set-options and restored by the main process after a restart; every preference but overwrite restored after a restart;
+  no overwrite/lowUsage/path in localStorage; vanished folder -> source + warning toast + written back; upload area: dialog properties openFile+multiSelections, media filters, item in the queue, enabled while detecting, disabled with reason when unavailable;
+  detect again disabled while detecting and while an NVENC item runs (tooltip), enabled when unavailable; Escape closes an open select first and stays on the route; no pageerror in any scenario.
+
+## Final screenshots (45, records/i1/screenshots/T-WORKBENCH-02-*.jpg, JPEG quality 85, each opened and reviewed; observations in the record)
+  T-WORKBENCH-02-codec-av1-dark-en.jpg
+  T-WORKBENCH-02-codec-av1-light-zh.jpg
+  T-WORKBENCH-02-codec-h264-dark-en.jpg
+  T-WORKBENCH-02-codec-h264-light-zh.jpg
+  T-WORKBENCH-02-codec-hevc-dark-en.jpg
+  T-WORKBENCH-02-codec-hevc-light-zh.jpg
+  T-WORKBENCH-02-compress-dark-en-1280x800.jpg
+  T-WORKBENCH-02-compress-dark-en-786x540.jpg
+  T-WORKBENCH-02-compress-dark-zh-1024x700.jpg
+  T-WORKBENCH-02-compress-end-dark-en-786x540.jpg
+  T-WORKBENCH-02-compress-end-dark-zh-1024x700.jpg
+  T-WORKBENCH-02-compress-end-light-en-1024x700.jpg
+  T-WORKBENCH-02-compress-end-light-zh-786x540.jpg
+  T-WORKBENCH-02-compress-light-en-1024x700.jpg
+  T-WORKBENCH-02-compress-light-ja-1280x800.jpg
+  T-WORKBENCH-02-compress-light-zh-1280x800.jpg
+  T-WORKBENCH-02-compress-light-zh-786x540.jpg
+  T-WORKBENCH-02-convert-dark-en.jpg
+  T-WORKBENCH-02-convert-light-zh.jpg
+  T-WORKBENCH-02-convert-targets-dark-en.jpg
+  T-WORKBENCH-02-convert-targets-light-zh.jpg
+  T-WORKBENCH-02-engine-detecting-dark-en.jpg
+  T-WORKBENCH-02-engine-detecting-light-zh.jpg
+  T-WORKBENCH-02-engine-driver-update-dark-en.jpg
+  T-WORKBENCH-02-engine-driver-update-light-zh.jpg
+  T-WORKBENCH-02-engine-ready-cpu-light-zh.jpg
+  T-WORKBENCH-02-engine-ready-nvenc-dark-en.jpg
+  T-WORKBENCH-02-engine-ready-nvenc-light-zh.jpg
+  T-WORKBENCH-02-engine-redetect-busy-dark-en.jpg
+  T-WORKBENCH-02-engine-redetect-busy-light-zh.jpg
+  T-WORKBENCH-02-engine-unavailable-dark-en-786x540.jpg
+  T-WORKBENCH-02-engine-unavailable-light-zh-1280x800.jpg
+  T-WORKBENCH-02-extract-dark-en.jpg
+  T-WORKBENCH-02-extract-light-zh.jpg
+  T-WORKBENCH-02-folder-fallback-light-zh.jpg
+  T-WORKBENCH-02-gpu-enabled-dark-en.jpg
+  T-WORKBENCH-02-gpu-enabled-light-zh.jpg
+  T-WORKBENCH-02-gpu-tooltip-av1-dark-en.jpg
+  T-WORKBENCH-02-gpu-tooltip-av1-light-zh.jpg
+  T-WORKBENCH-02-gpu-tooltip-h264-dark-en.jpg
+  T-WORKBENCH-02-gpu-tooltip-h264-light-zh.jpg
+  T-WORKBENCH-02-output-dark-en.jpg
+  T-WORKBENCH-02-output-light-zh.jpg
+  T-WORKBENCH-02-unavailable-page-dark-en-786x540.jpg
+  T-WORKBENCH-02-unavailable-page-light-zh-1280x800.jpg

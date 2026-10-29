@@ -1,0 +1,15 @@
+$ python <scratchpad>/bfix/mutate.py   # 批次 B 修正（2026-10-28）的变异检查
+# 每种变异：在磁盘上临时替换一处代码，运行列出的测试文件（与 V-check 相同的 vitest 参数），随后写回原文，并用 sha256 核对与变异前一致。
+# 运行前后另用 sha256sum -c 核对了 engine/probe.ts 与 plan/*.ts 全部文件：全部 OK。
+
+## M2 T-ENCODE-03: video.ts infers untagged colour by the old rule (short side < 720 is BT.601)
+   file electron/main/media-converter/plan/video.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/video-correctness.test.ts
+     exit 1; Tests 1 failed | 28 passed (29)
+       x colour tags written by setparams (AC-ENCODE-03-2) > infers untagged sources from the shown size: BT.709 from 1280 wide or above 576 high, else BT.601 (smpte170m)
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/encode-real.test.ts -t untagged colour
+     exit 1; Tests 1 failed | 25 skipped (26)
+       x correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > untagged colour (AC-ENCODE-03-2): BT.709 from 1280 wide or above 576 high, as shown, else BT.601, written into the output
+   restored, sha256 a55fc3cbd8349bcc3d99d19c7bf443ce2bd1a68d3e0e13d7775f174917218b63 (same as before)
+
+exit 0

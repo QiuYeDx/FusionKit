@@ -1,0 +1,9 @@
+[hevc_nvenc @ 0000026d7fe138c0] [error] InitializeEncoder failed: invalid param (8): Frame dimensions are less than the minimum supported value.
+[vost#0:0/hevc_nvenc @ 0000026d7fe10dc0] [enc:hevc_nvenc @ 0000026d7fdfb6c0] [error] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+[vf#0:0 @ 0000026d7fe2e780] [error] Error sending frames to consumers: Invalid argument
+[vf#0:0 @ 0000026d7fe2e780] [error] Task finished with error code: -22 (Invalid argument)
+[vf#0:0 @ 0000026d7fe2e780] [error] Terminating thread with return code -22 (Invalid argument)
+[vost#0:0/hevc_nvenc @ 0000026d7fe10dc0] [enc:hevc_nvenc @ 0000026d7fdfb6c0] [error] Could not open encoder before EOF
+[vost#0:0/hevc_nvenc @ 0000026d7fe10dc0] [error] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/hevc_nvenc @ 0000026d7fe10dc0] [error] Terminating thread with return code -22 (Invalid argument)
+[out#0/matroska @ 0000026d7fdb1540] [error] Nothing was written into output file, because at least one of its streams received no packets.

@@ -1,0 +1,144 @@
+# Mutation check: each mutation is applied alone to queue.ts or state-store.ts, then
+#   npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/queue.test.ts
+# runs; the source is restored after every run and checked by sha256 (script kept in the session scratchpad: mutate_queue.py).
+# KILLED = the test file failed with the mutation in place.
+# sha256 before: queue.ts bfc82f8ff104e975a8f203fd93b6058cfbdaaa942b4227f474726abf945469d8, state-store.ts ef47c7f13006304fb31bf1fad348fcf1df33afbbbe7111975a7544557b277e6a
+$ python -I <scratchpad>/mutate_queue.py
+=== summary ===
+M01 no progress throttle: KILLED
+          Tests  1 failed | 23 passed (24)
+M02 trailing progress dropped: KILLED
+          Tests  1 failed | 23 passed (24)
+M03 concurrency off by one: KILLED
+          Tests  10 failed | 14 passed (24)
+M04 run order reversed: KILLED
+          Tests  8 failed | 16 passed (24)
+M05 no input_missing check: KILLED
+          Tests  1 failed | 23 passed (24)
+M06 no input_changed check: KILLED
+          Tests  1 failed | 23 passed (24)
+M07 running not interrupted on restore: KILLED
+          Tests  1 failed | 23 passed (24)
+M08 idle not verified on restore: KILLED
+          Tests  1 failed | 23 passed (24)
+M09 latest finished pruned first: KILLED
+          Tests  2 failed | 22 passed (24)
+M10 corrupt file not set aside: KILLED
+          Tests  1 failed | 23 passed (24)
+M11 log tail not cut: KILLED
+          Tests  1 failed | 23 passed (24)
+M12 log not redacted again: KILLED
+          Tests  1 failed | 23 passed (24)
+M13 lossless confirmation ignored: KILLED
+          Tests  1 failed | 23 passed (24)
+M14 overwrite confirmation ignored: KILLED
+          Tests  1 failed | 23 passed (24)
+M15 partial start while confirming: KILLED
+          Tests  2 failed | 22 passed (24)
+M16 not_smaller override ignored: KILLED
+          Tests  1 failed | 23 passed (24)
+M17 already_target override ignored: KILLED
+          Tests  1 failed | 23 passed (24)
+M18 shutdown does not wait: KILLED
+          Tests  1 failed | 23 passed (24)
+M19 shutdown promise not cached: KILLED
+          Tests  1 failed | 23 passed (24)
+M20 shutdown cancels as cancelled: KILLED
+          Tests  1 failed | 23 passed (24)
+M21 power never released: KILLED
+          Tests  3 failed | 21 passed (24)
+M22 batch never closed: KILLED
+          Tests  2 failed | 22 passed (24)
+M23 late item starts a new batch: KILLED
+          Tests  1 failed | 23 passed (24)
+M24 sequence not increased: KILLED
+          Tests  1 failed | 23 passed (24)
+M25 no debounce: KILLED
+          Tests  1 failed | 23 passed (24)
+M26 failed write forgotten: KILLED
+          Tests  1 failed | 23 passed (24)
+M27 options not restored: KILLED
+          Tests  1 failed | 23 passed (24)
+M28 queued cancel not settled: KILLED
+          Tests  1 failed | 23 passed (24)
+M29 unknown not mapped: KILLED
+          Tests  1 failed | 23 passed (24)
+M30 settings not frozen: KILLED
+          Tests  1 failed | 23 passed (24)
+M31 retry keeps old input state: KILLED
+          Tests  1 failed | 23 passed (24)
+M32 add over the 500 cap: KILLED
+          Tests  1 failed | 23 passed (24)
+M33 restore does not wait in remember: KILLED
+          Tests  1 failed | 23 passed (24)
+M34 power held only while running: KILLED
+          Tests  3 failed | 21 passed (24)
+sources restored: queue.ts sha256 bfc82f8ff104, state-store.ts sha256 ef47c7f13006
+# sha256 after: identical to before (checked)
+# Earlier round: M23 (late item starts a new batch) survived because the late item joined before any outcome was counted;
+# the batch test was changed so the late item joins after the first item ended, and M23 is now killed.
+exit 0
+
+# ── Independent review, 2026-10-26 ──
+# The 34 mutations above (M33 now targets `await this.#whenRestored();`) plus M35–M40 for the review's fixes, run on the reviewed sources
+# (script: <scratchpad>/e05review/mutate_all.py, same runner as above). Every source is restored after each run and checked by sha256.
+# Round 1 ran while queue.ts had been saved with CRLF by a review edit, so the nine multi-line patterns did not apply (NOT APPLIED);
+# queue.ts was put back to LF like its siblings and those nine were run again in round 2.
+$ python -I <scratchpad>/e05review/mutate_all.py
+=== summary ===
+M01 no progress throttle: KILLED
+M02 trailing progress dropped: KILLED
+M03 concurrency off by one: KILLED
+M04 run order reversed: KILLED
+M05 no input_missing check: KILLED
+M06 no input_changed check: KILLED
+M07 running not interrupted on restore: KILLED
+M08 idle not verified on restore: KILLED
+M09 latest finished pruned first: KILLED
+M10 corrupt file not set aside: KILLED
+M11 log tail not cut: KILLED
+M12 log not redacted again: KILLED
+M13 lossless confirmation ignored: KILLED
+M14 overwrite confirmation ignored: KILLED
+M15 partial start while confirming: NOT APPLIED (pattern count 0)
+M16 not_smaller override ignored: KILLED
+M17 already_target override ignored: KILLED
+M18 shutdown does not wait: KILLED
+M19 shutdown promise not cached: NOT APPLIED (pattern count 0)
+M20 shutdown cancels as cancelled: NOT APPLIED (pattern count 0)
+M21 power never released: KILLED
+M22 batch never closed: NOT APPLIED (pattern count 0)
+M23 late item starts a new batch: KILLED
+M24 sequence not increased: KILLED
+M25 no debounce: KILLED
+M26 failed write forgotten: KILLED
+M27 options not restored: NOT APPLIED (pattern count 0)
+M28 queued cancel not settled: NOT APPLIED (pattern count 0)
+M29 unknown not mapped: KILLED
+M30 settings not frozen: KILLED
+M31 retry keeps old input state: KILLED
+M32 add over the 500 cap: NOT APPLIED (pattern count 0)
+M33 restore does not wait in remember: NOT APPLIED (pattern count 0)
+M34 power held only while running: KILLED
+M35 commands do not trigger the restore: KILLED
+M36 unsettled run left queued: NOT APPLIED (pattern count 0)
+M37 failed write not retried: KILLED
+M38 executor summary taken unchecked: KILLED
+M39 restored relative paths kept: KILLED
+M40 restore after an early snapshot not sent: KILLED
+sources restored: queue.ts sha256 eeb32be130d4, state-store.ts sha256 cc1eceac1121
+exit 0
+$ python -I <scratchpad>/e05review/mutate_all.py M15 M19 M20 M22 M27 M28 M32 M33 M36
+=== summary ===
+M15 partial start while confirming: KILLED
+M19 shutdown promise not cached: KILLED
+M20 shutdown cancels as cancelled: KILLED
+M22 batch never closed: KILLED
+M27 options not restored: KILLED
+M28 queued cancel not settled: KILLED
+M32 add over the 500 cap: KILLED
+M33 restore does not wait in remember: KILLED
+M36 unsettled run left queued: KILLED
+sources restored: queue.ts sha256 841c932c6dcb, state-store.ts sha256 cc1eceac1121
+exit 0
+# Result: 40 of 40 mutations killed (M01–M14, M16–M18, M21, M23–M26, M29–M31, M34, M35, M37–M40 in round 1; the other nine in round 2).

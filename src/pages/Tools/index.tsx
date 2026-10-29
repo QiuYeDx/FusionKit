@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { BookOpenText, Sparkles } from "lucide-react";
 import { useReducedMotionPreference } from "@/hooks/use-reduced-motion";
 import { TemplateMenuButton } from "@/pages/HomeAgent/components/PromptTemplates";
-import { TOOL_META } from "./_shared/toolMeta";
+import { TOOL_META, isMediaConverterSupported } from "./_shared/toolMeta";
 import { FeaturedToolCard, type FeaturedKind } from "./FeaturedToolCard";
 import { ToolTile, type ToolTileItem } from "./ToolTile";
 import "./tools.css";
@@ -29,6 +29,16 @@ const CLASSIC_TOOLS: (ToolTileItem & { span: string })[] = [
 const EXPERIMENTAL_TOOLS: ToolTileItem[] = [
   { id: "textTranslator", titleKey: "tools:fields.text_translator", descKey: "tools:field_desc.text_translator",
     chips: ["tools:chips.text_translator_txt", "tools:chips.text_translator_markdown"], translateChips: true },
+];
+
+/**
+ * Tools that work on audio and video files, shown only where their engine runs (Windows until I4). Declared
+ * here, outside the classic and featured lists the agent capability catalog is checked against: the agent
+ * cannot run them yet (I5).
+ */
+const MEDIA_TOOLS: ToolTileItem[] = [
+  { id: "mediaConverter", titleKey: "tools:fields.media_converter", descKey: "tools:field_desc.media_converter",
+    chips: ["tools:chips.media_converter_tasks", "tools:chips.media_converter_local"], translateChips: true },
 ];
 
 type FeaturedItem = { id: "subtitleStudio" | "translationKnowledge"; kind: FeaturedKind; titleKey: string; descKey: string; chipKeys: readonly string[]; details: readonly (readonly [string, string])[]; ctaKey: string };
@@ -64,12 +74,14 @@ function SectionHeading({ id, testId, title, count, description, badge }: {
 const Tools: React.FC = () => {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotionPreference();
+  const mediaTools = isMediaConverterSupported() ? MEDIA_TOOLS : [];
+  const toolCount = CLASSIC_TOOLS.length + mediaTools.length + EXPERIMENTAL_TOOLS.length + FEATURED_TOOLS.length;
   return (
     <main className="tools-catalog mx-auto max-w-7xl px-4 pb-[104px] pt-5 sm:px-8" data-testid="tools-catalog">
       <motion.header className="tools-header" initial={reduceMotion ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.23, 1, 0.32, 1] }}>
         <div className="min-w-0">
-          <p className="tools-eyebrow">FusionKit · {t("tools:catalog.toolbox", { count: CLASSIC_TOOLS.length + EXPERIMENTAL_TOOLS.length + FEATURED_TOOLS.length })}</p>
+          <p className="tools-eyebrow">FusionKit · {t("tools:catalog.toolbox", { count: toolCount })}</p>
           <h1 className="mt-2 text-[32px] font-semibold leading-tight tracking-tight">{t("tools:title")}</h1>
           <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{t("tools:catalog.intro")}</p>
         </div>
@@ -94,11 +106,19 @@ const Tools: React.FC = () => {
         </div>
       </section>
 
+      {mediaTools.length > 0 && <section className="mt-10" aria-labelledby="media-tools-title" aria-describedby="media-tools-title-description">
+        <SectionHeading id="media-tools-title" testId="tools-media-heading" title={t("tools:catalog.media")} count={mediaTools.length}
+          description={t("tools:catalog.media_description")} />
+        <div data-testid="tools-media-grid" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          {mediaTools.map((item, index) => <ToolTile key={item.id} item={item} index={CLASSIC_TOOLS.length + index} className="lg:col-span-3" />)}
+        </div>
+      </section>}
+
       <section className="mt-10" aria-labelledby="experimental-tools-title" aria-describedby="experimental-tools-title-description">
         <SectionHeading id="experimental-tools-title" testId="tools-experimental-heading" title={t("tools:catalog.experimental")} count={EXPERIMENTAL_TOOLS.length}
           description={t("tools:catalog.experimental_description")} />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          {EXPERIMENTAL_TOOLS.map((item, index) => <ToolTile key={item.id} item={item} index={CLASSIC_TOOLS.length + index} className="lg:col-span-3" beta />)}
+          {EXPERIMENTAL_TOOLS.map((item, index) => <ToolTile key={item.id} item={item} index={CLASSIC_TOOLS.length + mediaTools.length + index} className="lg:col-span-3" beta />)}
         </div>
       </section>
     </main>

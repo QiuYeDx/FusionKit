@@ -18,6 +18,9 @@
     "text": {
       "translator": "長文本翻譯"
     },
+    "media": {
+      "converter": "影音轉換"
+    },
     "help": "說明"
   },
   "start": "開始",

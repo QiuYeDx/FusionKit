@@ -1,0 +1,118 @@
+# 批次 C 修正（2026-10-28）：全部非 Electron 的 media-converter 测试（真实 ffmpeg 以 IDLE / BELOW_NORMAL 运行，素材为 lavfi 小样；能力探测用例在本机做 19 项 3 帧测试编码）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/plan/video.test.ts (63 tests) 57ms
+ ✓ test/media-converter/plan/stream-plan.test.ts (70 tests) 175ms
+ ✓ test/media-converter/plan/audio.test.ts (97 tests) 74ms
+ ✓ test/media-converter/capabilities.test.ts (41 tests) 5357ms
+   ✓ the real detection on this computer > tests every configuration within 30 s, keeps only definitive verdicts, and does not test again with the same key 4883ms
+ ✓ test/media-converter/queue.test.ts (34 tests) 7376ms
+   ✓ options and persistence > keeps at most 500 items, removing the earliest finished first 677ms
+   ✓ batches, power and shutdown > holds the power blocker for a batch and sends batch-finished once, late items joining the batch 403ms
+   ✓ detection, disk space, cancelled outputs and preview alternatives > starts nothing while the encoders are detected, and the queued items once the detection ends 341ms
+ ✓ test/media-converter/output.test.ts (49 tests) 4058ms
+   ✓ space and volume limits > the default volume query names the file system of a drive and gives up on a UNC path 1175ms
+   ✓ a partial written by the bundled ffmpeg > ffmpeg -y truncates the partial without changing its identity, and the result publishes by link 350ms
+ ✓ test/media-converter/ipc.test.ts (17 tests) 455ms
+ ✓ test/media-converter/plan/video-correctness.test.ts (29 tests) 72ms
+ ✓ test/media-converter/probe.test.ts (102 tests) 793ms
+   ✓ probing files > runs at most four probes at once and settles each file as soon as it is done 605ms
+ ✓ test/media-converter/executor.test.ts (28 tests) 13266ms
+   ✓ the executor with the real ffmpeg > lists the track it had published when an "all tracks" extraction is cancelled during the next one, so it can be shown 689ms
+   ✓ the executor with the real ffmpeg > re-encodes a raw H.264 or HEVC stream, which a remux cannot time, for MP4, MKV and compress (module-encode design §7b) 1351ms
+   ✓ the executor with the real ffmpeg > cancels: ffmpeg is gone within 3 s, then the partial, the work folder and the 2-pass log in it are removed (AC-ENGINE-04-3) 603ms
+   ✓ the executor with the real ffmpeg > does not retry when NVENC fails after its first frame 1164ms
+   ✓ the executor with the real ffmpeg > judges a hardware plan by its first frame on any machine: killed after it, no retry; killed before it, one fallback 759ms
+   ✓ the executor with the real ffmpeg > refuses before anything runs when the volume lacks the caps of every running output plus 512 MB (disk_space_low) 3427ms
+   ✓ the executor with the real ffmpeg > numbers an output whose name another item of the batch holds, even when overwriting, with output_name_collision 368ms
+ ✓ test/media-converter/process.test.ts (40 tests) 16815ms
+   ✓ the real ffmpeg > runs below normal priority, hidden, in the job directory with the reduced environment, every input pinned, and a good output passes 3026ms
+   ✓ the real ffmpeg > runs low-usage encodes at idle priority on the upper half of the logical processors 531ms
+   ✓ the real ffmpeg > stops within 3 s of a cancel, after which the partial output and the job directory can be removed 567ms
+   ✓ the real ffmpeg > stops a run that shows no output within the first-output grace 1566ms
+   ✓ the real ffmpeg > stops an encode whose processed time and size stand still 1622ms
+   ✓ the real ffmpeg > stops a finalizing run past its budget of base plus size 2186ms
+   ✓ the real ffmpeg > lets a slow run finish as long as it keeps advancing 4680ms
+   ✓ the real ffmpeg > fails an output whose video stopped early while its audio kept the container long 317ms
+   ✓ the real ffmpeg > passes a filter over 8 KB through a file that ffmpeg reads with -/filter:v:0 381ms
+ ✓ test/media-converter/composition.test.ts (9 tests) 285ms
+ ✓ test/media-converter/progress.test.ts (20 tests) 15ms
+ ✓ test/media-converter/runtime.test.ts (15 tests) 7502ms
+   ✓ the bundled media runtime > verifies once, reuses the result, and verifies again when an executable changes 468ms
+   ✓ the bundled media runtime > reports a damaged executable as runtime_invalid, whether its size or only its hash is wrong 1082ms
+   ✓ the bundled media runtime > reports another version as runtime_version_mismatch, from the manifest and from the executable itself 379ms
+   ✓ the bundled media runtime > verifies again and retries once when a run cannot start, and gives up after the second failure 730ms
+   ✓ probing real files > describes an MP4 and a WebM, telling the containers apart 312ms
+   ✓ probing real files > refuses playlists without opening the files they reference 582ms
+   ✓ probing real files > runs at most four probes at once out of 100, below normal priority, and settles each file on its own 1930ms
+ ✓ test/media-converter/encode-audio-real.test.ts (24 tests) 8391ms
+   ✓ audio with the planner arguments and the real ffmpeg > M4A to MP3, FLAC and Opus: no brand tags of the source container, the user tags kept 327ms
+   ✓ audio with the planner arguments and the real ffmpeg > converts 5.1(side) audio to Opus 323ms
+   ✓ audio with the planner arguments and the real ffmpeg > converts 7.1(wide) audio to Opus 333ms
+   ✓ audio with the planner arguments and the real ffmpeg > converts 5.1.4 audio to Opus 351ms
+   ✓ audio with the planner arguments and the real ffmpeg > writes 5.1(side) into AAC with the standard channel configuration, 7.1 into ALAC with 8 channels, 5.1(side) into stereo MP3 900ms
+   ✓ audio with the planner arguments and the real ffmpeg > remixes quad into ALAC by position: each channel lands in its place, never on the centre (design §7b) 312ms
+   ✓ audio with the planner arguments and the real ffmpeg > remixes 7_1 into ALAC by position: each channel lands in its place, never on the centre (design §7b) 447ms
+   ✓ audio with the planner arguments and the real ffmpeg > re-encodes a 320 kbit/s MP3 to standard MP3, smaller, and takes a 96 kbit/s one as already the target (AC-ENCODE-04-5) 475ms
+   ✓ audio with the planner arguments and the real ffmpeg > takes a file made at a tier's own rate as already the target when converted at that tier again, though its measured rate reads higher 560ms
+   ✓ audio with the planner arguments and the real ffmpeg > brings 96 kHz down to 48 kHz for AAC, and keeps 96 kHz and 24 bits in ALAC, WAV and FLAC (from floating point too) 671ms
+   ✓ audio with the planner arguments and the real ffmpeg > converts a MOV with big-endian float PCM to MKV and extracts SMPTE 302M PCM, both of which Matroska refuses as they are 502ms
+ ✓ test/media-converter/remux-real.test.ts (5 tests) 964ms
+ ✓ test/media-converter/plan/naming.test.ts (15 tests) 10ms
+ ✓ test/media-converter/encode-real.test.ts (26 tests) 38845ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libsvtav1': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1979ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'av1_nvenc uhq': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1537ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'av1_nvenc hq': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1446ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc uhq 10-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1714ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc hq 10-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1584ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc uhq 8-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1678ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc hq 8-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1592ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_nvenc': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1636ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_mf hardware': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 2281ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_mf software': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 942ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_mf hardware': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 2443ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libkvazaar': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 3137ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libopenh264': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 550ms
+   ✓ encoding with the planner arguments and the real ffmpeg > runs SVT-AV1 with lp=1 in low-usage mode without a warning 1014ms
+   ✓ encoding with the planner arguments and the real ffmpeg > opens the hardware encoders at the edges of the sizes the planner gives them, and NVENC refuses one step outside 8719ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > rotation (AC-ENCODE-03-1): a re-encode turns the pixels and keeps no display matrix; a remux keeps the matrix 467ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > untagged colour (AC-ENCODE-03-2): BT.709 from 1280 wide or above 576 high, as shown, else BT.601, written into the output 1581ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > HDR10 to 'HEVC 10-bit' on NVENC (AC-ENCODE-03-3): kept the same way, where the device is here 321ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > HDR10 to 'AV1' on NVENC (AC-ENCODE-03-3): kept the same way, where the device is here 319ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > full range (AC-ENCODE-03-2): pc and yuvj* sources (also one tagged tv) measure YMAX ≤ 940 at 10 bits after conversion, scaled or not 1115ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > variable frame rate (AC-ENCODE-03-5): -fps_mode passthrough keeps every timestamp, the duration within max(0.1 s, 0.5 %) 361ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > interlacing (AC-ENCODE-03-5): a top-field-first source is deinterlaced by bwdif, frame for frame 408ms
+ ✓ test/media-converter/test-hooks.test.ts (7 tests) 11ms
+ Test Files  19 passed (19)
+      Tests  691 passed (691)
+   Start at  16:52:35
+   Duration  48.03s (transform 877ms, setup 0ms, collect 5.66s, tests 104.52s, environment 2ms, prepare 1.18s)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑：全部非 Electron 的 media-converter 测试（executor.ts 与 executor.test.ts 的最终版本；真实 ffmpeg 以 IDLE / BELOW_NORMAL 运行，素材为 lavfi 小样）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter
+ ✓ test/media-converter/plan/video.test.ts (63 tests) 61ms
+ ✓ test/media-converter/plan/stream-plan.test.ts (70 tests) 183ms
+ ✓ test/media-converter/plan/audio.test.ts (97 tests) 75ms
+ ✓ test/media-converter/capabilities.test.ts (41 tests) 5654ms
+ ✓ test/media-converter/queue.test.ts (34 tests) 7393ms
+ ✓ test/media-converter/output.test.ts (49 tests) 5002ms
+ ✓ test/media-converter/ipc.test.ts (17 tests) 454ms
+ ✓ test/media-converter/plan/video-correctness.test.ts (29 tests) 75ms
+ ✓ test/media-converter/executor.test.ts (29 tests) 13960ms
+ ✓ test/media-converter/probe.test.ts (102 tests) 791ms
+ ✓ test/media-converter/process.test.ts (40 tests) 17113ms
+ ✓ test/media-converter/composition.test.ts (9 tests) 299ms
+ ✓ test/media-converter/progress.test.ts (20 tests) 17ms
+ ✓ test/media-converter/runtime.test.ts (15 tests) 7980ms
+ ✓ test/media-converter/encode-audio-real.test.ts (24 tests) 8760ms
+ ✓ test/media-converter/remux-real.test.ts (5 tests) 1030ms
+ ✓ test/media-converter/plan/naming.test.ts (15 tests) 11ms
+ ✓ test/media-converter/encode-real.test.ts (26 tests) 43188ms
+ ✓ test/media-converter/test-hooks.test.ts (7 tests) 11ms
+ Test Files  19 passed (19)
+      Tests  692 passed (692)
+   Start at  17:16:53
+   Duration  52.44s (transform 931ms, setup 0ms, collect 6.02s, tests 112.06s, environment 2ms, prepare 1.30s)
+(test-results/media-converter 下的残留：0 项)
+exit 0

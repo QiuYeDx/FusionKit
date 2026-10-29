@@ -1,0 +1,6 @@
+[h264_mf @ 00000218e3ae64c0] [Eval @ 00000064d61fce30] [error] Undefined constant or missing '(' in 'high'
+[h264_mf @ 00000218e3ae64c0] [error] Unable to parse "profile" option value "high"
+[h264_mf @ 00000218e3ae64c0] [error] Error setting option profile to value high.
+[vost#0:0/h264_mf @ 00000218e3ae6240] [error] Error applying encoder options: Invalid argument
+[error] Error opening output file file:<work>/probe.mkv.
+[fatal] Error opening output files: Invalid argument

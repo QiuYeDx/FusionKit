@@ -1,0 +1,19 @@
+# review pass: each mutation applied alone to the final source (ipc.ts md5 c291b5dd…, index.ts md5 e34725e3…), then
+#   npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/ipc.test.ts test/media-converter/composition.test.ts
+# and the file restored byte for byte (md5 checked before and after the run).
+# R4 ran in the two earlier passes (the second over this same source, identical md5; the tests differed only by a type annotation added afterwards):
+#   R4 registration: verify the runtime eagerly (capabilities.ensure() added to `ready`): exit 1 -> CAUGHT; Tests 1 failed | 23 passed (24) and 1 failed | 24 passed (25)
+# It was not repeated: under that mutation the lazy-registration test runs the real detection (runtime verification and the 3-frame lavfi
+# test encodes of capabilities.ts at BELOW_NORMAL priority, about 5 s), which is exactly what the test exists to forbid.
+$ python <scratchpad>/t06review-mutate.py R1 R2 R3 R5 R6
+R1 trust: drop the main-frame identity check: exit 1 -> CAUGHT;       Tests  2 failed | 23 passed (25)
+    restored electron/main/media-converter/ipc.ts byte for byte
+R2 trust: accept a missing senderFrame: exit 1 -> CAUGHT;       Tests  2 failed | 23 passed (25)
+    restored electron/main/media-converter/ipc.ts byte for byte
+R3 darwin shutdown: a new promise per call: exit 1 -> CAUGHT;       Tests  1 failed | 24 passed (25)
+    restored electron/main/media-converter/index.ts byte for byte
+R5 shutdown does not wait for the queue: exit 1 -> CAUGHT;       Tests  3 failed | 22 passed (25)
+    restored electron/main/media-converter/index.ts byte for byte
+R6 power blocker not wired: exit 1 -> CAUGHT;       Tests  1 failed | 24 passed (25)
+    restored electron/main/media-converter/index.ts byte for byte
+exit 0

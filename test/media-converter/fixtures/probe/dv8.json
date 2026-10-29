@@ -1,0 +1,30 @@
+{
+  "file": { "name": "dv-p8.1.mkv", "sizeBytes": 1500000000, "matroskaDocType": "matroska" },
+  "ffprobe": {
+    "streams": [
+      {
+        "index": 0, "codec_name": "hevc", "profile": "Main 10", "codec_type": "video", "width": 3840, "height": 1608, "sample_aspect_ratio": "1:1",
+        "pix_fmt": "yuv420p10le", "color_range": "tv", "color_space": "bt2020nc", "color_transfer": "smpte2084", "color_primaries": "bt2020",
+        "r_frame_rate": "24000/1001", "avg_frame_rate": "24000/1001",
+        "disposition": { "default": 1 }, "tags": { "DURATION": "01:30:00.000000000" },
+        "side_data_list": [
+          { "side_data_type": "DOVI configuration record", "dv_version_major": 1, "dv_version_minor": 0, "dv_profile": 8, "dv_level": 6,
+            "rpu_present_flag": 1, "el_present_flag": 0, "bl_present_flag": 1, "dv_bl_signal_compatibility_id": 1 },
+          { "side_data_type": "Content light level metadata", "max_content": 1103, "max_average": 192 }
+        ]
+      },
+      { "index": 1, "codec_name": "truehd", "codec_type": "audio", "sample_fmt": "s32", "sample_rate": "48000", "channels": 8, "channel_layout": "7.1",
+        "bits_per_raw_sample": "24", "disposition": { "default": 1 }, "tags": { "language": "eng", "DURATION": "01:30:00.010000000" } }
+    ],
+    "format": { "format_name": "matroska,webm", "duration": "5400.010000", "bit_rate": "2222222" }
+  },
+  "firstFrame": {
+    "frames": [ { "side_data_list": [
+      { "side_data_type": "Mastering display metadata", "red_x": "35400/50000", "red_y": "14600/50000", "green_x": "8500/50000", "green_y": "39850/50000",
+        "blue_x": "6550/50000", "blue_y": "2300/50000", "white_point_x": "15635/50000", "white_point_y": "16450/50000",
+        "min_luminance": "1/10000", "max_luminance": "40000000/10000" },
+      { "side_data_type": "Content light level metadata", "max_content": 999, "max_average": 99 },
+      { "side_data_type": "Dolby Vision RPU Data" }
+    ] } ]
+  }
+}

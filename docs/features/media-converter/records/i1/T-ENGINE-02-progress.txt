@@ -1,0 +1,27 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/progress.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/progress.test.ts > the progress parser > reads the blocks of a real ffmpeg 8 stream
+ ✓ test/media-converter/progress.test.ts > the progress parser > gives the same blocks whatever the chunk boundaries, bytes or text, LF or CRLF
+ ✓ test/media-converter/progress.test.ts > the progress parser > ignores N/A and negative values
+ ✓ test/media-converter/progress.test.ts > the progress parser > reads values with leading spaces and units
+ ✓ test/media-converter/progress.test.ts > the progress parser > takes out_time_ms as microseconds, below out_time_us and above out_time
+ ✓ test/media-converter/progress.test.ts > the progress parser > rejects garbage, fractions where integers belong, and numbers beyond 2^53
+ ✓ test/media-converter/progress.test.ts > the progress parser > drops a line over 16 KB, split across chunks or not, and goes on with the next one
+ ✓ test/media-converter/progress.test.ts > the progress parser > ends a run on progress=end, keeps a last line without newline, and drops a block cut short
+ ✓ test/media-converter/progress.test.ts > the progress state > keeps the last known values through N/A and never lets processed time or size go back
+ ✓ test/media-converter/progress.test.ts > the job share > is processed ÷ expected, held at 99 % until the end, and unknown without a duration
+ ✓ test/media-converter/progress.test.ts > the job share > weights phases: earlier phases count whole, the current one by its share
+ ✓ test/media-converter/progress.test.ts > the time left > waits for the warm-up, then matches a steady pace exactly
+ ✓ test/media-converter/progress.test.ts > the time left > moves only part of the way after a burst or a pause, and recovers
+ ✓ test/media-converter/progress.test.ts > the time left > ignores time going backwards and a share going down, and starts over without a share
+ ✓ test/media-converter/progress.test.ts > the time left > tracks a two-phase job through the tracker
+ ✓ test/media-converter/progress.test.ts > the log redaction > replaces the input, temporary, output and working paths, with or without file:, in either slash and any case
+ ✓ test/media-converter/progress.test.ts > the log redaction > hides other absolute paths as [path], and leaves ordinary ffmpeg text alone
+ ✓ test/media-converter/progress.test.ts > the log redaction > removes terminal escapes and control characters and keeps line breaks
+ ✓ test/media-converter/progress.test.ts > the log redaction > cuts the tail on whole lines, never showing part of a path cut at the boundary
+ ✓ test/media-converter/progress.test.ts > the log redaction > measures the tail in UTF-8 bytes without splitting a character
+ Test Files  1 passed (1)
+      Tests  20 passed (20)
+   Start at  13:19:22
+   Duration  282ms (transform 44ms, setup 0ms, collect 76ms, tests 14ms, environment 0ms, prepare 59ms)
+exit 0

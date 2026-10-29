@@ -24,6 +24,7 @@ import SubtitleLanguageExtractor from "./pages/Tools/Subtitle/SubtitleLanguageEx
 import LocalSubtitleTranscriber from "./pages/Tools/Subtitle/LocalSubtitleTranscriber";
 import NameTranslator from "./pages/Tools/Rename/NameTranslator";
 import LongTextTranslator from "./pages/Tools/Text/LongTextTranslator";
+import MediaConverter from "./pages/Tools/Media/MediaConverter";
 import ExternalAgentActivity from "./pages/ExternalAgentActivity";
 import { EXTERNAL_ACTIVITY_ROUTE } from "./pages/ExternalAgentActivity/route";
 import { Toaster } from "@/components/ui/sonner";
@@ -32,7 +33,7 @@ import Update from "@/components/update";
 import WelcomeWizard from "@/components/onboarding/WelcomeWizard";
 import { VcRuntimePageNotice } from "@/components/system-setup/VcRuntimeNotice";
 import LocalSubtitleOverwriteRecoveryPrompt from "@/components/local-subtitle/LocalSubtitleOverwriteRecoveryPrompt";
-import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE } from "@/constants/router";
+import { LOCAL_SUBTITLE_TRANSCRIBER_ROUTE, MEDIA_CONVERTER_ROUTE } from "@/constants/router";
 import { ToolFileDropScope } from "@/pages/Tools/_shared/ui/ToolFileDropScope";
 
 
@@ -164,6 +165,8 @@ function App() {
                   path="/tools/text/translator"
                   element={<LongTextTranslator />}
                 />
+                {/* 每个平台都注册：引擎不支持的平台在页内说明，不跳转 */}
+                <Route path={MEDIA_CONVERTER_ROUTE} element={<MediaConverter />} />
               </Routes>
               </ToolFileDropScope>
             </motion.div>

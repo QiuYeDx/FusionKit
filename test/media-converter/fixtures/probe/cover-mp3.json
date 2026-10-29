@@ -1,0 +1,15 @@
+{
+  "file": { "name": "song.mp3", "sizeBytes": 8400000, "matroskaDocType": null },
+  "ffprobe": {
+    "streams": [
+      { "index": 0, "codec_name": "mp3", "codec_type": "audio", "sample_fmt": "fltp", "sample_rate": "44100", "channels": 2, "channel_layout": "stereo",
+        "r_frame_rate": "0/0", "avg_frame_rate": "0/0", "duration": "210.024490", "bit_rate": "320000", "disposition": { "default": 0, "attached_pic": 0 },
+        "tags": { "encoder": "LAME3.100" } },
+      { "index": 1, "codec_name": "mjpeg", "profile": "Baseline", "codec_type": "video", "width": 600, "height": 600, "pix_fmt": "yuvj420p",
+        "r_frame_rate": "90000/1", "avg_frame_rate": "0/0", "duration": "210.024490",
+        "disposition": { "default": 0, "attached_pic": 1 }, "tags": { "comment": "Cover (front)" } }
+    ],
+    "format": { "format_name": "mp3", "duration": "210.024490", "bit_rate": "319963",
+      "tags": { "title": "Song", "artist": "Someone" } }
+  }
+}

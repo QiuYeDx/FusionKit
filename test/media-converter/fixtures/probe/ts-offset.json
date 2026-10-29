@@ -1,0 +1,16 @@
+{
+  "file": { "name": "broadcast.ts", "sizeBytes": 18800000, "matroskaDocType": null },
+  "ffprobe": {
+    "programs": [ { "program_id": 1, "program_num": 1, "nb_streams": 3 } ],
+    "streams": [
+      { "index": 0, "codec_name": "h264", "profile": "High", "codec_type": "video", "width": 1440, "height": 1080, "sample_aspect_ratio": "4:3",
+        "pix_fmt": "yuv420p", "color_range": "tv", "field_order": "tt", "r_frame_rate": "30000/1001", "avg_frame_rate": "30000/1001",
+        "start_time": "1.400000", "duration": "10.010000", "disposition": { "default": 0 }, "id": "0x100" },
+      { "index": 1, "codec_name": "aac", "profile": "LC", "codec_type": "audio", "sample_rate": "48000", "channels": 2, "channel_layout": "stereo",
+        "start_time": "1.400000", "duration": "10.000000", "bit_rate": "128000", "disposition": { "default": 0 }, "tags": { "language": "jpn" } },
+      { "index": 2, "codec_name": "ac3", "codec_type": "audio", "sample_rate": "48000", "channels": 6, "channel_layout": "5.1(side)",
+        "start_time": "1.416000", "duration": "9.984000", "bit_rate": "384000", "disposition": { "default": 0 }, "tags": { "language": "eng" } }
+    ],
+    "format": { "format_name": "mpegts", "start_time": "1.400000", "duration": "10.010000", "bit_rate": "15024975" }
+  }
+}

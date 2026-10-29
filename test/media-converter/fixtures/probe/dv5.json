@@ -1,0 +1,20 @@
+{
+  "file": { "name": "streaming-dv-p5.mp4", "sizeBytes": 812345678, "matroskaDocType": null },
+  "ffprobe": {
+    "streams": [
+      {
+        "index": 0, "codec_name": "hevc", "profile": "Main 10", "codec_type": "video", "codec_tag_string": "dvh1", "width": 3840, "height": 2160,
+        "sample_aspect_ratio": "1:1", "pix_fmt": "yuv420p10le", "color_range": "tv", "field_order": "progressive",
+        "r_frame_rate": "24/1", "avg_frame_rate": "24/1", "duration": "600.000000", "bit_rate": "10500000",
+        "disposition": { "default": 1 }, "tags": { "language": "und", "handler_name": "VideoHandler" },
+        "side_data_list": [
+          { "side_data_type": "DOVI configuration record", "dv_version_major": 1, "dv_version_minor": 0, "dv_profile": 5, "dv_level": 6,
+            "rpu_present_flag": 1, "el_present_flag": 0, "bl_present_flag": 1, "dv_bl_signal_compatibility_id": 0, "dv_md_compression": 0 }
+        ]
+      },
+      { "index": 1, "codec_name": "eac3", "codec_type": "audio", "sample_rate": "48000", "channels": 6, "channel_layout": "5.1(side)",
+        "duration": "600.000000", "bit_rate": "640000", "disposition": { "default": 1 }, "tags": { "language": "eng" } }
+    ],
+    "format": { "format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "600.000000", "bit_rate": "11150000", "tags": { "major_brand": "mp42" } }
+  }
+}

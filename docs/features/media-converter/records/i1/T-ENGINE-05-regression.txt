@@ -1,0 +1,9 @@
+# Not a V-check of this task: the unit tests that read contract.ts, run after adding the queue schemas and the two reason codes (no ffmpeg runs in them).
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/probe.test.ts test/media-converter/progress.test.ts test/media-converter/plan/naming.test.ts test/media-converter/plan/stream-plan.test.ts
+✓ test/media-converter/progress.test.ts (20 tests) 14ms
+✓ test/media-converter/plan/naming.test.ts (15 tests) 10ms
+✓ test/media-converter/plan/stream-plan.test.ts (68 tests) 162ms
+✓ test/media-converter/probe.test.ts (101 tests) 373ms
+Test Files  4 passed (4)
+Tests  204 passed (204)
+exit 0

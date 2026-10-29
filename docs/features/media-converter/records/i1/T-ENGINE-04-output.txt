@@ -1,0 +1,54 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/output.test.ts --reporter=verbose
+ ✓ test/media-converter/output.test.ts > partial files > records the partial in partials.json before creating it, then its identity; ffmpeg-style truncation keeps the identity
+ ✓ test/media-converter/output.test.ts > partial files > creates no partial without its record: an unwritable journal or a missing folder is output_dir_unwritable
+ ✓ test/media-converter/output.test.ts > partial files > discards the partial and its record, but leaves a file that replaced it alone and never publishes that file
+ ✓ test/media-converter/output.test.ts > partial files > a replaced partial is not moved by the placeholder flow either
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > numbers the name, (1) then (2), by hard link, and leaves the existing file byte for byte
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a link error EISDIR falls back to an exclusive placeholder
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a link error EPERM falls back to an exclusive placeholder
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a link error EXDEV falls back to an exclusive placeholder
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a link error ENOTSUP falls back to an exclusive placeholder
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a link error UNKNOWN falls back to an exclusive placeholder
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a link error EWHATEVER falls back to an exclusive placeholder
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a link error undefined falls back to an exclusive placeholder
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > when the rename over the placeholder fails, neither the placeholder nor the partial is left
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a rename that stays busy is tried five times over about 2 s, then cleaned up the same way
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > EBUSY and EPERM on the rename are retried and the publish then succeeds
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a placeholder that is no longer empty is not removed after a failed rename
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a placeholder another program wrote into before the rename is left to it; the output takes the next name
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > EPERM on the placeholder: a name something holds is skipped, a free name that refuses the create fails the publish
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a name held by a file pending deletion is skipped, by link and by placeholder alike
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > after the placeholder rename, FAT and unknown volumes are checked by size, other volumes by identity
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a partial name that cannot be removed after the link stays a second name of the output until the next start
+ ✓ test/media-converter/output.test.ts > publishing without replacing anything > a numbered name beyond the path limit is output_path_too_long
+ ✓ test/media-converter/output.test.ts > overwriting > moves the old file to the recycle bin before the new one takes its name
+ ✓ test/media-converter/output.test.ts > overwriting > names the file an overwrite would replace, for the confirmation before start
+ ✓ test/media-converter/output.test.ts > overwriting > keeps the old file and reports overwrite_trash_failed when the recycle bin refuses it
+ ✓ test/media-converter/output.test.ts > overwriting > a recycle bin that reports success but leaves the file never leads to replacing it
+ ✓ test/media-converter/output.test.ts > overwriting > never moves a file pending deletion to the recycle bin: the output is numbered
+ ✓ test/media-converter/output.test.ts > overwriting > never moves a folder or an input to the recycle bin
+ ✓ test/media-converter/output.test.ts > names within a batch > two items resolving to one name: the second is numbered and warned, whichever publishes first
+ ✓ test/media-converter/output.test.ts > names within a batch > with overwrite, an item never replaces a name another item of the batch holds; after the batch it may
+ ✓ test/media-converter/output.test.ts > names within a batch > an item that stops without publishing gives its name back
+ ✓ test/media-converter/output.test.ts > output_is_input > refuses a target that is an input under another case or a hard link of one; other files pass
+ ✓ test/media-converter/output.test.ts > output_is_input > with an all-zero FileId, compares the real paths: the same file is refused, another file with a zero FileId is not
+ ✓ test/media-converter/output.test.ts > space and volume limits > sums the caps of the running outputs on one volume against its free space plus 512 MB
+ ✓ test/media-converter/output.test.ts > space and volume limits > refuses a cap over 4 GiB on FAT32 before starting, and asks the volume type only for such a cap
+ ✓ test/media-converter/output.test.ts > space and volume limits > the default volume query names the file system of a drive and gives up on a UNC path 1115ms
+ ✓ test/media-converter/output.test.ts > space and volume limits > refuses a missing folder, a file as folder and an overlong path before anything is written
+ ✓ test/media-converter/output.test.ts > space and volume limits > every output carries -fs <cap>, and -t max(duration × 1.05, duration + 10 s) when the duration is known
+ ✓ test/media-converter/output.test.ts > space and volume limits > numbered names and busy retries follow the policy
+ ✓ test/media-converter/output.test.ts > startup cleanup > deletes matching leftovers, drops records of files that are gone or not ours, keeps unmounted and failed ones, and empties work/
+ ✓ test/media-converter/output.test.ts > startup cleanup > a record whose folder is gone is kept while the nearest folder there sits on another volume
+ ✓ test/media-converter/output.test.ts > startup cleanup > work directories live under work/ and are removed with their contents
+ ✓ test/media-converter/output.test.ts > startup cleanup > never touches the partials of jobs running in the same session
+ ✓ test/media-converter/output.test.ts > startup cleanup > keeps an unreadable journal aside and deletes nothing on a guess
+ ✓ test/media-converter/output.test.ts > inputs > registers a file once: another case or a hard link of it is the same item; folders and missing files are refused
+ ✓ test/media-converter/output.test.ts > inputs > verify: input_changed for an edit or another file with the same size and time, input_missing when gone; refresh accepts it as it is
+ ✓ test/media-converter/output.test.ts > inputs > drop: a batch the resolver refuses keeps every file that was never in %TEMP%
+ ✓ test/media-converter/output.test.ts > inputs > drop: maps the resolver codes, with the real resolver for paths outside %TEMP%
+ ✓ test/media-converter/output.test.ts > a partial written by the bundled ffmpeg > ffmpeg -y truncates the partial without changing its identity, and the result publishes by link 341ms
+ Test Files  1 passed (1)
+      Tests  49 passed (49)
+   Duration  4.32s (transform 220ms, setup 0ms, collect 797ms, tests 3.32s, environment 0ms, prepare 58ms)
+exit 0

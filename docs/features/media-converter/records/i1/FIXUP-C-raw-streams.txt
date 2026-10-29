@@ -1,0 +1,277 @@
+# 批次 C 修正 F6（2026-10-28）：随附 ffmpeg n8.1.2 能否只换封装裸视频流，以及可行的做法。
+# 每个 ffmpeg/ffprobe 都以 IDLE 优先级运行（node runff.mjs：spawn 后 os.setPriority(PRIORITY_LOW)，windowsHide）；素材为 2 s、320x180（kvazaar 320x184）的 lavfi 小样，
+# 生成在 scratchpad 的临时目录中，结束时删除。exit 4294967274 即 -22（EINVAL）。b.h264 与 d.hevc 由 NVENC 生成（带 B 帧），其余为 CPU 编码器。
+$ bash <scratchpad>/fixc/f6-research.sh
+## Samples (made at idle priority)
+$ ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=320x180:r=30:d=2 -c:v libopenh264 -g 30 -f h264 -y a.h264
+exit 0 
+$ ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=320x180:r=30:d=2 -c:v h264_nvenc -bf 2 -g 30 -pix_fmt yuv420p -f h264 -y b.h264
+exit 0 
+$ ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=320x184:r=30:d=2 -c:v libkvazaar -pix_fmt yuv420p -f hevc -y c.hevc
+exit 0 
+$ ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=320x180:r=30:d=2 -c:v hevc_nvenc -bf 2 -g 30 -pix_fmt yuv420p -f hevc -y d.hevc
+exit 0 
+$ ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=320x180:r=30:d=2 -c:v mpeg2video -bf 2 -g 15 -f mpeg2video -y e.m2v
+exit 0 
+$ ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=320x180:r=30:d=2 -c:v mpeg4 -bf 2 -f m4v -y f.m4v
+exit 0 
+$ ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=s=320x180:r=30:d=2 -c:v libsvtav1 -preset 10 -f obu -y g.obu
+exit 0 
+
+## What the probe's demuxer whitelist admits (m4v, obu and vvc are not on it)
+$ ffprobe -hide_banner -v error -format_whitelist mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc -protocol_whitelist file -show_entries format=format_name,duration:stream=codec_name,has_b_frames,r_frame_rate,avg_frame_rate -of compact file:a.h264
+exit 0 
+stream|codec_name=h264|has_b_frames=0|r_frame_rate=1200000/1|avg_frame_rate=25/1
+format|format_name=h264|duration=N/A
+
+$ ffprobe -hide_banner -v error -format_whitelist mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc -protocol_whitelist file -show_entries format=format_name,duration:stream=codec_name,has_b_frames,r_frame_rate,avg_frame_rate -of compact file:b.h264
+exit 0 
+stream|codec_name=h264|has_b_frames=2|r_frame_rate=60/1|avg_frame_rate=25/1
+format|format_name=h264|duration=N/A
+
+$ ffprobe -hide_banner -v error -format_whitelist mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc -protocol_whitelist file -show_entries format=format_name,duration:stream=codec_name,has_b_frames,r_frame_rate,avg_frame_rate -of compact file:c.hevc
+exit 0 
+stream|codec_name=hevc|has_b_frames=15|r_frame_rate=30/1|avg_frame_rate=25/1
+format|format_name=hevc|duration=N/A
+
+$ ffprobe -hide_banner -v error -format_whitelist mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc -protocol_whitelist file -show_entries format=format_name,duration:stream=codec_name,has_b_frames,r_frame_rate,avg_frame_rate -of compact file:d.hevc
+exit 0 
+stream|codec_name=hevc|has_b_frames=2|r_frame_rate=30/1|avg_frame_rate=25/1
+format|format_name=hevc|duration=N/A
+
+$ ffprobe -hide_banner -v error -format_whitelist mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc -protocol_whitelist file -show_entries format=format_name,duration:stream=codec_name,has_b_frames,r_frame_rate,avg_frame_rate -of compact file:e.m2v
+exit 0 
+stream|codec_name=mpeg2video|has_b_frames=1|r_frame_rate=30/1|avg_frame_rate=25/1|
+format|format_name=mpegvideo|duration=N/A
+
+$ ffprobe -hide_banner -v error -format_whitelist mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc -protocol_whitelist file -show_entries format=format_name,duration:stream=codec_name,has_b_frames,r_frame_rate,avg_frame_rate -of compact file:f.m4v
+exit 1 
+[m4v ] Format not on whitelist 'mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc'
+file:f.m4v: Invalid argument
+
+$ ffprobe -hide_banner -v error -format_whitelist mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc -protocol_whitelist file -show_entries format=format_name,duration:stream=codec_name,has_b_frames,r_frame_rate,avg_frame_rate -of compact file:g.obu
+exit 1 
+[obu ] Format not on whitelist 'mov,matroska,avi,asf,flv,mpegts,mpeg,mp3,aac,wav,flac,ogg,aiff,ape,amr,ac3,eac3,dts,caf,wv,tta,rm,mxf,w64,mpegvideo,h264,hevc'
+file:g.obu: Invalid argument
+
+## Raw H.264/HEVC packets carry no timestamp at all
+$ ffprobe -v error -show_entries packet=pts,dts,duration -of compact -read_intervals %+#3 b.h264
+exit 0 
+packet|pts=N/A|dts=N/A|duration=40000
+packet|pts=N/A|dts=N/A|duration=40000
+packet|pts=N/A|dts=N/A|duration=40000
+
+$ ffprobe -v error -show_entries packet=pts,dts,duration -of compact -read_intervals %+#3 d.hevc
+exit 0 
+packet|pts=N/A|dts=N/A|duration=40000
+packet|pts=N/A|dts=N/A|duration=40000
+packet|pts=N/A|dts=N/A|duration=40000
+
+## Raw MPEG-2: the parser gives dts, B-frames lack pts
+$ ffprobe -v error -show_entries packet=pts,dts,duration -of compact -read_intervals %+#5 e.m2v
+exit 0 
+packet|pts=N/A|dts=0|duration=40000
+packet|pts=N/A|dts=40000|duration=40000
+packet|pts=80000|dts=80000|duration=40000
+packet|pts=120000|dts=120000|duration=40000
+packet|pts=N/A|dts=160000|duration=40000
+
+## Remux attempts (the planner's arguments before the fix, then each candidate fix)
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f h264 -protocol_whitelist file -i file:a.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f mp4 -y genpts-a.h264.mp4
+  1 [mp4 ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f h264 -protocol_whitelist file -i file:a.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y genpts-a.h264.matroska
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f h264 -protocol_whitelist file -i file:b.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f mp4 -y genpts-b.h264.mp4
+  1 [mp4 ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  60 [mp4 ] [warning] pts has no value
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f h264 -protocol_whitelist file -i file:b.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y genpts-b.h264.matroska
+  1 [matroska ] [error] Can't write packet with unknown timestamp
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 [out#0/matroska ] [error] Error muxing a packet
+  1 [out#0/matroska ] [error] Task finished with error code: -22 (Invalid argument)
+  1 [out#0/matroska ] [error] Terminating thread with return code -22 (Invalid argument)
+  2 [vost#0:0/copy ] [error] Error submitting a packet to the muxer: Invalid argument
+  1 exit 4294967274 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f hevc -protocol_whitelist file -i file:c.hevc -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f mp4 -y genpts-c.hevc.mp4
+  1 [mp4 ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  60 [mp4 ] [warning] pts has no value
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f hevc -protocol_whitelist file -i file:c.hevc -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y genpts-c.hevc.matroska
+  1 [matroska ] [error] Can't write packet with unknown timestamp
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 [out#0/matroska ] [error] Error muxing a packet
+  1 [out#0/matroska ] [error] Task finished with error code: -22 (Invalid argument)
+  1 [out#0/matroska ] [error] Terminating thread with return code -22 (Invalid argument)
+  2 [vost#0:0/copy ] [error] Error submitting a packet to the muxer: Invalid argument
+  1 exit 4294967274 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f hevc -protocol_whitelist file -i file:d.hevc -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f mp4 -y genpts-d.hevc.mp4
+  1 [mp4 ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  60 [mp4 ] [warning] pts has no value
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f hevc -protocol_whitelist file -i file:d.hevc -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y genpts-d.hevc.matroska
+  1 [matroska ] [error] Can't write packet with unknown timestamp
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 [out#0/matroska ] [error] Error muxing a packet
+  1 [out#0/matroska ] [error] Task finished with error code: -22 (Invalid argument)
+  1 [out#0/matroska ] [error] Terminating thread with return code -22 (Invalid argument)
+  2 [vost#0:0/copy ] [error] Error submitting a packet to the muxer: Invalid argument
+  1 exit 4294967274 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -r 30 -f h264 -protocol_whitelist file -i file:a.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f mp4 -y r30-a.h264.mp4
+  1 [mp4 ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -framerate 30 -f h264 -protocol_whitelist file -i file:a.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f mp4 -y fr30-a.h264.mp4
+  1 [mp4 ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -r 30 -f h264 -protocol_whitelist file -i file:a.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y r30-a.h264.matroska
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -framerate 30 -f h264 -protocol_whitelist file -i file:a.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y fr30-a.h264.matroska
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -r 30 -f h264 -protocol_whitelist file -i file:b.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f mp4 -y r30-b.h264.mp4
+  1 [mp4 ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  60 [mp4 ] [warning] pts has no value
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -framerate 30 -f h264 -protocol_whitelist file -i file:b.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f mp4 -y fr30-b.h264.mp4
+  1 [mp4 ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  60 [mp4 ] [warning] pts has no value
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -r 30 -f h264 -protocol_whitelist file -i file:b.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y r30-b.h264.matroska
+  1 [matroska ] [error] Can't write packet with unknown timestamp
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 [out#0/matroska ] [error] Error muxing a packet
+  1 [out#0/matroska ] [error] Task finished with error code: -22 (Invalid argument)
+  1 [out#0/matroska ] [error] Terminating thread with return code -22 (Invalid argument)
+  2 [vost#0:0/copy ] [error] Error submitting a packet to the muxer: Invalid argument
+  1 exit 4294967274 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -framerate 30 -f h264 -protocol_whitelist file -i file:b.h264 -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y fr30-b.h264.matroska
+  1 [matroska ] [error] Can't write packet with unknown timestamp
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 [out#0/matroska ] [error] Error muxing a packet
+  1 [out#0/matroska ] [error] Task finished with error code: -22 (Invalid argument)
+  1 [out#0/matroska ] [error] Terminating thread with return code -22 (Invalid argument)
+  2 [vost#0:0/copy ] [error] Error submitting a packet to the muxer: Invalid argument
+  1 exit 4294967274 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -f h264 -protocol_whitelist file -i file:a.h264 -map 0:0 -c:v:0 copy -bsf:v:0 setts=ts=N*DURATION -f mp4 -y setts-a.mp4
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352000, current: 50; changing to 2352001. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352001, current: 51; changing to 2352002. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352002, current: 52; changing to 2352003. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352003, current: 53; changing to 2352004. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352004, current: 54; changing to 2352005. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352005, current: 55; changing to 2352006. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352006, current: 56; changing to 2352007. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352007, current: 57; changing to 2352008. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352008, current: 58; changing to 2352009. This may result in incorrect timestamps in the output file.
+  1 [vost#0:0/copy ] [warning] Non-monotonic DTS; previous: 2352009, current: 59; changing to 2352010. This may result in incorrect timestamps in the output file.
+  1 exit 0 
+  1 out_time=N/A
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts+igndts -f h264 -protocol_whitelist file -i file:b.h264 -map 0:0 -c:v:0 copy -f matroska -y igndts-b.mkv
+  1 [matroska ] [error] Can't write packet with unknown timestamp
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 [out#0/matroska ] [error] Error muxing a packet
+  1 [out#0/matroska ] [error] Task finished with error code: -22 (Invalid argument)
+  1 [out#0/matroska ] [error] Terminating thread with return code -22 (Invalid argument)
+  2 [vost#0:0/copy ] [error] Error submitting a packet to the muxer: Invalid argument
+  1 exit 4294967274 
+  1 out_time=N/A
+
+## Raw MPEG-2 to MKV: copies with +genpts, fails without it
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -fflags +genpts -f mpegvideo -protocol_whitelist file -i file:e.m2v -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y e.mkv
+  1 exit 0 
+  1 out_time=00:00:02.000000
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -f mpegvideo -protocol_whitelist file -i file:e.m2v -map 0:0 -c:v:0 copy -avoid_negative_ts make_zero -f matroska -y e-nogen.mkv
+  1 [matroska ] [error] Can't write packet with unknown timestamp
+  1 [matroska ] [warning] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
+  1 [out#0/matroska ] [error] Error muxing a packet
+  1 [out#0/matroska ] [error] Task finished with error code: -22 (Invalid argument)
+  1 [out#0/matroska ] [error] Terminating thread with return code -22 (Invalid argument)
+  2 [vost#0:0/copy ] [error] Error submitting a packet to the muxer: Invalid argument
+  1 exit 4294967274 
+  1 out_time=00:00:00.300000
+
+$ ffmpeg -i e.m2v / e.mkv -map 0:v -fps_mode passthrough -f framemd5 -   (picture hashes compared)
+  source pictures: 60, copied pictures: 60, identical: yes
+
+## Decoding times the frames: a re-encode of raw H.264/HEVC works (as the planner now plans it)
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -f h264 -protocol_whitelist file -i file:b.h264 -map 0:0 -c:v:0 libopenh264 -f mp4 -y enc-b.mp4
+  1 [libopenh264 ] [warning] [OpenH264] this = 0x0000018edf8fcb50, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+  1 [libopenh264 ] [warning] [OpenH264] this = 0x0000018edf8fcb50, Warning:layerId(0) doesn't support profile(578), change to UNSPECIFIC profile
+  1 exit 0 
+  1 out_time=00:00:02.000000
+
+$ ffmpeg -hide_banner -nostdin -nostats -loglevel level+warning -progress pipe:1 -f hevc -protocol_whitelist file -i file:c.hevc -map 0:0 -c:v:0 libsvtav1 -preset 10 -f matroska -y enc-c.mkv
+  1 exit 0 
+  1 out_time=00:00:01.966667
+
+$ ffprobe -v error -count_frames -show_entries format=duration:stream=codec_name,nb_read_frames -of compact enc-b.mp4
+exit 0 
+stream|codec_name=h264|nb_read_frames=60
+format|duration=2.000000
+
+$ ffprobe -v error -count_frames -show_entries format=duration:stream=codec_name,nb_read_frames -of compact enc-c.mkv
+exit 0 
+stream|codec_name=av1|nb_read_frames=60
+format|duration=2.000000
+
+(scratch samples removed)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）：带 B 帧的裸 H.264 经真实规划器与执行器（上文的用例只有无 B 帧的 openh264 H.264 与 kvazaar HEVC）
+# vite-node 临时脚本（scratchpad/review/raw-bframes.ts）：h264_nvenc -bf 2 生成 2 s、320x180、30 fps 的裸流（VUI 30 fps），
+# 用真实的 MediaProber、buildPlan（cpu_only 能力表）与 MediaConversionExecutor 运行；所有 ffmpeg 以 IDLE 运行（os.setPriority PRIORITY_LOW），
+# ffprobe 经 MediaRuntime 以 BELOW_NORMAL 运行；运行目录在 test-results/media-converter/review-* 下，结束时删除。
+$ NODE_ENV=test npx vite-node --config vitest.config.ts <scratchpad>/review/raw-bframes.ts
+make bframes.h264 exit 0
+probe: h264 h264 r 60/1 avg 25/1 isVfr true fps 25 duration null
+source pictures 60
+
+== mp4: encoder libopenh264 params [["profile","high"],["coder","cabac"],["rc_mode","bitrate"],["b","129600"],["g","125"],["pix_fmt","yuv420p"],["fps_mode","passthrough"]]
+mp4 published bframes-mp4.mp4 duration 2000000 pictures 60 warnings [ 'duration_unverified' ]
+
+== mkv: encoder libsvtav1 params [["preset","6"],["crf","28"],["pix_fmt","yuv420p10le"],["fps_mode","passthrough"]]
+mkv published bframes-mkv.mkv duration 2000000 pictures 60 warnings [ 'duration_unverified' ]
+
+== compress-hevc: encoder libkvazaar params [["kvazaar-params","preset=medium,qp=23,period=128"],["pix_fmt","yuv420p"],["fps_mode","passthrough"]]
+compress-hevc published bframes-compress-hevc-compressed.mp4 duration 2000000 pictures 60 warnings [ 'duration_unverified' ]
+removed review-3ROAF6 left in media-converter: []
+# 结论：带 B 帧的裸 H.264 也按 VUI 的 30 fps 解码计时，三种情况都发布，60 帧、2.0 s。
+# 附带发现（未修改，记入风险）：探测对裸流报告的 fps 是解复用器假定的 25（avg_frame_rate），所以 openh264 的码率（b=129600）与 GOP（g=125）
+# 按 25 fps 计算，比按真实 30 fps 计算的值低约 17%；r_frame_rate 60/1 是 H.264 的场频，同样不可直接使用。
+exit 0

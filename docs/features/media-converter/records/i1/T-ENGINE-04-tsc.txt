@@ -1,0 +1,9 @@
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+# The repo tsconfig covers src and electron only; the test file is checked with a throwaway config that extends it:
+# {"extends": "<repo>/tsconfig.json", "compilerOptions": {"noEmit": true, "typeRoots": ["<repo>/node_modules/@types"]}, "include": ["<repo>/test/media-converter/output.test.ts"]}
+$ pnpm exec tsc -p <scratchpad>/tsconfig.review-test.json
+(no diagnostics)
+exit 0

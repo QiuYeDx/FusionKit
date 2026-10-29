@@ -1,0 +1,15 @@
+{
+  "file": { "name": "phone.mp4", "sizeBytes": 9124800, "matroskaDocType": null },
+  "ffprobe": {
+    "streams": [
+      {
+        "index": 0, "codec_name": "h264", "profile": "High", "codec_type": "video", "width": 1280, "height": 720,
+        "sample_aspect_ratio": "0:1", "pix_fmt": "yuvj420p", "r_frame_rate": "30/1", "avg_frame_rate": "30/1",
+        "duration": "8.000000", "bit_rate": "9000000", "bits_per_raw_sample": "8",
+        "disposition": { "default": 1 }, "tags": { "rotate": "90", "language": "eng", "handler_name": "VideoHandle" }
+      }
+    ],
+    "format": { "format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "8.000000", "start_time": "0.000000", "bit_rate": "9124800",
+      "tags": { "major_brand": "isom", "minor_version": "512", "compatible_brands": "isomiso2avc1mp41" } }
+  }
+}

@@ -1,0 +1,78 @@
+# T-ENCODE-03: behaviour of the bundled ffmpeg n8.1.2 (LGPL) measured while implementing design §4.
+# Every command ran through a scratchpad wrapper (ff.mjs) that spawns the bundled ffmpeg/ffprobe and sets
+# os.setPriority(PRIORITY_LOW) (idle). Inputs: lavfi, <= 2 s, <= 1280x720 (the RGB matrix check needs HD),
+# made and deleted in the scratchpad. "avg" = mean signalstats YAVG/UAVG/VAVG of the first 5 frames.
+
+## 1. RGB -> Y'CbCr: without an explicit matrix swscale converts with BT.601, whatever setparams writes
+$ ffmpeg -f lavfi -i "color=red:s=1280x720:r=30:d=0.2,format=gbrp" -c:v ffv1 rgb.mkv      # probe: pix_fmt bgr0, color_space gbr, range pc
+$ ffmpeg -i rgb.mkv -frames:v 1 -vf "format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv" -c:v ffv1 rgb_auto.mkv
+YAVG=81.00 UAVG=90.00 VAVG=240.00          (BT.601 red, tagged BT.709: a colour shift)
+$ ffmpeg -i rgb.mkv -frames:v 1 -vf "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,setparams=...bt709..." -c:v ffv1 rgb_m.mkv
+YAVG=63.00 UAVG=102.00 VAVG=240.00         (BT.709 red)
+$ ffmpeg -i rgb.mkv -frames:v 1 -vf "scale=in_range=pc:out_range=tv:out_color_matrix=bt709,format=yuv420p" ...
+YAVG=63.00 UAVG=102.00 VAVG=240.00         (in_range=pc is harmless on RGB input)
+exit 0
+
+## 2. Tone mapping followed by a scale: zscale must write Y'CbCr itself
+TM = zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv
+$ ffmpeg -i hdr.mkv -frames:v 5 -vf "$TM,format=yuv420p" -c:v ffv1 t_noscale.mkv              -> YAVG=112.55 UAVG=138.47 VAVG=137.18
+$ ffmpeg -i hdr.mkv -frames:v 5 -vf "$TM,scale=w=160:h=90:flags=...,format=yuv420p" ...        -> YAVG=107.97 UAVG=136.61 VAVG=133.10
+  (debug log: Parsed_zscale_4 ... -> fmt:gbrpf32le; Parsed_scale_5 fmt:gbrpf32le -> yuv420p: swscale did the RGB->Y'CbCr)
+$ ffmpeg -i hdr.mkv -frames:v 5 -vf "$TM,scale=w=320:h=180:flags=...,format=yuv420p" ...       -> YAVG=107.99 (same size: the conversion, not the resize)
+$ ffmpeg -i hdr.mkv -frames:v 5 -vf "$TM,sidedata=...,sidedata=...,format=yuv420p,scale=w=160:h=90:flags=...,format=yuv420p,setparams=..." ...
+  (debug log: Parsed_zscale_4 ... -> fmt:yuv420p csp:bt709 range:tv)                         -> YAVG=112.55 UAVG=138.44 VAVG=137.02
+$ ffmpeg -i hdr.mkv -frames:v 5 -vf "$TM,sidedata=...,sidedata=...,format=yuv420p,format=nv12,setparams=..." ...   -> YAVG=112.55 UAVG=138.47 VAVG=137.18
+exit 0
+
+## 3. Tone mapping an untagged picture: zscale needs tin/pin/min AND p (output primaries default to the frame's)
+$ ffmpeg -i untagged10.mkv -vf "$TM,format=yuv420p" -f null -
+[Parsed_zscale_0] [error] code 3074: no path between colorspaces        exit 3752568763
+$ ffmpeg -i untagged10.mkv -vf "zscale=t=linear:npl=100:tin=smpte2084:pin=bt2020:min=bt2020nc,format=gbrpf32le,..." -f null -
+[Parsed_zscale_0] [error] code 3074: no path between colorspaces        exit 3752568763
+$ ffmpeg -i untagged10.mkv -vf "zscale=t=linear:npl=100:tin=smpte2084:pin=bt2020:min=bt2020nc:p=bt2020,format=gbrpf32le,..." -frames:v 2 ...
+YAVG=112.67 UAVG=138.35 VAVG=136.91        exit 0
+$ (same picture tagged bt2020/smpte2084/bt2020nc with setparams, plain "$TM,format=yuv420p")
+YAVG=112.67 UAVG=138.35 VAVG=136.91        exit 0   (identical to the explicit route)
+
+## 4. Mastering display / content light follow the frames into a tone-mapped SDR output
+$ ffmpeg -i hdr.mkv -c:v libopenh264 ... -filter:v:0 "$TM,format=yuv420p,setparams=...bt709..." -f mp4 tm_h264.mp4
+$ ffprobe -read_intervals %+#1 -show_entries frame=...:frame_side_data=side_data_type:stream=...:stream_side_data=side_data_type tm_h264.mp4
+frame|...|color_space=bt709|color_primaries=bt709|color_transfer=bt709|...Mastering display metadata|...Content light level metadata
+stream|codec_name=h264|...bt709...|...Mastering display metadata|...Content light level metadata
+$ (same with ",sidedata=mode=delete:type=MASTERING_DISPLAY_METADATA,sidedata=mode=delete:type=CONTENT_LIGHT_LEVEL" after the last zscale)
+frame|pix_fmt=yuv420p|color_range=tv|color_space=bt709|color_primaries=bt709|color_transfer=bt709
+stream|codec_name=h264|profile=High|pix_fmt=yuv420p|color_range=tv|color_space=bt709|color_transfer=bt709|color_primaries=bt709
+exit 0
+# HDR kept: libsvtav1 (AV1/MP4), hevc_nvenc Main10 (MKV) and av1_nvenc (MKV) all carry MDCV + CLL at stream and first-frame level.
+
+## 5. Full range: measured luma after conversion (signalstats over all frames)
+$ (pc-tagged ffv1 testsrc2 with hard white/black boxes) -> AV1 crf 32 with "scale=in_range=pc:out_range=tv,..."
+YMAX 937 (15 frames), 943, 942, 957          (ringing of the lossy encode at the hard edges, input to the encoder is <= 940)
+$ (pc-tagged smooth luma ramp, flat white right quarter) source: YMIN 0 YMAX 255
+  without the conversion ("format=yuv420p10le,setparams=...range=tv"):  YMIN 0  YMAX 1023
+  "scale=in_range=pc:out_range=tv,format=yuv420p10le,setparams=..."      YMIN 63-64 YMAX 937
+  "scale=w=240:h=136:flags=...:in_range=pc:out_range=tv,..."             YMIN 64 YMAX 938
+exit 0
+
+## 6. Tone mapping a source brighter than its own MaxCLL overshoots SDR white
+$ testsrc2 (white = PQ 10000 cd/m2) tagged HDR10 with MaxCLL 1000 -> "$TM,...,format=yuv420p" lossless: YMAX 253-254
+$ same with lutyuv=y=16+(val-16)*0.75 (white ~ PQ 1000 cd/m2, as the metadata says)                  : YMAX 211-216
+exit 0
+
+## 7. Deinterlacing and idet
+$ (testsrc2 640x180 @59.94 woven into 29.97 tff, mpeg2video +ildct+ilme, MPEG-TS) idet: TFF 30 / Progressive 0
+  bwdif=mode=send_frame:parity=auto:deint=interlaced -> ffv1:         Multi frame detection TFF 4  Progressive 26
+  bwdif ... -> libsvtav1 crf 28:                                     Multi frame detection TFF 4  Progressive 26
+  bwdif ... -> libopenh264 3 Mbit/s:                                 Multi frame detection TFF 4  Progressive 26
+  bwdif ... -> libopenh264 621 kbit/s (the planner's rate):          Multi frame detection TFF 30 Progressive 0  (low-rate artefacts read as fields)
+  no bwdif -> libsvtav1 / libopenh264:                               TFF 30
+exit 0
+
+## 8. Options and probes
+$ ffmpeg -i hdr.mkv -c:v:0 libsvtav1 ... -dolbyvision:v:0 0 -fps_mode:v:0 passthrough -filter:v:0 "bwdif=...,format=yuv420p10le,setparams=..." -f mp4 dv0.mp4
+(no warning from these options)   exit 0
+$ VFR source (10 fps for 1 s, then 30 fps) in Matroska: ffprobe r_frame_rate=30/1 avg_frame_rate=30/1   (Matroska reports no average: the probe's isVfr cannot see it)
+$ the same in MP4 (libopenh264):                     ffprobe r_frame_rate=30/1 avg_frame_rate=20/1, 40 packets
+$ re-encoded to MP4 with and without -fps_mode passthrough: 40 packets, the same pts list (the MP4 muxer does not force CFR)
+$ mpeg2video interlaced 29.97 in MPEG-TS and in MKV: r_frame_rate = avg_frame_rate = 30000/1001 (field order tt / tb); no bundled encoder writes the field-rate r_frame_rate of design §7a
+exit 0

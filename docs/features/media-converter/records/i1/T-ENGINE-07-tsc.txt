@@ -1,0 +1,23 @@
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）：测试文件用继承 tsconfig.json 的临时配置检查（include src、electron、test/media-converter/**/*.ts）
+$ pnpm exec tsc -p <scratchpad>/tsconfig.batchc-tests.json
+(no diagnostics)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑（executor.ts 与 executor.test.ts 的最终版本）
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+# 评审与修复（2026-10-28）后重跑：测试文件用继承 tsconfig.json 的临时配置检查（include src、electron、test/media-converter/**/*.ts）
+$ pnpm exec tsc -p <scratchpad>/review/tsconfig.tests.json
+(no diagnostics)
+exit 0

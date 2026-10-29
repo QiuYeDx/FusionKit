@@ -1,0 +1,13 @@
+{
+  "file": { "name": "track.m4a", "sizeBytes": 6100000, "matroskaDocType": null },
+  "ffprobe": {
+    "streams": [
+      { "index": 0, "codec_name": "aac", "profile": "LC", "codec_type": "audio", "sample_rate": "44100", "channels": 2, "channel_layout": "stereo",
+        "duration": "240.000000", "bit_rate": "256000", "disposition": { "default": 1 }, "tags": { "language": "jpn", "handler_name": "SoundHandler" } },
+      { "index": 1, "codec_name": "png", "codec_type": "video", "width": 1000, "height": 1000, "pix_fmt": "rgb24", "r_frame_rate": "90000/1",
+        "avg_frame_rate": "0/0", "disposition": { "default": 0, "attached_pic": 1 } }
+    ],
+    "format": { "format_name": "mov,mp4,m4a,3gp,3g2,mj2", "duration": "240.000000", "bit_rate": "203333",
+      "tags": { "major_brand": "M4A ", "minor_version": "0", "compatible_brands": "M4A isommp42" } }
+  }
+}

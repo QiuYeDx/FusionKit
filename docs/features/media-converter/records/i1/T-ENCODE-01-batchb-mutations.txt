@@ -1,0 +1,23 @@
+$ python <scratchpad>/bfix/mutate.py   # 批次 B 修正（2026-10-28）的变异检查
+# 每种变异：在磁盘上临时替换一处代码，运行列出的测试文件（与 V-check 相同的 vitest 参数），随后写回原文，并用 sha256 核对与变异前一致。
+# 运行前后另用 sha256sum -c 核对了 engine/probe.ts 与 plan/*.ts 全部文件：全部 OK。
+
+## M6 T-ENCODE-01: caps.ts back to 0.15 bit a pixel and 1 x the source
+   file electron/main/media-converter/plan/caps.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/stream-plan.test.ts test/media-converter/plan/video.test.ts test/media-converter/plan/audio.test.ts
+     exit 1; Tests 4 failed | 225 passed (229)
+       x output caps (AC-ENCODE-06-1, design §7) > caps a compress with the protection off by max(4 × the source, 1 bit a pixel × pixel rate × duration) × 1.05 + 16 MiB (design §7b)
+       x the output caps of audio encodes (design §7) > bound lossy formats by their table rate, MP3 by its largest frame
+       x the output size (AC-ENCODE-02-3, design §4) > feeds the output size and frame rate to the output cap
+       x the same inputs always give the same plan (AC-ENCODE-01-1) > matches the snapshot of every fixture × setting combination
+   restored, sha256 ab7b31ff6dc4c1a138a2a53b738bbb1660fda29c3c830585a57f3eb241aa0900 (same as before)
+
+## M7 T-ENCODE-01: caps.ts leaves the audio out of the pixel term (the design formula taken literally)
+   file electron/main/media-converter/plan/caps.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/stream-plan.test.ts test/media-converter/plan/audio.test.ts
+     exit 1; Tests 2 failed | 164 passed (166)
+       x output caps (AC-ENCODE-06-1, design §7) > caps a compress with the protection off by max(4 × the source, 1 bit a pixel × pixel rate × duration) × 1.05 + 16 MiB (design §7b)
+       x the output caps of audio encodes (design §7) > bound lossy formats by their table rate, MP3 by its largest frame
+   restored, sha256 ab7b31ff6dc4c1a138a2a53b738bbb1660fda29c3c830585a57f3eb241aa0900 (same as before)
+
+exit 0

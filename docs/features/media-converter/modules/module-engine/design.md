@@ -444,6 +444,103 @@ encode 模块给出基础名与扩展名。目录取源文件旁，或用户指�
 
 打包后一律忽略，并有单元测试证明。
 
+### 10. 实施中确认的调整（I1 批次 A，2026-10-26）
+
+以下调整都属于内部实现变化，外部行为与 AC 不变。各项的依据见对应 record。
+
+**探测（T-ENGINE-01）**
+
+- HDR 首帧按主视频流的绝对序号读取，不用 `V:0`。
+- `MediaInfo.kind` 只有 video 和 audio 两种。无法处理的情况只用探测失败码表示。
+- Matroska 的 DocType 从 EBML 头读取，因为 ffprobe 不报告它。
+- 容器标识优先看 brand 和 DocType，扩展名只在 mov、matroska、ogg 这三类容器中参与判断，避免把改了扩展名的 TS 认成 MP4。
+- 按扩展名预先拒绝的文件，以及 ffmpeg 8 报「Not detecting m3u8/hls」的文件，都记为 `container_not_allowed`。
+- 每个文件最多抽取 8 条 ASS 字幕判断有没有样式，超出的一律视为带样式。
+- 探测时文件不存在或不是普通文件，返回 `file_unavailable` 或 `not_a_regular_file`；探测过程中文件发生变化，重新探测一次。
+
+**进程（T-ENGINE-02）**
+
+- 判定输出触顶的余量为 min(64 KB, 上限 × 0.5%)，以进程关闭后的实际文件体积为准。
+- `output_open_failed` 只在出现明确的「打开输出失败」或「已存在」文本时才报。
+- 「首包」指处理时长或帧数大于 0。纯音频输出不报告 frame，只看帧数会误杀。
+- 静默时间在每个阶段都从最后一次增长开始算。
+- 不确定的编码失败统一记为 `unknown`，同时附上更细的 reason；executor 再把它映射为 `encode_failed`（代码由 T-ENGINE-05 加入 contract.ts）。
+- 拒绝 `-report` 参数，并限制参数数量和命令行长度。
+
+**输出（T-ENGINE-04）**
+
+- 覆盖策略改为：先把旧文件移到回收站，再按「不覆盖」方式放置新文件（硬链接或占位）。这样即使回收后又有新文件出现在原名下，也不会被静默替换。最多重试 3 轮。目标名是文件夹或链接时不移走，改为编号。
+- 发布失败统一使用 `output_publish_failed`（由 T-ENGINE-05 加入 contract.ts；在此之前 T-ENGINE-04 用的是 `output_dir_unwritable`，由 executor 映射）。
+- 卷类型通过 `Get-Volume -DriveLetter` 查询。UNC 路径的类型视为未知，跳过 FAT32 检查。
+- 完整路径上限为 259 个 UTF-16 单元，含编号后缀。
+- 启动清理：文件身份与记录不符时不删除文件，只移除记录。目录不在了但卷仍挂载时移除记录。同一路径上挂了另一个卷时，按「卷未挂载」处理。
+- 输出名中的冒号和设备名会被拒绝（编号流程的第二道防线）。
+
+**留给 T-ENGINE-07 接线**
+
+- `-fs` 与 `-t` 只由 `toFfmpegArgs` 生成；`outputLimitArgs` 只用于核对，不再重复添加。
+- 计划的预期时长取自容器时长时，传 `expectedFrom:'container'`（T-ENCODE-02 会在 `PlannedOutput` 上加这个标记）。
+- 覆盖发布前，再按 `wouldReplace` 的确认清单核对一次。不在清单中的文件不移走，改为编号。
+
+### 11. 实施中确认的调整（I1 批次 C，2026-10-28）
+
+以下调整都属于内部实现变化或契约补充，AC 不变。依据见 `records/i1/T-ENGINE-03.md`、`T-ENGINE-07.md`、`T-ENGINE-06.md` 与 `T-ENGINE-05.md`。
+
+**能力探测（T-ENGINE-03）**
+
+- 失败分类按固定的优先顺序检查各类原因，取整段 stderr 中第一个出现的类别，与行的先后无关。`No capable devices found` 本身不定类别：NVENC 对每个用不了的设备都会打印它，跟在说明真正原因的那一行之后，所以它的优先级低于以下原因：
+  - 会话表已满（`OpenEncodeSessionEx failed: out of memory`）或 CUDA 内存不足（`CUDA_ERROR_OUT_OF_MEMORY`，例如游戏占满显卡）为 `session_limit`；
+  - 其他 `failed -> CUDA_ERROR_*`（`NO_DEVICE` 除外）为 `unknown`，并保留该行；
+  - 尺寸超限或过小（`exceeds`、`less than the minimum`）为 `params_rejected`；
+  - 只有 `CUDA_ERROR_NO_DEVICE`、`No CUDA capable devices found`，或 stderr 中没有上述原因时，才是 `no_device`。
+
+  另外补充了几种 stderr：`Unrecognized option`、`Error setting option`、`Unable to parse … option value`、`Error applying encoder options`、`InitializeEncoder failed: unsupported param` 都归为 `params_rejected`；`Cannot load nvcuda.dll / nvEncodeAPI` 归为 `runtime_missing`。`session_limit` 与 `unknown` 都不持久化。
+- hevc_mf 10-bit 核对：参数表没有 MF 的 10-bit 行。探测在 hevc_mf 的生产参数上把 nv12 换成 p010le，单独测一项核对（guard）。ffmpeg 报 `auto-selecting format 'nv12'` 时判为 `params_rejected`，证明 10-bit 会被静默降为 8-bit。这一项不进规划链，也不计入 `hardwareEncoders`。
+- `nvencMin` 固定为 {129, 33}，即实测各 NVIDIA 编码器中最小的 HEVC 下限。规划器不读取它，尺寸范围以 `VIDEO_TABLE.hardwareFrame` 为准（encode §7b）。
+- 缓存键由三部分组成：ffmpeg 版本、运行时清单的 sha256（generation）、显卡列表（厂商 ID、设备 ID、驱动版本，排序去重）。每条结论另带该项生产参数的摘要（sha256），参数表变化时只重测受影响的项。显卡信息取不到，或任一显卡缺驱动版本时，键里仍保留设备 ID，记录 7 天后过期。缓存中的最低驱动版本与契约用同一正则，不符时整个文件按损坏处理。
+- 重新检测：有硬件编码任务运行时答 `busy`。否则忽略缓存重测全部，并清空本会话的降级集。已有检测在进行时，本次请求并入它；如果进行中的那次用了缓存，它结束后再完整测一次。
+- `planner()` 在 `unavailable` 之后不自动重试，由「重新检测」重试。运行时缺少计划需要的编码器、muxer 或滤镜时，状态为 `unavailable/runtime_invalid`。
+- 测试开关的门控是 `NODE_ENV === 'test' && !packaged`，与仓库现有的 `FUSIONKIT_TEST_*` 一致。
+
+**执行器（T-ENGINE-07）**
+
+- ffmpeg 无法启动（`spawn_error`）时，先让运行时缓存失效并重新校验：
+  - 校验失败，按运行时原因码失败；
+  - 校验通过，用新取得的工具对同一个临时文件再试一次；
+  - 仍无法启动，记为 `runtime_spawn_failed`，并再次让缓存失效，下一个条目会先校验。
+
+  这类失败不降级，也不继续写多输出条目的下一个输出。
+- 多输出（提取全部音轨）：某个输出自身编码失败（编码器类失败或触顶）时，继续写下一个输出；全局性失败（磁盘写满、无法打开输出、发布失败、无法创建临时文件、进程无法启动）立即停止。条目的失败码取第一个失败。中途取消时，结果中也列出已发布的输出（见下文批次 C 修正）。
+- 硬件回退中「无论原因类别」的含义：指编码器可能造成的失败，即退出码非 0、没有 `progress=end`、停滞、输出读不回、缺流、时长不符、没有处理任何内容。磁盘写满、无法打开输出、触顶、进程未启动不算。
+  - 「首帧前」以进程报告的 `firstFrameSeen` 为准；
+  - 每个条目最多回退一次；
+  - 回退后的硬件编码器在首帧前再次失败时，也标记降级，但不再重试；
+  - 重新规划期间收到取消时，条目按取消结束（列出已发布的输出），不记为失败；失败的编码器仍保持降级。
+- 覆盖的二次确认按目标名比较（Windows 下不区分大小写）。
+- 阶段只按条目上报 `encoding` 与 `finalizing` 两次，不为每个输出各报一次。
+- 容忍的警告在 encode §7b 的 4 条之外，多加 1 条：openh264 的 `bEnableFrameSkip = 0` 提示。
+
+**IPC 与注册（T-ENGINE-06）**
+
+- 信任判定：主窗口未销毁，`event.sender === window.webContents`，`event.senderFrame === event.sender.mainFrame`（`senderFrame` 为 null 时拒绝），并且 `isTrustedAppSender(event)`。
+- 不受信任的请求与不合 schema 的请求都答 `invalid_request`，不进入处理函数。
+- 拖放超过 100 个：预加载只发送前 100 个 `File` 的路径，并把超出的个数加进答复的 `truncated`。取不到磁盘路径的 `File` 在预加载内记为 `file_unavailable`。主进程的 schema 拒绝超过 100 条的请求。
+- 关停开始后通道保持注册，请求答 `busy`。非 Windows 平台上每个请求都答 `platform_unsupported`，`shutdown` 对所有调用方返回同一个 Promise。
+- 其他约定：
+  - 对话框取消时，`pick-files` 返回空的添加结果，`pick-output-directory` 返回 `{directory: null}`；
+  - 快照保留队列的 `notice`；
+  - `reveal-output` 在文件已不在时答 `file_unavailable`。
+- 注册时先完成启动清理与 state.json 的恢复，再处理请求；第一次 `get-snapshot` 或添加文件时才开始检测。关停时队列与检测并行停止（检测最多等 4 s），最后结束探测。
+
+**批次 C 修正**
+
+- **`disk_space_low` 的数字。** 失败状态增加可选字段 `space: {requiredBytes, availableBytes}`，只用于 `disk_space_low`，契约用 refine 约束。执行器从 `OutputError.space` 取得，回退重做前置检查时同样带上；队列校验后写入条目状态，并随 state.json 持久化与恢复。FAT32 的 4 GiB 限制（`file_too_large_for_volume`）不是空间不足，不带这个字段。
+- **取消时已发布的输出。** `ExecutionOutcome` 的 `cancelled` 可以带已发布的 `outputs`。条目状态仍为 `cancelled`（关停时为 `interrupted`），但 result 中列出这些输出，可以「在文件夹中显示」。
+- **检测期间不调度。** 能力状态为 `detecting`（第一次检测或重新检测）时，队列不启动排队的条目，也不为输入核对占用槽位。检测开始时正在核对输入的条目交还槽位，继续排队。检测结束后（经订阅通知）恢复调度，检测以 `unavailable` 结束也一样。已经在运行的条目不受影响。
+- **ready 状态字段必填。** 契约中 `ready` 能力状态的 `degraded`、`driverUpdates`、`resolvedEncoders`、`defaults` 改为必填，测试替身同步更新。
+- **预览计划的替代编码。** `preview-plan` 的结果增加一种：`{status: 'error', reason: 'no_encoder_available', alternatives}`，`alternatives` 是这张画面能用的其他编码（可能为空，去重）。其他规划错误与「不适用」仍以错误码返回。`start` 拒绝这类条目时只给原因码。
+- **裸视频流。** 裸 H.264/HEVC 不再只换封装，一律重新编码，原因与实测见 encode §7b。
+
 ## 代码落点
 
 | 路径 | 作用 |

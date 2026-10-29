@@ -15,6 +15,10 @@ import enHelp from "@/locales/en/help.json";
 import jaHelp from "@/locales/ja/help.json";
 import zhHelp from "@/locales/zh/help.json";
 import zhHantHelp from "@/locales/zh-Hant/help.json";
+import enMedia from "@/locales/en/media.json";
+import jaMedia from "@/locales/ja/media.json";
+import zhMedia from "@/locales/zh/media.json";
+import zhHantMedia from "@/locales/zh-Hant/media.json";
 import { LangEnum } from "@/type/lang";
 
 import enAbout from "@/locales/en/about.json";
@@ -67,6 +71,7 @@ export const resources: Resource = {
     subtitle: enSubtitle,
     rename: enRename,
     text: enText,
+    media: enMedia,
   },
   [LangEnum.JA]: {
     materials: jaMaterials,
@@ -81,6 +86,7 @@ export const resources: Resource = {
     subtitle: jaSubtitle,
     rename: jaRename,
     text: jaText,
+    media: jaMedia,
   },
   [LangEnum.ZH]: {
     materials: zhMaterials,
@@ -95,6 +101,7 @@ export const resources: Resource = {
     subtitle: zhSubtitle,
     rename: zhRename,
     text: zhText,
+    media: zhMedia,
   },
   [LangEnum.ZH_HANT]: {
     materials: zhHantMaterials,
@@ -109,5 +116,6 @@ export const resources: Resource = {
     subtitle: zhHantSubtitle,
     rename: zhHantRename,
     text: zhHantText,
+    media: zhHantMedia,
   },
 };

@@ -1,0 +1,35 @@
+$ node lowrun.mjs ffprobe -hide_banner -demuxers   # bundled ffprobe at IDLE priority; one line per ALLOWED_DEMUXERS entry and per excluded playlist/reference demuxer
+ D   mov,mp4,m4a,3gp,3g2,mj2 QuickTime / MOV
+ D   matroska,webm   Matroska / WebM
+ D   avi             AVI (Audio Video Interleaved)
+ D   asf             ASF (Advanced / Active Streaming Format)
+ D   flv             FLV (Flash Video)
+ D   mpegts          MPEG-TS (MPEG-2 Transport Stream)
+ D   mpeg            MPEG-PS (MPEG-2 Program Stream)
+ D   mp3             MP2/3 (MPEG audio layer 2/3)
+ D   aac             raw ADTS AAC (Advanced Audio Coding)
+ D   wav             WAV / WAVE (Waveform Audio)
+ D   flac            raw FLAC
+ D   ogg             Ogg
+ D   aiff            Audio IFF
+ D   ape             Monkey's Audio
+ D   amr             3GPP AMR
+ D   ac3             raw AC-3
+ D   eac3            raw E-AC-3
+ D   dts             raw DTS
+ D   caf             Apple CAF (Core Audio Format)
+ D   wv              WavPack
+ D   tta             TTA (True Audio)
+ D   rm              RealMedia
+ D   mxf             MXF (Material eXchange Format)
+ D   w64             Sony Wave64
+ D   mpegvideo       raw MPEG video
+ D   h264            raw H.264 video
+ D   hevc            raw HEVC video
+ D   hls             Apple HTTP Live Streaming
+ D   dash            Dynamic Adaptive Streaming over HTTP
+ D   concat          Virtual concatenation script
+ D   sdp             SDP
+ D   image2          image2 sequence
+ D d lavfi           Libavfilter virtual input device
+exit 0

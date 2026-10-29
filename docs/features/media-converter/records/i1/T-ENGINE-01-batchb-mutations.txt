@@ -1,0 +1,16 @@
+$ python <scratchpad>/bfix/mutate.py   # 批次 B 修正（2026-10-28）的变异检查
+# 每种变异：在磁盘上临时替换一处代码，运行列出的测试文件（与 V-check 相同的 vitest 参数），随后写回原文，并用 sha256 核对与变异前一致。
+# 运行前后另用 sha256sum -c 核对了 engine/probe.ts 与 plan/*.ts 全部文件：全部 OK。
+
+## M1 T-ENGINE-01: probe.ts reads the legacy rotate tag again when there is no Display Matrix
+   file electron/main/media-converter/engine/probe.ts
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/probe.test.ts
+     exit 1; Tests 2 failed | 100 passed (102)
+       x normalizing ffprobe output > ignores the legacy rotate tag (ffmpeg 8 does not turn by it), and reads an unknown aspect ratio and full range from yuvj
+       x normalizing ffprobe output > takes the rotation from the Display Matrix alone, whatever a rotate tag says
+   $ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/runtime.test.ts -t Display Matrix only
+     exit 1; Tests 1 failed | 14 skipped (15)
+       x probing real files > takes the rotation from the Display Matrix only: a Matroska ROTATE=90 tag probes as 0, a display matrix as its turn
+   restored, sha256 a533731fb3f6a5bfeb6d3d17b5c6f59a74f1c636f936f0eb57cf58a55eaf3e9b (same as before)
+
+exit 0

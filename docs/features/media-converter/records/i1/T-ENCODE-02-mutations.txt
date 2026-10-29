@@ -1,0 +1,34 @@
+# Each mutation is applied alone to one plan file, the named tests run, the file is restored, and its sha256 compared.
+# Unit runs: video.test.ts + stream-plan.test.ts (128 tests: 60 + 68). Real runs (M*r): encode-real.test.ts filtered to one encoder with -t; their reason is the first failure line.
+$ node <scratchpad>/t-encode-02-work/mutate.mjs
+M1 hevc_nvenc uhq gets -bf 3: exit 1; Tests 4 failed | 124 passed (128); restored unchanged sha256 8c01630089de
+M1r hevc_nvenc uhq gets -bf 3 (real encode): exit 1; Tests 1 failed | 14 skipped (15); reason: → hevc_nvenc uhq 10-bit quality failed (4294967274): [hevc_nvenc @ 000001061d669800] [error] InitializeEncoder failed: invalid param (8): / Error: hevc_nvenc uhq 10-bit quality failed (4294967274): [hevc_nvenc @ 000001061d669800] [error] InitializeEncoder failed: invalid param (8):; restored unchanged sha256 8c01630089de
+M2 h264_mf without -profile:v 100: exit 1; Tests 4 failed | 124 passed (128); restored unchanged sha256 8c01630089de
+M2r h264_mf without -profile:v 100 (real encode): exit 1; Tests 1 failed | 14 skipped (15); reason: AssertionError: h264_mf hardware quality: expected { codec_name: 'h264', …(6) } to match object { codec_name: 'h264', …(5) } / +   "profile": "Constrained Baseline",; restored unchanged sha256 8c01630089de
+M3 kvazaar options colon-separated: exit 1; Tests 6 failed | 122 passed (128); restored unchanged sha256 8c01630089de
+M3r kvazaar options colon-separated (real encode): exit 1; Tests 1 failed | 14 skipped (15); reason: × encoding with the planner arguments and the real ffmpeg > 'libkvazaar': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 576ms / → libkvazaar quality log: expected 'Input error: unknown preset "medium:q…' not to match /Invalid option|Error parsing option|a…/; restored unchanged sha256 8c01630089de
+M4 HEVC chain amf before qsv: exit 1; Tests 2 failed | 126 passed (128); restored unchanged sha256 8c01630089de
+M5 no NVENC size precondition: exit 1; Tests 3 failed | 125 passed (128); restored unchanged sha256 8c01630089de
+M6 enlarges up to the limit: exit 1; Tests 1 failed | 127 passed (128); restored unchanged sha256 8c01630089de
+M7 default codec ignores degraded: exit 1; Tests 1 failed | 127 passed (128); restored unchanged sha256 8c01630089de
+M8 hardware step always lowers the value: exit 1; Tests 2 failed | 126 passed (128); restored unchanged sha256 8c01630089de
+M9 GOP 3 s: exit 1; Tests 26 failed | 102 passed (128); restored unchanged sha256 8c01630089de
+M9r GOP 3 s (real encode): exit 1; Tests 1 failed | 14 skipped (15); reason: → h264_nvenc keyframe interval 1: 0, 3, 6, 9: expected 3 to be greater than or equal to 4 / AssertionError: h264_nvenc keyframe interval 1: 0, 3, 6, 9: expected 3 to be greater than or equal to 4; restored unchanged sha256 8c01630089de
+M10 no pixel-format filter: exit 1; Tests 31 failed | 97 passed (128); restored unchanged sha256 8c01630089de
+M11 HDR not kept on 10-bit first: exit 1; Tests 1 failed | 127 passed (128); restored unchanged sha256 8c01630089de
+M12 CPU encoders need a measurement: exit 1; Tests 60 failed | 68 passed (128); restored unchanged sha256 8c01630089de
+M13 SubRip passed as srt: exit 1; Tests 1 failed | 127 passed (128); restored unchanged sha256 a2d85d2307d1
+M14 expectedFrom always stream: exit 1; Tests 1 failed | 127 passed (128); restored unchanged sha256 66e30842d59e
+M15 low-usage mode ignored: exit 1; Tests 1 failed | 127 passed (128); restored unchanged sha256 a2d85d2307d1
+M16 software MF not weak: exit 1; Tests 2 failed | 126 passed (128); restored unchanged sha256 8c01630089de
+M17 no encoder_fallback hint: exit 1; Tests 2 failed | 126 passed (128); restored unchanged sha256 8c01630089de
+M18 openh264 not capped by the source rate: exit 1; Tests 4 failed | 124 passed (128); restored unchanged sha256 8c01630089de
+M19 kvazaar sides rounded to 2: exit 1; Tests 2 failed | 126 passed (128); restored unchanged sha256 8c01630089de
+M20 rotation ignored: exit 1; Tests 1 failed | 127 passed (128); restored unchanged sha256 8c01630089de
+
+$ sha256sum -c before.sha   # the four plan files after all mutation runs, against their hashes before
+electron/main/media-converter/plan/video.ts: OK
+electron/main/media-converter/plan/args.ts: OK
+electron/main/media-converter/plan/stream-plan.ts: OK
+electron/main/media-converter/plan/types.ts: OK
+exit 0

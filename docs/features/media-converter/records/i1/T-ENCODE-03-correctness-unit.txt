@@ -1,0 +1,40 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/video-correctness.test.ts
+# 批次 B 修正评审（2026-10-28）后重跑；--reporter=verbose 只为列出每个用例
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/plan/video-correctness.test.ts > colour tags written by setparams (AC-ENCODE-03-2) > ends every chain with setparams copying the source tags, limited range
+ ✓ test/media-converter/plan/video-correctness.test.ts > colour tags written by setparams (AC-ENCODE-03-2) > infers untagged sources from the shown size: BT.709 from 1280 wide or above 576 high, else BT.601 (smpte170m)
+ ✓ test/media-converter/plan/video-correctness.test.ts > colour tags written by setparams (AC-ENCODE-03-2) > infers each missing or unusable tag on its own, and never copies an RGB matrix onto Y'CbCr
+ ✓ test/media-converter/plan/video-correctness.test.ts > colour tags written by setparams (AC-ENCODE-03-2) > converts RGB with the matrix it writes, as swscale would otherwise take BT.601 for every size
+ ✓ test/media-converter/plan/video-correctness.test.ts > full range brought to limited range (AC-ENCODE-03-2) > converts a pc source with scale=in_range=pc:out_range=tv even when nothing is scaled
+ ✓ test/media-converter/plan/video-correctness.test.ts > full range brought to limited range (AC-ENCODE-03-2) > a yuvj* source counts as full range whatever its range tag says
+ ✓ test/media-converter/plan/video-correctness.test.ts > full range brought to limited range (AC-ENCODE-03-2) > merges the conversion into the scale that resizes or fixes an odd size
+ ✓ test/media-converter/plan/video-correctness.test.ts > full range brought to limited range (AC-ENCODE-03-2) > leaves limited and unknown range alone (no scale), and never writes another range than tv
+ ✓ test/media-converter/plan/video-correctness.test.ts > HDR10 and HLG (AC-ENCODE-03-3) > keeps HDR10 on AV1 and on 10-bit HEVC: BT.2020 + PQ tags and a 10-bit pixel format into the encoder
+ ✓ test/media-converter/plan/video-correctness.test.ts > HDR10 and HLG (AC-ENCODE-03-3) > keeps HLG with its own transfer
+ ✓ test/media-converter/plan/video-correctness.test.ts > HDR10 and HLG (AC-ENCODE-03-3) > tone maps to SDR BT.709 with zscale for H.264 and for 8-bit-only HEVC, says hdr_tonemapped, and drops the HDR metadata
+ ✓ test/media-converter/plan/video-correctness.test.ts > HDR10 and HLG (AC-ENCODE-03-3) > pins zscale to Y'CbCr before a scale, so swscale never converts the tone-mapped RGB
+ ✓ test/media-converter/plan/video-correctness.test.ts > HDR10 and HLG (AC-ENCODE-03-3) > gives the first zscale every input tag the source lacks: tin, pin with p, min, rin
+ ✓ test/media-converter/plan/video-correctness.test.ts > HDR10 and HLG (AC-ENCODE-03-3) > classifies the dynamic range by format, transfer and Dolby Vision base layer
+ ✓ test/media-converter/plan/video-correctness.test.ts > Dolby Vision (AC-ENCODE-03-4) > refuses to re-encode profile 5 (transfer unknown) and any compatibility id 0, with no arguments and no alternatives
+ ✓ test/media-converter/plan/video-correctness.test.ts > Dolby Vision (AC-ENCODE-03-4) > still copies profile 5 where the video can be kept as it is
+ ✓ test/media-converter/plan/video-correctness.test.ts > Dolby Vision (AC-ENCODE-03-4) > encodes profile 8.1 from its HDR10 base layer, kept or tone mapped, dropping the RPU: -dolbyvision 0 for libsvtav1
+ ✓ test/media-converter/plan/video-correctness.test.ts > Dolby Vision (AC-ENCODE-03-4) > profile 7 (HDR10 base, compatibility id 6) and 8.4 (HLG) keep their base layer; 8.2 is SDR
+ ✓ test/media-converter/plan/video-correctness.test.ts > variable frame rate and interlacing (AC-ENCODE-03-5) > passes the timestamps of a variable-rate source through (-fps_mode passthrough), for every encoder
+ ✓ test/media-converter/plan/video-correctness.test.ts > variable frame rate and interlacing (AC-ENCODE-03-5) > does not take an interlaced source whose base rate is twice its average for variable rate (design §7a)
+ ✓ test/media-converter/plan/video-correctness.test.ts > variable frame rate and interlacing (AC-ENCODE-03-5) > deinterlaces a source flagged interlaced with bwdif, first in the chain
+ ✓ test/media-converter/plan/video-correctness.test.ts > chroma brought to 4:2:0 (R-ENCODE-03 boundaries) > feeds 4:2:2 and 4:4:4 to the encoders as 4:2:0 and says chroma_subsampled
+ ✓ test/media-converter/plan/video-correctness.test.ts > chroma brought to 4:2:0 (R-ENCODE-03 boundaries) > does not warn for 4:2:0, 4:1:1, grey or an unknown layout
+ ✓ test/media-converter/plan/video-correctness.test.ts > rotation (AC-ENCODE-03-1) > leaves the turn to ffmpeg's autorotate: no transpose, no rotation option, sizes of the shown picture
+ ✓ test/media-converter/plan/video-correctness.test.ts > rotation (AC-ENCODE-03-1) > copies the video, and with it the display matrix, when only the container changes
+ ✓ test/media-converter/plan/video-correctness.test.ts > the filter chain of design §4 > matches the order snapshot: bwdif → tone map → scale → format → setparams
+ ✓ test/media-converter/plan/video-correctness.test.ts > the filter chain of design §4 > always ends with the encoder pixel format and setparams, keeps the order and converts any full range once
+ ✓ test/media-converter/plan/video-correctness.test.ts > the filter chain of design §4 > gives the capability probe the chain of a plain HD picture, as production does for one
+ ✓ test/media-converter/plan/video-correctness.test.ts > the filter chain of design §4 > reports every correctness warning on the main video stream only, once
+
+ Test Files  1 passed (1)
+      Tests  29 passed (29)
+   Start at  12:31:39
+   Duration  568ms (transform 115ms, setup 0ms, collect 311ms, tests 63ms, environment 0ms, prepare 59ms)
+exit 0

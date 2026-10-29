@@ -1,0 +1,11 @@
+[h264_qsv @ 000001ca874f4100] [error] Error creating a MFX session: -9.
+[h264_qsv @ 000001ca874f4100] [error] The current mfx implementation is not supported, try next mfx implementation.
+[h264_qsv @ 000001ca874f4100] [error] Error creating a MFX session: -9.
+[vost#0:0/h264_qsv @ 000001ca874f3680] [enc:h264_qsv @ 000001ca8538f8c0] [error] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+[vf#0:0 @ 000001ca874671c0] [error] Error sending frames to consumers: Unknown error occurred
+[vf#0:0 @ 000001ca874671c0] [error] Task finished with error code: -1313558101 (Unknown error occurred)
+[vf#0:0 @ 000001ca874671c0] [error] Terminating thread with return code -1313558101 (Unknown error occurred)
+[vost#0:0/h264_qsv @ 000001ca874f3680] [enc:h264_qsv @ 000001ca8538f8c0] [error] Could not open encoder before EOF
+[vost#0:0/h264_qsv @ 000001ca874f3680] [error] Task finished with error code: -22 (Invalid argument)
+[vost#0:0/h264_qsv @ 000001ca874f3680] [error] Terminating thread with return code -22 (Invalid argument)
+[out#0/matroska @ 000001ca85342200] [error] Nothing was written into output file, because at least one of its streams received no packets.

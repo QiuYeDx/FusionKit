@@ -1,0 +1,157 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter
+# 批次 B 修正评审（2026-10-28）后的回归：test/media-converter 下全部 14 个测试文件（都不启动 Electron）
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/plan/video.test.ts (63 tests) 58ms
+ ✓ test/media-converter/plan/stream-plan.test.ts (69 tests) 176ms
+ ✓ test/media-converter/plan/audio.test.ts (97 tests) 73ms
+ ✓ test/media-converter/output.test.ts (49 tests) 2922ms
+   ✓ space and volume limits > the default volume query names the file system of a drive and gives up on a UNC path 1807ms
+   ✓ a partial written by the bundled ffmpeg > ffmpeg -y truncates the partial without changing its identity, and the result publishes by link 345ms
+ ✓ test/media-converter/plan/video-correctness.test.ts (29 tests) 75ms
+ ✓ test/media-converter/probe.test.ts (102 tests) 809ms
+   ✓ probing files > runs at most four probes at once and settles each file as soon as it is done 595ms
+ ✓ test/media-converter/queue.test.ts (28 tests) 5088ms
+   ✓ options and persistence > keeps at most 500 items, removing the earliest finished first 734ms
+   ✓ batches, power and shutdown > holds the power blocker for a batch and sends batch-finished once, late items joining the batch 402ms
+ ✓ test/media-converter/runtime.test.ts (15 tests) 6847ms
+   ✓ the bundled media runtime > verifies once, reuses the result, and verifies again when an executable changes 470ms
+   ✓ the bundled media runtime > reports a damaged executable as runtime_invalid, whether its size or only its hash is wrong 1042ms
+   ✓ the bundled media runtime > reports another version as runtime_version_mismatch, from the manifest and from the executable itself 354ms
+   ✓ the bundled media runtime > verifies again and retries once when a run cannot start, and gives up after the second failure 715ms
+   ✓ probing real files > describes an MP4 and a WebM, telling the containers apart 313ms
+   ✓ probing real files > refuses playlists without opening the files they reference 557ms
+   ✓ probing real files > runs at most four probes at once out of 100, below normal priority, and settles each file on its own 1587ms
+stdout | test/media-converter/encode-audio-real.test.ts
+V-ENCODE-04-2 results
+FLAC → MP3: ID3v2.3, APIC, 2 chapters
+  brand-mp3 log: [in#0 @ 0000022f7a57df80] [warning] stream 0, timescale not set
+M4A → mp3: tags album,artist,comment,encoder,title
+  brand-flac log: [in#0 @ 0000019f008edb00] [warning] stream 0, timescale not set
+M4A → flac: tags album,artist,comment,encoder,title
+  brand-opus log: [in#0 @ 0000019b842ea100] [warning] stream 0, timescale not set
+M4A → opus: tags album,artist,encoder,language,title
+5.1(side) → Opus 5.1 with channelmap=map=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:channel_layout=5.1
+2.1 → Opus 3.0 with aformat=channel_layouts=3.0
+5.0(side) → Opus 5.0 with channelmap=map=FL-FL|FR-FR|FC-FC|SL-BL|SR-BR:channel_layout=5.0
+7.1(wide) → Opus 7.1 with channelmap=map=FL-FL|FR-FR|FC-FC|LFE-LFE|BL-BL|BR-BR|FLC-SL|FRC-SR:channel_layout=7.1
+5.1.4 → Opus 7.1 with aformat=channel_layouts=7.1
+4.0 → Opus quad with aformat=channel_layouts=quad
+  opus-unspecified log: [aist#0:0/pcm_s16le @ 000001d5101400c0] [warning] Guessed Channel Layout: 5.1
+quad → ALAC 5.0: 220 Hz → FL 0.200, 330 Hz → FR 0.200, 440 Hz → BL 0.200, 550 Hz → BR 0.200; silent FC
+2.1 → ALAC 5.1: 220 Hz → FL 0.200, 330 Hz → FR 0.200, 440 Hz → LFE 0.200; silent FC,BL,BR
+7.1 → ALAC 7.1(wide): 220 Hz → FL 0.117, 330 Hz → FR 0.117, 440 Hz → FC 0.117, 550 Hz → LFE 0.117, 660 Hz → BL 0.117, 770 Hz → BR 0.117, 880 Hz → BL 0.083, 990 Hz → BR 0.083; silent FLC,FRC
+same codec: MP3 320k 82605 B → standard 14037 B; MP3 96k already the target; Opus total 194966 → re-encoded, 97917 → already the target
+same codec at its own tier: CBR Opus 128k total 130535 bit/s and AAC 256k 260046 bit/s → already the target
+  float-flac log: [aist#0:0/pcm_f32le @ 000001b66ec3e740] [warning] Guessed Channel Layout: stereo
+pcm_f32be MOV → MKV: mjpeg copy + opus; s302m TS → extract: pcm_s24le .wav
+  two-tracks-mkv log: [libopenh264 @ 000001653476a740] [warning] [OpenH264] this = 0x0000016534998510, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+two tracks → mkv: opus 5.1 48000 + opus stereo 48000
+  two-tracks-mp4 log: [libopenh264 @ 000001dbb09fe300] [warning] [OpenH264] this = 0x000001dbb33be960, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+two tracks → mp4: aac 5.1 44100 + aac stereo 48000
+
+ ✓ test/media-converter/encode-audio-real.test.ts (24 tests) 7746ms
+   ✓ audio with the planner arguments and the real ffmpeg > extracts AAC out of an MKV as it is, into .m4a 301ms
+   ✓ audio with the planner arguments and the real ffmpeg > converts 5.1(side) audio to Opus 343ms
+   ✓ audio with the planner arguments and the real ffmpeg > converts 7.1(wide) audio to Opus 342ms
+   ✓ audio with the planner arguments and the real ffmpeg > converts 5.1.4 audio to Opus 369ms
+   ✓ audio with the planner arguments and the real ffmpeg > writes 5.1(side) into AAC with the standard channel configuration, 7.1 into ALAC with 8 channels, 5.1(side) into stereo MP3 880ms
+   ✓ audio with the planner arguments and the real ffmpeg > remixes quad into ALAC by position: each channel lands in its place, never on the centre (design §7b) 306ms
+   ✓ audio with the planner arguments and the real ffmpeg > remixes 7_1 into ALAC by position: each channel lands in its place, never on the centre (design §7b) 431ms
+   ✓ audio with the planner arguments and the real ffmpeg > re-encodes a 320 kbit/s MP3 to standard MP3, smaller, and takes a 96 kbit/s one as already the target (AC-ENCODE-04-5) 534ms
+   ✓ audio with the planner arguments and the real ffmpeg > brings 96 kHz down to 48 kHz for AAC, and keeps 96 kHz and 24 bits in ALAC, WAV and FLAC (from floating point too) 597ms
+   ✓ audio with the planner arguments and the real ffmpeg > converts a MOV with big-endian float PCM to MKV and extracts SMPTE 302M PCM, both of which Matroska refuses as they are 385ms
+ ✓ test/media-converter/progress.test.ts (20 tests) 14ms
+ ✓ test/media-converter/process.test.ts (40 tests) 16635ms
+   ✓ the real ffmpeg > runs below normal priority, hidden, in the job directory with the reduced environment, every input pinned, and a good output passes 3025ms
+   ✓ the real ffmpeg > runs low-usage encodes at idle priority on the upper half of the logical processors 536ms
+   ✓ the real ffmpeg > stops within 3 s of a cancel, after which the partial output and the job directory can be removed 566ms
+   ✓ the real ffmpeg > stops a run that shows no output within the first-output grace 1515ms
+   ✓ the real ffmpeg > stops an encode whose processed time and size stand still 1579ms
+   ✓ the real ffmpeg > stops a finalizing run past its budget of base plus size 2198ms
+   ✓ the real ffmpeg > lets a slow run finish as long as it keeps advancing 4670ms
+   ✓ the real ffmpeg > passes a filter over 8 KB through a file that ffmpeg reads with -/filter:v:0 359ms
+ ✓ test/media-converter/remux-real.test.ts (5 tests) 925ms
+stdout | test/media-converter/encode-real.test.ts > correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg
+V-ENCODE-03-2 results
+rotation: re-encode 180×320 without a display matrix, block top right; remux 320×180 keeping rotation -90
+untagged colour: 1280×544 → bt709; 1024×576 → smpte170m; 720×576 → smpte170m; 768×1280 → bt709; 1024×576 turned 90° → bt709
+HDR10 → AV1: {"mastering":{"red_x":0.67999267578125,"red_y":0.32000732421875,"green_x":0.2649993896484375,"green_y":0.69000244140625,"blue_x":0.149993896484375,"blue_y":0.05999755859375,"white_point_x":0.3126983642578125,"white_point_y":0.3289947509765625,"min_luminance":0.0001220703125,"max_luminance":1000},"light":{"maxCll":1000,"maxFall":400}}
+HDR10 → hevc_nvenc 10-bit: {"mastering":{"red_x":0.68,"red_y":0.32,"green_x":0.265,"green_y":0.69,"blue_x":0.15,"blue_y":0.06,"white_point_x":0.3127,"white_point_y":0.329,"min_luminance":0.0001,"max_luminance":1000},"light":{"maxCll":1000,"maxFall":400}}
+HDR10 → av1_nvenc 10-bit: {"mastering":{"red_x":0.68,"red_y":0.32,"green_x":0.265,"green_y":0.69,"blue_x":0.15,"blue_y":0.06,"white_point_x":0.3127,"white_point_y":0.329,"min_luminance":0.0001,"max_luminance":1000},"light":{"maxCll":1000,"maxFall":400}}
+  hdr10-h264 log: [libopenh264 @ 000001d694d24d80] [warning] [OpenH264] this = 0x000001d69772e7e0, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+HDR10 → H.264: BT.709 SDR, Y average 106.6–107.6
+  ramp-jpeg-av1 log: [swscaler @ 000002920c4ad0c0] [warning] deprecated pixel format used, make sure you did set range correctly
+  ramp-jpeg-tv-av1 log: [swscaler @ 000001345c3b8f40] [warning] deprecated pixel format used, make sure you did set range correctly
+full range → AV1 10-bit: ramp YMIN 63 YMAX 937; ramp-odd YMIN 64 YMAX 937; ramp-jpeg YMIN 67 YMAX 938; ramp-jpeg-tv YMIN 67 YMAX 938
+VFR: 40 → 40 frames, timestamps within 2 ms, duration 2 → 2 s
+interlaced: idet source {"frames":30,"interlaced":30,"progressive":0} → output {"frames":30,"interlaced":4,"progressive":26}
+
+stdout | test/media-converter/encode-real.test.ts
+V-ENCODE-02-2 results
+libsvtav1 (libsvtav1/10bit): quality 419311 B, balanced 249318 B, size 172703 B
+  keyframes at 0.00, 5.37, 10.73 s
+av1_nvenc uhq (av1_nvenc/10bit_uhq): quality 300470 B, balanced 222151 B, size 157917 B
+  keyframes at 0.00, 5.00, 10.00 s
+av1_nvenc hq (av1_nvenc/10bit): quality 373837 B, balanced 238650 B, size 172750 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_nvenc uhq 10-bit (hevc_nvenc/10bit_uhq): quality 651240 B, balanced 330009 B, size 259489 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_nvenc hq 10-bit (hevc_nvenc/10bit): quality 579659 B, balanced 313511 B, size 205135 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_nvenc uhq 8-bit (hevc_nvenc/8bit_uhq): quality 651670 B, balanced 332618 B, size 259727 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_nvenc hq 8-bit (hevc_nvenc/8bit): quality 580688 B, balanced 334022 B, size 207180 B
+  keyframes at 0.00, 5.00, 10.00 s
+h264_nvenc (h264_nvenc/8bit): quality 893627 B, balanced 508678 B, size 297519 B
+  keyframes at 0.00, 5.00, 10.00 s
+h264_mf hardware (h264_mf/8bit): quality 2726118 B, balanced 567934 B, size 292848 B
+  keyframes at 0.00, 5.00, 10.00 s
+h264_mf software (h264_mf/8bit_sw): quality 2700081 B, balanced 1429475 B, size 434008 B
+  keyframes at 0.00, 5.00, 10.00 s
+hevc_mf hardware (hevc_mf/8bit): quality 2081088 B, balanced 945329 B, size 361287 B
+  keyframes at 0.00, 5.00, 10.00 s
+libkvazaar (libkvazaar/8bit): quality 871696 B, balanced 364578 B, size 205406 B
+  keyframes at 0.00, 4.80, 9.60 s
+libopenh264 (libopenh264/8bit): quality 208854 B, balanced 156684 B, size 113720 B
+  quality log: [libopenh264 @ 000002bdf7820d40] [warning] [OpenH264] this = 0x000002bdf5a46690, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+  balanced log: [libopenh264 @ 00000186ec3d8640] [warning] [OpenH264] this = 0x00000186ec60eb10, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+  size log: [libopenh264 @ 0000023790c84e40] [warning] [OpenH264] this = 0x00000237912b5d50, Warning:bEnableFrameSkip = 0,bitrate can't be controlled for RC_QUALITY_MODE,RC_BITRATE_MODE and RC_TIMESTAMP_MODE without enabling skip frame.
+  keyframes at 0.00, 5.00, 10.00 s
+size range h264_nvenc: 146×50 opens, 4096×1088 opens, 144×50 refused, 146×48 refused, 4112×1088 refused, 1088×4112 refused
+size range hevc_nvenc: 130×34 opens, 8192×1088 opens, 128×34 refused, 130×32 refused, 8208×1088 refused, 1088×8208 refused
+size range av1_nvenc: 130×66 opens, 8192×1088 opens, 128×66 refused, 130×64 refused, 8208×1088 refused, 1088×8208 refused
+size range h264_mf: 146×50 opens, 4096×1088 opens, 144×50 refused, 146×48 refused, 4112×1088 refused, 1088×4112 refused
+size range hevc_mf: 130×34 opens, 8192×1088 opens, 128×34 refused, 130×32 refused, 8208×1088 refused, 1088×8208 refused
+
+ ✓ test/media-converter/encode-real.test.ts (26 tests) 38789ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libsvtav1': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 2053ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'av1_nvenc uhq': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1612ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'av1_nvenc hq': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1471ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc uhq 10-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1717ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc hq 10-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1515ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc uhq 8-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1683ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_nvenc hq 8-bit': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1642ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_nvenc': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 1439ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_mf hardware': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 2297ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'h264_mf software': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 968ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'hevc_mf hardware': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 2454ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libkvazaar': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 3080ms
+   ✓ encoding with the planner arguments and the real ffmpeg > 'libopenh264': three tiers that decode, shrink strictly and carry the designed stream; keyframes about every 5 s 554ms
+   ✓ encoding with the planner arguments and the real ffmpeg > runs SVT-AV1 with lp=1 in low-usage mode without a warning 1012ms
+   ✓ encoding with the planner arguments and the real ffmpeg > opens the hardware encoders at the edges of the sizes the planner gives them, and NVENC refuses one step outside 8786ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > rotation (AC-ENCODE-03-1): a re-encode turns the pixels and keeps no display matrix; a remux keeps the matrix 422ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > untagged colour (AC-ENCODE-03-2): BT.709 from 1280 wide or above 576 high, as shown, else BT.601, written into the output 1559ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > HDR10 to 'HEVC 10-bit' on NVENC (AC-ENCODE-03-3): kept the same way, where the device is here 320ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > HDR10 to 'AV1' on NVENC (AC-ENCODE-03-3): kept the same way, where the device is here 343ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > full range (AC-ENCODE-03-2): pc and yuvj* sources (also one tagged tv) measure YMAX ≤ 940 at 10 bits after conversion, scaled or not 1151ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > variable frame rate (AC-ENCODE-03-5): -fps_mode passthrough keeps every timestamp, the duration within max(0.1 s, 0.5 %) 360ms
+   ✓ correctness (V-ENCODE-03-2) with the planner arguments and the real ffmpeg > interlacing (AC-ENCODE-03-5): a top-field-first source is deinterlaced by bwdif, frame for frame 392ms
+ ✓ test/media-converter/plan/naming.test.ts (15 tests) 10ms
+
+ Test Files  14 passed (14)
+      Tests  582 passed (582)
+   Start at  12:32:10
+   Duration  40.47s (transform 737ms, setup 0ms, collect 4.05s, tests 80.17s, environment 2ms, prepare 888ms)
+exit 0

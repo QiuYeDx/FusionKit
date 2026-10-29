@@ -1,0 +1,16 @@
+{
+  "file": { "name": "tagged.mkv", "sizeBytes": 25469, "matroskaDocType": "matroska" },
+  "ffprobe": {
+    "streams": [
+      {
+        "index": 0, "codec_name": "h264", "profile": "Constrained Baseline", "codec_type": "video", "width": 320, "height": 180,
+        "sample_aspect_ratio": "1:1", "pix_fmt": "yuv420p", "color_range": "tv", "field_order": "progressive", "r_frame_rate": "25/1", "avg_frame_rate": "25/1",
+        "bits_per_raw_sample": "8", "disposition": { "default": 0 },
+        "tags": { "ENCODER": "Lavc62.28.102 libopenh264", "ROTATE": "90", "DURATION": "00:00:01.000000000" }
+      }
+    ],
+    "chapters": [],
+    "format": { "format_name": "matroska,webm", "start_time": "0.000000", "duration": "1.000000", "size": "25469", "bit_rate": "203752",
+      "tags": { "ENCODER": "Lavf62.12.102" } }
+  }
+}

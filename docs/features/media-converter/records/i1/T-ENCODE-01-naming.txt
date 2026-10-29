@@ -1,0 +1,67 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/naming.test.ts --reporter=verbose
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes characters Windows forbids, control characters included
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes trailing dots and spaces, and never leaves the name empty
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes every bidirectional control, so a name cannot pretend to another extension
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > prefixes reserved device names, whatever their case, trailing spaces or extension-like suffix
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > accepts only two- or three-letter lower-case languages
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > compress adds -compressed and takes the extension of its container
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > convert adds -converted only beside the source when the extension stays the same
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > extraction keeps the source name, or adds the track number and a valid language for all tracks
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > cleans what comes from the source name
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > keeps a name that fits exactly, and cuts the source part by one when one character over
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > cuts only the source part: the task suffix and the extension stay
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > cuts at code points, never between the halves of a surrogate pair
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > removes trailing dots and spaces that a cut leaves before the extension
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > refuses with output_path_too_long when the folder leaves less than 16 characters of a cut name
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > never refuses a short name that fits as it is
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Duration  294ms (transform 41ms, setup 0ms, collect 72ms, tests 11ms, environment 0ms, prepare 66ms)
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/naming.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes characters Windows forbids, control characters included
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes trailing dots and spaces, and never leaves the name empty
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes every bidirectional control, so a name cannot pretend to another extension
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > prefixes reserved device names, whatever their case, trailing spaces or extension-like suffix
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > accepts only two- or three-letter lower-case languages
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > compress adds -compressed and takes the extension of its container
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > convert adds -converted only beside the source when the extension stays the same
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > extraction keeps the source name, or adds the track number and a valid language for all tracks
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > cleans what comes from the source name
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > keeps a name that fits exactly, and cuts the source part by one when one character over
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > cuts only the source part: the task suffix and the extension stay
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > cuts at code points, never between the halves of a surrogate pair
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > removes trailing dots and spaces that a cut leaves before the extension
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > refuses with output_path_too_long when the folder leaves less than 16 characters of a cut name
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > never refuses a short name that fits as it is
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+   Start at  16:45:49
+   Duration  261ms (transform 34ms, setup 0ms, collect 65ms, tests 10ms, environment 0ms, prepare 59ms)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑（本文件对应的源码未改；评审只改了 executor.ts、executor.test.ts 与 engine design §11）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/plan/naming.test.ts --reporter=verbose
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes characters Windows forbids, control characters included
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes trailing dots and spaces, and never leaves the name empty
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > removes every bidirectional control, so a name cannot pretend to another extension
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > prefixes reserved device names, whatever their case, trailing spaces or extension-like suffix
+ ✓ test/media-converter/plan/naming.test.ts > cleaning a name for Windows > accepts only two- or three-letter lower-case languages
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > compress adds -compressed and takes the extension of its container
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > convert adds -converted only beside the source when the extension stays the same
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > extraction keeps the source name, or adds the track number and a valid language for all tracks
+ ✓ test/media-converter/plan/naming.test.ts > naming an output by task > cleans what comes from the source name
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > keeps a name that fits exactly, and cuts the source part by one when one character over
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > cuts only the source part: the task suffix and the extension stay
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > cuts at code points, never between the halves of a surrogate pair
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > removes trailing dots and spaces that a cut leaves before the extension
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > refuses with output_path_too_long when the folder leaves less than 16 characters of a cut name
+ ✓ test/media-converter/plan/naming.test.ts > fitting the folder > never refuses a short name that fits as it is
+Test Files  1 passed (1)
+Tests  15 passed (15)
+Start at  17:14:20
+Duration  262ms (transform 35ms, setup 0ms, collect 56ms, tests 9ms, environment 0ms, prepare 58ms)
+exit 0

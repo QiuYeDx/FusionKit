@@ -1,0 +1,6 @@
+[hevc_nvenc @ 0000000000000000] [error] OpenEncodeSessionEx failed: out of memory (10): (no details)
+[hevc_nvenc @ 0000000000000000] [fatal] No capable devices found
+[vost#0:0/hevc_nvenc @ 0000000000000000] [enc:hevc_nvenc @ 0000000000000000] [error] Error while opening encoder - maybe incorrect parameters such as bit_rate, rate, width or height.
+[vost#0:0/hevc_nvenc @ 0000000000000000] [enc:hevc_nvenc @ 0000000000000000] [error] Could not open encoder before EOF
+[vost#0:0/hevc_nvenc @ 0000000000000000] [error] Task finished with error code: -22 (Invalid argument)
+[out#0/matroska @ 0000000000000000] [error] Nothing was written into output file, because at least one of its streams received no packets.

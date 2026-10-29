@@ -1,0 +1,46 @@
+# Review pass, after the last source change (2026-10-29).
+$ pnpm exec tsc --noEmit -p tsconfig.json
+(no diagnostics)
+exit 0
+
+# The test files (tsconfig.json includes src and electron only), with a config that extends it and lists them.
+$ pnpm exec tsc -p scratchpad/tsconfig.tests.json   # files: test/media-converter/media-converter.electron.test.ts, src/pages/Tools/Media/MediaConverter/format.test.ts
+(no diagnostics)
+exit 0
+
+$ pnpm run i18n:check
+> FusionKit@0.5.2 i18n:check C:\Users\Administrator\Documents\GitHub\FusionKit
+> node scripts/check-i18n.mjs && node scripts/check-i18n-usage.mjs
+╔══════════════════════════════════════════════════╗
+║          i18n Completeness Check                ║
+╚══════════════════════════════════════════════════╝
+  Source lang : zh
+  Languages   : zh, en, ja, zh-Hant
+  Namespaces  : about, common, help, home, knowledge, materials, media, rename, setting, studio, subtitle, text, tools
+  Namespace              zh      en      ja zh-Hant
+  ─────────────────────────────────────────────────
+  about                  41      41      41      41
+  common                241     241     241     241
+  help                   87      87      87      87
+  home                  556     556     556     556
+  knowledge             327     327     327     327
+  materials              70      70      70      70
+  media                 278     278     278     278
+  rename                199     199     199     199
+  setting               574     574     574     574
+  studio               1259    1259    1259    1259
+  subtitle              765     765     765     765
+  text                  394     394     394     394
+  tools                  73      73      73      73
+  ─────────────────────────────────────────────────
+  TOTAL                4864    4864    4864    4864
+  ⚠  50 warning(s) (same value as source, may be fine):
+i18n source usage check
+  Languages       : zh, en, ja, zh-Hant
+  Calls scanned   : 3933
+  Static/finite   : 3900
+  Manifest-backed : 33
+  Resolved keys   : 4630
+All source translation keys resolve.
+  (same-value notices omitted; none of them is a new key of this pass: media.add.queue_full differs in every language)
+exit 0

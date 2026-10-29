@@ -1,0 +1,476 @@
+{
+  "title": "影音轉換",
+  "description": "壓縮影片、轉換格式、擷取音訊，全程在本機完成，檔案不會上傳。",
+  "unsupported": {
+    "title": "暫不支援此平台",
+    "body": "影音轉換目前只能在 Windows 上使用。"
+  },
+  "upload": {
+    "title": "加入影音檔案",
+    "hint": "拖入影片或音訊檔案，或點「選擇檔案」，可一次加入多個",
+    "choose": "選擇檔案",
+    "unavailable": "暫時無法加入檔案：{{reason}}。{{advice}}",
+    "added": "已加入 {{count}} 個檔案",
+    "added_one": "已加入 {{count}} 個檔案",
+    "hint_more": "可以繼續拖入或選擇檔案，一次最多 100 個",
+    "drop_label": "放開以加入影音轉換",
+    "drop_hint": "放開即可加入清單",
+    "filter_menu": "依類型選擇檔案",
+    "filter": {
+      "video": "只選影片檔案",
+      "audio": "只選音訊檔案",
+      "all": "所有影音檔案"
+    }
+  },
+  "settings": {
+    "title": "轉換設定",
+    "task_label": "任務",
+    "task": {
+      "compress": "壓縮影片",
+      "convert": "轉換格式",
+      "extract": "擷取音訊"
+    },
+    "tier_label": "壓縮檔位",
+    "tier": {
+      "quality": "畫質優先",
+      "balanced": "均衡",
+      "size": "體積優先"
+    },
+    "audio_tier": {
+      "quality": "高音質",
+      "balanced": "標準",
+      "size": "小體積"
+    },
+    "codec_label": "輸出編碼",
+    "codec": {
+      "av1": "最小體積（AV1）",
+      "hevc": "蘋果與較新裝置（HEVC）",
+      "h264": "最大相容（H.264）"
+    },
+    "codec_compatibility": {
+      "av1": "體積最小；iPhone 15 Pro 之前的 iPhone、M3 之前的 Mac 內建播放器無法播放",
+      "hevc": "蘋果裝置都能播放；Windows 內建的「相片」需要安裝 HEVC 擴充功能",
+      "h264": "幾乎所有裝置和 App 都能播放，體積較大"
+    },
+    "weak_encoder": "本機沒有可用的 {{codec}} 顯示卡編碼器，只能用較弱的 {{encoder}}編碼，體積會偏大。",
+    "use_av1": "改用 AV1",
+    "container_label": "輸出格式",
+    "container_hint": "自動：含圖形字幕、樣式字幕或附件時輸出 MKV，其他情況輸出 MP4。",
+    "container": {
+      "auto": "自動",
+      "mp4": "MP4",
+      "mkv": "MKV"
+    },
+    "resolution_label": "解析度上限",
+    "resolution_original": "保持原始",
+    "gpu_label": "使用顯示卡加速",
+    "gpu_hint": "更快，但體積約大一倍",
+    "gpu_disabled_codec": "只有「最小體積（AV1）」可以選擇是否用顯示卡編碼。HEVC 和 H.264 會自動使用顯示卡（如果有）。",
+    "gpu_disabled_hardware": "本機沒有可用的 AV1 顯示卡編碼器。HEVC 和 H.264 會自動使用顯示卡（如果有）。",
+    "gpu_disabled_detecting": "正在偵測編碼能力，完成後才知道能否用顯示卡編碼 AV1。HEVC 和 H.264 會自動使用顯示卡（如果有）。",
+    "discard_label": "不比原檔案小時捨棄",
+    "discard_hint": "壓縮後沒有明顯變小，就不儲存輸出",
+    "target_label": "目標格式",
+    "target_group_video": "影片",
+    "target_group_audio": "音訊",
+    "remux_label": "盡量只換封裝",
+    "remux_hint": "可複製的音訊與影片不重新編碼，快且無損",
+    "reencode_tier_label": "重新編碼時的畫質",
+    "reencode_audio_tier_label": "重新編碼時的音質",
+    "extract_format_label": "輸出格式",
+    "extract_copy": "保持原音軌（無損）",
+    "audio_tier_label": "音質檔位",
+    "all_tracks_label": "全部音軌",
+    "all_tracks_hint": "每條音軌各輸出一個檔案；關閉時只擷取預設音軌",
+    "output_group": "輸出與效能",
+    "output_mode_label": "輸出位置",
+    "output_mode": {
+      "source": "來源檔案旁",
+      "directory": "指定資料夾"
+    },
+    "output_source_hint": "輸出檔案儲存在來源檔案所在的資料夾",
+    "choose_directory": "選擇輸出資料夾",
+    "no_directory": "未選擇資料夾",
+    "output_directory_missing": "先前選擇的輸出資料夾已無法使用，已改回「來源檔案旁」",
+    "conflict_label": "同名檔案",
+    "conflict": {
+      "number": "自動編號",
+      "overwrite": "覆寫"
+    },
+    "overwrite_warning": "會把同名舊檔案移到資源回收筒；來源檔案永遠不會被覆寫",
+    "low_usage_label": "低占用模式",
+    "low_usage_hint": "編碼較慢，但盡量不影響遊戲和其他程式",
+    "low_usage_on": "低占用"
+  },
+  "engine": {
+    "detecting": "正在偵測編碼能力",
+    "detecting_detail": "正在用小樣測試本機的顯示卡和 CPU 編碼器。可以先加入檔案，偵測完成後才能開始。",
+    "cpu_only": "僅 CPU",
+    "cpu_only_detail": "本機沒有可用的顯示卡編碼器，所有編碼都由 CPU 完成。",
+    "hardware_title": "可用的顯示卡編碼器",
+    "list_separator": "、",
+    "family": {
+      "nvenc": "NVIDIA NVENC",
+      "qsv": "Intel Quick Sync",
+      "amf": "AMD AMF",
+      "mf": "Windows Media Foundation"
+    },
+    "degraded": "本次執行中出錯、已暫停使用：{{encoders}}。重新偵測後恢復。",
+    "driver_update_version": "{{family}} 的顯示卡驅動程式過舊：需要 {{version}} 或更新版本。請更新驅動程式後點「重新偵測」。",
+    "driver_update": "{{family}} 的顯示卡驅動程式過舊，請更新驅動程式後點「重新偵測」。",
+    "unavailable_label": "無法使用：{{reason}}",
+    "unavailable": {
+      "platform_unsupported": "此平台不支援",
+      "runtime_missing": "缺少編碼元件",
+      "runtime_invalid": "編碼元件已損壞",
+      "runtime_version_mismatch": "編碼元件版本不符",
+      "runtime_spawn_failed": "編碼元件無法啟動",
+      "no_device": "找不到可用的編碼裝置",
+      "driver_too_old": "顯示卡驅動程式過舊",
+      "unknown": "偵測失敗"
+    },
+    "advice": {
+      "platform_unsupported": "影音轉換目前只能在 Windows 上使用。",
+      "reinstall": "隨附的 FFmpeg 遺失或遭到變更。請重新安裝 FusionKit 後再試。",
+      "spawn_failed": "FFmpeg 無法啟動，可能被安全軟體攔截。請檢查後點「重新偵測」。",
+      "retry": "請稍後點「重新偵測」。",
+      "driver": "請更新顯示卡驅動程式後點「重新偵測」。"
+    },
+    "redetect": "重新偵測",
+    "redetect_busy": "有顯示卡編碼任務正在執行，結束後才能重新偵測"
+  },
+  "encoders": {
+    "libsvtav1": "SVT-AV1（CPU）",
+    "av1_nvenc": "NVIDIA NVENC AV1",
+    "av1_qsv": "Intel Quick Sync AV1",
+    "av1_amf": "AMD AMF AV1",
+    "hevc_nvenc": "NVIDIA NVENC HEVC",
+    "hevc_qsv": "Intel Quick Sync HEVC",
+    "hevc_amf": "AMD AMF HEVC",
+    "hevc_mf": "Windows Media Foundation HEVC",
+    "libkvazaar": "Kvazaar HEVC（CPU）",
+    "h264_nvenc": "NVIDIA NVENC H.264",
+    "h264_qsv": "Intel Quick Sync H.264",
+    "h264_amf": "AMD AMF H.264",
+    "h264_mf": "Windows Media Foundation H.264",
+    "h264_mf_sw": "Windows Media Foundation H.264（CPU）",
+    "libopenh264": "OpenH264（CPU）",
+    "aac": "AAC",
+    "libopus": "Opus",
+    "libmp3lame": "MP3（LAME）",
+    "flac": "FLAC",
+    "alac": "ALAC（Apple 無損）",
+    "pcm_s16le": "PCM 16 位元",
+    "pcm_s24le": "PCM 24 位元",
+    "pcm_s32le": "PCM 32 位元",
+    "pcm_f32le": "PCM 32 位元浮點",
+    "mov_text": "MP4 文字字幕",
+    "srt": "SRT 字幕",
+    "webvtt": "WebVTT 字幕"
+  },
+  "request_errors": {
+    "busy": "正在處理其他操作，請稍後再試",
+    "platform_unsupported": "此平台不支援影音轉換",
+    "invalid_request": "請求無效，請重新整理頁面後再試",
+    "unknown": "操作失敗，請重試"
+  },
+  "notifications": {
+    "batch_title": "影音轉換完成",
+    "batch_body": "成功 {{succeeded}} 個，失敗 {{failed}} 個，略過 {{skipped}} 個。",
+    "batch_saved": "共節省 {{size}}。"
+  },
+  "add": {
+    "added": "已加入 {{count}} 個檔案。",
+    "added_one": "已加入 {{count}} 個檔案。",
+    "duplicate": "「{{name}}」已在清單中，沒有重複加入。",
+    "duplicates": "{{count}} 個檔案已在清單中，沒有重複加入：{{names}}。",
+    "names_more": "{{names}}，另有 {{count}} 個",
+    "truncated": "一次最多加入 100 個檔案，另有 {{count}} 個沒有加入。",
+    "truncated_one": "一次最多加入 100 個檔案，另有 {{count}} 個沒有加入。",
+    "queue_full": "清單已滿（最多 500 個），另有 {{count}} 個檔案沒有加入。",
+    "queue_full_one": "清單已滿（最多 500 個），另有 {{count}} 個檔案沒有加入。",
+    "rejected": {
+      "folder_not_supported": "「{{name}}」是資料夾：暫不支援資料夾，請選擇其中的檔案。",
+      "temporary_copy_unresolved": "「{{name}}」是暫存副本，找不到原始檔案：請先解壓縮，或用選擇檔案加入。",
+      "file_unavailable": "「{{name}}」無法讀取：找不到它在磁碟上的位置，請用選擇檔案加入。",
+      "not_a_regular_file": "「{{name}}」不是一般檔案，沒有加入：請選擇實際的影音檔案。"
+    },
+    "rejected_many": {
+      "folder_not_supported": "{{count}} 個資料夾沒有加入（{{names}}）：暫不支援資料夾，請選擇其中的檔案。",
+      "temporary_copy_unresolved": "{{count}} 個暫存副本找不到原始檔案（{{names}}）：請先解壓縮，或用選擇檔案加入。",
+      "file_unavailable": "{{count}} 個檔案無法讀取（{{names}}）：請用選擇檔案加入。",
+      "not_a_regular_file": "{{count}} 個項目不是一般檔案，沒有加入（{{names}}）：請選擇實際的影音檔案。"
+    },
+    "dismiss": "關閉提示"
+  },
+  "queue": {
+    "title": "佇列",
+    "remove": "移除",
+    "analyzing": "分析中…",
+    "list_separator": "、",
+    "separator": "；",
+    "status": {
+      "analyzing": "分析中",
+      "unsupported": "無法處理",
+      "idle": "待開始",
+      "queued": "排隊中",
+      "running": "處理中",
+      "succeeded": "已完成",
+      "skipped": "已略過",
+      "failed": "失敗",
+      "cancelled": "已取消",
+      "interrupted": "已中斷",
+      "input_changed": "輸入已變更"
+    },
+    "phase": {
+      "preparing": "準備中",
+      "encoding": "編碼中",
+      "pass1": "第 1 遍",
+      "pass2": "第 2 遍",
+      "finalizing": "收尾中"
+    },
+    "hdr": {
+      "hdr10": "HDR10",
+      "hlg": "HLG",
+      "dolby_vision": "杜比視界"
+    },
+    "channels": {
+      "mono": "單聲道",
+      "stereo": "立體聲",
+      "surround_51": "5.1 聲道",
+      "surround_71": "7.1 聲道",
+      "count": "{{count}} 聲道"
+    },
+    "meta": {
+      "fps": "{{fps}} fps",
+      "vfr": "約 {{fps}} fps（可變影格率）",
+      "audio_tracks": "{{count}} 條音軌",
+      "audio_tracks_one": "{{count}} 條音軌",
+      "no_audio": "無音軌",
+      "subtitles": "{{count}} 條字幕",
+      "subtitles_one": "{{count}} 條字幕",
+      "cover": "含封面",
+      "unknown_duration": "長度未知"
+    },
+    "not_applicable_title": "目前任務不適用",
+    "not_applicable": {
+      "audio_compress": "這是音訊檔案，「壓縮影片」只處理影片",
+      "audio_extract": "這已經是音訊檔案，無需擷取",
+      "no_video": "沒有影片畫面，無法轉換為影片格式",
+      "no_audio": "這部影片沒有音軌，無法取得音訊"
+    },
+    "switch_task": "切換到「{{task}}」",
+    "switch_to_audio": "改為轉換成 {{format}}",
+    "no_encoder": "本機沒有能處理這個畫面的 {{codec}} 編碼器",
+    "no_encoder_none": "其他輸出編碼也無法處理",
+    "use_codec": "改用{{codec}}",
+    "already_target": "已經是目標格式，開始時會略過",
+    "disk_space": "磁碟空間不足：需要 {{required}}，可用 {{available}}",
+    "published": "已儲存 {{done}}/{{total}} 個輸出",
+    "start": "開始",
+    "start_all": "全部開始",
+    "checking": "正在檢查…",
+    "start_none": "沒有待開始的檔案",
+    "start_unavailable": "編碼引擎無法使用：{{reason}}。{{advice}}",
+    "cancel": "取消",
+    "cancel_all": "全部取消",
+    "cancel_all_title": "取消全部轉換？",
+    "cancel_all_body": "將取消 {{count}} 個排隊中或處理中的檔案。未完成的暫存檔會被刪除，已經儲存的輸出會保留。",
+    "cancel_all_body_one": "將取消 {{count}} 個排隊中或處理中的檔案。未完成的暫存檔會被刪除，已經儲存的輸出會保留。",
+    "cancel_all_confirm": "全部取消",
+    "cancel_all_keep": "繼續轉換",
+    "clear_done": "清除已完成",
+    "clear_done_hint": "從清單中移除已完成的檔案，輸出檔案不受影響",
+    "retry": "重試",
+    "convert_anyway": "仍然轉換",
+    "reveal": "在資料夾中顯示",
+    "reveal_missing": "「{{name}}」已不在原來的位置",
+    "details": "查看詳情",
+    "background": "轉換會在背景繼續，回到此頁面即可查看進度",
+    "not_started": "{{count}} 個檔案沒有開始：{{reason}}",
+    "not_started_one": "{{count}} 個檔案沒有開始：{{reason}}",
+    "progress": {
+      "written": "已寫入",
+      "eta": "剩餘"
+    },
+    "result": {
+      "sizes": "{{source}} → {{output}}",
+      "outputs": "{{count}} 個輸出",
+      "outputs_one": "{{count}} 個輸出",
+      "partial": "部分完成 {{done}}/{{total}}",
+      "cancelled": "未完成的暫存檔已刪除，可以重試",
+      "interrupted": "應用程式關閉時沒有完成，可以重試",
+      "input_changed": "加入後檔案被修改過，沒有開始；重試會重新分析"
+    },
+    "announce": {
+      "succeeded_saved": "{{name}} 已完成，節省 {{percent}}",
+      "succeeded_larger": "{{name}} 已完成，大小變化 {{change}}",
+      "succeeded_plain": "{{name}} 已完成",
+      "partial": "{{name}} 部分完成 {{done}}/{{total}}",
+      "failed": "{{name}} 失敗：{{reason}}",
+      "skipped": "{{name}} 已略過：{{reason}}",
+      "cancelled": "{{name}} 已取消",
+      "interrupted": "{{name}} 已中斷",
+      "input_changed": "{{name}} 沒有開始：檔案已變更"
+    },
+    "summary": {
+      "files": "{{count}} 個檔案",
+      "files_one": "{{count}} 個檔案",
+      "done": "完成 {{count}}",
+      "saved": "節省 {{size}}"
+    }
+  },
+  "errors": {
+    "no_media_streams": "不是影音檔案",
+    "container_not_allowed": "檔案格式不受支援（如播放清單）",
+    "wechat_silk_unsupported": "暫不支援微信語音格式",
+    "probe_failed": "檔案已損毀或無法讀取",
+    "file_unavailable": "找不到檔案或無法讀取",
+    "not_a_regular_file": "不是一般檔案"
+  },
+  "advice": {
+    "no_media_streams": "請選擇影片或音訊檔案。",
+    "container_not_allowed": "請加入播放清單指向的實際影音檔案。",
+    "wechat_silk_unsupported": "這類語音暫時無法轉換。",
+    "probe_failed": "請確認檔案能正常播放，或換一個檔案。",
+    "file_unavailable": "檔案可能已被移動、刪除，或正被其他程式使用。",
+    "not_a_regular_file": "請選擇實際的影音檔案，而不是捷徑或裝置。"
+  },
+  "warnings": {
+    "cpu_weak_encoder": "只能用較弱的 CPU 編碼器，檔案會偏大",
+    "hdr_tonemapped": "HDR 將轉為 SDR",
+    "dolby_vision_rpu_dropped": "杜比視界的動態中繼資料將被捨棄",
+    "chroma_subsampled": "色度取樣將降為 4:2:0",
+    "cover_dropped": "封面將被捨棄",
+    "downmixed_to_stereo": "多聲道音訊將降混為立體聲",
+    "subtitle_styling_lost": "ASS 字幕樣式將遺失",
+    "subtitle_dropped": "{{count}} 條字幕將被捨棄",
+    "subtitle_dropped_one": "{{count}} 條字幕將被捨棄",
+    "subtitle_dropped_image": "{{count}} 條圖形字幕將被捨棄",
+    "subtitle_dropped_image_one": "{{count}} 條圖形字幕將被捨棄",
+    "subtitle_dropped_text": "{{count}} 條文字字幕將被捨棄",
+    "subtitle_dropped_text_one": "{{count}} 條文字字幕將被捨棄",
+    "attachment_dropped": "{{count}} 個附件（如字型）將被捨棄",
+    "attachment_dropped_one": "{{count}} 個附件（如字型）將被捨棄",
+    "mp4_default_subtitle_forced": "MP4 會預設顯示第一條字幕",
+    "encoder_fallback": "{{from}} 無法使用，改用 {{to}}",
+    "chapters_dropped": "章節資訊將被捨棄",
+    "mp4_default_audio_forced": "MP4 會預設播放第一條音軌",
+    "duration_unverified": "無法確認輸出的長度是否完整",
+    "output_name_collision": "目標資料夾已有同名檔案，輸出會自動編號"
+  },
+  "plan": {
+    "title": "處理計畫",
+    "pending": "正在產生…",
+    "loading": "正在產生處理計畫…",
+    "remux_only": "不重新編碼，只更換封裝",
+    "remux_short": "只換封裝",
+    "encoders": "編碼器",
+    "output": "輸出",
+    "output_numbered": "輸出 {{number}}",
+    "output_value": "{{format}}（.{{extension}}）",
+    "output_track": "音軌 {{number}}",
+    "kind": {
+      "video": "影片",
+      "audio": "音訊",
+      "subtitle": "字幕",
+      "cover": "封面"
+    },
+    "action": {
+      "copy": "直接複製",
+      "encode": "重新編碼：{{encoder}}",
+      "convert": "轉為 {{encoder}}"
+    },
+    "drop": {
+      "not_selected": "不保留",
+      "subtitle_dropped": "捨棄：{{format}} 無法儲存這種字幕",
+      "cover_dropped": "捨棄：{{format}} 不儲存封面"
+    },
+    "attachments_kept": "附件 {{count}} 個：保留",
+    "attachments_kept_one": "附件 {{count}} 個：保留",
+    "attachments_dropped": "附件 {{count}} 個：捨棄",
+    "attachments_dropped_one": "附件 {{count}} 個：捨棄",
+    "chapters_kept": "章節 {{count}} 個：保留",
+    "chapters_kept_one": "章節 {{count}} 個：保留",
+    "chapters_dropped": "章節 {{count}} 個：捨棄",
+    "chapters_dropped_one": "章節 {{count}} 個：捨棄",
+    "data_dropped": "資料串流 {{count}} 條（如時間碼）：不保留",
+    "data_dropped_one": "資料串流 {{count}} 條（如時間碼）：不保留",
+    "confirm": {
+      "lossy_to_lossless": "有損音訊轉為無損格式：檔案會變大，音質不會變好。開始前需要確認。"
+    },
+    "frozen": "依開始時的設定處理",
+    "errors": {
+      "dolby_vision_p5_unsupported": "杜比視界 Profile 5 的畫面暫時無法轉換",
+      "unknown": "暫時無法產生處理計畫"
+    }
+  },
+  "skip": {
+    "not_smaller": "壓縮後沒有明顯變小，沒有儲存輸出",
+    "already_target": "已經是目標格式，沒有轉換"
+  },
+  "failure": {
+    "code": "錯誤碼：{{code}}",
+    "no_log": "沒有記錄到 FFmpeg 日誌",
+    "session_limit": "顯示卡編碼器忙碌中",
+    "params_rejected": "編碼器不接受這些參數",
+    "encoder_stalled": "編碼長時間沒有進展，已停止",
+    "output_open_failed": "無法建立輸出檔案",
+    "disk_full": "磁碟已滿",
+    "disk_space_low": "磁碟空間不足",
+    "input_missing": "找不到來源檔案",
+    "encode_failed": "編碼過程出錯",
+    "output_cap_exceeded": "輸出遠超預期大小，已停止",
+    "file_too_large_for_volume": "目標磁碟不支援這麼大的檔案",
+    "output_is_input": "輸出會覆寫來源檔案",
+    "output_dir_unwritable": "輸出資料夾無法寫入",
+    "output_path_too_long": "輸出路徑太長",
+    "overwrite_trash_failed": "無法把同名舊檔案移到資源回收筒",
+    "output_publish_failed": "無法儲存輸出檔案",
+    "confirmation_required": "需要先確認",
+    "no_encoder_available": "本機沒有能處理這個檔案的編碼器",
+    "busy": "仍在分析中",
+    "not_applicable": "目前任務不適用",
+    "unknown": "原因不明"
+  },
+  "failure_advice": {
+    "session_limit": "顯示卡同時執行的編碼工作已滿，例如遊戲或錄影軟體正在用顯示卡編碼。請稍後重試。",
+    "params_rejected": "這台電腦的編碼器拒絕了產生的編碼參數。請重試；仍然失敗時換一種輸出編碼。",
+    "encoder_stalled": "FFmpeg 很長時間沒有任何進展，可能卡住了，已經停止。請重試；仍然失敗時換一種輸出編碼。",
+    "output_open_failed": "FFmpeg 無法在目標資料夾中建立輸出檔案，可能沒有寫入權限，或被安全軟體攔截。請檢查後重試，或換一個輸出位置。",
+    "disk_full": "寫入時目標磁碟已滿，未完成的檔案已刪除。請釋放空間後重試。",
+    "disk_space_low": "開始前的檢查發現目標磁碟的可用空間放不下輸出。請釋放空間，或換一個輸出位置後重試。",
+    "input_missing": "來源檔案已被移動、重新命名或刪除。請把它放回原處後重試，或重新加入。",
+    "encode_failed": "FFmpeg 編碼失敗，沒有給出更具體的原因。日誌末尾可能有線索；請重試，仍然失敗時換一種輸出編碼或格式。",
+    "output_cap_exceeded": "輸出檔案比預期大得多，為避免寫滿磁碟已停止，未完成的檔案已刪除。請換一種輸出編碼或格式後重試。",
+    "file_too_large_for_volume": "目標磁碟是 FAT32 格式，單一檔案不能超過 4 GB。請把輸出放到 NTFS 或 exFAT 磁碟上。",
+    "output_is_input": "輸出檔案會和某個來源檔案同名同位置。請換一個輸出位置後重試。",
+    "output_dir_unwritable": "目標資料夾不存在或沒有寫入權限。請換一個輸出位置後重試。",
+    "output_path_too_long": "輸出檔案的完整路徑超過了 Windows 的長度限制。請換一個層級更淺的輸出資料夾。",
+    "overwrite_trash_failed": "同名舊檔案沒能移到資源回收筒，所以沒有覆寫它。可以改用「自動編號」後重試。",
+    "output_publish_failed": "轉換已完成，但無法把結果儲存為最終檔名，未完成的檔案已刪除。請檢查目標資料夾後重試。",
+    "confirmation_required": "這個檔案需要先確認（例如有損音訊轉為無損格式）。請重新點「開始」，在確認框中確認。",
+    "no_encoder_available": "本機沒有能處理這個畫面的編碼器。請換一種輸出編碼後重新開始。",
+    "busy": "檔案仍在分析，或正被其他操作佔用。請稍後重試。",
+    "not_applicable": "重新分析後，這個檔案已不適合開始時選擇的任務。請切換任務後重新開始。",
+    "unknown": "轉換沒有完成，原因不明。請重試；仍然失敗時，可以複製下方的錯誤資訊回報問題。"
+  },
+  "confirm": {
+    "title": "開始前請確認",
+    "description": "{{count}} 個檔案需要確認（本次共 {{total}} 個）。可以逐一略過，其餘檔案會一起開始。",
+    "description_one": "{{count}} 個檔案需要確認（本次共 {{total}} 個）。可以逐一略過，其餘檔案會一起開始。",
+    "use_mkv": "改為 MKV",
+    "mkv_note": "「改為 MKV」會把輸出格式改為 MKV，對本次所有檔案生效。",
+    "resolved": "已改為 MKV，內容會完整保留",
+    "lossless": "有損音訊轉為無損格式：檔案會變大，音質不會變好",
+    "replace": "會把同名舊檔案移到資源回收筒：{{names}}",
+    "replace_one": "會把同名舊檔案移到資源回收筒：{{names}}",
+    "skip": "略過",
+    "include": "恢復",
+    "skipped": "本次略過，不會開始",
+    "cancel": "取消",
+    "start": "開始 {{count}} 個檔案",
+    "start_one": "開始 {{count}} 個檔案",
+    "start_none": "沒有要開始的檔案"
+  }
+}

@@ -1,0 +1,79 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/remux-real.test.ts --reporter=verbose
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > starts from the source the check describes
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MKV to MP4 keeps metadata, chapters, languages, forced and default flags, and carries titles in handler_name
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MKV to MKV ("convert anyway" after already_target) keeps titles, flags, chapters, metadata and the attachment
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MP4 back to MKV turns mov_text into SRT and keeps the flags, without the chapter text track
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MP4 enables the first audio track when the source marks none default, as the summary says beforehand
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Duration  2.05s (transform 191ms, setup 0ms, collect 755ms, tests 1.09s, environment 0ms, prepare 60ms)
+exit 0
+
+$ ls -A test-results/media-converter   (the run folder is removed after the run)
+exit 0
+
+# ffprobe of a kept run (FUSIONKIT_KEEP_TEST_RUNS=1; ffprobe at idle priority), run folder deleted afterwards
+$ ffprobe -v error -show_entries stream=index,codec_name,codec_type:stream_disposition=default,forced,comment:stream_tags=language,title,handler_name,filename,mimetype -of compact <file>
+# source.mkv (exit 0)
+  stream|index=0|codec_name=h264|codec_type=video|disposition:default=0|disposition:comment=0|disposition:forced=0
+  stream|index=1|codec_name=aac|codec_type=audio|disposition:default=1|disposition:comment=0|disposition:forced=0|tag:language=eng|tag:title=Main audio
+  stream|index=2|codec_name=aac|codec_type=audio|disposition:default=0|disposition:comment=1|disposition:forced=0|tag:language=jpn|tag:title=Commentary
+  stream|index=3|codec_name=subrip|codec_type=subtitle|disposition:default=0|disposition:comment=0|disposition:forced=1|tag:language=eng|tag:title=Signs
+  stream|index=4|codec_name=unknown|codec_type=attachment|disposition:default=0|disposition:comment=0|disposition:forced=0|tag:filename=notes.txt|tag:mimetype=text/plain
+# remux.mp4 (exit 0)
+  stream|index=0|codec_name=h264|codec_type=video|disposition:default=1|disposition:comment=0|disposition:forced=0|tag:language=und|tag:handler_name=VideoHandler
+  stream|index=1|codec_name=aac|codec_type=audio|disposition:default=1|disposition:comment=0|disposition:forced=0|tag:language=eng|tag:handler_name=Main audio
+  stream|index=2|codec_name=aac|codec_type=audio|disposition:default=0|disposition:comment=1|disposition:forced=0|tag:language=jpn|tag:handler_name=Commentary
+  stream|index=3|codec_name=mov_text|codec_type=subtitle|disposition:default=1|disposition:comment=0|disposition:forced=1|tag:language=eng|tag:handler_name=Signs
+  stream|index=4|codec_name=bin_data|codec_type=data|disposition:default=0|disposition:comment=0|disposition:forced=0|tag:language=eng|tag:handler_name=SubtitleHandler
+# remux.mkv (exit 0)
+  stream|index=0|codec_name=h264|codec_type=video|disposition:default=0|disposition:comment=0|disposition:forced=0
+  stream|index=1|codec_name=aac|codec_type=audio|disposition:default=1|disposition:comment=0|disposition:forced=0|tag:language=eng|tag:title=Main audio
+  stream|index=2|codec_name=aac|codec_type=audio|disposition:default=0|disposition:comment=1|disposition:forced=0|tag:language=jpn|tag:title=Commentary
+  stream|index=3|codec_name=subrip|codec_type=subtitle|disposition:default=0|disposition:comment=0|disposition:forced=1|tag:language=eng|tag:title=Signs
+  stream|index=4|codec_name=unknown|codec_type=attachment|disposition:default=0|disposition:comment=0|disposition:forced=0|tag:filename=notes.txt|tag:mimetype=text/plain
+# round.mkv (exit 0)
+  stream|index=0|codec_name=h264|codec_type=video|disposition:default=1|disposition:comment=0|disposition:forced=0|tag:HANDLER_NAME=VideoHandler
+  stream|index=1|codec_name=aac|codec_type=audio|disposition:default=1|disposition:comment=0|disposition:forced=0|tag:language=eng|tag:HANDLER_NAME=Main audio
+  stream|index=2|codec_name=aac|codec_type=audio|disposition:default=0|disposition:comment=1|disposition:forced=0|tag:language=jpn|tag:HANDLER_NAME=Commentary
+  stream|index=3|codec_name=subrip|codec_type=subtitle|disposition:default=1|disposition:comment=0|disposition:forced=1|tag:language=eng|tag:HANDLER_NAME=Signs
+# no-default.mkv (exit 0)
+  stream|index=0|codec_name=h264|codec_type=video|disposition:default=0|disposition:comment=0|disposition:forced=0
+  stream|index=1|codec_name=aac|codec_type=audio|disposition:default=0|disposition:comment=0|disposition:forced=0|tag:language=eng|tag:title=Main audio
+  stream|index=2|codec_name=aac|codec_type=audio|disposition:default=0|disposition:comment=1|disposition:forced=0|tag:language=jpn|tag:title=Commentary
+  stream|index=3|codec_name=subrip|codec_type=subtitle|disposition:default=0|disposition:comment=0|disposition:forced=1|tag:language=eng|tag:title=Signs
+  stream|index=4|codec_name=unknown|codec_type=attachment|disposition:default=0|disposition:comment=0|disposition:forced=0|tag:filename=notes.txt|tag:mimetype=text/plain
+# no-default.mp4 (exit 0)
+  stream|index=0|codec_name=h264|codec_type=video|disposition:default=1|disposition:comment=0|disposition:forced=0|tag:language=und|tag:handler_name=VideoHandler
+  stream|index=1|codec_name=aac|codec_type=audio|disposition:default=1|disposition:comment=0|disposition:forced=0|tag:language=eng|tag:handler_name=Main audio
+  stream|index=2|codec_name=aac|codec_type=audio|disposition:default=0|disposition:comment=1|disposition:forced=0|tag:language=jpn|tag:handler_name=Commentary
+  stream|index=3|codec_name=mov_text|codec_type=subtitle|disposition:default=1|disposition:comment=0|disposition:forced=1|tag:language=eng|tag:handler_name=Signs
+  stream|index=4|codec_name=bin_data|codec_type=data|disposition:default=0|disposition:comment=0|disposition:forced=0|tag:language=eng|tag:handler_name=SubtitleHandler
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）；真实 ffmpeg 以 IDLE 运行，素材为 lavfi 小样
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/remux-real.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > starts from the source the check describes
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MKV to MP4 keeps metadata, chapters, languages, forced and default flags, and carries titles in handler_name
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MKV to MKV ("convert anyway" after already_target) keeps titles, flags, chapters, metadata and the attachment
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MP4 back to MKV turns mov_text into SRT and keeps the flags, without the chapter text track
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MP4 enables the first audio track when the source marks none default, as the summary says beforehand
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  16:45:51
+   Duration  1.96s (transform 198ms, setup 0ms, collect 820ms, tests 954ms, environment 0ms, prepare 58ms)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑（本文件对应的源码未改；评审只改了 executor.ts、executor.test.ts 与 engine design §11）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/remux-real.test.ts --reporter=verbose
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > starts from the source the check describes
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MKV to MP4 keeps metadata, chapters, languages, forced and default flags, and carries titles in handler_name
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MKV to MKV ("convert anyway" after already_target) keeps titles, flags, chapters, metadata and the attachment
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MP4 back to MKV turns mov_text into SRT and keeps the flags, without the chapter text track
+ ✓ test/media-converter/remux-real.test.ts > remuxing with the planner arguments and the real ffmpeg > MP4 enables the first audio track when the source marks none default, as the summary says beforehand
+Test Files  1 passed (1)
+Tests  5 passed (5)
+Start at  17:14:22
+Duration  1.89s (transform 201ms, setup 0ms, collect 752ms, tests 946ms, environment 0ms, prepare 58ms)
+exit 0

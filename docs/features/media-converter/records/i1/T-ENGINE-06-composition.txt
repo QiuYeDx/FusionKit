@@ -1,0 +1,55 @@
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/composition.test.ts --reporter=verbose
+
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+
+ ✓ test/media-converter/composition.test.ts > media converter composition > registers the media converter in the main process before the first window and joins the shared shutdown
+ ✓ test/media-converter/composition.test.ts > media converter composition > exposes window.mediaConverter and guards its channels on both checks of the legacy bridge
+ ✓ test/media-converter/composition.test.ts > media converter composition > refuses every media-converter: channel on the legacy ipcRenderer bridge
+ ✓ test/media-converter/composition.test.ts > media converter composition > exposes one method per request channel, supported on Windows only
+ ✓ test/media-converter/composition.test.ts > media converter composition > registers every channel on Windows, serves the snapshot and persists through the shared shutdown
+ ✓ test/media-converter/composition.test.ts > media converter composition > verifies the runtime and detects the encoders only on demand, never at registration (AC-ENGINE-01-1)
+ ✓ test/media-converter/composition.test.ts > media converter composition > cancels a running conversion at shutdown, waits for it to clean up and keeps it interrupted (AC-ENGINE-05-4)
+ ✓ test/media-converter/composition.test.ts > media converter composition > passes the shutdown reason to the queue, stops the detection and ends the probes last
+ ✓ test/media-converter/composition.test.ts > media converter composition > answers platform_unsupported on every channel on darwin and touches nothing
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  15:59:50
+   Duration  1.59s (transform 334ms, setup 0ms, collect 1.11s, tests 278ms, environment 0ms, prepare 57ms)
+
+exit 0
+
+# 批次 C 修正（2026-10-28）后重跑（F1–F6 代码与测试的最终版本）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/composition.test.ts --reporter=verbose
+ RUN  v2.1.9 C:/Users/Administrator/Documents/GitHub/FusionKit
+ ✓ test/media-converter/composition.test.ts > media converter composition > registers the media converter in the main process before the first window and joins the shared shutdown
+ ✓ test/media-converter/composition.test.ts > media converter composition > exposes window.mediaConverter and guards its channels on both checks of the legacy bridge
+ ✓ test/media-converter/composition.test.ts > media converter composition > refuses every media-converter: channel on the legacy ipcRenderer bridge
+ ✓ test/media-converter/composition.test.ts > media converter composition > exposes one method per request channel, supported on Windows only
+ ✓ test/media-converter/composition.test.ts > media converter composition > registers every channel on Windows, serves the snapshot and persists through the shared shutdown
+ ✓ test/media-converter/composition.test.ts > media converter composition > verifies the runtime and detects the encoders only on demand, never at registration (AC-ENGINE-01-1)
+ ✓ test/media-converter/composition.test.ts > media converter composition > cancels a running conversion at shutdown, waits for it to clean up and keeps it interrupted (AC-ENGINE-05-4)
+ ✓ test/media-converter/composition.test.ts > media converter composition > passes the shutdown reason to the queue, stops the detection and ends the probes last
+ ✓ test/media-converter/composition.test.ts > media converter composition > answers platform_unsupported on every channel on darwin and touches nothing
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  16:45:24
+   Duration  1.55s (transform 330ms, setup 0ms, collect 1.06s, tests 280ms, environment 0ms, prepare 60ms)
+exit 0
+
+# 评审与修复（2026-10-28，FIXUP-C 独立评审）后重跑（本文件对应的源码未改；评审只改了 executor.ts、executor.test.ts 与 engine design §11）
+$ npx vitest run --maxWorkers=4 --minWorkers=1 test/media-converter/composition.test.ts --reporter=verbose
+ ✓ test/media-converter/composition.test.ts > media converter composition > registers the media converter in the main process before the first window and joins the shared shutdown
+ ✓ test/media-converter/composition.test.ts > media converter composition > exposes window.mediaConverter and guards its channels on both checks of the legacy bridge
+ ✓ test/media-converter/composition.test.ts > media converter composition > refuses every media-converter: channel on the legacy ipcRenderer bridge
+ ✓ test/media-converter/composition.test.ts > media converter composition > exposes one method per request channel, supported on Windows only
+ ✓ test/media-converter/composition.test.ts > media converter composition > registers every channel on Windows, serves the snapshot and persists through the shared shutdown
+ ✓ test/media-converter/composition.test.ts > media converter composition > verifies the runtime and detects the encoders only on demand, never at registration (AC-ENGINE-01-1)
+ ✓ test/media-converter/composition.test.ts > media converter composition > cancels a running conversion at shutdown, waits for it to clean up and keeps it interrupted (AC-ENGINE-05-4)
+ ✓ test/media-converter/composition.test.ts > media converter composition > passes the shutdown reason to the queue, stops the detection and ends the probes last
+ ✓ test/media-converter/composition.test.ts > media converter composition > answers platform_unsupported on every channel on darwin and touches nothing
+Test Files  1 passed (1)
+Tests  9 passed (9)
+Start at  17:14:15
+Duration  1.49s (transform 336ms, setup 0ms, collect 1.03s, tests 265ms, environment 0ms, prepare 58ms)
+exit 0
