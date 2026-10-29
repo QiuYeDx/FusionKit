@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tour, type TourStep } from "@/components/qiuye-ui/tour";
 import { Button } from "@/components/ui/button";
+import { isShownLayer } from "@/lib/layers";
 
 const TOUR_DONE_KEY = "translation-knowledge-tour-done";
 
@@ -19,7 +20,10 @@ export function useKnowledgeTour(ready: boolean) {
     let timer: ReturnType<typeof setTimeout>;
     const openWhenVisible = () => {
       // Native preload and unrelated dialogs can outlive the library read.
-      if (document.querySelector('.app-loading-wrap, #app-loading-style, [role="dialog"], [role="alertdialog"]')) {
+      // A menu or list opened inside a dialog hides the dialog itself (Radix hideOthers): wait on both.
+      if (document.querySelector('.app-loading-wrap, #app-loading-style')
+        || Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="popover-content"]'))
+          .some(isShownLayer)) {
         timer = setTimeout(openWhenVisible, 200);
         return;
       }

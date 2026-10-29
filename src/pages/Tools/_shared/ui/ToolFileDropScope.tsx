@@ -1,6 +1,7 @@
 import * as React from "react";
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { isShownLayer } from "@/lib/layers";
 import { cn } from "@/lib/utils";
 import { SmoothCorners } from "@/components/qiuye-ui/smooth-corners";
 
@@ -31,8 +32,11 @@ export function isToolFileDrag(dataTransfer: DataTransfer): boolean {
 }
 
 function hasOpenDialog() {
+  // Non-modal panels (the assistant dock, the title bar's connection panel) and popovers, which
+  // stay open while the user drags from Explorer, do not cover the page.
   return Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]'))
-    .some(element => element.getClientRects().length > 0);
+    .some(element => element.getAttribute("aria-modal") !== "false"
+      && !element.closest("[data-radix-popper-content-wrapper]") && isShownLayer(element));
 }
 
 export function selectToolFileDropTarget(visible: readonly RegisteredTarget[], directId?: string | null) {

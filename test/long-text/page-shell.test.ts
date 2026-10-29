@@ -169,10 +169,11 @@ describe('page shortcuts', () => {
   it('lets a non-modal panel (the pinned assistant) own the keyboard only while it holds focus', () => {
     const inside = {};
     const outside = {};
-    const layer = (attributes: Record<string, string>, visible = true) => ({
+    const layer = (attributes: Record<string, string>, visible = true, hiddenByAncestor = false) => ({
       getClientRects: () => ({ length: visible ? 1 : 0 }),
       getAttribute: (name: string) => attributes[name] ?? null,
       contains: (node: unknown) => node === inside,
+      closest: () => hiddenByAncestor ? {} : null,
     });
     const root = (...elements: unknown[]) => ({ querySelectorAll: () => elements }) as unknown as ParentNode;
     try {
@@ -182,6 +183,8 @@ describe('page shortcuts', () => {
       expect(hasOpenLayer(root(layer({})))).toBe(true);
       expect(hasOpenLayer(root(layer({ 'aria-modal': 'true' })))).toBe(true);
       expect(hasOpenLayer(root(layer({}, false)))).toBe(false);
+      // A panel kept mounted while closed hides behind aria-hidden/inert and is not open.
+      expect(hasOpenLayer(root(layer({}, true, true)))).toBe(false);
       expect(hasOpenLayer(root(layer({ 'aria-modal': 'false' }), layer({})))).toBe(true);
       vi.stubGlobal('document', { activeElement: inside });
       expect(hasOpenLayer(root(layer({ 'aria-modal': 'false' })))).toBe(true);

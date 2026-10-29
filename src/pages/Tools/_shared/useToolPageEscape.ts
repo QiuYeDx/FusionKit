@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { isShownLayer } from "@/lib/layers";
 
 const escapeLayerSelector = [
   '[role="dialog"]',
@@ -17,8 +18,7 @@ export function isLocalEscape(event: KeyboardEvent) {
   const editing = event.composedPath().some(target => target instanceof HTMLElement && (
     target.matches("input, textarea, select") || target.isContentEditable
   ));
-  const layerOpen = Array.from(document.querySelectorAll(escapeLayerSelector))
-    .some(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+  const layerOpen = Array.from(document.querySelectorAll(escapeLayerSelector)).some(isShownLayer);
   return editing || layerOpen;
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { isShownLayer } from '@/lib/layers';
 
 /** Open layers that own the keyboard: dialogs, menus, Select lists and popovers (design §4.1). */
 const LAYER_SELECTOR = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-slot="popover-content"]';
@@ -16,8 +17,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 export function hasOpenLayer(root: ParentNode = document): boolean {
   const active = document.activeElement;
   return Array.from(root.querySelectorAll(LAYER_SELECTOR))
-    .some(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden'
-      && (element.getAttribute('aria-modal') !== 'false' || element.contains(active)));
+    .some(element => isShownLayer(element) && (element.getAttribute('aria-modal') !== 'false' || element.contains(active)));
 }
 
 /**

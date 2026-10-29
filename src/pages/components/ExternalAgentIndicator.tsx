@@ -162,7 +162,9 @@ export default function ExternalAgentIndicator() {
         </AnimatePresence>
 
         {/* Always mounted so its height is known before the first open; hidden from input until the shell has grown. */}
-        <motion.div ref={panelRef} role="dialog" aria-label={t("external_agent.activity.titlebar.panel_title")} data-testid="titlebar-external-panel"
+        {/* Only the open panel is a dialog: a closed one counted as open would block page drops and Escape. */}
+        <motion.div ref={panelRef} role={open ? "dialog" : undefined} aria-modal={open ? false : undefined}
+          aria-label={open ? t("external_agent.activity.titlebar.panel_title") : undefined} data-testid="titlebar-external-panel"
           className="absolute right-0 top-0 text-[13px]" style={{ width: PANEL_WIDTH - 2 }}
           initial={false}
           animate={{ opacity: open ? 1 : 0, x: open ? 0 : 6, y: open ? 0 : -8 }}
