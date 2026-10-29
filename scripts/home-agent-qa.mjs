@@ -2,6 +2,10 @@ import { _electron as electron, expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { guardElectronLaunch, takeErrorBoxReports } from './guard-electron-launch.mjs';
+
+// Waits for a build in progress, never starts Electron without one, and keeps its error boxes off the screen.
+guardElectronLaunch(electron);
 
 // Run after the root Vite test build. All state, files and model traffic are isolated.
 const artifacts = path.resolve('test-results/home-agent/i2');
@@ -101,7 +105,7 @@ try {
   const port = server.address().port;
   const profile = { id: 'qa-agent', name: 'Local QA', provider: 'Other', apiKey: 'synthetic-qa-key', baseUrl: `http://127.0.0.1:${port}/v1`, modelKey: 'qa-model', apiFormat: 'responses', outputTokenParameter: 'max_tokens', tokenPricing: { inputTokensPerMillion: 0, outputTokensPerMillion: 0 } };
   const modelState = { profiles: [profile, { ...profile, id: 'qa-task', apiFormat: 'chat_completions' }], assignment: { agent: 'qa-agent', taskExecution: 'qa-task' }, audioProfiles: [], audioAssignment: {} };
-  app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(runRoot, 'profile')}`], cwd: process.cwd(), env: { ...process.env, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test' } });
+  app = await electron.launch({ args: ['.', `--user-data-dir=${path.join(runRoot, 'profile')}`], cwd: process.cwd(), env: { ...process.env, ELECTRON_RUN_AS_NODE: undefined, VITE_DEV_SERVER_URL: '', NODE_ENV: 'test', FUSIONKIT_TEST_WINDOW: process.env.FUSIONKIT_TEST_WINDOW || 'quiet' } });
   const page = await app.firstWindow();
   page.on('pageerror', error => errors.push(error.message));
   const nativeWindow = await app.browserWindow(page);
@@ -375,6 +379,8 @@ try {
   await capture('prepared-partial-failure-light');
   await page.locator('[data-action-status="ready"]').getByRole('button', { name: locales.zh.action_dismiss, exact: true }).click();
   checks.push('Real mixed preparation preserves stale authorized document failure beside the ready subset');
+  const errorBoxes = takeErrorBoxReports();
+  if (errorBoxes.length) throw new Error(`Electron reported an error in the main process:\n${errorBoxes.join('\n')}`);
   expect(errors).toEqual([]);
   await writeFile(path.join(artifacts, 'report.json'), JSON.stringify({ runRoot, checks, screenshots, pageErrors: errors, requestCount: requests.length, evidenceBoundary: 'Real isolated Electron and native service import/queue; model responses are synthetic loopback SSE/JSON, not real provider quality.' }, null, 2));
   console.log(JSON.stringify({ success: true, artifacts, screenshots: screenshots.length, checks: checks.length, requests: requests.length }));

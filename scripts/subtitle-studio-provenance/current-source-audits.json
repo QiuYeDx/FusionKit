@@ -83,8 +83,8 @@
     {
       "sourcePath": "vite.config.ts",
       "frozenBlobOid": "b064c35605ea2563b6206078eea256cfd3cfe0f3",
-      "currentBlobOid": "3e16053a6b3b256716964bbf6fa61ad34961180d",
-      "reason": "6f84227 (2026-09-25) adds a buildStart plugin, skipped under Vitest, that runs scripts/translation-knowledge/build-artifacts.mjs --check so a release fails if the shipped translation-knowledge skill artifacts drift. Renderer/main/preload bundling, Electron entries and transcription resource composition are unchanged."
+      "currentBlobOid": "9b7ef0cd1fb342d03ef0da8c2bf45f988309cc88",
+      "reason": "6f84227 (2026-09-25) adds a buildStart plugin, skipped under Vitest, that runs scripts/translation-knowledge/build-artifacts.mjs --check so a release fails if the shipped translation-knowledge skill artifacts drift. Renderer/main/preload bundling, Electron entries and transcription resource composition are unchanged. 2026-10-28: before a build empties dist-electron/, the config waits on the cross-process build lock in scripts/ui-test-lock.mjs until no Electron UI test in the checkout is using dist/ and dist-electron/ (the config function became async for that); serve, preview and Vitest are unaffected, and bundling, entries and resource composition are unchanged."
     },
     {
       "sourcePath": "package.json",

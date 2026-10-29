@@ -18,5 +18,7 @@ export default defineConfig({
       'src/**/*.{test,spec}.?(c|m)[jt]s?(x)',
     ],
     testTimeout: 1000 * 29,
+    // Registers Electron UI test files with the build lock and guards their launches (FK-PIT-0197).
+    setupFiles: ['test/support/vitest.setup.ts'],
   },
 })

@@ -13,7 +13,11 @@ import { createServer } from 'node:http';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { guardElectronLaunch } from '../guard-electron-launch.mjs';
 import { interviewEnglish, lighthouseBilingual, lighthouseJapanese } from './samples.mjs';
+
+// Waits for a build in progress, never starts Electron without one, and keeps its error boxes off the screen.
+guardElectronLaunch(electron);
 
 const [lang = 'zh', ...names] = process.argv.slice(2);
 if (!['zh', 'en'].includes(lang)) throw new Error(`Unknown language "${lang}", expected zh or en`);

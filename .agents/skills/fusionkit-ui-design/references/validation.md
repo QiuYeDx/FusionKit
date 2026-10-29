@@ -15,14 +15,13 @@
 使用本地二进制，先确认项目包管理器版本；本轮环境为 pnpm 8.7.0，但以后仍应读取环境/项目约定，不能为运行测试顺带更新 lockfile。
 
 ```sh
-node_modules/.bin/vite build --mode=test
-node scripts/check-preload-bundle.mjs
+pnpm run pretest
 FUSIONKIT_STUDIO_E2E=1 node_modules/.bin/vitest run test/subtitle-studio/workspace-ui.test.ts
 FUSIONKIT_TOOL_UI_E2E=1 node_modules/.bin/vitest run test/tool-spacing.electron.test.ts
 FUSIONKIT_TOOL_UI_E2E=1 node_modules/.bin/vitest run test/tool-navigation.electron.test.ts
 ```
 
-根 Vite 配置同时构建 renderer、main、preload。不要发明单独配置文件，也不需要为 CSS 小改动打包安装程序。按项目配置做类型检查；如果遇到既有解析模式问题，可用补充检查定位，但不能把改变 moduleResolution 的结果称为默认检查已通过。
+`pnpm run pretest` 构建测试包并检查 preload。任何 `vite build` 都会先等同一检出里正在运行的 Electron UI 测试结束再清空、重建 `dist/` 与 `dist-electron/`（FK-PIT-0197）；多个会话共用检出时，UI 任务一次只跑一个。根 Vite 配置同时构建 renderer、main、preload。不要发明单独配置文件，也不需要为 CSS 小改动打包安装程序。按项目配置做类型检查；如果遇到既有解析模式问题，可用补充检查定位，但不能把改变 moduleResolution 的结果称为默认检查已通过。
 
 改动界面文案时运行 `pnpm run i18n:check`（确认 pnpm 版本后），区分 locale parity 和源码使用检查。不能用已知旧错误作为以后所有检查失败的默认解释。
 

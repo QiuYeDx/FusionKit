@@ -25,7 +25,7 @@ repository uses pnpm 8, where `enable-pre-post-scripts` is off by default. `pnpm
 ## Do
 
 - Build explicitly before Electron UI tests: `pnpm run pretest`, then `pnpm exec vitest run ...`
-  (or `pnpm test ...`).
+  (or `pnpm test ...`). The build waits for Electron UI tests running in the same checkout; see FK-PIT-0197.
 - When comparing screenshots before and after a change, build both sides, and check
   `ls -la dist` timestamps against the change.
 

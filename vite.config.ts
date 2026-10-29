@@ -7,10 +7,13 @@ import tailwindcss from '@tailwindcss/vite'
 import pkg from './package.json'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { holdTestBuildLock } from './scripts/ui-test-lock.mjs'
 
 // https://vitejs.dev/config/
-export default defineConfig(({ command }) => {
+export default defineConfig(async ({ command }) => {
   const isVitest = process.env.VITEST === 'true'
+  // A build empties dist-electron/ (below) and dist/: first wait until no Electron UI test in this checkout uses them.
+  if (!isVitest && command === 'build') await holdTestBuildLock({ dir: path.join(__dirname, 'test-results/.ui-test-locks'), log: message => console.log(message) })
   if (!isVitest) rmSync('dist-electron', { recursive: true, force: true })
 
   const isServe = command === 'serve'
