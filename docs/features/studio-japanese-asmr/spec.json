@@ -15,7 +15,7 @@
     {
       "id": "I1",
       "title": "日语 / ASMR 双阶段转写",
-      "status": "implementing",
+      "status": "verifying",
       "approval": {
         "state": "approved",
         "by": "用户",
@@ -44,9 +44,9 @@
       "id": "A-02",
       "increment": "I1",
       "blocking": false,
-      "state": "open",
+      "state": "resolved",
       "text": "在开发计划首项实验冻结 ASMR VAD 概率和停顿阈值、窗口拼接与解码边距，量化无明显停顿的合行。",
-      "resolution": ""
+      "resolution": "2026-11-20 用户要求先完成功能并在 Windows 11 CUDA 设备实际试用。试用分段参数见实施记录，素材质量对照与盲听延期。"
     }
   ],
   "parallel": {

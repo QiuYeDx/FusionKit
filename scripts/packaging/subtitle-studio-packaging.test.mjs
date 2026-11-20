@@ -46,6 +46,7 @@ test('validates the real electron-builder resolved configuration without modifyi
   const old = JSON.parse(fs.readFileSync(path.join(projectRoot, 'electron-builder.json'), 'utf8'));
   const expected = structuredClone(old);
   expected.beforePack = 'scripts/packaging/subtitle-studio-before-pack.cjs';
+  expected.asarUnpack = ['**/onnxruntime-node/bin/**'];
   expected.extraResources.push({ from: RESOURCE_CONTRIBUTIONS.studio.from, to: RESOURCE_CONTRIBUTIONS.studio.to, filter: ['**/*'] });
   for (const item of APPLICATION_RESOURCES) expected.extraResources.push({ from: item.from, to: item.to, filter: ['**/*'] });
   expected.mac.signIgnore.push('Contents/Resources/subtitle-studio/transcription/');
@@ -63,6 +64,7 @@ test('validates the real electron-builder resolved configuration without modifyi
 test('checks the complete config before loading any verifier', async () => {
   const mutations = [
     value => { value.beforePack = 'other.cjs'; },
+    value => { delete value.asarUnpack; },
     value => { value.extraResources.pop(); },
     value => { value.extraResources[1].from = value.extraResources[0].from; },
     value => { value.extraResources[1].to = 'subtitle-studio'; },

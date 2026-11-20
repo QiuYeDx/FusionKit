@@ -1,0 +1,11 @@
+{
+  "id": "whisper-vad-encdec-asmr-onnx",
+  "format": "onnx",
+  "engineCompatibility": "onnxruntime-node@1.21.1 (CPU)",
+  "sourceRevision": "6963d4305de71a565ef84ecce4e14982b27371d4",
+  "fileName": "model.onnx",
+  "byteSize": 119137398,
+  "sha256": "cd47513515766d57f740e3094440dbbca9ab87e026b9cf21540d7ad588c0e047",
+  "license": "MIT",
+  "downloadUrl": "https://huggingface.co/TransWithAI/Whisper-Vad-EncDec-ASMR-onnx/resolve/6963d4305de71a565ef84ecce4e14982b27371d4/model.onnx?download=true"
+}

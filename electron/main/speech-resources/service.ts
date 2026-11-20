@@ -1,3 +1,4 @@
+import { JAPANESE_ASMR_VAD_MODEL_ID } from '../../../src/subtitle-studio/transcription/japanese-asmr-contract';
 import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
@@ -102,6 +103,7 @@ export class SpeechResourceService {
   }
   #resourceIds(): string[] {
     return [...(this.#options.modelCatalog ?? SPEECH_MODEL_MANIFEST.models).map(model => model.id),
+      ...(this.#options.smokeAsmrVad ? [JAPANESE_ASMR_VAD_MODEL_ID] : []),
       ...((this.#options.vadManager === false) ? [] : [SPEECH_VAD_MANIFEST.vad.id]),
       ...((this.#options.acceleratorManager === false || (this.#options.platform ?? process.platform) !== 'win32') ? [] : [SPEECH_CUDA_RESOURCE_ID])];
   }
@@ -188,6 +190,12 @@ export class SpeechResourceService {
     this.#consumers.set(consumer.id, consumer);
     let clientClosed = false;
     const released = new Set<string>();
+    const clientResourceId = (value: string) => {
+      const id = this.#id(value);
+      if (consumer.id === 'legacy' && id === JAPANESE_ASMR_VAD_MODEL_ID)
+        throw new LocalSubtitleModelManagerError('resource_not_allowed', 'ASMR timing is a Studio resource.');
+      return id;
+    };
     const subscriptions = new Map<string, Set<() => void>>();
     const changedSubscriptions = new Set<() => void>();
     const assertClient = (owner?: LocalSubtitleOwnerKey) => {
@@ -219,24 +227,24 @@ export class SpeechResourceService {
         this.#reads.add(operation);
         try {
           const result = await operation;
-          assertClient(owner); return Object.freeze(result.map(resource => Object.freeze({ ...resource, resourceId: alias(resource.resourceId) })));
+          assertClient(owner); return Object.freeze(result.filter(resource => consumer.id === 'studio' || resource.resourceId !== JAPANESE_ASMR_VAD_MODEL_ID).map(resource => Object.freeze({ ...resource, resourceId: alias(resource.resourceId) })));
         } finally { this.#reads.delete(operation); lease.release(); }
       },
       importModel: (input: { owner: LocalSubtitleOwnerKey; filePath: string; modelId?: string; mode: 'copy' | 'move' }) => {
         assertClient(input.owner);
         if (!input.modelId) throw new LocalSubtitleModelManagerError('invalid_ipc_request', 'A fixed model ID is required.');
-        const id = this.#id(input.modelId);
+        const id = clientResourceId(input.modelId);
         return jobView(this.#startJob(id, manager => manager.importModel({ ...input, modelId: id, owner: this.#owner })));
       },
       startResourceInstall: (owner: LocalSubtitleOwnerKey, resourceId: string) => {
-        assertClient(owner); const id = this.#id(resourceId);
+        assertClient(owner); const id = clientResourceId(resourceId);
         return jobView(this.#startJob(id, manager => manager.startResourceInstall(this.#owner, id)));
       },
       cancelResourceJob: (owner: LocalSubtitleOwnerKey, jobId: string) => {
         assertClient(owner); return this.#requireReady().cancelResourceJob(this.#owner, jobId);
       },
       deleteManagedResource: async (owner: LocalSubtitleOwnerKey, resourceId: string) => {
-        assertClient(owner); const id = this.#id(resourceId); const claim = this.#claimMutation(id);
+        assertClient(owner); const id = clientResourceId(resourceId); const claim = this.#claimMutation(id);
         const manager = this.#requireReady();
         try { return await manager.deleteManagedResource(this.#owner, id); }
         finally { await this.#settleMutation(manager, claim); }
@@ -257,8 +265,8 @@ export class SpeechResourceService {
         const set = subscriptions.get(keyOf(owner)) ?? new Set(); set.add(unsubscribe); subscriptions.set(keyOf(owner), set);
         return unsubscribe;
       },
-      resolveManagedModel: (id: string, signal?: AbortSignal) => { assertClient(); const canonical = this.#id(id); return this.withResourceRead(canonical, () => this.#requireReady().resolveManagedModel(canonical, signal)); },
-      resolveManagedVad: (id: string, signal?: AbortSignal) => { assertClient(); const canonical = this.#id(id); return this.withResourceRead(canonical, () => this.#requireReady().resolveManagedVad(canonical, signal)); },
+      resolveManagedModel: (id: string, signal?: AbortSignal) => { assertClient(); const canonical = clientResourceId(id); return this.withResourceRead(canonical, () => this.#requireReady().resolveManagedModel(canonical, signal)); },
+      resolveManagedVad: (id: string, signal?: AbortSignal) => { assertClient(); const canonical = clientResourceId(id); return this.withResourceRead(canonical, () => this.#requireReady().resolveManagedVad(canonical, signal)); },
       reserveUse: (ids: readonly string[]) => { assertClient(); return this.reserveUse(ids); },
       withResourceRead: <T>(id: string, callback: () => Promise<T>) => { assertClient(); return this.withResourceRead(id, callback); },
       onChanged: (listener: (revision: number) => void) => {

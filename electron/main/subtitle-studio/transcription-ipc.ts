@@ -116,6 +116,10 @@ export async function handleTranscriptionRequest(input: {
   if (method === 'deleteTranscriptionResource') return runtime.resources.delete(owner, requestSchemas.deleteTranscriptionResource.parse(payload).resourceId);
   if (method === 'cancelTranscriptionResourceJob') return runtime.resources.cancel(owner, requestSchemas.cancelTranscriptionResourceJob.parse(payload).jobId);
   if (method === 'enqueueTranscription') return runtime.tasks.enqueue(owner, requestSchemas.enqueueTranscription.parse(payload));
+  if (method === 'listTranscriptionReview') {
+    const { taskId, offset, limit } = requestSchemas.listTranscriptionReview.parse(payload);
+    return runtime.tasks.review(owner, taskId, offset, limit);
+  }
   if (method === 'listTranscriptionTasks') return runtime.tasks.list(owner);
   if (method === 'cancelTranscriptionTask') return runtime.tasks.cancel(owner, requestSchemas.cancelTranscriptionTask.parse(payload).taskId);
   if (method === 'removeTranscriptionTask') { await runtime.tasks.remove(owner, requestSchemas.removeTranscriptionTask.parse(payload).taskId); return null; }

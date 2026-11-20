@@ -1,3 +1,4 @@
+import { ASMR_VAD_DEFINITION } from './asmr-vad-definition';
 import { SpeechResourceSmokeError, type SpeechResourceModelSmoke, type SpeechResourceVadSmoke } from "../../../../src/speech-resources/contracts";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -135,6 +136,7 @@ export interface LocalSubtitleModelManagerOptions {
   readonly arch?: string;
   readonly smokeModel: SpeechResourceModelSmoke;
   readonly smokeVad: SpeechResourceVadSmoke;
+  readonly smokeAsmrVad?: (modelPath: string, signal: AbortSignal) => Promise<void>;
   readonly sessionRegistry?: LocalSubtitleSessionRegistry;
   readonly resourceJobs?: LocalSubtitleResourceJobManager;
   readonly acceleratorManager?: false;
@@ -276,6 +278,7 @@ export class LocalSubtitleModelManager {
   readonly #resourceJobs: LocalSubtitleResourceJobManager;
   readonly #acceleratorManager: LocalSubtitleAcceleratorManager | undefined;
   readonly #vadManager: LocalSubtitleVadManager | undefined;
+  readonly #asmrVadManager: LocalSubtitleVadManager | undefined;
   readonly #catalog: readonly LocalSubtitleModelManifestEntry[];
   readonly #verifyModelFile: typeof verifyLocalSubtitleGgmlModelFile;
   readonly #availableBytes: (directory: string) => Promise<number>;
@@ -395,6 +398,15 @@ export class LocalSubtitleModelManager {
             ),
           isResourceBusy: this.#isResourceBusy,
         });
+    if (options.smokeAsmrVad) this.#asmrVadManager = new LocalSubtitleVadManager({
+      ...options.vadOptions,
+      managedResourceRoot: this.#managedResourceRoot, platform,
+      resourceJobs: this.#resourceJobs, smokeVad: options.smokeVad,
+      resolveSmokeModel: () => { throw new Error('ASMR VAD uses its own runtime.'); },
+      definition: ASMR_VAD_DEFINITION, smokeStandalone: options.smokeAsmrVad,
+      downloadResource: this.#downloadResource, isResourceBusy: this.#isResourceBusy,
+    });
+
   }
 
   initialize(): Promise<void> {
@@ -456,9 +468,10 @@ export class LocalSubtitleModelManager {
   ): LocalSubtitleResourceJobSummary {
     this.#assertManagerAvailable();
     this.#assertOwnerAvailable(owner);
-    if (this.#vadManager?.hasResourceId(resourceId)) {
+    const manager = this.#vadFor(resourceId);
+    if (manager) {
       try {
-        return this.#vadManager.startResourceInstall(owner, resourceId);
+        return manager.startResourceInstall(owner, resourceId);
       } catch (error) {
         throw normalizeVadManagerError(error);
       }
@@ -484,9 +497,10 @@ export class LocalSubtitleModelManager {
   ): Promise<Readonly<{ deleted: boolean }>> {
     this.#assertManagerAvailable();
     this.#assertOwnerAvailable(owner);
-    if (this.#vadManager?.hasResourceId(resourceId)) {
+    const manager = this.#vadFor(resourceId);
+    if (manager) {
       try {
-        return await this.#vadManager.deleteManagedResource(resourceId);
+        return await manager.deleteManagedResource(resourceId);
       } catch (error) {
         throw normalizeVadManagerError(error);
       }
@@ -550,7 +564,7 @@ export class LocalSubtitleModelManager {
   ): Promise<readonly LocalSubtitleManagedResourceSummary[]> {
     this.#assertManagerAvailable();
     this.#assertOwnerAvailable(owner);
-    const [models, vad, accelerators] = await Promise.all([
+    const [models, vad, asmrVad, accelerators] = await Promise.all([
       Promise.all(this.#catalog.map(async (model) => {
         const base = {
           resourceId: model.id,
@@ -600,9 +614,10 @@ export class LocalSubtitleModelManager {
         }
       })),
       this.#vadManager?.listManagedResources(signal) ?? Promise.resolve([]),
+      this.#asmrVadManager?.listManagedResources(signal) ?? Promise.resolve([]),
       this.#acceleratorManager?.listManagedResources(signal) ?? Promise.resolve([]),
     ]);
-    return Object.freeze([...models, ...vad, ...accelerators]);
+    return Object.freeze([...models, ...vad, ...asmrVad, ...accelerators]);
   }
 
   async resolveManagedModel(
@@ -631,19 +646,25 @@ export class LocalSubtitleModelManager {
     });
   }
 
+  #vadFor(resourceId: string) {
+    return this.#asmrVadManager?.hasResourceId(resourceId) ? this.#asmrVadManager
+      : this.#vadManager?.hasResourceId(resourceId) ? this.#vadManager : undefined;
+  }
+
   async resolveManagedVad(
     resourceId: string,
     signal?: AbortSignal,
   ): Promise<LocalSubtitleServerManagedResourceIdentity<"managed">> {
     this.#assertManagerAvailable();
-    if (!this.#vadManager?.hasResourceId(resourceId)) {
+    const manager = this.#vadFor(resourceId);
+    if (!manager) {
       throw managerFailure(
         "resource_not_allowed",
         "The requested local subtitle VAD is not allowlisted.",
       );
     }
     try {
-      return await this.#vadManager.resolveManagedVad(resourceId, signal);
+      return await manager.resolveManagedVad(resourceId, signal);
     } catch (error) {
       throw normalizeVadManagerError(error);
     }
@@ -727,6 +748,7 @@ export class LocalSubtitleModelManager {
             ? [this.#acceleratorManager.shutdown()]
             : []),
           ...(this.#vadManager ? [this.#vadManager.shutdown()] : []),
+          ...(this.#asmrVadManager ? [this.#asmrVadManager.shutdown()] : []),
         ]);
         const failure = results.find(
           (result): result is PromiseRejectedResult =>
@@ -750,6 +772,7 @@ export class LocalSubtitleModelManager {
     await this.#waitForActiveDeletions();
     await this.#acceleratorManager?.waitForIdle();
     await this.#vadManager?.waitForIdle();
+    await this.#asmrVadManager?.waitForIdle();
     await this.#retryOutstandingCleanup();
   }
 

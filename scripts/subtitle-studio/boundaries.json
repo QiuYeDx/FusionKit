@@ -157,7 +157,9 @@
     "src/translation-knowledge/library-events.ts",
     "src/pages/TranslationKnowledge/KnowledgeCaptureDialog.tsx",
     "src/pages/TranslationKnowledge/capture.ts",
-    "src/pages/TranslationKnowledge/CaptureDestinationFields.tsx"
+    "src/pages/TranslationKnowledge/CaptureDestinationFields.tsx",
+    "electron/main/speech-resources/engine/asmr-vad-definition.ts",
+    "resources/speech-resources/manifests/speech-asmr-vad.v1.json"
   ],
   "packages": [
     "yauzl",
@@ -233,6 +235,11 @@
       "source": "src/pages/TranslationKnowledge/KnowledgeCaptureDialog.tsx",
       "package": "sonner",
       "reason": "The shared multi-wording save dialog (opened after an applied AI revision) uses the existing application toast component for confirmed saves, like QuickTermDialog; no legacy tool service is imported."
+    },
+    {
+      "source": "electron/main/subtitle-studio/transcription/native/japanese-asmr-onnx-vad.ts",
+      "package": "onnxruntime-node",
+      "reason": "CPU inference inside the isolated ASMR timing worker"
     }
   ],
   "dynamicAudits": [

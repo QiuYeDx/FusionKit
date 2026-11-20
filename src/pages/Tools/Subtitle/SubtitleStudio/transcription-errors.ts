@@ -153,7 +153,7 @@ export function studioErrorDiagnostics(facts: Readonly<Record<string, string | n
   return Object.entries(facts).filter(([, value]) => value !== undefined && value !== '').map(([name, value]) => `${name}: ${value}`).join('\n');
 }
 
-type RetryTask = Pick<TranscriptionTaskSummary, 'status' | 'resolvedBackend' | 'audioProfile' | 'error' | 'cleanupPending'>;
+type RetryTask = Pick<TranscriptionTaskSummary, 'status' | 'resolvedBackend' | 'audioProfile' | 'mode' | 'error' | 'cleanupPending'>;
 
 /** A failed task's diagnostics: code, stage, model, device and audio type, never its file. */
 export function transcriptionTaskDiagnostics(task: RetryTask & Pick<TranscriptionTaskSummary, 'modelId'>): string {
@@ -174,7 +174,7 @@ export type TranscriptionRetrySuggestion = 'quiet' | 'cpu';
  */
 export function transcriptionRetrySuggestion(task: RetryTask): TranscriptionRetrySuggestion | undefined {
   if (!transcriptionTaskRetryable(task)) return undefined;
-  if (task.status === 'no_content') return task.audioProfile === 'quiet_whisper_v1' ? undefined : 'quiet';
+  if (task.status === 'no_content') return task.mode === 'japanese_asmr' || task.audioProfile === 'quiet_whisper_v1' ? undefined : 'quiet';
   return task.resolvedBackend !== 'cpu' && task.error
     && (LOCAL_SUBTITLE_CPU_RETRY_ERROR_CODES as readonly string[]).includes(task.error.code) ? 'cpu' : undefined;
 }

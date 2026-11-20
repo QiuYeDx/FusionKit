@@ -50,7 +50,7 @@ export default defineConfig(async ({ command }) => {
       ...(isVitest ? [] : [electron({
         main: {
           // Shortcut of `build.lib.entry`
-          entry: 'electron/main/index.ts',
+          entry: { index: 'electron/main/index.ts', 'japanese-asmr-worker': 'electron/main/subtitle-studio/transcription/native/japanese-asmr-worker.ts' },
           onstart(args) {
             if (process.env.VSCODE_DEBUG) {
               console.log(/* For `.vscode/.debug.script.mjs` */'[startup] Electron App')

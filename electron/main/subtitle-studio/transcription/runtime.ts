@@ -1,3 +1,5 @@
+import { openJapaneseAsmrHost } from './native/japanese-asmr-host';
+import { JAPANESE_ASMR_VAD_MODEL_ID } from '../../../../src/subtitle-studio/transcription/japanese-asmr-contract';
 import path from 'node:path';
 import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { z } from 'zod';
@@ -190,7 +192,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
       verifyServerRuntime: () => verifyRuntime('server'), resolveCudaAccelerator,
       metalAttestationAvailable: attestor.supportedBackends.includes('metal'), cudaAttestationAvailable: attestor.supportedBackends.includes('cuda') });
     if (repository) {
-      const executor = new TranscriptionExecutor({ media, supervisor: server, runtimeEnvironment: environment, resolveCudaAccelerator });
+      const executor = new TranscriptionExecutor({ media, supervisor: server, runtimeEnvironment: environment, resolveCudaAccelerator, openAsmrHost: openJapaneseAsmrHost });
       tasks = createTranscriptionTaskService({ repository, inputs, leases, media, modelResolver: models, backendResolver, executor,
         automaticTranslation: dependencies.automaticTranslation, automaticKnowledge: dependencies.automaticKnowledge, automaticExport: dependencies.automaticExport,
         describeAudioTrack });
@@ -289,7 +291,7 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
     if (!dependencies.sharedResources) return completeOwner(owner, current.tasks.enqueue(owner, request, signal));
     const parsed = enqueueTranscriptionRequestSchema.parse(request), config = parsed.config;
     const use = dependencies.sharedResources.reserveUse([config.modelId,
-      ...(config.vadEnabled ? ['silero-vad-v6.2.0-ggml'] : []),
+      ...(config.mode === 'japanese_asmr' ? [JAPANESE_ASMR_VAD_MODEL_ID] : config.vadEnabled ? ['silero-vad-v6.2.0-ggml'] : []),
       ...((environment.platform ?? process.platform) === 'win32' && ['auto', 'cuda'].includes(config.devicePreference) ? [SPEECH_CUDA_RESOURCE_ID] : [])].map(canonicalResourceId));
     try { return completeOwner(owner, current.tasks.enqueue(owner, parsed, signal)).finally(() => use.release()); }
     catch (error) { use.release(); throw error; }
@@ -398,6 +400,11 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
         const { current, owner } = requireOwner(value);
         if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
         return completeOwner(owner, current.tasks.revealInput(owner, taskId, action, guard));
+      },
+      review(value: LocalSubtitleOwnerKey, taskId: string, offset: number, limit: number) {
+        const { current, owner } = requireOwner(value);
+        if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
+        return current.tasks.review(owner, taskId, offset, limit);
       },
       list(value: LocalSubtitleOwnerKey) {
         const { current, owner } = requireOwner(value);

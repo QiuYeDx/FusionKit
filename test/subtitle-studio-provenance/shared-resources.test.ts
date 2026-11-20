@@ -53,12 +53,12 @@ afterEach(() => {
 
 describe('neutral shared resource extraction provenance', () => {
   it('replays the reviewed transforms from the actual pinned Git commit and checks six exact historical snapshots', () => {
-    expect(checkSharedResourceExtraction({ root: repositoryRoot })).toMatchObject({ sources: 29, outputs: 31, exact: true });
+    expect(checkSharedResourceExtraction({ root: repositoryRoot })).toMatchObject({ sources: 29, outputs: 33, exact: true });
     expect(checkSharedMigrationReceipts({ root: repositoryRoot })).toMatchObject({ receipts: 6, exact: true });
   }, 30_000);
 
   it('reconstructs every output in an isolated fixture using the captured authoritative source bytes', () => {
-    expect(fixture().check()).toMatchObject({ outputs: 31, exact: true });
+    expect(fixture().check()).toMatchObject({ outputs: 33, exact: true });
   });
 
   it.each(['output', 'source', 'source-pin', 'extra-file', 'unsafe-output', 'duplicate-output', 'edit-digest'] as const)('rejects %s drift', mutation => {
@@ -83,7 +83,7 @@ describe('neutral shared resource extraction provenance', () => {
       frozenBlobOid: source.blobOid, currentBlobOid: gitBlobOid(current), reason: 'Reviewed fix.' }] };
     fs.mkdirSync(path.dirname(path.join(f.root, SOURCE_CHANGE_AUDIT_PATH)), { recursive: true });
     fs.writeFileSync(path.join(f.root, SOURCE_CHANGE_AUDIT_PATH), JSON.stringify(audit));
-    expect(f.check()).toMatchObject({ outputs: 31, exact: true });
+    expect(f.check()).toMatchObject({ outputs: 33, exact: true });
     fs.appendFileSync(sourcePath, '// unreviewed\n');
     expect(f.check).toThrow(/Extraction source worktree changed/);
   });

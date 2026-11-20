@@ -76,13 +76,17 @@ export async function createTranscriptExecutorReplay() {
     await fs.symlink(path.join(root, 'node_modules'), path.join(temporary, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir');
     const permitted = new Set(fork.files.map(file => path.join(root, file.destinationPath)));
     permitted.add(path.join(root, plan.files[0].destinationPath));
+    const derivedAdditions = new Set([
+      path.join(root, 'electron/main/subtitle-studio/transcription/native/japanese-asmr-segmentation.ts'),
+      path.join(root, 'src/subtitle-studio/transcription/japanese-asmr-contract.ts'),
+    ]);
     for (const [name, derived] of [['t02', false], ['transcript', true]]) {
       const text = extractHelper(source, derived), entry = path.join(temporary, name + '.ts');
       helperHashes.push({ side: name, sha256: digest(text) }); await write(entry, text);
       const built = await esbuild.build({ entryPoints: [entry], bundle: true, write: false, platform: 'node', format: 'esm', packages: 'external', target: 'node20', metafile: true, logLevel: 'silent',
         plugins: [{ name: 'exact-t02-and-derived-closure', setup(build) {
           build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async args => {
-            if (args.path !== entry && !permitted.has(args.path)) throw new Error(`Executor replay escaped declared sources: ${args.path}`);
+            if (args.path !== entry && !permitted.has(args.path) && !(derived && derivedAdditions.has(args.path))) throw new Error(`Executor replay escaped declared sources: ${args.path}`);
             return { contents: originalUrls(args.path, await fs.readFile(args.path, 'utf8')), loader: args.path.endsWith('.ts') ? 'ts' : 'js' };
           });
         } }],

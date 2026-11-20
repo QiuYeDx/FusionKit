@@ -16,7 +16,7 @@ import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contr
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
 import { exportOptionsSchema, exportIssueCodeSchema, exportDestinationSchema, type SourceLocationSummary, type ExportPlanSummary, type ExportResult } from './export-contract';
 import { batchRequestSchemas, type BatchImportResult, type DeleteBatchResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
-import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, transcriptionTaskConfigSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission } from './transcription/task-contract';
+import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, transcriptionTaskConfigSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission, type JapaneseAsmrReviewRange } from './transcription/task-contract';
 import { TRANSCRIPTION_AUDIO_PROFILES } from './transcription-audio-profiles';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
@@ -106,6 +106,7 @@ export const STUDIO_CHANNELS = {
   cancelTranscriptionResourceJob: 'subtitle-studio:cancel-transcription-resource-job',
   enqueueTranscription: 'subtitle-studio:enqueue-transcription',
   listTranscriptionTasks: 'subtitle-studio:list-transcription-tasks',
+  listTranscriptionReview: 'subtitle-studio:list-transcription-review',
   cancelTranscriptionTask: 'subtitle-studio:cancel-transcription-task',
   removeTranscriptionTask: 'subtitle-studio:remove-transcription-task',
   retryTranscriptionTask: 'subtitle-studio:retry-transcription-task',
@@ -129,6 +130,7 @@ export const transcriptionRequestSchemas = {
   cancelTranscriptionResourceJob: z.object({ jobId: transcriptionRefSchema }).strict(),
   enqueueTranscription: enqueueTranscriptionRequestSchema,
   listTranscriptionTasks: z.object({}).strict(),
+  listTranscriptionReview: z.object({ taskId: idSchema, offset: z.number().int().min(0).max(200_000), limit: z.number().int().min(1).max(100) }).strict(),
   cancelTranscriptionTask: z.object({ taskId: idSchema }).strict(),
   removeTranscriptionTask: z.object({ taskId: idSchema }).strict(),
   // A failed or empty task again, from its own file and settings; an audio type or device instead when given.
@@ -265,6 +267,7 @@ export interface SubtitleStudioApi {
   deleteTranscriptionResource(request: z.infer<typeof requestSchemas.deleteTranscriptionResource>): Promise<StudioResult<{ deleted: boolean }>>;
   cancelTranscriptionResourceJob(request: z.infer<typeof requestSchemas.cancelTranscriptionResourceJob>): Promise<StudioResult<{ cancelled: boolean }>>;
   enqueueTranscription(request: z.infer<typeof requestSchemas.enqueueTranscription>): Promise<StudioResult<TranscriptionBatchAdmission>>;
+  listTranscriptionReview(request: z.infer<typeof requestSchemas.listTranscriptionReview>): Promise<StudioResult<{ readonly total: number; readonly ranges: readonly JapaneseAsmrReviewRange[] }>>;
   listTranscriptionTasks(request: z.infer<typeof requestSchemas.listTranscriptionTasks>): Promise<StudioResult<readonly TranscriptionTaskSummary[]>>;
   cancelTranscriptionTask(request: z.infer<typeof requestSchemas.cancelTranscriptionTask>): Promise<StudioResult<TranscriptionTaskSummary>>;
   removeTranscriptionTask(request: z.infer<typeof requestSchemas.removeTranscriptionTask>): Promise<StudioResult<null>>;

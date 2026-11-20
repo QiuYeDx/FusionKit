@@ -7,7 +7,7 @@ type Sink = ReturnType<typeof createTranscriptionDocumentSink>;
 type Ready = Extract<TranscriptExecutionResult, { status: 'transcript_ready' }>;
 type Terminal = Exclude<TranscriptExecutionResult, Ready>;
 type Commit = Awaited<ReturnType<Sink['publish']>>;
-export type DocumentProductionResult = Terminal | (Commit & Pick<Ready, 'durationMs' | 'cueSummary'>);
+export type DocumentProductionResult = Terminal | (Commit & Pick<Ready, 'durationMs' | 'cueSummary' | 'asmrReview'>);
 
 /** Internal composition only. Task admission must supply verified media/model/backend contexts. */
 export function createTranscriptionDocumentProducer(options: {
@@ -25,7 +25,7 @@ export function createTranscriptionDocumentProducer(options: {
   if (!sameOwner(batch.owner, task.owner) || !sameOwner(task.owner, sink.identity.owner)
     || task.taskId !== sink.identity.taskId || task.generation !== sink.identity.generation
     || task.batchId !== batch.batchId || task.config !== batch.config
-    || task.managedModel !== batch.managedModel || task.managedVad !== batch.managedVad
+    || task.managedModel !== batch.managedModel || task.managedVad !== batch.managedVad || task.asmrVad !== batch.asmrVad
     || task.backendResolution !== batch.backendResolution
     || task.admittedRuntimeGeneration !== batch.admittedRuntimeGeneration) throw new StudioError('invalid_input');
   const signal = AbortSignal.any([batch.signal, task.signal]);
@@ -71,9 +71,9 @@ export function createTranscriptionDocumentProducer(options: {
     // The repository guard checks again at publication. Once published, its
     // receipt wins over late cancellation; no after-commit guard reverses it.
     assertActive();
-    const receipt = await sink.publish(ready.transcript, { signal });
+    const receipt = await sink.publish(ready.transcript, ready.asmrReview?.length ? { signal, suppressAutomation: true } : { signal });
     return Object.freeze({ ...receipt, ...(ready.durationMs === undefined ? {} : { durationMs: ready.durationMs }),
-      cueSummary: ready.cueSummary });
+      cueSummary: ready.cueSummary, ...(ready.asmrReview ? { asmrReview: ready.asmrReview } : {}) });
   }
 
   return Object.freeze({

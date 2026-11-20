@@ -1,3 +1,4 @@
+import { JAPANESE_ASMR_MODEL_ID, JAPANESE_ASMR_VAD_MODEL_ID, type StudioTranscriptionMode } from '../../subtitle-studio/transcription/japanese-asmr-contract';
 import { StudioError, type ErrorCode } from '../../subtitle-studio/domain';
 import { speechResourceIsBusy, type SpeechResourcesNotifications, type SpeechResourcesStatus } from '../../speech-resources/events';
 import type { StudioResult, SubtitleStudioApi, TranscriptionMediaSelection, TranscriptionPathSelection, TranscriptionResourceJob, TranscriptionResources,
@@ -24,7 +25,7 @@ type Config = EnqueueTranscriptionRequest['config'];
 type Api = Pick<SubtitleStudioApi, 'selectTranscriptionMedia' | 'dropTranscriptionMedia' | 'authorizeTranscriptionPaths' | 'probeTranscriptionMedia' | 'revokeTranscriptionMedia'
   | 'inspectTranscriptionRuntime' | 'listTranscriptionResources' | 'importTranscriptionModel' | 'installTranscriptionResource'
   | 'deleteTranscriptionResource' | 'cancelTranscriptionResourceJob' | 'enqueueTranscription' | 'listTranscriptionTasks' | 'cancelTranscriptionTask' | 'removeTranscriptionTask'
-  | 'retryTranscriptionTask'>;
+  | 'retryTranscriptionTask'> & Partial<Pick<SubtitleStudioApi, 'listTranscriptionReview'>>;
 /** What a one-click retry changes: the audio type or the device; anything else is the task's own settings. */
 export type TranscriptionRetryChoice = Omit<Parameters<Api['retryTranscriptionTask']>[0], 'taskId'>;
 type Timer = () => void;
@@ -50,6 +51,8 @@ export interface StudioTranscriptionState {
   /** Failed or empty tasks whose file was moved or modified after they ran: a retry needs the file added again. */
   readonly sourceChangedTaskIds: readonly string[];
   readonly config: Config;
+  readonly mode?: StudioTranscriptionMode;
+  readonly asmrDevice?: Config['devicePreference'];
   readonly autoTranslation: AutomaticTranslationPreferences;
   readonly autoTranslationReady: boolean;
   /** Write each result next to its media when it is done (Studio setting). */
@@ -111,17 +114,23 @@ async function unwrap<T>(operation: Promise<StudioResult<T>>): Promise<T> {
 }
 export type TranscriptionReadinessReason = 'busy' | 'uncertain_submission' | 'configuration_invalid' | 'runtime_not_ready'
   | 'model_not_ready' | 'vad_not_ready' | 'accelerator_not_ready' | 'no_media' | 'automatic_translation_not_ready';
+export function effectiveTranscriptionConfig(state: Pick<StudioTranscriptionState, 'config' | 'mode' | 'asmrDevice'>): Config {
+  if (state.mode !== 'japanese_asmr') return state.config;
+  return { ...DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, mode: 'japanese_asmr', modelId: JAPANESE_ASMR_MODEL_ID,
+    devicePreference: state.asmrDevice ?? state.config.devicePreference, language: 'ja', windowStrategy: 'fixed_v1' };
+}
 export function getTranscriptionReadiness(state: StudioTranscriptionState): { canEnqueue: boolean; readyCount: number; reason: TranscriptionReadinessReason | null } {
+  const config = effectiveTranscriptionConfig(state);
   const readyCount = state.drafts.filter(draft => draft.status === 'ready').length;
   const reason: TranscriptionReadinessReason | null = state.submitting || state.selecting ? 'busy'
     : state.drafts.some(draft => draft.status === 'submission_unknown') ? 'uncertain_submission'
-      : !enqueueTranscriptionRequestSchema.safeParse({ files: [{ fileToken: 'validation-token' }], config: state.config }).success
-        || transcriptionModelMismatch(state.config) ? 'configuration_invalid'
+      : !enqueueTranscriptionRequestSchema.safeParse({ files: [{ fileToken: 'validation-token' }], config: config }).success
+        || transcriptionModelMismatch(config) ? 'configuration_invalid'
         : state.autoTranslation.enabled && !state.autoTranslationReady ? 'automatic_translation_not_ready'
         : state.runtime?.status !== 'verified' ? 'runtime_not_ready'
-          : !state.resources.some(resource => resource.resourceType === 'model' && resource.resourceId === state.config.modelId && resource.status === 'ready') ? 'model_not_ready'
-            : state.config.vadEnabled && !state.resources.some(resource => resource.resourceId === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id && resource.status === 'ready') ? 'vad_not_ready'
-              : state.config.devicePreference === 'cuda' && !state.resources.some(resource => resource.resourceType === 'accelerator' && resource.compatibleBackends.includes('cuda') && resource.status === 'ready') ? 'accelerator_not_ready'
+          : !state.resources.some(resource => resource.resourceType === 'model' && resource.resourceId === config.modelId && resource.status === 'ready') ? 'model_not_ready'
+            : config.vadEnabled && !state.resources.some(resource => resource.resourceId === (state.mode === 'japanese_asmr' ? JAPANESE_ASMR_VAD_MODEL_ID : LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id) && resource.status === 'ready') ? 'vad_not_ready'
+              : config.devicePreference === 'cuda' && !state.resources.some(resource => resource.resourceType === 'accelerator' && resource.compatibleBackends.includes('cuda') && resource.status === 'ready') ? 'accelerator_not_ready'
                 : !readyCount ? 'no_media' : null;
   return { canEnqueue: reason === null, readyCount, reason };
 }
@@ -191,7 +200,7 @@ export class StudioTranscriptionController {
       let value: unknown;
       try { value = this.preferences.read(); } catch { /* Defaults keep the tool usable. */ }
       const saved = readTranscriptionPreferences(value);
-      this.state = Object.freeze({ ...this.state, config: freezeConfig(fitTranscriptionConfig(saved.config)), autoTranslation: freezeAutomatic(saved.autoTranslation),
+      this.state = Object.freeze({ ...this.state, config: freezeConfig(fitTranscriptionConfig(saved.config)), mode: saved.mode, asmrDevice: saved.asmrDevice, autoTranslation: freezeAutomatic(saved.autoTranslation),
         autoExport: Object.freeze({ ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, ...saved.autoExport }) });
       this.configTouched = true;
     }
@@ -349,6 +358,23 @@ export class StudioTranscriptionController {
     this.emit({ config: freezeConfig(fitTranscriptionConfig(parsed.data)), error: null });
     this.refreshTranslationConfiguration(); this.savePreferences();
   };
+  setMode = (mode: StudioTranscriptionMode): void => {
+    if (this.state.submitting) return;
+    this.emit({ mode, error: null });
+    this.refreshTranslationConfiguration();
+    this.savePreferences();
+  };
+  setDevice = (devicePreference: Config['devicePreference']): void => {
+    if (this.state.submitting) return;
+    if (this.state.mode !== 'japanese_asmr') { this.setConfig({ ...this.state.config, devicePreference }); return; }
+    this.emit({ asmrDevice: devicePreference, error: null });
+    this.savePreferences();
+  };
+  listReview = (taskId: string, offset: number) => {
+    const api = this.api();
+    if (!api.listTranscriptionReview) return Promise.reject(new StudioError('unsupported_feature'));
+    return unwrap(api.listTranscriptionReview({ taskId, offset, limit: 50 }));
+  };
   /** A non-standard audio type tunes voice detection, so choosing one also turns it on. */
   setAudioType = (type: TranscriptionAudioType): void => {
     const config = this.state.config;
@@ -380,7 +406,7 @@ export class StudioTranscriptionController {
   setAutomaticKnowledge = (value: AutomaticKnowledgePreferences, generation: number): boolean => {
     if (this.state.submitting || this.state.autoKnowledgeLoading || this.state.autoKnowledgeLibrary?.generation !== generation) return false;
     const parsed = automaticKnowledgePreferencesSchema.safeParse(value);
-    if (!parsed.success || getAutomaticKnowledgeProblem(parsed.data, this.state.autoTranslation.language, this.state.config.taskMode === 'translate_to_english', this.state.autoKnowledgeLibrary)) return false;
+    if (!parsed.success || getAutomaticKnowledgeProblem(parsed.data, this.state.autoTranslation.language, effectiveTranscriptionConfig(this.state).taskMode === 'translate_to_english', this.state.autoKnowledgeLibrary)) return false;
     this.emit({ autoKnowledgeStale: false });
     this.setAutoTranslation({ ...this.state.autoTranslation, knowledge: parsed.data });
     return true;
@@ -401,7 +427,7 @@ export class StudioTranscriptionController {
     return this.automaticKnowledgeRead;
   };
   private savePreferences() {
-    try { this.preferences?.write({ version: 1, config: this.state.config, autoTranslation: this.state.autoTranslation, autoExport: this.state.autoExport }); }
+    try { this.preferences?.write({ version: 1, config: this.state.config, mode: this.state.mode, asmrDevice: this.state.asmrDevice, autoTranslation: this.state.autoTranslation, autoExport: this.state.autoExport }); }
     catch { /* The in-memory choice and current operation remain valid. */ }
   }
   private automaticRequest(): AutomaticTranslationRequest | undefined {
@@ -409,13 +435,14 @@ export class StudioTranscriptionController {
     try {
       const resolved = this.resolveAutomatic?.(this.state.autoTranslation);
       if (!resolved) return;
-      const preferences = this.state.autoTranslation.knowledge;
+      const saved = this.state.autoTranslation.knowledge;
+      const preferences = saved && this.state.mode === 'japanese_asmr' ? { ...saved, sourceLanguage: 'ja' } : saved;
       let knowledge: AutomaticTranslationRequest['knowledge'];
       if (preferences?.enabled) {
         const library = this.state.autoKnowledgeLibrary;
-        if (this.state.autoKnowledgeLoading || this.state.autoKnowledgeStale || getAutomaticKnowledgeProblem(preferences, resolved.config.language, this.state.config.taskMode === 'translate_to_english', library)) return;
+        if (this.state.autoKnowledgeLoading || this.state.autoKnowledgeStale || getAutomaticKnowledgeProblem(preferences, resolved.config.language, effectiveTranscriptionConfig(this.state).taskMode === 'translate_to_english', library)) return;
         const selection: KnowledgeSelection = { version: 2,
-          languagePair: { source: this.state.config.taskMode === 'translate_to_english' ? 'en' : preferences.sourceLanguage, target: automaticKnowledgeTargetLanguage(resolved.config.language) },
+          languagePair: { source: effectiveTranscriptionConfig(this.state).taskMode === 'translate_to_english' ? 'en' : preferences.sourceLanguage, target: automaticKnowledgeTargetLanguage(resolved.config.language) },
           collectionIds: preferences.collectionIds, disabledEntryIds: preferences.disabledEntryIds,
           ...(preferences.instructions !== undefined ? { instructions: preferences.instructions } : {}),
           ...(preferences.context !== undefined ? { context: preferences.context } : {}),
@@ -538,7 +565,7 @@ export class StudioTranscriptionController {
     const automatic = this.automaticRequest();
     const exported = options?.autoExport === undefined ? automaticExportFromPreferences(this.state.autoExport, !!automatic) : options.autoExport ?? undefined;
     if (this.state.autoTranslation.enabled && !automatic) { this.emit({ error: 'needs_configuration' }); return Promise.resolve(null); }
-    const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: this.state.config,
+    const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: effectiveTranscriptionConfig(this.state),
       ...(automatic ? { autoTranslation: automatic } : {}), ...(exported ? { autoExport: exported } : {}) });
     this.taskVersion++; this.emit({ submitting: true, error: null, drafts: Object.freeze(this.state.drafts.map(draft => ids.has(draft.id) ? Object.freeze({ ...draft, status: 'submitting' as const }) : draft)) });
     this.enqueueOperation = Promise.resolve().then(async () => {

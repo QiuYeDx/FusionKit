@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from './domain';
+import { STUDIO_TRANSCRIPTION_MODES } from './japanese-asmr-contract';
+import { LOCAL_SUBTITLE_DEVICE_PREFERENCES, LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from './domain';
 import { transcriptionTaskConfigSchema } from './task-contract';
 import { knowledgeSelectionSchema } from '../../translation-knowledge/execution-contract';
 import { automaticExportPreferencesSchema } from '../automatic-export-contract';
@@ -22,6 +23,8 @@ export const automaticTranslationPreferencesSchema = z.object({
 }).strict().refine(value => value.maxOutputTokens < value.contextWindow);
 export const transcriptionPreferencesSchema = z.object({
   version: z.literal(1),
+  mode: z.enum(STUDIO_TRANSCRIPTION_MODES).optional(),
+  asmrDevice: z.enum(LOCAL_SUBTITLE_DEVICE_PREFERENCES).optional(),
   // Pause-based chunking and a non-standard audio type both need voice detection.
   config: transcriptionTaskConfigSchema.refine(value => (value.windowStrategy !== 'acoustic_quiet_v1' && value.advanced.audioProfile === undefined) || value.vadEnabled),
   autoTranslation: automaticTranslationPreferencesSchema,

@@ -1,3 +1,6 @@
+import { JAPANESE_ASMR_VAD_MODEL_ID } from '../../../../src/subtitle-studio/transcription/japanese-asmr-contract';
+import { ASMR_VAD_DEFINITION } from '../../speech-resources/engine/asmr-vad-definition';
+import type { JapaneseAsmrReviewRange } from '../../../../src/subtitle-studio/transcription/task-contract';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { StudioError, errorCodeSchema, type AudioTrack } from '../../../../src/subtitle-studio/domain';
@@ -40,12 +43,13 @@ interface Record {
   readonly execution: Execution; readonly controller: AbortController;
   summary: TranscriptionTaskSummary; running: boolean; leased: boolean; selectionBound: boolean; cleanupPending: boolean;
   leaseFailure?: unknown;
+  asmrReview?: readonly JapaneseAsmrReviewRange[];
   automatic?: { intent: AutomaticTranslationIntent; apiKey?: string };
   autoExport?: AutomaticExportSpec;
   releaseAutomaticKnowledge?: () => void;
 }
 interface Admission {
-  readonly ownerKey: string; readonly modelId: string; readonly vad: boolean; readonly device: string;
+  readonly ownerKey: string; readonly modelId: string; readonly vadId?: string; readonly device: string;
   readonly controller: AbortController; readonly count: number;
   detach?: () => void;
   state: 'pending' | 'ready' | 'skipped'; records: Record[];
@@ -152,7 +156,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     return failures;
   }
   function finish(record: Record, change: Partial<TranscriptionTaskSummary>) {
-    update(record, { ...change, ...(record.automatic && change.status !== 'completed' ? { automaticTranslation: undefined } : {}) });
+    update(record, { phase: undefined, ...change, ...(record.automatic && change.status !== 'completed' ? { automaticTranslation: undefined } : {}) });
     record.automatic = undefined;
     // Completion is reported only after the document and intent commit together.
     // Failed/cancelled records can no longer publish; each returns its batch share once.
@@ -224,20 +228,25 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       await renew(record);
       const [model, vad] = await joined([
         options.modelResolver.resolveManagedModel(record.execution.managedModel.id, record.controller.signal),
-        record.execution.managedVad ? options.modelResolver.resolveManagedVad(record.execution.managedVad.id, record.controller.signal) : undefined,
+        resolveTaskVad(options.modelResolver, record.execution.asmrVad?.id ?? record.execution.managedVad?.id, record.controller.signal),
       ] as const);
       assertActive(record);
-      if (!sameResource(model, record.execution.managedModel) || !sameResource(vad, record.execution.managedVad))
+      if (!sameResource(model, record.execution.managedModel) || !sameResource(vad, record.execution.asmrVad ?? record.execution.managedVad))
         throw createLocalSubtitleError('model_corrupt', 'Managed transcription resources changed.', { stage: 'loading_model' });
       update(record, { status: 'preparing_media' });
       const batch: TranscriptionBatchExecutionContext = Object.freeze({ ...record.execution, signal: record.controller.signal });
       const task: Omit<TranscriptionTaskExecutionContext, 'batchRuntime'> = Object.freeze({ ...batch,
         taskId: record.taskId, generation: 1, fileToken: record.fileToken,
         ...(record.audioStreamId ? { audioStreamId: record.audioStreamId } : {}),
+        ...(record.execution.asmrVad ? { updateAsmr(phase: NonNullable<TranscriptionTaskSummary['phase']>, progress: number) {
+          assertActive(record);
+          update(record, { status: 'transcribing', phase, progress: Math.max(record.summary.progress, progress) });
+        } } : {}),
         update(value: LocalSubtitleJobTaskUpdate) {
           assertActive(record);
           if (value.status === 'exporting') throw new StudioError('unsupported_feature');
-          update(record, { status: value.status, progress: Math.max(0, Math.min(100, value.progress.overallProgress)),
+          update(record, { status: value.status, phase: undefined, progress: record.execution.asmrVad ? Math.max(record.summary.progress, Math.min(100, value.progress.overallProgress))
+              : Math.max(0, Math.min(100, value.progress.overallProgress)),
             ...(validDuration(value.durationMs) ? { durationMs: value.durationMs } : {}) });
           // The derived executor never reads this legacy callback return value.
           return undefined as unknown as ReturnType<TranscriptionTaskExecutionContext['update']>;
@@ -264,9 +273,13 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
         assertActive: () => assertActive(record) });
       const result = await producer.run();
       const duration = validDuration(result.durationMs) ? { durationMs: result.durationMs } : {};
+      const review = 'asmrReview' in result ? result.asmrReview : undefined;
+      record.asmrReview = review;
+      const asmr = review?.length ? { asmrReviewCount: review.length, automaticTranslation: undefined } : {};
       if (result.status === 'committed') {
         const intentId = record.automatic?.intent.intentId, apiKey = record.automatic?.apiKey ?? '';
-        finish(record, { status: 'completed', progress: 100, documentId: result.documentId, documentDurability: result.durability, ...duration });
+        finish(record, { status: 'completed', progress: 100, documentId: result.documentId, documentDurability: result.durability, phase: undefined, ...duration, ...asmr });
+        if (review?.length) return;
         // Without a translation the transcript is the final result; with one, its completion exports.
         if (record.autoExport && !intentId) void options.automaticExport?.exportDocument(result.documentId);
         if (intentId) {
@@ -286,7 +299,8 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       }
       else if (result.status === 'no_content') {
         assertActive(record);
-        finish(record, { status: 'no_content', progress: 100, ...duration });
+        finish(record, { status: 'no_content', progress: 100, phase: undefined, ...duration, ...asmr,
+          ...(record.execution.asmrVad ? { asmrNoContent: review?.length ? 'review' : 'no_speech' } : {}) });
       }
       else if (result.status === 'failed') finish(record, { status: 'failed', error: publicError(result.error), ...duration });
       else finish(record, { status: record.leaseFailure ? 'failed' : 'cancelled',
@@ -312,7 +326,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
     if (records.size + [...admissions].reduce((sum, admission) => sum + admission.count, 0) + parsed.data.files.length > LOCAL_SUBTITLE_LIMITS.maxSessionTasks)
       return Promise.reject(new StudioError('limit_exceeded'));
     // Synchronous ticket acquisition preserves invocation order across asynchronous authorities.
-    const admission: Admission = { ownerKey: owner.key, modelId: parsed.data.config.modelId, vad: parsed.data.config.vadEnabled,
+    const admission: Admission = { ownerKey: owner.key, modelId: parsed.data.config.modelId, vadId: selectedVad(parsed.data.config),
       device: parsed.data.config.devicePreference, controller: new AbortController(), count: parsed.data.files.length, state: 'pending', records: [] };
     admissions.add(admission); tickets.push(admission);
     if (signal) {
@@ -341,14 +355,18 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       }
       const [managedModel, managedVad, inputs, runtime] = await joined([
         options.modelResolver.resolveManagedModel(request.config.modelId, signal),
-        request.config.vadEnabled ? options.modelResolver.resolveManagedVad(LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id, signal) : undefined,
+        resolveTaskVad(options.modelResolver, admission.vadId, signal),
         joined(request.files.map(file => options.inputs.resolveDraft(owner.owner, file.fileToken, 'transcribe'))),
         options.media.verifyRuntime({ owner: owner.owner, signal }),
       ] as const);
       assertLive(owner, signal);
       assertModel(managedModel, request.config.modelId);
-      if (request.config.vadEnabled) { assertModel(managedVad!, LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id);
-        if (managedVad!.sha256 !== LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256) throw new StudioError('invalid_input'); }
+      const asmrMode = request.config.mode === 'japanese_asmr';
+      if (admission.vadId) {
+        assertModel(managedVad!, admission.vadId);
+        const expectedHash = asmrMode ? ASMR_VAD_DEFINITION.sha256 : LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.sha256;
+        if (managedVad!.sha256 !== expectedHash || (asmrMode && managedVad!.byteSize !== ASMR_VAD_DEFINITION.byteSize)) throw new StudioError('invalid_input');
+      }
       if (!/^[a-f0-9]{64}$/.test(runtime.runtimeGeneration)) throw new StudioError('invalid_input');
       for (let index = 0; index < inputs.length; index++) {
         const input = inputs[index]!;
@@ -366,7 +384,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
         throw new StudioError('invalid_input');
       const config = freezeConfig(request, managedModel, backendResolution.resolvedBackend);
       const execution: Execution = Object.freeze({ owner: owner.owner, batchId, config,
-        managedModel: Object.freeze({ ...managedModel }), ...(managedVad ? { managedVad: Object.freeze({ ...managedVad }) } : {}),
+        managedModel: Object.freeze({ ...managedModel }), ...(managedVad ? { [asmrMode ? 'asmrVad' : 'managedVad']: Object.freeze({ ...managedVad }) } : {}),
         admittedRuntimeGeneration: runtime.runtimeGeneration, backendResolution });
       const requestedConfig = Object.freeze({ ...request.config, advanced: Object.freeze({ ...request.config.advanced }) });
       for (let index = 0; index < inputs.length; index++) {
@@ -382,6 +400,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
           ...(request.autoExport ? { autoExport: structuredClone(request.autoExport) } : {}),
           summary: publicSummary({ taskId, batchId, generation: 1, displayName: input.displayName, status: 'queued', progress: 0,
             createdAt: now, updatedAt: now, modelId: managedModel.id, ...(request.config.mode ? { mode: request.config.mode } : {}), resolvedBackend: backendResolution.resolvedBackend,
+            ...(asmrMode && managedVad ? { asmrTimingModel: { id: JAPANESE_ASMR_VAD_MODEL_ID, backend: 'cpu' as const, sha256: managedVad.sha256 } } : {}),
             ...(request.config.advanced.audioProfile ? { audioProfile: request.config.advanced.audioProfile } : {}),
             ...(request.autoTranslation ? { automaticTranslation: { status: 'pending' as const } } : {}) }) });
       }
@@ -505,7 +524,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       return { files: [{ fileToken: media.fileToken, ...(record.audioStreamId ? { audioStreamId: record.audioStreamId } : {}) }],
         config: { ...requested, ...(devicePreference ? { devicePreference } : {}),
           // An audio type tunes voice detection, so it turns it on, as choosing one in the settings does.
-          ...(audioProfile ? { vadEnabled: true, advanced: { ...requested.advanced, audioProfile } } : {}) } };
+          ...(audioProfile && requested.mode !== 'japanese_asmr' ? { vadEnabled: true, advanced: { ...requested.advanced, audioProfile } } : {}) } };
     },
     list(value: LocalSubtitleOwnerKey): readonly TranscriptionTaskSummary[] {
       const owner = ownerFor(value); return Object.freeze([...records.values()].filter(record => record.ownerKey === owner.key).map(record => record.summary));
@@ -521,12 +540,17 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       const failures = releaseBindings(record); if (failures.length) throw cleanupError();
       records.delete(taskId); sourceClaims.delete(sourceClaim(record.ownerKey, record.sourceKey));
     },
+    review(value: LocalSubtitleOwnerKey, taskId: string, offset: number, limit: number) {
+      const record = owned(value, taskId);
+      const ranges = record.asmrReview ?? [];
+      return Object.freeze({ total: ranges.length, ranges: Object.freeze(ranges.slice(offset, offset + limit)) });
+    },
     isResourceBusy(resourceId: string): boolean {
       return [...admissions].some(admission => admission.modelId === resourceId
-        || (admission.vad && resourceId === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id)
+        || admission.vadId === resourceId
         || (['auto', 'cuda'].includes(admission.device) && resourceId === LOCAL_SUBTITLE_WINDOWS_CUDA_PACK_DEFINITION.resourceId))
         || [...records.values()].some(record => (!terminal(record) || record.running || record.cleanupPending)
-          && (record.execution.managedModel.id === resourceId || record.execution.managedVad?.id === resourceId
+          && (record.execution.managedModel.id === resourceId || record.execution.managedVad?.id === resourceId || record.execution.asmrVad?.id === resourceId
             || record.execution.backendResolution.acceleratorPack?.resourceId === resourceId));
     },
     /** Main-only: called after all native runtime cleanup has succeeded. */
@@ -588,6 +612,12 @@ function assertModel(model: Managed, id: string) {
 function sameResource(a: Managed | undefined, b: Managed | undefined) {
   return !a || !b ? a === b : a.storage === b.storage && a.id === b.id && a.absolutePath === b.absolutePath && a.byteSize === b.byteSize && a.sha256 === b.sha256;
 }
+function selectedVad(config: EnqueueTranscriptionRequest['config']) {
+  return config.mode === 'japanese_asmr' ? JAPANESE_ASMR_VAD_MODEL_ID : config.vadEnabled ? LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id : undefined;
+}
+function resolveTaskVad(resolver: LocalSubtitleJobModelResolver, id: string | undefined, signal: AbortSignal) {
+  return id ? resolver.resolveManagedVad(id, signal) : undefined;
+}
 function freezeConfig(request: EnqueueTranscriptionRequest, model: Managed, backend: Execution['config']['resolvedBackend']): Execution['config'] {
   return Object.freeze({ schemaVersion: LOCAL_SUBTITLE_DOMAIN_SCHEMA_VERSION, serverHttpContractVersion: LOCAL_SUBTITLE_SERVER_HTTP_CONTRACT_VERSION,
     snapshotId: randomUUID(), createdAt: timestamp(),
@@ -597,7 +627,7 @@ function freezeConfig(request: EnqueueTranscriptionRequest, model: Managed, back
     language: request.config.language, taskMode: request.config.taskMode,
     inference: Object.freeze({ cuePolicy: LOCAL_SUBTITLE_CUE_POLICY, windowStrategy: request.config.windowStrategy ?? 'fixed_v1',
       advanced: Object.freeze({ ...request.config.advanced }),
-      vad: Object.freeze({ enabled: request.config.vadEnabled, modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
+      vad: Object.freeze({ enabled: request.config.mode !== 'japanese_asmr' && request.config.vadEnabled, modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id,
         tokenTimestamps: false, timelinePolicy: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.timelinePolicy }),
       rawQualityGate: Object.freeze({ maxSegmentDurationMs: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxRawSegmentDurationMs,
         repeatedCueThreshold: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.repeatedCueThreshold,

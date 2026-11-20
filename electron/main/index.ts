@@ -1,3 +1,4 @@
+import { smokeJapaneseAsmrVad } from './subtitle-studio/transcription/native/japanese-asmr-host';
 import { app, BrowserWindow, shell, ipcMain, dialog, Notification, Menu } from "electron";
 import { createRequire } from "node:module";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -281,7 +282,7 @@ app.whenReady().then(async () => {
     environment: localSubtitleResourceEnvironment,
   });
   const speechResources = new SpeechResourceService({ userDataRoot: app.getPath("userData"),
-    smokeModel: speechResourceSmoke.smokeModel, smokeVad: speechResourceSmoke.smokeVad, ...network.speechDownloads });
+    smokeModel: speechResourceSmoke.smokeModel, smokeVad: speechResourceSmoke.smokeVad, smokeAsmrVad: smokeJapaneseAsmrVad, ...network.speechDownloads });
   // A failed migration remains visible through status; consumers cannot use uninitialized resources.
   const speechResourcesInitialized = await speechResources.initialize().then(() => true, () => {
     console.error("Shared speech resource initialization failed."); return false;

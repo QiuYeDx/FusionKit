@@ -87,6 +87,7 @@ export interface LocalSubtitleVadManagerOptions {
     signal?: AbortSignal,
   ) => Promise<LocalSubtitleServerManagedResourceIdentity<"managed">>;
   readonly definition?: LocalSubtitleVadDefinition;
+  readonly smokeStandalone?: (modelPath: string, signal: AbortSignal) => Promise<void>;
   readonly availableBytes?: (directory: string) => Promise<number>;
   readonly stagingIdFactory?: () => string;
   readonly downloadResource?: (
@@ -164,6 +165,7 @@ export class LocalSubtitleVadManager {
   readonly #platform: string;
   readonly #resourceJobs: LocalSubtitleResourceJobManager;
   readonly #smokeVad: SpeechResourceVadSmoke;
+  readonly #smokeStandalone: LocalSubtitleVadManagerOptions["smokeStandalone"];
   readonly #resolveSmokeModel: LocalSubtitleVadManagerOptions["resolveSmokeModel"];
   readonly #definition: LocalSubtitleVadDefinition;
   readonly #availableBytes: (directory: string) => Promise<number>;
@@ -213,6 +215,7 @@ export class LocalSubtitleVadManager {
     this.#platform = options.platform ?? process.platform;
     this.#resourceJobs = options.resourceJobs;
     this.#smokeVad = options.smokeVad;
+    this.#smokeStandalone = options.smokeStandalone;
     this.#resolveSmokeModel = options.resolveSmokeModel;
     this.#definition = validateDefinition(
       options.definition ?? LOCAL_SUBTITLE_PRODUCTION_VAD_DEFINITION,
@@ -316,7 +319,7 @@ export class LocalSubtitleVadManager {
       version: definition.version,
       byteSize: definition.byteSize,
       isDefault: definition.isDefault,
-      compatibleBackends: ["cpu", "cuda", "metal"] as Array<
+      compatibleBackends: (this.#smokeStandalone ? ["cpu"] : ["cpu", "cuda", "metal"]) as Array<
         "cpu" | "cuda" | "metal"
       >,
     };
@@ -493,17 +496,20 @@ export class LocalSubtitleVadManager {
         bytesCompleted: definition.byteSize,
         bytesTotal: definition.byteSize,
       });
-      const smokeModel = await this.#resolveSmokeModel(context.signal);
-      throwIfCancelled(context);
-      await this.#smokeVad({ owner, model: smokeModel, vad: {
-            storage: "managed_staging",
-            id: definition.resourceId,
-            absolutePath: stagedVadPath,
-            byteSize: definition.byteSize,
-            sha256: definition.sha256,
-          },
-        signal: context.signal,
-      });
+      if (this.#smokeStandalone) await this.#smokeStandalone(stagedVadPath, context.signal);
+      else {
+        const smokeModel = await this.#resolveSmokeModel(context.signal);
+        throwIfCancelled(context);
+        await this.#smokeVad({ owner, model: smokeModel, vad: {
+              storage: "managed_staging",
+              id: definition.resourceId,
+              absolutePath: stagedVadPath,
+              byteSize: definition.byteSize,
+              sha256: definition.sha256,
+            },
+          signal: context.signal,
+        });
+      }
       await this.#verifyVad(transaction.currentPath, context.signal, true);
       throwIfCancelled(context);
 

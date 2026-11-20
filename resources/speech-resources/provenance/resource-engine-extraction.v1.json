@@ -485,9 +485,15 @@
         "electron/main/local-subtitle/resource-startup-cleaner.ts"
       ],
       "baseSourcePath": "electron/main/local-subtitle/resource-startup-cleaner.ts",
-      "byteSize": 25343,
-      "sha256": "de8872e3f62853779503e6f6469a7b4387d5bf55a76dfb8caa5fd6d1cc20567d",
+      "byteSize": 25766,
+      "sha256": "333c7db9a2cb4d6bf598a6e6713a160f8990c6c88ecfcbf90911f991e8020936",
       "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "import { ASMR_VAD_DEFINITION } from './asmr-vad-definition';\n"
+        },
         {
           "startByte": 1952,
           "endByte": 1952,
@@ -511,9 +517,27 @@
           "endByte": 3384,
           "removedSha256": "e6df4acc938fdc77245882fb7fb410a21eafc61efad519389bec0bf8f61b43bb",
           "insertedText": "  const stagingDefinitions = sessionOnly ? [] : productionStagingDefinitions(platform, arch);\n"
+        },
+        {
+          "startByte": 10373,
+          "endByte": 10373,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "    {\n      resourceId: ASMR_VAD_DEFINITION.resourceId,\n      sourceUrl: ASMR_VAD_DEFINITION.downloadUrl,\n      allowedHosts: ASMR_VAD_DEFINITION.allowedDownloadHosts,\n      expectedBytes: ASMR_VAD_DEFINITION.byteSize,\n      downloadDirectoryName: LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.downloadsDirectoryName,\n    },\n"
+        },
+        {
+          "startByte": 11344,
+          "endByte": 11410,
+          "removedSha256": "6bc0a3dcb82e478656a9e5e5d3ce1e0dbb93b1791ea0eb342525f9ecbfa92b56",
+          "insertedText": "  const vadIds = [LOCAL_SUBTITLE_VAD_MANIFEST.vad.id, ASMR_VAD_DEFINITION.resourceId].map(escapeRegExp);\n"
+        },
+        {
+          "startByte": 11763,
+          "endByte": 11869,
+          "removedSha256": "bfdf454aedd06fdfd65e65381b6ed5febdd9cc70fa7e3b76191ce246678bf83f",
+          "insertedText": "        ...vadIds.map(id => ownedPattern(`\\\\.install-${id}-${UUID_SOURCE}-${MKDTEMP_SUFFIX_SOURCE}`)),\n"
         }
       ],
-      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained Include the pinned Japanese ASMR model in the existing download and staged-directory recovery inventory."
     },
     {
       "path": "electron/main/speech-resources/engine/model-manifest.ts",
@@ -808,14 +832,14 @@
         "electron/main/local-subtitle/model-manager.ts"
       ],
       "baseSourcePath": "electron/main/local-subtitle/model-manager.ts",
-      "byteSize": 90064,
-      "sha256": "e803835806d8c8405cf422c7a3a23c439f051445f9d5482530e6729c33f0bf1d",
+      "byteSize": 91212,
+      "sha256": "fcc04f18605cf0eaef401c2977c21d759cd77030c9ee302bfe50580da67e3a46",
       "edits": [
         {
           "startByte": 0,
           "endByte": 0,
           "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-          "insertedText": "import { SpeechResourceSmokeError, type SpeechResourceModelSmoke, type SpeechResourceVadSmoke } from \"../../../../src/speech-resources/contracts\";\n"
+          "insertedText": "import { ASMR_VAD_DEFINITION } from './asmr-vad-definition';\nimport { SpeechResourceSmokeError, type SpeechResourceModelSmoke, type SpeechResourceVadSmoke } from \"../../../../src/speech-resources/contracts\";\n"
         },
         {
           "startByte": 554,
@@ -851,7 +875,7 @@
           "startByte": 4479,
           "endByte": 4601,
           "removedSha256": "2c5bb8c18da4452a44ea1011c5816a726ea6907637442a800c28ccb85d687969",
-          "insertedText": "  readonly platform?: NodeJS.Platform | string;\n  readonly arch?: string;\n  readonly smokeModel: SpeechResourceModelSmoke;\n  readonly smokeVad: SpeechResourceVadSmoke;\n"
+          "insertedText": "  readonly platform?: NodeJS.Platform | string;\n  readonly arch?: string;\n  readonly smokeModel: SpeechResourceModelSmoke;\n  readonly smokeVad: SpeechResourceVadSmoke;\n  readonly smokeAsmrVad?: (modelPath: string, signal: AbortSignal) => Promise<void>;\n"
         },
         {
           "startByte": 5110,
@@ -876,6 +900,12 @@
           "endByte": 8719,
           "removedSha256": "e576cd997b4e0651dbcc861734f233060f2908c8b596e785340bcc120a896efa",
           "insertedText": "  readonly #smokeModel: SpeechResourceModelSmoke;\n"
+        },
+        {
+          "startByte": 8968,
+          "endByte": 8968,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "  readonly #asmrVadManager: LocalSubtitleVadManager | undefined;\n"
         },
         {
           "startByte": 9103,
@@ -926,6 +956,84 @@
           "insertedText": ""
         },
         {
+          "startByte": 14841,
+          "endByte": 14841,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "    if (options.smokeAsmrVad) this.#asmrVadManager = new LocalSubtitleVadManager({\n      ...options.vadOptions,\n      managedResourceRoot: this.#managedResourceRoot, platform,\n      resourceJobs: this.#resourceJobs, smokeVad: options.smokeVad,\n      resolveSmokeModel: () => { throw new Error('ASMR VAD uses its own runtime.'); },\n      definition: ASMR_VAD_DEFINITION, smokeStandalone: options.smokeAsmrVad,\n      downloadResource: this.#downloadResource, isResourceBusy: this.#isResourceBusy,\n    });\n\n"
+        },
+        {
+          "startByte": 16573,
+          "endByte": 16628,
+          "removedSha256": "d74e5fc9f8632d1a24c62ff41b435fde12d5b32266eb1a10817cefb0ad14238b",
+          "insertedText": "    const manager = this.#vadFor(resourceId);\n    if (manager) {\n"
+        },
+        {
+          "startByte": 16640,
+          "endByte": 16713,
+          "removedSha256": "a3c2a7cc1a7167f64664fcac07d00b318d7e6bb0c7fb88b0a65df1447d8f5bca",
+          "insertedText": "        return manager.startResourceInstall(owner, resourceId);\n"
+        },
+        {
+          "startByte": 17457,
+          "endByte": 17512,
+          "removedSha256": "d74e5fc9f8632d1a24c62ff41b435fde12d5b32266eb1a10817cefb0ad14238b",
+          "insertedText": "    const manager = this.#vadFor(resourceId);\n    if (manager) {\n"
+        },
+        {
+          "startByte": 17524,
+          "endByte": 17597,
+          "removedSha256": "75677183fc8e6d1a24a8f834b28b8b2f36f1033b5624e380e9f95734941f9af9",
+          "insertedText": "        return await manager.deleteManagedResource(resourceId);\n"
+        },
+        {
+          "startByte": 19569,
+          "endByte": 19629,
+          "removedSha256": "96f5cc0c20b80df58694c2e1772764784dc3f83aaa26b6d92b5676e07f645d2f",
+          "insertedText": "    const [models, vad, asmrVad, accelerators] = await Promise.all([\n"
+        },
+        {
+          "startByte": 21322,
+          "endByte": 21322,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "      this.#asmrVadManager?.listManagedResources(signal) ?? Promise.resolve([]),\n"
+        },
+        {
+          "startByte": 21415,
+          "endByte": 21479,
+          "removedSha256": "f6d724d67804866316e66bc98a87dc70923632c4afd3502ee506816bfbba5022",
+          "insertedText": "    return Object.freeze([...models, ...vad, ...asmrVad, ...accelerators]);\n"
+        },
+        {
+          "startByte": 22307,
+          "endByte": 22307,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "  #vadFor(resourceId: string) {\n    return this.#asmrVadManager?.hasResourceId(resourceId) ? this.#asmrVadManager\n      : this.#vadManager?.hasResourceId(resourceId) ? this.#vadManager : undefined;\n  }\n\n"
+        },
+        {
+          "startByte": 22490,
+          "endByte": 22546,
+          "removedSha256": "97eb19cb9fc06cb3ba0570f348cf0364a5cdba06d8dff79eaa65bab2588c4eda",
+          "insertedText": "    const manager = this.#vadFor(resourceId);\n    if (!manager) {\n"
+        },
+        {
+          "startByte": 22695,
+          "endByte": 22770,
+          "removedSha256": "91ac7bb799853e343b0b0aef9163114aef13e4f29fa0ceb0a8a95080ed8c647c",
+          "insertedText": "      return await manager.resolveManagedVad(resourceId, signal);\n"
+        },
+        {
+          "startByte": 25403,
+          "endByte": 25403,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "          ...(this.#asmrVadManager ? [this.#asmrVadManager.shutdown()] : []),\n"
+        },
+        {
+          "startByte": 26156,
+          "endByte": 26156,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "    await this.#asmrVadManager?.waitForIdle();\n"
+        },
+        {
           "startByte": 32827,
           "endByte": 33202,
           "removedSha256": "325889230273638bba8d9fa1bbc68767f1f911206f4540c8cb77b7eb08519dbc",
@@ -962,7 +1070,7 @@
           "insertedText": ""
         }
       ],
-      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained ASMR timing VAD uses the existing independent payload transaction and an ONNX-only smoke callback."
     },
     {
       "path": "electron/main/speech-resources/engine/vad-manager.ts",
@@ -971,8 +1079,8 @@
         "electron/main/local-subtitle/vad-manager.ts"
       ],
       "baseSourcePath": "electron/main/local-subtitle/vad-manager.ts",
-      "byteSize": 40654,
-      "sha256": "6baf361e270945826b0687cb3c592d284e145665e23a0a095ca26b8cd6bd7a62",
+      "byteSize": 41047,
+      "sha256": "b05263c67ad7aa8f8754f247d2ad03ae4fe587835b851d4be8ebc461ac02fc42",
       "edits": [
         {
           "startByte": 0,
@@ -1011,10 +1119,16 @@
           "insertedText": ""
         },
         {
+          "startByte": 3268,
+          "endByte": 3268,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "  readonly smokeStandalone?: (modelPath: string, signal: AbortSignal) => Promise<void>;\n"
+        },
+        {
           "startByte": 5364,
           "endByte": 5421,
           "removedSha256": "85098f8576d69175f2f099fb0e8f87a905e5bee0259a46e3f31482494f6ce30b",
-          "insertedText": "  readonly #smokeVad: SpeechResourceVadSmoke;\n"
+          "insertedText": "  readonly #smokeVad: SpeechResourceVadSmoke;\n  readonly #smokeStandalone: LocalSubtitleVadManagerOptions[\"smokeStandalone\"];\n"
         },
         {
           "startByte": 5505,
@@ -1032,7 +1146,7 @@
           "startByte": 7659,
           "endByte": 7702,
           "removedSha256": "080cb75c9ca10dcb4f331ba4fc16163bd94ab0d2b516db06062701a3cbfdfa02",
-          "insertedText": "    this.#smokeVad = options.smokeVad;\n"
+          "insertedText": "    this.#smokeVad = options.smokeVad;\n    this.#smokeStandalone = options.smokeStandalone;\n"
         },
         {
           "startByte": 7759,
@@ -1041,19 +1155,19 @@
           "insertedText": ""
         },
         {
-          "startByte": 17626,
-          "endByte": 18009,
-          "removedSha256": "43dc4048293aea90af947d321fe1e42123bc06a50007f09a44f9d4fef9dbe34d",
-          "insertedText": "      await this.#smokeVad({ owner, model: smokeModel, vad: {\n"
+          "startByte": 11383,
+          "endByte": 11444,
+          "removedSha256": "a63efb87559ea503da3f51938b9ab839b75e98f68978e8b5c11cdca07145ebe7",
+          "insertedText": "      compatibleBackends: (this.#smokeStandalone ? [\"cpu\"] : [\"cpu\", \"cuda\", \"metal\"]) as Array<\n"
         },
         {
-          "startByte": 18224,
+          "startByte": 17521,
           "endByte": 18335,
-          "removedSha256": "04e1db6dca4cce3502476f1185d799d0d0f9956bff0262ee4669fbbee38981cf",
-          "insertedText": "        signal: context.signal,\n      });\n"
+          "removedSha256": "d39bb602bf3dff23ea83197d1984367ed8e08a8d04c0d671df68f07731046e27",
+          "insertedText": "      if (this.#smokeStandalone) await this.#smokeStandalone(stagedVadPath, context.signal);\n      else {\n        const smokeModel = await this.#resolveSmokeModel(context.signal);\n        throwIfCancelled(context);\n        await this.#smokeVad({ owner, model: smokeModel, vad: {\n              storage: \"managed_staging\",\n              id: definition.resourceId,\n              absolutePath: stagedVadPath,\n              byteSize: definition.byteSize,\n              sha256: definition.sha256,\n            },\n          signal: context.signal,\n        });\n      }\n"
         }
       ],
-      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained"
+      "reason": "Reviewed neutral resource extraction: fixed catalog metadata, neutral imports, resource-only declarations and smoke callbacks; installation, verification and cleanup semantics retained ASMR timing VAD uses the existing independent payload transaction and an ONNX-only smoke callback."
     },
     {
       "path": "electron/main/speech-resources/catalog.ts",
@@ -1768,6 +1882,40 @@
         }
       ],
       "reason": "Reviewed neutral resource extraction: controlled unit fixture imports and resource-only callback signatures"
+    },
+    {
+      "path": "electron/main/speech-resources/engine/asmr-vad-definition.ts",
+      "kind": "new",
+      "sourcePaths": [],
+      "baseSourcePath": null,
+      "byteSize": 807,
+      "sha256": "14c36c0a0ad02ad520610515ecd1c7cca8d7792229e616d9967980ba03afc100",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "import manifest from '../../../../resources/speech-resources/manifests/speech-asmr-vad.v1.json';\nimport { JAPANESE_ASMR_VAD_MODEL_ID } from '../../../../src/subtitle-studio/transcription/japanese-asmr-contract';\nimport type { LocalSubtitleVadDefinition } from './vad-manager';\n\nexport const ASMR_VAD_DEFINITION = Object.freeze({\n  resourceId: JAPANESE_ASMR_VAD_MODEL_ID,\n  displayName: 'Whisper VAD EncDec ASMR',\n  version: manifest.sourceRevision,\n  fileName: manifest.fileName,\n  downloadUrl: manifest.downloadUrl,\n  allowedDownloadHosts: Object.freeze(['huggingface.co', '*.hf.co']),\n  byteSize: manifest.byteSize,\n  sha256: manifest.sha256,\n  isDefault: false,\n  manifestFileName: 'manifest.json',\n  manifestBytes: Buffer.from(JSON.stringify(manifest), 'utf8'),\n} satisfies LocalSubtitleVadDefinition);\n"
+        }
+      ],
+      "reason": "Japanese ASMR timing model identity from the pinned upstream ONNX release."
+    },
+    {
+      "path": "resources/speech-resources/manifests/speech-asmr-vad.v1.json",
+      "kind": "new",
+      "sourcePaths": [],
+      "baseSourcePath": null,
+      "byteSize": 496,
+      "sha256": "4c5145195f426520d8d998e4f6634a9f394a20529062e8d0d314853dae42a4e4",
+      "edits": [
+        {
+          "startByte": 0,
+          "endByte": 0,
+          "removedSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "insertedText": "{\n  \"id\": \"whisper-vad-encdec-asmr-onnx\",\n  \"format\": \"onnx\",\n  \"engineCompatibility\": \"onnxruntime-node@1.21.1 (CPU)\",\n  \"sourceRevision\": \"6963d4305de71a565ef84ecce4e14982b27371d4\",\n  \"fileName\": \"model.onnx\",\n  \"byteSize\": 119137398,\n  \"sha256\": \"cd47513515766d57f740e3094440dbbca9ab87e026b9cf21540d7ad588c0e047\",\n  \"license\": \"MIT\",\n  \"downloadUrl\": \"https://huggingface.co/TransWithAI/Whisper-Vad-EncDec-ASMR-onnx/resolve/6963d4305de71a565ef84ecce4e14982b27371d4/model.onnx?download=true\"\n}\n"
+        }
+      ],
+      "reason": "Japanese ASMR timing model identity from the pinned upstream ONNX release."
     }
   ],
   "sourceCheckoutPolicy": "Git blobs are authoritative; source checkout permits only CRLF-to-LF normalization. Output bytes must match exactly.",

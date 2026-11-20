@@ -15,16 +15,16 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
   const id = useId();
   const [saveError, setSaveError] = useState(false);
   const saved = state.autoTranslation.knowledge ?? DEFAULT_AUTOMATIC_KNOWLEDGE;
-  const englishOutput = state.config.taskMode === 'translate_to_english';
+  const lockedSource = state.mode === 'japanese_asmr' ? 'ja' : state.config.taskMode === 'translate_to_english' ? 'en' : undefined;
   const value = activeAutomaticMaterials(saved, state.autoTranslation.language);
-  if (englishOutput) value.languagePair.source = 'en';
+  if (lockedSource) value.languagePair.source = lockedSource;
   const instructions = saved.enabled && saved.instructions !== undefined ? saved.instructions : state.autoTranslation.instructions;
   const active = hasMaterials(value);
   useEffect(() => { void controller.refreshAutomaticKnowledge(); }, [controller]);
   const update = (selection: KnowledgeSelection) => {
     if (state.submitting) return;
     const enabled = hasMaterials(selection);
-    const next = { enabled, sourceLanguage: englishOutput ? 'en' : selection.languagePair.source,
+    const next = { enabled, sourceLanguage: lockedSource ?? selection.languagePair.source,
       collectionIds: selection.collectionIds, disabledEntryIds: selection.disabledEntryIds,
       instructions: selection.instructions ?? instructions, ...(selection.context !== undefined ? { context: selection.context } : {}) };
     // Incomplete inline edits are real drafts and disable admission; they do not
@@ -37,12 +37,12 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
   const refresh = async () => {
     const library = await controller.refreshAutomaticKnowledge();
     if (!library || !hasMaterials(value)) return;
-    const next = { ...saved, enabled: true, sourceLanguage: englishOutput ? 'en' : value.languagePair.source };
+    const next = { ...saved, enabled: true, sourceLanguage: lockedSource ?? value.languagePair.source };
     setSaveError(!controller.setAutomaticKnowledge(next, library.generation));
   };
   return <div data-testid="studio-automatic-materials" className="studio-transcription-wide-field min-w-0 space-y-3">
     <StudioMaterialsFields value={value} library={state.autoKnowledgeLibrary} disabled={state.submitting} loading={state.autoKnowledgeLoading}
-      onChange={update} onLibraryChange={() => void refresh()} onRefresh={() => void refresh()} sourceLocked={englishOutput} />
+      onChange={update} onLibraryChange={() => void refresh()} onRefresh={() => void refresh()} sourceLocked={Boolean(lockedSource)} />
     <ToolField label={t('studio:translation.instructions')} htmlFor={`${id}-instructions`}><Textarea id={`${id}-instructions`} data-testid="studio-automatic-instructions" className="min-h-16 text-xs" maxLength={4000} disabled={state.submitting} value={instructions} onChange={event => {
       if (active) update({ ...value, instructions: event.target.value });
       else controller.setAutoTranslation({ ...state.autoTranslation, instructions: event.target.value });

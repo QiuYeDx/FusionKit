@@ -1,3 +1,7 @@
+import { scanJapaneseAsmrTiming, type JapaneseAsmrDecodeInterval } from './native/japanese-asmr-segmentation';
+import type { JapaneseAsmrHost } from './native/japanese-asmr-host';
+import { JAPANESE_ASMR_MODEL_ID, JAPANESE_ASMR_VAD_MODEL_ID } from '../../../../src/subtitle-studio/transcription/japanese-asmr-contract';
+import type { JapaneseAsmrPhase, JapaneseAsmrReviewRange } from '../../../../src/subtitle-studio/transcription/task-contract';
 import { hasVariantOverlapBudget, planVariantOverlapReview } from "./native/cue-variant-overlap-resolver";
 import { planOverlapGroupReview } from "./native/overlap-group-review";
 import { overlapGroupSourceOptions, selectOverlapGroupSource } from "./native/overlap-group-selection";
@@ -114,7 +118,7 @@ interface LocalSubtitleRetainedRawUsage {
   textBytes: number;
 }
 
-type ProductionMedia = Pick<
+type ProductionMedia = Partial<Pick<LocalSubtitleMediaNormalizer, "readTimingSamples">> & Pick<
   LocalSubtitleMediaNormalizer,
   | "normalizeTask"
   | "materializeWindow"
@@ -142,6 +146,7 @@ interface ProductionBatchRuntimeRecord {
   readonly batchId: string;
   readonly config: TranscriptionBatchExecutionContext["config"];
   readonly managedModel: TranscriptionBatchExecutionContext["managedModel"];
+  readonly asmrVad?: TranscriptionBatchExecutionContext["asmrVad"];
   readonly managedVad?: TranscriptionBatchExecutionContext["managedVad"];
   readonly admittedRuntimeGeneration: string;
   readonly backendResolution: LocalSubtitleVerifiedBackendResolution;
@@ -173,15 +178,18 @@ interface PinnedServerRuntimeIdentity {
 }
 
 export type TranscriptionBatchExecutionContext = Omit<NativeBatchExecutionContext, "config"> & {
+  readonly asmrVad?: NativeBatchExecutionContext["managedModel"];
   readonly config: Omit<NativeBatchExecutionContext["config"], "output" | "postAction">;
 };
 export type TranscriptionTaskExecutionContext = Omit<NativeTaskExecutionContext, "config"> & {
   readonly config: TranscriptionBatchExecutionContext["config"];
+  readonly asmrVad?: TranscriptionBatchExecutionContext["asmrVad"];
+  readonly updateAsmr?: (phase: JapaneseAsmrPhase, progress: number) => void;
 };
 export type TranscriptExecutionResult =
-  | Readonly<{ status: "transcript_ready"; transcript: LocalSubtitleTranscript; durationMs?: number; cueSummary: LocalSubtitleCueSummary;
+  | Readonly<{ status: "transcript_ready"; transcript: LocalSubtitleTranscript; durationMs?: number; cueSummary: LocalSubtitleCueSummary; asmrReview?: readonly JapaneseAsmrReviewRange[];
       seamDuplicates?: readonly LocalSubtitleSeamDuplicate[]; anchorRetiming?: readonly LocalSubtitleAnchorRetiming[] }>
-  | Readonly<{ status: "no_content"; durationMs?: number }>
+  | Readonly<{ status: "no_content"; durationMs?: number; asmrReview?: readonly JapaneseAsmrReviewRange[] }>
   | Readonly<{ status: "failed"; error: LocalSubtitleError; durationMs?: number }>
   | Readonly<{ status: "cancelled"; durationMs?: number }>;
 
@@ -200,11 +208,13 @@ export interface TranscriptionExecutorOptions {
   ) => boolean;
   readonly rootPlanIdFactory?: () => string;
   readonly cpuThreads?: number;
+  readonly openAsmrHost?: (modelPath: string, signal: AbortSignal) => Promise<JapaneseAsmrHost>;
   readonly retainedRawBudget?: LocalSubtitleRetainedRawBudget;
 }
 
 export class TranscriptionExecutor {
   readonly #media: ProductionMedia;
+  readonly #openAsmrHost: TranscriptionExecutorOptions["openAsmrHost"];
   readonly #rootWindowStrategy: "fixed_v1" | "acoustic_quiet_v1" | undefined;
   readonly #supervisor: ProductionSupervisor;
   readonly #verifyServerRuntime: () => Promise<LocalSubtitleVerifiedRuntimeBundle>;
@@ -284,6 +294,7 @@ export class TranscriptionExecutor {
       throw new TypeError("The local subtitle retained raw response budget is invalid.");
     }
     this.#media = options.media;
+    this.#openAsmrHost = options.openAsmrHost;
     this.#rootWindowStrategy = options.rootWindowStrategy;
     this.#supervisor = options.supervisor;
     this.#verifyServerRuntime = options.verifyServerRuntime ?? (() =>
@@ -320,7 +331,7 @@ export class TranscriptionExecutor {
       owner: Object.freeze({ ...context.owner }),
       batchId: context.batchId,
       config: context.config,
-      managedModel: context.managedModel,
+      managedModel: context.managedModel, asmrVad: context.asmrVad,
       ...(context.managedVad === undefined
         ? {}
         : { managedVad: context.managedVad }),
@@ -365,8 +376,9 @@ export class TranscriptionExecutor {
     const anchorRetiming: LocalSubtitleAnchorRetiming[] = [];
     let pipelineError: unknown;
     let durationMs: number | undefined;
+    let asmrResult: { segments: LocalSubtitleTranscript["segments"]; review: JapaneseAsmrReviewRange[] } | undefined;
 
-    try {
+    execution: try {
       throwIfCancelled(context.signal);
       const audioProfile = taskAudioProfile(context);
       const quietAudioMode = audioProfile?.quietAudioMode;
@@ -395,27 +407,46 @@ export class TranscriptionExecutor {
       throwIfCancelled(context.signal);
 
       const policy = createSubtitlePostProcessPolicy(context.config.inference);
-      // Keep the unvalidated >24h and VAD-off routes on their existing policy.
-      const windowStrategy = this.#rootWindowStrategy ?? context.config.inference.windowStrategy ?? "fixed_v1";
-      const pauseCandidates = windowStrategy === "acoustic_quiet_v1" &&
-        context.config.inference.vad.enabled && normalized.totalFrames > 30 * 16000 &&
-        normalized.totalFrames <= 24 * 60 * 60 * 16000
-        ? await this.#media.readQuietCandidates(normalized, context.signal) : undefined;
-      throwIfCancelled(context.signal);
-      const rootPlan = planLocalSubtitleRootWindows({
-        rootPlanId: this.#rootPlanIdFactory(),
-        totalFrames: normalized.totalFrames,
-        policy,
-        ...(pauseCandidates === undefined ? {} : { pauseCandidates }),
-      });
-
+      let standardPlan: ReturnType<typeof planLocalSubtitleRootWindows> | undefined;
+      let asmrPlan: JapaneseAsmrDecodeInterval[] | undefined;
+      if (context.asmrVad) {
+        stage = "transcribing";
+        const openHost = this.#openAsmrHost, readSamples = this.#media.readTimingSamples?.bind(this.#media);
+        if (!openHost || !readSamples) throw createLocalSubtitleError("media_runtime_launch_failed", "ASMR CPU runtime is unavailable.", { stage: "loading_model" });
+        context.updateAsmr?.({ stage: "timing" }, 20);
+        const host = await openHost(context.asmrVad.absolutePath, context.signal);
+        try {
+          asmrPlan = await scanJapaneseAsmrTiming({ totalFrames: normalized.totalFrames, signal: context.signal,
+            read: async (start, end) => Float32Array.from(await readSamples(normalized!, start, end, context.signal), sample => sample / 32768),
+            infer: host.run, progress: fraction => context.updateAsmr?.({ stage: "timing" }, 20 + fraction * 35),
+          });
+        } finally { await host.close(); }
+        if (!asmrPlan.some(interval => !interval.needsReview)) {
+          asmrResult = { segments: [], review: asmrPlan.map(interval => reviewRange(interval, "too_long")) };
+          break execution;
+        }
+      } else {
+        // Keep the unvalidated >24h and VAD-off routes on their existing policy.
+        const windowStrategy = this.#rootWindowStrategy ?? context.config.inference.windowStrategy ?? "fixed_v1";
+        const pauseCandidates = windowStrategy === "acoustic_quiet_v1" &&
+          context.config.inference.vad.enabled && normalized.totalFrames > 30 * 16000 &&
+          normalized.totalFrames <= 24 * 60 * 60 * 16000
+          ? await this.#media.readQuietCandidates(normalized, context.signal) : undefined;
+        throwIfCancelled(context.signal);
+        standardPlan = planLocalSubtitleRootWindows({
+          rootPlanId: this.#rootPlanIdFactory(),
+          totalFrames: normalized.totalFrames,
+          policy,
+          ...(pauseCandidates === undefined ? {} : { pauseCandidates }),
+        });
+      }
       stage = "loading_model";
       context.update({
         status: "loading_model",
         progress: {
           stage: "loading_model",
           stageProgress: 0,
-          overallProgress: 20,
+          overallProgress: asmrPlan ? 55 : 20,
         },
         durationMs,
       });
@@ -479,7 +510,7 @@ export class TranscriptionExecutor {
       lease = await this.#supervisor.acquirePinnedTaskLease(pin, context.signal, {
         // Native process reuse changed the same audio after unrelated VAD requests.
         // Reuse within a file; start each affected task without prior inference state.
-        freshInferenceState: runtime.target.platform === "win32" &&
+        freshInferenceState: Boolean(asmrPlan) || runtime.target.platform === "win32" &&
           context.config.resolvedBackend === "cuda" && context.config.inference.vad.enabled,
       });
       throwIfCancelled(context.signal);
@@ -488,12 +519,30 @@ export class TranscriptionExecutor {
         progress: {
           stage: "loading_model",
           stageProgress: 100,
-          overallProgress: 30,
+          overallProgress: asmrPlan ? 60 : 30,
         },
         durationMs,
       });
 
       stage = "transcribing";
+      if (asmrPlan) {
+        asmrResult = await this.#recognizeAsmr(context, normalized, lease, asmrPlan);
+        if (asmrResult.segments.length) {
+          transcript = Object.freeze({ schemaVersion: context.config.schemaVersion,
+            source: { displayName: normalized.displayName, durationMs },
+            model: { engine: context.config.model.engine, modelId: context.managedModel.id,
+              modelHash: context.managedModel.sha256, backend: context.config.resolvedBackend },
+            detectedLanguage: "ja", segments: asmrResult.segments,
+          });
+        }
+        stage = "post_processing";
+        context.update({ status: "post_processing", progress: { stage: "post_processing", stageProgress: 100, overallProgress: 96 }, durationMs });
+        break execution;
+      }
+
+      const rootPlan = standardPlan;
+      if (!rootPlan) throw new Error("Missing standard transcription window plan.");
+
       const attempts: LocalSubtitlePostProcessingWindowAttempt[] = [];
       const requestsPerRoot = new Map<string, number>();
       const acceptedPrimaryCounts = new Map<string, number>();
@@ -1296,6 +1345,9 @@ export class TranscriptionExecutor {
         pipelineError,
       );
     }
+    if (asmrResult && !transcript && !context.signal.aborted) {
+      return Object.freeze({ status: "no_content", durationMs, asmrReview: Object.freeze(asmrResult.review) });
+    }
     if (!transcript || context.signal.aborted) {
       return Object.freeze({ status: "cancelled", durationMs });
     }
@@ -1304,12 +1356,53 @@ export class TranscriptionExecutor {
       status: "transcript_ready",
       transcript,
       durationMs,
+      ...(asmrResult ? { asmrReview: Object.freeze(asmrResult.review) } : {}),
       cueSummary: summarizeLocalSubtitleCues(transcript.segments, createSubtitlePostProcessPolicy(context.config.inference)),
       // Diagnostics only: the document receives the transcript without these cues.
       ...(seamDuplicates.length ? { seamDuplicates } : {}),
       // Preset tasks only; ids, counts and times of each window's timing anchor.
       ...(anchorRetiming.length ? { anchorRetiming: Object.freeze(anchorRetiming) } : {}),
     });
+  }
+
+  async #recognizeAsmr(context: TranscriptionTaskExecutionContext, normalized: LocalSubtitleNormalizedPcm,
+    lease: LocalSubtitleServerLease, plan: readonly JapaneseAsmrDecodeInterval[]) {
+    const segments: LocalSubtitleTranscript["segments"][number][] = [];
+    const review: JapaneseAsmrReviewRange[] = [];
+    const consumed = new WeakSet<object>();
+    const rootPlanId = this.#rootPlanIdFactory();
+    const total = plan.filter(interval => !interval.needsReview).length;
+    let done = 0;
+    let bytes = 0;
+    context.updateAsmr?.({ stage: "recognizing", done, total }, 60);
+    for (const [index, interval] of plan.entries()) {
+      throwIfCancelled(context.signal);
+      if (interval.needsReview) { review.push(reviewRange(interval, "too_long")); continue; }
+      const { startFrame, endFrame, decodeStartFrame, decodeEndFrame } = interval;
+      const windowKey = `asmr-${index + 1}`;
+      const descriptor = { rootPlanId, windowKey, rootWindowKey: windowKey, retryDepth: 0,
+        startFrame: decodeStartFrame, endFrame: decodeEndFrame, coreStartFrame: startFrame, coreEndFrame: endFrame,
+        startMs: asmrMs(decodeStartFrame), endMs: asmrMs(decodeEndFrame), coreStartMs: asmrMs(startFrame), coreEndMs: asmrMs(endFrame) };
+      const window = await this.#media.materializeWindow({ normalized, descriptor, signal: context.signal });
+      try {
+        assertWindowBrand(window, descriptor, context, normalized.normalizationId, consumed, this.#validateWindowBrand);
+        const resolved = await this.#media.resolveWindow(window, { taskId: context.taskId, taskGeneration: context.generation, descriptor });
+        assertResolvedWindowMatchesBrand(window, resolved);
+        const request = createInferenceRequest(context, resolved, this.#claimRequestGeneration());
+        const { response } = await this.#runInference(lease, { ...request, language: "ja", vadEnabled: false,
+          noTimestamps: true, beamSize: 5, temperature: 0 }, context.signal);
+        const text = response.result.text.trim().replace(/\r\n?/gu, "\n");
+        bytes += Buffer.byteLength(text);
+        if (bytes > LOCAL_SUBTITLE_PRODUCTION_CONTRACT.transcript.maxServerResponseBytes || text.length > LOCAL_SUBTITLE_LIMITS.maxCueTextChars)
+          throw createLocalSubtitleError("limit_exceeded", "ASMR transcript text exceeds the allowed size.", { stage: "transcribing" });
+        const range = reviewRange(interval, "empty");
+        if (text) segments.push({ id: windowKey, startMs: range.startMs, endMs: range.endMs, text });
+        else review.push(range);
+      } finally { await this.#media.disposeWindow(window); }
+      done++;
+      context.updateAsmr?.({ stage: "recognizing", done, total }, 60 + 35 * done / total);
+    }
+    return { segments, review };
   }
 
   async #runInference(
@@ -1402,7 +1495,7 @@ export class TranscriptionExecutor {
       record.owner.ownerSessionId !== context.owner.ownerSessionId ||
       record.config !== context.config ||
       record.managedModel !== context.managedModel ||
-      record.managedVad !== context.managedVad ||
+      record.managedVad !== context.managedVad || record.asmrVad !== context.asmrVad ||
       record.admittedRuntimeGeneration !== context.admittedRuntimeGeneration ||
       record.backendResolution !== context.backendResolution
     ) {
@@ -1712,7 +1805,7 @@ function taskAudioProfile(
 
 function assertWindowBrand(
   brand: LocalSubtitleBrandedPcmWindow,
-  window: LocalSubtitlePostProcessingWindow,
+  window: LocalSubtitleMediaStructuralWindow,
   context: TranscriptionTaskExecutionContext,
   normalizationId: string,
   consumed: WeakSet<object>,
@@ -2158,13 +2251,21 @@ function isSupportedProductionTaskMode(
   return taskMode === "transcribe" || taskMode === "translate_to_english";
 }
 
+function asmrMs(samples: number) { return Math.round(samples / 16); }
+function reviewRange(interval: JapaneseAsmrDecodeInterval, reason: JapaneseAsmrReviewRange["reason"]): JapaneseAsmrReviewRange {
+  return Object.freeze({ startMs: asmrMs(interval.startFrame), endMs: asmrMs(interval.endFrame), reason });
+}
+
 function isSupportedManagedVadContext(
   context: Pick<
     TranscriptionBatchExecutionContext,
-    "config" | "managedVad"
+    "config" | "managedVad" | "asmrVad"
   >,
 ): boolean {
   const managedVad = context.managedVad;
+  if (context.asmrVad) return managedVad === undefined && !context.config.inference.vad.enabled
+    && context.asmrVad.storage === "managed" && context.asmrVad.id === JAPANESE_ASMR_VAD_MODEL_ID
+    && context.config.model.modelId === JAPANESE_ASMR_MODEL_ID && context.config.language === "ja" && context.config.taskMode === "transcribe";
   if (!context.config.inference.vad.enabled) return managedVad === undefined;
   return (
     managedVad !== undefined &&

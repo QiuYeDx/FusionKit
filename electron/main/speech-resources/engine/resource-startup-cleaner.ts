@@ -1,3 +1,4 @@
+import { ASMR_VAD_DEFINITION } from './asmr-vad-definition';
 import { randomUUID } from "node:crypto";
 import { type Stats } from "node:fs";
 import {
@@ -331,6 +332,13 @@ function productionDownloadDefinitions(
       downloadDirectoryName:
         LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.downloadsDirectoryName,
     },
+    {
+      resourceId: ASMR_VAD_DEFINITION.resourceId,
+      sourceUrl: ASMR_VAD_DEFINITION.downloadUrl,
+      allowedHosts: ASMR_VAD_DEFINITION.allowedDownloadHosts,
+      expectedBytes: ASMR_VAD_DEFINITION.byteSize,
+      downloadDirectoryName: LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.downloadsDirectoryName,
+    },
   ];
   if (platform === "win32" && arch === "x64") {
     definitions.push({
@@ -358,7 +366,7 @@ function productionStagingDefinitions(
     ownedPattern(`\\.delete-${UUID_SOURCE}`),
     ownedPattern(`\\.startup-cleanup-${UUID_SOURCE}`),
   ]);
-  const vadId = escapeRegExp(LOCAL_SUBTITLE_VAD_MANIFEST.vad.id);
+  const vadIds = [LOCAL_SUBTITLE_VAD_MANIFEST.vad.id, ASMR_VAD_DEFINITION.resourceId].map(escapeRegExp);
   const definitions: StagingRootDefinition[] = [
     {
       directoryName:
@@ -369,9 +377,7 @@ function productionStagingDefinitions(
       directoryName:
         LOCAL_SUBTITLE_RESOURCE_STARTUP_CLEANUP_POLICY.vadStagingDirectoryName,
       ownedLeafPatterns: Object.freeze([
-        ownedPattern(
-          `\\.install-${vadId}-${UUID_SOURCE}-${MKDTEMP_SUFFIX_SOURCE}`,
-        ),
+        ...vadIds.map(id => ownedPattern(`\\.install-${id}-${UUID_SOURCE}-${MKDTEMP_SUFFIX_SOURCE}`)),
         ownedPattern(`\\.cleanup-${UUID_SOURCE}`),
         ownedPattern(`\\.delete-${UUID_SOURCE}`),
         ownedPattern(`\\.startup-cleanup-${UUID_SOURCE}`),

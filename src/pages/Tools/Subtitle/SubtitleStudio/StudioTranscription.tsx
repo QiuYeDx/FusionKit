@@ -1,3 +1,4 @@
+import { JAPANESE_ASMR_MODEL_ID, JAPANESE_ASMR_VAD_MODEL_ID } from '@/subtitle-studio/transcription/japanese-asmr-contract';
 import { StudioRevealSource } from './StudioRevealSource';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import useModelStore from '@/store/useModelStore';
@@ -24,7 +25,7 @@ import { ToolSwitchRow } from '../../_shared/ui/ToolSwitchRow';
 import { StudioDisclosure } from './StudioDisclosure';
 import { ToolFilePickerSurface } from '../../_shared/ui/ToolFilePickerSurface';
 import { useToolFileDropTarget } from '../../_shared/ui/ToolFileDropScope';
-import { getStudioTranscriptionController, getTranscriptionReadiness, type TranscriptionRetryChoice } from '@/services/subtitle-studio/transcription-controller';
+import { getStudioTranscriptionController, getTranscriptionReadiness, effectiveTranscriptionConfig, type TranscriptionRetryChoice } from '@/services/subtitle-studio/transcription-controller';
 import type { EnqueueTranscriptionRequest, TranscriptionTaskSummary } from '@/subtitle-studio/transcription/task-contract';
 import { LOCAL_SUBTITLE_LIMITS, LOCAL_SUBTITLE_PRODUCTION_CONTRACT } from '@/subtitle-studio/transcription/domain';
 import { TRANSCRIPTION_AUDIO_TYPES, TRANSCRIPTION_AUDIO_TYPE_KEYS, transcriptionAudioTypeOf, type TranscriptionAudioProfile,
@@ -121,6 +122,12 @@ function TaskRetry({ task, vadReady, busy, onRetry }: { task: TranscriptionTaskS
       <span id={`studio-transcription-retry-note-${task.taskId}`} className="studio-task-retry-note">{t(vadReady ? 'studio:transcription.retry_quiet_note' : 'studio:transcription.retry_quiet_needs_vad')}</span>
     </>}
   </>;
+}
+function reviewTime(ms: number) {
+  const seconds = Math.floor(ms / 1000);
+  const clock = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+    .map(value => String(value).padStart(2, '0')).join(':');
+  return `${clock}.${String(ms % 1000).padStart(3, '0')}`;
 }
 function duration(ms: number) { const seconds = Math.floor(ms / 1000); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; }
 const numericFields = [
@@ -251,25 +258,40 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
   }, [controller, resourcesOpen]);
   const [opening, setOpening] = useState<string | null>(null);
   const [openError, setOpenError] = useState(false);
+  const [reviewPage, setReviewPage] = useState<{ taskId: string; offset: number } | null>(null);
+  const [reviewState, setReviewState] = useState<Awaited<ReturnType<typeof controller.listReview>> | 'error' | null>(null);
+  useEffect(() => {
+    if (!reviewPage) return;
+    let active = true;
+    setReviewState(null);
+    void controller.listReview(reviewPage.taskId, reviewPage.offset).then(
+      page => { if (active) setReviewState(page); },
+      () => { if (active) setReviewState('error'); },
+    );
+    return () => { active = false; };
+  }, [controller, reviewPage]);
   const [numericDrafts, setNumericDrafts] = useState(() => Object.fromEntries(numericFields.map(([key]) => [key, String(state.config.advanced[key])])) as Record<NumericKey, string>);
-  const invalidNumeric = numericFields.some(([key, , min, max, step]) => !numericValid(numericDrafts[key], min, max, step));
+  const asmr = state.mode === 'japanese_asmr';
+  const effectiveConfig = effectiveTranscriptionConfig(state);
+  const invalidNumeric = !asmr && numericFields.some(([key, , min, max, step]) => !numericValid(numericDrafts[key], min, max, step));
   const resourceTrigger = useRef<HTMLButtonElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
   const models = state.resources.filter(resource => resource.resourceType === 'model');
   // Models that only recognize cues again are installed here but chosen when recognizing.
   const transcriptionModels = models.filter(resource => transcriptionModelProfile(resource.resourceId).role === 'transcribe');
-  const model = transcriptionModels.find(resource => resource.resourceId === state.config.modelId);
+  const model = models.find(resource => resource.resourceId === effectiveConfig.modelId);
   // What the chosen model cannot do is disabled in place, with the reason under the field.
   const modelProfile = transcriptionModelProfile(state.config.modelId);
   const lockedLanguages = modelProfile.languages === 'any' ? undefined : new Intl.ListFormat(i18n.resolvedLanguage ?? i18n.language, { type: 'conjunction' })
     .format(modelProfile.languages.map(language => { const known = TRANSCRIPTION_LANGUAGES.find(([value]) => value === language); return known ? t(known[1]) : language; }));
   const availableDevices = devices.filter(([value]) => value === 'auto' || value === 'cpu'
     || (state.runtime?.status === 'verified' && (state.runtime.target.platform === 'win32' ? value === 'cuda' : value === 'metal')));
-  const selectedDevice = devices.find(([value]) => value === state.config.devicePreference);
-  const deviceHintKey = deviceHint({ platform, gpu: system.gpu, cudaReady, device: state.config.devicePreference });
+  const selectedDevice = devices.find(([value]) => value === effectiveConfig.devicePreference);
+  const deviceHintKey = deviceHint({ platform, gpu: system.gpu, cudaReady, device: effectiveConfig.devicePreference });
   // "NVIDIA GPU" on a computer without one: choose another device rather than install the pack.
   const readinessKey = readiness.reason === 'accelerator_not_ready' && cuda === 'not_applicable' ? 'studio:transcription.device_hint_cuda_no_nvidia'
-    : readiness.reason ? readinessKeys[readiness.reason] : undefined;
+    : asmr && (readiness.reason === 'vad_not_ready' || readiness.reason === 'model_not_ready') ? 'studio:transcription.asmr_missing_resources'
+      : readiness.reason ? readinessKeys[readiness.reason] : undefined;
   const setConfig = (patch: Partial<Config>) => controller.setConfig({ ...state.config, ...patch });
   const audioType = transcriptionAudioTypeOf(state.config.advanced);
   // Set when turning voice detection off returned the audio type to standard; a later choice clears it.
@@ -288,6 +310,9 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
   const taskModelName = (modelId: string) => { const used = models.find(resource => resource.resourceId === modelId); return used ? nameOf(used, 'short') : modelId; };
   const cpuReason = cpuFallbackReason({ platform, gpu: system.gpu, cudaReady });
   const vadReady = state.resources.some(resource => resource.resourceId === LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id && resource.status === 'ready');
+  const taskLabel = (task: TranscriptionTaskSummary) => task.phase?.stage === 'timing'
+    ? t('studio:transcription.asmr_timing') : task.phase?.stage === 'recognizing'
+      ? t('studio:transcription.asmr_recognizing', { done: task.phase.done, total: task.phase.total }) : t(taskStatusKeys[task.status]);
   const retryActions = (task: TranscriptionTaskSummary) => <TaskRetry task={task} vadReady={vadReady} busy={!!state.queueAction || state.taskActions.includes(task.taskId)}
     onRetry={choice => void controller.retryTask(task.taskId, choice)} />;
   const openDocument = async (id: string) => {
@@ -310,6 +335,24 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
       aside={<div ref={settingsRef} tabIndex={-1} data-testid="studio-transcription-config" className="studio-transcription-settings">
         <ToolConfigPanel title={t('studio:transcription.configuration')} icon={Settings2}>
           <div className="studio-transcription-config-fields">
+            <ToolField className="studio-transcription-wide-field" label={t('studio:transcription.pipeline')} htmlFor="studio-transcription-pipeline">
+              <Select value={state.mode ?? 'standard'} onValueChange={mode => controller.setMode(mode === 'japanese_asmr' ? 'japanese_asmr' : 'standard')} disabled={state.submitting}>
+                <SelectTrigger id="studio-transcription-pipeline"><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="standard">{t('studio:transcription.pipeline_standard')}</SelectItem><SelectItem value="japanese_asmr">{t('studio:transcription.pipeline_asmr')}</SelectItem></SelectContent>
+              </Select>
+            </ToolField>
+            {asmr ? <ToolField className="studio-transcription-wide-field" label={t('studio:transcription.asmr_models')}>
+              <ul className="space-y-1 text-xs" data-testid="studio-transcription-asmr-models">
+                {([JAPANESE_ASMR_VAD_MODEL_ID, JAPANESE_ASMR_MODEL_ID] as const).map(id => {
+                  const resource = state.resources.find(item => item.resourceId === id);
+                  const key = id === JAPANESE_ASMR_VAD_MODEL_ID ? 'studio:transcription.asmr_timing_model' : 'studio:transcription.asmr_content_model';
+                  const status = state.phase === 'loading' && !resource ? t('studio:transcription.runtime_checking') : t(resourceStatusKeys[resource?.status ?? 'not_installed']);
+                  return <li key={id} className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5"><span>{t(key)}</span><span className="text-muted-foreground">{status}</span></li>;
+                })}
+              </ul>
+              <div className="studio-transcription-model-meta"><span>{t('studio:transcription.asmr_language')}</span>
+                <Button ref={resourceTrigger} data-testid="studio-transcription-manage-resources" variant="ghost" size="sm" onClick={() => setResourcesOpen(true)}><HardDrive />{t('studio:transcription.manage_resources')}</Button></div>
+            </ToolField> : <>
             <ToolField label={t('studio:transcription.model')} htmlFor="studio-transcription-model" className="studio-transcription-wide-field">
               <Select value={model?.resourceId ?? ''} onValueChange={modelId => setConfig({ modelId })} disabled={state.submitting || !transcriptionModels.length}>
                 {/* As for audio types: the trigger names the model, the list adds what it suits. */}
@@ -327,7 +370,9 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
             </ToolField>
             <ToolField label={t('studio:transcription.language')} htmlFor="studio-transcription-language"><Select value={state.config.language} onValueChange={language => setConfig({ language })} disabled={state.submitting}><SelectTrigger id="studio-transcription-language"><SelectValue /></SelectTrigger><SelectContent>{TRANSCRIPTION_LANGUAGES.map(([value, key]) => <SelectItem key={value} value={value} disabled={!transcriptionModelSpeaks(modelProfile, value)}>{t(key)}</SelectItem>)}</SelectContent></Select>
               {lockedLanguages && <p className="studio-transcription-help" data-testid="studio-transcription-language-hint">{t('studio:transcription.model_language_locked', { languages: lockedLanguages })}</p>}</ToolField>
-            <ToolField label={t('studio:transcription.device')} htmlFor="studio-transcription-device"><Select value={state.config.devicePreference} onValueChange={devicePreference => setConfig({ devicePreference: devicePreference as Config['devicePreference'] })} disabled={state.submitting}><SelectTrigger id="studio-transcription-device"><SelectValue /></SelectTrigger><SelectContent>{availableDevices.map(([value, key]) => <SelectItem key={value} value={value}>{t(key)}</SelectItem>)}{selectedDevice && !availableDevices.some(([value]) => value === selectedDevice[0]) && <SelectItem value={selectedDevice[0]} disabled>{t(selectedDevice[1])}</SelectItem>}</SelectContent></Select>{deviceHintKey && <p className="studio-transcription-help" data-testid="studio-transcription-device-hint">{t(deviceHintKey)}</p>}</ToolField>
+            </>}
+            <ToolField label={t('studio:transcription.device')} htmlFor="studio-transcription-device"><Select value={effectiveConfig.devicePreference} onValueChange={devicePreference => controller.setDevice(devicePreference as Config['devicePreference'])} disabled={state.submitting}><SelectTrigger id="studio-transcription-device"><SelectValue /></SelectTrigger><SelectContent>{availableDevices.map(([value, key]) => <SelectItem key={value} value={value}>{t(key)}</SelectItem>)}{selectedDevice && !availableDevices.some(([value]) => value === selectedDevice[0]) && <SelectItem value={selectedDevice[0]} disabled>{t(selectedDevice[1])}</SelectItem>}</SelectContent></Select>{deviceHintKey && <p className="studio-transcription-help" data-testid="studio-transcription-device-hint">{t(deviceHintKey)}</p>}</ToolField>
+            {asmr ? <p className="studio-transcription-help studio-transcription-wide-field">{t('studio:transcription.asmr_device_hint')}</p> : <>
             <ToolField label={t('studio:transcription.audio_type')} htmlFor="studio-transcription-audio-type" className="studio-transcription-wide-field">
               <Select value={audioType} onValueChange={type => { setAudioTypeReset(false); controller.setAudioType(type as TranscriptionAudioType); }} disabled={state.submitting}>
                 {/* The trigger names the choice; the list adds what each one is for. */}
@@ -341,7 +386,9 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
             </ToolField>
             <ToolField label={t('studio:transcription.task_mode')} htmlFor="studio-transcription-task-mode" className="studio-transcription-wide-field"><Select value={state.config.taskMode} onValueChange={taskMode => setConfig({ taskMode: taskMode as Config['taskMode'] })} disabled={state.submitting}><SelectTrigger id="studio-transcription-task-mode"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="transcribe">{t('studio:transcription.mode_transcribe')}</SelectItem><SelectItem value="translate_to_english" disabled={!modelProfile.translate}>{t('studio:transcription.mode_english')}</SelectItem></SelectContent></Select>
               {!modelProfile.translate && <p className="studio-transcription-help" data-testid="studio-transcription-task-mode-hint">{t('studio:transcription.model_no_translate')}</p>}</ToolField>
+            </>}
           </div>
+          {!asmr && <>
           <ToolSwitchRow id="studio-transcription-vad" label={t('studio:transcription.vad')} hint={t('studio:transcription.vad_hint')} checked={state.config.vadEnabled} disabled={state.submitting} onCheckedChange={vadEnabled => setAudioTypeReset(controller.setVadEnabled(vadEnabled))} />
           <StudioDisclosure triggerTestId="studio-transcription-advanced" className="-mx-3 border-y" contentClassName="space-y-3 px-3 pb-3 pt-2" title={<span className="flex min-w-0 items-center gap-2"><SlidersHorizontal aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />{t('studio:transcription.advanced')}</span>}>
             <p className="studio-transcription-help" data-testid="studio-transcription-advanced-hint">{t('studio:transcription.advanced_hint')}</p>
@@ -359,6 +406,7 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
                 {modelProfile.prompt === 'forbid' && <p className="studio-transcription-help" data-testid="studio-transcription-prompt-hint">{t('studio:transcription.model_prompt_forbidden')}</p>}</ToolField>
             </div>
           </StudioDisclosure>
+          </>}
           <ToolSwitchRow id="studio-transcription-auto-translation" testId="studio-transcription-auto-translation-row" label={t('studio:transcription.auto_translation')} hint={t('studio:transcription.auto_translation_hint')} checked={state.autoTranslation.enabled} disabled={state.submitting} onCheckedChange={enabled => controller.setAutoTranslation({ ...state.autoTranslation, enabled })} />
           {state.autoTranslation.enabled && <div className="studio-transcription-config-fields" data-testid="studio-transcription-auto-configuration">
             <ToolField label={t('studio:transcription.auto_translation_model')} htmlFor="studio-transcription-translation-model"><Select value={automaticProfile?.id ?? ''} onValueChange={profileId => controller.setAutoTranslation({ ...state.autoTranslation, profileId })} disabled={state.submitting || !profiles.length}><SelectTrigger id="studio-transcription-translation-model"><SelectValue placeholder={t('studio:transcription.auto_translation_configuration')} /></SelectTrigger><SelectContent>{profiles.map(profile => <SelectItem key={profile.id} value={profile.id}>{profile.name || profile.modelKey}</SelectItem>)}</SelectContent></Select></ToolField>
@@ -387,7 +435,7 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
         <ToolPanel title={t('studio:transcription.selected_media')} icon={AudioLines} badge={<Badge variant="secondary" className="font-mono text-[11px]">{state.drafts.length}</Badge>}
           actions={state.drafts.length ? <Button variant="ghost" size="sm" disabled={state.submitting} onClick={() => void controller.clearDrafts()}><X />{t('studio:transcription.clear_media')}</Button> : undefined}
           className="studio-transcription-media-panel"
-          footer={<div className="studio-transcription-start-bar"><div className="studio-transcription-start-meta"><span>{model ? nameOf(model) : t('studio:transcription.choose_model')}</span><span id="studio-transcription-readiness">{invalidNumeric ? t('studio:transcription.readiness_config') : readinessKey ? t(readinessKey) : t('studio:transcription.ready_count', { count: readiness.readyCount })}</span></div><Button variant="ghost" size="sm" className="lg:hidden" onClick={settings}><Settings2 />{t('studio:transcription.settings')}</Button><Button data-testid="studio-transcription-start" size="sm" disabled={!readiness.canEnqueue || invalidNumeric} aria-describedby="studio-transcription-readiness" onClick={() => void controller.enqueue()}>{state.submitting ? <LoaderCircle className="studio-spin" /> : <Play />}{t(state.submitting ? 'studio:transcription.starting' : 'studio:transcription.start')}</Button></div>}>
+          footer={<div className="studio-transcription-start-bar"><div className="studio-transcription-start-meta"><span>{asmr ? t('studio:transcription.pipeline_asmr') : model ? nameOf(model) : t('studio:transcription.choose_model')}</span><span id="studio-transcription-readiness">{invalidNumeric ? t('studio:transcription.readiness_config') : readinessKey ? t(readinessKey) : t('studio:transcription.ready_count', { count: readiness.readyCount })}</span></div><Button variant="ghost" size="sm" className="lg:hidden" onClick={settings}><Settings2 />{t('studio:transcription.settings')}</Button><Button data-testid="studio-transcription-start" size="sm" disabled={!readiness.canEnqueue || invalidNumeric} aria-describedby="studio-transcription-readiness" onClick={() => void controller.enqueue()}>{state.submitting ? <LoaderCircle className="studio-spin" /> : <Play />}{t(state.submitting ? 'studio:transcription.starting' : 'studio:transcription.start')}</Button></div>}>
           {!!state.drafts.length && <StudioScrollFade maxHeight={290}><ul className="studio-transcription-media-list">{state.drafts.map(draft => <li key={draft.id} data-testid="studio-transcription-media-row" data-draft-id={draft.id} data-state={draft.status}>
             <AudioLines className="studio-transcription-row-icon" /><div className="studio-transcription-row-content"><StudioFileName name={draft.displayName} focusable /><div className="studio-transcription-row-meta">{draft.media && <span>{bytes(draft.media.byteSize)}</span>}{draft.probe && <span>{duration(draft.probe.durationMs)}</span>}{draft.status === 'probing' && <span><LoaderCircle className="size-3 studio-spin" />{t('studio:transcription.checking_media')}</span>}</div>
               {draft.status === 'expired' && <p className="studio-transcription-row-warning">{t('studio:transcription.expired_media')}</p>}
@@ -408,12 +456,20 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
             name={task.displayName}
             icon={task.status === 'completed' ? <Check className="text-emerald-600 dark:text-emerald-400" /> : task.status === 'no_content' ? <CircleMinus className="text-muted-foreground" /> : task.status === 'failed' ? <AlertCircle className="text-destructive" /> : terminal(task) ? <Square className="text-muted-foreground" /> : <LoaderCircle className={task.status === 'queued' ? 'text-muted-foreground' : 'studio-spin text-muted-foreground'} />}
             actions={<><StudioRevealSource kind="transcription" id={task.taskId} />{task.documentId && <StudioIconButton label={t('studio:transcription.open_document')} disabled={opening !== null} onClick={() => void openDocument(task.documentId!)}>{opening === task.documentId ? <LoaderCircle className="studio-spin" /> : <Subtitles />}</StudioIconButton>}{terminal(task) ? <StudioIconButton label={t('studio:transcription.remove_task')} disabled={!!state.queueAction || state.taskActions.includes(task.taskId) || !!task.cleanupPending} onClick={() => void controller.removeTask(task.taskId)}><Trash2 /></StudioIconButton>  : <StudioIconButton className="studio-transcription-stop" label={t('studio:transcription.cancel_task')} disabled={!!state.queueAction || state.taskActions.includes(task.taskId) || state.cancellingTaskIds.includes(task.taskId)} onClick={() => void controller.cancelTask(task.taskId)}>{state.cancellingTaskIds.includes(task.taskId) ? <LoaderCircle className="studio-spin" /> : <Square />}</StudioIconButton>}</>}
-            metadata={<><span>{state.cancellingTaskIds.includes(task.taskId) ? t('studio:transcription.cancelling') : t(taskStatusKeys[task.status])}</span><TaskModelLabel name={taskModelName(task.modelId)} backend={task.resolvedBackend}
+            metadata={<><span>{state.cancellingTaskIds.includes(task.taskId) ? t('studio:transcription.cancelling') : taskLabel(task)}</span><TaskModelLabel name={taskModelName(task.modelId)} backend={task.resolvedBackend}
               reason={!task.error && cpuReason && task.resolvedBackend === 'cpu' && state.autoDeviceTaskIds.includes(task.taskId) ? t(cpuReason) : undefined} />{task.audioProfile && <AudioTypeLabel profile={task.audioProfile} />}{task.durationMs !== undefined && <span>{duration(task.durationMs)}</span>}{task.automaticTranslation && <AutomaticTranslationLabel status={task.automaticTranslation.status} />}{!terminal(task) && <span className="studio-task-percentage">{Math.round(task.progress)}%</span>}</>}
-            progress={!terminal(task) ? { max: 100, value: task.progress, label: `${t(taskStatusKeys[task.status])} · ${task.displayName}` } : undefined}>
-            {task.status === 'no_content' && <TranscriptionEmptyResult help={transcriptionRetrySuggestion(task) === 'quiet' ? t('studio:transcription.empty_retry_help') : undefined}>
+            progress={!terminal(task) ? { max: 100, value: task.progress, label: `${taskLabel(task)} · ${task.displayName}` } : undefined}>
+            {task.status === 'no_content' && task.mode !== 'japanese_asmr' && <TranscriptionEmptyResult help={transcriptionRetrySuggestion(task) === 'quiet' ? t('studio:transcription.empty_retry_help') : undefined}>
               {transcriptionTaskRetryable(task) && <div className="studio-task-failure-actions">{retryActions(task)}</div>}
             </TranscriptionEmptyResult>}
+            {task.status === 'no_content' && task.mode === 'japanese_asmr' && <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">{t(task.asmrNoContent === 'review' ? 'studio:transcription.asmr_no_text' : 'studio:transcription.asmr_no_speech')}</p>
+              {transcriptionTaskRetryable(task) && retryActions(task)}
+            </div>}
+            {task.asmrReviewCount && <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <Button variant="outline" size="xs" data-testid="studio-transcription-review" onClick={() => setReviewPage({ taskId: task.taskId, offset: 0 })}><Ear />{t('studio:transcription.asmr_review_count', { count: task.asmrReviewCount })}</Button>
+              {task.status === 'completed' && <span className="text-xs text-muted-foreground">{t('studio:transcription.asmr_automation_paused')}</span>}
+            </div>}
             {task.error && <TaskFailure task={task} vcRuntimeMissing={vcMissing} onOpenResources={() => setResourcesOpen(true)} retry={transcriptionTaskRetryable(task) ? retryActions(task) : undefined} />}
             {state.sourceChangedTaskIds.includes(task.taskId) && <p role="status" className="studio-transcription-row-warning" data-testid="studio-transcription-retry-source-changed">{t('studio:transcription.retry_source_changed')}</p>}{task.cleanupPending && <p className="studio-transcription-row-warning">{t('studio:transcription.task_cleanup_pending')}</p>}{task.documentDurability === 'uncertain' && <p className="studio-transcription-row-warning">{t('studio:transcription.durability_uncertain')}</p>}
           </StudioTaskQueueRow>)}</StudioTaskQueue></StudioScrollFade></> : <div className="studio-transcription-empty"><ListOrdered /><p>{t('studio:transcription.queue_empty')}</p><span>{t('studio:transcription.queue_hint')}</span></div>}
@@ -423,6 +479,20 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
     <ScrollableDialog animateSize open={cancelTargets !== null} onOpenChange={open => { if (!open && !state.queueAction) setCancelTargets(null); }} maxWidth="sm:max-w-[480px]">
       <ScrollableDialogHeader><DialogTitle className="text-sm">{t('studio:transcription.cancel_all')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.cancel_all_confirmation', { count: cancelTargets?.length ?? 0 })}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogFooter className="p-3"><Button variant="outline" size="sm" disabled={!!state.queueAction} onClick={() => setCancelTargets(null)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" data-testid="studio-queue-confirm-cancel" disabled={queueBusy || !cancelTargets?.length} onClick={() => { if (cancelTargets) { void controller.cancelTasks(cancelTargets); setCancelTargets(null); } }}><Square />{t('studio:transcription.confirm_cancel_all')}</Button></ScrollableDialogFooter>
+    </ScrollableDialog>
+    <ScrollableDialog open={reviewPage !== null} onOpenChange={open => { if (!open) setReviewPage(null); }} maxWidth="sm:max-w-[480px]">
+      <ScrollableDialogHeader><DialogTitle className="text-sm">{t('studio:transcription.asmr_review_title')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.asmr_review_hint')}</DialogDescription></ScrollableDialogHeader>
+      <ScrollableDialogContent><div className="p-3 text-sm" aria-live="polite">
+        {reviewState === 'error' ? <p role="alert">{t('studio:transcription.asmr_review_error')}</p> : !reviewState ? <LoaderCircle className="studio-spin size-4" /> :
+          <ul className="divide-y" data-testid="studio-transcription-review-ranges">{reviewState.ranges.map(range => <li key={range.startMs} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+            <span className="tabular-nums">{reviewTime(range.startMs)} – {reviewTime(range.endMs)}</span>
+            <span className="text-xs text-muted-foreground">{t(range.reason === 'empty' ? 'studio:transcription.asmr_review_empty' : 'studio:transcription.asmr_review_long')}</span>
+          </li>)}</ul>}
+      </div></ScrollableDialogContent>
+      {reviewPage && reviewState && reviewState !== 'error' && reviewState.total > 50 && <ScrollableDialogFooter className="p-3">
+        <Button variant="outline" size="sm" disabled={!reviewPage.offset} onClick={() => setReviewPage({ ...reviewPage, offset: reviewPage.offset - 50 })}>{t('studio:transcription.asmr_review_previous')}</Button>
+        <Button variant="outline" size="sm" disabled={reviewPage.offset + 50 >= reviewState.total} onClick={() => setReviewPage({ ...reviewPage, offset: reviewPage.offset + 50 })}>{t('studio:transcription.asmr_review_next')}</Button>
+      </ScrollableDialogFooter>}
     </ScrollableDialog>
     <ScrollableDialog animateSize open={resourcesOpen} onOpenChange={setResourcesOpen} maxWidth="sm:max-w-[640px]" contentClassName="studio-transcription-resource-dialog" onCloseAutoFocus={event => { event.preventDefault(); resourceTrigger.current?.focus({ preventScroll: true }); }}>
       <ScrollableDialogHeader className="studio-resources-header"><DialogTitle className="flex min-w-0 items-center gap-2 text-sm"><HardDrive className="size-4 shrink-0" />{t('studio:transcription.resources')}</DialogTitle></ScrollableDialogHeader>
@@ -444,7 +514,7 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
         const running = !!job && activeResource(job.status);
         const pending = gating === resource.resourceId || state.resourceActions.includes(resource.resourceId) || (!!job && state.resourceActions.includes(job.jobId));
         const busy = speechResourceIsBusy(state.sharedResources, resource.resourceId);
-        const failure = job?.error ? resourceErrorGuide(job.error.code, { imported: state.importJobIds.includes(job.jobId), vad: resource.resourceType === 'vad', vcRuntimeMissing: vcMissing }) : undefined;
+        const failure = job?.error ? resourceErrorGuide(job.error.code, { imported: state.importJobIds.includes(job.jobId), vad: resource.resourceType === 'vad' && resource.resourceId !== JAPANESE_ASMR_VAD_MODEL_ID, vcRuntimeMissing: vcMissing }) : undefined;
         const detail = resourceDetailName(resource);
         const packFit = isCudaAccelerator(resource) ? cuda : undefined;
         const oldDriver = packFit === 'recommended' && !!system.gpu?.driverVersion && !system.gpu.driverOk;

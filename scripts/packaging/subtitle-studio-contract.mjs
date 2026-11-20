@@ -82,12 +82,14 @@ export function assertPackagingConfig(config, { contributionIds = ['legacy', 'st
   const selected = selectedContributions(contributionIds);
   const expectedMappings = [...selected.map(([, item]) => item), ...APPLICATION_RESOURCES].map(item => ({ from: item.from, to: item.to, filter: ['**/*'] }));
   if (!config || config.beforePack !== PACKAGING_HOOK || !Array.isArray(config.extraResources) || config.extraResources.length !== expectedMappings.length) throw packagingError('The complete builder resource configuration is invalid.');
+  if (config.asar !== true || !Array.isArray(config.asarUnpack) || config.asarUnpack.length !== 1
+    || config.asarUnpack[0] !== '**/onnxruntime-node/bin/**') throw packagingError('ONNX Runtime native libraries must be unpacked beside the Node addon.');
   if (config.extraResources.some((item, index) => !exactObject(item, ['from', 'to', 'filter']) || item.from !== expectedMappings[index].from || item.to !== expectedMappings[index].to || !Array.isArray(item.filter) || item.filter.length !== 1 || item.filter[0] !== '**/*')) throw packagingError('The builder contains an incorrect resource mapping.');
   for (const [platform, targets, arch] of [['mac', ['dmg', 'zip'], 'arm64'], ['win', ['nsis'], 'x64']]) {
     const value = config[platform];
     if (!value || value.artifactName !== ARTIFACT_NAME_PATTERN || !Array.isArray(value.target) || value.target.length !== targets.length || value.target.some((entry, index) => !exactObject(entry, ['target', 'arch']) || entry.target !== targets[index] || !Array.isArray(entry.arch) || entry.arch.length !== 1 || entry.arch[0] !== arch)) throw packagingError('The builder artifact name or target matrix is invalid.');
     // Per-platform overrides can silently bypass the common resource contribution; Windows adds exactly the VC++ redistributable.
-    for (const key of ['extraFiles', 'beforePack', 'sign']) if (Object.hasOwn(value, key)) throw packagingError(`Unsupported platform override: ${platform}.${key}`);
+    for (const key of ['extraFiles', 'beforePack', 'sign', 'asarUnpack']) if (Object.hasOwn(value, key)) throw packagingError(`Unsupported platform override: ${platform}.${key}`);
     if (platform === 'mac' ? Object.hasOwn(value, 'extraResources') : !sameMappings(value.extraResources, WINDOWS_RESOURCES)) throw packagingError(`Unsupported platform override: ${platform}.extraResources`);
   }
   if (!config.nsis || config.nsis.include !== NSIS_INCLUDE || config.nsis.perMachine !== false || Object.hasOwn(config.nsis, 'script')) throw packagingError('The NSIS installer must use the reviewed include and stay per-user.');

@@ -50,9 +50,10 @@ export function createTranscriptionDocumentSink(options: TranscriptionDocumentSi
   let operation: Promise<DocumentCreationReceipt> | undefined;
   let committed = false;
 
-  function publish(transcript: unknown, request: { signal?: AbortSignal } = {}): Promise<DocumentCreationReceipt> {
+  function publish(transcript: unknown, request: { signal?: AbortSignal; suppressAutomation?: true } = {}): Promise<DocumentCreationReceipt> {
     try {
-      if (!request || typeof request !== 'object' || Object.keys(request).some(key => key !== 'signal')
+      if (!request || typeof request !== 'object' || Object.keys(request).some(key => key !== 'signal' && key !== 'suppressAutomation')
+        || (request.suppressAutomation !== undefined && request.suppressAutomation !== true)
         || (request.signal !== undefined && !(request.signal instanceof AbortSignal))) throw new StudioError('invalid_input');
       assertActive();
       if (!committed && request.signal?.aborted) throw new StudioError('interrupted');
@@ -69,7 +70,7 @@ export function createTranscriptionDocumentSink(options: TranscriptionDocumentSi
       const pending = Promise.resolve().then(async () => {
         sourceLocation ??= await resolveSourceLocation?.();
         guard();
-        const initial = { ...(automaticTranslation ? { automaticTranslation } : {}), ...(automaticExport ? { automaticExport: { spec: automaticExport, state: 'pending' as const } } : {}) };
+        const initial = request.suppressAutomation ? {} : { ...(automaticTranslation ? { automaticTranslation } : {}), ...(automaticExport ? { automaticExport: { spec: automaticExport, state: 'pending' as const } } : {}) };
         return repository.createConfirmed(document!, guard, sourceLocation, Object.keys(initial).length ? initial : undefined);
       }).then(receipt => {
         committed = true;

@@ -43,7 +43,7 @@ async function fixture(extra: Partial<TranscriptionTaskServiceOptions> = {}) {
   const leases = new LocalSubtitleCapabilityLeaseCoordinator(inputs, outputs);
   const repository = new DocumentRepository(path.join(bundle.tempRoot, 'documents'));
   const model = { storage: 'managed' as const, id: config.modelId, absolutePath: path.join(bundle.tempRoot, 'model.bin'), byteSize: 42, sha256: 'a'.repeat(64) };
-  const modelResolver = { resolveManagedModel: vi.fn(async () => model), resolveManagedVad: vi.fn(async () => { throw new Error('Unexpected VAD.'); }) };
+  const modelResolver = { resolveManagedModel: vi.fn(async () => model), resolveManagedVad: vi.fn(async (): Promise<typeof model> => { throw new Error('Unexpected VAD.'); }) };
   const backendResolver = new LocalSubtitleBackendResolver({ verifyServerRuntime: async () => verified });
   const media = { verifyRuntime: vi.fn(async () => ({ runtimeGeneration: verified.runtimeGeneration })),
     bindTaskMediaSelection: vi.fn(), releaseTaskMediaSelection: vi.fn() };
@@ -745,4 +745,46 @@ it('refuses to retry a file moved or modified since, another owner\'s task, or o
   expect(f.service.list(ownerA)).toHaveLength(3);
   f.service.remove(ownerA, modified!.taskId);
   await expect(f.service.prepareRetry(ownerA, modified!.taskId)).rejects.toMatchObject({ code: 'access_denied' });
+});
+
+it('keeps ASMR review ranges owner-scoped and commits partial subtitles without automatic actions', async () => {
+  const { ASMR_VAD_DEFINITION: timing } = await import('../../electron/main/speech-resources/engine/asmr-vad-definition');
+  const modelId = 'anime-whisper-q8_0';
+  const handoff = vi.fn();
+  const exportDocument = vi.fn();
+  const f = await fixture({ automaticTranslation: { handoff }, automaticExport: { exportDocument } });
+  const voice = { ...f.model, id: modelId };
+  const vad = { ...f.model, id: timing.resourceId, byteSize: timing.byteSize, sha256: timing.sha256 };
+  f.modelResolver.resolveManagedModel.mockResolvedValue(voice);
+  f.modelResolver.resolveManagedVad.mockImplementation(async () => vad);
+  const ranges = [{ startMs: 3200, endMs: 4400, reason: 'empty' as const }];
+  f.executor.execute.mockImplementationOnce(async context => {
+    expect(context.managedVad).toBeUndefined();
+    expect(context.asmrVad).toEqual(vad);
+    expect(context.audioStreamId).toBe('audio-0');
+    expect(f.service.isResourceBusy(timing.resourceId)).toBe(true);
+    context.updateAsmr?.({ stage: 'timing' }, 55);
+    context.updateAsmr?.({ stage: 'recognizing', total: 2, done: 1 }, 80);
+    return { status: 'transcript_ready', durationMs: 5000, cueSummary: { cueCount: 1, exceedsTargetCount: 0 },
+      asmrReview: ranges, transcript: { ...f.transcript, detectedLanguage: 'ja',
+        model: { ...f.transcript.model, modelId }, segments: [{ id: 'asmr-1', startMs: 0, endMs: 3000, text: 'こんにちは。' }] } };
+  });
+  const input = await f.request(ownerA, 1, true);
+  const request = { ...input, config: { ...input.config, mode: 'japanese_asmr' as const, modelId, language: 'ja', vadEnabled: true },
+    autoTranslation: automaticRequest() };
+  const { tasks: [admitted] } = await f.service.enqueue(ownerA, request);
+  await f.service.waitForIdle();
+  const [task] = f.service.list(ownerA);
+  expect(task).toMatchObject({ status: 'completed', progress: 100, mode: 'japanese_asmr', asmrReviewCount: 1,
+    asmrTimingModel: { id: timing.resourceId, sha256: timing.sha256, backend: 'cpu' } });
+  expect(task.automaticTranslation).toBeUndefined();
+  const snapshot = await f.repository.readSnapshot(task.documentId!);
+  expect(snapshot.document.cues[0]?.source.plain).toBe('こんにちは。');
+  expect(snapshot.tasks).toHaveLength(0);
+  expect(handoff).not.toHaveBeenCalled();
+  expect(exportDocument).not.toHaveBeenCalled();
+  expect(f.service.review(ownerA, admitted.taskId, 0, 1)).toEqual({ total: 1, ranges });
+  expect(f.service.review(ownerA, admitted.taskId, 1, 1)).toEqual({ total: 1, ranges: [] });
+  expect(() => f.service.review(ownerB, admitted.taskId, 0, 1)).toThrow(StudioError);
+  expect(f.service.isResourceBusy(timing.resourceId)).toBe(false);
 });

@@ -765,9 +765,16 @@ export class LocalSubtitleMediaNormalizer {
 
   /** Bounded read of the owned original PCM; no window file or enhanced audio is created. */
   async readPrefixSamples(normalized: LocalSubtitleNormalizedPcm, frameCount: number, signal?: AbortSignal): Promise<Int16Array> {
+    if (frameCount < 16000) throw invalidMediaConfiguration("The PCM analysis prefix is invalid.");
+    return this.readTimingSamples(normalized, 0, frameCount, signal);
+  }
+
+  async readTimingSamples(normalized: LocalSubtitleNormalizedPcm, start: number, end: number, signal?: AbortSignal): Promise<Int16Array> {
     const record = requireNormalizedRecord(normalized);
-    if (record.state !== "active" || !Number.isSafeInteger(frameCount) || frameCount < 16000 || frameCount > 480000 || frameCount > record.metadata.totalFrames)
-      throw invalidMediaConfiguration("The PCM analysis prefix is invalid.");
+    const frameCount = end - start;
+    if (record.state !== "active" || !Number.isSafeInteger(start) || !Number.isSafeInteger(end)
+      || start < 0 || frameCount < 1 || frameCount > 480000 || end > record.metadata.totalFrames)
+      throw invalidMediaConfiguration("The PCM analysis range is invalid.");
     const operation = await this.#beginOwnerOperation(record.ownerKey, signal, "decode_failed");
     let handle: FileHandle | undefined;
     try {
@@ -776,7 +783,7 @@ export class LocalSubtitleMediaNormalizer {
       handle = await open(record.filePath, READ_ONLY_NOFOLLOW);
       if (!sameFileIdentity(await localSubtitleFileIdentityForHandle(handle), record.fileIdentity)) throw mediaChanged();
       const bytes = Buffer.alloc(frameCount * 2);
-      const result = await handle.read(bytes, 0, bytes.length, record.metadata.dataOffset);
+      const result = await handle.read(bytes, 0, bytes.length, record.metadata.dataOffset + start * 2);
       if (result.bytesRead !== bytes.length || !sameFileIdentity(await localSubtitleFileIdentityForHandle(handle), record.fileIdentity)) throw mediaChanged();
       await assertPathFileIdentity(record.filePath, record.fileIdentity);
       throwIfAborted(operation.signal, "decode_failed");

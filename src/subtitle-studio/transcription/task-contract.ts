@@ -3,7 +3,7 @@ import { errorCodeSchema } from '../domain';
 import { automaticTranslationRequestSchema } from '../automatic-translation-contract';
 import { automaticExportSpecSchema } from '../automatic-export-contract';
 import { TRANSCRIPTION_AUDIO_PROFILES } from '../transcription-audio-profiles';
-import { STUDIO_TRANSCRIPTION_MODES, JAPANESE_ASMR_MODEL_ID } from './japanese-asmr-contract';
+import { STUDIO_TRANSCRIPTION_MODES, JAPANESE_ASMR_MODEL_ID, JAPANESE_ASMR_VAD_MODEL_ID } from './japanese-asmr-contract';
 import { LOCAL_SUBTITLE_DEVICE_PREFERENCES, LOCAL_SUBTITLE_ERROR_CODES, LOCAL_SUBTITLE_LIMITS, LOCAL_SUBTITLE_OPERATION_STAGES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT, LOCAL_SUBTITLE_WINDOW_STRATEGIES } from './domain';
 
@@ -49,12 +49,29 @@ export const enqueueTranscriptionRequestSchema = z.object({
     context.addIssue({ code: 'custom', path: ['config', 'vadEnabled'], message: 'Pause-based chunking requires VAD.' });
   if (value.config.advanced.audioProfile !== undefined && !value.config.vadEnabled)
     context.addIssue({ code: 'custom', path: ['config', 'advanced', 'audioProfile'], message: 'An audio profile requires VAD.' });
-  if (value.config.mode === 'japanese_asmr' && (value.config.modelId !== JAPANESE_ASMR_MODEL_ID || value.config.language !== 'ja' || value.config.taskMode !== 'transcribe' || !value.config.vadEnabled))
+  if (value.config.mode === 'japanese_asmr' && (value.config.modelId !== JAPANESE_ASMR_MODEL_ID || value.config.language !== 'ja' || value.config.taskMode !== 'transcribe' || !value.config.vadEnabled || value.config.advanced.initialPrompt !== undefined
+    || value.config.advanced.audioProfile !== undefined || value.config.windowStrategy === 'acoustic_quiet_v1'))
     context.addIssue({ code: 'custom', path: ['config', 'mode'], message: 'Japanese ASMR mode requires the Japanese model, Japanese transcription, and VAD.' });
+  if (value.config.mode === 'japanese_asmr' && value.autoTranslation?.knowledge
+    && value.autoTranslation.knowledge.selection.languagePair.source !== 'ja')
+    context.addIssue({ code: 'custom', path: ['autoTranslation', 'knowledge', 'selection', 'languagePair', 'source'], message: 'Japanese ASMR output requires Japanese knowledge source.' });
   if (value.config.taskMode === 'translate_to_english' && value.autoTranslation?.knowledge
     && value.autoTranslation.knowledge.selection.languagePair.source !== 'en')
     context.addIssue({ code: 'custom', path: ['autoTranslation', 'knowledge', 'selection', 'languagePair', 'source'], message: 'English transcription output requires English knowledge source.' });
 });
+
+export const japaneseAsmrReviewRangeSchema = z.object({
+  startMs: z.number().int().nonnegative().max(LOCAL_SUBTITLE_LIMITS.maxDurationMs),
+  endMs: z.number().int().positive().max(LOCAL_SUBTITLE_LIMITS.maxDurationMs),
+  reason: z.enum(['empty', 'too_long']),
+}).strict().refine(range => range.endMs > range.startMs);
+export type JapaneseAsmrReviewRange = Readonly<z.infer<typeof japaneseAsmrReviewRangeSchema>>;
+export const japaneseAsmrPhaseSchema = z.discriminatedUnion('stage', [
+  z.object({ stage: z.literal('timing') }).strict(),
+  z.object({ stage: z.literal('recognizing'), done: z.number().int().nonnegative().max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments),
+    total: z.number().int().positive().max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments) }).strict(),
+]);
+export type JapaneseAsmrPhase = z.infer<typeof japaneseAsmrPhaseSchema>;
 
 export const transcriptionTaskSummarySchema = z.object({
   taskId: opaqueId, batchId: opaqueId, generation: z.literal(1),
@@ -63,6 +80,11 @@ export const transcriptionTaskSummarySchema = z.object({
   progress: z.number().finite().min(0).max(100),
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(), modelId: opaqueId,
   mode: z.enum(STUDIO_TRANSCRIPTION_MODES).optional(),
+  phase: japaneseAsmrPhaseSchema.optional(),
+  asmrTimingModel: z.object({ id: z.literal(JAPANESE_ASMR_VAD_MODEL_ID), backend: z.literal('cpu'),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/u) }).strict().optional(),
+  asmrReviewCount: z.number().int().positive().max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments).optional(),
+  asmrNoContent: z.enum(['no_speech', 'review']).optional(),
   resolvedBackend: z.enum(['cpu', 'metal', 'cuda']),
   /** The task's non-standard audio type; absent for standard. */
   audioProfile: z.enum(TRANSCRIPTION_AUDIO_PROFILES).optional(),
@@ -73,6 +95,8 @@ export const transcriptionTaskSummarySchema = z.object({
   error: z.object({ code: z.union([z.enum(LOCAL_SUBTITLE_ERROR_CODES), errorCodeSchema]), stage: z.enum(LOCAL_SUBTITLE_OPERATION_STAGES).optional() }).strict().optional(),
   cleanupPending: z.literal(true).optional(),
 }).strict().superRefine((value, context) => {
+  if (value.phase?.stage === 'recognizing' && value.phase.done > value.phase.total)
+    context.addIssue({ code: 'custom', path: ['phase', 'done'], message: 'Recognized intervals cannot exceed the total.' });
   if (value.status !== 'no_content') return;
   if (value.progress !== 100) context.addIssue({ code: 'custom', path: ['progress'], message: 'An empty result is fully processed.' });
   for (const key of ['documentId', 'documentDurability', 'automaticTranslation', 'error'] as const) {
