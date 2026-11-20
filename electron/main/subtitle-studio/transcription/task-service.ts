@@ -381,7 +381,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
           ...(knowledge ? { releaseAutomaticKnowledge: () => { if (--knowledgeRemaining === 0) releaseKnowledge(); } } : {}),
           ...(request.autoExport ? { autoExport: structuredClone(request.autoExport) } : {}),
           summary: publicSummary({ taskId, batchId, generation: 1, displayName: input.displayName, status: 'queued', progress: 0,
-            createdAt: now, updatedAt: now, modelId: managedModel.id, resolvedBackend: backendResolution.resolvedBackend,
+            createdAt: now, updatedAt: now, modelId: managedModel.id, ...(request.config.mode ? { mode: request.config.mode } : {}), resolvedBackend: backendResolution.resolvedBackend,
             ...(request.config.advanced.audioProfile ? { audioProfile: request.config.advanced.audioProfile } : {}),
             ...(request.autoTranslation ? { automaticTranslation: { status: 'pending' as const } } : {}) }) });
       }

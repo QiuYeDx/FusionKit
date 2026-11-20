@@ -3,6 +3,7 @@ import { errorCodeSchema } from '../domain';
 import { automaticTranslationRequestSchema } from '../automatic-translation-contract';
 import { automaticExportSpecSchema } from '../automatic-export-contract';
 import { TRANSCRIPTION_AUDIO_PROFILES } from '../transcription-audio-profiles';
+import { STUDIO_TRANSCRIPTION_MODES, JAPANESE_ASMR_MODEL_ID } from './japanese-asmr-contract';
 import { LOCAL_SUBTITLE_DEVICE_PREFERENCES, LOCAL_SUBTITLE_ERROR_CODES, LOCAL_SUBTITLE_LIMITS, LOCAL_SUBTITLE_OPERATION_STAGES,
   LOCAL_SUBTITLE_PRODUCTION_CONTRACT, LOCAL_SUBTITLE_WINDOW_STRATEGIES } from './domain';
 
@@ -12,6 +13,7 @@ export const STUDIO_TRANSCRIPTION_MAX_FILES = LOCAL_SUBTITLE_LIMITS.maxBatchFile
 const opaqueId = z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
 const language = z.string().min(2).max(32).refine(value => value === 'auto' || /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(value));
 export const transcriptionTaskConfigSchema = z.object({
+  mode: z.enum(STUDIO_TRANSCRIPTION_MODES).optional(),
   modelId: opaqueId,
   devicePreference: z.enum(LOCAL_SUBTITLE_DEVICE_PREFERENCES),
   language,
@@ -47,6 +49,8 @@ export const enqueueTranscriptionRequestSchema = z.object({
     context.addIssue({ code: 'custom', path: ['config', 'vadEnabled'], message: 'Pause-based chunking requires VAD.' });
   if (value.config.advanced.audioProfile !== undefined && !value.config.vadEnabled)
     context.addIssue({ code: 'custom', path: ['config', 'advanced', 'audioProfile'], message: 'An audio profile requires VAD.' });
+  if (value.config.mode === 'japanese_asmr' && (value.config.modelId !== JAPANESE_ASMR_MODEL_ID || value.config.language !== 'ja' || value.config.taskMode !== 'transcribe' || !value.config.vadEnabled))
+    context.addIssue({ code: 'custom', path: ['config', 'mode'], message: 'Japanese ASMR mode requires the Japanese model, Japanese transcription, and VAD.' });
   if (value.config.taskMode === 'translate_to_english' && value.autoTranslation?.knowledge
     && value.autoTranslation.knowledge.selection.languagePair.source !== 'en')
     context.addIssue({ code: 'custom', path: ['autoTranslation', 'knowledge', 'selection', 'languagePair', 'source'], message: 'English transcription output requires English knowledge source.' });
@@ -58,6 +62,7 @@ export const transcriptionTaskSummarySchema = z.object({
   status: z.enum(['queued', 'preparing_media', 'loading_model', 'transcribing', 'post_processing', 'completed', 'no_content', 'cancelled', 'failed']),
   progress: z.number().finite().min(0).max(100),
   createdAt: z.string().datetime(), updatedAt: z.string().datetime(), modelId: opaqueId,
+  mode: z.enum(STUDIO_TRANSCRIPTION_MODES).optional(),
   resolvedBackend: z.enum(['cpu', 'metal', 'cuda']),
   /** The task's non-standard audio type; absent for standard. */
   audioProfile: z.enum(TRANSCRIPTION_AUDIO_PROFILES).optional(),

@@ -54,12 +54,13 @@ export function transcriptionModelSpeaks(profile: TranscriptionModelProfile, lan
 interface ModelChoices {
   readonly modelId: string; readonly language: string; readonly taskMode: 'transcribe' | 'translate_to_english';
   readonly advanced: { readonly initialPrompt?: string };
+  readonly mode?: 'standard' | 'japanese_asmr';
 }
 export type TranscriptionModelMismatch = 'recognize_only' | 'translate' | 'prompt' | 'language';
 
 /** The first choice in a transcription request its model (or the profile given) does not support, or null when it fits. */
 export function transcriptionModelMismatch(config: ModelChoices, profile = transcriptionModelProfile(config.modelId)): TranscriptionModelMismatch | null {
-  if (profile.role !== 'transcribe') return 'recognize_only';
+  if (profile.role !== 'transcribe' && config.mode !== 'japanese_asmr') return 'recognize_only';
   if (config.taskMode === 'translate_to_english' && !profile.translate) return 'translate';
   // Any hint is sent as a prompt, an empty one too.
   if (profile.prompt === 'forbid' && config.advanced.initialPrompt !== undefined) return 'prompt';
