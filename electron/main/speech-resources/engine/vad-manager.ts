@@ -18,8 +18,10 @@ import path from "node:path";
 import {
   createLocalSubtitleError,
   isLocalSubtitleErrorCode,
+  LOCAL_SUBTITLE_OPERATION_STAGES,
   type LocalSubtitleError,
   type LocalSubtitleErrorCode,
+  type LocalSubtitleOperationStage,
   type LocalSubtitleResourceJobSummary,
 } from "../../../../src/speech-resources/contracts";
 import type { LocalSubtitleManagedResourceSummary } from "../../../../src/speech-resources/schemas";
@@ -450,7 +452,9 @@ export class LocalSubtitleVadManager {
         throw vadFailure("resource_busy", "The local subtitle VAD is already installed.");
       }
 
-      await this.#resolveSmokeModel(context.signal);
+      // Standalone VADs (ASMR) are smoked by their own runtime and have no
+      // ASR model dependency, so only the Silero path needs the default model.
+      if (!this.#smokeStandalone) await this.#resolveSmokeModel(context.signal);
       throwIfCancelled(context);
       await this.#assertDiskSpace(
         definition.byteSize + definition.manifestBytes.byteLength,
@@ -1204,10 +1208,32 @@ function toResourceJobError(error: unknown): LocalSubtitleError {
   ) {
     return createLocalSubtitleError(error.localSubtitleCode, error.message);
   }
+  // Native hosts (e.g. the ASMR worker) throw ready-made error objects, not Error instances.
+  if (isLocalSubtitleErrorObject(error)) {
+    return createLocalSubtitleError(error.code, error.message, {
+      ...(isOperationStage(error.stage) ? { stage: error.stage } : {}),
+    });
+  }
+  // An unrecognized failure is not a file integrity problem. The real cause stays in the main-process log
+  // (it may contain paths, so it never reaches the renderer); the UI falls back to its generic wording.
+  console.error("The local subtitle VAD installation failed unexpectedly.", error);
   return createLocalSubtitleError(
-    "resource_signature_invalid",
-    "The local subtitle VAD installation failed.",
+    "transcription_failed",
+    "The local subtitle VAD installation failed unexpectedly.",
   );
+}
+
+function isLocalSubtitleErrorObject(
+  value: unknown,
+): value is { code: LocalSubtitleErrorCode; message: string; stage?: unknown } {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as { code?: unknown; message?: unknown };
+  return typeof candidate.message === "string" && isLocalSubtitleErrorCode(candidate.code);
+}
+
+function isOperationStage(value: unknown): value is LocalSubtitleOperationStage {
+  return typeof value === "string" &&
+    (LOCAL_SUBTITLE_OPERATION_STAGES as readonly string[]).includes(value);
 }
 
 function vadErrorCode(error: unknown): LocalSubtitleErrorCode {

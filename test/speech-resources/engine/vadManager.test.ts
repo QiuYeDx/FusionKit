@@ -11,7 +11,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { SpeechResourceSmokeError } from "../../../src/speech-resources/contracts";
+import { createLocalSubtitleError, SpeechResourceSmokeError } from "../../../src/speech-resources/contracts";
 import { LOCAL_SUBTITLE_MODEL_MANIFEST } from "../../../electron/main/speech-resources/engine/model-manifest";
 import { LocalSubtitleModelManager } from "../../../electron/main/speech-resources/engine/model-manager";
 import {
@@ -156,6 +156,57 @@ describe("speech resource engine VAD manager", () => {
       status: "completed",
     });
     expect(fixture.downloadResource).toHaveBeenCalledOnce();
+  });
+
+  it("installs a standalone VAD without resolving an ASR model", async () => {
+    const resolveSmokeModel = vi.fn(() => { throw new Error("standalone VAD must not need a model"); });
+    const smokeStandalone = vi.fn(async () => undefined);
+    const fixture = await createFixture({ resolveSmokeModel, smokeStandalone });
+
+    fixture.manager.startResourceInstall(OWNER_A, fixture.definition.resourceId);
+    await fixture.manager.waitForIdle();
+
+    expect(fixture.registry.getSnapshot(OWNER_A).resourceJobs[0]).toMatchObject({ status: "completed" });
+    expect(resolveSmokeModel).not.toHaveBeenCalled();
+    expect(fixture.smokeVadLoad).not.toHaveBeenCalled();
+    expect(smokeStandalone).toHaveBeenCalledOnce();
+    await expect(fixture.manager.listManagedResources()).resolves.toEqual([
+      expect.objectContaining({ status: "ready" }),
+    ]);
+  });
+
+  it("keeps the code of a ready-made error object thrown by a standalone smoke", async () => {
+    const smokeStandalone = vi.fn(async () => {
+      throw createLocalSubtitleError("media_runtime_launch_failed", "The worker could not start.", { stage: "loading_model" });
+    });
+    const fixture = await createFixture({ smokeStandalone });
+
+    fixture.manager.startResourceInstall(OWNER_A, fixture.definition.resourceId);
+    await fixture.manager.waitForIdle();
+
+    expect(fixture.registry.getSnapshot(OWNER_A).resourceJobs[0]).toMatchObject({
+      status: "failed",
+      error: { code: "media_runtime_launch_failed", stage: "loading_model" },
+    });
+    await expect(fixture.manager.resolveManagedVad(fixture.definition.resourceId)).rejects.toMatchObject({ localSubtitleCode: "model_missing" });
+  });
+
+  it("does not report an unexpected install failure as an integrity failure", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const fixture = await createFixture({ resolveSmokeModel: () => { throw new Error("boom"); } });
+
+      fixture.manager.startResourceInstall(OWNER_A, fixture.definition.resourceId);
+      await fixture.manager.waitForIdle();
+
+      const job = fixture.registry.getSnapshot(OWNER_A).resourceJobs[0];
+      expect(job).toMatchObject({ status: "failed" });
+      expect(job?.error?.code).not.toBe("resource_signature_invalid");
+      expect(job?.error?.message).not.toContain("boom");
+      expect(consoleError).toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("rejects a same-size VAD with the wrong hash before smoke or commit", async () => {
