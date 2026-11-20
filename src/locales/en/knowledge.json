@@ -13,6 +13,7 @@
     "choose_source": "Choose subtitle source language",
     "configuration": "Check the model, languages, and materials for automatic translation.",
     "english_source": "This transcription mode produces English subtitles, so the source language is English. The target follows your automatic translation setting.",
+    "japanese_source": "The Japanese/ASMR transcription mode works on Japanese speech, so the source language is Japanese. The target follows your automatic translation setting.",
     "removed_item": "Removed selection",
     "stale": "Materials have changed. Open Choose materials, review your choices, and apply them before starting transcription."
   },

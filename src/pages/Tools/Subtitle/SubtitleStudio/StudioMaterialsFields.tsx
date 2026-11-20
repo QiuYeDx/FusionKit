@@ -72,7 +72,7 @@ type PickerTab = 'collections' | 'presets';
 type Props = {
   value: KnowledgeSelection; library: LibrarySnapshot | null; disabled: boolean; loading?: boolean;
   onChange: (value: KnowledgeSelection) => void; onLibraryChange: (library: LibrarySnapshot) => void;
-  onRefresh: () => void; onAddTerm?: () => void; sourceLocked?: boolean;
+  onRefresh: () => void; onAddTerm?: () => void; /** The fixed source language of the transcription mode, if the mode fixes one. */ sourceLocked?: 'en' | 'ja';
 };
 type PresetEdit = { kind: 'save' } | { kind: 'rename'; preset: Preset } | { kind: 'delete'; preset: Preset };
 
@@ -299,14 +299,14 @@ export function StudioMaterialsFields({ value, library, disabled, loading, onCha
     </div>
     {loading && !choosing && <p role="status" className="studio-materials-loading"><RefreshCw className="size-3 animate-spin" aria-hidden="true" />{t('knowledge:loading')}</p>}
     <DialogTransition transitionKey="configuration">{active && <div className="studio-materials-configuration">
-      <div className="studio-materials-source-row"><label htmlFor={`${formId}-source`}>{t('knowledge:fields.source_language')}</label><Select value={value.languagePair.source || 'none'} disabled={disabled || sourceLocked} onValueChange={next => {
+      <div className="studio-materials-source-row"><label htmlFor={`${formId}-source`}>{t('knowledge:fields.source_language')}</label><Select value={value.languagePair.source || 'none'} disabled={disabled || Boolean(sourceLocked)} onValueChange={next => {
         const source = next === 'none' ? '' : next;
         const pair = { ...value.languagePair, source };
         // Changing the source drops collections of another direction rather than leaving them invalid.
         const collectionIds = value.collectionIds.filter(id => { const item = collectionsById.get(id); return !item || fits(item.languagePair, { languagePair: pair }); });
         update({ languagePair: pair, collectionIds, disabledEntryIds: value.disabledEntryIds.filter(id => collectionIds.includes(library?.data.entries.find(entry => entry.id === id)?.collectionId ?? '')) });
       }}><SelectTrigger id={`${formId}-source`} data-testid="studio-materials-source" className="h-8 min-w-0 text-xs"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">{t('knowledge:automatic.choose_source')}</SelectItem>{materialLanguages.map(language => <SelectItem key={language} value={language}>{t(`knowledge:languages.${language}`)}</SelectItem>)}{value.languagePair.source && !materialLanguages.includes(value.languagePair.source as typeof materialLanguages[number]) && <SelectItem value={value.languagePair.source}>{value.languagePair.source}</SelectItem>}</SelectContent></Select></div>
-      {sourceLocked && <p className="studio-materials-help">{t('knowledge:automatic.english_source')}</p>}
+      {sourceLocked && <p className="studio-materials-help">{sourceLocked === 'ja' ? t('knowledge:automatic.japanese_source') : t('knowledge:automatic.english_source')}</p>}
       {problem && <div role="status" data-testid="studio-materials-problem" className="studio-materials-problem"><AlertCircle className="size-3.5" aria-hidden="true" /><p>{t(problemKeys[problem])}</p>{problem === 'library' && <Button type="button" variant="outline" size="xs" disabled={disabled || loading} onClick={onRefresh}>{t('materials:selection.retry')}</Button>}</div>}
       <div className="studio-materials-disclosures">
       <KnowledgeDisclosure data-testid="studio-materials-more" variant="section" title={t('studio:materials.more')} description={value.disabledEntryIds.length > 0 ? t('materials:selection.exclusion_count', { count: value.disabledEntryIds.length }) : undefined} className="studio-materials-disclosure">

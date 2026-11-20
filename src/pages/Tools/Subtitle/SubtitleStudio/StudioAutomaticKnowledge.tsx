@@ -15,7 +15,7 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
   const id = useId();
   const [saveError, setSaveError] = useState(false);
   const saved = state.autoTranslation.knowledge ?? DEFAULT_AUTOMATIC_KNOWLEDGE;
-  const lockedSource = state.mode === 'japanese_asmr' ? 'ja' : state.config.taskMode === 'translate_to_english' ? 'en' : undefined;
+  const lockedSource: 'en' | 'ja' | undefined = state.mode === 'japanese_asmr' ? 'ja' : state.config.taskMode === 'translate_to_english' ? 'en' : undefined;
   const value = activeAutomaticMaterials(saved, state.autoTranslation.language);
   if (lockedSource) value.languagePair.source = lockedSource;
   const instructions = saved.enabled && saved.instructions !== undefined ? saved.instructions : state.autoTranslation.instructions;
@@ -42,7 +42,7 @@ export function StudioAutomaticKnowledge({ controller, state }: { controller: St
   };
   return <div data-testid="studio-automatic-materials" className="studio-transcription-wide-field min-w-0 space-y-3">
     <StudioMaterialsFields value={value} library={state.autoKnowledgeLibrary} disabled={state.submitting} loading={state.autoKnowledgeLoading}
-      onChange={update} onLibraryChange={() => void refresh()} onRefresh={() => void refresh()} sourceLocked={Boolean(lockedSource)} />
+      onChange={update} onLibraryChange={() => void refresh()} onRefresh={() => void refresh()} sourceLocked={lockedSource} />
     <ToolField label={t('studio:translation.instructions')} htmlFor={`${id}-instructions`}><Textarea id={`${id}-instructions`} data-testid="studio-automatic-instructions" className="min-h-16 text-xs" maxLength={4000} disabled={state.submitting} value={instructions} onChange={event => {
       if (active) update({ ...value, instructions: event.target.value });
       else controller.setAutoTranslation({ ...state.autoTranslation, instructions: event.target.value });
