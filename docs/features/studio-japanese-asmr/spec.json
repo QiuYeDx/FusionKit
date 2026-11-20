@@ -1,0 +1,57 @@
+{
+  "schema_version": 2,
+  "feature": "studio-japanese-asmr",
+  "tier": "M",
+  "risk": "medium",
+  "current_increment": "I1",
+  "modules": [
+    {
+      "slug": "studio-japanese-asmr",
+      "code": "JASMR",
+      "path": "."
+    }
+  ],
+  "increments": [
+    {
+      "id": "I1",
+      "title": "日语 / ASMR 双阶段转写",
+      "status": "planning",
+      "approval": {
+        "state": "approved",
+        "by": "用户",
+        "basis": "2026-11-20 当前会话用户授权：等引用会话更新好相关文档后，把文档提交一下（在本地，先不推送），然后根据文档开始开发和实现。",
+        "digest": "de39e21ec1a67f9565f55bc4d1076e226b7db47f33477100e3c0fc1f0f8e7273"
+      },
+      "acceptance": {
+        "state": "pending",
+        "by": "",
+        "basis": "",
+        "digest": "",
+        "record": ""
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "A-01",
+      "increment": "I1",
+      "blocking": false,
+      "state": "resolved",
+      "text": "首版采用哪个模型打轴。",
+      "resolution": "2026-11-20 用户确认使用 TransWithAI/Whisper-Vad-EncDec-ASMR-onnx。Turbo 用于同素材对照。"
+    },
+    {
+      "id": "A-02",
+      "increment": "I1",
+      "blocking": false,
+      "state": "open",
+      "text": "在开发计划首项实验冻结 ASMR VAD 概率和停顿阈值、窗口拼接与解码边距，量化无明显停顿的合行。",
+      "resolution": ""
+    }
+  ],
+  "parallel": {
+    "enabled": false,
+    "integrator": "",
+    "shared_files": []
+  }
+}
