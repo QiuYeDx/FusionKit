@@ -53,6 +53,8 @@ export interface StudioTranscriptionState {
   readonly config: Config;
   readonly mode?: StudioTranscriptionMode;
   readonly asmrDevice?: Config['devicePreference'];
+  /** Japanese ASMR: results with ranges to check wait for the user before automatic translation and export. Off by default. */
+  readonly asmrHoldOnReview?: boolean;
   readonly autoTranslation: AutomaticTranslationPreferences;
   readonly autoTranslationReady: boolean;
   /** Write each result next to its media when it is done (Studio setting). */
@@ -200,7 +202,7 @@ export class StudioTranscriptionController {
       let value: unknown;
       try { value = this.preferences.read(); } catch { /* Defaults keep the tool usable. */ }
       const saved = readTranscriptionPreferences(value);
-      this.state = Object.freeze({ ...this.state, config: freezeConfig(fitTranscriptionConfig(saved.config)), mode: saved.mode, asmrDevice: saved.asmrDevice, autoTranslation: freezeAutomatic(saved.autoTranslation),
+      this.state = Object.freeze({ ...this.state, config: freezeConfig(fitTranscriptionConfig(saved.config)), mode: saved.mode, asmrDevice: saved.asmrDevice, asmrHoldOnReview: saved.asmrHoldOnReview, autoTranslation: freezeAutomatic(saved.autoTranslation),
         autoExport: Object.freeze({ ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, ...saved.autoExport }) });
       this.configTouched = true;
     }
@@ -370,6 +372,11 @@ export class StudioTranscriptionController {
     this.emit({ asmrDevice: devicePreference, error: null });
     this.savePreferences();
   };
+  setAsmrHoldOnReview = (asmrHoldOnReview: boolean): void => {
+    if (this.state.submitting) return;
+    this.emit({ asmrHoldOnReview, error: null });
+    this.savePreferences();
+  };
   listReview = (taskId: string, offset: number) => {
     const api = this.api();
     if (!api.listTranscriptionReview) return Promise.reject(new StudioError('unsupported_feature'));
@@ -427,7 +434,7 @@ export class StudioTranscriptionController {
     return this.automaticKnowledgeRead;
   };
   private savePreferences() {
-    try { this.preferences?.write({ version: 1, config: this.state.config, mode: this.state.mode, asmrDevice: this.state.asmrDevice, autoTranslation: this.state.autoTranslation, autoExport: this.state.autoExport }); }
+    try { this.preferences?.write({ version: 1, config: this.state.config, mode: this.state.mode, asmrDevice: this.state.asmrDevice, ...(this.state.asmrHoldOnReview !== undefined ? { asmrHoldOnReview: this.state.asmrHoldOnReview } : {}), autoTranslation: this.state.autoTranslation, autoExport: this.state.autoExport }); }
     catch { /* The in-memory choice and current operation remain valid. */ }
   }
   private automaticRequest(): AutomaticTranslationRequest | undefined {
@@ -566,7 +573,8 @@ export class StudioTranscriptionController {
     const exported = options?.autoExport === undefined ? automaticExportFromPreferences(this.state.autoExport, !!automatic) : options.autoExport ?? undefined;
     if (this.state.autoTranslation.enabled && !automatic) { this.emit({ error: 'needs_configuration' }); return Promise.resolve(null); }
     const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: effectiveTranscriptionConfig(this.state),
-      ...(automatic ? { autoTranslation: automatic } : {}), ...(exported ? { autoExport: exported } : {}) });
+      ...(automatic ? { autoTranslation: automatic } : {}), ...(exported ? { autoExport: exported } : {}),
+      ...(this.state.mode === 'japanese_asmr' && this.state.asmrHoldOnReview ? { holdOnReview: true } : {}) });
     this.taskVersion++; this.emit({ submitting: true, error: null, drafts: Object.freeze(this.state.drafts.map(draft => ids.has(draft.id) ? Object.freeze({ ...draft, status: 'submitting' as const }) : draft)) });
     this.enqueueOperation = Promise.resolve().then(async () => {
       let response: Awaited<ReturnType<Api['enqueueTranscription']>>;

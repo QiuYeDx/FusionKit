@@ -406,6 +406,11 @@ export function createTranscriptionRuntime(options: TranscriptionRuntimeOptions,
         if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
         return current.tasks.review(owner, taskId, offset, limit);
       },
+      locateReview(value: LocalSubtitleOwnerKey, taskId: string, offset: number, limit: number) {
+        const { current, owner } = requireOwner(value);
+        if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');
+        return completeOwner(owner, current.tasks.locateReview(owner, taskId, offset, limit));
+      },
       list(value: LocalSubtitleOwnerKey) {
         const { current, owner } = requireOwner(value);
         if (!current.tasks) throw new TranscriptionRuntimeError('invalid_configuration');

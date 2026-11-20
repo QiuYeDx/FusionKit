@@ -16,7 +16,7 @@ import { bilingualOptionsSchema, type BilingualPreview } from './bilingual-contr
 import { canRevertBilingual, hasBilingualCandidates, isBilingualRecommended } from './bilingual';
 import { exportOptionsSchema, exportIssueCodeSchema, exportDestinationSchema, type SourceLocationSummary, type ExportPlanSummary, type ExportResult } from './export-contract';
 import { batchRequestSchemas, type BatchImportResult, type DeleteBatchResult, type TranslationBatchPlan, type TranslationBatchResult, type ExportBatchPlan, type ExportBatchResult, type SourceBatchResult, type UnavailableDocument } from './batch-contract';
-import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, transcriptionTaskConfigSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission, type JapaneseAsmrReviewRange } from './transcription/task-contract';
+import { enqueueTranscriptionRequestSchema, STUDIO_TRANSCRIPTION_MAX_FILES, transcriptionTaskConfigSchema, type TranscriptionTaskSummary, type TranscriptionBatchAdmission, type JapaneseAsmrReviewItem } from './transcription/task-contract';
 import { TRANSCRIPTION_AUDIO_PROFILES } from './transcription-audio-profiles';
 import type { LocalSubtitleAuthorizedMedia, LocalSubtitleMediaProbeSummary, LocalSubtitleManagedResourceSummary } from './transcription/ipc-contract';
 import type { LocalSubtitleResourceJobSummary } from './transcription/domain';
@@ -267,7 +267,7 @@ export interface SubtitleStudioApi {
   deleteTranscriptionResource(request: z.infer<typeof requestSchemas.deleteTranscriptionResource>): Promise<StudioResult<{ deleted: boolean }>>;
   cancelTranscriptionResourceJob(request: z.infer<typeof requestSchemas.cancelTranscriptionResourceJob>): Promise<StudioResult<{ cancelled: boolean }>>;
   enqueueTranscription(request: z.infer<typeof requestSchemas.enqueueTranscription>): Promise<StudioResult<TranscriptionBatchAdmission>>;
-  listTranscriptionReview(request: z.infer<typeof requestSchemas.listTranscriptionReview>): Promise<StudioResult<{ readonly total: number; readonly ranges: readonly JapaneseAsmrReviewRange[] }>>;
+  listTranscriptionReview(request: z.infer<typeof requestSchemas.listTranscriptionReview>): Promise<StudioResult<{ readonly total: number; readonly ranges: readonly JapaneseAsmrReviewItem[] }>>;
   listTranscriptionTasks(request: z.infer<typeof requestSchemas.listTranscriptionTasks>): Promise<StudioResult<readonly TranscriptionTaskSummary[]>>;
   cancelTranscriptionTask(request: z.infer<typeof requestSchemas.cancelTranscriptionTask>): Promise<StudioResult<TranscriptionTaskSummary>>;
   removeTranscriptionTask(request: z.infer<typeof requestSchemas.removeTranscriptionTask>): Promise<StudioResult<null>>;

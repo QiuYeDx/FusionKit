@@ -101,6 +101,10 @@ export type StudioCueTableProps = {
   onRemember: (cue: DocumentPage['cues'][number]) => void;
   /** Shows the page at this offset, as continuous playback moves past the last cue shown. */
   onFollowPage?: (offset: number) => void;
+  /** Selects and shows this cue once, as a transcription result's review list opens its document there. */
+  jump?: { documentId: string; cueId: string; index: number; serial: number };
+  /** The jump was carried out (or cannot be): the request can be dropped. */
+  onJumped?: (serial: number) => void;
   /** Opens “recognize the original audio again” for the cues; `positions` place cues off this page (the review bar lists them). */
   onRecognize?: (cueIds: string[], positions?: Record<string, number>) => void;
 };
@@ -110,7 +114,7 @@ export type StudioCueTableProps = {
  * source and translation in place, and translate, review, copy or delete the
  * selection. Every edit can be undone.
  */
-export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onCheckConsistency, onSelectionChange, onCopy, onRemember, onFollowPage, onRecognize }: StudioCueTableProps) {
+export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scrollRef, history, onOperation, onUndo, onRedo, onTranslate, onRevise, onCheckConsistency, onSelectionChange, onCopy, onRemember, onFollowPage, jump, onJumped, onRecognize }: StudioCueTableProps) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState<{ cueId: string; field: CueField | 'timing' } | null>(null);
@@ -364,6 +368,17 @@ export function StudioCueTable({ page, track, flaggedNodes, busy, copied, scroll
     pendingFind.current = target.cueId;
     onFollowPage?.(Math.floor(target.index / LIMITS.pageSize) * LIMITS.pageSize);
   };
+  // A request to open the document at a cue: shown like a find match, with every row listed so the cue is not hidden.
+  const handledJump = useRef(-1);
+  useEffect(() => {
+    if (!jump || jump.documentId !== documentId || handledJump.current === jump.serial) return;
+    handledJump.current = jump.serial;
+    if (reviewing) closeReview();
+    goToMatch({ cueId: jump.cueId, index: jump.index });
+    onJumped?.(jump.serial);
+    // goToMatch and closeReview are fresh closures each render; the request's serial is what triggers this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jump?.serial, documentId]);
   useEffect(() => {
     const cueId = pendingFind.current;
     if (!cueId || !page.cues.some(cue => cue.id === cueId)) return;

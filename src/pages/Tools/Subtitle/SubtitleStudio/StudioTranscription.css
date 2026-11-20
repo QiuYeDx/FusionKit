@@ -131,3 +131,27 @@
 
 .studio-queue-menu-label { display: grid; gap: 2px; }
 .studio-queue-menu-label > small { color: var(--muted-foreground); font-size: 11px; font-weight: 400; }
+
+/* Review ranges of a Japanese ASMR result: compact rows that open the document at the nearest cue. */
+.studio-transcription-review-dialog [data-slot=scroll-area-viewport] > div { display: block !important; width: 100%; min-width: 0; }
+.studio-transcription-review-dialog [data-dialog-body-measure] { padding: 6px; }
+.studio-review-header { display: grid; gap: 2px; padding: 12px 48px 10px 12px; }
+.studio-review-list { display: grid; gap: 2px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.studio-review-message { display: flex; justify-content: center; margin: 0; padding: 18px 8px; }
+.studio-review-row { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 7px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; font: inherit; transition: background-color 150ms ease-out; }
+button.studio-review-row { cursor: pointer; }
+button.studio-review-row:hover:not(:disabled), button.studio-review-row:focus-visible { background: var(--muted); }
+button.studio-review-row:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+button.studio-review-row:disabled { cursor: default; opacity: .6; }
+.studio-review-index { flex: 0 0 auto; min-width: 20px; color: var(--muted-foreground); font-size: 11px; line-height: 18px; text-align: right; font-variant-numeric: tabular-nums; }
+.studio-review-main { display: grid; flex: 1 1 auto; gap: 1px; min-width: 0; }
+.studio-review-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+.studio-review-time { font-size: 12px; font-weight: 500; line-height: 20px; font-variant-numeric: tabular-nums; }
+.studio-review-line [data-slot=badge] { min-height: 18px; padding: 0 5px; font-size: 10px; line-height: 16px; font-weight: 400; }
+.studio-review-context { overflow: hidden; color: var(--muted-foreground); font-size: 11px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.studio-review-go { display: grid; flex: 0 0 auto; place-items: center; width: 16px; height: 16px; color: var(--muted-foreground); }
+.studio-review-go > svg { width: 14px; height: 14px; }
+.studio-review-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; }
+.studio-review-footer > button { height: 28px; padding: 0 10px; font-size: 11px; }
+.studio-review-range { color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .studio-review-row { transition: none; } }

@@ -25,6 +25,8 @@ export const transcriptionPreferencesSchema = z.object({
   version: z.literal(1),
   mode: z.enum(STUDIO_TRANSCRIPTION_MODES).optional(),
   asmrDevice: z.enum(LOCAL_SUBTITLE_DEVICE_PREFERENCES).optional(),
+  /** Japanese ASMR: keep automatic translation and export waiting while a result has ranges to check. Absent is off. */
+  asmrHoldOnReview: z.boolean().optional(),
   // Pause-based chunking and a non-standard audio type both need voice detection.
   config: transcriptionTaskConfigSchema.refine(value => (value.windowStrategy !== 'acoustic_quiet_v1' && value.advanced.audioProfile === undefined) || value.vadEnabled),
   autoTranslation: automaticTranslationPreferencesSchema,

@@ -747,7 +747,7 @@ it('refuses to retry a file moved or modified since, another owner\'s task, or o
   await expect(f.service.prepareRetry(ownerA, modified!.taskId)).rejects.toMatchObject({ code: 'access_denied' });
 });
 
-it('keeps ASMR review ranges owner-scoped and commits partial subtitles without automatic actions', async () => {
+it.each([true, false])('keeps ASMR review ranges owner-scoped and commits partial subtitles (hold automatic steps: %s)', async hold => {
   const { ASMR_VAD_DEFINITION: timing } = await import('../../electron/main/speech-resources/engine/asmr-vad-definition');
   const modelId = 'anime-whisper-q8_0';
   const handoff = vi.fn();
@@ -771,20 +771,34 @@ it('keeps ASMR review ranges owner-scoped and commits partial subtitles without 
   });
   const input = await f.request(ownerA, 1, true);
   const request = { ...input, config: { ...input.config, mode: 'japanese_asmr' as const, modelId, language: 'ja', vadEnabled: true },
-    autoTranslation: automaticRequest() };
+    autoTranslation: automaticRequest(), ...(hold ? { holdOnReview: true } : {}) };
   const { tasks: [admitted] } = await f.service.enqueue(ownerA, request);
   await f.service.waitForIdle();
   const [task] = f.service.list(ownerA);
   expect(task).toMatchObject({ status: 'completed', progress: 100, mode: 'japanese_asmr', asmrReviewCount: 1,
     asmrTimingModel: { id: timing.resourceId, sha256: timing.sha256, backend: 'cpu' } });
-  expect(task.automaticTranslation).toBeUndefined();
   const snapshot = await f.repository.readSnapshot(task.documentId!);
   expect(snapshot.document.cues[0]?.source.plain).toBe('こんにちは。');
-  expect(snapshot.tasks).toHaveLength(0);
-  expect(handoff).not.toHaveBeenCalled();
-  expect(exportDocument).not.toHaveBeenCalled();
+  if (hold) {
+    // Only a request that asked to hold them keeps the automatic steps waiting.
+    expect(task.asmrAutomationHeld).toBe(true);
+    expect(task.automaticTranslation).toBeUndefined();
+    expect(snapshot.tasks).toHaveLength(0);
+    expect(handoff).not.toHaveBeenCalled();
+    expect(exportDocument).not.toHaveBeenCalled();
+  } else {
+    // Review ranges alone do not block translation or export.
+    expect(task.asmrAutomationHeld).toBeUndefined();
+    expect(task.automaticTranslation).toBeDefined();
+    expect(handoff).toHaveBeenCalledOnce();
+  }
   expect(f.service.review(ownerA, admitted.taskId, 0, 1)).toEqual({ total: 1, ranges });
   expect(f.service.review(ownerA, admitted.taskId, 1, 1)).toEqual({ total: 1, ranges: [] });
   expect(() => f.service.review(ownerB, admitted.taskId, 0, 1)).toThrow(StudioError);
+  // The located page names the cue each range falls at: the first one starting at or after it, else the last.
+  const located = await f.service.locateReview(ownerA, admitted.taskId, 0, 1);
+  expect(located.total).toBe(1);
+  expect(located.ranges[0]).toMatchObject({ ...ranges[0], cue: { id: snapshot.document.cues[0]!.id, index: 0, text: 'こんにちは。' } });
+  await expect(f.service.locateReview(ownerB, admitted.taskId, 0, 1)).rejects.toThrow(StudioError);
   expect(f.service.isResourceBusy(timing.resourceId)).toBe(false);
 });

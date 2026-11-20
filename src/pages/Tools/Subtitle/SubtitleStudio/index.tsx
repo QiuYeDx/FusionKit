@@ -227,6 +227,9 @@ export default function SubtitleStudio() {
   const [cueRevision, setCueRevision] = useState<CueRevisionRequestState | null>(null);
   const [cueRecognize, setCueRecognize] = useState<CueRecognizeRequestState | null>(null);
   const cueRecognizeSerial = useRef(0);
+  /** Where the document just opened from a transcription result's review list is to be shown. */
+  const [cueJump, setCueJump] = useState<{ documentId: string; cueId: string; index: number; serial: number } | null>(null);
+  const cueJumpSerial = useRef(0);
   const cueRevisionSerial = useRef(0);
   const observations = useRef(new StudioObservations());
   const currentPage = useRef<DocumentPage | null>(null);
@@ -452,7 +455,7 @@ export default function SubtitleStudio() {
       if (isCurrent()) setPreviewRequest({ document: doc, error: failure instanceof StudioError ? failure.code : 'document_unavailable' });
     });
   };
-  const openTranscriptionDocument = async (documentId: string, preferredTrackId?: string): Promise<void> => {
+  const openTranscriptionDocument = async (documentId: string, preferredTrackId?: string, focusCue?: { cueId: string; index: number }): Promise<void> => {
     // Completion can coincide with the document-created refresh; join it before taking the reader.
     while (operation.current) await operationSettled.current;
     const owner = coordinator.current;
@@ -474,6 +477,7 @@ export default function SubtitleStudio() {
           await load(offset);
           await select(document);
           if (mounted.current && preferredTrackId) setTrackId(preferredTrackId);
+          if (mounted.current && focusCue) setCueJump({ documentId, ...focusCue, serial: ++cueJumpSerial.current });
           if (mounted.current) { setError(null); setLibraryOpen(false); changeWorkspaceView('documents'); }
           return;
         }
@@ -866,6 +870,7 @@ export default function SubtitleStudio() {
                 onCopy={copyCue}
                 onRecognize={(cueIds, positions) => setCueRecognize({ cueIds, serial: ++cueRecognizeSerial.current, ...(positions ? { positions } : {}) })}
                 onFollowPage={offset => void run('select', () => select(page.summary, offset, { silent: true }))}
+                jump={cueJump ?? undefined} onJumped={serial => setCueJump(current => current?.serial === serial ? null : current)}
                 onRemember={cue => { const current = currentPage.current; setRememberTerm({ source: cue.source.plain, target: track?.entries[cue.id]?.sourceRevision === cue.sourceRevision ? track.entries[cue.id].text.plain : '',
                   // The document's direction, as the other capture dialogs use it.
                   pair: captureLanguagePair(current ? translationDraftMemory.read(current.summary.id, current.summary.revision) : undefined, translationDraftMemory.last(), track?.language) }); }} /> : <div className="studio-content-empty"><Subtitles /><p>{t('studio:diagnostics.empty_document')}</p></div>}
@@ -886,7 +891,7 @@ export default function SubtitleStudio() {
     </ToolDetailLayout>
     </ClipPathTabsContent>
     <ClipPathTabsContent value="transcription" className="studio-workspace-content">
-      {workspaceView === 'transcription' && <StudioTranscription header={null} onOpenDocument={openTranscriptionDocument}
+      {workspaceView === 'transcription' && <StudioTranscription header={null} onOpenDocument={(documentId, focusCue) => openTranscriptionDocument(documentId, undefined, focusCue)}
         openResources={resourcesRequested} onResourcesOpened={() => setResourcesRequested(false)} />}
     </ClipPathTabsContent>
     </ClipPathTabs>

@@ -16,6 +16,8 @@ export function createTranscriptionDocumentProducer(options: {
   batch: TranscriptionBatchExecutionContext;
   task: Omit<TranscriptionTaskExecutionContext, 'batchRuntime'>;
   assertActive: () => void;
+  /** A result with review ranges is committed without the automatic translation and export intents. */
+  holdAutomationOnReview?: boolean;
 }) {
   const { executor, sink, assertActive } = options;
   const batch = Object.freeze({ ...options.batch, owner: Object.freeze({ ...options.batch.owner }) });
@@ -71,7 +73,7 @@ export function createTranscriptionDocumentProducer(options: {
     // The repository guard checks again at publication. Once published, its
     // receipt wins over late cancellation; no after-commit guard reverses it.
     assertActive();
-    const receipt = await sink.publish(ready.transcript, ready.asmrReview?.length ? { signal, suppressAutomation: true } : { signal });
+    const receipt = await sink.publish(ready.transcript, options.holdAutomationOnReview && ready.asmrReview?.length ? { signal, suppressAutomation: true } : { signal });
     return Object.freeze({ ...receipt, ...(ready.durationMs === undefined ? {} : { durationMs: ready.durationMs }),
       cueSummary: ready.cueSummary, ...(ready.asmrReview ? { asmrReview: ready.asmrReview } : {}) });
   }

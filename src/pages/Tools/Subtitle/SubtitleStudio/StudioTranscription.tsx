@@ -6,7 +6,7 @@ import { speechResourceIsBusy } from '@/speech-resources/events';
 import type { LocalSubtitleManagedResourceSummary } from '@/subtitle-studio/transcription/ipc-contract';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, AudioLines, Check, CircleHelp, CircleMinus, Copy, Cpu, Download, Ear, Ellipsis, ExternalLink, FolderOpen, Globe, HardDrive, Languages, ListOrdered, LoaderCircle, Music, Play, RefreshCw, RotateCcw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
+import { AlertCircle, AudioLines, Check, CircleHelp, CircleMinus, Copy, CornerDownRight, Cpu, Download, Ear, Ellipsis, ExternalLink, FolderOpen, Globe, HardDrive, Languages, ListOrdered, LoaderCircle, Music, Play, RefreshCw, RotateCcw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -170,7 +170,7 @@ function TaskModelLabel({ name, backend, reason }: { name: string; backend: stri
   </Tooltip>;
 }
 
-export function StudioTranscription({ header, onOpenDocument, openResources, onResourcesOpened }: { header: ReactNode; onOpenDocument: (id: string) => Promise<void>;
+export function StudioTranscription({ header, onOpenDocument, openResources, onResourcesOpened }: { header: ReactNode; onOpenDocument: (id: string, focusCue?: { cueId: string; index: number }) => Promise<void>;
   /** Open the resource manager once (a link asked for it); onResourcesOpened confirms it. */
   openResources?: boolean; onResourcesOpened?: () => void }) {
   const { t, i18n } = useTranslation();
@@ -258,7 +258,7 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
   }, [controller, resourcesOpen]);
   const [opening, setOpening] = useState<string | null>(null);
   const [openError, setOpenError] = useState(false);
-  const [reviewPage, setReviewPage] = useState<{ taskId: string; offset: number } | null>(null);
+  const [reviewPage, setReviewPage] = useState<{ taskId: string; documentId?: string; offset: number } | null>(null);
   const [reviewState, setReviewState] = useState<Awaited<ReturnType<typeof controller.listReview>> | 'error' | null>(null);
   useEffect(() => {
     if (!reviewPage) return;
@@ -315,10 +315,11 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
       ? t('studio:transcription.asmr_recognizing', { done: task.phase.done, total: task.phase.total }) : t(taskStatusKeys[task.status]);
   const retryActions = (task: TranscriptionTaskSummary) => <TaskRetry task={task} vadReady={vadReady} busy={!!state.queueAction || state.taskActions.includes(task.taskId)}
     onRetry={choice => void controller.retryTask(task.taskId, choice)} />;
-  const openDocument = async (id: string) => {
-    if (opening) return;
-    setOpening(id); setOpenError(false);
-    try { await onOpenDocument(id); } catch { setOpenError(true); } finally { setOpening(null); }
+  /** True when the document opened. `key` names what shows the spinner: the document, or a review range. */
+  const openDocument = async (id: string, focusCue?: { cueId: string; index: number }, key = id): Promise<boolean> => {
+    if (opening) return false;
+    setOpening(key); setOpenError(false);
+    try { await onOpenDocument(id, focusCue); return true; } catch { setOpenError(true); return false; } finally { setOpening(null); }
   };
   // The bundled program is verified, but Windows lacks the VC++ runtime it needs: say that instead of "ready".
   const runtimeNeedsVc = state.runtime?.status === 'verified' && vcMissing;
@@ -424,6 +425,7 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
             <ToolSwitchRow id="studio-transcription-export-remove" testId="studio-transcription-export-remove-row" className="studio-transcription-wide-field" label={t('studio:transcription.auto_export_remove')} hint={t('studio:transcription.auto_export_remove_hint')} checked={!!state.autoExport.removeAfterExport} disabled={state.submitting} onCheckedChange={removeAfterExport => setAutoExport({ removeAfterExport })} />
             {!state.autoTranslation.enabled && <p className="studio-transcription-help studio-transcription-wide-field">{t('studio:transcription.auto_export_source_only')}</p>}
           </div>}
+          {asmr && (state.autoTranslation.enabled || state.autoExport.enabled) && <ToolSwitchRow id="studio-transcription-asmr-hold" testId="studio-transcription-asmr-hold-row" label={t('studio:transcription.asmr_hold')} hint={t('studio:transcription.asmr_hold_hint')} checked={!!state.asmrHoldOnReview} disabled={state.submitting} onCheckedChange={controller.setAsmrHoldOnReview} />}
           <div className="studio-transcription-runtime-row" data-testid="studio-transcription-runtime-row">{runtimeNotice}<Button variant="ghost" size="sm" data-testid="studio-transcription-check-again" disabled={state.refreshing} onClick={checkAgain}><RefreshCw className={state.refreshing ? 'studio-spin' : undefined} />{t('studio:transcription.check_again')}</Button></div>
         </ToolConfigPanel>
       </div>}>
@@ -467,8 +469,8 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
               {transcriptionTaskRetryable(task) && retryActions(task)}
             </div>}
             {task.asmrReviewCount && <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <Button variant="outline" size="xs" data-testid="studio-transcription-review" onClick={() => setReviewPage({ taskId: task.taskId, offset: 0 })}><Ear />{t('studio:transcription.asmr_review_count', { count: task.asmrReviewCount })}</Button>
-              {task.status === 'completed' && <span className="text-xs text-muted-foreground">{t('studio:transcription.asmr_automation_paused')}</span>}
+              <Button variant="outline" size="xs" data-testid="studio-transcription-review" onClick={() => { setOpenError(false); setReviewPage({ taskId: task.taskId, ...(task.documentId ? { documentId: task.documentId } : {}), offset: 0 }); }}><Ear />{t('studio:transcription.asmr_review_count', { count: task.asmrReviewCount })}</Button>
+              {task.status === 'completed' && task.asmrAutomationHeld && <span className="text-xs text-muted-foreground">{t('studio:transcription.asmr_automation_paused')}</span>}
             </div>}
             {task.error && <TaskFailure task={task} vcRuntimeMissing={vcMissing} onOpenResources={() => setResourcesOpen(true)} retry={transcriptionTaskRetryable(task) ? retryActions(task) : undefined} />}
             {state.sourceChangedTaskIds.includes(task.taskId) && <p role="status" className="studio-transcription-row-warning" data-testid="studio-transcription-retry-source-changed">{t('studio:transcription.retry_source_changed')}</p>}{task.cleanupPending && <p className="studio-transcription-row-warning">{t('studio:transcription.task_cleanup_pending')}</p>}{task.documentDurability === 'uncertain' && <p className="studio-transcription-row-warning">{t('studio:transcription.durability_uncertain')}</p>}
@@ -480,17 +482,37 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
       <ScrollableDialogHeader><DialogTitle className="text-sm">{t('studio:transcription.cancel_all')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.cancel_all_confirmation', { count: cancelTargets?.length ?? 0 })}</DialogDescription></ScrollableDialogHeader>
       <ScrollableDialogFooter className="p-3"><Button variant="outline" size="sm" disabled={!!state.queueAction} onClick={() => setCancelTargets(null)}>{t('studio:cancel')}</Button><Button variant="destructive" size="sm" data-testid="studio-queue-confirm-cancel" disabled={queueBusy || !cancelTargets?.length} onClick={() => { if (cancelTargets) { void controller.cancelTasks(cancelTargets); setCancelTargets(null); } }}><Square />{t('studio:transcription.confirm_cancel_all')}</Button></ScrollableDialogFooter>
     </ScrollableDialog>
-    <ScrollableDialog open={reviewPage !== null} onOpenChange={open => { if (!open) setReviewPage(null); }} maxWidth="sm:max-w-[480px]">
-      <ScrollableDialogHeader><DialogTitle className="text-sm">{t('studio:transcription.asmr_review_title')}</DialogTitle><DialogDescription className="text-xs leading-5">{t('studio:transcription.asmr_review_hint')}</DialogDescription></ScrollableDialogHeader>
-      <ScrollableDialogContent><div className="p-3 text-sm" aria-live="polite">
-        {reviewState === 'error' ? <p role="alert">{t('studio:transcription.asmr_review_error')}</p> : !reviewState ? <LoaderCircle className="studio-spin size-4" /> :
-          <ul className="divide-y" data-testid="studio-transcription-review-ranges">{reviewState.ranges.map(range => <li key={range.startMs} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
-            <span className="tabular-nums">{reviewTime(range.startMs)} – {reviewTime(range.endMs)}</span>
-            <span className="text-xs text-muted-foreground">{t(range.reason === 'empty' ? 'studio:transcription.asmr_review_empty' : 'studio:transcription.asmr_review_long')}</span>
-          </li>)}</ul>}
+    <ScrollableDialog open={reviewPage !== null} onOpenChange={open => { if (!open) setReviewPage(null); }} maxWidth="sm:max-w-[480px]" contentClassName="studio-transcription-review-dialog">
+      <ScrollableDialogHeader className="studio-review-header">
+        <DialogTitle className="flex min-w-0 items-center gap-2 text-sm"><Ear className="size-4 shrink-0" />{t('studio:transcription.asmr_review_title')}
+          {reviewState && reviewState !== 'error' && <Badge variant="secondary" className="font-mono text-[11px]">{reviewState.total}</Badge>}</DialogTitle>
+        <DialogDescription className="text-xs leading-5">{t(reviewPage?.documentId ? 'studio:transcription.asmr_review_hint' : 'studio:transcription.asmr_review_hint_no_document')}</DialogDescription>
+      </ScrollableDialogHeader>
+      <ScrollableDialogContent fadeMaskHeight={20}><div aria-live="polite">
+        {reviewState === 'error' ? <p role="alert" className="studio-transcription-row-warning studio-review-message">{t('studio:transcription.asmr_review_error')}</p>
+          : !reviewState ? <div className="studio-review-message"><LoaderCircle className="studio-spin size-4" /></div> :
+          <ul className="studio-review-list" data-testid="studio-transcription-review-ranges">{reviewState.ranges.map((range, index) => {
+            const key = `${range.startMs}-${range.endMs}`;
+            const body = <>
+              <span className="studio-review-index">{(reviewPage?.offset ?? 0) + index + 1}</span>
+              <span className="studio-review-main">
+                <span className="studio-review-line"><span className="studio-review-time">{reviewTime(range.startMs)} – {reviewTime(range.endMs)}</span>
+                  <Badge variant="outline">{t(range.reason === 'empty' ? 'studio:transcription.asmr_review_empty' : 'studio:transcription.asmr_review_long')}</Badge></span>
+                {range.cue?.text && <span className="studio-review-context">{t('studio:transcription.asmr_review_nearby', { text: range.cue.text })}</span>}
+              </span>
+              {reviewPage?.documentId && <span className="studio-review-go" aria-hidden="true">{opening === key ? <LoaderCircle className="studio-spin" /> : <CornerDownRight />}</span>}
+            </>;
+            return <li key={key}>{reviewPage?.documentId
+              ? <button type="button" className="studio-review-row" data-testid="studio-transcription-review-range" disabled={opening !== null}
+                aria-label={t('studio:transcription.asmr_review_locate', { time: reviewTime(range.startMs) })}
+                onClick={() => { void openDocument(reviewPage.documentId!, range.cue && { cueId: range.cue.id, index: range.cue.index }, key).then(opened => { if (opened) setReviewPage(null); }); }}>{body}</button>
+              : <div className="studio-review-row" data-testid="studio-transcription-review-range">{body}</div>}</li>;
+          })}</ul>}
+        {openError && <p role="alert" className="studio-transcription-row-warning studio-review-message">{t('studio:errors.document_unavailable')}</p>}
       </div></ScrollableDialogContent>
-      {reviewPage && reviewState && reviewState !== 'error' && reviewState.total > 50 && <ScrollableDialogFooter className="p-3">
+      {reviewPage && reviewState && reviewState !== 'error' && reviewState.total > 50 && <ScrollableDialogFooter className="studio-review-footer">
         <Button variant="outline" size="sm" disabled={!reviewPage.offset} onClick={() => setReviewPage({ ...reviewPage, offset: reviewPage.offset - 50 })}>{t('studio:transcription.asmr_review_previous')}</Button>
+        <span className="studio-review-range">{t('studio:transcription.asmr_review_range', { from: reviewPage.offset + 1, to: Math.min(reviewPage.offset + 50, reviewState.total), total: reviewState.total })}</span>
         <Button variant="outline" size="sm" disabled={reviewPage.offset + 50 >= reviewState.total} onClick={() => setReviewPage({ ...reviewPage, offset: reviewPage.offset + 50 })}>{t('studio:transcription.asmr_review_next')}</Button>
       </ScrollableDialogFooter>}
     </ScrollableDialog>

@@ -1,6 +1,6 @@
 import { JAPANESE_ASMR_VAD_MODEL_ID } from '../../../../src/subtitle-studio/transcription/japanese-asmr-contract';
 import { ASMR_VAD_DEFINITION } from '../../speech-resources/engine/asmr-vad-definition';
-import type { JapaneseAsmrReviewRange } from '../../../../src/subtitle-studio/transcription/task-contract';
+import type { JapaneseAsmrReviewItem, JapaneseAsmrReviewRange } from '../../../../src/subtitle-studio/transcription/task-contract';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { StudioError, errorCodeSchema, type AudioTrack } from '../../../../src/subtitle-studio/domain';
@@ -44,6 +44,8 @@ interface Record {
   summary: TranscriptionTaskSummary; running: boolean; leased: boolean; selectionBound: boolean; cleanupPending: boolean;
   leaseFailure?: unknown;
   asmrReview?: readonly JapaneseAsmrReviewRange[];
+  /** The request asked to keep automatic translation and export waiting while review ranges remain. */
+  readonly holdOnReview?: boolean;
   automatic?: { intent: AutomaticTranslationIntent; apiKey?: string };
   autoExport?: AutomaticExportSpec;
   releaseAutomaticKnowledge?: () => void;
@@ -269,17 +271,19 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
           try { await options.executor.endBatchSlice(runtime); }
           catch (error) { throw new AggregateError([error], 'Transcription batch cleanup failed.'); }
         } };
-      const producer = createTranscriptionDocumentProducer({ executor, sink, batch, task,
+      const producer = createTranscriptionDocumentProducer({ executor, sink, batch, task, holdAutomationOnReview: record.holdOnReview === true,
         assertActive: () => assertActive(record) });
       const result = await producer.run();
       const duration = validDuration(result.durationMs) ? { durationMs: result.durationMs } : {};
       const review = 'asmrReview' in result ? result.asmrReview : undefined;
       record.asmrReview = review;
-      const asmr = review?.length ? { asmrReviewCount: review.length, automaticTranslation: undefined } : {};
+      // Review ranges alone never stop the automatic steps: only a request that asked to hold them does.
+      const held = !!review?.length && record.holdOnReview === true;
+      const asmr = review?.length ? { asmrReviewCount: review.length, ...(held ? { automaticTranslation: undefined, asmrAutomationHeld: true as const } : {}) } : {};
       if (result.status === 'committed') {
         const intentId = record.automatic?.intent.intentId, apiKey = record.automatic?.apiKey ?? '';
         finish(record, { status: 'completed', progress: 100, documentId: result.documentId, documentDurability: result.durability, phase: undefined, ...duration, ...asmr });
-        if (review?.length) return;
+        if (held) return;
         // Without a translation the transcript is the final result; with one, its completion exports.
         if (record.autoExport && !intentId) void options.automaticExport?.exportDocument(result.documentId);
         if (intentId) {
@@ -398,6 +402,7 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
               ...(knowledge ? { knowledge: knowledge.snapshot } : {}) } } } : {}),
           ...(knowledge ? { releaseAutomaticKnowledge: () => { if (--knowledgeRemaining === 0) releaseKnowledge(); } } : {}),
           ...(request.autoExport ? { autoExport: structuredClone(request.autoExport) } : {}),
+          ...(request.holdOnReview && asmrMode ? { holdOnReview: true } : {}),
           summary: publicSummary({ taskId, batchId, generation: 1, displayName: input.displayName, status: 'queued', progress: 0,
             createdAt: now, updatedAt: now, modelId: managedModel.id, ...(request.config.mode ? { mode: request.config.mode } : {}), resolvedBackend: backendResolution.resolvedBackend,
             ...(asmrMode && managedVad ? { asmrTimingModel: { id: JAPANESE_ASMR_VAD_MODEL_ID, backend: 'cpu' as const, sha256: managedVad.sha256 } } : {}),
@@ -544,6 +549,29 @@ export function createTranscriptionTaskService(options: TranscriptionTaskService
       const record = owned(value, taskId);
       const ranges = record.asmrReview ?? [];
       return Object.freeze({ total: ranges.length, ranges: Object.freeze(ranges.slice(offset, offset + limit)) });
+    },
+    /**
+     * A page of review ranges with the cue each one falls at in the committed document, so the list can open the
+     * document there. A document that is gone or unreadable leaves the ranges without a location.
+     */
+    async locateReview(value: LocalSubtitleOwnerKey, taskId: string, offset: number, limit: number) {
+      const record = owned(value, taskId);
+      const ranges = record.asmrReview ?? [];
+      const page = ranges.slice(offset, offset + limit);
+      const documentId = record.summary.documentId;
+      let cues: readonly { id: string; timing: { startMs: number }; source: { plain: string } }[] = [];
+      if (documentId && page.length) {
+        try { cues = (await options.repository.read(documentId)).cues; } catch { /* The ranges alone still list. */ }
+        owned(value, taskId);
+      }
+      const items: JapaneseAsmrReviewItem[] = page.map(range => {
+        // Cues are in time order: the first one starting at or after the range, else the last.
+        let index = cues.findIndex(cue => cue.timing.startMs >= range.startMs);
+        if (index < 0) index = cues.length - 1;
+        const cue = cues[index];
+        return Object.freeze(cue ? { ...range, cue: Object.freeze({ id: cue.id, index, text: cue.source.plain.replace(/\s+/g, ' ').trim().slice(0, 80) }) } : { ...range });
+      });
+      return Object.freeze({ total: ranges.length, ranges: Object.freeze(items) });
     },
     isResourceBusy(resourceId: string): boolean {
       return [...admissions].some(admission => admission.modelId === resourceId

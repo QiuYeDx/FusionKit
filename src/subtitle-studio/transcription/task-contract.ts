@@ -40,6 +40,11 @@ export const enqueueTranscriptionRequestSchema = z.object({
   config: transcriptionTaskConfigSchema,
   autoTranslation: automaticTranslationRequestSchema.optional(),
   autoExport: automaticExportSpecSchema.optional(),
+  /**
+   * Japanese ASMR only: a result with ranges left for listening checks keeps its automatic translation and export
+   * waiting for the user. Absent is the default: the transcript goes on to translation and export as any other.
+   */
+  holdOnReview: z.boolean().optional(),
 }).strict().superRefine((value, context) => {
   if (value.autoExport && value.autoExport.mode !== 'source' && !value.autoTranslation)
     context.addIssue({ code: 'custom', path: ['autoExport', 'mode'], message: 'Translated output requires automatic translation.' });
@@ -66,6 +71,11 @@ export const japaneseAsmrReviewRangeSchema = z.object({
   reason: z.enum(['empty', 'too_long']),
 }).strict().refine(range => range.endMs > range.startMs);
 export type JapaneseAsmrReviewRange = Readonly<z.infer<typeof japaneseAsmrReviewRangeSchema>>;
+/**
+ * A review range with where it falls in the committed document: the first cue starting at or after it (the last cue
+ * when none does), so the list can open the document there. Absent when the task has no document or it is gone.
+ */
+export type JapaneseAsmrReviewItem = JapaneseAsmrReviewRange & Readonly<{ cue?: Readonly<{ id: string; index: number; text: string }> }>;
 export const japaneseAsmrPhaseSchema = z.discriminatedUnion('stage', [
   z.object({ stage: z.literal('timing') }).strict(),
   z.object({ stage: z.literal('recognizing'), done: z.number().int().nonnegative().max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments),
@@ -84,6 +94,8 @@ export const transcriptionTaskSummarySchema = z.object({
   asmrTimingModel: z.object({ id: z.literal(JAPANESE_ASMR_VAD_MODEL_ID), backend: z.literal('cpu'),
     sha256: z.string().regex(/^[a-f0-9]{64}$/u) }).strict().optional(),
   asmrReviewCount: z.number().int().positive().max(LOCAL_SUBTITLE_LIMITS.maxTranscriptSegments).optional(),
+  /** Set when the request asked to hold automatic translation and export for this result's review ranges. */
+  asmrAutomationHeld: z.literal(true).optional(),
   asmrNoContent: z.enum(['no_speech', 'review']).optional(),
   resolvedBackend: z.enum(['cpu', 'metal', 'cuda']),
   /** The task's non-standard audio type; absent for standard. */
