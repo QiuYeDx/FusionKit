@@ -155,3 +155,22 @@ button.studio-review-row:disabled { cursor: default; opacity: .6; }
 .studio-review-footer > button { height: 28px; padding: 0 10px; font-size: 11px; }
 .studio-review-range { color: var(--muted-foreground); font-size: 11px; font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .studio-review-row { transition: none; } }
+/* Anything a task row says after its meta line (empty result, failure, review) sits in one indented body under the file name. */
+.studio-task-body { display: grid; gap: 6px; min-width: 0; margin: 8px 0 0 23px; }
+.studio-task-body:empty { display: none; }
+.studio-task-body > * { margin-top: 0; }
+.studio-task-note, .studio-task-body > [data-testid="transcription-empty-result"] { display: grid; gap: 2px; min-width: 0; margin-top: 0; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--foreground) 4%, transparent); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
+.studio-task-body > [data-testid="transcription-empty-result"] { gap: 0; }
+.studio-task-body > [data-testid="transcription-empty-result"] > p { margin: 0; }
+.studio-task-note-message { margin: 0; color: var(--muted-foreground); }
+.studio-task-note .studio-transcription-row-warning, .studio-task-note .studio-transcription-help { margin: 0; }
+.studio-task-note .studio-task-failure-actions, .studio-task-body > [data-testid="transcription-empty-result"] .studio-task-failure-actions { margin-top: 8px; gap: 6px; }
+.studio-task-review { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.studio-task-review-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 6px 0 8px; border: 1px solid color-mix(in srgb, var(--color-amber-500) 35%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--color-amber-500) 10%, transparent); color: var(--color-amber-700); font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; transition: background-color 120ms ease-out, border-color 120ms ease-out; }
+.dark .studio-task-review-chip { color: var(--color-amber-400); }
+.studio-task-review-chip:hover { background: color-mix(in srgb, var(--color-amber-500) 18%, transparent); border-color: color-mix(in srgb, var(--color-amber-500) 55%, transparent); }
+.studio-task-review-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.studio-task-review-chip > svg { width: 13px; height: 13px; flex-shrink: 0; }
+.studio-task-review-chip > .studio-task-review-chevron { width: 12px; height: 12px; opacity: .6; }
+.studio-task-review-note { min-width: 0; font-size: 11px; line-height: 18px; color: var(--muted-foreground); }
+@media (prefers-reduced-motion: reduce) { .studio-task-review-chip { transition: none; } }

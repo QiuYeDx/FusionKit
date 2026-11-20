@@ -275,9 +275,8 @@
 .studio-batch-confirm-content { min-height: 0; }
 .studio-batch-confirm-content > [data-slot="scroll-area-viewport"] > div { display: block !important; width: 100%; min-width: 0; }
 .studio-batch-confirm-content > [data-slot="scroll-area-viewport"] > div > div { padding: 12px; }
-@media (prefers-reduced-motion: reduce) { .studio button { transition: none; } .studio-spin { animation: studio-spin-pulse 1.4s ease-in-out infinite; } }
-/* Reduced motion: a frozen partial ring looks stalled, so the spinner breathes instead of rotating. */
-@keyframes studio-spin-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .studio button { transition: none; } .studio-spin { animation-duration: 2.4s; } }
+/* Reduced motion keeps the spinner turning, only slower: it is the loading signal, and a frozen ring looks stalled. */
 
 /* Leave the reader its actual remaining space when task summaries occupy two rows. */
 @media (max-height: 650px) {

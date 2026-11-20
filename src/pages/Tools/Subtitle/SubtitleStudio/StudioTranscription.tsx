@@ -6,7 +6,7 @@ import { speechResourceIsBusy } from '@/speech-resources/events';
 import type { LocalSubtitleManagedResourceSummary } from '@/subtitle-studio/transcription/ipc-contract';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, AudioLines, Check, CircleHelp, CircleMinus, Clock, Copy, CornerDownRight, Cpu, Download, Ear, Ellipsis, ExternalLink, FolderOpen, Globe, HardDrive, Languages, ListOrdered, LoaderCircle, Music, Play, RefreshCw, RotateCcw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
+import { AlertCircle, AudioLines, Check, ChevronRight, CircleHelp, CircleMinus, Clock, Copy, CornerDownRight, Cpu, Download, Ear, Ellipsis, ExternalLink, FolderOpen, Globe, HardDrive, Languages, ListOrdered, LoaderCircle, Music, Play, RefreshCw, RotateCcw, Settings2, SlidersHorizontal, Square, Subtitles, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -92,7 +92,7 @@ function TaskFailure({ task, vcRuntimeMissing, onOpenResources, retry }: { task:
   const { t } = useTranslation();
   const navigate = useNavigate();
   const guide = transcriptionTaskErrorGuide(task.error?.code, { vcRuntimeMissing, stage: task.error?.stage });
-  return <div className="studio-task-failure" data-testid="studio-transcription-task-error" data-code={task.error?.code}>
+  return <div className="studio-task-failure studio-task-note" data-testid="studio-transcription-task-error" data-code={task.error?.code}>
     <p className="studio-transcription-row-warning">{t(guide.causeKey)}</p>
     {guide.nextKey && <p className="studio-transcription-help">{t(guide.nextKey)}</p>}
     <div className="studio-task-failure-actions">
@@ -461,19 +461,21 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
             metadata={<><span>{state.cancellingTaskIds.includes(task.taskId) ? t('studio:transcription.cancelling') : taskLabel(task)}</span><TaskModelLabel name={taskModelName(task.modelId)} backend={task.resolvedBackend}
               reason={!task.error && cpuReason && task.resolvedBackend === 'cpu' && state.autoDeviceTaskIds.includes(task.taskId) ? t(cpuReason) : undefined} />{task.audioProfile && <AudioTypeLabel profile={task.audioProfile} />}{task.durationMs !== undefined && <span>{duration(task.durationMs)}</span>}{task.automaticTranslation && <AutomaticTranslationLabel status={task.automaticTranslation.status} />}{!terminal(task) && <span className="studio-task-percentage">{Math.round(task.progress)}%</span>}</>}
             progress={!terminal(task) ? { max: 100, value: task.progress, label: `${taskLabel(task)} · ${task.displayName}` } : undefined}>
+            <div className="studio-task-body">
             {task.status === 'no_content' && task.mode !== 'japanese_asmr' && <TranscriptionEmptyResult help={transcriptionRetrySuggestion(task) === 'quiet' ? t('studio:transcription.empty_retry_help') : undefined}>
               {transcriptionTaskRetryable(task) && <div className="studio-task-failure-actions">{retryActions(task)}</div>}
             </TranscriptionEmptyResult>}
-            {task.status === 'no_content' && task.mode === 'japanese_asmr' && <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{t(task.asmrNoContent === 'review' ? 'studio:transcription.asmr_no_text' : 'studio:transcription.asmr_no_speech')}</p>
-              {transcriptionTaskRetryable(task) && retryActions(task)}
+            {task.status === 'no_content' && task.mode === 'japanese_asmr' && <div className="studio-task-note" role="status" data-testid="studio-transcription-asmr-empty">
+              <p className="studio-task-note-message">{t(task.asmrNoContent === 'review' ? 'studio:transcription.asmr_no_text' : 'studio:transcription.asmr_no_speech')}</p>
+              {transcriptionTaskRetryable(task) && <div className="studio-task-failure-actions">{retryActions(task)}</div>}
             </div>}
-            {task.asmrReviewCount && <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <Button variant="outline" size="xs" data-testid="studio-transcription-review" onClick={() => { setOpenError(false); setReviewPage({ taskId: task.taskId, ...(task.documentId ? { documentId: task.documentId } : {}), offset: 0 }); }}><Ear />{t('studio:transcription.asmr_review_count', { count: task.asmrReviewCount })}</Button>
-              {task.status === 'completed' && task.asmrAutomationHeld && <span className="text-xs text-muted-foreground">{t('studio:transcription.asmr_automation_paused')}</span>}
+            {task.asmrReviewCount && <div className="studio-task-review">
+              <button type="button" className="studio-task-review-chip" data-testid="studio-transcription-review" onClick={() => { setOpenError(false); setReviewPage({ taskId: task.taskId, ...(task.documentId ? { documentId: task.documentId } : {}), offset: 0 }); }}><Ear />{t('studio:transcription.asmr_review_count', { count: task.asmrReviewCount })}<ChevronRight className="studio-task-review-chevron" /></button>
+              {task.status === 'completed' && task.asmrAutomationHeld && <span className="studio-task-review-note">{t('studio:transcription.asmr_automation_paused')}</span>}
             </div>}
             {task.error && <TaskFailure task={task} vcRuntimeMissing={vcMissing} onOpenResources={() => setResourcesOpen(true)} retry={transcriptionTaskRetryable(task) ? retryActions(task) : undefined} />}
             {state.sourceChangedTaskIds.includes(task.taskId) && <p role="status" className="studio-transcription-row-warning" data-testid="studio-transcription-retry-source-changed">{t('studio:transcription.retry_source_changed')}</p>}{task.cleanupPending && <p className="studio-transcription-row-warning">{t('studio:transcription.task_cleanup_pending')}</p>}{task.documentDurability === 'uncertain' && <p className="studio-transcription-row-warning">{t('studio:transcription.durability_uncertain')}</p>}
+            </div>
           </StudioTaskQueueRow>)}</StudioTaskQueue></StudioScrollFade></> : <div className="studio-transcription-empty"><ListOrdered /><p>{t('studio:transcription.queue_empty')}</p><span>{t('studio:transcription.queue_hint')}</span></div>}
         </ToolPanel>
       </div>
