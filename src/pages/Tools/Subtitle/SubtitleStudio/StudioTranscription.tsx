@@ -1,4 +1,4 @@
-import { JAPANESE_ASMR_MODEL_ID, JAPANESE_ASMR_VAD_MODEL_ID } from '@/subtitle-studio/transcription/japanese-asmr-contract';
+import { DEFAULT_STUDIO_TRANSCRIPTION_MODE, JAPANESE_ASMR_MODEL_ID, JAPANESE_ASMR_VAD_MODEL_ID } from '@/subtitle-studio/transcription/japanese-asmr-contract';
 import { StudioRevealSource } from './StudioRevealSource';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import useModelStore from '@/store/useModelStore';
@@ -345,7 +345,7 @@ export function StudioTranscription({ header, onOpenDocument, openResources, onR
         <ToolConfigPanel title={t('studio:transcription.configuration')} icon={Settings2}>
           <div className="studio-transcription-config-fields">
             <ToolField className="studio-transcription-wide-field" label={t('studio:transcription.pipeline')} htmlFor="studio-transcription-pipeline">
-              <Select value={state.mode ?? 'standard'} onValueChange={mode => controller.setMode(mode === 'japanese_asmr' ? 'japanese_asmr' : 'standard')} disabled={state.submitting}>
+              <Select value={state.mode ?? DEFAULT_STUDIO_TRANSCRIPTION_MODE} onValueChange={mode => controller.setMode(mode === 'japanese_asmr' ? 'japanese_asmr' : 'standard')} disabled={state.submitting}>
                 <SelectTrigger id="studio-transcription-pipeline"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="standard">{t('studio:transcription.pipeline_standard')}</SelectItem><SelectItem value="japanese_asmr">{t('studio:transcription.pipeline_asmr')}</SelectItem></SelectContent>
               </Select>

@@ -1,4 +1,4 @@
-import { JAPANESE_ASMR_MODEL_ID, JAPANESE_ASMR_VAD_MODEL_ID, type StudioTranscriptionMode } from '../../subtitle-studio/transcription/japanese-asmr-contract';
+import { DEFAULT_STUDIO_TRANSCRIPTION_MODE, JAPANESE_ASMR_MODEL_ID, JAPANESE_ASMR_VAD_MODEL_ID, type StudioTranscriptionMode } from '../../subtitle-studio/transcription/japanese-asmr-contract';
 import { StudioError, type ErrorCode } from '../../subtitle-studio/domain';
 import { speechResourceIsBusy, type SpeechResourcesNotifications, type SpeechResourcesStatus } from '../../speech-resources/events';
 import type { StudioResult, SubtitleStudioApi, TranscriptionMediaSelection, TranscriptionPathSelection, TranscriptionResourceJob, TranscriptionResources,
@@ -80,6 +80,8 @@ export interface StudioTranscriptionControllerOptions {
   readonly taskPollIntervalMs?: number; readonly resourcePollIntervalMs?: number;
   readonly cleanupRetryDelaysMs?: readonly number[]; readonly cleanupAttemptTimeoutMs?: number;
   readonly preferences?: { read(): unknown; write(value: TranscriptionPreferences): void };
+  /** The mode used until a saved choice says otherwise. Without it a new controller starts in the standard mode. */
+  readonly defaultMode?: StudioTranscriptionMode;
   readonly resolveAutomaticTranslation?: (value: AutomaticTranslationPreferences) => AutomaticTranslationRequest | null;
   readonly readAutomaticKnowledge?: () => Promise<LibrarySnapshot>;
 }
@@ -198,11 +200,12 @@ export class StudioTranscriptionController {
       if (!result.ok) throw new Error(result.error);
       return result.value;
     });
+    if (options.defaultMode) this.state = Object.freeze({ ...this.state, mode: options.defaultMode });
     if (this.preferences) {
       let value: unknown;
       try { value = this.preferences.read(); } catch { /* Defaults keep the tool usable. */ }
       const saved = readTranscriptionPreferences(value);
-      this.state = Object.freeze({ ...this.state, config: freezeConfig(fitTranscriptionConfig(saved.config)), mode: saved.mode, asmrDevice: saved.asmrDevice, asmrHoldOnReview: saved.asmrHoldOnReview, autoTranslation: freezeAutomatic(saved.autoTranslation),
+      this.state = Object.freeze({ ...this.state, config: freezeConfig(fitTranscriptionConfig(saved.config)), mode: saved.mode ?? this.state.mode, asmrDevice: saved.asmrDevice, asmrHoldOnReview: saved.asmrHoldOnReview, autoTranslation: freezeAutomatic(saved.autoTranslation),
         autoExport: Object.freeze({ ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, ...saved.autoExport }) });
       this.configTouched = true;
     }
@@ -754,6 +757,7 @@ export const createStudioTranscriptionController = (options: StudioTranscription
 let controller: StudioTranscriptionController | undefined;
 export function getStudioTranscriptionController(): StudioTranscriptionController {
   return controller ??= createStudioTranscriptionController({
+    defaultMode: DEFAULT_STUDIO_TRANSCRIPTION_MODE,
     preferences: { read: () => useStudioPreferences.getState().transcription, write: value => useStudioPreferences.getState().setTranscription(value) },
     resolveAutomaticTranslation(value) {
       const modelState = useModelStore.getState();

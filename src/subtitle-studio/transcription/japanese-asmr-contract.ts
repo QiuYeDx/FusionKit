@@ -1,5 +1,7 @@
 export const STUDIO_TRANSCRIPTION_MODES = ['standard', 'japanese_asmr'] as const;
 export type StudioTranscriptionMode = typeof STUDIO_TRANSCRIPTION_MODES[number];
+/** The mode the workspace starts in until the user picks one; a saved choice, standard included, wins. */
+export const DEFAULT_STUDIO_TRANSCRIPTION_MODE: StudioTranscriptionMode = 'japanese_asmr';
 
 export const JAPANESE_ASMR_MODEL_ID = 'anime-whisper-q8_0' as const;
 export const JAPANESE_ASMR_VAD_MODEL_ID = 'whisper-vad-encdec-asmr-onnx' as const;

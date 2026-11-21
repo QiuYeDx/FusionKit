@@ -88,6 +88,14 @@ it('hydrates transcription config before the first snapshot and saves no transie
   expect(JSON.stringify(write.mock.calls)).not.toContain('ls-input');
   expect(JSON.stringify(write.mock.calls)).not.toContain('drafts');
 });
+it('starts in the default mode only when no mode was saved, and keeps an explicit standard choice', () => {
+  const fresh = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES);
+  expect(fixture(undefined, { preferences: { read: () => fresh, write: vi.fn() } }).controller.getState().mode).toBeUndefined();
+  expect(fixture(undefined, { defaultMode: 'japanese_asmr', preferences: { read: () => fresh, write: vi.fn() } }).controller.getState().mode).toBe('japanese_asmr');
+  expect(fixture(undefined, { defaultMode: 'japanese_asmr' }).controller.getState().mode).toBe('japanese_asmr');
+  const standard = { ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), mode: 'standard' as const };
+  expect(fixture(undefined, { defaultMode: 'japanese_asmr', preferences: { read: () => standard, write: vi.fn() } }).controller.getState().mode).toBe('standard');
+});
 it('keeps the export setting between sessions and applies it to the start button, unless a batch says otherwise', async () => {
   const saved = { ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), autoExport: { ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, enabled: true, format: 'lrc' as const, removeAfterExport: true } };
   const write = vi.fn(); const f = fixture(undefined, { preferences: { read: () => saved, write } });

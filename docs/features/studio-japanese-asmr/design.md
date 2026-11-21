@@ -38,7 +38,7 @@
 
 | 接入点 | 开发变更 |
 | --- | --- |
-| `src/subtitle-studio/transcription/task-contract.ts`、`preferences-contract.ts` | Studio 请求增加向后兼容的模式选择，建议在现有提交对象上加可选 `mode`，值为 `standard` 或 `japanese_asmr`，从主进程解析两个模型角色，缺省等价标准。ASMR 资源映射与参数由主进程配置版本控制，沿用对公开输入的严格校验。持久化现有标准 `config` 和可选模式偏好，模式单独保存，切回标准读回原选项。更新重试、主/预加载类型、任务摘要及其解析方，并验证外部 Agent 旧请求。 |
+| `src/subtitle-studio/transcription/task-contract.ts`、`preferences-contract.ts` | Studio 请求增加向后兼容的模式选择，建议在现有提交对象上加可选 `mode`，值为 `standard` 或 `japanese_asmr`，从主进程解析两个模型角色，缺省等价标准。ASMR 资源映射与参数由主进程配置版本控制，沿用对公开输入的严格校验。持久化现有标准 `config` 和可选模式偏好，模式单独保存，切回标准读回原选项。工作台界面在没有已保存选择时默认进入日语/ASMR（由控制器的 `defaultMode` 提供），已保存的标准选择优先；Studio 请求和外部 Agent 省略 `mode` 时仍按标准处理。更新重试、主/预加载类型、任务摘要及其解析方，并验证外部 Agent 旧请求。 |
 | `electron/main/subtitle-studio/transcription/runtime.ts`、`task-service.ts` | 沿用现有队列和媒体令牌。提交时冻结模式版本、两个模型身份、选轨和内容识别设备。解析前保留两种模型的使用权，执行前重新验证资源身份和运行时能力。打轴使用 CPU，设置中的设备选择应用于 Anime Whisper。逐句阶段沿用现有设备解析和与单句重识别的租约仲裁。 |
 | Studio 转写执行器及原生运行时 | 增加 ASMR 执行器和独立的 ONNX VAD 适配层。打轴在受主进程管理的隔离宿主按需加载 `onnxruntime-node` CPU 运行时，每次处理一个窗口。打轴完成后释放 ONNX 会话，再用现有 Whisper supervisor 获取逐句识别租约。共享阶段使用分离的计时和错误归因。修改受管文件时运行 `scripts/subtitle-studio/` 对应的来源、边界和回放检查。 |
 | `electron/main/speech-resources/` 与 Electron 打包配置 | 为 ASMR VAD 增加独立的 ONNX 资源定义，沿用共享下载、哈希校验、删除与占用管理。模型清单固定上游修订、字节数、SHA-256、许可和兼容运行时。现有 GGML Silero 资源有自己的加载契约。打包验证需要覆盖隔离宿主加载原生模块和 CPU 推理。 |
