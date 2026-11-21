@@ -19,6 +19,7 @@ const errorKeys = {
   studio_transcription_model_translate: "home:action_error_model_translate",
   studio_transcription_model_prompt: "home:action_error_model_prompt",
   studio_transcription_model_language: "home:action_error_model_language",
+  studio_transcription_mode_invalid: "home:action_error_mode_invalid",
   studio_export_needs_translation: "home:action_error_export_needs_translation",
   studio_translation_knowledge_invalid: "home:action_error_knowledge_invalid",
   knowledge_proposal_invalid: "home:action_error_knowledge_proposal",

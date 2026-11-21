@@ -234,6 +234,16 @@
     "proxy_port": "7890"
   },
   "agent": {
+    "transcription": {
+      "title": "Assistant transcription",
+      "section_hint": "Which pipeline the built-in assistant and connected external agents use when they start a transcription.",
+      "mode": {
+        "label": "Default transcription mode",
+        "description": "Used when the assistant starts a transcription without naming a mode. Independent of the mode the Subtitle Studio page shows; switching it there does not change this.",
+        "standard": "Standard",
+        "japanese_asmr": "Japanese / ASMR (timing first, then each line)"
+      }
+    },
     "web": {
       "label": "Let the Agent look things up online",
       "description": "When on, the Agent can search the sites turned on below to check how names, places and terms are translated. Only search words and page links are sent; your subtitles and translation materials never are.",
@@ -623,6 +633,7 @@
         "insert_studio_cue": "Inserted a cue",
         "export_studio_document": "Exported subtitles",
         "start_studio_transcription": "Started local transcription",
+        "list_studio_transcription_review": "Read a transcription's listening-check ranges",
         "get_studio_tasks": "Checked Studio tasks",
         "search_translation_knowledge": "Searched translation materials",
         "list_translation_knowledge_catalog": "Listed translation materials",
@@ -694,6 +705,7 @@
         "insert_studio_cue": "Insert a new cue between cues.",
         "export_studio_document": "Export a document as a subtitle file.",
         "start_studio_transcription": "Transcribe audio or video with local speech models.",
+        "list_studio_transcription_review": "Read the ranges of a Japanese/ASMR transcription that need a listening check.",
         "prepare_knowledge_changes": "Add or change terms, rules and other translation materials.",
         "convert_subtitle_files": "Convert subtitle formats and write new files.",
         "extract_subtitle_language": "Keep one language of bilingual subtitles and write new files.",

@@ -10,7 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import useWebLookupStore, { BILIGAME_WIKI_LIMIT, parseBiligameWikis } from "@/store/useWebLookupStore";
 import { WEB_SOURCES, type WebSource } from "@/web-lookup/contract";
-import { BookOpen, Gamepad2, Globe2, History, Search, Sparkle } from "lucide-react";
+import { STUDIO_TRANSCRIPTION_MODES, type StudioTranscriptionMode } from "@/subtitle-studio/transcription/japanese-asmr-contract";
+import { useStudioPreferences } from "@/store/tools/subtitle-studio/preferences";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AudioLines, BookOpen, Gamepad2, Globe2, History, Search, Sparkle } from "lucide-react";
 import { Panel, PanelRow, PageSection, type Tone } from "@/pages/components/page-kit";
 import type { LucideIcon } from "lucide-react";
 
@@ -97,8 +100,25 @@ function SessionHistory() {
 function AgentConfig() {
   const { t } = useTranslation();
   const { enabled, sources, setEnabled, setSource } = useWebLookupStore();
+  const agentTranscriptionMode = useStudioPreferences((state) => state.agentTranscriptionMode);
+  const setAgentTranscriptionMode = useStudioPreferences((state) => state.setAgentTranscriptionMode);
 
   return <>
+    <PageSection title={t("setting:agent.transcription.title")} description={t("setting:agent.transcription.section_hint")}>
+      <Panel>
+        <PanelRow icon={AudioLines} tone="violet" htmlFor="setting-agent-transcription-mode"
+          label={t("setting:agent.transcription.mode.label")} description={t("setting:agent.transcription.mode.description")}
+          control={<Select value={agentTranscriptionMode} onValueChange={(value) => setAgentTranscriptionMode(value as StudioTranscriptionMode)}>
+            <SelectTrigger id="setting-agent-transcription-mode" className="h-8 w-52 text-[13px]" data-testid="setting-agent-transcription-mode">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STUDIO_TRANSCRIPTION_MODES.map((mode) => <SelectItem key={mode} value={mode}>{t(`setting:agent.transcription.mode.${mode}`)}</SelectItem>)}
+            </SelectContent>
+          </Select>} />
+      </Panel>
+    </PageSection>
+
     <PageSection title={t("setting:agent.web.title")} description={t("setting:agent.web.section_hint")}>
       <Panel>
         <PanelRow icon={Globe2} tone="teal" htmlFor="setting-agent-web" label={t("setting:agent.web.label")} description={t("setting:agent.web.description")}

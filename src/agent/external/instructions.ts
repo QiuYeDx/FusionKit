@@ -10,6 +10,7 @@ export const EXTERNAL_AGENT_INSTRUCTIONS = [
   "",
   "Translating subtitles yourself (no FusionKit model or API key needed):",
   "1. Get the document into Studio: list_studio_documents, or import_studio_subtitles with absolute paths, or start_studio_transcription for audio/video.",
+  "   start_studio_transcription takes mode: leave it out to follow the user's default for assistant transcription (set in FusionKit's Settings), or pass standard for one-pass speech and japanese_asmr for Japanese ASMR/whisper audio, which finds each line with its own voice-detection model first. modelId and language only apply to the standard pipeline; a Japanese/ASMR run does not use them and reports them in ignoredSettings, and it still runs. A japanese_asmr task may finish with ranges to check: get_studio_tasks reports reviewCount, and list_studio_transcription_review lists them (start/end ms, why, and the cue they fall at).",
   "2. Look up the user's glossary with list_translation_knowledge_catalog / search_translation_knowledge and follow its terms.",
   "3. create_studio_translation_track (target language), then read_studio_document page by page and write_studio_translations for those cues (up to 200 per call), passing the revision each call returns to the next.",
   "4. export_studio_document (bilingual or target) to write a subtitle file, and tell the user its name.",

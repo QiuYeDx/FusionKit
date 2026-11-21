@@ -29,4 +29,10 @@ describe("transcription pipeline outcome", () => {
   it("needs no documents when it only transcribes", () => {
     expect(pipelineOutcome([task("a")], new Map(), { translate: false, exportFiles: false })).toMatchObject({ values: { finished: 1, failed: 0 } });
   });
+  it("reports a result held for a listening check as finished instead of waiting for steps that will not run", () => {
+    // Japanese/ASMR with "hold on review": the document exists but translation and export never start.
+    const held = task("a", { mode: "japanese_asmr", asmrReviewCount: 3, asmrAutomationHeld: true, automaticTranslation: undefined });
+    expect(pipelineOutcome([held], new Map([doc("a", { automaticExport: undefined })]), scope)).toEqual({ kind: "pipeline_completed",
+      values: { total: 1, finished: 1, failed: 0, heldForReview: 1, files: "", problems: "" } });
+  });
 });

@@ -9,6 +9,7 @@ import { getConfirmationResult, openFusionkitPage } from "./navigation";
 import { getFusionkitStatus } from "./status";
 import { listStudioDocuments } from "./studio-documents";
 import { getStudioTasks } from "./tasks";
+import { listStudioTranscriptionReview } from "./review";
 import { startStudioTranscription } from "./transcription";
 import { createStudioTranslationTrack, writeStudioTranslations } from "./translation";
 import { insertStudioCue, splitStudioCue } from "./structure";
@@ -35,6 +36,7 @@ export const EXTERNAL_TOOL_IMPLEMENTATIONS: ExternalToolImplementations = {
   undo_name_changes: undoNameChanges,
   export_studio_document: exportStudioDocument,
   start_studio_transcription: startStudioTranscription,
+  list_studio_transcription_review: listStudioTranscriptionReview,
   get_studio_tasks: getStudioTasks,
   search_translation_knowledge: searchTranslationKnowledge,
   list_translation_knowledge_catalog: listTranslationKnowledgeCatalog,

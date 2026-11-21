@@ -4,6 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { encodingSchema, type Encoding } from '../../../subtitle-studio/domain';
 import { CUE_AUDIO_PADDINGS, CUE_AUDIO_TEMPOS, DEFAULT_CUE_AUDIO_PADDING, type CueAudioPadding, type CueAudioTempo } from '../../../subtitle-studio/cue-audio';
 import { DEFAULT_TRANSCRIPTION_PREFERENCES, readTranscriptionPreferences, transcriptionPreferencesSchema, type TranscriptionPreferences } from '../../../subtitle-studio/transcription/preferences-contract';
+import { DEFAULT_AGENT_TRANSCRIPTION_MODE, STUDIO_TRANSCRIPTION_MODES, type StudioTranscriptionMode } from '../../../subtitle-studio/transcription/japanese-asmr-contract';
 
 const readPadding = (value: unknown): CueAudioPadding => (CUE_AUDIO_PADDINGS as readonly unknown[]).includes(value) ? value as CueAudioPadding : DEFAULT_CUE_AUDIO_PADDING;
 const readTempo = (value: unknown): CueAudioTempo => (CUE_AUDIO_TEMPOS as readonly unknown[]).includes(value) ? value as CueAudioTempo : 1;
@@ -15,6 +16,11 @@ const readRecentKnowledgeSets = (value: unknown): RecentKnowledgeSet[] => z.arra
 const sameSet = (a: Omit<RecentKnowledgeSet, 'usedAt'>, b: Omit<RecentKnowledgeSet, 'usedAt'>) => a.languagePair.source === b.languagePair.source && a.languagePair.target === b.languagePair.target
   && a.collectionIds.length === b.collectionIds.length && a.collectionIds.every(id => b.collectionIds.includes(id));
 export const useStudioPreferences = create<{ encoding: Encoding; dismissedRecoveryKey: string; transcription: TranscriptionPreferences;
+  /**
+   * The pipeline a transcription batch asked for by the assistant or a connected external agent runs in when it names
+   * no mode of its own. Separate from the page's mode, so the setting holds whatever the user last did on the page.
+   */
+  agentTranscriptionMode: StudioTranscriptionMode;
   /** Original audio played before and after a cue, in milliseconds. */
   cueAudioPadMs: CueAudioPadding;
   /** Original audio playback speed and whether a played stretch repeats. */
@@ -23,8 +29,10 @@ export const useStudioPreferences = create<{ encoding: Encoding; dismissedRecove
   recentKnowledgeSets: RecentKnowledgeSet[];
   rememberKnowledgeSet: (value: Omit<RecentKnowledgeSet, 'usedAt'>) => void;
   setCueAudioTempo: (value: CueAudioTempo) => void; setCueAudioLoop: (value: boolean) => void;
-  setEncoding: (value: Encoding) => void; dismissRecovery: (key: string) => void; setTranscription: (value: TranscriptionPreferences) => void; setCueAudioPadMs: (value: CueAudioPadding) => void }>()(persist(
-  set => ({ encoding: 'utf-8', dismissedRecoveryKey: '', transcription: DEFAULT_TRANSCRIPTION_PREFERENCES, cueAudioPadMs: DEFAULT_CUE_AUDIO_PADDING, cueAudioTempo: 1, cueAudioLoop: false, recentKnowledgeSets: [],
+  setEncoding: (value: Encoding) => void; dismissRecovery: (key: string) => void; setTranscription: (value: TranscriptionPreferences) => void; setCueAudioPadMs: (value: CueAudioPadding) => void;
+  setAgentTranscriptionMode: (value: StudioTranscriptionMode) => void }>()(persist(
+  set => ({ encoding: 'utf-8', dismissedRecoveryKey: '', transcription: DEFAULT_TRANSCRIPTION_PREFERENCES, agentTranscriptionMode: DEFAULT_AGENT_TRANSCRIPTION_MODE,
+    cueAudioPadMs: DEFAULT_CUE_AUDIO_PADDING, cueAudioTempo: 1, cueAudioLoop: false, recentKnowledgeSets: [],
     rememberKnowledgeSet: value => set(state => {
       const next = recentKnowledgeSetSchema.safeParse({ ...value, collectionIds: [...new Set(value.collectionIds)], usedAt: Date.now() });
       if (!next.success) return {};
@@ -33,6 +41,7 @@ export const useStudioPreferences = create<{ encoding: Encoding; dismissedRecove
     setCueAudioTempo: value => set({ cueAudioTempo: readTempo(value) }), setCueAudioLoop: value => set({ cueAudioLoop: value === true }),
     setCueAudioPadMs: value => set({ cueAudioPadMs: readPadding(value) }),
     setEncoding: encoding => set({ encoding: encodingSchema.parse(encoding) }), dismissRecovery: dismissedRecoveryKey => set({ dismissedRecoveryKey }),
+    setAgentTranscriptionMode: value => set({ agentTranscriptionMode: STUDIO_TRANSCRIPTION_MODES.includes(value) ? value : DEFAULT_AGENT_TRANSCRIPTION_MODE }),
     setTranscription: value => set({ transcription: transcriptionPreferencesSchema.parse(value) }) }),
   {
     name: 'fusionkit.subtitle-studio.preferences.v1',
@@ -44,11 +53,16 @@ export const useStudioPreferences = create<{ encoding: Encoding; dismissedRecove
       removeItem: name => { try { globalThis.localStorage?.removeItem(name); } catch { /* No task state is stored here. */ } },
     })),
     migrate: persisted => persisted,
-    partialize: state => ({ encoding: state.encoding, dismissedRecoveryKey: state.dismissedRecoveryKey, transcription: state.transcription, cueAudioPadMs: state.cueAudioPadMs, cueAudioTempo: state.cueAudioTempo, cueAudioLoop: state.cueAudioLoop, recentKnowledgeSets: state.recentKnowledgeSets }),
+    partialize: state => ({ encoding: state.encoding, dismissedRecoveryKey: state.dismissedRecoveryKey, transcription: state.transcription, agentTranscriptionMode: state.agentTranscriptionMode,
+      cueAudioPadMs: state.cueAudioPadMs, cueAudioTempo: state.cueAudioTempo, cueAudioLoop: state.cueAudioLoop, recentKnowledgeSets: state.recentKnowledgeSets }),
     merge: (persisted, current) => {
-      const value = persisted as { encoding?: unknown; dismissedRecoveryKey?: unknown; transcription?: unknown; cueAudioPadMs?: unknown; cueAudioTempo?: unknown; cueAudioLoop?: unknown; recentKnowledgeSets?: unknown } | undefined;
+      const value = persisted as { encoding?: unknown; dismissedRecoveryKey?: unknown; transcription?: unknown; agentTranscriptionMode?: unknown;
+        cueAudioPadMs?: unknown; cueAudioTempo?: unknown; cueAudioLoop?: unknown; recentKnowledgeSets?: unknown } | undefined;
       return { ...current, encoding: encodingSchema.catch('utf-8').parse(value?.encoding), dismissedRecoveryKey: typeof value?.dismissedRecoveryKey === 'string' && value.dismissedRecoveryKey.length <= 200000 ? value.dismissedRecoveryKey : '',
-        transcription: readTranscriptionPreferences(value?.transcription), cueAudioPadMs: readPadding(value?.cueAudioPadMs),
+        transcription: readTranscriptionPreferences(value?.transcription),
+        agentTranscriptionMode: STUDIO_TRANSCRIPTION_MODES.includes(value?.agentTranscriptionMode as StudioTranscriptionMode)
+          ? value!.agentTranscriptionMode as StudioTranscriptionMode : DEFAULT_AGENT_TRANSCRIPTION_MODE,
+        cueAudioPadMs: readPadding(value?.cueAudioPadMs),
         cueAudioTempo: readTempo(value?.cueAudioTempo), cueAudioLoop: value?.cueAudioLoop === true, recentKnowledgeSets: readRecentKnowledgeSets(value?.recentKnowledgeSets) };
     },
   },

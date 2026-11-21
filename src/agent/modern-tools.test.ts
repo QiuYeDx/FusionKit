@@ -9,11 +9,14 @@ import { DEFAULT_AUTOMATIC_EXPORT_PREFERENCES } from "@/subtitle-studio/automati
 import { modernAgentTools } from "./modern-tools";
 import { usePreparedActionsStore } from "./prepared-actions";
 import { emptySelection, translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
+import { useStudioPreferences } from "@/store/tools/subtitle-studio/preferences";
 
 const mocks = vi.hoisted(() => ({ controller: {} as Record<string, any>, trackStarted: vi.fn(), state: {} as Record<string, any>, watch: vi.fn() }));
 vi.mock("./pipeline-watch", () => ({ watchStudioPipeline: mocks.watch }));
 vi.mock("@/services/subtitle-studio/transcription-controller", () => ({
   getStudioTranscriptionController: () => mocks.controller,
+  effectiveTranscriptionConfig: (state: any) => state.mode !== "japanese_asmr" ? state.config : { ...state.config, mode: "japanese_asmr", modelId: "anime-whisper-q8_0",
+    language: "ja", taskMode: "transcribe", vadEnabled: true, windowStrategy: "fixed_v1", advanced: { beamSize: 5, temperature: 0, vadMinSilenceMs: 500, maxCueDurationMs: 7000, maxCueChars: 84, maxLineChars: 42 } },
   getTranscriptionReadiness: (state: any) => ({ canEnqueue: !state.readinessReason && state.drafts.length > 0 && state.drafts.every((draft: any) => draft.status === "ready"), readyCount: state.drafts.filter((draft: any) => draft.status === "ready").length, reason: state.readinessReason ?? null }),
 }));
 vi.mock("@/services/subtitle-studio/translation-overview-controller", () => ({ getStudioTranslationOverviewController: () => ({ trackStarted: mocks.trackStarted }) }));
@@ -33,6 +36,8 @@ async function call(name: keyof typeof modernAgentTools, args: unknown = {}, abo
 const setSession = (id: string) => useTestSession(id);
 beforeEach(() => {
   vi.clearAllMocks(); setSession(`reset-${Math.random()}`); usePreparedActionsStore.setState({ actions: [] }); setSession("modern-test");
+  // Most cases describe the standard pipeline; the ones about the setting say so themselves.
+  useStudioPreferences.setState({ agentTranscriptionMode: "standard" });
   useAgentStore.setState({ executionMode: "queue_only" });
   Object.defineProperty(globalThis, "window", { configurable: true, value: { subtitleStudio: api, translationKnowledge: knowledge } });
   useModelStore.setState({ profiles: [{ id: "task-profile", name: "Task model", provider: Model.OpenAI, apiKey: "secret-task-key", baseUrl: "https://private-api.example/v1", modelKey: "model-one", apiFormat: "responses", tokenPricing: { inputTokensPerMillion: 1, outputTokensPerMillion: 1 } }], assignment: { agent: null, taskExecution: "task-profile" } });
@@ -260,7 +265,7 @@ describe("transcription preparation ownership", () => {
     expect(mocks.state.autoTranslation).toMatchObject({ enabled: true, language: "zh" });
     expect(usePreparedActionsStore.getState().actions[0].summaryValues).toMatchObject({ translateTo: "zh", exportFormat: "auto", exportContent: "bilingual", exportConflict: "overwrite" });
     await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
-    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: { format: "auto", mode: "bilingual", order: "source-first", conflictPolicy: "overwrite", removeAfterExport: false } });
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: { format: "auto", mode: "bilingual", order: "source-first", conflictPolicy: "overwrite", removeAfterExport: false }, mode: "standard", holdOnReview: false });
     // The user's own Studio choice is back, and the batch is followed until it is done.
     expect(mocks.state.autoTranslation).toEqual(saved);
     expect(mocks.watch).toHaveBeenCalledWith({ sessionId: "modern-test", taskIds: ["transcription-task"], translate: true, exportFiles: true, removeAfterExport: false });
@@ -310,7 +315,7 @@ describe("transcription preparation ownership", () => {
     expect(mocks.state.autoTranslation.enabled).toBe(false);
     await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
     expect(mocks.controller.enqueue).toHaveBeenCalledTimes(1);
-    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: null });
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: null, mode: "standard", holdOnReview: false });
   });
   it("rejects a prepared batch when one draft becomes unready without leaking native draft tokens", async () => {
     mocks.controller.selectMedia.mockImplementationOnce(async () => { mocks.state.drafts = [
@@ -330,7 +335,7 @@ describe("transcription preparation ownership", () => {
     const result = await call("prepare_studio_transcription");
     mocks.controller.enqueue.mockImplementationOnce(async () => { mocks.state.error = "revision_conflict"; mocks.state.drafts[0].status = "expired"; mocks.state.drafts[0].error = "access_denied"; return null; });
     await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
-    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: null });
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["picked-draft"], autoExport: null, mode: "standard", holdOnReview: false });
     expect(usePreparedActionsStore.getState().actions[0]).toMatchObject({ status: "failed", result: { receipt: {
       successCount: 0, failureCount: 1, items: [{ id: "media-1", name: "media.mp4", error: "access_denied" }] } } });
   });
@@ -428,5 +433,45 @@ describe("settings follow the Studio", () => {
     await call("prepare_studio_transcription", { language: "ja" });
     expect(mocks.controller.setConfig).toHaveBeenCalledWith(expect.objectContaining({ language: "ja", taskMode: "translate_to_english",
       advanced: expect.objectContaining({ initialPrompt: "Names: Phaethon." }) }));
+  });
+  it("runs a Japanese/ASMR batch in its own pipeline without changing the page's settings", async () => {
+    const pageConfig = structuredClone(mocks.state.config);
+    const result = await call("prepare_studio_transcription", { mode: "japanese_asmr" });
+    expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared" } });
+    // The two-stage mode derives everything from its own contract: the page's model/language settings stay untouched.
+    expect(mocks.controller.setConfig).not.toHaveBeenCalled();
+    expect(usePreparedActionsStore.getState().actions[0].summaryValues).toMatchObject({ mode: "japanese_asmr", model: "anime-whisper-q8_0", language: "ja" });
+    await usePreparedActionsStore.getState().confirmAction(result.data.actionId);
+    expect(mocks.controller.enqueue).toHaveBeenCalledWith(expect.objectContaining({ mode: "japanese_asmr", holdOnReview: false }));
+    expect(mocks.state.config).toEqual(pageConfig);
+  });
+  it("uses the pipeline the caller names, leaving its standard-only settings unused instead of failing", async () => {
+    useStudioPreferences.setState({ agentTranscriptionMode: "standard" });
+    // An explicit Japanese/ASMR with a standard-only argument is not a contradiction to refuse: the mode wins and the
+    // argument is reported as unused, so a model that sends imprecise arguments still gets its batch queued.
+    const explicit = await call("prepare_studio_transcription", { mode: "japanese_asmr", modelId: "large-v3-q5_0", language: "ja" });
+    expect(explicit).toMatchObject({ success: true, data: { executionStatus: "prepared", ignoredSettings: ["modelId"] } });
+    expect(mocks.controller.setConfig).not.toHaveBeenCalled();
+    expect(usePreparedActionsStore.getState().actions.find(action => action.id === explicit.data.actionId)?.summaryValues).toMatchObject({ mode: "japanese_asmr" });
+  });
+  it("defaults an assistant batch to the user's chosen mode for assistant transcription, not the page's", async () => {
+    // The page shows Japanese/ASMR but the user chose standard in Settings.
+    mocks.state.mode = "japanese_asmr";
+    await call("prepare_studio_transcription", { modelId: "large-v3-q5_0", language: "zh" });
+    expect(mocks.controller.setConfig).toHaveBeenCalledWith(expect.objectContaining({ modelId: "large-v3-q5_0", language: "zh" }));
+    expect(mocks.controller.setConfig).toHaveBeenCalledWith(expect.not.objectContaining({ mode: "japanese_asmr" }));
+    // The Japanese/ASMR pipeline can be the setting too: a batch without a mode then runs there.
+    for (const action of usePreparedActionsStore.getState().actions) usePreparedActionsStore.getState().dismissAction(action.id);
+    useStudioPreferences.setState({ agentTranscriptionMode: "japanese_asmr" });
+    const asmr = await call("prepare_studio_transcription", {});
+    expect(asmr).toMatchObject({ success: true, data: { executionStatus: "prepared" } });
+    expect(usePreparedActionsStore.getState().actions.find(action => action.id === asmr.data.actionId)?.summaryValues).toMatchObject({ mode: "japanese_asmr" });
+  });
+  it("keeps the setting's pipeline when the caller also sends standard-only settings, and says they were not used", async () => {
+    useStudioPreferences.setState({ agentTranscriptionMode: "japanese_asmr" });
+    // A sloppy argument must not change what was asked for: no mode means the setting, so this runs Japanese/ASMR.
+    const result = await call("prepare_studio_transcription", { modelId: "large-v3-q5_0", language: "ja" });
+    expect(result).toMatchObject({ success: true, data: { executionStatus: "prepared", ignoredSettings: ["modelId"] } });
+    expect(mocks.controller.setConfig).not.toHaveBeenCalled();
   });
 });

@@ -19,5 +19,7 @@ export async function getStudioTasks(input: TasksInput, ctx: ExternalToolContext
   const tasks = result.value;
   return { kind: input.kind, total: tasks.length, offset: input.offset,
     items: tasks.slice(input.offset, input.offset + input.limit).map(item => ({ taskId: item.taskId, batchId: item.batchId, name: bounded(item.displayName),
-      status: item.status, progress: item.progress, documentId: item.documentId ?? null, ...(item.error ? { error: item.error.code } : {}) })) };
+      status: item.status, progress: item.progress, mode: item.mode ?? "standard", ...(item.phase ? { phase: item.phase } : {}),
+      ...(item.asmrReviewCount ? { reviewCount: item.asmrReviewCount } : {}), ...(item.asmrAutomationHeld ? { automationHeld: true } : {}),
+      documentId: item.documentId ?? null, ...(item.error ? { error: item.error.code } : {}) })) };
 }

@@ -234,6 +234,16 @@
     "proxy_port": "7890"
   },
   "agent": {
+    "transcription": {
+      "title": "助理轉寫",
+      "section_hint": "內建助理和外部 Agent 開始轉寫時用哪種流程。",
+      "mode": {
+        "label": "預設轉寫模式",
+        "description": "助理開始轉寫且沒有特別指定時使用。與字幕工作台頁面上的模式無關，在頁面上切換模式不會改變這裡。",
+        "standard": "標準轉寫",
+        "japanese_asmr": "日語 / ASMR（先打軸再逐句辨識）"
+      }
+    },
     "web": {
       "label": "允許 Agent 連網查詢資料",
       "description": "開啟後，Agent 可以檢索下面開啟的網站，核對人名、地名和術語的譯法。只傳送檢索詞和網頁連結，不會傳送你的字幕或翻譯資料。",
@@ -623,6 +633,7 @@
         "insert_studio_cue": "插入字幕",
         "export_studio_document": "匯出字幕",
         "start_studio_transcription": "開始本機轉寫",
+        "list_studio_transcription_review": "查看轉寫待聽校區間",
         "get_studio_tasks": "查看工作台任務",
         "search_translation_knowledge": "查詢翻譯資料",
         "list_translation_knowledge_catalog": "列出翻譯資料",
@@ -694,6 +705,7 @@
         "insert_studio_cue": "在字幕之間插入新的一條。",
         "export_studio_document": "把文件匯出為字幕檔。",
         "start_studio_transcription": "用本機語音模型轉寫影音。",
+        "list_studio_transcription_review": "讀取日語/ASMR 轉寫中需要聽校的區間。",
         "prepare_knowledge_changes": "新增或修改術語、規則等翻譯資料。",
         "convert_subtitle_files": "轉換字幕檔格式並寫出新檔案。",
         "extract_subtitle_language": "從雙語字幕中擷取一種語言並寫出新檔案。",

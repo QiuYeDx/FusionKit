@@ -64,9 +64,11 @@ function ActionCard({ action, busy, flat = false }: { action: PreparedAction; bu
     : action.summaryKey === "home:prepared_transcription_summary" ? t("home:prepared_transcription_title")
     : action.knowledge ? t("home:prepared_knowledge_title") : labels ? t(labels.title) : action.title;
   // The files are the receipt's items; the summary keeps to one line of what will happen.
+  const asmrTranscription = action.summaryKey === "home:prepared_transcription_summary" && action.summaryValues?.mode === "japanese_asmr";
   const values = action.summaryValues ? { ...action.summaryValues, language: languageName(action.summaryValues.language, i18n.resolvedLanguage || i18n.language),
     ...(action.summaryKey === "home:prepared_transcription_summary" ? { model: modelName(action.summaryValues.model, t) } : {}) } : undefined;
   const summary = action.knowledge ? knowledgeSavedSummary(action, t) ?? knowledgeChangesSummary(action.knowledge, t)
+    : asmrTranscription ? t("home:prepared_transcription_asmr_summary", values)
     : action.summaryKey ? t(action.summaryKey, values) : action.summary;
   const focusCollectionId = objectValue(action.result).focusCollectionId;
   const pipeline = pipelineLines(action.summaryValues, t, i18n.resolvedLanguage || i18n.language);

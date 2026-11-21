@@ -123,8 +123,12 @@ export function effectiveTranscriptionConfig(state: Pick<StudioTranscriptionStat
   return { ...DEFAULT_STUDIO_TRANSCRIPTION_CONFIG, mode: 'japanese_asmr', modelId: JAPANESE_ASMR_MODEL_ID,
     devicePreference: state.asmrDevice ?? state.config.devicePreference, language: 'ja', windowStrategy: 'fixed_v1' };
 }
-export function getTranscriptionReadiness(state: StudioTranscriptionState): { canEnqueue: boolean; readyCount: number; reason: TranscriptionReadinessReason | null } {
-  const config = effectiveTranscriptionConfig(state);
+/**
+ * Readiness for the batch about to be submitted. `mode` is the mode that batch runs in, which a caller such as the
+ * assistant may set for one batch without changing the mode the page shows.
+ */
+export function getTranscriptionReadiness(state: StudioTranscriptionState, mode: StudioTranscriptionMode | undefined = state.mode): { canEnqueue: boolean; readyCount: number; reason: TranscriptionReadinessReason | null } {
+  const config = effectiveTranscriptionConfig(mode === state.mode ? state : { ...state, mode });
   const readyCount = state.drafts.filter(draft => draft.status === 'ready').length;
   const reason: TranscriptionReadinessReason | null = state.submitting || state.selecting ? 'busy'
     : state.drafts.some(draft => draft.status === 'submission_unknown') ? 'uncertain_submission'
@@ -133,7 +137,7 @@ export function getTranscriptionReadiness(state: StudioTranscriptionState): { ca
         : state.autoTranslation.enabled && !state.autoTranslationReady ? 'automatic_translation_not_ready'
         : state.runtime?.status !== 'verified' ? 'runtime_not_ready'
           : !state.resources.some(resource => resource.resourceType === 'model' && resource.resourceId === config.modelId && resource.status === 'ready') ? 'model_not_ready'
-            : config.vadEnabled && !state.resources.some(resource => resource.resourceId === (state.mode === 'japanese_asmr' ? JAPANESE_ASMR_VAD_MODEL_ID : LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id) && resource.status === 'ready') ? 'vad_not_ready'
+            : config.vadEnabled && !state.resources.some(resource => resource.resourceId === (mode === 'japanese_asmr' ? JAPANESE_ASMR_VAD_MODEL_ID : LOCAL_SUBTITLE_PRODUCTION_CONTRACT.vad.id) && resource.status === 'ready') ? 'vad_not_ready'
               : config.devicePreference === 'cuda' && !state.resources.some(resource => resource.resourceType === 'accelerator' && resource.compatibleBackends.includes('cuda') && resource.status === 'ready') ? 'accelerator_not_ready'
                 : !readyCount ? 'no_media' : null;
   return { canEnqueue: reason === null, readyCount, reason };
@@ -440,19 +444,20 @@ export class StudioTranscriptionController {
     try { this.preferences?.write({ version: 1, config: this.state.config, mode: this.state.mode, asmrDevice: this.state.asmrDevice, ...(this.state.asmrHoldOnReview !== undefined ? { asmrHoldOnReview: this.state.asmrHoldOnReview } : {}), autoTranslation: this.state.autoTranslation, autoExport: this.state.autoExport }); }
     catch { /* The in-memory choice and current operation remain valid. */ }
   }
-  private automaticRequest(): AutomaticTranslationRequest | undefined {
+  private automaticRequest(mode: StudioTranscriptionMode | undefined = this.state.mode): AutomaticTranslationRequest | undefined {
     if (!this.state.autoTranslation.enabled) return;
     try {
       const resolved = this.resolveAutomatic?.(this.state.autoTranslation);
       if (!resolved) return;
+      const config = effectiveTranscriptionConfig({ ...this.state, mode });
       const saved = this.state.autoTranslation.knowledge;
-      const preferences = saved && this.state.mode === 'japanese_asmr' ? { ...saved, sourceLanguage: 'ja' } : saved;
+      const preferences = saved && mode === 'japanese_asmr' ? { ...saved, sourceLanguage: 'ja' } : saved;
       let knowledge: AutomaticTranslationRequest['knowledge'];
       if (preferences?.enabled) {
         const library = this.state.autoKnowledgeLibrary;
-        if (this.state.autoKnowledgeLoading || this.state.autoKnowledgeStale || getAutomaticKnowledgeProblem(preferences, resolved.config.language, effectiveTranscriptionConfig(this.state).taskMode === 'translate_to_english', library)) return;
+        if (this.state.autoKnowledgeLoading || this.state.autoKnowledgeStale || getAutomaticKnowledgeProblem(preferences, resolved.config.language, config.taskMode === 'translate_to_english', library)) return;
         const selection: KnowledgeSelection = { version: 2,
-          languagePair: { source: effectiveTranscriptionConfig(this.state).taskMode === 'translate_to_english' ? 'en' : preferences.sourceLanguage, target: automaticKnowledgeTargetLanguage(resolved.config.language) },
+          languagePair: { source: config.taskMode === 'translate_to_english' ? 'en' : preferences.sourceLanguage, target: automaticKnowledgeTargetLanguage(resolved.config.language) },
           collectionIds: preferences.collectionIds, disabledEntryIds: preferences.disabledEntryIds,
           ...(preferences.instructions !== undefined ? { instructions: preferences.instructions } : {}),
           ...(preferences.context !== undefined ? { context: preferences.context } : {}),
@@ -550,9 +555,11 @@ export class StudioTranscriptionController {
   clearDrafts = (): void => { for (const draft of this.state.drafts) this.removeDraft(draft.id); };
   /**
    * `autoExport` writes each result next to its media when it is done, for this batch only: a spec, `null` for none,
-   * or left out to follow the Studio setting.
+   * or left out to follow the Studio setting. `mode` runs this batch in a mode other than the page's (the assistant's
+   * own choice, which leaves the page as the user left it); `holdOnReview` overrides that setting for this batch.
    */
-  enqueue = (options?: { expectedDraftIds?: readonly string[]; autoExport?: AutomaticExportSpec | null }): Promise<TranscriptionBatchAdmission | null> => {
+  enqueue = (options?: { expectedDraftIds?: readonly string[]; autoExport?: AutomaticExportSpec | null;
+    mode?: StudioTranscriptionMode; holdOnReview?: boolean }): Promise<TranscriptionBatchAdmission | null> => {
     if (this.enqueueOperation) {
       // A scoped confirmation must never adopt another caller's in-flight batch.
       if (options?.expectedDraftIds) { this.emit({ error: 'resource_busy' }); return Promise.resolve(null); }
@@ -569,15 +576,18 @@ export class StudioTranscriptionController {
         this.emit({ error: 'revision_conflict' }); return Promise.resolve(null);
       }
     }
-    if (!getTranscriptionReadiness(this.state).canEnqueue) return Promise.resolve(null);
+    // A batch's mode is checked as it will be submitted, not as the page happens to be set.
+    const mode = options?.mode ?? this.state.mode;
+    if (!getTranscriptionReadiness(this.state, mode).canEnqueue) return Promise.resolve(null);
     const drafts = this.state.drafts.filter(draft => draft.status === 'ready' && draft.media && draft.probe);
     const ids = new Set(drafts.map(draft => draft.id));
-    const automatic = this.automaticRequest();
+    const automatic = this.automaticRequest(mode);
     const exported = options?.autoExport === undefined ? automaticExportFromPreferences(this.state.autoExport, !!automatic) : options.autoExport ?? undefined;
     if (this.state.autoTranslation.enabled && !automatic) { this.emit({ error: 'needs_configuration' }); return Promise.resolve(null); }
-    const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: effectiveTranscriptionConfig(this.state),
+    const holdOnReview = options?.holdOnReview ?? this.state.asmrHoldOnReview;
+    const request = enqueueTranscriptionRequestSchema.parse({ files: drafts.map(draft => ({ fileToken: draft.media!.fileToken, audioStreamId: draft.audioStreamId })), config: effectiveTranscriptionConfig({ ...this.state, mode }),
       ...(automatic ? { autoTranslation: automatic } : {}), ...(exported ? { autoExport: exported } : {}),
-      ...(this.state.mode === 'japanese_asmr' && this.state.asmrHoldOnReview ? { holdOnReview: true } : {}) });
+      ...(mode === 'japanese_asmr' && holdOnReview ? { holdOnReview: true } : {}) });
     this.taskVersion++; this.emit({ submitting: true, error: null, drafts: Object.freeze(this.state.drafts.map(draft => ids.has(draft.id) ? Object.freeze({ ...draft, status: 'submitting' as const }) : draft)) });
     this.enqueueOperation = Promise.resolve().then(async () => {
       let response: Awaited<ReturnType<Api['enqueueTranscription']>>;

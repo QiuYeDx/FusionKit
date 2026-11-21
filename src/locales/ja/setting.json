@@ -234,6 +234,16 @@
     "proxy_port": "7890"
   },
   "agent": {
+    "transcription": {
+      "title": "アシスタントの文字起こし",
+      "section_hint": "内蔵アシスタントと接続中の外部 Agent が文字起こしを始めるときの処理方式です。",
+      "mode": {
+        "label": "既定の文字起こしモード",
+        "description": "アシスタントがモードを指定せずに文字起こしを始めるときに使います。字幕スタジオの画面上のモードとは別で、画面で切り替えてもここは変わりません。",
+        "standard": "標準",
+        "japanese_asmr": "日本語 / ASMR（タイミング検出の後に1行ずつ認識）"
+      }
+    },
     "web": {
       "label": "Agent に Web 検索を許可",
       "description": "オンにすると、Agent は下で有効にしたサイトを検索し、人名・地名・用語の訳し方を確かめます。送信するのは検索語とページのリンクだけで、字幕や翻訳資料は送信しません。",
@@ -623,6 +633,7 @@
         "insert_studio_cue": "字幕を挿入",
         "export_studio_document": "字幕を書き出し",
         "start_studio_transcription": "ローカル文字起こしを開始",
+        "list_studio_transcription_review": "文字起こしの要確認区間を確認",
         "get_studio_tasks": "スタジオのタスクを確認",
         "search_translation_knowledge": "翻訳資料を検索",
         "list_translation_knowledge_catalog": "翻訳資料を一覧",
@@ -694,6 +705,7 @@
         "insert_studio_cue": "字幕の間に新しい字幕を挿入します。",
         "export_studio_document": "ドキュメントを字幕ファイルとして書き出します。",
         "start_studio_transcription": "ローカル音声モデルで音声・動画を文字起こしします。",
+        "list_studio_transcription_review": "日本語/ASMR 文字起こしで確認が必要な区間を読み取ります。",
         "prepare_knowledge_changes": "用語やルールなどの翻訳資料を追加・変更します。",
         "convert_subtitle_files": "字幕形式を変換して新しいファイルを書き出します。",
         "extract_subtitle_language": "対訳字幕から 1 言語を取り出して新しいファイルを書き出します。",

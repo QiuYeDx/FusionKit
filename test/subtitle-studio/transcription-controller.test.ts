@@ -96,6 +96,33 @@ it('starts in the default mode only when no mode was saved, and keeps an explici
   const standard = { ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), mode: 'standard' as const };
   expect(fixture(undefined, { defaultMode: 'japanese_asmr', preferences: { read: () => standard, write: vi.fn() } }).controller.getState().mode).toBe('standard');
 });
+it('submits a batch in the mode it was given, leaving the page in its own mode', async () => {
+  const f = fixture(undefined, { defaultMode: 'japanese_asmr' });
+  await f.choose(media());
+  // The page's readiness wants the ASMR resources; a standard batch is not held back by them.
+  expect(getTranscriptionReadiness(f.controller.getState()).reason).toBe('model_not_ready');
+  expect(getTranscriptionReadiness(f.controller.getState(), 'standard').canEnqueue).toBe(true);
+  expect(await f.controller.enqueue({ mode: 'standard' })).not.toBeNull();
+  expect(f.api.enqueueTranscription.mock.calls[0][0].config).toMatchObject({ modelId: LOCAL_SUBTITLE_PRODUCTION_CONTRACT.launchModel.id, language: 'auto', vadEnabled: true });
+  expect(f.api.enqueueTranscription.mock.calls[0][0].config).not.toHaveProperty('mode');
+  expect(f.api.enqueueTranscription.mock.calls[0][0]).not.toHaveProperty('holdOnReview');
+  expect(f.controller.getState().mode).toBe('japanese_asmr');
+  // The same page can submit a Japanese/ASMR batch instead: locked Japanese config, VAD model named.
+  await f.choose(media('2'));
+  f.api.listTranscriptionResources.mockResolvedValue(ok({ resources: [...resources().resources,
+    { resourceId: 'anime-whisper-q8_0', resourceType: 'model', displayName: 'Anime Whisper', status: 'ready', byteSize: 100, isDefault: false, compatibleBackends: ['cpu'] },
+    { resourceId: 'whisper-vad-encdec-asmr-onnx', resourceType: 'vad', displayName: 'ASMR VAD', status: 'ready', byteSize: 100, isDefault: false, compatibleBackends: ['cpu'] }], jobs: [] }));
+  await f.controller.refresh();
+  expect(await f.controller.enqueue({ mode: 'japanese_asmr' })).not.toBeNull();
+  expect(f.api.enqueueTranscription.mock.calls[1][0].config).toMatchObject({ mode: 'japanese_asmr', modelId: 'anime-whisper-q8_0', language: 'ja',
+    taskMode: 'transcribe', vadEnabled: true, windowStrategy: 'fixed_v1', devicePreference: 'auto' });
+  expect(f.api.enqueueTranscription.mock.calls[1][0].config.advanced).not.toHaveProperty('initialPrompt');
+  // Holding the automatic steps on review is the page's setting, but a batch may say so itself.
+  expect(f.api.enqueueTranscription.mock.calls[1][0]).not.toHaveProperty('holdOnReview');
+  await f.choose(media('3'));
+  await f.controller.enqueue({ mode: 'japanese_asmr', holdOnReview: true });
+  expect(f.api.enqueueTranscription.mock.calls[2][0].holdOnReview).toBe(true);
+});
 it('keeps the export setting between sessions and applies it to the start button, unless a batch says otherwise', async () => {
   const saved = { ...structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), autoExport: { ...DEFAULT_AUTOMATIC_EXPORT_PREFERENCES, enabled: true, format: 'lrc' as const, removeAfterExport: true } };
   const write = vi.fn(); const f = fixture(undefined, { preferences: { read: () => saved, write } });

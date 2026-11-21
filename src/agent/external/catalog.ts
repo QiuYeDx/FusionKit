@@ -179,21 +179,40 @@ export const EXTERNAL_TOOLS = {
   start_studio_transcription: {
     title: "Transcribe audio or video locally",
     description: "Transcribe audio/video files into Subtitle Studio with FusionKit's installed local speech model (no cloud, no API key). "
+      + "mode chooses the pipeline: leave it out to follow the mode the user chose in FusionKit's Settings for assistant transcription; standard uses the Studio model and language; "
+      + "japanese_asmr is the two-stage Japanese/ASMR pipeline that finds each whisper or spoken line with its own voice-detection model and recognizes "
+      + "every line with the Japanese model, so it needs both of its models installed (use it for Japanese ASMR/whisper "
+      + "audio rather than ordinary speech). modelId and language belong to the standard pipeline: with Japanese/ASMR they are not used and the result "
+      + "lists them in ignoredSettings, so never assume they applied (the batch still runs; do not repeat it to fix that). "
       + "Paths are absolute files or folders (a folder gives its media files in name order; subfolders only with recursive=true), at most 100 files. "
       + "FusionKit's automatic translation and export stay off for this batch. Returns task ids: follow them with get_studio_tasks(kind=transcription); "
-      + "each finished task becomes a Studio document. May ask the user in FusionKit first.",
+      + "each finished task becomes a Studio document, and a japanese_asmr task may report reviewCount ranges for list_studio_transcription_review. "
+      + "May ask the user in FusionKit first.",
     inputSchema: z.object({
       paths: paths.describe("Absolute file or folder paths."),
       recursive: z.boolean().default(false),
-      modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional().describe("An installed model id; defaults to Studio's setting."),
-      language: z.string().trim().min(2).max(32).regex(/^(?:auto|[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$/).optional().describe("Spoken language, or auto."),
+      mode: z.enum(["standard", "japanese_asmr"]).optional()
+        .describe("standard = one-pass transcription with the Studio model; japanese_asmr = two-stage Japanese/ASMR pipeline. "
+          + "Leave it out to use the mode the user chose in FusionKit's Settings for assistant transcription."),
+      modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional().describe("An installed model id; defaults to Studio's setting. Standard pipeline only: a Japanese/ASMR batch does not use it."),
+      language: z.string().trim().min(2).max(32).regex(/^(?:auto|[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*)$/).optional().describe("Spoken language, or auto. Standard pipeline only: a Japanese/ASMR batch does not use it."),
     }).strict(),
     access: "write",
     group: "studio_transcription",
   },
+  list_studio_transcription_review: {
+    title: "Read a transcription's listening-check ranges",
+    description: "Read the ranges of a Japanese/ASMR transcription task that need a listening check: start/end time in milliseconds, why "
+      + "(empty = no text was recognized there, too_long = a stretch without a trustworthy pause) and the cue each one falls at in the document. "
+      + "Call it after get_studio_tasks(kind=transcription) reports reviewCount for a task. Read only.",
+    inputSchema: z.object({ taskId: z.string().min(1).max(128).describe("A transcription task id from start_studio_transcription or get_studio_tasks."), ...page() }).strict(),
+    access: "read",
+  },
   get_studio_tasks: {
     title: "Subtitle Studio task progress",
-    description: "Read Subtitle Studio translation or transcription tasks and their progress. Queued or running tasks are not finished. Read only.",
+    description: "Read Subtitle Studio translation or transcription tasks and their progress. Queued or running tasks are not finished. Read only. "
+      + "A transcription task also reports its mode (standard or japanese_asmr), the two-stage phase, and reviewCount when ranges need a listening check "
+      + "(read them with list_studio_transcription_review).",
     inputSchema: z.object({ ...page(), kind: z.enum(["translation", "transcription"]).default("translation") }).strict(),
     access: "read",
   },

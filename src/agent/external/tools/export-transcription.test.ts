@@ -3,6 +3,7 @@ import { DEFAULT_STUDIO_TRANSCRIPTION_CONFIG } from "@/subtitle-studio/transcrip
 import { EXTERNAL_TOOLS } from "../catalog";
 import { resetExternalConfirmations, useExternalConfirmationsStore } from "../confirmations";
 import { useExternalAgentStore } from "../store";
+import { useStudioPreferences } from "@/store/tools/subtitle-studio/preferences";
 import { exportStudioDocument } from "./export";
 import { forgetKnownRevisions } from "./studio";
 import { startStudioTranscription } from "./transcription";
@@ -10,6 +11,8 @@ import { startStudioTranscription } from "./transcription";
 const controller = vi.hoisted(() => ({ state: {} as Record<string, any>, refresh: vi.fn(), setConfig: vi.fn(), setAutoTranslation: vi.fn(), selectMediaFromPaths: vi.fn(), enqueue: vi.fn(), removeDraft: vi.fn(), getState: vi.fn() }));
 vi.mock("@/services/subtitle-studio/transcription-controller", () => ({
   getStudioTranscriptionController: () => controller,
+  effectiveTranscriptionConfig: (state: any) => state.mode !== "japanese_asmr" ? state.config : { ...state.config, mode: "japanese_asmr", modelId: "anime-whisper-q8_0",
+    language: "ja", taskMode: "transcribe", vadEnabled: true, windowStrategy: "fixed_v1", advanced: { beamSize: 5, temperature: 0, vadMinSilenceMs: 500, maxCueDurationMs: 7000, maxCueChars: 84, maxLineChars: 42 } },
   getTranscriptionReadiness: (state: any) => {
     const reason = state.runtime?.status !== "verified" ? "runtime_not_ready" : !state.drafts.length ? "no_media" : null;
     return { canEnqueue: !reason, readyCount: state.drafts.filter((draft: any) => draft.status === "ready").length, reason };
@@ -31,6 +34,8 @@ const transcriptionInput = (value: object) => EXTERNAL_TOOLS.start_studio_transc
 
 beforeEach(() => {
   vi.clearAllMocks(); forgetKnownRevisions(); resetExternalConfirmations(); trust("auto");
+  // Cases describe the standard pipeline unless they say otherwise; the setting's own default is Japanese/ASMR.
+  useStudioPreferences.setState({ agentTranscriptionMode: "standard" });
   Object.defineProperty(globalThis, "window", { configurable: true, value: { subtitleStudio: api, externalAgent: { requestAttention: vi.fn() } } });
   api.readDocumentPage.mockResolvedValue({ ok: true, value: page });
   api.planExport.mockResolvedValue({ ok: true, value: plan() });
@@ -103,7 +108,7 @@ describe("start_studio_transcription", () => {
     const result = await startStudioTranscription(transcriptionInput({ modelId: "large-v3", language: "ja" }), ctx());
     expect(controller.setConfig).toHaveBeenNthCalledWith(1, expect.objectContaining({ modelId: "large-v3", language: "ja" }));
     expect(controller.setAutoTranslation).toHaveBeenNthCalledWith(1, expect.objectContaining({ enabled: false }));
-    expect(controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["d1"], autoExport: null });
+    expect(controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["d1"], autoExport: null, mode: "standard", holdOnReview: false });
     expect(controller.setAutoTranslation).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true, language: "zh" }));
     expect(controller.setConfig).toHaveBeenLastCalledWith(DEFAULT_STUDIO_TRANSCRIPTION_CONFIG);
     expect(result).toMatchObject({ batchId: "b1", tasks: [{ taskId: "t1", status: "queued" }] });
@@ -116,5 +121,43 @@ describe("start_studio_transcription", () => {
     });
     await expect(startStudioTranscription(transcriptionInput({}), ctx())).rejects.toMatchObject({ code: "media_not_ready" });
     expect(controller.removeDraft).toHaveBeenCalledWith("d1");
+  });
+
+  it("runs a Japanese/ASMR batch in that mode without touching the page's model settings", async () => {
+    controller.selectMediaFromPaths.mockImplementation(async () => {
+      controller.state = { ...controller.state, drafts: [{ id: "d1", status: "ready", displayName: "asmr.wav" }] };
+      return { matched: 1 };
+    });
+    controller.enqueue.mockImplementation(async () => {
+      controller.state = { ...controller.state, drafts: [] };
+      return { batchId: "b1", tasks: [{ taskId: "t1", displayName: "asmr.wav", status: "queued" }] };
+    });
+    const result = await startStudioTranscription(transcriptionInput({ mode: "japanese_asmr" }), ctx());
+    // The mode derives its own config, so the page's model/language settings are never written for this batch.
+    expect(controller.setConfig).not.toHaveBeenCalled();
+    expect(controller.enqueue).toHaveBeenCalledWith({ expectedDraftIds: ["d1"], autoExport: null, mode: "japanese_asmr", holdOnReview: false });
+    expect(result).toMatchObject({ batchId: "b1", mode: "japanese_asmr" });
+  });
+
+  it("uses the mode the caller names even with standard-only settings, reporting them as unused", async () => {
+    controller.selectMediaFromPaths.mockImplementation(async () => { controller.state = { ...controller.state, drafts: [{ id: "d1", status: "ready" }] }; return { matched: 1 }; });
+    controller.enqueue.mockImplementation(async () => ({ batchId: "b1", tasks: [{ taskId: "t1", displayName: "a.wav", status: "queued" }] }));
+    // An explicit Japanese/ASMR with a standard-only argument runs Japanese/ASMR and says the argument was not used:
+    // a model's imprecise argument must not fail the batch.
+    const explicit = await startStudioTranscription(transcriptionInput({ mode: "japanese_asmr", modelId: "large-v3" }), ctx());
+    expect(explicit).toMatchObject({ mode: "japanese_asmr", ignoredSettings: ["modelId"] });
+    expect(controller.setConfig).not.toHaveBeenCalled();
+    // The page may show Japanese/ASMR; no mode means the setting, and the standard-only arguments are not used.
+    controller.state = { ...controller.state, drafts: [], mode: "japanese_asmr" };
+    useStudioPreferences.setState({ agentTranscriptionMode: "standard" });
+    const standard = await startStudioTranscription(transcriptionInput({ modelId: "large-v3" }), ctx());
+    expect(standard).toMatchObject({ mode: "standard" });
+    expect(controller.setConfig).toHaveBeenCalledWith(expect.objectContaining({ modelId: "large-v3" }));
+    // A model id does not turn a Japanese/ASMR setting into a standard batch: it is reported as unused instead.
+    useStudioPreferences.setState({ agentTranscriptionMode: "japanese_asmr" });
+    controller.state = { ...controller.state, drafts: [] };
+    const asmr = await startStudioTranscription(transcriptionInput({ modelId: "large-v3" }), ctx());
+    expect(asmr).toMatchObject({ mode: "japanese_asmr", ignoredSettings: ["modelId"] });
+    expect(controller.enqueue).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "japanese_asmr" }));
   });
 });

@@ -1,8 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { DEFAULT_AUTOMATIC_KNOWLEDGE, DEFAULT_TRANSCRIPTION_PREFERENCES, readTranscriptionPreferences, transcriptionPreferencesSchema } from '../../src/subtitle-studio/transcription/preferences-contract';
+import { DEFAULT_AGENT_TRANSCRIPTION_MODE } from '../../src/subtitle-studio/transcription/japanese-asmr-contract';
 import { useStudioPreferences } from '../../src/store/tools/subtitle-studio/preferences';
 
-afterEach(() => { vi.unstubAllGlobals(); useStudioPreferences.setState({ encoding: 'utf-8', dismissedRecoveryKey: '', transcription: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), recentKnowledgeSets: [] }); });
+afterEach(() => { vi.unstubAllGlobals(); useStudioPreferences.setState({ encoding: 'utf-8', dismissedRecoveryKey: '', transcription: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES), recentKnowledgeSets: [],
+  agentTranscriptionMode: DEFAULT_AGENT_TRANSCRIPTION_MODE }); });
 it('defaults automatic translation off and rejects unknown credentials or inconsistent acoustic settings', () => {
   expect(readTranscriptionPreferences(undefined)).toEqual(DEFAULT_TRANSCRIPTION_PREFERENCES);
   expect(DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation.enabled).toBe(false);
@@ -20,7 +22,7 @@ it('hydrates the existing preference key and persists only valid settings alongs
   const settings = structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES); settings.config.language = 'ja'; settings.config.advanced.beamSize = 7; settings.autoTranslation.enabled = true; settings.autoTranslation.profileId = 'profile';
   useStudioPreferences.getState().setTranscription(settings);
   const persisted = JSON.parse(storage.get(key)!);
-  expect(Object.keys(persisted.state).sort()).toEqual(['cueAudioLoop', 'cueAudioPadMs', 'cueAudioTempo', 'dismissedRecoveryKey', 'encoding', 'recentKnowledgeSets', 'transcription']);
+  expect(Object.keys(persisted.state).sort()).toEqual(['agentTranscriptionMode', 'cueAudioLoop', 'cueAudioPadMs', 'cueAudioTempo', 'dismissedRecoveryKey', 'encoding', 'recentKnowledgeSets', 'transcription']);
   // An older store without the original-audio padding gets the default.
   expect(persisted.state.cueAudioPadMs).toBe(300);
   expect(persisted.state.cueAudioTempo).toBe(1); expect(persisted.state.cueAudioLoop).toBe(false);
@@ -45,7 +47,7 @@ it('persists the audio type inside the transcription settings and refuses a prof
   settings.config = { ...settings.config, advanced: { ...settings.config.advanced, audioProfile: 'quiet_whisper_v1' } };
   useStudioPreferences.getState().setTranscription(settings);
   const persisted = JSON.parse(storage.get(key)!);
-  expect(Object.keys(persisted.state).sort()).toEqual(['cueAudioLoop', 'cueAudioPadMs', 'cueAudioTempo', 'dismissedRecoveryKey', 'encoding', 'recentKnowledgeSets', 'transcription']);
+  expect(Object.keys(persisted.state).sort()).toEqual(['agentTranscriptionMode', 'cueAudioLoop', 'cueAudioPadMs', 'cueAudioTempo', 'dismissedRecoveryKey', 'encoding', 'recentKnowledgeSets', 'transcription']);
   expect(persisted.state.transcription.config.advanced.audioProfile).toBe('quiet_whisper_v1');
   useStudioPreferences.setState({ transcription: structuredClone(DEFAULT_TRANSCRIPTION_PREFERENCES) });
   storage.set(key, JSON.stringify(persisted)); await useStudioPreferences.persist.rehydrate();
@@ -81,6 +83,23 @@ it('falls back to defaults for earlier automatic knowledge choices instead of mi
     const saved = { ...DEFAULT_TRANSCRIPTION_PREFERENCES, autoTranslation: { ...DEFAULT_TRANSCRIPTION_PREFERENCES.autoTranslation, enabled: true, knowledge: { ...knowledge, ...removed } } };
     expect(readTranscriptionPreferences(JSON.parse(JSON.stringify(saved)))).toEqual(DEFAULT_TRANSCRIPTION_PREFERENCES);
   }
+});
+
+it('remembers the assistant transcription mode as a setting of its own, defaulting to Japanese/ASMR', async () => {
+  const storage = new Map<string, string>();
+  const key = 'fusionkit.subtitle-studio.preferences.v1';
+  vi.stubGlobal('localStorage', { getItem: (name: string) => storage.get(name) ?? null, setItem: (name: string, value: string) => storage.set(name, value), removeItem: (name: string) => storage.delete(name) });
+  await useStudioPreferences.persist.rehydrate();
+  // It is apart from the page's own transcription mode, and starts on the workspace default.
+  expect(useStudioPreferences.getState().agentTranscriptionMode).toBe(DEFAULT_AGENT_TRANSCRIPTION_MODE);
+  expect(DEFAULT_AGENT_TRANSCRIPTION_MODE).toBe('japanese_asmr');
+  useStudioPreferences.getState().setAgentTranscriptionMode('standard');
+  expect(useStudioPreferences.getState().transcription.mode).toBeUndefined();
+  expect(JSON.parse(storage.get(key)!).state.agentTranscriptionMode).toBe('standard');
+  // Anything else coming back from storage takes the default rather than reaching a batch.
+  storage.set(key, JSON.stringify({ version: 2, state: { agentTranscriptionMode: 'unknown_mode' } }));
+  await useStudioPreferences.persist.rehydrate();
+  expect(useStudioPreferences.getState().agentTranscriptionMode).toBe(DEFAULT_AGENT_TRANSCRIPTION_MODE);
 });
 
 it('remembers the five most recent distinct collection combinations, newest first', async () => {

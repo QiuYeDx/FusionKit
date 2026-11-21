@@ -17,12 +17,15 @@ export interface PipelineScope { translate: boolean; exportFiles: boolean; remov
 
 /** Whether every file of the batch is through, and what to report when it is. */
 export function pipelineOutcome(tasks: readonly TranscriptionTaskSummary[], documents: ReadonlyMap<string, DocumentSummary>, scope: PipelineScope): AgentUiEvent | null {
-  const written: string[] = [], problems: string[] = [];
+  const written: string[] = [], problems: string[] = [], held: string[] = [];
   let finished = 0, removed = 0;
   for (const task of tasks) {
     if (TRANSCRIBING.has(task.status)) return null;
     if (task.status !== "completed" || !task.documentId) { problems.push(`${task.displayName}: ${task.error?.code ?? task.status}`); continue; }
     if (!scope.translate && !scope.exportFiles) { finished++; continue; }
+    // Japanese/ASMR results held for a listening check never reach translation or export: they finished as far as
+    // they will, so report them as finished with the ranges left to check instead of waiting forever.
+    if (task.asmrAutomationHeld) { held.push(task.displayName); finished++; continue; }
     const document = documents.get(task.documentId);
     // A document is only removed after its file was written, so a missing one is a finished one.
     if (!document && scope.exportFiles && scope.removeAfterExport) { removed++; finished++; continue; }
@@ -43,6 +46,7 @@ export function pipelineOutcome(tasks: readonly TranscriptionTaskSummary[], docu
     finished++;
   }
   return { kind: "pipeline_completed", values: { total: tasks.length, finished, failed: tasks.length - finished, ...(removed ? { removed } : {}),
+    ...(held.length ? { heldForReview: held.length } : {}),
     files: written.slice(0, 8).join(", ") + (written.length > 8 ? ` (+${written.length - 8})` : ""),
     problems: problems.slice(0, 5).join("; ") + (problems.length > 5 ? ` (+${problems.length - 5})` : "") } };
 }

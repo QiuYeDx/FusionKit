@@ -4,6 +4,8 @@ import useAgentStore from "@/store/agent/useAgentStore";
 import useModelStore from "@/store/useModelStore";
 import useLocalSubtitleTranscriberStore from "@/store/tools/subtitle/useLocalSubtitleTranscriberStore";
 import { getStudioTranscriptionController, getTranscriptionReadiness } from "@/services/subtitle-studio/transcription-controller";
+import { agentTranscriptionMismatch, planAgentTranscription } from "@/services/subtitle-studio/transcription-batch-mode";
+import { JAPANESE_ASMR_MODEL_ID } from "@/subtitle-studio/transcription/japanese-asmr-contract";
 import { getStudioTranslationOverviewController } from "@/services/subtitle-studio/translation-overview-controller";
 import { translationConfigSchema, normalizeTranslationModel } from "@/subtitle-studio/translation-contract";
 import { encodingSchema } from "@/subtitle-studio/domain";
@@ -15,6 +17,7 @@ import { SettingsResolver } from "./tool-page-settings";
 import { translationDraftMemory } from "@/services/subtitle-studio/translation-draft";
 import i18n from "@/i18n";
 import { userMentionedPath } from "./user-intent-authority";
+import { useStudioPreferences } from "@/store/tools/subtitle-studio/preferences";
 import { watchStudioPipeline } from "./pipeline-watch";
 import { automaticExportFromPreferences, type AutomaticExportSpec } from "@/subtitle-studio/automatic-export-contract";
 import { sessionOfSignal } from "./turn-context";
@@ -120,7 +123,8 @@ export const prepareStudioTranslationSchema = z.object({
 /** The Studio dialog's language default: the interface language when it is a translation target, otherwise Chinese. */
 const dialogLanguage = () => { const value = i18n.resolvedLanguage; return value && ["zh", "en", "ja", "zh-Hant"].includes(value) ? value : "zh"; };
 const draftNumber = (value: string | undefined) => { const number = Number(value); return Number.isInteger(number) && number > 0 ? number : undefined; };
-export const prepareStudioTranscriptionSchema = z.object({ modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional(),
+export const prepareStudioTranscriptionSchema = z.object({ mode: z.enum(["standard", "japanese_asmr"]).optional(),
+  modelId: z.string().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/).optional(),
   language: language.optional(), devicePreference: z.enum(["auto", "cpu", "metal", "cuda"]).optional(),
   taskMode: z.enum(["transcribe", "translate_to_english"]).optional(),
   initialPrompt: z.string().max(1000).optional(),
@@ -162,7 +166,18 @@ export const modernAgentTools = {
       const tasks = unwrap(await studio().listTranscriptionTasks({})); ctx.check();
       return succeeded({ kind: input.kind, total: tasks.length, offset: input.offset, items: tasks.slice(input.offset, input.offset + input.limit).map(item => ({
         taskId: item.taskId, batchId: item.batchId, name: safeText(item.displayName), status: item.status, progress: item.progress,
+        mode: item.mode ?? "standard", ...(item.phase ? { phase: item.phase } : {}),
+        ...(item.asmrReviewCount ? { reviewCount: item.asmrReviewCount } : {}),
+        ...(item.asmrAutomationHeld ? { automationHeld: true } : {}), ...(item.asmrNoContent ? { emptyReason: item.asmrNoContent } : {}),
         documentId: item.documentId, automaticTranslation: item.automaticTranslation, error: item.error?.code })) });
+    }) }),
+  list_studio_transcription_review: tool({ description: "Read the ranges of a Japanese/ASMR transcription task that need a listening check: each start/end time in milliseconds, why (empty = no text was recognized there, too_long = a stretch without a trustworthy pause), and the cue it falls at in the committed document. Use it after get_studio_tasks reports reviewCount, to tell the user which parts of the audio to check. Read only.",
+    inputSchema: z.object({ taskId: z.string().min(1).max(128), ...page }).strict(),
+    execute: (args, options) => run(z.object({ taskId: z.string().min(1).max(128), ...page }).strict(), args, options, async (input, ctx) => {
+      const result = unwrap(await studio().listTranscriptionReview({ taskId: input.taskId, offset: input.offset, limit: input.limit }));
+      ctx.check();
+      return succeeded({ total: result.total, offset: input.offset, items: result.ranges.map(range => ({ startMs: range.startMs, endMs: range.endMs, reason: range.reason,
+        ...(range.cue ? { cue: { cueId: range.cue.id, index: range.cue.index, text: safeText(range.cue.text, 120) } } : {}) })) });
     }) }),
   import_studio_subtitles: tool({ description: "Import subtitles into the studio. When the user typed subtitle file or folder paths, pass them exactly as typed in paths (folders give their SRT/LRC/VTT/ASS/SSA/SBV files in name order, up to 100; subfolders only with recursive=true when asked). Paths the user did not type are refused. Without paths, FusionKit's fixed native subtitle picker opens. Does not start translation.",
     inputSchema: importStudioSchema, execute: (args, options) => run(importStudioSchema, args, options, async (input, ctx) => {
@@ -236,25 +251,24 @@ export const modernAgentTools = {
       });
       return exposePrepared(action, ctx, { appliedSettings: settings.applied });
     }) }),
-  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 100 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. To finish the whole job without stopping, pass translation (target language such as 'zh', optional instructions and knowledge: collectionIds and/or a presetId from list_translation_knowledge_catalog) and export (format 'auto' = LRC for audio, SRT for video; content bilingual/target/source; order source-first/target-first; conflictPolicy indexed = add a number, overwrite = replace a same-name file; removeDocument = delete the Studio document after its file is written): each file is then translated as soon as it is transcribed and written next to its media, and you are told when the batch is done. Pass them only for what the user asked for, after asking what you need to know; without export, Studio's own auto-export setting applies, and export fields you leave out follow it too. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation.",
+  prepare_studio_transcription: tool({ description: "Prepare local audio/video transcription into subtitle studio. mode chooses the pipeline: leave it out to follow the user's default for assistant transcription (Settings → Assistant), which is usually the Japanese/ASMR pipeline for this app; 'standard' uses the Studio model and language; 'japanese_asmr' is the two-stage pipeline that finds each whisper or spoken line with its own voice-detection model and recognizes every line with the Japanese model, so it needs both of its models installed (use it for Japanese ASMR/whisper audio rather than ordinary speech, and say so to the user). modelId, language, taskMode and initialPrompt belong to the standard pipeline: when the batch runs in Japanese/ASMR they are not used and the result lists them in ignoredSettings, so never assume they applied (the batch still runs, do not repeat it just to fix that). When the user typed file or folder paths, pass them exactly as typed in paths: a folder gives its audio/video files in name order (subfolders only with recursive=true, when the user asked for them). Paths the user did not type are refused. Without paths, FusionKit's fixed native media picker opens. At most 100 files per preparation: when the result has nextOffset, prepare the next batch with the same paths and that offset after this one is confirmed. To finish the whole job without stopping, pass translation (target language such as 'zh', optional instructions and knowledge: collectionIds and/or a presetId from list_translation_knowledge_catalog) and export (format 'auto' = LRC for audio, SRT for video; content bilingual/target/source; order source-first/target-first; conflictPolicy indexed = add a number, overwrite = replace a same-name file; removeDocument = delete the Studio document after its file is written): each file is then translated as soon as it is transcribed and written next to its media, and you are told when the batch is done. Pass them only for what the user asked for, after asking what you need to know; without export, Studio's own auto-export setting applies, and export fields you leave out follow it too. Requires an installed runtime/model. Existing manual drafts must be handled first. Auto mode submits; other modes wait for confirmation.",
     inputSchema: prepareStudioTranscriptionSchema, execute: (args, options) => run(prepareStudioTranscriptionSchema, args, options, async (input, ctx) => {
       studio(); const controller = getStudioTranscriptionController();
       await controller.refresh(); ctx.check();
       const before = controller.getState();
       if (before.drafts.length || before.selecting || before.submitting) throw new ToolFailure("studio_transcription_existing_drafts");
-      const config = { ...before.config, ...(input.modelId ? { modelId: input.modelId } : {}), ...(input.language ? { language: input.language } : {}),
-        ...(input.devicePreference ? { devicePreference: input.devicePreference } : {}),
-        // Omitted task mode and prompt keep the Studio transcription settings.
-        ...(input.taskMode ? { taskMode: input.taskMode } : {}),
-        advanced: { ...before.config.advanced, ...(input.initialPrompt !== undefined ? { initialPrompt: input.initialPrompt } : {}) } };
-      const parsedConfig = transcriptionTaskConfigSchema.safeParse(config);
-      if (!parsedConfig.success) throw new ToolFailure("studio_transcription_configuration_invalid");
+      // The mode is this batch's own choice; leaving it out follows Settings → Assistant, not the page's mode.
+      const plan = planAgentTranscription(before, input, useStudioPreferences.getState().agentTranscriptionMode);
+      if (!plan.ok) throw new ToolFailure(plan.error);
       // What was asked of a model that cannot do it is refused by name instead of changed or "not ready";
       // the Studio settings it cannot use fall back as they do on the page.
-      const mismatch = transcriptionModelMismatch(parsedConfig.data);
+      const mismatch = agentTranscriptionMismatch(plan, input);
       if (mismatch === "recognize_only" || (mismatch === "translate" && input.taskMode) || (mismatch === "prompt" && input.initialPrompt !== undefined)
         || (mismatch === "language" && input.language)) throw new ToolFailure(`studio_transcription_model_${mismatch}`);
-      ctx.check(); controller.setConfig(parsedConfig.data);
+      ctx.check();
+      // A standard batch carries the page's settings; Japanese/ASMR derives its own config, so the page's saved
+      // settings stay as the user left them.
+      if (plan.mode === "standard") controller.setConfig(plan.config);
       // Translation for this batch only: the user's saved Studio choice comes back once it is submitted or dropped.
       const savedAutomatic = before.autoTranslation;
       const restoreAutomatic = () => controller.setAutoTranslation(savedAutomatic);
@@ -280,7 +294,7 @@ export const modernAgentTools = {
         const accepted = !!library && (!requested.presetId || !!preset) && controller.setAutomaticKnowledge({ enabled: true,
           collectionIds: [...new Set([...(preset?.collectionIds ?? []), ...requested.collectionIds])], disabledEntryIds: [],
           ...(preset?.instructions ? { instructions: preset.instructions } : {}), ...(preset?.context ? { context: preset.context } : {}),
-          sourceLanguage: (requested.sourceLanguage ?? preset?.languagePair.source ?? (parsedConfig.data.language === "auto" ? "" : parsedConfig.data.language)) as never }, library.generation);
+          sourceLanguage: (requested.sourceLanguage ?? preset?.languagePair.source ?? (plan.config.language === "auto" ? "" : plan.config.language)) as never }, library.generation);
         if (!accepted) { restoreAutomatic(); throw new ToolFailure("studio_translation_knowledge_invalid"); }
       }
       ctx.check();
@@ -303,22 +317,29 @@ export const modernAgentTools = {
       try {
         ctx.check();
         if (!ownedIds.length) return selected.error ? failed(selected.error) : succeeded({ cancelled: true });
-        const readiness = getTranscriptionReadiness(selected);
+        const readiness = getTranscriptionReadiness(selected, plan.mode);
         // Draft IDs are native file capabilities. Use display-only row references in receipts.
         const preparationReceipt = receipt("preparation", selected.drafts.map((draft, index) => ({ id: `media-${index + 1}`,
           name: draft.displayName, status: draft.status === "ready" && !readiness.reason ? "ready" : "failed",
           ...(draft.status !== "ready" || readiness.reason ? { error: draft.error ?? readiness.reason ?? "studio_transcription_media_not_ready" } : {}) })));
         if (!readiness.canEnqueue || readiness.readyCount !== ownedIds.length) {
-          release(); return failed(readiness.reason ?? "studio_transcription_media_not_ready", { receipt: preparationReceipt,
-            ...(readiness.reason && LOCAL_RESOURCE_REASONS.has(readiness.reason) ? { nextAction: LOCAL_RESOURCES_HINT } : {}) });
+          release(); return failed(readiness.reason ?? "studio_transcription_media_not_ready", { receipt: preparationReceipt, mode: plan.mode,
+            ...(readiness.reason && LOCAL_RESOURCE_REASONS.has(readiness.reason) ? { nextAction: plan.mode === "japanese_asmr"
+              ? `${LOCAL_RESOURCES_HINT} Japanese/ASMR needs its own timing (voice detection) model as well as the Japanese recognition model, both installed from the same resource manager. If the user would rather not install them, call this tool again with mode standard.`
+              : LOCAL_RESOURCES_HINT } : {}) });
         }
-        const signature = JSON.stringify({ config: selected.config, automatic: selected.autoTranslation, drafts: selected.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) });
+        // The page's mode and the batch's mode both matter: the mode is part of what the user can change meanwhile.
+        const signature = JSON.stringify({ mode: plan.mode, config: selected.config, automatic: selected.autoTranslation,
+          drafts: selected.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) });
         const sessionId = ctx.sessionId;
         const fileNames = selected.drafts.slice(0, 5).map(item => safeText(item.displayName, 120)).join(", ");
+        const modelLabel = plan.mode === "japanese_asmr" ? JAPANESE_ASMR_MODEL_ID : plan.config.modelId;
+        const languageLabel = plan.config.language;
         const action = registerPreparedAction({ sessionId, toolKey: "subtitleStudio", title: "Subtitle studio transcription",
           preparationReceipt,
-          summary: `${ownedIds.length} media files; ${safeText(selected.config.modelId, 128)}; ${selected.config.language}. ${fileNames}`, cleanup: release,
-          summaryKey: "home:prepared_transcription_summary", summaryValues: { count: ownedIds.length, model: selected.config.modelId, language: selected.config.language, files: fileNames,
+          summary: `${ownedIds.length} media files; ${plan.mode === "japanese_asmr" ? "Japanese/ASMR" : plan.config.modelId}; ${languageLabel}. ${fileNames}`, cleanup: release,
+          summaryKey: "home:prepared_transcription_summary", summaryValues: { count: ownedIds.length, model: modelLabel, language: languageLabel, files: fileNames,
+            ...(plan.mode === "japanese_asmr" ? { mode: "japanese_asmr" } : {}),
             ...(input.translation ? { translateTo: input.translation.language } : {}),
             ...(exportSpec ? { exportFormat: exportSpec.format, exportContent: exportSpec.mode, exportConflict: exportSpec.conflictPolicy, exportRemove: exportSpec.removeAfterExport ? 1 : 0 } : {}) },
           execute: async () => {
@@ -327,10 +348,13 @@ export const modernAgentTools = {
               error: controller.getState().drafts.find(current => current.id === ownedIds[index])?.error ?? error }))) });
             if (!useAgentStore.getState().hasSession(sessionId)) return notAdmitted("agent_session_changed");
             const current = controller.getState();
-            if (signature !== JSON.stringify({ config: current.config, automatic: current.autoTranslation, drafts: current.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) })) return notAdmitted("studio_transcription_draft_changed");
-            const currentReadiness = getTranscriptionReadiness(current);
+            if (signature !== JSON.stringify({ mode: plan.mode, config: current.config, automatic: current.autoTranslation,
+              drafts: current.drafts.map(item => ({ id: item.id, stream: item.audioStreamId })) })) return notAdmitted("studio_transcription_draft_changed");
+            const currentReadiness = getTranscriptionReadiness(current, plan.mode);
             if (!currentReadiness.canEnqueue || currentReadiness.readyCount !== ownedIds.length) return notAdmitted("studio_transcription_not_ready");
-            const admission = await controller.enqueue({ expectedDraftIds: ownedIds, autoExport: exportSpec ?? null });
+            // Japanese/ASMR results with ranges to check go on to translation and export as any other result: this
+            // tool never holds the automatic steps (that is the page's own setting for the user's own batches).
+            const admission = await controller.enqueue({ expectedDraftIds: ownedIds, autoExport: exportSpec ?? null, mode: plan.mode, holdOnReview: false });
             restoreAutomatic();
             if (admission && (input.translation || exportSpec)) watchStudioPipeline({ sessionId, taskIds: admission.tasks.map(item => item.taskId),
               translate: !!input.translation, exportFiles: !!exportSpec, removeAfterExport: !!exportSpec?.removeAfterExport });
@@ -338,14 +362,17 @@ export const modernAgentTools = {
               if (controller.getState().drafts.some(item => item.status === "submission_unknown")) return failed("studio_transcription_submission_unknown");
               return notAdmitted(controller.getState().error ?? "studio_transcription_not_admitted");
             }
-            return succeeded({ executionStatus: "queued", batchId: admission.batchId,
+            return succeeded({ executionStatus: "queued", batchId: admission.batchId, mode: plan.mode,
               receipt: receipt("submission", admission.tasks.map(item => ({ id: item.taskId, name: item.displayName, taskId: item.taskId, status: "queued" }))),
               tasks: admission.tasks.map(item => ({ taskId: item.taskId, name: safeText(item.displayName), status: item.status })),
               ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null, exportSettingsFrom: exportSource,
                 note: "Runs per file without you; you will get an interface event when the whole batch is done." } } : {}) });
           },
         });
-        return await exposePrepared(action, ctx, { ...pathPage, ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null, exportSettingsFrom: exportSource } } : {}) });
+        // Settings this mode does not have are not used; saying which keeps the caller from assuming they applied.
+        const modeNotice = { mode: plan.mode, ...(plan.ignoredSettings?.length ? { ignoredSettings: plan.ignoredSettings,
+          modeNote: `Ran as ${plan.mode === "japanese_asmr" ? "Japanese/ASMR" : "standard"}; ${plan.ignoredSettings.join(", ")} ${plan.ignoredSettings.length > 1 ? "were" : "was"} not used because this pipeline sets ${plan.ignoredSettings.length > 1 ? "them" : "it"} itself.` } : {}) };
+        return await exposePrepared(action, ctx, { ...pathPage, ...modeNotice, ...(input.translation || exportSpec ? { pipeline: { translateTo: input.translation?.language ?? null, export: exportSpec ?? null, exportSettingsFrom: exportSource } } : {}) });
       } catch (error) { release(); throw error; }
     }) }),
   get_local_transcription_status: tool({ description: "Read classic local subtitle transcriber runtime/resources and existing tasks. Does not install resources, start transcription or expose paths/file capabilities.",
