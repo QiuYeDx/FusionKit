@@ -111,8 +111,15 @@ installTestWindowMode(resolveTestWindowMode(process.env[TEST_WINDOW_MODE_ENV]));
 // Disable GPU Acceleration for Windows 7
 if (os.release().startsWith("6.1")) app.disableHardwareAcceleration();
 
-// Set application name for Windows 10+ notifications
-if (process.platform === "win32") app.setAppUserModelId(app.getName());
+// Windows resolves the running process to installer shortcuts (taskbar grouping,
+// icon, notifications) through this AppUserModelID, so it must stay identical to
+// `appId` in electron-builder.json / electron-builder.subtitle-studio.json.
+// A mismatched bare product name let stale pinned shortcuts hijack the taskbar
+// icon (FK-PIT-0199). Cannot import from the JSON builder configs here, so keep
+// the literal in sync with them.
+const APP_USER_MODEL_ID = "com.fusionkit.app";
+
+if (process.platform === "win32") app.setAppUserModelId(APP_USER_MODEL_ID);
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
