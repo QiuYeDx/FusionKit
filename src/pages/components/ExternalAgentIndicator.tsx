@@ -16,6 +16,15 @@ const TRIGGER_HEIGHT = 28;
 const SESSIONS_SHOWN = 3;
 const SHELL_SPRING = { type: "spring" as const, duration: 0.38, bounce: 0 };
 const CONTENT_EASE = [0.22, 1, 0.36, 1] as const;
+// Closing: ease-in-out keeps the panel readable while the shrinking shell clips it. An ease-out fade empties
+// the shell within a few frames and leaves it blank until the capsule's content arrives.
+const LEAVE_EASE = [0.4, 0, 0.2, 1] as const;
+// The shell grows toward the lower left and collapses toward the upper right, and each group of content moves
+// along with it. Opening: the capsule's content leaves toward the lower left, the panel's arrives from the upper
+// right. Closing: both run back toward the upper right, so the capsule's content returns from where it left
+// instead of travelling against the collapse.
+const TRIGGER_OFFSET = { x: -4, y: 4 };
+const PANEL_OFFSET = { x: 6, y: -8 };
 const REST_SHADOW = "0 0px 0px 0px rgb(0 0 0 / 0)";
 const OPEN_SHADOW = "0 18px 48px -16px rgb(0 0 0 / 0.35)";
 
@@ -142,7 +151,7 @@ export default function ExternalAgentIndicator() {
         <motion.div aria-hidden className="pointer-events-none absolute inset-0 bg-muted" initial={false}
           animate={{ opacity: hovered && !open ? 1 : 0 }} transition={reduceMotion ? { duration: 0 } : { duration: 0.16, ease: CONTENT_EASE }} />
         <motion.div aria-hidden className="pointer-events-none absolute inset-0 bg-popover" initial={false}
-          animate={{ opacity: open ? 0.96 : 0 }} transition={reduceMotion ? { duration: 0 } : { duration: open ? 0.24 : 0.2, ease: CONTENT_EASE }} />
+          animate={{ opacity: open ? 0.96 : 0 }} transition={reduceMotion ? { duration: 0 } : open ? { duration: 0.24, ease: CONTENT_EASE } : { duration: 0.3, ease: LEAVE_EASE }} />
 
         <AnimatePresence initial={false}>
           {!open && (
@@ -152,9 +161,9 @@ export default function ExternalAgentIndicator() {
               className="absolute right-0 top-0 flex h-[26px] items-center gap-1.5 whitespace-nowrap rounded-full bg-transparent px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               onPointerDown={(event) => event.preventDefault()}
               onClick={() => { setInteractive(false); setOpen(true); }}
-              initial={reduceMotion ? false : { opacity: 0, x: 4, y: -4 }}
-              animate={{ opacity: 1, x: 0, y: 0, transition: reduceMotion ? { duration: 0 } : { duration: 0.18, delay: 0.12, ease: CONTENT_EASE } }}
-              exit={{ opacity: 0, x: -4, y: 4, transition: reduceMotion ? { duration: 0 } : { duration: 0.12, ease: CONTENT_EASE } }}
+              initial={reduceMotion ? false : { opacity: 0, ...TRIGGER_OFFSET }}
+              animate={{ opacity: 1, x: 0, y: 0, transition: reduceMotion ? { duration: 0 } : { duration: 0.2, delay: 0.06, ease: CONTENT_EASE } }}
+              exit={{ opacity: 0, ...TRIGGER_OFFSET, transition: reduceMotion ? { duration: 0 } : { duration: 0.12, ease: CONTENT_EASE } }}
               whileTap={reduceMotion ? undefined : { scale: 0.96 }}>
               {triggerContent()}
             </motion.button>
@@ -167,8 +176,8 @@ export default function ExternalAgentIndicator() {
           aria-label={open ? t("external_agent.activity.titlebar.panel_title") : undefined} data-testid="titlebar-external-panel"
           className="absolute right-0 top-0 text-[13px]" style={{ width: PANEL_WIDTH - 2 }}
           initial={false}
-          animate={{ opacity: open ? 1 : 0, x: open ? 0 : 6, y: open ? 0 : -8 }}
-          transition={reduceMotion ? { duration: 0 } : { duration: open ? 0.22 : 0.14, delay: open ? 0.06 : 0, ease: CONTENT_EASE }}
+          animate={{ opacity: open ? 1 : 0, x: open ? 0 : PANEL_OFFSET.x, y: open ? 0 : PANEL_OFFSET.y }}
+          transition={reduceMotion ? { duration: 0 } : open ? { duration: 0.22, delay: 0.06, ease: CONTENT_EASE } : { duration: 0.18, ease: LEAVE_EASE }}
           inert={!interactive || undefined} aria-hidden={!open || undefined}>
           <div className="flex items-start gap-2.5 px-3.5 pb-2.5 pt-3">
             <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-smooth-md border bg-muted/50 text-muted-foreground"><Bot className="size-4" /></span>

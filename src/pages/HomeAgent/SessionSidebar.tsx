@@ -30,6 +30,21 @@ const HEADER_INSET = 6;
 /** No overshoot: the corners and border must land still. */
 const SHELL_SPRING = { type: "spring" as const, duration: 0.42, bounce: 0 };
 const CONTENT_EASE = [0.23, 1, 0.32, 1] as const;
+/** Closing: the list fades on an ease-in-out curve, so the shrinking container still clips readable content instead of an empty block. */
+const LEAVE_EASE = [0.4, 0, 0.2, 1] as const;
+/**
+ * The container grows out of the capsule toward the lower right and collapses back toward the upper left, and its
+ * content moves along. Opening: the capsule's title leaves toward the lower right and the list arrives from the
+ * upper left. Closing: both run back toward the upper left, so the title returns from where it left instead of
+ * travelling against the collapse.
+ */
+const CAPSULE_OFFSET = { x: 4, y: 4 };
+const PANEL_OFFSET = { x: -4, y: -4 };
+/** The list icon is one element in both states: closed it sits in the capsule, open at the start of the list's header. */
+const ICON_CLOSED = { left: 10, top: 6, width: 14, height: 14 };
+const ICON_OPEN = { left: 14, top: 12, width: 16, height: 16 };
+/** What the list's collapse button takes beside the "new conversation" button: its 28px and the 4px before it. */
+const COLLAPSE_SLOT = 32;
 const OPEN_SHADOW = "0 18px 48px -16px rgb(0 0 0 / 0.35)";
 const REST_SHADOW = "0 0px 0px 0px rgb(0 0 0 / 0)";
 
@@ -83,7 +98,8 @@ function SessionPanel({ onPicked, searchRef, height }: { onPicked?: () => void; 
   return <div className="flex flex-col" style={{ width: PANEL_WIDTH - 2, height: height - 2 }}>
     {/* The header's two buttons ride the container's top-right corner; the title leaves room for them. */}
     <div className="flex h-10 shrink-0 items-center gap-2 pr-[72px] pl-3.5">
-      <MessagesSquare aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      {/* The icon itself belongs to the container (see ICON_OPEN); this keeps its place. */}
+      <span aria-hidden className="size-4 shrink-0" />
       <h2 className="min-w-0 truncate text-sm font-medium">{t("home:sessions_title")}</h2>
     </div>
     <div className="px-2 pt-0.5 pb-2">
@@ -202,10 +218,16 @@ export default function SessionSidebar() {
   const transition = reduceMotion ? { duration: 0 } : SHELL_SPRING;
   const contentIn = reduceMotion ? { duration: 0.12 } : { duration: 0.22, delay: 0.08, ease: CONTENT_EASE };
   const contentOut = { duration: reduceMotion ? 0.1 : 0.12, ease: CONTENT_EASE };
+  // The list follows the container closely: it arrives right behind the capsule's title and leaves on a slower curve.
+  const panelIn = reduceMotion ? contentIn : { duration: 0.22, delay: 0.05, ease: CONTENT_EASE };
+  const panelOut = reduceMotion ? contentOut : { duration: 0.18, ease: LEAVE_EASE };
+  // The capsule's title and divider come back while the list is still leaving, so the container is never an empty block.
+  const capsuleIn = reduceMotion ? { duration: 0 } : { duration: 0.2, delay: 0.06, ease: CONTENT_EASE };
+  const dividerIn = reduceMotion ? { duration: 0 } : { duration: 0.18, delay: 0.08, ease: CONTENT_EASE };
   const capsuleLabel = title || t("home:sessions_new");
-  // The title, the list icon and the dot, as the capsule shows them; measured from a hidden copy.
+  // The title and the dot, as the capsule shows them, after a place for the list icon; measured from a hidden copy.
   const capsuleContent = <>
-    <MessagesSquare aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+    <span aria-hidden className="size-3.5 shrink-0" />
     <span className="min-w-0 max-w-44 truncate">{capsuleLabel}</span>
     <ActivityDot state={activity} />
   </>;
@@ -241,27 +263,33 @@ export default function SessionSidebar() {
           onClick={() => { quiet.current = true; expand(); }}
           className="absolute top-0 left-0 flex h-[26px] items-center gap-1.5 whitespace-nowrap rounded-full pr-2 pl-2.5 text-xs text-foreground/85 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           style={{ width: capsuleWidth || undefined }}
-          initial={reduceMotion ? false : { opacity: 0, x: -4 }}
-          animate={{ opacity: 1, x: 0, transition: reduceMotion ? { duration: 0 } : { duration: 0.18, delay: 0.12, ease: CONTENT_EASE } }}
-          exit={{ opacity: 0, x: reduceMotion ? 0 : -4, transition: contentOut }}>
+          initial={reduceMotion ? false : { opacity: 0, ...CAPSULE_OFFSET }}
+          animate={{ opacity: 1, x: 0, y: 0, transition: capsuleIn }}
+          exit={{ opacity: 0, ...(reduceMotion ? { x: 0, y: 0 } : CAPSULE_OFFSET), transition: contentOut }}>
           {capsuleContent}
         </motion.button>}
       </AnimatePresence>
 
       <AnimatePresence initial={false}>
         {open && <motion.div key="panel" className="absolute top-0 left-0" data-testid="agent-sessions-sidebar" data-mode={docked ? "docked" : "overlay"}
-          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0, transition: contentIn }}
-          exit={{ opacity: 0, y: reduceMotion ? 0 : -4, transition: contentOut }}>
+          initial={reduceMotion ? { opacity: 0 } : { opacity: 0, ...PANEL_OFFSET }}
+          animate={{ opacity: 1, x: 0, y: 0, transition: panelIn }}
+          exit={{ opacity: 0, ...(reduceMotion ? { x: 0, y: 0 } : PANEL_OFFSET), transition: panelOut }}>
           <SessionPanel height={panelHeight} searchRef={searchRef} onPicked={floating ? () => closeOverlay(true) : undefined} />
         </motion.div>}
       </AnimatePresence>
 
+      {/* The list icon is in the capsule and in the list's header: one element riding between the two places, never faded out in one and in at the other. */}
+      <motion.span aria-hidden data-testid="agent-sessions-icon" className="pointer-events-none absolute z-10 flex text-muted-foreground" initial={false}
+        animate={open ? ICON_OPEN : ICON_CLOSED} transition={transition}>
+        <MessagesSquare className="size-full" />
+      </motion.span>
+
       {/* Rides the top-right corner: the capsule's end, then the list header's right side. */}
-      <motion.div className="absolute z-10 flex items-center gap-1" data-testid="agent-sessions-toggles" initial={false}
+      <motion.div className="absolute z-10 flex items-center" data-testid="agent-sessions-toggles" initial={false}
         animate={open ? { top: HEADER_INSET, right: HEADER_INSET } : { top: 0, right: 0 }} transition={transition}>
         <AnimatePresence initial={false}>
-          {!open && <motion.span key="divider" aria-hidden className="h-3.5 w-px bg-border" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.08 } }} />}
+          {!open && <motion.span key="divider" aria-hidden className="mr-1 h-3.5 w-px bg-border" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: dividerIn }} exit={{ opacity: 0, transition: { duration: 0.08 } }} />}
         </AnimatePresence>
         <QuietTooltip label={t("home:sessions_new")} quiet={quiet}>
           <Button type="button" variant="ghost" size="icon-sm" aria-label={t("home:sessions_new")} data-testid={open ? "agent-sessions-new" : "agent-sessions-new-collapsed"}
@@ -271,15 +299,19 @@ export default function SessionSidebar() {
             <SquarePen className="size-3.5" />
           </Button>
         </QuietTooltip>
-        <AnimatePresence initial={false} mode="popLayout">
-          {open && <motion.span key="collapse" initial={reduceMotion ? false : { opacity: 0, scale: 0.7 }}
-            animate={{ opacity: 1, scale: 1, transition: contentIn }} exit={{ opacity: 0, scale: reduceMotion ? 1 : 0.7, transition: contentOut }}>
-            <QuietTooltip label={t("home:sessions_collapse")} quiet={quiet}>
-              <Button ref={collapseRef} type="button" variant="ghost" size="icon-sm" aria-label={t("home:sessions_collapse")} aria-expanded data-testid="agent-sessions-collapse"
-                onClick={collapse} className="size-7 rounded-smooth-md text-muted-foreground hover:text-foreground">
-                <PanelLeftClose className="size-4" />
-              </Button>
-            </QuietTooltip>
+        {/* Its place opens and closes with the container, so the "new conversation" button glides instead of jumping when the collapse button comes or goes. */}
+        <AnimatePresence initial={false}>
+          {open && <motion.span key="collapse-slot" className="flex shrink-0 justify-end overflow-x-clip [overflow-clip-margin:4px]"
+            initial={reduceMotion ? false : { width: 0 }} animate={{ width: COLLAPSE_SLOT }} exit={{ width: 0 }} transition={transition}>
+            <motion.span className="flex shrink-0 pl-1" initial={reduceMotion ? false : { opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1, transition: contentIn }} exit={{ opacity: 0, scale: reduceMotion ? 1 : 0.7, transition: contentOut }}>
+              <QuietTooltip label={t("home:sessions_collapse")} quiet={quiet}>
+                <Button ref={collapseRef} type="button" variant="ghost" size="icon-sm" aria-label={t("home:sessions_collapse")} aria-expanded data-testid="agent-sessions-collapse"
+                  onClick={collapse} className="size-7 rounded-smooth-md text-muted-foreground hover:text-foreground">
+                  <PanelLeftClose className="size-4" />
+                </Button>
+              </QuietTooltip>
+            </motion.span>
           </motion.span>}
         </AnimatePresence>
       </motion.div>
