@@ -78,12 +78,28 @@ const INSPECT_SCRIPT = [
   '  productVersion = [string]$info.ProductVersion; fileDescription = [string]$info.FileDescription } | ConvertTo-Json -Compress',
 ].join('\n');
 
+/**
+ * Env for the Windows PowerShell child process. PSModulePath inherited from a PowerShell 7
+ * parent (running pnpm build from pwsh) makes 5.1 auto-load the Core edition of
+ * Microsoft.PowerShell.Security, so Get-AuthenticodeSignature fails with
+ * CouldNotAutoloadMatchingModule; dropped here, 5.1 rebuilds its default module path
+ * from the registry. Case-insensitive because Windows preserves the original casing.
+ */
+function windowsPowerShellChildEnv(env, inspectFile) {
+  const child = {};
+  for (const [name, value] of Object.entries(env)) {
+    if (name.toLowerCase() !== 'psmodulepath') child[name] = value;
+  }
+  child.FUSIONKIT_VC_REDIST_INSPECT = inspectFile;
+  return child;
+}
+
 /** Authenticode status, signer and version resource, read by Windows PowerShell. */
 export function inspectRedistSignature(file, { execute = execFile, env = process.env } = {}) {
   const powershell = path.join(env.SystemRoot || env.windir || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   return new Promise((resolve, reject) => {
     execute(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', INSPECT_SCRIPT],
-      { env: { ...env, FUSIONKIT_VC_REDIST_INSPECT: file }, windowsHide: true, timeout: 60_000, maxBuffer: 1024 * 1024 },
+      { env: windowsPowerShellChildEnv(env, file), windowsHide: true, timeout: 60_000, maxBuffer: 1024 * 1024 },
       (error, stdout) => {
         if (error) { reject(vcRedistError('Could not read the VC++ redistributable signature.', error)); return; }
         try { resolve(JSON.parse(String(stdout).trim())); } catch (cause) { reject(vcRedistError('Unreadable signature report.', cause)); }

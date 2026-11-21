@@ -65,6 +65,22 @@ test('reads real Authenticode results through Windows PowerShell', { skip: proce
   } finally { f.cleanup(); }
 });
 
+test('drops PSModulePath before spawning Windows PowerShell', async () => {
+  let seenEnv;
+  const execute = (_file, _args, options, callback) => {
+    seenEnv = options.env;
+    callback(null, JSON.stringify({ status: 'Valid', subject: 'CN=Microsoft Corporation, O=Microsoft Corporation', productVersion: '14.52.36500.0',
+      fileDescription: 'Microsoft Visual C++ v14 Redistributable (x64) - 14.52.36500' }));
+  };
+  const file = 'C:\\fake\\vc_redist.x64.exe';
+  await inspectRedistSignature(file, { execute, env: { SystemRoot: 'C:\\Windows', PSModulePath: 'c:\\program files\\powershell\\7\\Modules', psmodulepath: 'x', PATH: 'keep' } });
+  // A PowerShell 7 PSModulePath would make 5.1 auto-load Core modules and break Get-AuthenticodeSignature.
+  assert.deepEqual(Object.keys(seenEnv).filter(name => name.toLowerCase() === 'psmodulepath'), []);
+  assert.equal(seenEnv.FUSIONKIT_VC_REDIST_INSPECT, file);
+  assert.equal(seenEnv.SystemRoot, 'C:\\Windows');
+  assert.equal(seenEnv.PATH, 'keep');
+});
+
 test('downloads an official file once, then reuses the verified cache', async () => {
   const f = tempRoot();
   try {
